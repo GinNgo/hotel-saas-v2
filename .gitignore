@@ -1,0 +1,46 @@
+# ═══════════════════════════════════════════════════════
+# Hotel SaaS Platform — Root .gitignore
+# ═══════════════════════════════════════════════════════
+
+# ── .NET ──
+backend/**/bin/
+backend/**/obj/
+backend/**/*.user
+backend/**/*.suo
+backend/**/.vs/
+*.nupkg
+
+# ── Node / Angular ──
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+
+# ── Environment & Secrets ──
+.env
+.env.*
+!.env.example
+**/appsettings.*.json
+!**/appsettings.json
+!**/appsettings.Development.json
+
+# ── Docker ──
+docker/data/
+
+# ── IDE ──
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── Logs ──
+*.log
+logs/
