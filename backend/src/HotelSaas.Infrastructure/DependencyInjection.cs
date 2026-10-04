@@ -28,7 +28,12 @@ public static class DependencyInjection
                 npgsqlOptions => npgsqlOptions.MigrationsAssembly(
                     typeof(ApplicationDbContext).Assembly.FullName)));
 
+        services.AddScoped<IApplicationDbContext>(sp =>
+            sp.GetRequiredService<ApplicationDbContext>());
+
         services.AddScoped<ICurrentTenantService, CurrentTenantService>();
+        services.AddScoped<IPasswordHasher, PasswordHasherService>();
+        services.AddScoped<IJwtService, JwtService>();
 
         return services;
     }

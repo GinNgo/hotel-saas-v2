@@ -9,7 +9,7 @@ namespace HotelSaas.Infrastructure.Persistence;
 /// Primary database context for the Hotel SaaS platform.
 /// Applies tenant-scoped global query filters and automatic audit timestamps.
 /// </summary>
-public sealed class ApplicationDbContext : DbContext
+public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
 {
     private readonly ICurrentTenantService _currentTenantService;
 
@@ -55,6 +55,36 @@ public sealed class ApplicationDbContext : DbContext
 
     /// <summary>Guest reservations and bookings.</summary>
     public DbSet<Reservation> Reservations => Set<Reservation>();
+
+    /// <summary>Payment records for reservations and services.</summary>
+    public DbSet<Payment> Payments => Set<Payment>();
+
+    /// <summary>Tenant subscription plans.</summary>
+    public DbSet<Subscription> Subscriptions => Set<Subscription>();
+
+    /// <summary>Payments linked to subscriptions.</summary>
+    public DbSet<SubscriptionPayment> SubscriptionPayments => Set<SubscriptionPayment>();
+
+    /// <summary>Invoice documents issued to guests or tenants.</summary>
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+
+    /// <summary>Individual line items within an invoice.</summary>
+    public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
+
+    /// <summary>Housekeeping task assignments for rooms.</summary>
+    public DbSet<HousekeepingTask> HousekeepingTasks => Set<HousekeepingTask>();
+
+    /// <summary>System and user notifications.</summary>
+    public DbSet<Notification> Notifications => Set<Notification>();
+
+    /// <summary>Promotional offers and discount codes.</summary>
+    public DbSet<Promotion> Promotions => Set<Promotion>();
+
+    /// <summary>Guest reviews and ratings for properties.</summary>
+    public DbSet<GuestReview> GuestReviews => Set<GuestReview>();
+
+    /// <summary>AI feature usage tracking logs.</summary>
+    public DbSet<AiUsageLog> AiUsageLogs => Set<AiUsageLog>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
