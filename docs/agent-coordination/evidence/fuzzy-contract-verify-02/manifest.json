@@ -1,0 +1,59 @@
+{
+  "taskId": "P7-FUZZY-CONTRACT-VERIFY-02",
+  "round": 2,
+  "submissionId": "sub-p7-fuzzy-contract-verify-02-r2-20261011",
+  "generatedAt": "2026-10-11T15:22:00+07:00",
+  "actor": "antigravity",
+  "environment": {
+    "os": "Windows",
+    "dotnet": "10.0.301",
+    "node": "v26.2.0",
+    "vitest": "v5.0.3",
+    "branch": "develop",
+    "headCommit": "3f95339"
+  },
+  "executions": [
+    {
+      "suite": "backend-application-tests",
+      "command": "dotnet test backend/tests/HotelSaas.Application.Tests/HotelSaas.Application.Tests.csproj --filter \"FullyQualifiedName~FuzzyPropertyMatcherTests|FullyQualifiedName~GetPublicPropertiesSyntheticTests|FullyQualifiedName~GetPublicPropertiesSerializationTests\" --logger \"console;verbosity=normal\" --no-restore",
+      "cwd": "C:\\Dev\\hotel-saas-v2",
+      "exitCode": 0,
+      "totalTests": 86,
+      "passed": 86,
+      "failed": 0,
+      "skipped": 0,
+      "duration": "2.30s",
+      "logFile": "docs/agent-coordination/evidence/fuzzy-contract-verify-02/backend-test.log"
+    },
+    {
+      "suite": "frontend-vitest",
+      "command": "node ./node_modules/vitest/vitest.mjs run src/app/core/services/public-booking.service.spec.ts src/app/features/public-booking/public-booking.page.spec.ts",
+      "cwd": "C:\\Dev\\hotel-saas-v2\\frontend",
+      "exitCode": 0,
+      "totalTests": 57,
+      "passed": 57,
+      "failed": 0,
+      "duration": "1.85s",
+      "logFile": "docs/agent-coordination/evidence/fuzzy-contract-verify-02/frontend-test.log"
+    }
+  ],
+  "fileHashes": {
+    "backend/src/HotelSaas.Application/Public/Queries/GetPublicProperties/GetPublicPropertiesQuery.cs": "AA3FFFB7326FD93E3E3DBCA21ACAE52C12F1AA554F76FF119DD977F16851C120",
+    "backend/src/HotelSaas.Application/Common/Utils/FuzzyPropertyMatcher.cs": "61F68D89C723F401BFF21DFAA67F346363E9CCCBF52BAA034696EA63C86F871F",
+    "backend/src/HotelSaas.WebApi/Controllers/PublicController.cs": "6D1DB28A3482E86B51782F257D0421433ADABDA4D7F24C70C5C457AC68C13C64",
+    "backend/tests/HotelSaas.Application.Tests/Public/GetPublicPropertiesSerializationTests.cs": "60C096EFC68E405EC74065E984A048D9EEFE72AC74E15887F6A1E544B18FD3A8",
+    "backend/tests/HotelSaas.Application.Tests/Public/GetPublicPropertiesSyntheticTests.cs": "A44F716628830E18081CAEDADCEEB3FC3EEF9CB17ED0DF29324435D370D45512",
+    "backend/tests/HotelSaas.Application.Tests/Public/FuzzyPropertyMatcherTests.cs": "B81E068F9024B98AFAA49C6D58BBD93D2822D72755A16DD063F3DBAC05381C37",
+    "frontend/src/app/core/services/public-booking.service.ts": "2271191712BC446A0B13960664DD6EAE4635FE08D1FE1FA4164AC37049DA7DE0",
+    "frontend/src/app/core/services/public-booking.service.spec.ts": "C7A126ED6F75A786E13546564F9DE7E803690206B8A059C849C2649296D26672",
+    "frontend/src/app/core/models/public-booking.model.ts": "B70C8B0769E4A7E599C4990CE8F5CE7A0FE21DA4B3B7FBC53525504C27556FEB",
+    "frontend/src/app/features/public-booking/public-booking.page.spec.ts": "0F8A411FE369280BD0C68E3BA524668B0B88881886A0789E2F531C6CF86337ED"
+  },
+  "limitations": [
+    "No-DB Execution: All tests run 100% in-memory with synthetic fixtures. No dev/staging/prod/ambient PostgreSQL connections were initialized.",
+    "SQL Translation: In-memory LINQ evaluation does not verify PostgreSQL EF Core Npgsql SQL translation; that is isolated in GetPublicPropertiesQueryTests.cs.",
+    "HTTP Network Transport: Existing WebApplicationFactory harnesses in HotelSaas.WebApi.Tests require live PostgreSQL (RealDatabaseTests). To strictly maintain the NO-DB mandate, controller metadata (route, method, attributes, parameter bindings) was verified via reflection and frontend contract was verified via HttpTestingController.",
+    "Serializer Options: WebApiProdOptions is a source-equivalent copy of the JsonSerializerOptions configured in Program.cs (lines 54-60), not a runtime DI-resolved instance from WebApplicationFactory.",
+    "Service Concurrency: PublicBookingService is transport-pure and emits independently per HTTP call. Race cancellation, switchMap discarding, and latest-request-wins coordination reside at the component layer (BookingPage) and are tested in public-booking.page.spec.ts."
+  ]
+}

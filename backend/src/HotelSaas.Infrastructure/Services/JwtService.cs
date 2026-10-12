@@ -32,11 +32,13 @@ public sealed class JwtService : IJwtService
         string fullName,
         string globalRole,
         Guid? tenantId,
-        IReadOnlyList<string>? permissions)
+        IReadOnlyList<string>? permissions,
+        Guid? propertyId = null,
+        string? scope = null,
+        string? staffRole = null)
     {
         var jwtSettings = _configuration.GetSection("JwtSettings");
-        var secretKey = jwtSettings["SecretKey"]
-            ?? throw new InvalidOperationException("JwtSettings:SecretKey is not configured.");
+        var secretKey = JwtKeyValidator.ValidateSecretKey(jwtSettings["SecretKey"]);
         var issuer = jwtSettings["Issuer"] ?? "HotelSaas";
         var audience = jwtSettings["Audience"] ?? "HotelSaasClient";
         var accessTokenExpirationMinutes = int.Parse(
@@ -59,6 +61,23 @@ public sealed class JwtService : IJwtService
         if (tenantId.HasValue)
         {
             claims.Add(new Claim("tenantId", tenantId.Value.ToString()));
+            claims.Add(new Claim("tid", tenantId.Value.ToString()));
+        }
+
+        if (propertyId.HasValue)
+        {
+            claims.Add(new Claim("propertyId", propertyId.Value.ToString()));
+            claims.Add(new Claim("pid", propertyId.Value.ToString()));
+        }
+
+        if (!string.IsNullOrEmpty(scope))
+        {
+            claims.Add(new Claim("scope", scope));
+        }
+
+        if (!string.IsNullOrEmpty(staffRole))
+        {
+            claims.Add(new Claim("staffRole", staffRole));
         }
 
         if (permissions is { Count: > 0 })
@@ -100,8 +119,7 @@ public sealed class JwtService : IJwtService
     public ClaimsPrincipal GetPrincipalFromExpiredToken(string token)
     {
         var jwtSettings = _configuration.GetSection("JwtSettings");
-        var secretKey = jwtSettings["SecretKey"]
-            ?? throw new InvalidOperationException("JwtSettings:SecretKey is not configured.");
+        var secretKey = JwtKeyValidator.ValidateSecretKey(jwtSettings["SecretKey"]);
 
         var tokenValidationParameters = new TokenValidationParameters
         {
@@ -115,6 +133,7 @@ public sealed class JwtService : IJwtService
         };
 
         var tokenHandler = new JwtSecurityTokenHandler();
+        tokenHandler.InboundClaimTypeMap.Clear();
         var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out var securityToken);
 
         if (securityToken is not JwtSecurityToken jwtSecurityToken ||

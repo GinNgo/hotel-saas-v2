@@ -9,6 +9,29 @@
 
 ## Epic 1: Authentication & Account Management
 
+### US-1.0 Đăng ký cơ sở lưu trú (Hotel Owner)
+
+> **As a** Hotel Owner, **I want to** tạo tài khoản và đăng ký cơ sở của mình,
+> **so that** tôi có thể quản lý tenant và đưa cơ sở lên catalog công khai sau khi hoàn tất thông tin.
+
+**Acceptance Criteria:**
+- **Given** người dùng chưa đăng nhập, **When** đăng ký vai trò chủ cơ sở, **Then** tài khoản chỉ nhận quyền Owner của tenant do họ tạo; không thể tự cấp quyền Platform Admin
+- **Given** Owner tạo tenant, **When** lưu thành công, **Then** tenant được liên kết với user và bắt đầu ở trạng thái chưa xuất bản/chờ kích hoạt theo chính sách nền tảng
+- **Given** tenant chưa đủ tên, địa chỉ Việt Nam, tọa độ ghim, thông tin liên hệ và ít nhất một loại phòng có giá/sức chứa, **When** Owner yêu cầu xuất bản, **Then** hệ thống từ chối và chỉ rõ trường còn thiếu
+- **Given** Platform Admin tạm ngưng tenant, **When** khách tìm kiếm công khai, **Then** tenant không xuất hiện và Owner không thể nhận booking mới
+- **Priority:** P0 | **Estimate:** TBD | **Phase:** 1–2
+
+### US-1.0a Quản trị tenant nền tảng (Platform Admin)
+
+> **As a** Platform Admin, **I want to** xem và quản lý trạng thái tenant,
+> **so that** tôi vận hành catalog và hỗ trợ cơ sở lưu trú.
+
+**Acceptance Criteria:**
+- **Given** người dùng không có quyền platform admin, **When** gọi API hoặc mở giao diện quản trị tenant, **Then** bị từ chối phía server
+- **Given** Platform Admin hợp lệ, **When** xem danh sách tenant, **Then** thấy trạng thái, owner, ngày tạo và trạng thái công khai
+- **Given** Platform Admin kích hoạt/tạm ngưng tenant, **When** thao tác hoàn tất, **Then** thay đổi được ghi nhận và ảnh hưởng ngay đến catalog public
+- **Priority:** P0 | **Estimate:** TBD | **Phase:** 1
+
 ### US-1.1 Đăng ký tài khoản Guest
 
 > **As a** Guest, **I want to** đăng ký tài khoản bằng email,
@@ -154,6 +177,30 @@
 - **Given** thanh toán VNPay thành công, **Then** booking chuyển Confirmed + gửi email confirmation
 - **Given** không thanh toán trong 30 phút, **Then** booking tự hủy (BookingHoldCleanup worker)
 - **Priority:** P1 | **Estimate:** 8 SP | **Phase:** 2
+
+### US-4.5 Tìm nơi lưu trú công khai tại Việt Nam
+
+> **As a** Guest, **I want to** tìm cơ sở lưu trú theo địa điểm và xem kết quả dạng danh sách/bản đồ,
+> **so that** tôi chọn nơi phù hợp và biết phòng còn khả dụng trước khi đặt.
+
+**Acceptance Criteria:**
+- **Given** trang tìm kiếm public, **When** nhập tỉnh/thành, địa danh hoặc từ khóa địa chỉ cùng ngày ở và số khách, **Then** chỉ trả về tenant đang hoạt động, đã xuất bản và có phòng phù hợp
+- **Given** guest thay đổi bộ lọc giá/loại cơ sở/tiện nghi/ngày/khách, **When** áp dụng bộ lọc, **Then** danh sách và bản đồ hiển thị cùng một tập kết quả
+- **Given** property thiếu tọa độ hợp lệ, **When** xem kết quả, **Then** property vẫn có thể xuất hiện trong danh sách nhưng không có marker giả trên bản đồ
+- **Given** guest chọn một marker hoặc kết quả, **When** mở chi tiết, **Then** thấy địa chỉ, giá/chính sách và tình trạng được kiểm tra lại trước khi tạo booking
+- **Given** khách không cấp quyền vị trí thiết bị, **When** tìm kiếm theo địa danh, **Then** toàn bộ chức năng tìm theo địa chỉ vẫn hoạt động
+- **Priority:** P0 | **Estimate:** TBD | **Phase:** 3–4
+
+### US-4.6 Agent hỗ trợ tìm chỗ ở (sau MVP)
+
+> **As a** Guest, **I want to** mô tả nhu cầu bằng ngôn ngữ tự nhiên,
+> **so that** hệ thống gợi ý bộ lọc và kết quả phù hợp.
+
+**Acceptance Criteria:**
+- **Given** guest nhập yêu cầu như “gần biển Đà Nẵng, dưới một triệu/đêm”, **When** agent xử lý, **Then** agent tạo ra các bộ lọc có cấu trúc và hiển thị cho guest xác nhận
+- **Given** guest xác nhận bộ lọc, **When** agent tìm kiếm, **Then** kết quả đến từ cùng catalog/search API như tìm kiếm thường
+- **Given** dữ liệu không có kết quả hoặc agent không chắc địa danh/đơn vị giá, **When** phản hồi, **Then** hỏi làm rõ hoặc báo không có kết quả; không bịa giá, tiện nghi, tọa độ hay tình trạng phòng
+- **Priority:** P2 | **Estimate:** TBD | **Phase:** Sau MVP
 
 ### US-4.3 Check-in
 

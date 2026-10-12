@@ -22,7 +22,7 @@ flowchart TD
     VNPay["💳 VNPay Gateway<br/>───<br/>Xử lý thanh toán<br/>online"]
     GeminiAI["🤖 Gemini AI API<br/>───<br/>Chatbot, pricing,<br/>reports"]
     EmailSvc["📧 Email Service<br/>(SMTP)<br/>───<br/>Confirmation,<br/>notification"]
-    MapSvc["🗺️ Leaflet Maps<br/>───<br/>Hiển thị vị trí<br/>property"]
+    MapSvc["🗺️ Map provider (TBD)<br/>───<br/>Bản đồ Việt Nam<br/>hiển thị vị trí"]
 
     Guest -->|"Đặt phòng,<br/>thanh toán"| System
     Staff -->|"Quản lý<br/>operations"| System

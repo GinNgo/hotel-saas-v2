@@ -1,4 +1,5 @@
 using HotelSaas.Application.Auth.DTOs;
+using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
@@ -31,7 +32,7 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Re
             .AnyAsync(u => u.Email.ToLower() == request.Email.ToLower(), cancellationToken);
 
         if (emailExists)
-            throw new InvalidOperationException("Email đã được sử dụng.");
+            throw new ConflictException("Email đã được sử dụng.");
 
         var user = new User
         {

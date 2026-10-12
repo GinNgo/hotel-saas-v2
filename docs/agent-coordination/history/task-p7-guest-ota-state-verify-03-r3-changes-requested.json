@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "workspace": "C:\\Dev\\hotel-saas-v2",
+  "taskId": "P7-GUEST-OTA-STATE-VERIFY-03",
+  "round": 3,
+  "status": "ChangesRequested",
+  "updatedAt": "2026-10-11T16:05:18.236Z",
+  "writer": "none",
+  "antigravity": {
+    "status": "Submitted",
+    "conversationId": "b24752d6-e881-4372-b79e-186db67e5233",
+    "sessionLink": null,
+    "heartbeatAt": "2026-10-11T23:00:00+07:00"
+  },
+  "codex": {
+    "status": "ChangesRequested",
+    "sessionLink": null,
+    "heartbeatAt": "2026-10-11T16:05:18.236Z"
+  },
+  "submissionId": "sub-p7-guest-ota-state-verify-03-r3-20261011",
+  "reviewedSubmissionId": "sub-p7-guest-ota-state-verify-03-r3-20261011",
+  "nextAction": "Same task round4: correct partial mobile reverse/hourly chronology/clear refocus claims and unsupported historical capture times; retain actual observations with explicit limitations, or record genuinely missing actions. No redesign or new scope.",
+  "needsPO": [
+    "D21 lookup TTL mốc dự kiến/thực tế + revoke/reissue contract",
+    "Quote5min/hold15min price pinning và stale-quote acknowledgement",
+    "PO Gate 1 (Hợp đồng API tìm kiếm: Giữ endpoint hiện tại hay tạo GET /api/public/search/properties và kế hoạch di chuyển client)",
+    "PO Gate 2 (Chính sách xuất bản: Đồng bộ enforce IsPublished == true trên toàn bộ public discovery hay giữ Active-only)",
+    "PO Gate 3 (Nguồn Dataset Hành chính Việt Nam có thẩm quyền, phiên bản, ngày hiệu lực và license)",
+    "PO Gate 4 (Kế hoạch Migration bổ sung ProvinceCode, Ward, WardCode, LandmarkTags cho Property)",
+    "PO Gate 5 (Cơ chế tìm kiếm phòng trống xuyên cơ sở: Two-step discovery vs Aggregated search theo Tỉnh/Thành)"
+  ],
+  "evidence": [
+    "docs/agent-coordination/assignment.md",
+    "docs/agent-coordination/guest-ota-ui-03-brief.md",
+    "docs/agent-coordination/decisions.md",
+    "docs/agent-coordination/submission.md",
+    "docs/agent-coordination/evidence/guest-ota-state-verify-03/manifest.json",
+    "docs/agent-coordination/evidence/guest-ota-state-verify-03/source-manifest.json",
+    "docs/agent-coordination/evidence/guest-ota-state-verify-03/capture-log.json",
+    "docs/agent-coordination/evidence/guest-ota-state-verify-03/network-audit.json"
+  ]
+}

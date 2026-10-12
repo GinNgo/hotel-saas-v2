@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "taskId": "P7-GUEST-KEYBOARD-CONTINUITY-04",
+  "round": 1,
+  "submissionId": "sub-p7-guest-keyboard-continuity-04-r1-20261011",
+  "capturedAt": "2026-10-11T23:42:00+07:00",
+  "actor": "antigravity",
+  "environment": "Synthetic Loopback Chrome CDP (http://127.0.0.1:4282/booking)",
+  "deviceScaleFactor": 1,
+  "servedBuildHashes": {
+    "index.html": "5136EDFCCC7F9F7242B1E45A63A38A8A2A4381B71926EB473C236E408EE68471",
+    "main-VOVICY46.js": "E7E4AF2A6B315A47B1BEE0A0727DABC9FBC4F7C74662972294E65E83E772EDAC",
+    "polyfills-LVNOU2XZ.js": "F1B35A3B4DB37B73CA0281D6B6247701465FF9E56A7A7B3AFF9784518DC2C30A",
+    "styles-6JJ6BZPE.css": "8AC14F155576052F789B1812B070DF7776332AE59B5D99419C01CE4B38952FF5",
+    "chunk-BBKId7t-.js": "51A70910292857B6D0F7CF610BDBD8EC0175BBD43B89096E4AFF9CB8864644DD"
+  },
+  "sourceProvenance": {
+    "manifestFile": "docs/agent-coordination/evidence/guest-keyboard-continuity-04/source-manifest.json",
+    "captureLogFile": "docs/agent-coordination/evidence/guest-keyboard-continuity-04/capture-log.json",
+    "bookingSource": "frontend/src/app/features/public-booking/booking.page.ts",
+    "bookingSourceSha256": "B8C969519A2E94EE2F4DB41F35F906B18EA4E0F575600629094249231F7EAF74",
+    "bookingSourceBytes": 84938,
+    "testFile": "frontend/src/app/features/public-booking/public-booking.page.spec.ts",
+    "testFileSha256": "0F8A411FE369280BD0C68E3BA524668B0B88881886A0789E2F531C6CF86337ED",
+    "testFileBytes": 63165,
+    "lazyBookingChunk": "chunk-BBKId7t-.js",
+    "lazyBookingChunkSha256": "51A70910292857B6D0F7CF610BDBD8EC0175BBD43B89096E4AFF9CB8864644DD",
+    "lazyBookingChunkBytes": 72447,
+    "baselineNote": "Pre-edit baseline for booking.page.ts was not retained prior to Round 1 as booking.page.ts originated as an untracked working file during P5 guest implementation on develop (commit 3f95339b4f4477ac5d421551d372dfdd5ed31e30). No source modifications were made."
+  },
+  "artifacts": [
+    {
+      "file": "mobile-continuous-reverse-focus.png",
+      "stage": "after-mobile-continuous-reverse",
+      "provenance": "Fresh CDP browser capture taken during continuous uninterrupted single-pass reverse traversal on mobile (375x812)",
+      "viewport": { "width": 375, "height": 812, "dpr": 1, "isMobile": true },
+      "bytes": 70564,
+      "sha256": "465554B5E945F9281C980E25CD8DD022B3149E81DC1CA289B161B317483998C7",
+      "description": "Continuous uninterrupted reverse traversal on mobile (375x812) from heroSearchButton (Tìm phòng) through Stepper (+), checkOutDateInput, checkInDateInput, propertySearchInput, Theo giờ, Theo đêm, to Header links. All 8 keystrokes dispatched continuously without manual focus reset."
+    },
+    {
+      "file": "desktop-hourly-reverse-focus.png",
+      "stage": "after-desktop-hourly-reverse",
+      "provenance": "Fresh CDP browser capture taken during continuous uninterrupted single-pass reverse traversal on desktop (1440x900) in hourly rental mode",
+      "viewport": { "width": 1440, "height": 900, "dpr": 1, "isMobile": false },
+      "bytes": 227415,
+      "sha256": "1D9707E07D30F4358B66689B2A915151AC296764B089BB2B1992898D87111F24",
+      "description": "Continuous uninterrupted reverse traversal on desktop (1440x900) in hourly mode (rentalType 1, guestCount 1) starting from confirmed enabled heroSearchButton, skipping disabled decrement (-), through hourlyDurationSelect, traversing individual native date subfields on hourlyDateInput, through propertySearchInput, Theo giờ, Theo đêm, to Header links. All 11 keystrokes dispatched continuously."
+    }
+  ],
+  "verificationSummary": {
+    "mobileContinuousReverse": "PASS - Executed continuous uninterrupted single-pass Shift+Tab reverse traversal from hero CTA (#heroSearchButton) through increment button (+), date inputs (checkOutDateInput, checkInDateInput), propertySearchInput, rental mode buttons (Theo giờ, Theo đêm), to header links. Each keystroke timestamp and activeElement DOM state recorded directly via CDP.",
+    "desktopHourlyReverse": "PASS - Executed continuous uninterrupted single-pass Shift+Tab reverse traversal in hourly mode (rentalType 1) from confirmed enabled starting control (#heroSearchButton) at guestCount 1, natively skipping disabled decrement (-), through hourlyDurationSelect, recording individual native date subfield keystrokes on hourlyDateInput, through propertySearchInput, to rental mode buttons and header links. Confirmed focus-visible rings and activeElement states recorded directly via CDP."
+  }
+}

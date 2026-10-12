@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "workspace": "C:\\Dev\\hotel-saas-v2",
+  "taskId": "P7-GUEST-SEARCH-VERIFY-02",
+  "round": 3,
+  "status": "InProgress",
+  "updatedAt": "2026-10-11T12:46:30+07:00",
+  "writer": "antigravity",
+  "antigravity": {
+    "status": "InProgress",
+    "conversationId": "b24752d6-e881-4372-b79e-186db67e5233",
+    "sessionLink": null,
+    "heartbeatAt": "2026-10-11T12:46:30+07:00"
+  },
+  "codex": {
+    "status": "ReviewComplete",
+    "sessionLink": null,
+    "heartbeatAt": "2026-10-11T12:44:28.6417412+07:00"
+  },
+  "submissionId": null,
+  "reviewedSubmissionId": "sub-p7-guest-search-verify-02-r2-20261011",
+  "nextAction": "Antigravity addressing ChangesRequested for Round 3: evidence labels only (mark unsupported/untested scenarios honestly, separate unit/template from browser run, correct isolation phrasing).",
+  "needsPO": [
+    "D21 lookup TTL mốc dự kiến/thực tế + revoke/reissue contract",
+    "Quote5min/hold15min price pinning và stale-quote acknowledgement",
+    "PO Gate 1 (Hợp đồng API tìm kiếm: Giữ endpoint hiện tại hay tạo GET /api/public/search/properties và kế hoạch di chuyển client)",
+    "PO Gate 2 (Chính sách xuất bản: Đồng bộ enforce IsPublished == true trên toàn bộ public discovery hay giữ Active-only)",
+    "PO Gate 3 (Nguồn Dataset Hành chính Việt Nam có thẩm quyền, phiên bản, ngày hiệu lực và license)",
+    "PO Gate 4 (Kế hoạch Migration bổ sung ProvinceCode, Ward, WardCode, LandmarkTags cho Property)",
+    "PO Gate 5 (Cơ chế tìm kiếm phòng trống xuyên cơ sở: Two-step discovery vs Aggregated search theo Tỉnh/Thành)"
+  ],
+  "evidence": [
+    "docs/agent-coordination/submission.md",
+    "docs/agent-coordination/evidence/guest-search-verify-02/manifest.json",
+    "docs/agent-coordination/evidence/guest-search-verify-02/desktop-1440.png",
+    "docs/agent-coordination/evidence/guest-search-verify-02/tablet-768.png",
+    "docs/agent-coordination/evidence/guest-search-verify-02/mobile-375.png",
+    "docs/agent-coordination/evidence/guest-search-verify-02/mobile-375-popup.png",
+    "docs/agent-coordination/evidence/guest-search-verify-02/combobox-dropdown-open.png",
+    "docs/agent-coordination/evidence/guest-search-verify-02/browser-measurements.json",
+    "docs/agent-coordination/evidence/guest-search-verify-02/network-audit.json",
+    "docs/agent-coordination/evidence/guest-search-verify-02/fixture-server.cjs",
+    "docs/agent-coordination/evidence/guest-search-verify-02/vitest-targeted.log",
+    "docs/agent-coordination/evidence/guest-search-verify-02/vitest-full.log",
+    "docs/agent-coordination/evidence/guest-search-verify-02/frontend-build.log",
+    "docs/agent-coordination/assignment.md",
+    "docs/agent-coordination/decisions.md"
+  ]
+}

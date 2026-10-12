@@ -5,7 +5,47 @@
 
 ---
 
+## Quyết định mới đã duyệt 2026-10-05
+
+Nguồn đối chiếu: [p0-decisions.md](../p0-decisions.md), D01–D10. Online chọn loại phòng và server phân phòng cụ thể khi hold; guest checkout qua token bảo mật; hold 15 phút; gói giờ đầu và giờ thêm làm tròn lên 60 phút; giờ đêm mặc định 12:00–12:00 ngày kế tiếp; buffer tối thiểu 30 phút (chi nhánh được tăng, không được giảm), vẫn xác nhận đã dọn; giờ đêm/buffer cấu hình theo chi nhánh. Demo xác nhận/cọc thủ công trước expiry; hủy cấu hình theo chi nhánh, snapshot chính sách và refund audit; AI cả online/nội bộ dùng search backend thật.
+
+Đã duyệt bổ sung D11–D13, D15–D25 trong p0-decisions.md: timezone Asia/Ho_Chi_Minh/VND, gói đầu 2 giờ, Standard demo 150.000đ/gói + 50.000đ/giờ thêm và 400.000đ/đêm; online cọc 30%, nội bộ không bắt buộc; hủy miễn phí trước ít nhất 2 giờ (Hourly)/24 giờ (Overnight), muộn phí 30% tổng booking, no-show xác nhận thủ công dùng phí snapshot. Quote 5 phút, lookup email hết hạn 7 ngày sau checkout; cọc đến muộn không tự khôi phục hold; refund do quản lý/admin duyệt; platform support cần doanh nghiệp cấp có hạn. Giá mẫu là tổng tiền khách trả, không tự thêm thuế/phí chưa cấu hình, VND rounding 1 đồng (midpoint còn mở).
+
+Các rule cũ dưới đây chưa được viết lại toàn bộ: BR-R02 một đêm chỉ áp dụng Overnight; BR-R06 30 phút không thay TTL hold 15 phút; POL-C01/phần payment và check-in cũ không ghi đè D01–D25 đã duyệt. D14 giới hạn thuê giờ đã được duyệt theo Phương án C (cấu hình riêng theo cơ sở 1–24 giờ, mặc định 12 giờ, vượt giới hạn từ chối với ERR_HOURLY_LIMIT_EXCEEDED, không tự chuyển sang đêm); biểu phụ thu, mốc no-show/token, quote/hold pin giá và rounding midpoint còn mở. Đồng bộ chi tiết ở P0 trước implement.
+
 ## 1. Quy tắc đặt phòng (Reservation Rules)
+
+### BR-TURN01: Khoảng cách tối thiểu giữa hai lượt trên cùng phòng
+
+- Áp dụng cho thuê giờ, thuê đêm và chuyển giữa hai hình thức. Buffer mặc định/tối thiểu 30 phút, cơ sở chỉ được tăng.
+- Khi tìm phòng/xếp lịch: StartAt lượt sau >= EndAt lượt trước + buffer theo policy snapshot; transaction chống overlap phải bao gồm khoảng dọn này.
+- Khi check-in thực tế: phải đủ buffer sau checkout thực tế lượt trước và phòng đã được xác nhận dọn xong. Không tự clean theo timer.
+- Checkout 12:00 → check-in sớm nhất 12:30; 12:29 bị chặn, 12:30 vẫn bị chặn nếu chưa dọn; cấu hình 29 phút bị từ chối.
+- Nếu checkout thực tế trễ làm ảnh hưởng booking kế tiếp: báo xung đột cho lễ tân xử lý; không tự cho nhận, đổi phòng, đổi giờ hoặc thu phụ phí ngoài flow xác nhận.
+
+### BR-PRICE01: Lịch sử giá và ngày hiệu lực
+
+```
+Rule:    Mỗi giá Room Type áp dụng cho khoảng ngày [EffectiveFrom, EffectiveTo)
+         và được giữ thành phiên bản lịch sử; sửa giá tạo bản ghi mới.
+Rule:    Giá tìm kiếm cho mỗi đêm lấy từ phiên bản có hiệu lực vào ngày lưu trú đó.
+Rule:    Mỗi booking lưu snapshot giá từng đêm, tiền tệ, thuế/phí, giảm giá và tổng tiền.
+Rule:    Đổi giá sau khi booking xác nhận không làm đổi số tiền booking cũ.
+Rule:    Tạo booking phải kiểm tra lại giá và tồn phòng phía server; báo rõ thay đổi
+         và yêu cầu khách xác nhận lại nếu quote đã hết hạn/thay đổi.
+Rule:    Không cho khoảng ngày giá chồng lấn cho cùng RoomType; không xóa lịch sử
+         đã được booking tham chiếu.
+```
+
+**Open decision:** Thời hạn giữ giá (quote/hold TTL), timezone nghiệp vụ của tenant và cách xử lý khi giá đổi lúc guest đang checkout cần chốt trước khi triển khai.
+
+### BR-PRICE02: Thay đổi giá có kiểm toán
+
+```
+Mỗi thay đổi giá ghi người thực hiện, thời điểm UTC, giá cũ/mới, khoảng ngày hiệu lực
+và lý do tùy chọn. Giá tự động theo nhu cầu/AI không thuộc MVP; nếu bổ sung sau,
+chỉ áp dụng sau khi Owner duyệt và sinh phiên bản giá mới.
+```
 
 ### BR-R01: Kiểm tra chồng lịch (Overlap Check)
 
@@ -160,7 +200,7 @@ flowchart TD
 ### POL-IO01: Giờ check-in / check-out mặc định
 
 ```
-Check-in time:  14:00 (configurable per property)
+Check-in time:  12:00 (configurable per property)
 Check-out time: 12:00 (configurable per property)
 Early check-in: Tùy thuộc phòng trống, không tính phí thêm
 Late check-out: Sau 12:00 → tính phí:
@@ -274,11 +314,11 @@ BR-SUB05: Suspend sau 30 ngày quá hạn thanh toán
 
 ```
 BR-ROLE01: Owner LUÔN có full permissions (không thể thu hồi)
-BR-ROLE02: Mỗi property phải có ít nhất 1 Owner
+BR-ROLE02: Mỗi Tenant phải có ít nhất 1 Owner cấp doanh nghiệp; mỗi Property có thể có một hoặc nhiều Property Manager
 BR-ROLE03: Không thể xóa role đang được gán cho staff
 BR-ROLE04: System roles (Owner, default roles) không thể xóa
 BR-ROLE05: Custom role chỉ visible trong tenant tạo ra nó
-BR-ROLE06: SuperAdmin bypass tenant filter (xem tất cả)
+BR-ROLE06: SuperAdmin KHÔNG bypass tenant/property filter trên dữ liệu vận hành (D24 Zero-Trust). Chỉ được truy cập khi có SupportAccessGrant hợp lệ do Tenant Owner cấp; người nhận thuộc Support Recipient Allowlist và hành động thuộc Support Action Allowlist. Thiết kế bãi bỏ bypass trong P1A, loại bỏ code bypass trong P1B.
 ```
 
 ---

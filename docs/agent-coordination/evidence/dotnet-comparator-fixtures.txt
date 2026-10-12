@@ -1,0 +1,13 @@
+Reviewer independently executed comparator probes
+Actor: Codex; heartbeat 2026-10-11T06:53:35.986Z
+CWD: C:\Dev\hotel-saas-v2
+Runtime: .NET 10.0.11 (PowerShell host; not backend runtime certification)
+Command expressions and RAW results:
+[StringComparer]::OrdinalIgnoreCase.Compare([string][char]0x1f80,[string][char]0x1f88) = 0
+[StringComparer]::OrdinalIgnoreCase.Compare('Straße','STRASSE') = 140
+[StringComparer]::OrdinalIgnoreCase.Compare('Z Hotel','Á Hotel') = -103
+[StringComparer]::OrdinalIgnoreCase.Compare('Hotel A','hotel a') = 0
+Probe command exit: 0
+Contract compares signs, not exact nonzero magnitudes.
+Writer's prior text presented sign-normalized values as raw runtime values; archived in history/dotnet-comparator-fixtures-r7-writer.txt, superseded by this record.
+JS approximate Greek comparator returns -1, unlike runtime 0. JS is only a bounded offline oracle. Actual production requires native StringComparer.OrdinalIgnoreCase and Guid.CompareTo. Guid fixtures are in the offline runner; this record does not claim an independent runtime Guid probe.

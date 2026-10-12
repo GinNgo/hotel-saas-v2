@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "taskId": "P5-GUEST-SEARCH-FORM-02",
+  "round": 4,
+  "submissionId": "sub-p5-guest-search-form-02-r4-20261011",
+  "workspace": "C:\\Dev\\hotel-saas-v2",
+  "git": {
+    "branch": "develop",
+    "commit": "3f95339"
+  },
+  "actor": "antigravity",
+  "timestamp": "2026-10-11T11:15:00+07:00",
+  "environment": {
+    "browserEngine": "Chrome (Emulated via chrome-devtools-mcp / CDP Emulation.setDeviceMetricsOverride)",
+    "mockupFile": "docs/agent-coordination/evidence/guest-search-form-mockup/mockup.html",
+    "dataProvenance": "Standalone offline synthetic mockup with shrinkable CSS Grid tracks minmax(0,1fr), min-width:0 flex/grid items, responsive HTML5 native date sub-layout, 44px touch targets, and element containment verified on 375px and 320px viewports. Zero production code modified.",
+    "isolation": {
+      "network": "100% offline self-contained HTML/CSS/SVG; zero external fonts, CDN scripts, or third-party requests",
+      "database": "Zero database connection configured or accessed"
+    }
+  },
+  "containmentAudit": {
+    "mobile375px": {
+      "viewport": { "width": 375, "height": 812 },
+      "card": { "left": 18.0, "right": 357.2, "width": 339.2 },
+      "grid": { "left": 26.8, "right": 348.4, "width": 321.6 },
+      "elements": [
+        { "name": "fieldDestination", "left": 26.8, "right": 348.4, "width": 321.6, "overflowsCardRight": false },
+        { "name": "fieldDates", "left": 26.8, "right": 348.4, "width": 321.6, "overflowsCardRight": false },
+        { "name": "fieldGuests", "left": 26.8, "right": 348.4, "width": 321.6, "overflowsCardRight": false },
+        { "name": "fieldCta", "left": 26.8, "right": 348.4, "width": 321.6, "overflowsCardRight": false },
+        { "name": "clearBtn", "left": 295.6, "right": 339.6, "width": 44.0, "overflowsCardRight": false },
+        { "name": "nightBadge", "left": 298.2, "right": 339.6, "width": 41.4, "overflowsCardRight": false },
+        { "name": "plusBtn", "left": 295.6, "right": 339.6, "width": 44.0, "overflowsCardRight": false },
+        { "name": "searchBtn", "left": 26.8, "right": 348.4, "width": 321.6, "top": 491.6, "bottom": 539.6, "overflowsCardRight": false }
+      ],
+      "allContainedInCard": true,
+      "allContainedInViewport": true,
+      "ctaBottom": 539.6,
+      "clearanceBelowCta": 272.4
+    },
+    "diagnostic320px": {
+      "viewport": { "width": 320, "height": 568 },
+      "card": { "left": 18.0, "right": 302.0, "width": 284.0 },
+      "allContainedInCard": true,
+      "allContainedInViewport": true
+    }
+  },
+  "viewports": [
+    {
+      "name": "Desktop 1440px",
+      "declaredViewport": { "width": 1440, "height": 900, "deviceScaleFactor": 1 },
+      "imageDimensions": { "width": 1440, "height": 900, "fileBytes": 304138 },
+      "browserMetrics": {
+        "innerWidth": 1440,
+        "innerHeight": 900,
+        "devicePixelRatio": 1.0,
+        "clientWidth": 1425,
+        "clientHeight": 900,
+        "scrollWidth": 1425,
+        "scrollHeight": 904,
+        "hasHorizontalOverflow": false
+      },
+      "screenshot": "docs/agent-coordination/evidence/guest-search-form-mockup/desktop-1440.png"
+    },
+    {
+      "name": "Tablet 768px",
+      "declaredViewport": { "width": 768, "height": 1024, "deviceScaleFactor": 1 },
+      "imageDimensions": { "width": 768, "height": 1024, "fileBytes": 232974 },
+      "browserMetrics": {
+        "innerWidth": 768,
+        "innerHeight": 1024,
+        "devicePixelRatio": 1.0,
+        "clientWidth": 753,
+        "clientHeight": 1024,
+        "scrollWidth": 753,
+        "scrollHeight": 1332,
+        "hasHorizontalOverflow": false
+      },
+      "screenshot": "docs/agent-coordination/evidence/guest-search-form-mockup/tablet-768.png"
+    },
+    {
+      "name": "Mobile 375px (Compact Main Form & CTA, Zero Clipping)",
+      "declaredViewport": { "width": 375, "height": 812, "deviceScaleFactor": 2, "isMobile": true, "hasTouch": true },
+      "imageDimensions": { "width": 750, "height": 1624, "fileBytes": 369615 },
+      "browserMetrics": {
+        "innerWidth": 375,
+        "innerHeight": 812,
+        "devicePixelRatio": 2.0,
+        "clientWidth": 375,
+        "clientHeight": 812,
+        "scrollWidth": 375,
+        "scrollHeight": 1675,
+        "hasHorizontalOverflow": false,
+        "ctaBottom": 539.6,
+        "clearanceBelowCta": 272.4,
+        "isCtaFullyInInitialViewport": true
+      },
+      "screenshot": "docs/agent-coordination/evidence/guest-search-form-mockup/mobile-375.png"
+    },
+    {
+      "name": "Interactive States (Autocomplete Combobox Dropdown Open)",
+      "declaredViewport": { "width": 1440, "height": 900, "deviceScaleFactor": 1 },
+      "imageDimensions": { "width": 1440, "height": 900, "fileBytes": 309001 },
+      "screenshot": "docs/agent-coordination/evidence/guest-search-form-mockup/calendar-dropdown-open.png"
+    }
+  ],
+  "sourceHashes": [
+    {
+      "path": "docs/agent-coordination/evidence/guest-search-form-mockup/mockup.html",
+      "sha256": "05BAF166E6019F22FA2823D877B9455DEF425865E6C4475178233C096C6C0F7A"
+    },
+    {
+      "path": "docs/agent-coordination/evidence/guest-search-form-mockup/desktop-1440.png",
+      "sha256": "076710655409DBEB3F150683F32E378CB83A3FE5C413841C807C130839A3E107"
+    },
+    {
+      "path": "docs/agent-coordination/evidence/guest-search-form-mockup/tablet-768.png",
+      "sha256": "CA2FABB2F572E5D0501C299FDC371AEFDA86D5AF26517B433355CF54CC000D7B"
+    },
+    {
+      "path": "docs/agent-coordination/evidence/guest-search-form-mockup/mobile-375.png",
+      "sha256": "0B42703605CAB01D8C8BBD31843A53090BC4D804F79E08327B748076BB4E26C8"
+    },
+    {
+      "path": "docs/agent-coordination/evidence/guest-search-form-mockup/calendar-dropdown-open.png",
+      "sha256": "7B519807EB4DCA18937B76DD872FD0F9D88DDFBF5398F7A7E048A4321D2837EA"
+    }
+  ],
+  "safetyInvariants": {
+    "zeroProductionCodeChanges": true,
+    "zeroBackendModifications": true,
+    "zeroDatabaseConnections": true,
+    "zeroTeammateInterference": true,
+    "zeroRemoteDependencies": true
+  }
+}

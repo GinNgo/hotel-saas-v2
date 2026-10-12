@@ -11,15 +11,17 @@
 flowchart TD
     subgraph External["Actors bên ngoài"]
         Guest["🧑 Guest<br/>(Khách đặt phòng)"]
-        Staff["👷 Staff<br/>(Nhân viên cơ sở)"]
-        Owner["👤 Owner<br/>(Chủ cơ sở)"]
-        Admin["🔑 Platform Admin<br/>(Quản trị hệ thống)"]
+        Staff["👷 Branch Staff<br/>(Lễ tân, buồng phòng chi nhánh)"]
+        PManager["👔 Property Manager<br/>(Quản lý chi nhánh)"]
+        TOwner["👤 Tenant Owner / Admin<br/>(Chủ / Quản trị doanh nghiệp)"]
+        Admin["🔑 Platform SuperAdmin<br/>(Quản trị nền tảng SaaS)"]
+        PSupport["🛠️ Platform Support<br/>(Hỗ trợ kỹ thuật có grant)"]
     end
 
     subgraph System["🏨 Hotel SaaS Platform"]
-        Public["Public Portal<br/>(Tìm kiếm, đặt phòng)"]
-        Mgmt["Management Portal<br/>(Quản lý operations)"]
-        AdminP["Admin Portal<br/>(Quản trị platform)"]
+        Public["Public Portal<br/>(Tìm kiếm, đặt phòng theo chi nhánh)"]
+        Mgmt["Management Portal<br/>(Quản lý vận hành chi nhánh & chuỗi)"]
+        AdminP["Admin Portal<br/>(Quản trị nền tảng & subscription)"]
     end
 
     subgraph ExtSys["Hệ thống bên ngoài"]
@@ -31,8 +33,10 @@ flowchart TD
 
     Guest --> Public
     Staff --> Mgmt
-    Owner --> Mgmt
+    PManager --> Mgmt
+    TOwner --> Mgmt
     Admin --> AdminP
+    PSupport -.->|"Cần SupportAccessGrant"| Mgmt
 
     System --> VNPay
     System --> GeminiAI
@@ -44,14 +48,16 @@ flowchart TD
 
 ## 2. Actor Definitions
 
-| Actor | Mô tả | Authentication |
-|-------|--------|---------------|
-| **Guest** | Người tìm kiếm và đặt phòng online. Có thể là khách vãng lai (không đăng ký) hoặc khách đã có tài khoản | Optional login / Guest checkout |
-| **Staff** | Nhân viên cơ sở (lễ tân, buồng phòng, kế toán...). Được chủ cơ sở mời vào hệ thống và gán role | Required login + Tenant-scoped RBAC |
-| **Owner** | Chủ/quản lý cơ sở lưu trú. Đăng ký property, cấu hình, quản lý nhân viên, xem báo cáo | Required login + Owner role |
-| **Platform Admin** | Quản trị viên nền tảng (đội ngũ vận hành). Duyệt property, quản lý subscriptions, hỗ trợ | Required login + SuperAdmin role |
-| **VNPay** | Cổng thanh toán. Gửi callback xác nhận giao dịch | API key / HMAC signature |
-| **Gemini AI** | Dịch vụ AI. Xử lý chatbot queries, pricing suggestions | API key |
+| Actor | Mô tả | Ngữ cảnh & Quyền hạn | Authentication |
+|-------|--------|----------------------|---------------|
+| **Guest** | Người tìm kiếm và đặt phòng trực tuyến. | Truy cập cổng công khai, tìm loại phòng theo chi nhánh | Optional login / Guest checkout qua token bảo mật |
+| **Branch Staff** | Nhân viên chi nhánh (lễ tân, buồng phòng). | Thao tác trong phạm vi chi nhánh được giao (Property-scoped) | Required login + Property-scoped RBAC |
+| **Property Manager** | Quản lý vận hành chi nhánh. | Quản lý phòng, giá, nhân sự, đơn đặt của chi nhánh được giao | Required login + Property Manager role |
+| **Tenant Owner / Admin** | Chủ / Quản trị viên doanh nghiệp. | Quản lý pháp nhân, gói cước, tất cả chi nhánh thuộc doanh nghiệp | Required login + Tenant Owner role (Tenant-wide) |
+| **Platform SuperAdmin** | Quản trị viên nền tảng SaaS. | Quản lý tenant lifecycle, subscription plans, system banner. Không mặc định đọc data khách | Required login + SuperAdmin role |
+| **Platform Support** | Kỹ thuật viên hỗ trợ nền tảng. | Chỉ truy cập khi doanh nghiệp cấp `SupportAccessGrant` có thời hạn và lý do | Required login + Valid Support Grant + Audit logging |
+| **VNPay** | Cổng thanh toán trực tuyến. | Gửi callback IPN xác nhận giao dịch | API key / HMAC signature |
+| **Gemini AI** | Dịch vụ AI đa phương thức. | Xử lý truy vấn tìm phòng tiếng Việt, gợi ý giá | Server-to-server API key |
 
 ---
 

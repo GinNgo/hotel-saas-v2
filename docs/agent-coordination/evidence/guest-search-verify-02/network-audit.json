@@ -1,0 +1,260 @@
+{
+  "generatedAt": "2026-10-11T05:38:19.295Z",
+  "totalRequests": 36,
+  "loopbackOnly": true,
+  "externalRequestsBlocked": 0,
+  "requests": [
+    {
+      "timestamp": "2026-10-11T05:36:56.573Z",
+      "method": "GET",
+      "url": "/booking",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:36:56.633Z",
+      "method": "GET",
+      "url": "/chunk-DVJg2YBd.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:36:56.635Z",
+      "method": "GET",
+      "url": "/chunk-Btdg-ilQ.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:36:56.643Z",
+      "method": "GET",
+      "url": "/chunk-DTBKWUY0.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:36:56.646Z",
+      "method": "GET",
+      "url": "/chunk-DJdzq_Vc.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:36:56.647Z",
+      "method": "GET",
+      "url": "/polyfills-LVNOU2XZ.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:36:56.648Z",
+      "method": "GET",
+      "url": "/main-XPMUQAAX.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:36:56.686Z",
+      "method": "GET",
+      "url": "/styles-TOZBSW7J.css",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:36:56.902Z",
+      "method": "GET",
+      "url": "/chunk-CK1GlK2F.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:36:56.920Z",
+      "method": "GET",
+      "url": "/chunk-DIVzvGSH.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:36:56.921Z",
+      "method": "GET",
+      "url": "/chunk-1kewuqyk.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:36:56.922Z",
+      "method": "GET",
+      "url": "/chunk-Bi9tiwBm.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:36:56.969Z",
+      "method": "GET",
+      "url": "/api/public/properties",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:01.607Z",
+      "method": "GET",
+      "url": "/booking",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:01.628Z",
+      "method": "GET",
+      "url": "/chunk-DVJg2YBd.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:01.629Z",
+      "method": "GET",
+      "url": "/chunk-Btdg-ilQ.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:01.630Z",
+      "method": "GET",
+      "url": "/chunk-DTBKWUY0.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:01.630Z",
+      "method": "GET",
+      "url": "/chunk-DJdzq_Vc.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:01.634Z",
+      "method": "GET",
+      "url": "/polyfills-LVNOU2XZ.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:01.637Z",
+      "method": "GET",
+      "url": "/main-XPMUQAAX.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:01.650Z",
+      "method": "GET",
+      "url": "/styles-TOZBSW7J.css",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:01.778Z",
+      "method": "GET",
+      "url": "/chunk-CK1GlK2F.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:01.792Z",
+      "method": "GET",
+      "url": "/chunk-DIVzvGSH.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:01.793Z",
+      "method": "GET",
+      "url": "/chunk-1kewuqyk.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:01.794Z",
+      "method": "GET",
+      "url": "/chunk-Bi9tiwBm.js",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:01.795Z",
+      "method": "GET",
+      "url": "/favicon.ico",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:01.836Z",
+      "method": "GET",
+      "url": "/api/public/properties",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:07.113Z",
+      "method": "GET",
+      "url": "/api/public/properties?search=khach-san-khong-ton-tai-xyz",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:21.929Z",
+      "method": "GET",
+      "url": "/api/public/properties",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:22.031Z",
+      "method": "GET",
+      "url": "/api/public/properties/khach-san-sai-gon-central/availability?rentalType=2&startAtUtc=2026-10-11T07:00:00Z&endAtUtc=2026-10-12T05:00:00Z&checkInDate=2026-10-11&checkOutDate=2026-10-12",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:22.344Z",
+      "method": "GET",
+      "url": "/api/public/properties/khach-san-sai-gon-central/availability?rentalType=1&startAtUtc=2026-10-11T07:00:00Z&endAtUtc=2026-10-11T09:00:00Z",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:32.109Z",
+      "method": "GET",
+      "url": "/api/public/properties/khach-san-sai-gon-central/availability?rentalType=2&startAtUtc=2026-10-11T07:00:00Z&endAtUtc=2026-10-12T05:00:00Z&checkInDate=2026-10-11&checkOutDate=2026-10-12",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:37.204Z",
+      "method": "GET",
+      "url": "/api/public/properties?search=%C4%90%C3%A0%20N%E1%BA%B5ng",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:42.525Z",
+      "method": "GET",
+      "url": "/api/public/properties?search=%C4%90%C3%A0",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:37:46.716Z",
+      "method": "GET",
+      "url": "/api/public/properties?search=Bi%E1%BB%83n",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    },
+    {
+      "timestamp": "2026-10-11T05:38:19.295Z",
+      "method": "GET",
+      "url": "/__audit/network",
+      "remoteAddress": "127.0.0.1",
+      "statusCode": 200
+    }
+  ]
+}

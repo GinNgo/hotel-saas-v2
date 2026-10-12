@@ -6,7 +6,7 @@ namespace HotelSaas.Domain.Entities;
 /// <summary>
 /// Represents an individual physical room within a property.
 /// </summary>
-public class Room : BaseEntity, ITenantScopedEntity
+public class Room : BaseEntity, IPropertyScopedEntity
 {
     /// <summary>
     /// Foreign key to the tenant this room belongs to.
@@ -17,6 +17,16 @@ public class Room : BaseEntity, ITenantScopedEntity
     /// Navigation property to the owning tenant.
     /// </summary>
     public Tenant? Tenant { get; set; }
+
+    /// <summary>
+    /// Foreign key to the physical property/branch this room belongs to.
+    /// </summary>
+    public Guid PropertyId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the owning physical property.
+    /// </summary>
+    public Property? Property { get; set; }
 
     /// <summary>
     /// Foreign key to the room type classification.

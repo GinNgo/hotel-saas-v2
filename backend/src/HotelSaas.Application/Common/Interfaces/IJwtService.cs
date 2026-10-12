@@ -16,7 +16,10 @@ public interface IJwtService
         string fullName,
         string globalRole,
         Guid? tenantId,
-        IReadOnlyList<string>? permissions);
+        IReadOnlyList<string>? permissions,
+        Guid? propertyId = null,
+        string? scope = null,
+        string? staffRole = null);
 
     /// <summary>
     /// Generates a new cryptographic refresh token.

@@ -20,6 +20,22 @@ public class TenantStaff : BaseEntity, ITenantScopedEntity
     public Tenant? Tenant { get; set; }
 
     /// <summary>
+    /// Optional foreign key to the physical property/branch this staff member is scoped to.
+    /// NULL indicates a tenant-wide assignment (e.g., Owner).
+    /// </summary>
+    public Guid? PropertyId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the physical property, if property-scoped.
+    /// </summary>
+    public Property? Property { get; set; }
+
+    /// <summary>
+    /// Indicates whether this assignment operates tenant-wide (PropertyId is NULL).
+    /// </summary>
+    public bool IsTenantWide => PropertyId == null;
+
+    /// <summary>
     /// Foreign key to the user account.
     /// </summary>
     public Guid UserId { get; set; }

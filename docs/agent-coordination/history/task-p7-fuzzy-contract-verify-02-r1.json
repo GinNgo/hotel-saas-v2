@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "workspace": "C:\\Dev\\hotel-saas-v2",
+  "taskId": "P7-FUZZY-CONTRACT-VERIFY-02",
+  "round": 1,
+  "status": "ChangesRequested",
+  "updatedAt": "2026-10-11T15:14:49.3715897+07:00",
+  "writer": "none",
+  "antigravity": {
+    "status": "Submitted",
+    "conversationId": "b24752d6-e881-4372-b79e-186db67e5233",
+    "sessionLink": null,
+    "heartbeatAt": "2026-10-11T15:11:55+07:00"
+  },
+  "codex": {
+    "status": "ReviewComplete",
+    "sessionLink": null,
+    "heartbeatAt": "2026-10-11T15:14:49.3715897+07:00"
+  },
+  "submissionId": "sub-p7-fuzzy-contract-verify-02-r1-20261011",
+  "reviewedSubmissionId": "sub-p7-fuzzy-contract-verify-02-r1-20261011",
+  "nextAction": "Round2 tests/evidence only: classify service consecutive completions not latest-wins; exact per-property serialized values with distinct time/numeric fixtures; measured runtime versions and honest serializer/HTTP/SQL limitations. No production behavior changes.",
+  "needsPO": [
+    "D21 lookup TTL mốc dự kiến/thực tế + revoke/reissue contract",
+    "Quote5min/hold15min price pinning và stale-quote acknowledgement",
+    "PO Gate 1 (Hợp đồng API tìm kiếm: Giữ endpoint hiện tại hay tạo GET /api/public/search/properties và kế hoạch di chuyển client)",
+    "PO Gate 2 (Chính sách xuất bản: Đồng bộ enforce IsPublished == true trên toàn bộ public discovery hay giữ Active-only)",
+    "PO Gate 3 (Nguồn Dataset Hành chính Việt Nam có thẩm quyền, phiên bản, ngày hiệu lực và license)",
+    "PO Gate 4 (Kế hoạch Migration bổ sung ProvinceCode, Ward, WardCode, LandmarkTags cho Property)",
+    "PO Gate 5 (Cơ chế tìm kiếm phòng trống xuyên cơ sở: Two-step discovery vs Aggregated search theo Tỉnh/Thành)"
+  ],
+  "evidence": [
+    "backend/tests/HotelSaas.Application.Tests/Public/GetPublicPropertiesSerializationTests.cs",
+    "frontend/src/app/core/services/public-booking.service.spec.ts",
+    "backend/tests/HotelSaas.Application.Tests/Public/GetPublicPropertiesSyntheticTests.cs",
+    "backend/tests/HotelSaas.Application.Tests/Public/FuzzyPropertyMatcherTests.cs",
+    "docs/agent-coordination/evidence/fuzzy-contract-verify-02/backend-test.log",
+    "docs/agent-coordination/evidence/fuzzy-contract-verify-02/frontend-test.log",
+    "docs/agent-coordination/evidence/fuzzy-contract-verify-02/manifest.json",
+    "docs/p5-guest-search-contract-proposal.md",
+    "docs/agent-coordination/submission.md",
+    "docs/agent-coordination/assignment.md",
+    "docs/agent-coordination/decisions.md"
+  ]
+}

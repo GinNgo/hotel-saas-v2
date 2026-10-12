@@ -2,6 +2,7 @@ using System.Text;
 using HotelSaas.Application;
 using HotelSaas.Infrastructure;
 using HotelSaas.Infrastructure.Persistence;
+using HotelSaas.Infrastructure.Services;
 using HotelSaas.WebApi.Authorization;
 using HotelSaas.WebApi.Middleware;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -21,8 +22,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 // ── JWT Authentication ───────────────────────────────────────────────
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-var secretKey = jwtSettings["SecretKey"]
-    ?? throw new InvalidOperationException("JwtSettings:SecretKey is not configured.");
+var secretKey = JwtKeyValidator.ValidateSecretKey(jwtSettings["SecretKey"]);
 
 builder.Services
     .AddAuthentication(options =>
@@ -51,7 +51,13 @@ builder.Services.AddAuthorizationBuilder();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 // ── Controllers ──────────────────────────────────────────────────────
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+    });
 
 // ── Swagger / OpenAPI ────────────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();
@@ -69,11 +75,14 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // ── Database Migration & Seeding ─────────────────────────────────────
-using (var scope = app.Services.CreateScope())
+if (!app.Environment.IsEnvironment("Testing") && !builder.Configuration.GetValue<bool>("SkipStartupDatabaseInit"))
 {
-    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await context.Database.EnsureCreatedAsync();
-    await SeedData.SeedDefaultRolesAndPermissions(context);
+    using (var scope = app.Services.CreateScope())
+    {
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        await SeedData.SeedDefaultRolesAndPermissions(context);
+    }
 }
 
 // ── Middleware Pipeline ──────────────────────────────────────────────
@@ -88,7 +97,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("Angular");
 app.UseAuthentication();
+app.UseMiddleware<TenantPropertyContextMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+public partial class Program { }

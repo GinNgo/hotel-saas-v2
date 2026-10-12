@@ -1,0 +1,512 @@
+{
+  "schemaVersion": 1,
+  "taskId": "P7-GUEST-KEYBOARD-CONTINUITY-04",
+  "round": 1,
+  "generatedAt": "2026-10-11T23:42:00+07:00",
+  "actor": "antigravity",
+  "browserEngine": "Chrome DevTools Protocol (CDP via chrome-devtools-mcp)",
+  "fixtureServerUrl": "http://127.0.0.1:4282/booking",
+  "isolatedEvidencePath": "docs/agent-coordination/evidence/guest-keyboard-continuity-04",
+  "verifiedContinuityGaps": {
+    "gap1_Mobile375_ContinuousReverseTraversal": {
+      "setup": {
+        "viewport": { "width": 375, "height": 812, "dpr": 1, "isMobile": true, "hasTouch": true },
+        "rentalType": 2,
+        "guestCount": 1,
+        "propertySearchValue": "",
+        "notes": "Chế độ lưu trú Theo đêm, số lượng khách 1, nút decrement '-' mang disabled=true, nút increment '+' mang disabled=false."
+      },
+      "startingFocus": {
+        "confirmedEnabledControl": "heroSearchButton",
+        "tagName": "BUTTON",
+        "id": "heroSearchButton",
+        "ariaLabel": null,
+        "text": "Tìm phòng",
+        "disabled": false,
+        "focusedAt": "2026-10-11T16:34:33.382Z",
+        "boundingRect": { "top": 631.6, "left": 47.6, "width": 280, "height": 52 },
+        "computedStyles": {
+          "outline": "rgb(255, 255, 255) solid 2.4px",
+          "boxShadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgb(224, 231, 255) 0px 4px 6px -1px, rgb(224, 231, 255) 0px 2px 4px -2px",
+          "backgroundColor": "rgb(79, 70, 229)"
+        },
+        "matchesFocusVisible": true
+      },
+      "steps": [
+        {
+          "keyIndex": 1,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:34:42.029Z",
+          "activeElement": {
+            "tagName": "BUTTON",
+            "id": null,
+            "ariaLabel": "Tăng số lượng khách",
+            "ariaPressed": null,
+            "disabled": false,
+            "text": "+",
+            "type": "button",
+            "boundingRect": { "top": 566.8, "left": 272.8, "width": 44, "height": 44 },
+            "computedStyles": {
+              "outline": "rgb(16, 16, 16) auto 0.8px",
+              "boxShadow": "none",
+              "borderColor": "rgb(203, 213, 225)",
+              "backgroundColor": "rgb(255, 255, 255)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Shift+Tab lùi từ hero CTA sang nút Stepper tăng khách '+' (Level AAA 44x44px target)."
+        },
+        {
+          "keyIndex": 2,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:34:50.113Z",
+          "activeElement": {
+            "tagName": "INPUT",
+            "id": "checkOutDateInput",
+            "ariaLabel": "Ngày trả phòng",
+            "ariaPressed": null,
+            "disabled": false,
+            "text": "2026-10-12",
+            "type": "date",
+            "boundingRect": { "top": 490.2, "left": 58.4, "width": 258.4, "height": 28 },
+            "computedStyles": {
+              "outline": "rgba(0, 0, 0, 0) solid 1.6px",
+              "boxShadow": "rgb(255, 255, 255) 0px 0px 0px 0px, rgba(59, 130, 246, 0.5) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px",
+              "borderColor": "rgb(229, 231, 235)",
+              "backgroundColor": "rgba(0, 0, 0, 0)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Nút Stepper giảm khách '-' bị disabled=[disabled]='true' tại guestCount=1; trình duyệt Chromium tự động bỏ qua phần tử disabled và nhận focus trực tiếp trên checkOutDateInput."
+        },
+        {
+          "keyIndex": 3,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:35:00.740Z",
+          "activeElement": {
+            "tagName": "INPUT",
+            "id": "checkInDateInput",
+            "ariaLabel": "Ngày nhận phòng",
+            "ariaPressed": null,
+            "disabled": false,
+            "text": "2026-10-11",
+            "type": "date",
+            "boundingRect": { "top": 441.7, "left": 58.4, "width": 258.4, "height": 28 },
+            "computedStyles": {
+              "outline": "rgba(0, 0, 0, 0) solid 1.6px",
+              "boxShadow": "rgb(255, 255, 255) 0px 0px 0px 0px, rgba(59, 130, 246, 0.5) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px",
+              "borderColor": "rgb(229, 231, 235)",
+              "backgroundColor": "rgba(0, 0, 0, 0)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Shift+Tab lùi từ ô Ngày trả phòng sang ô Ngày nhận phòng."
+        },
+        {
+          "keyIndex": 4,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:35:09.839Z",
+          "activeElement": {
+            "tagName": "INPUT",
+            "id": "propertySearchInput",
+            "ariaLabel": "Địa điểm hoặc khách sạn",
+            "ariaPressed": null,
+            "disabled": false,
+            "text": "",
+            "type": "text",
+            "boundingRect": { "top": 341.5, "left": 58.4, "width": 258.4, "height": 32 },
+            "computedStyles": {
+              "outline": "rgba(0, 0, 0, 0) solid 1.6px",
+              "boxShadow": "rgb(255, 255, 255) 0px 0px 0px 0px, rgba(59, 130, 246, 0.5) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px",
+              "borderColor": "rgb(229, 231, 235)",
+              "backgroundColor": "rgba(0, 0, 0, 0)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Shift+Tab lùi từ nhóm ngày sang ô tìm kiếm cơ sở lưu trú propertySearchInput."
+        },
+        {
+          "keyIndex": 5,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:35:18.982Z",
+          "activeElement": {
+            "tagName": "BUTTON",
+            "id": null,
+            "ariaLabel": null,
+            "ariaPressed": "false",
+            "disabled": false,
+            "text": "Theo giờ",
+            "type": "button",
+            "boundingRect": { "top": 242.9, "left": 191.6, "width": 136, "height": 44 },
+            "computedStyles": {
+              "outline": "rgba(0, 0, 0, 0) solid 1.6px",
+              "boxShadow": "rgb(255, 255, 255) 0px 0px 0px 0px, rgb(99, 102, 241) 0px 0px 0px 2px, rgba(0, 0, 0, 0) 0px 0px 0px 0px",
+              "borderColor": "rgb(229, 231, 235)",
+              "backgroundColor": "rgb(241, 245, 249)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Shift+Tab lùi từ combobox lên nút chọn chế độ thuê 'Theo giờ' (vòng ring focus-visible 2px indigo-500)."
+        },
+        {
+          "keyIndex": 6,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:35:29.148Z",
+          "activeElement": {
+            "tagName": "BUTTON",
+            "id": null,
+            "ariaLabel": null,
+            "ariaPressed": "true",
+            "disabled": false,
+            "text": "Theo đêm",
+            "type": "button",
+            "boundingRect": { "top": 242.9, "left": 47.6, "width": 136, "height": 44 },
+            "computedStyles": {
+              "outline": "rgba(0, 0, 0, 0) solid 1.6px",
+              "boxShadow": "rgb(255, 255, 255) 0px 0px 0px 0px, rgb(99, 102, 241) 0px 0px 0px 2px, rgba(0, 0, 0, 0.05) 0px 1px 2px 0px",
+              "borderColor": "rgb(229, 231, 235)",
+              "backgroundColor": "rgb(79, 70, 229)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Shift+Tab lùi sang nút chọn chế độ thuê 'Theo đêm' (đang được kích hoạt aria-pressed=true, vòng ring focus-visible 2px indigo-500)."
+        },
+        {
+          "keyIndex": 7,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:35:39.546Z",
+          "activeElement": {
+            "tagName": "A",
+            "id": null,
+            "ariaLabel": "Đăng nhập nội bộ",
+            "ariaPressed": null,
+            "disabled": false,
+            "text": "",
+            "type": null,
+            "boundingRect": { "top": 34.5, "left": 329.4, "width": 41.6, "height": 44 },
+            "computedStyles": {
+              "outline": "rgb(16, 16, 16) auto 0.8px",
+              "boxShadow": "none",
+              "borderColor": "rgba(199, 210, 254, 0.8)",
+              "backgroundColor": "rgb(238, 242, 255)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Shift+Tab lùi lên liên kết Header 'Đăng nhập nội bộ'."
+        },
+        {
+          "keyIndex": 8,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:35:49.244Z",
+          "activeElement": {
+            "tagName": "A",
+            "id": null,
+            "ariaLabel": null,
+            "ariaPressed": null,
+            "disabled": false,
+            "text": "Tra cứu đặt phòng",
+            "type": null,
+            "boundingRect": { "top": 34.5, "left": 175.5, "width": 145.9, "height": 44 },
+            "computedStyles": {
+              "outline": "rgb(16, 16, 16) auto 0.8px",
+              "boxShadow": "none",
+              "borderColor": "rgb(229, 231, 235)",
+              "backgroundColor": "rgba(0, 0, 0, 0)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Shift+Tab lùi lên liên kết Header thương hiệu 'Tra cứu đặt phòng'."
+        }
+      ],
+      "continuityAssessment": "PASS - Toàn bộ chuỗi lùi 8 phím Shift+Tab được thực thi liên tục trong một lượt duy nhất từ nút CTA Tìm phòng về tận đầu trang Header. Không ngắt quãng, không cần reset vị trí focus giữa chừng.",
+      "evidenceImage": "mobile-continuous-reverse-focus.png"
+    },
+    "gap2_Desktop1440_HourlyReverseTraversal": {
+      "setup": {
+        "viewport": { "width": 1440, "height": 900, "dpr": 1, "isMobile": false, "hasTouch": false },
+        "rentalType": 1,
+        "guestCount": 1,
+        "propertySearchValue": "",
+        "notes": "Chế độ lưu trú Theo giờ, số lượng khách 1. Nút decrement '-' mang disabled=true (logic [disabled]='(guestForm.get(\"numberOfGuests\")?.value || 1) <= 1'). Nhóm thời gian thuê giờ bao gồm #hourlyDateInput và #hourlyDurationSelect."
+      },
+      "startingFocus": {
+        "confirmedEnabledControl": "heroSearchButton",
+        "tagName": "BUTTON",
+        "id": "heroSearchButton",
+        "ariaLabel": null,
+        "text": "Tìm phòng",
+        "disabled": false,
+        "focusedAt": "2026-10-11T16:37:18.153Z",
+        "boundingRect": { "top": 331.7, "left": 1090.3, "width": 176.5, "height": 86.2 },
+        "computedStyles": {
+          "outline": "rgb(255, 255, 255) solid 2.4px",
+          "boxShadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgb(224, 231, 255) 0px 4px 6px -1px, rgb(224, 231, 255) 0px 2px 4px -2px",
+          "backgroundColor": "rgb(79, 70, 229)"
+        },
+        "matchesFocusVisible": true
+      },
+      "steps": [
+        {
+          "keyIndex": 1,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:37:28.684Z",
+          "activeElement": {
+            "tagName": "BUTTON",
+            "id": null,
+            "ariaLabel": "Tăng số lượng khách",
+            "ariaPressed": null,
+            "disabled": false,
+            "text": "+",
+            "type": "button",
+            "boundingRect": { "top": 361.3, "left": 1025.5, "width": 44, "height": 44 },
+            "computedStyles": {
+              "outline": "rgb(16, 16, 16) auto 0.8px",
+              "boxShadow": "none",
+              "borderColor": "rgb(203, 213, 225)",
+              "backgroundColor": "rgb(255, 255, 255)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Shift+Tab lùi từ heroSearchButton sang nút Stepper tăng khách '+' (enabled, 44x44px)."
+        },
+        {
+          "keyIndex": 2,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:37:38.392Z",
+          "activeElement": {
+            "tagName": "SELECT",
+            "id": "hourlyDurationSelect",
+            "ariaLabel": "Thời lượng thuê theo giờ",
+            "ariaPressed": null,
+            "disabled": false,
+            "text": "2 giờ\n3 giờ\n4 giờ",
+            "type": "select-one",
+            "boundingRect": { "top": 379.1, "left": 716.4, "width": 166.7, "height": 28 },
+            "computedStyles": {
+              "outline": "rgba(0, 0, 0, 0) solid 1.6px",
+              "boxShadow": "rgb(255, 255, 255) 0px 0px 0px 0px, rgba(59, 130, 246, 0.5) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px",
+              "borderColor": "rgb(229, 231, 235)",
+              "backgroundColor": "rgba(0, 0, 0, 0)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Nút Stepper giảm khách '-' bị disabled=[disabled]='true' tại guestCount=1; trình duyệt Chromium tự động bỏ qua phần tử disabled và nhận focus trực tiếp trên SELECT#hourlyDurationSelect."
+        },
+        {
+          "keyIndex": 3,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:37:48.107Z",
+          "activeElement": {
+            "tagName": "INPUT",
+            "id": "hourlyDateInput",
+            "ariaLabel": "Ngày thuê theo giờ",
+            "ariaPressed": null,
+            "disabled": false,
+            "text": "2026-10-11",
+            "type": "date",
+            "boundingRect": { "top": 379.1, "left": 541.7, "width": 166.7, "height": 28 },
+            "computedStyles": {
+              "outline": "rgb(15, 23, 42) none 2.4px",
+              "boxShadow": "none",
+              "borderColor": "rgb(229, 231, 235)",
+              "backgroundColor": "rgba(0, 0, 0, 0)"
+            },
+            "matchesFocusVisible": false
+          },
+          "note": "Shift+Tab lùi từ select thời lượng sang input ngày thuê giờ (nhập vào subfield năm của date input native)."
+        },
+        {
+          "keyIndex": 4,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:37:59.094Z",
+          "activeElement": {
+            "tagName": "INPUT",
+            "id": "hourlyDateInput",
+            "ariaLabel": "Ngày thuê theo giờ",
+            "ariaPressed": null,
+            "disabled": false,
+            "text": "2026-10-11",
+            "type": "date",
+            "boundingRect": { "top": 379.1, "left": 541.7, "width": 166.7, "height": 28 },
+            "computedStyles": {
+              "outline": "rgba(0, 0, 0, 0) solid 1.6px",
+              "boxShadow": "rgb(255, 255, 255) 0px 0px 0px 0px, rgba(59, 130, 246, 0.5) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px",
+              "borderColor": "rgb(229, 231, 235)",
+              "backgroundColor": "rgba(0, 0, 0, 0)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Điều hướng giữa các trường con nội bộ của input type='date' (từ subfield năm sang tháng); activeElement vẫn giữ nguyên trên hourlyDateInput."
+        },
+        {
+          "keyIndex": 5,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:38:09.174Z",
+          "activeElement": {
+            "tagName": "INPUT",
+            "id": "hourlyDateInput",
+            "ariaLabel": "Ngày thuê theo giờ",
+            "ariaPressed": null,
+            "disabled": false,
+            "text": "2026-10-11",
+            "type": "date",
+            "boundingRect": { "top": 379.1, "left": 541.7, "width": 166.7, "height": 28 },
+            "computedStyles": {
+              "outline": "rgba(0, 0, 0, 0) solid 1.6px",
+              "boxShadow": "rgb(255, 255, 255) 0px 0px 0px 0px, rgba(59, 130, 246, 0.5) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px",
+              "borderColor": "rgb(229, 231, 235)",
+              "backgroundColor": "rgba(0, 0, 0, 0)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Điều hướng giữa các trường con nội bộ của input type='date' (từ subfield tháng sang ngày); activeElement vẫn giữ nguyên trên hourlyDateInput."
+        },
+        {
+          "keyIndex": 6,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:38:19.483Z",
+          "activeElement": {
+            "tagName": "INPUT",
+            "id": "hourlyDateInput",
+            "ariaLabel": "Ngày thuê theo giờ",
+            "ariaPressed": null,
+            "disabled": false,
+            "text": "2026-10-11",
+            "type": "date",
+            "boundingRect": { "top": 379.1, "left": 541.7, "width": 166.7, "height": 28 },
+            "computedStyles": {
+              "outline": "rgba(0, 0, 0, 0) solid 1.6px",
+              "boxShadow": "rgb(255, 255, 255) 0px 0px 0px 0px, rgba(59, 130, 246, 0.5) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px",
+              "borderColor": "rgb(229, 231, 235)",
+              "backgroundColor": "rgba(0, 0, 0, 0)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Điều hướng giữa các trường con nội bộ của input type='date' (nút biểu tượng lịch native của Chromium); activeElement vẫn giữ nguyên trên hourlyDateInput."
+        },
+        {
+          "keyIndex": 7,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:38:28.709Z",
+          "activeElement": {
+            "tagName": "INPUT",
+            "id": "propertySearchInput",
+            "ariaLabel": "Địa điểm hoặc khách sạn",
+            "ariaPressed": null,
+            "disabled": false,
+            "text": "",
+            "type": "text",
+            "boundingRect": { "top": 367.3, "left": 168.8, "width": 341.3, "height": 32 },
+            "computedStyles": {
+              "outline": "rgba(0, 0, 0, 0) solid 1.6px",
+              "boxShadow": "rgb(255, 255, 255) 0px 0px 0px 0px, rgba(59, 130, 246, 0.5) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px",
+              "borderColor": "rgb(229, 231, 235)",
+              "backgroundColor": "rgba(0, 0, 0, 0)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Thoát khỏi nhóm trường ngày thuê theo giờ sang ô nhập tìm kiếm propertySearchInput."
+        },
+        {
+          "keyIndex": 8,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:38:38.361Z",
+          "activeElement": {
+            "tagName": "BUTTON",
+            "id": null,
+            "ariaLabel": null,
+            "ariaPressed": "true",
+            "disabled": false,
+            "text": "Theo giờ",
+            "type": "button",
+            "boundingRect": { "top": 260.9, "left": 278.5, "width": 105.8, "height": 44 },
+            "computedStyles": {
+              "outline": "rgba(0, 0, 0, 0) solid 1.6px",
+              "boxShadow": "rgb(255, 255, 255) 0px 0px 0px 0px, rgb(99, 102, 241) 0px 0px 0px 2px, rgba(0, 0, 0, 0.05) 0px 1px 2px 0px",
+              "borderColor": "rgb(229, 231, 235)",
+              "backgroundColor": "rgb(79, 70, 229)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Shift+Tab lùi từ combobox lên nút chọn chế độ thuê 'Theo giờ' (đang active aria-pressed=true, focus ring 2px indigo-500)."
+        },
+        {
+          "keyIndex": 9,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:38:47.568Z",
+          "activeElement": {
+            "tagName": "BUTTON",
+            "id": null,
+            "ariaLabel": null,
+            "ariaPressed": "false",
+            "disabled": false,
+            "text": "Theo đêm",
+            "type": "button",
+            "boundingRect": { "top": 260.9, "left": 158.0, "width": 112.5, "height": 44 },
+            "computedStyles": {
+              "outline": "rgba(0, 0, 0, 0) solid 1.6px",
+              "boxShadow": "rgb(255, 255, 255) 0px 0px 0px 0px, rgb(99, 102, 241) 0px 0px 0px 2px, rgba(0, 0, 0, 0) 0px 0px 0px 0px",
+              "borderColor": "rgb(229, 231, 235)",
+              "backgroundColor": "rgb(241, 245, 249)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Shift+Tab lùi sang nút chọn chế độ thuê 'Theo đêm' (aria-pressed=false, focus ring 2px indigo-500)."
+        },
+        {
+          "keyIndex": 10,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:38:57.014Z",
+          "activeElement": {
+            "tagName": "A",
+            "id": null,
+            "ariaLabel": "Đăng nhập nội bộ",
+            "ariaPressed": null,
+            "disabled": false,
+            "text": "Đăng nhập nội bộ",
+            "type": null,
+            "boundingRect": { "top": 34.5, "left": 1158.3, "width": 162.2, "height": 44 },
+            "computedStyles": {
+              "outline": "rgb(16, 16, 16) auto 0.8px",
+              "boxShadow": "none",
+              "borderColor": "rgba(199, 210, 254, 0.8)",
+              "backgroundColor": "rgb(238, 242, 255)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Shift+Tab lùi lên liên kết Header 'Đăng nhập nội bộ'."
+        },
+        {
+          "keyIndex": 11,
+          "dispatchedKey": "Shift+Tab",
+          "timestamp": "2026-10-11T16:39:12.238Z",
+          "activeElement": {
+            "tagName": "A",
+            "id": null,
+            "ariaLabel": null,
+            "ariaPressed": null,
+            "disabled": false,
+            "text": "Tra cứu đặt phòng",
+            "type": null,
+            "boundingRect": { "top": 34.5, "left": 987.7, "width": 162.6, "height": 44 },
+            "computedStyles": {
+              "outline": "rgb(16, 16, 16) auto 0.8px",
+              "boxShadow": "none",
+              "borderColor": "rgb(229, 231, 235)",
+              "backgroundColor": "rgba(0, 0, 0, 0)"
+            },
+            "matchesFocusVisible": true
+          },
+          "note": "Shift+Tab lùi lên liên kết Header thương hiệu 'Tra cứu đặt phòng'."
+        }
+      ],
+      "continuityAssessment": "PASS - Toàn bộ chuỗi lùi 11 phím Shift+Tab được thực thi liên tục trong một lượt duy nhất từ nút enabled heroSearchButton tại guestCount=1, tự động bỏ qua nút decrement bị disabled, ghi nhận chi tiết từng phím điều hướng qua các subfield nội bộ của thẻ input type=date (hourlyDateInput), qua propertySearchInput và các nút chuyển đổi chế độ thuê về tận Header.",
+      "evidenceImage": "desktop-hourly-reverse-focus.png"
+    }
+  },
+  "untestedChecksDisclosure": {
+    "screenReaderAudioOutput": "NOT TESTED (accessibility evaluated strictly at DOM attribute semantics, ARIA attributes, computed contrast styles, and touch targets)",
+    "fullCheckoutPaymentGateway": "NOT TESTED (out of scope for public booking presentation task; preserved NeedsPO gates)",
+    "nativeOsSoftKeyboardAutoScroll": "NOT TESTED (geometry measured via CDP layout viewport without mobile OS software keyboard emulation)"
+  }
+}

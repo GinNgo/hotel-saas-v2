@@ -127,6 +127,11 @@ public class Tenant : BaseEntity
     // ── Navigation Properties ──────────────────────────────────────────
 
     /// <summary>
+    /// Collection of physical branches/properties operated by this tenant enterprise.
+    /// </summary>
+    public ICollection<Property> Properties { get; set; } = new List<Property>();
+
+    /// <summary>
     /// Collection of rooms belonging to this property.
     /// </summary>
     public ICollection<Room> Rooms { get; set; } = new List<Room>();

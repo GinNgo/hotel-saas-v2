@@ -2,6 +2,7 @@ using HotelSaas.Application.Auth.Commands.Login;
 using HotelSaas.Application.Auth.Commands.RefreshToken;
 using HotelSaas.Application.Auth.Commands.Register;
 using HotelSaas.Application.Auth.Commands.RevokeToken;
+using HotelSaas.Application.Auth.Commands.SwitchContext;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -111,5 +112,47 @@ public sealed class AuthController : ControllerBase
     {
         var result = await _mediator.Send(command, cancellationToken);
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Switches the active working property context and issues updated scoped tokens. Requires authentication.
+    /// </summary>
+    /// <param name="command">The target property identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>New scoped JWT and refresh tokens.</returns>
+    /// <response code="200">Context switched successfully.</response>
+    /// <response code="400">Invalid property identifier.</response>
+    /// <response code="401">User is not authenticated.</response>
+    /// <response code="403">User is not authorized for the target property.</response>
+    [HttpPost("switch-context")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> SwitchContext(
+        [FromBody] SwitchContextCommand command,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(new { success = true, data = result });
+    }
+
+    /// <summary>
+    /// Gets the list of valid available tenant and property memberships/contexts for the current authenticated user.
+    /// Used during login/bootstrap for users with multiple branches to select their working context.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A list of valid memberships and branch contexts.</returns>
+    /// <response code="200">Returns list of valid contexts.</response>
+    /// <response code="401">User is not authenticated.</response>
+    [HttpGet("me/memberships")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetMyMemberships(CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(new HotelSaas.Application.Auth.Queries.GetMyMemberships.GetMyMembershipsQuery(), cancellationToken);
+        return Ok(new { success = true, data = result });
     }
 }

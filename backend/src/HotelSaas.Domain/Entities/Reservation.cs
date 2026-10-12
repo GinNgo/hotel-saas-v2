@@ -6,7 +6,7 @@ namespace HotelSaas.Domain.Entities;
 /// <summary>
 /// Represents a guest reservation for a specific room within a property.
 /// </summary>
-public class Reservation : BaseEntity, ITenantScopedEntity
+public class Reservation : BaseEntity, IPropertyScopedEntity
 {
     /// <summary>
     /// Foreign key to the tenant this reservation belongs to.
@@ -17,6 +17,16 @@ public class Reservation : BaseEntity, ITenantScopedEntity
     /// Navigation property to the owning tenant.
     /// </summary>
     public Tenant? Tenant { get; set; }
+
+    /// <summary>
+    /// Foreign key to the physical property/branch receiving this reservation.
+    /// </summary>
+    public Guid PropertyId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the physical property.
+    /// </summary>
+    public Property? Property { get; set; }
 
     /// <summary>
     /// Foreign key to the reserved room.

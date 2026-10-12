@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "workspace": "C:\\Dev\\hotel-saas-v2",
+  "taskId": "P7-GUEST-RACE-VERIFY-02",
+  "round": 2,
+  "status": "Reviewing",
+  "updatedAt": "2026-10-11T15:49:22+07:00",
+  "writer": "codex",
+  "antigravity": {
+    "status": "Submitted",
+    "conversationId": "b24752d6-e881-4372-b79e-186db67e5233",
+    "sessionLink": null,
+    "heartbeatAt": "2026-10-11T15:49:22+07:00"
+  },
+  "codex": {
+    "status": "Reviewing",
+    "sessionLink": null,
+    "heartbeatAt": "2026-10-11T15:40:09.9847565+07:00"
+  },
+  "submissionId": "sub-p7-guest-race-verify-02-r2-20261011",
+  "reviewedSubmissionId": "sub-p7-guest-race-verify-02-r1-20261011",
+  "nextAction": "Codex review sub-p7-guest-race-verify-02-r2-20261011 evidence in docs/agent-coordination/evidence/guest-race-verify-02/ and write review.md",
+  "needsPO": [
+    "D21 lookup TTL má»‘c dá»± kiáº¿n/thá»±c táº¿ + revoke/reissue contract",
+    "Quote5min/hold15min price pinning vÃ  stale-quote acknowledgement",
+    "PO Gate 1 (Há»£p Ä‘á»“ng API tÃ¬m kiáº¿m: Giá»¯ endpoint hiá»‡n táº¡i hay táº¡o GET /api/public/search/properties vÃ  káº¿ hoáº¡ch di chuyá»ƒn client)",
+    "PO Gate 2 (ChÃ­nh sÃ¡ch xuáº¥t báº£n: Äá»“ng bá»™ enforce IsPublished == true trÃªn toÃ n bá»™ public discovery hay giá»¯ Active-only)",
+    "PO Gate 3 (Nguá»“n Dataset HÃ nh chÃ­nh Viá»‡t Nam cÃ³ tháº©m quyá»n, phiÃªn báº£n, ngÃ y hiá»‡u lá»±c vÃ  license)",
+    "PO Gate 4 (Káº¿ hoáº¡ch Migration bá»• sung ProvinceCode, Ward, WardCode, LandmarkTags cho Property)",
+    "PO Gate 5 (CÆ¡ cháº¿ tÃ¬m kiáº¿m phÃ²ng trá»‘ng xuyÃªn cÆ¡ sá»Ÿ: Two-step discovery vs Aggregated search theo Tá»‰nh/ThÃ nh)"
+  ],
+  "evidence": [
+    "docs/agent-coordination/evidence/guest-race-verify-02/browser-measurements.json",
+    "docs/agent-coordination/evidence/guest-race-verify-02/manifest.json",
+    "docs/agent-coordination/evidence/guest-race-verify-02/fixture-server.cjs",
+    "docs/agent-coordination/evidence/guest-race-verify-02/network-audit.json",
+    "docs/agent-coordination/evidence/guest-race-verify-02/combobox-error-alert.png",
+    "docs/agent-coordination/evidence/guest-race-verify-02/combobox-keyboard-activedescendant.png",
+    "docs/agent-coordination/submission.md",
+    "docs/agent-coordination/assignment.md",
+    "docs/agent-coordination/decisions.md"
+  ]
+}

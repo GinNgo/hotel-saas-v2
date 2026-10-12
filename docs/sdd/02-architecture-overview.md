@@ -5,6 +5,10 @@
 
 ---
 
+## Cập nhật phạm vi 2026-10-05
+
+Lộ trình thực hiện hiện hành: [implementation-phases.md](../implementation-phases.md). Tenant được định hướng là doanh nghiệp, Property là chi nhánh; thuê giờ/đêm dùng chung lịch phòng theo thời điểm; nội bộ và online dùng chung tồn/hold; AI tìm phòng nằm trong MVP ở P6. Giữ modular monolith và stack hiện có. Các mô tả catalog-first, tenant=cơ sở hoặc AI chỉ sau MVP bên dưới là thiết kế trước đó, cần đồng bộ ở P0 trước triển khai; không dùng chúng để ghi đè phạm vi mới. Migration phải bảo toàn dữ liệu hiện có, và mọi phase cần evidence nghiệm thu.
+
 ## 1. Clean Architecture — Tại sao?
 
 ### Các phương án đã cân nhắc
@@ -109,7 +113,7 @@ sequenceDiagram
 | Realtime | **SignalR** | Socket.io | SSE | Native .NET, auto-reconnect, Hub pattern |
 | UI Library | **PrimeNG 21** | Angular Material | Tailwind UI | 90+ components, theming, enterprise-grade |
 | Charts | **Chart.js** | D3.js | ApexCharts | Đơn giản, đẹp, có Angular wrapper |
-| Maps | **Leaflet** | Google Maps | Mapbox | Free, open source, nhẹ |
+| Maps | **Chưa chốt** | Có thể đánh giá Leaflet cùng nguồn tile phù hợp, Google Maps, Mapbox và lựa chọn khác | — | Chọn sau khi kiểm tra bao phủ Việt Nam, địa giới/địa danh, quota và chi phí, giấy phép/attribution, privacy và điều kiện vận hành. Không coi thư viện hiển thị bản đồ là nguồn geocoding/tìm kiếm địa chỉ. |
 | i18n | **ngx-translate** | Angular i18n | Transloco | Runtime switching, JSON files, dễ dùng |
 | Testing BE | **xUnit** | NUnit | MSTest | .NET standard, fixture-based, assertive |
 | Testing FE | **Playwright** | Cypress | Selenium | Cross-browser, auto-wait, codegen, Microsoft |
@@ -129,6 +133,16 @@ sequenceDiagram
 | Separate DB per Tenant | Isolation tốt nhất | Cost cao, ops phức tạp | ❌ |
 
 **Implementation:** EF Core Global Query Filters tự động append `WHERE TenantId = @current` cho mọi query trên ITenantScopedEntity.
+
+### Public catalog và tìm kiếm địa lý tại Việt Nam (định hướng MVP)
+
+- Tenant vẫn là ranh giới sở hữu dữ liệu vận hành; guest search là luồng public cross-tenant có chủ đích, chỉ đọc các tenant đang hoạt động và property đã xuất bản.
+- Tạo public projection/DTO giới hạn các trường được công khai. Không tắt tenant filter tổng quát để phục vụ search; phải có query riêng có điều kiện trạng thái/công khai.
+- Địa chỉ lưu các trường hiển thị (tỉnh/thành, phường/xã nếu có, địa chỉ chi tiết), vĩ độ/kinh độ do owner xác nhận. Chưa phụ thuộc vào một nhà cung cấp địa giới/geocoding cụ thể.
+- Bản đồ và danh sách dùng chung kết quả tìm kiếm. Search theo địa danh/địa chỉ là chính; truy vấn bán kính và định vị thiết bị tùy chọn, có đồng ý của guest.
+- Chưa thêm GIS extension hoặc dịch vụ tìm kiếm chuyên biệt trước khi có nhu cầu/đo hiệu năng. Bắt đầu bằng PostgreSQL và truy vấn theo tỉnh/thành, từ khóa, tọa độ; đánh giá truy vấn địa lý chuyên dụng sau khi có dữ liệu mẫu và yêu cầu latency.
+- Tạo index theo workload MVP và đo bằng query plan; không bật partitioning chỉ vì dự đoán scale. Revisit khi có số liệu dung lượng, tăng trưởng, latency và retention; xem chi tiết trong ERD Index Strategy.
+- Agent tìm chỗ ở nằm sau MVP; agent chuẩn hóa yêu cầu thành filter và gọi search contract hiện có, không tự quyết định availability/price.
 
 ---
 

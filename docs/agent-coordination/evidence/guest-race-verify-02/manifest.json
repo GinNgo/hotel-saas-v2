@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "taskId": "P7-GUEST-RACE-VERIFY-02",
+  "round": 4,
+  "submissionId": "sub-p7-guest-race-verify-02-r4-20261011",
+  "generatedAt": "2026-10-11T16:19:00+07:00",
+  "actor": "antigravity",
+  "git": {
+    "branch": "develop",
+    "commit": "3f95339b4f4477ac5d421551d372dfdd5ed31e30"
+  },
+  "servedBuildHashes": {
+    "index.html": "2A0A27251A43D29811816102C17D288BAC0BF474FD15DB94946E7A61478B3F37",
+    "main-XPMUQAAX.js": "D43B0BA74960DB8F9FAEF612BAD3341AA35DD534A6B278BB71165389CAFB6442",
+    "polyfills-LVNOU2XZ.js": "F1B35A3B4DB37B73CA0281D6B6247701465FF9E56A7A7B3AFF9784518DC2C30A",
+    "styles-TOZBSW7J.css": "90A6E9D59479FBCF9FEE4C1FC81C49E324C3F6BE62B4B77C5A077B41CA7F23A0"
+  },
+  "environment": {
+    "os": "Windows",
+    "dotnet": "10.0.301",
+    "node": "v26.2.0",
+    "vitest": "v5.0.3",
+    "browserEngine": "Chrome (via chrome-devtools-mcp / CDP)",
+    "localEndpoint": "http://127.0.0.1:4282/booking",
+    "serverScript": "docs/agent-coordination/evidence/guest-race-verify-02/fixture-server.cjs"
+  },
+  "browserVerificationSummary": {
+    "BEH10b_PositiveControl": {
+      "name": "Delayed Discovery Positive Control (Unmutated)",
+      "status": "PASS",
+      "evidence": "1500ms server delay on 'Sài Gòn' query with NO UI mutation. Completed normally: plannedStatusCode 200, responseFinished true, deliveredStatusCode 200, deliveryOutcome 'DeliveredToClient'. Rendered 1 option 'Khách sạn Sài Gòn Central' at t=2114ms."
+    },
+    "BEH10b_RaceClear": {
+      "name": "Delayed In-Flight Discovery Race & Client Transport Abort",
+      "status": "PASS",
+      "evidence": "2500ms server delay on 'Sài Gòn' query. User clicked Clear (×) at t=420ms while in-flight. Angular HttpClient actively aborted connection (res.on('close') with !res.writableFinished, prematureConnectionClosure true, deliveredStatusCode null). DOM at horizon t=3634ms confirms input empty, 0 options, zero resurrection."
+    },
+    "BEH06b_QuotePositiveControl": {
+      "name": "Delayed Quote Calculation Positive Control (Unmutated)",
+      "status": "PASS",
+      "evidence": "1500ms quote delay with NO UI mutation. Safely consumed POST request body before introducing delay (requestCompletedAt recorded). Completed normally with deliveredStatusCode 200. Official quote rendered in #quoteSection (Deluxe Double Room 2 đêm, 2.400.000 đ) at t=2113ms."
+    },
+    "BEH06b_Scenario1_DateEdit": {
+      "name": "Date Edit During In-Flight Quote Calculation",
+      "status": "PASS",
+      "evidence": "2500ms quote delay. Request body safely consumed. User modified checkOutDate to '2026-10-25' at t=404ms. HttpClient aborted connection (prematureConnectionClosure true, deliveredStatusCode null). DOM at t=3621ms confirms #quoteSection unmounted, selection reset, no stale quote displayed."
+    },
+    "BEH06b_Scenario2_RentalModeSwitch": {
+      "name": "Rental Mode Switch During In-Flight Quote Calculation",
+      "status": "PASS",
+      "evidence": "2500ms quote delay. Request body safely consumed. User clicked 'Theo giờ' at t=410ms. HttpClient aborted connection (prematureConnectionClosure true, deliveredStatusCode null). DOM at t=3614ms confirms activeMode 'Theo giờ', #quoteSection unmounted, zero stale quote displayed."
+    },
+    "BEH11": {
+      "name": "Fixture HTTP Error & In-Browser Retry Recovery",
+      "status": "PASS",
+      "evidence": "Two distinct recovery outcomes verified in network audit: (1) Nonempty recovery on 'Sài Gòn' query (Reqs 27/28): initial 500 DeliveredError, retry 200 DeliveredToClient, recovered prop-001 'Khách sạn Sài Gòn Central'; (2) Empty-result recovery on 'Hà Nội' query (Reqs 23/24): initial 500 DeliveredError, retry 200 DeliveredToClient with 0 items. In both cases, inline role=alert was cleared upon retry.",
+      "screenshot": "docs/agent-coordination/evidence/guest-race-verify-02/combobox-error-alert.png"
+    },
+    "BEH09": {
+      "name": "Rendered Keyboard Navigation & Focus-Visible Styling",
+      "status": "PASS",
+      "evidence": "Full keyboard focus cycle verified with CDP press_key and DOM assertions: ArrowDown moved active descendant to suggestion-0 (opt0Selected true, bg-indigo-50 active classes), second ArrowDown to suggestion-1 (opt1Selected true), ArrowUp back to suggestion-0, Enter accepted selection, Escape closed dropdown (aria-expanded false). Tab navigation verified: pressing Tab from combobox input moved activeElement to adjacent clear button (aria-label 'Xóa từ khóa tìm kiếm'), second Tab moved to date input #hourlyDateInput, and Shift+Tab returned focus in reverse. Measured 2px ring focus-visible and 54px touch target height (exceeds WCAG 2.5.5 enhanced 44px recommendation and WCAG 2.5.8 24px minimum).",
+      "screenshot": "docs/agent-coordination/evidence/guest-race-verify-02/combobox-keyboard-activedescendant.png"
+    }
+  },
+  "evidenceFiles": {
+    "docs/agent-coordination/evidence/guest-race-verify-02/browser-measurements.json": {
+      "bytes": 14816,
+      "sha256": "A59A8E7C8E761A1AEF31FE66BB67130DA8303580EE1A14BE34018C47FEA32F15"
+    },
+    "docs/agent-coordination/evidence/guest-race-verify-02/fixture-server.cjs": {
+      "bytes": 16792,
+      "sha256": "70121E36FFAF3DA94DCB48350CF3C2B2C0A28576433F644FA4E0264B9E02BA68"
+    },
+    "docs/agent-coordination/evidence/guest-race-verify-02/network-audit.json": {
+      "bytes": 29717,
+      "sha256": "5EFBA2AA0602964D7EC9B473967C3A89AA5380631F23B424ABD7E751AE3A1891"
+    },
+    "docs/agent-coordination/evidence/guest-race-verify-02/combobox-error-alert.png": {
+      "bytes": 253002,
+      "sha256": "DC3153AA9DEA8B78000348051753C9AA1513D792B65E57DCE5929F7975887ED3"
+    },
+    "docs/agent-coordination/evidence/guest-race-verify-02/combobox-keyboard-activedescendant.png": {
+      "bytes": 256700,
+      "sha256": "2A06B44CB8F5419A46F7521431913D2193E77AF7E598ABA8E9AE5A8F98ACC1CA"
+    }
+  },
+  "limitations": [
+    "No-DB Execution: All tests run 100% in-memory with synthetic fixtures. No dev/staging/prod/ambient PostgreSQL connections were initialized.",
+    "Outbound isolation limitation: Inbound server logs confirm 34 loopback requests from 127.0.0.1, but inbound server logging alone cannot prove complete OS/browser outbound network isolation.",
+    "External fonts / cache: Inter font requests may occur if cached or unintercepted.",
+    "No Screen-Reader / Overall WCAG claims: Accessibility verified strictly at DOM attributes (role, aria-expanded, aria-activedescendant, aria-selected), focus-visible computed styles, touch target dimensions, and keyboard event/Tab focus levels."
+  ]
+}

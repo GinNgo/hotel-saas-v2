@@ -31,6 +31,10 @@ hotel-saas-v2/
 └── .github/          # CI/CD Workflows
 ```
 
+## Product Roadmap
+
+The implementation roadmap is tracked in [docs/implementation-phases.md](docs/implementation-phases.md), with the MVP commitment in [docs/srs/08-kpi-commitment.md](docs/srs/08-kpi-commitment.md). It prioritizes internal hotel operations, hourly and overnight stays, tenant organizations with one or multiple properties, and branch-scoped permissions. Minimal online booking shares inventory and holds with internal bookings. Vietnamese AI-assisted room search is part of the academic MVP, using validated backend search results rather than inventing prices or availability. Platform-wide catalog/maps and automated subscription billing are deferred unless required by the course rubric. Phase status is planned, not verified completion.
+
 ## Quick Start
 
 ### Prerequisites

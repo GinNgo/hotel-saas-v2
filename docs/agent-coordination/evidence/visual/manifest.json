@@ -1,0 +1,191 @@
+{
+  "schemaVersion": 3,
+  "taskId": "P7-VISUAL-EVIDENCE-01",
+  "round": 3,
+  "createdAt": "2026-10-10T21:03:00+07:00",
+  "actor": "antigravity",
+  "git": {
+    "branch": "develop",
+    "commit": "3f95339",
+    "workingTreeStatus": "Dirty baseline (working tree chứa uncommitted changes tích lũy từ các phase trước trong frontend/src/ và backend/src/, cùng các tài liệu điều phối; riêng trong scope task P7-VISUAL-EVIDENCE-01 không phát sinh sửa đổi mã nguồn nghiệp vụ mới)."
+  },
+  "environment": {
+    "browserEngine": "Headless/Emulated Chrome via chrome-devtools-mcp",
+    "frontendHost": "http://localhost:4200 (Angular 19/22 CLI dev-server)",
+    "apiBackend": "http://127.0.0.1:5283 (Standalone in-memory fixture server)"
+  },
+  "dataProvenance": {
+    "method": "Browser-intercept fixtures phục vụ qua máy chủ Node.js in-memory độc lập (xem docs/agent-coordination/evidence/visual/fixture-server.cjs và fixtures.json).",
+    "captureProcedure": "Angular CLI dev-server chạy tại http://localhost:4200 với cấu hình frontend/proxy.conf.json định tuyến mọi yêu cầu /api/* sang http://127.0.0.1:5283. Máy chủ Node.js in-memory fixture server (docs/agent-coordination/evidence/visual/fixture-server.cjs) lắng nghe tại 127.0.0.1:5283 phục vụ các API route tĩnh từ fixtures.json và fail-closed trả về HTTP 404 cho mọi route không khớp. Đối với 2 ảnh giao diện Staff (receptionist folio modal), phiên đăng nhập được thiết lập bằng synthetic client-side state trong browser localStorage qua TokenStorageService (hotel_saas_access_token chứa synthetic JWT không credentials/secrets thật mang role Lễ tân và quyền RESERVATIONS.Read, PAYMENTS.Create; hotel_saas_active_property_id: prop-001); endpoint /api/auth/me/memberships trả về membership tổng hợp.",
+    "networkIsolation": "Máy chủ fixture lắng nghe loopback 127.0.0.1:5283 và fail-closed (404 cho unmatched routes). Giới hạn kiểm chứng: mức độ cô lập mạng tổng thể của trình duyệt đối với các cuộc gọi ngoại vi trong phiên capture là unverified (chưa có network trace hoặc firewall log độc lập chứng minh browser hoàn toàn không phát sinh request ra ngoài).",
+    "databaseIsolation": "Hoàn toàn không cấu hình chuỗi kết nối DB (0 connection); không kết nối hay gửi lệnh tới database dev, staging hay production.",
+    "sourceCodeModifications": "Không có sửa đổi mã nguồn nghiệp vụ trong phạm vi task P7-VISUAL-EVIDENCE-01; checkout làm việc là dirty baseline chứa uncommitted code tích lũy từ các phase trước (delta so với snapshot trước capture là unverified; HEAD 3f95339 không đại diện toàn bộ code đang render)."
+  },
+  "redactionAndPrivacy": "Toàn bộ dữ liệu khách hàng sử dụng thông tin tổng hợp (synthetic data) tuân thủ quy tắc che giấu PII của SDD-06 Mục 2.5 và Quyết định D21 (ng***@gmail.com, Ng*** V** A**, 090***678). Không chứa thông tin đăng nhập, token thật hay dữ liệu bí mật nào trong bằng chứng ảnh hoặc manifest.",
+  "screenshots": [
+    {
+      "id": "public-booking-search-desktop",
+      "fileName": "public-booking-search-desktop.png",
+      "capturedAt": "2026-10-10T18:59:28+07:00",
+      "actualRoute": "http://localhost:4200/booking",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "deviceScaleFactor": 1,
+        "isMobile": false
+      },
+      "caption": "Giao diện tìm kiếm phòng công khai mô phỏng từ fixture (Desktop 1280x800)",
+      "visibleElements": [
+        "Bộ chọn cơ sở lưu trú (Khách sạn Sài Gòn Central)",
+        "Hình thức thuê qua đêm (Overnight) và theo giờ (Hourly)",
+        "Bộ chọn ngày nhận/trả phòng và chính sách giờ check-in 14:00, check-out 12:00",
+        "Thẻ danh sách 2 loại phòng khả dụng (Deluxe Double Room, Executive Suite) nạp từ fixture",
+        "Ước tính giá và nút 'Chọn & Nhận báo giá'"
+      ],
+      "limitations": "Dữ liệu phòng trống và bảng giá hiển thị dựa trên fixture tổng hợp; không đại diện cho kho phòng hay tích hợp trực tiếp cloud."
+    },
+    {
+      "id": "public-booking-search-mobile",
+      "fileName": "public-booking-search-mobile.png",
+      "capturedAt": "2026-10-10T19:03:06+07:00",
+      "actualRoute": "http://localhost:4200/booking",
+      "viewport": {
+        "width": 375,
+        "height": 812,
+        "deviceScaleFactor": 2,
+        "isMobile": true
+      },
+      "caption": "Giao diện tìm kiếm phòng công khai mô phỏng từ fixture (Mobile 375x812)",
+      "visibleElements": [
+        "Layout responsive di động tối ưu chạm/vuốt",
+        "Form tìm kiếm xếp dọc theo chuẩn mobile UI",
+        "Khung thông tin phòng trống hiển thị vừa vặn trong màn hình di động"
+      ],
+      "limitations": "Danh sách loại phòng chi tiết nằm cuộn phía dưới viewport."
+    },
+    {
+      "id": "public-booking-hold-desktop",
+      "fileName": "public-booking-hold-desktop.png",
+      "capturedAt": "2026-10-10T20:48:14+07:00",
+      "actualRoute": "http://localhost:4200/booking/hold/tok-hold-8899aabbccddeeff",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "deviceScaleFactor": 1,
+        "isMobile": false
+      },
+      "caption": "Giao diện giữ phòng & hướng dẫn cọc 30% mô phỏng từ fixture (Desktop 1280x800)",
+      "visibleElements": [
+        "Banner đồng hồ đếm ngược giữ phòng 15 phút (mô phỏng từ thời gian hết hạn holdExpiresAtUtc)",
+        "Mã xác nhận giữ chỗ BK-20261010-0088 và trạng thái PendingPayment (khớp chính xác ReservationStatus enum backend)",
+        "Thông tin người đặt che giấu PII (Ng*** V** A**, ng***@gmail.com)",
+        "Bảng kê chi phí & tỷ lệ cọc 30% bắt buộc (720,000 đ / 2,400,000 đ)",
+        "Hướng dẫn chuyển khoản ngân hàng (Vietcombank) kèm cú pháp chuyển khoản",
+        "Mã tra cứu bảo mật dạng rút gọn và nút kiểm tra trạng thái đơn"
+      ],
+      "limitations": "Đồng hồ đếm ngược được tính toán từ fixture holdExpiresAtUtc, không đại diện cho scheduler nền backend."
+    },
+    {
+      "id": "public-booking-hold-mobile",
+      "fileName": "public-booking-hold-mobile.png",
+      "capturedAt": "2026-10-10T20:49:30+07:00",
+      "actualRoute": "http://localhost:4200/booking/hold/tok-hold-8899aabbccddeeff",
+      "viewport": {
+        "width": 375,
+        "height": 812,
+        "deviceScaleFactor": 2,
+        "isMobile": true
+      },
+      "caption": "Giao diện giữ phòng & hướng dẫn cọc 30% mô phỏng từ fixture (Mobile 375x812)",
+      "visibleElements": [
+        "Banner đếm ngược 15 phút hiển thị responsive trên mobile",
+        "Trạng thái PendingPayment và thông tin khách hàng che giấu PII",
+        "Mã xác nhận BK-20261010-0088 và thông tin phòng Deluxe Double"
+      ],
+      "limitations": "Phần hướng dẫn chuyển khoản và chi tiết cọc 30% nằm cuộn phía dưới viewport."
+    },
+    {
+      "id": "public-booking-status-desktop",
+      "fileName": "public-booking-status-desktop.png",
+      "capturedAt": "2026-10-10T19:11:04+07:00",
+      "actualRoute": "http://localhost:4200/booking/status/tok-status-1122334455667788",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "deviceScaleFactor": 1,
+        "isMobile": false
+      },
+      "caption": "Giao diện tra cứu & trạng thái đặt phòng mô phỏng từ fixture (Desktop 1280x800)",
+      "visibleElements": [
+        "Khung nhập mã tra cứu bảo mật (Lookup Token) và nút Tra cứu",
+        "Trạng thái đơn hàng 'Đã xác nhận' (Confirmed) với mã BK-20261010-0088",
+        "Thông tin khách hàng đã mã hóa PII (Ng*** V** A**, ng***@gmail.com, 090***678)",
+        "Bảng đối soát tài chính: Tổng tiền (2,400,000 đ), Đã cọc (720,000 đ), Còn lại tại quầy (1,680,000 đ)",
+        "Bảng phân rã chi phí chi tiết theo đêm"
+      ],
+      "limitations": "Dữ liệu đơn hàng lấy từ fixture token tổng hợp; không truy cập live database."
+    },
+    {
+      "id": "public-booking-status-mobile",
+      "fileName": "public-booking-status-mobile.png",
+      "capturedAt": "2026-10-10T19:22:08+07:00",
+      "actualRoute": "http://localhost:4200/booking/status/tok-status-1122334455667788",
+      "viewport": {
+        "width": 375,
+        "height": 812,
+        "deviceScaleFactor": 2,
+        "isMobile": true
+      },
+      "caption": "Giao diện tra cứu & trạng thái đặt phòng mô phỏng từ fixture (Mobile 375x812)",
+      "visibleElements": [
+        "Khung tra cứu mã token tổng hợp tối ưu bàn phím di động",
+        "Badge trạng thái 'Đã xác nhận' màu xanh",
+        "Thông tin lưu trú và đối soát tài chính thu gọn cho màn hình nhỏ"
+      ],
+      "limitations": "Phần bảng phân rã chi phí chi tiết nằm cuộn phía dưới viewport."
+    },
+    {
+      "id": "receptionist-folio-modal-desktop",
+      "fileName": "receptionist-folio-modal-desktop.png",
+      "capturedAt": "2026-10-10T19:54:12+07:00",
+      "actualRoute": "http://localhost:4200/reservations (Modal Chi tiết đơn đặt phòng)",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "deviceScaleFactor": 1,
+        "isMobile": false
+      },
+      "caption": "Modal chi tiết đặt phòng & Bảng kê công nợ Folio lễ tân (Desktop 1280x800)",
+      "visibleElements": [
+        "Header modal đơn đặt RES-20261010-0012 kèm snapshot giá bất biến",
+        "Thông tin khách hàng nội bộ (Nguyễn Văn An, an.nguyen@example.com, 0901234567)",
+        "Phòng 102 - Deluxe Double Room, trạng thái Đang lưu trú",
+        "Bảng kê giá snapshot theo từng khoản mục chi phí",
+        "Bảng kê công nợ & Thanh toán (Folio): Badge 'Còn dư nợ', KPI Tổng tiền (2,400,000 đ), Đã thanh toán (720,000 đ), Dư nợ còn lại (1,680,000 đ)",
+        "Lịch sử thu tiền & đặt cọc: Giao dịch chuyển khoản 720,000 đ kèm mã audit [IK:...][BY:staff-01]",
+        "Phần đầu biểu mẫu ghi nhận thu tiền thủ công và nút 'Thu đủ dư nợ (1,680,000 đ)'"
+      ],
+      "limitations": "Các trường nhập liệu chi tiết của biểu mẫu thu tiền nằm cuộn phía dưới vùng nhìn thấy của modal."
+    },
+    {
+      "id": "receptionist-folio-modal-mobile",
+      "fileName": "receptionist-folio-modal-mobile.png",
+      "capturedAt": "2026-10-10T20:38:40+07:00",
+      "actualRoute": "http://localhost:4200/reservations (Modal Chi tiết đơn đặt phòng cuộn đến Folio)",
+      "viewport": {
+        "width": 375,
+        "height": 812,
+        "deviceScaleFactor": 2,
+        "isMobile": true
+      },
+      "caption": "Modal chi tiết đặt phòng cuộn đến phần Bảng kê công nợ Folio (Mobile 375x812)",
+      "visibleElements": [
+        "Modal responsive toàn màn hình di động, đã cuộn đến section Folio",
+        "Bảng kê công nợ & Thanh toán (Folio) với badge 'Còn dư nợ'",
+        "Thẻ KPI công nợ: Tổng tiền (2,400,000 đ), Đã thanh toán (720,000 đ), Dư nợ còn lại (1,680,000 đ)",
+        "Phần đầu bảng lịch sử thu tiền & đặt cọc (giao dịch chuyển khoản 15:35)"
+      ],
+      "limitations": "Biểu mẫu nhập thu tiền và phần cuối bảng lịch sử nằm ngoài viewport (bên dưới); ảnh chỉ chứng minh phần KPI công nợ và lịch sử giao dịch hiển thị được trên viewport mobile."
+    }
+  ]
+}

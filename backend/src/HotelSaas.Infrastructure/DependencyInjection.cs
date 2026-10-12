@@ -1,5 +1,6 @@
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Infrastructure.Persistence;
+using HotelSaas.Infrastructure.Persistence.Interceptors;
 using HotelSaas.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -22,16 +23,25 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddDbContext<ApplicationDbContext>(options =>
+        services.AddScoped<TenantPropertySaveChangesInterceptor>();
+
+        services.AddDbContext<ApplicationDbContext>((sp, options) =>
+        {
             options.UseNpgsql(
                 configuration.GetConnectionString("DefaultConnection"),
                 npgsqlOptions => npgsqlOptions.MigrationsAssembly(
-                    typeof(ApplicationDbContext).Assembly.FullName)));
+                    typeof(ApplicationDbContext).Assembly.FullName));
+            options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+            options.AddInterceptors(sp.GetRequiredService<TenantPropertySaveChangesInterceptor>());
+        });
 
         services.AddScoped<IApplicationDbContext>(sp =>
             sp.GetRequiredService<ApplicationDbContext>());
 
         services.AddScoped<ICurrentTenantService, CurrentTenantService>();
+        services.AddScoped<ICurrentPropertyService, CurrentPropertyService>();
+        services.AddScoped<ICurrentUserContext, CurrentUserContext>();
+        services.AddScoped<IMembershipLookupService, MembershipLookupService>();
         services.AddScoped<IPasswordHasher, PasswordHasherService>();
         services.AddScoped<IJwtService, JwtService>();
 

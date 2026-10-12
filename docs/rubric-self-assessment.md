@@ -6,6 +6,8 @@
 >
 > ⚠️ **Lưu ý:** Đây là tự đánh giá (self-assessment), không phải điểm chính thức.
 > Điểm chính thức do hội đồng chấm.
+>
+> ⚠️ **Trạng thái:** Bảng dưới đây là snapshot cũ, chưa được tái kiểm chứng sau các thay đổi trong repo và lộ trình MVP. Các số liệu/nhận định hiện trạng không được xem là bằng chứng cho đến khi cập nhật lại từ build, test, CI và chức năng chạy thật.
 
 ---
 

@@ -1,4 +1,7 @@
+using System;
+using System.Linq;
 using System.Security.Claims;
+using System.Threading.Tasks;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -8,20 +11,25 @@ namespace HotelSaas.WebApi.Authorization;
 
 /// <summary>
 /// Evaluates <see cref="PermissionRequirement"/> by checking the authenticated user's
-/// RBAC role permissions via the database. Platform <see cref="GlobalUserRole.SuperAdmin"/>
-/// users bypass all checks.
+/// RBAC role permissions via the database. Supports single and composite OR requirements.
+/// Platform <see cref="GlobalUserRole.SuperAdmin"/> users bypass all checks.
 /// </summary>
 public sealed class PermissionAuthorizationHandler : AuthorizationHandler<PermissionRequirement>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICurrentUserContext _userContext;
 
     /// <summary>
     /// Initializes a new instance of <see cref="PermissionAuthorizationHandler"/>.
     /// </summary>
     /// <param name="context">The application database context for querying role permissions.</param>
-    public PermissionAuthorizationHandler(IApplicationDbContext context)
+    /// <param name="userContext">Current request user and authoritative role context.</param>
+    public PermissionAuthorizationHandler(
+        IApplicationDbContext context,
+        ICurrentUserContext userContext)
     {
-        _context = context;
+        _context = context ?? throw new ArgumentNullException(nameof(context));
+        _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
     }
 
     /// <inheritdoc />
@@ -29,36 +37,51 @@ public sealed class PermissionAuthorizationHandler : AuthorizationHandler<Permis
         AuthorizationHandlerContext context,
         PermissionRequirement requirement)
     {
-        var userIdClaim = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
-                          ?? context.User.FindFirstValue("sub");
-
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        // Fail-closed: Must possess an authoritative role resolved by context middleware
+        if (!_userContext.RoleId.HasValue || _userContext.RoleId.Value == Guid.Empty)
         {
             return;
         }
 
-        // SuperAdmin bypasses all permission checks.
-        var globalRoleClaim = context.User.FindFirstValue("globalRole");
-        if (globalRoleClaim is not null &&
-            Enum.TryParse<GlobalUserRole>(globalRoleClaim, ignoreCase: true, out var globalRole) &&
-            globalRole == GlobalUserRole.SuperAdmin)
+        var roleId = _userContext.RoleId.Value;
+
+        if (requirement.AlternativePermissions.Count > 1)
         {
-            context.Succeed(requirement);
-            return;
+            var functionCodes = requirement.AlternativePermissions
+                .Select(p => p.FunctionCode)
+                .Distinct()
+                .ToList();
+
+            var rolePermissions = await _context.RolePermissions
+                .AsNoTracking()
+                .Where(rp => rp.RoleId == roleId && functionCodes.Contains(rp.Function!.Code))
+                .Select(rp => new { Code = rp.Function!.Code, rp.ActionMask })
+                .ToListAsync();
+
+            var hasAnyPermission = requirement.AlternativePermissions.Any(req =>
+                rolePermissions.Any(rp => rp.Code == req.FunctionCode &&
+                                          (rp.ActionMask & req.RequiredAction) == req.RequiredAction));
+
+            if (hasAnyPermission)
+            {
+                context.Succeed(requirement);
+            }
         }
-
-        // Query tenant staff -> role -> permissions for the authenticated user.
-        var hasPermission = await _context.TenantStaffMembers
-            .AsNoTracking()
-            .Where(ts => ts.UserId == userId && ts.IsActive)
-            .SelectMany(ts => ts.Role!.Permissions)
-            .AnyAsync(rp =>
-                rp.Function!.Code == requirement.FunctionCode &&
-                (rp.ActionMask & requirement.RequiredAction) == requirement.RequiredAction);
-
-        if (hasPermission)
+        else
         {
-            context.Succeed(requirement);
+            var targetCode = requirement.FunctionCode;
+            // Query permissions strictly for the authoritative role of the current context (Zero-Aggregation)
+            var hasPermission = await _context.RolePermissions
+                .AsNoTracking()
+                .AnyAsync(rp =>
+                    rp.RoleId == roleId &&
+                    rp.Function!.Code == targetCode &&
+                    (rp.ActionMask & requirement.RequiredAction) == requirement.RequiredAction);
+
+            if (hasPermission)
+            {
+                context.Succeed(requirement);
+            }
         }
     }
 }

@@ -5,7 +5,7 @@ namespace HotelSaas.Domain.Entities;
 /// <summary>
 /// Represents a category of rooms within a property (e.g., "Deluxe Double", "Standard Twin").
 /// </summary>
-public class RoomType : BaseEntity, ITenantScopedEntity
+public class RoomType : BaseEntity, IPropertyScopedEntity
 {
     /// <summary>
     /// Foreign key to the tenant this room type belongs to.
@@ -16,6 +16,16 @@ public class RoomType : BaseEntity, ITenantScopedEntity
     /// Navigation property to the owning tenant.
     /// </summary>
     public Tenant? Tenant { get; set; }
+
+    /// <summary>
+    /// Foreign key to the physical property/branch this room type belongs to.
+    /// </summary>
+    public Guid PropertyId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the owning physical property.
+    /// </summary>
+    public Property? Property { get; set; }
 
     /// <summary>
     /// Display name of the room type.
@@ -63,4 +73,14 @@ public class RoomType : BaseEntity, ITenantScopedEntity
     /// Collection of individual rooms of this type.
     /// </summary>
     public ICollection<Room> Rooms { get; set; } = new List<Room>();
+
+    /// <summary>
+    /// Collection of versioned pricing rates defined for this room type.
+    /// </summary>
+    public ICollection<RoomTypeRate> Rates { get; set; } = new List<RoomTypeRate>();
+
+    /// <summary>
+    /// Collection of audit log entries tracking rate modifications and interval splittings.
+    /// </summary>
+    public ICollection<RoomTypeRateAudit> RateAudits { get; set; } = new List<RoomTypeRateAudit>();
 }

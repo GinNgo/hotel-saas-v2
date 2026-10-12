@@ -6,7 +6,7 @@ namespace HotelSaas.Domain.Entities;
 /// <summary>
 /// Represents a payment transaction associated with a reservation.
 /// </summary>
-public class Payment : BaseEntity, ITenantScopedEntity
+public class Payment : BaseEntity, IPropertyScopedEntity
 {
     /// <summary>
     /// Foreign key to the tenant this payment belongs to.
@@ -17,6 +17,16 @@ public class Payment : BaseEntity, ITenantScopedEntity
     /// Navigation property to the owning tenant.
     /// </summary>
     public Tenant? Tenant { get; set; }
+
+    /// <summary>
+    /// Foreign key to the physical property/branch collecting this payment.
+    /// </summary>
+    public Guid PropertyId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the physical property.
+    /// </summary>
+    public Property? Property { get; set; }
 
     /// <summary>
     /// Foreign key to the reservation this payment is for.

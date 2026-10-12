@@ -1,0 +1,19 @@
+{
+  "description": "Deterministic in-memory synthetic fixture datasets for visual evidence capture",
+  "generatedAt": "2026-10-10T20:46:00+07:00",
+  "actor": "antigravity",
+  "networkIsolation": {
+    "bindAddress": "127.0.0.1:5283",
+    "unmatchedRouteBehavior": "404 Not Found (Fail-closed)",
+    "databaseConnections": 0,
+    "externalApiCalls": 0
+  },
+  "routes": {
+    "GET /api/public/properties": "Returns single active property Khách sạn Sài Gòn Central",
+    "GET /api/public/properties/:slug/room-types": "Returns 2 room types: Deluxe Double Room & Executive Suite",
+    "GET /api/public/properties/:slug/availability": "Returns room availability with synthetic estimated prices",
+    "GET /api/public/bookings/:token": "Returns hold booking (PendingPayment) or confirmed booking (Confirmed) with masked PII",
+    "GET /api/reservations": "Returns paginated list of reservations for staff",
+    "GET /api/reservations/:id/folio": "Returns Folio statement breakdown with payment audit history"
+  }
+}

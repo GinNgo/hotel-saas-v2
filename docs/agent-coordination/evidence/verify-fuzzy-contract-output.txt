@@ -1,0 +1,58 @@
+﻿================================================================================
+OFFLINE DETERMINISTIC VERIFIER (BOUNDED ORACLE) — P5-FUZZY-CONTRACT-02 (Round 7)
+================================================================================
+
+>>> SECTION 1: Explanatory Edit Counts & Distance Traces
+[PASS] centxralz -> da OSA is exactly 8 (7 deletions + 1 substitution)
+[PASS] centxralz -> nang OSA is exactly 7 (5 deletions + 2 substitutions)
+[PASS] centxralz -> chau OSA is exactly 7
+[PASS] centxralz -> central OSA is exactly 2 (2 deletions)
+[PASS] P2 Name bestDist('centxralz') == 2
+[PASS] P2 City bestDist('centxralz') == 7 (da=8, nang=7)
+[PASS] P2 Address bestDist('centxralz') == 7 (chau=7, hai=8)
+[PASS] P2 Score for 'centxralz' is 50 on field Name
+[PASS] nhxtrangg -> nhatrang OSA is exactly 2 (2 deletions)
+[PASS] Query 'Sài Gòn' matches P3 Name (Score 80)
+[PASS] Query 'Sài Gòn' does NOT match P3 City (TP. Hồ Chí Minh, Score 0)
+
+>>> SECTION 2: Unicode Normalization & Combining Marks
+[PASS] a\u1ab0 normalizes to 'a' (NonSpacingMark stripped)
+[PASS] \u0301 (combining acute) normalizes to empty string
+
+>>> SECTION 3: Ordinal Comparators & Asymmetric Guid Ordering (Bounded Oracle)
+[PASS] compareOrdinalIgnoreCaseApprox('Z Hotel', 'Á Hotel') is negative (Z < Á)
+[PASS] compareOrdinalIgnoreCaseApprox('Straße', 'STRASSE') is positive (> 0, non-expanding sign)
+[PASS] Bounded Oracle Limitation Probe: Greek pair (U+1F80 vs U+1F88) is non-zero in JS oracle (-1 vs 0 in .NET CoreCLR)
+[PASS] Asymmetric Guid Group 1 (_a numeric): 0x00000001 < 0x00000100 (-1)
+[PASS] Asymmetric Guid Group 2 (_b numeric): 0x0001 < 0x0100 (-1)
+[PASS] Asymmetric Guid Group 3 (_c numeric): 0x0001 < 0x0100 (-1)
+[PASS] Asymmetric Guid Group 4 (_d byte order): 0x00 < 0x01 (-1)
+[PASS] Asymmetric Guid Group 5 (_k byte order): 0x01 < 0x10 (-1)
+[PASS] Guid P1 < P2
+[PASS] Guid P2 < P2_TIE
+
+>>> SECTION 4: Full-Array Fixture Checks (complete membership, order, and scores)
+[PASS] Fixture 'ExactMatch (Score 100)' (query: 'Khách Sạn Sài Gòn Central')
+[PASS] Fixture 'PrefixMatch (Score 90)' (query: 'Khách Sạn Sài Gòn')
+[PASS] Fixture 'SubstringMatch (Score 80, matches P3 Name only)' (query: 'Sài Gòn')
+[PASS] Fixture 'AllTokensExactMatch out-of-order (Score 75)' (query: 'Central Sài Gòn')
+[PASS] Fixture 'Token Reuse (Score 75)' (query: 'central central')
+[PASS] Fixture 'Condensed Tier 1 dist = 0 (Score 60)' (query: 'danang')
+[PASS] Fixture 'Multi-token Typo Tier 1 (Score 60)' (query: 'da nag')
+[PASS] Fixture 'Token Typo Tier 1 single token (Score 60)' (query: 'centraal')
+[PASS] Fixture 'Transposition Condensed Tier 1 (Score 60)' (query: 'Haoni')
+[PASS] Fixture 'Token Typo Tier 2 dist = 2 (Score 50)' (query: 'centxralz')
+[PASS] Fixture 'Multiword Condensed Tier 2 dist = 2 (Score 50)' (query: 'nhxtrangg')
+[PASS] Fixture 'Short Substring 'Ha' across full catalog (Score 90 / 80)' (query: 'Ha')
+[PASS] Fixture 'Literal punctuation with no match (Token-Empty Guard -> Score 0)' (query: ', -')
+[PASS] Fixture 'All-Token Guard Rejection (Score 0)' (query: 'Danang xyz')
+[PASS] Fixture 'Same-Name Fixed-Guid Tie Break' (query: 'Central Đà Nẵng')
+
+>>> SECTION 5: Blank, Normalized-Empty Bypass & Inactive Exclusion
+[PASS] Blank query (empty string '') returns all 7 Active properties in Name ASC, Id ASC order
+[PASS] Blank query (whitespace only '   ') returns all 7 Active properties in Name ASC, Id ASC order
+[PASS] Normalized-empty query (combining acute '\u0301') returns all 7 Active properties in Name ASC, Id ASC order
+
+================================================================================
+FINAL RESULT: ALL ASSERTIONS PASSED (BOUNDED OFFLINE DETERMINISTIC VERIFIER)
+================================================================================

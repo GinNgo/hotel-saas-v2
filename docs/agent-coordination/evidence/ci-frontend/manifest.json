@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "taskId": "P7-CI-FRONTEND-REHEARSAL-01",
+  "round": 1,
+  "createdAt": "2026-10-10T23:57:00+07:00",
+  "actor": "antigravity",
+  "git": {
+    "branch": "develop",
+    "commit": "3f95339",
+    "workingTreeStatus": "Dirty baseline (uncommitted changes từ các phase trước; trong task P7-CI-FRONTEND-REHEARSAL-01 không can thiệp mã nguồn frontend/backend, không sửa workflow/dependencies; chỉ tạo các logs thực tế, manifest và phân tích gap)."
+  },
+  "workflowAnalysis": {
+    "workflowFile": ".github/workflows/ci.yml (Stage 2: frontend)",
+    "packageJsonFile": "frontend/package.json",
+    "definedScriptsInPackageJson": [
+      "ng",
+      "start",
+      "build",
+      "watch",
+      "test"
+    ],
+    "steps": [
+      {
+        "stepName": "Install dependencies",
+        "workflowCommand": "npm ci",
+        "statusInWorkflow": "Mandatory",
+        "packageJsonMapping": "package-lock.json hiện diện; packageManager khai báo npm@11.13.0.",
+        "rehearsalAction": "Bỏ qua việc chạy 'npm ci' trong rehearsal cục bộ (tuân thủ chỉ đạo của assignment: không đổi dependency/network và không sửa node_modules hiện có)."
+      },
+      {
+        "stepName": "Lint",
+        "workflowCommand": "npm run lint --if-present",
+        "statusInWorkflow": "Conditional via --if-present",
+        "packageJsonMapping": "Script 'lint' HOÀN TOÀN KHÔNG CÓ trong package.json.",
+        "rehearsalExecution": {
+          "command": "npm run lint --if-present",
+          "cwd": "C:\\Dev\\hotel-saas-v2\\frontend",
+          "exitCode": 0,
+          "stdout": "",
+          "stderr": "",
+          "behavior": "npm bỏ qua trong im lặng (silent skip) do có cờ --if-present và trả về exit code 0."
+        },
+        "gapFinding": "GAP PHÁT HIỆN: CI workflow trên GitHub Actions không hề thực thi lint code frontend; bước này luôn bị bỏ qua nhưng vẫn báo xanh giả tạo (green check)."
+      },
+      {
+        "stepName": "Build",
+        "workflowCommand": "npm run build -- --configuration production",
+        "statusInWorkflow": "Mandatory",
+        "packageJsonMapping": "Script 'build' được định nghĩa là 'ng build'. Tham số '--configuration production' được truyền hợp lệ vào Angular CLI.",
+        "rehearsalExecution": {
+          "command": "npm run build -- --configuration production",
+          "cwd": "C:\\Dev\\hotel-saas-v2\\frontend",
+          "exitCode": 0,
+          "durationSeconds": 8.226,
+          "bundleSize": {
+            "initialRawBytes": 909772,
+            "initialRawFormatted": "888.45 kB",
+            "initialTransferFormatted": "203.08 kB"
+          },
+          "warnings": [
+            "Module 'sweetalert2' used by 'src/app/core/services/alert.service.ts' is not ESM (CommonJS bailout warning)"
+          ],
+          "outputLocation": "C:\\Dev\\hotel-saas-v2\\frontend\\dist\\frontend\\browser",
+          "logFile": "docs/agent-coordination/evidence/ci-frontend/frontend-build.log"
+        },
+        "gapFinding": "Build thành công 100% với exit code 0. Có 1 cảnh báo CommonJS optimization bailout với thư viện sweetalert2."
+      },
+      {
+        "stepName": "Unit tests",
+        "workflowCommand": "npm run test:unit:ci --if-present",
+        "statusInWorkflow": "Conditional via --if-present",
+        "packageJsonMapping": "Script 'test:unit:ci' HOÀN TOÀN KHÔNG CÓ trong package.json.",
+        "rehearsalExecution": {
+          "command": "npm run test:unit:ci --if-present",
+          "cwd": "C:\\Dev\\hotel-saas-v2\\frontend",
+          "exitCode": 0,
+          "stdout": "",
+          "stderr": "",
+          "behavior": "npm bỏ qua trong im lặng (silent skip) do có cờ --if-present và trả về exit code 0."
+        },
+        "gapFinding": "GAP PHÁT HIỆN: CI workflow trên GitHub Actions hoàn toàn KHÔNG CHẠY bất kỳ bài test nào cho frontend; bước kiểm thử tự động bị bỏ qua trong im lặng nhưng vẫn báo pass."
+      }
+    ],
+    "actualLocalTestExecution": {
+      "command": "npx vitest run",
+      "cwd": "C:\\Dev\\hotel-saas-v2\\frontend",
+      "exitCode": 0,
+      "testFilesPassed": 11,
+      "testFilesTotal": 11,
+      "testsPassed": 160,
+      "testsFailed": 0,
+      "testsTotal": 160,
+      "durationSeconds": 4.24,
+      "logFile": "docs/agent-coordination/evidence/ci-frontend/frontend-vitest.log",
+      "filesSummary": [
+        "src/app/core/utils/date-time.util.spec.ts (28 tests)",
+        "src/app/core/services/public-booking.service.spec.ts (8 tests)",
+        "src/app/features/rates/rates.page.spec.ts (16 tests)",
+        "src/app/features/policies/policies.page.spec.ts (20 tests)",
+        "src/app/core/services/payment.service.spec.ts (4 tests)",
+        "src/app/features/housekeeping/housekeeping.page.spec.ts (14 tests)",
+        "src/app/features/public-booking/public-booking.page.spec.ts (22 tests)",
+        "src/app/features/reservations/reservations.page.spec.ts (38 tests)",
+        "src/app/core/services/rate.service.spec.ts (3 tests)",
+        "src/app/app.spec.ts (1 test)",
+        "src/app/shared/components/date-range-filter/date-range-filter.component.spec.ts (6 tests)"
+      ]
+    }
+  },
+  "keyArtifactHashes": {
+    "mainBundle": {
+      "file": "main-EVLWMPPA.js",
+      "sizeBytes": 298525,
+      "sha256": "A4BE87DEBB43643F3C7BDEFF68EE813ABB0DC8BD80181B89C0836DF5F30A999F"
+    },
+    "polyfills": {
+      "file": "polyfills-LVNOU2XZ.js",
+      "sizeBytes": 35876,
+      "sha256": "F1B35A3B4DB37B73CA0281D6B6247701465FF9E56A7A7B3AFF9784518DC2C30A"
+    },
+    "styles": {
+      "file": "styles-TTNAGAG2.css",
+      "sizeBytes": 57163,
+      "sha256": "D08A53D01F4E65B7057CA910257FA5A5894CFF05B60279F56DCC7C8179BF583D"
+    },
+    "indexHtml": {
+      "file": "index.html",
+      "sizeBytes": 14454,
+      "sha256": "AA0790385BA146A9B9A3B44967D8627C0A13EC8EA3912DD19130EB6C9966B17A"
+    }
+  },
+  "limitationsAndBoundaries": {
+    "zeroCodeChanges": "Không sửa đổi mã nguồn nghiệp vụ trong frontend/src hay backend/src.",
+    "zeroDependencyChanges": "Không chạy npm install hay npm ci, giữ nguyên node_modules và package-lock.json.",
+    "zeroDatabaseConnections": "0 kết nối cơ sở dữ liệu (không truy cập DB dev/staging/prod).",
+    "localRehearsalOnly": "Đây là kiểm thử diễn tập cục bộ (local rehearsal), không phải bằng chứng chạy thành công trên GitHub Actions Cloud thực tế (trạng thái Cloud CI thực tế vẫn là Unknown).",
+    "noScriptAddition": "Không tự ý thêm script 'lint' hay 'test:unit:ci' vào package.json hay sửa đổi ci.yml trong task này theo đúng phân công.",
+    "poGates": "7 cổng chính sách PO (D21 TTL, price pinning, PO Gates 1-5) tiếp tục giữ nguyên NeedsPO trong decisions.md; P6 chưa mở."
+  }
+}

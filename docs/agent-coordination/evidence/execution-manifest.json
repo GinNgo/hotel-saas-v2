@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "task": "P7-REPRO-EVIDENCE-01",
+  "round": 2,
+  "generatedAt": "2026-10-10T18:28:00+07:00",
+  "workspace": "C:\\Dev\\hotel-saas-v2",
+  "actor": "antigravity",
+  "runs": [
+    {
+      "id": "run-fe-vitest",
+      "target": "Frontend Unit & Component Tests",
+      "command": "npx vitest run",
+      "cwd": "C:\\Dev\\hotel-saas-v2\\frontend",
+      "timestamp": "2026-10-10T18:07:00+07:00",
+      "exitCode": 0,
+      "testFiles": 11,
+      "testsPassed": 145,
+      "testsFailed": 0,
+      "durationSeconds": 15.65,
+      "logFile": "docs/agent-coordination/evidence/frontend-vitest.log",
+      "redactions": "none (no credentials or PII in test execution)"
+    },
+    {
+      "id": "run-fe-build",
+      "target": "Frontend Production Build",
+      "command": "npm run build",
+      "cwd": "C:\\Dev\\hotel-saas-v2\\frontend",
+      "timestamp": "2026-10-10T18:09:55+07:00",
+      "exitCode": 0,
+      "durationSeconds": 36.127,
+      "logFile": "docs/agent-coordination/evidence/frontend-build.log",
+      "notes": "Exit code 0; includes CommonJS sweetalert2 optimization bailout warning.",
+      "redactions": "none"
+    },
+    {
+      "id": "run-be-app-p4-p5",
+      "target": "Backend Application Targeted Tests (P4 & P5)",
+      "command": "dotnet test backend/tests/HotelSaas.Application.Tests/HotelSaas.Application.Tests.csproj --filter \"FullyQualifiedName~P4_CashFolioTests|FullyQualifiedName~P5_GuestBookingTests\" --verbosity normal",
+      "cwd": "C:\\Dev\\hotel-saas-v2",
+      "timestamp": "2026-10-10T18:12:00+07:00",
+      "exitCode": 0,
+      "testFiles": 1,
+      "testsPassed": 32,
+      "testsFailed": 0,
+      "durationSeconds": 47.17,
+      "logFile": "docs/agent-coordination/evidence/backend-application-p4-p5.log",
+      "environmentTarget": {
+        "TEST_DB_TARGET": "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=[REDACTED];Password=[REDACTED];",
+        "credentialProvenance": "Credentials supplied via local environment variable TEST_DB_CONNECTION, not persisted in repository"
+      },
+      "databaseIsolation": "Schema isolated per GUID; cleanup via DROP SCHEMA CASCADE",
+      "redactions": "Redacted database credentials (Username/Password) from manifest. PII masked in test data (e.g. ***@gmail.com)."
+    },
+    {
+      "id": "run-be-webapi-p4-p5",
+      "target": "Backend WebApi HTTP E2E Targeted Tests (P4 & P5)",
+      "command": "dotnet test backend/tests/HotelSaas.WebApi.Tests/HotelSaas.WebApi.Tests.csproj --filter \"FullyQualifiedName~PaymentAndFolioHttpPipelineTests|FullyQualifiedName~P5_GuestBookingHttpPipelineTests\" --verbosity normal",
+      "cwd": "C:\\Dev\\hotel-saas-v2",
+      "timestamp": "2026-10-10T18:15:30+07:00",
+      "exitCode": 0,
+      "testFiles": 1,
+      "factsPassed": 2,
+      "criticalFlowsVerified": [
+        "P4 Cash/Transfer manual payment settlement, overpayment rejection, idempotency replay/mismatch, and folio balance reconciliation",
+        "P5 Guest public discovery, 15m hold expiry, token lookup fail-closed, and dual-permission staff confirm",
+        "Scenario 6.5: post-TTL check-in, outstanding balance checkout guard (409), remainder payment collection (201), and dirty room checkout (200)"
+      ],
+      "testsFailed": 0,
+      "durationSeconds": 23.02,
+      "logFile": "docs/agent-coordination/evidence/backend-webapi-p4-p5.log",
+      "environmentTarget": {
+        "TEST_DB_TARGET": "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=[REDACTED];Password=[REDACTED];",
+        "credentialProvenance": "Credentials supplied via local environment variable TEST_DB_CONNECTION, not persisted in repository"
+      },
+      "databaseIsolation": "Schema isolated per GUID; cleanup via DROP SCHEMA CASCADE",
+      "redactions": "Redacted database credentials (Username/Password) from manifest. Local test JWT tokens; no production secrets."
+    }
+  ],
+  "limitations": [
+    "Database credentials are redacted and must be set via local environment variable TEST_DB_CONNECTION.",
+    "Tests were run locally on developer environment, not on GitHub Actions cloud infrastructure.",
+    "Full test suite was not re-executed to preserve system resources; only target P4/P5 & all frontend tests were run as assigned.",
+    "DROP SCHEMA CASCADE is used for test schema cleanup and does not constitute a backup/restore disaster recovery rehearsal.",
+    "P5 business policy questions (D21 lookup TTL anchor/reissue and quote5min/hold15min price pinning) remain open in decisions.md."
+  ]
+}

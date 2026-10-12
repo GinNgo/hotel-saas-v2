@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockup Mobile - Giao diện Đặt phòng & Tìm kiếm Khách sạn (375px Viewport) - Offline Standalone</title>
+  <style>
+    /* Reset & Standalone Base CSS (100% Offline, Zero External Network Requests) */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: #f1f5f9;
+      color: #0f172a;
+      line-height: 1.4;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      max-width: 420px;
+      margin: 0 auto;
+      border-left: 1px solid #e2e8f0;
+      border-right: 1px solid #e2e8f0;
+      box-shadow: 0 0 30px rgba(0,0,0,0.06);
+    }
+    a { color: inherit; text-decoration: none; }
+    button, input, select { font: inherit; }
+
+    .badge-synthetic {
+      background: repeating-linear-gradient(45deg, #fef3c7, #fef3c7 8px, #fde68a 8px, #fde68a 16px);
+      border-bottom: 1px solid #f59e0b;
+      padding: 6px 12px;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: #78350f;
+    }
+
+    .header-mobile {
+      background: #ffffff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 12px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand-group { display: flex; align-items: center; gap: 8px; }
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: #4f46e5;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 16px;
+    }
+
+    /* Mobile Hero Search */
+    .hero-mobile {
+      background: linear-gradient(180deg, #1e1b4b 0%, #312e81 100%);
+      color: #ffffff;
+      padding: 18px 14px 22px 14px;
+    }
+    .hero-title { font-size: 17px; font-weight: 800; text-align: center; margin-bottom: 4px; }
+    .hero-sub { font-size: 11px; color: #c7d2fe; text-align: center; margin-bottom: 14px; }
+
+    .search-card-m {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 12px;
+      color: #0f172a;
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2);
+    }
+    .tabs-m {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      background: #f1f5f9;
+      padding: 4px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+    }
+    .tab-btn-m {
+      padding: 5px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+    }
+    .tab-btn-m-active { background: #ffffff; color: #4f46e5; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .tab-btn-m-inactive { background: transparent; color: #64748b; }
+
+    .input-box-m {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 8px 10px;
+      margin-bottom: 8px;
+    }
+    .input-box-m:focus-within {
+      border-color: #4f46e5;
+    }
+    .label-m {
+      display: block;
+      font-size: 9px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    .input-field-m {
+      width: 100%;
+      border: none;
+      background: transparent;
+      font-size: 12px;
+      font-weight: 600;
+      color: #0f172a;
+      outline: none;
+    }
+    .input-row-m {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .btn-search-m {
+      width: 100%;
+      background: #4f46e5;
+      color: #ffffff;
+      border: none;
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    /* Main Results */
+    .results-m {
+      padding: 14px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .status-chip-m {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #475569;
+    }
+    .badge-fuzzy-m {
+      background: #eef2ff;
+      color: #4f46e5;
+      border: 1px solid #c7d2fe;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 10px;
+    }
+
+    /* Property Card Mobile */
+    .prop-card-m {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .prop-thumb-m {
+      height: 140px;
+      background: #e0e7ff;
+      position: relative;
+    }
+    .prop-thumb-svg-m {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .prop-body-m {
+      padding: 12px;
+    }
+    .prop-city-m {
+      font-size: 10px;
+      font-weight: 700;
+      color: #4f46e5;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .prop-title-m {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 2px 0 4px 0;
+    }
+    .prop-addr-m {
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+    .prop-dto-grid-m {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 10px;
+      color: #475569;
+      margin-bottom: 10px;
+    }
+    .btn-view-rooms-m {
+      width: 100%;
+      background: #4f46e5;
+      color: #ffffff;
+      border: none;
+      border-radius: 10px;
+      padding: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* Selected Room Mobile */
+    .room-selected-box-m {
+      background: #eef2ff;
+      border: 2px solid #4f46e5;
+      border-radius: 14px;
+      padding: 12px;
+      font-size: 11px;
+    }
+
+    /* Sticky Bottom Mobile Bar */
+    .sticky-bar-m {
+      position: sticky;
+      bottom: 0;
+      background: rgba(255, 255, 255, 0.98);
+      border-top: 1px solid #cbd5e1;
+      padding: 10px 14px;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 -4px 10px rgba(0,0,0,0.06);
+    }
+    .btn-hold-m {
+      background: #4f46e5;
+      color: #ffffff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Synthetic Warning Banner -->
+  <aside class="badge-synthetic">
+    ⚠️ MOCKUP MOBILE (375px CSS VIEWPORT) — DỮ LIỆU TỔNG HỢP MÔ PHỎNG. 100% OFFLINE (KHÔNG TẢI NGOÀI). THIẾT KẾ THEO MỤC TIÊU WCAG AA / RESPONSIVE (CHƯA QUA ĐO TỰ ĐỘNG CDP).
+  </aside>
+
+  <!-- Mobile Header -->
+  <header class="header-mobile">
+    <div class="brand-group">
+      <div class="brand-icon">H</div>
+      <div>
+        <h1 style="font-size: 13px; font-weight: 800; line-height: 1.1;">Hotel Booking</h1>
+        <p style="font-size: 9px; color: #64748b;">Khách vãng lai &bull; Đặt trực tiếp</p>
+      </div>
+    </div>
+    <div style="display: flex; gap: 6px;">
+      <a href="#lookup" style="font-size: 11px; font-weight: 600; color: #475569; padding: 4px 8px; background: #f1f5f9; border-radius: 6px;">Tra cứu</a>
+      <a href="/login" style="font-size: 11px; font-weight: 600; color: #4f46e5; padding: 4px 8px; border: 1px solid #c7d2fe; border-radius: 6px;">Nội bộ</a>
+    </div>
+  </header>
+
+  <!-- Mobile Hero Search Form -->
+  <section class="hero-mobile">
+    <h2 class="hero-title">Tìm khách sạn giá tốt</h2>
+    <p class="hero-sub">Tìm kiếm gần đúng &bull; Quy trình đặt phòng 2 bước</p>
+
+    <div class="search-card-m">
+      <div class="tabs-m">
+        <button type="button" class="tab-btn-m tab-btn-m-active">Qua đêm</button>
+        <button type="button" class="tab-btn-m tab-btn-m-inactive">Theo giờ</button>
+      </div>
+
+      <!-- Keyword Field -->
+      <div class="input-box-m">
+        <label for="mobileKeywordInput" class="label-m">Khách sạn hoặc Điểm đến</label>
+        <input
+          id="mobileKeywordInput"
+          type="text"
+          value="Danag"
+          placeholder="Nhập tên khách sạn hoặc thành phố..."
+          class="input-field-m"
+        />
+      </div>
+
+      <!-- Dates & Guests Row -->
+      <div class="input-row-m">
+        <div class="input-box-m" style="margin-bottom: 0;">
+          <label for="mobileDatesInput" class="label-m">Lịch nhận - trả</label>
+          <input
+            id="mobileDatesInput"
+            type="text"
+            readonly
+            value="15/10 - 17/10"
+            class="input-field-m"
+            style="font-size: 11px;"
+          />
+        </div>
+        <div class="input-box-m" style="margin-bottom: 0;">
+          <label for="mobileGuestsInput" class="label-m">Số khách</label>
+          <input
+            id="mobileGuestsInput"
+            type="text"
+            readonly
+            value="2 người lớn"
+            class="input-field-m"
+            style="font-size: 11px;"
+          />
+        </div>
+      </div>
+
+      <!-- Search CTA -->
+      <button type="button" class="btn-search-m" style="margin-top: 10px;">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <span>Tìm kiếm cơ sở</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Mobile Results Container -->
+  <main class="results-m">
+    <div class="status-chip-m">
+      <span style="font-weight: 700; color: #0f172a;">Tìm thấy 2 cơ sở</span>
+      <span class="badge-fuzzy-m">Fuzzy: "Danag" &rarr; "da nang"</span>
+    </div>
+
+    <!-- Step 1 Mobile Property Card 1 -->
+    <article class="prop-card-m">
+      <div class="prop-thumb-m">
+        <svg class="prop-thumb-svg-m" viewBox="0 0 375 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="375" height="140" fill="#e0e7ff"/>
+          <path d="M50 120L90 70L130 100L170 60L230 120H50Z" fill="#c7d2fe"/>
+          <circle cx="210" cy="40" r="14" fill="#fbbf24"/>
+          <rect x="110" y="55" width="80" height="65" rx="3" fill="#6366f1" opacity="0.8"/>
+          <text x="187" y="130" font-family="sans-serif" font-size="9" font-weight="bold" fill="#4338ca" text-anchor="middle">[Fallback SVG Placeholder khi ImageUrl == null]</text>
+        </svg>
+      </div>
+
+      <div class="prop-body-m">
+        <div class="prop-city-m">Đà Nẵng &bull; Slug: bien-dong-resort</div>
+        <h3 class="prop-title-m">Khách Sạn Biển Đông Đà Nẵng</h3>
+        <p class="prop-addr-m">📍 Võ Nguyên Giáp, Sơn Trà, TP. Đà Nẵng</p>
+
+        <div class="prop-dto-grid-m">
+          <div>Check-in: <strong>14:00</strong></div>
+          <div>Check-out: <strong>12:00</strong></div>
+          <div>Buffer: <strong>30p</strong></div>
+          <div>Max hourly: <strong>4h</strong></div>
+        </div>
+
+        <button type="button" class="btn-view-rooms-m">
+          Xem 3 loại phòng (Step 2) &rarr;
+        </button>
+      </div>
+    </article>
+
+    <!-- Step 2: Selected Room Box on Mobile -->
+    <div class="room-selected-box-m">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+        <strong style="color: #312e81;">Đã chọn: Ocean Front Suite</strong>
+        <span style="background: #fff; color: #4f46e5; border: 1px solid #c7d2fe; padding: 1px 6px; border-radius: 9999px; font-weight: 700; font-size: 9px;">Đang giữ</span>
+      </div>
+      <p style="color: #475569; margin-bottom: 6px;">2 đêm &bull; 1 King + 1 Sofa bed &bull; 55 m²</p>
+      <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #c7d2fe; padding-top: 6px;">
+        <span style="color: #64748b;">Tổng dự kiến (Quote):</span>
+        <strong style="font-size: 14px; color: #4f46e5;">3.600.000 đ</strong>
+      </div>
+    </div>
+
+    <!-- Step 1 Mobile Property Card 2 -->
+    <article class="prop-card-m">
+      <div class="prop-thumb-m" style="background: #f1f5f9;">
+        <svg class="prop-thumb-svg-m" viewBox="0 0 375 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="375" height="140" fill="#f1f5f9"/>
+          <path d="M70 120L110 80L140 100L180 70L240 120H70Z" fill="#cbd5e1"/>
+          <circle cx="90" cy="40" r="12" fill="#f59e0b"/>
+          <text x="187" y="130" font-family="sans-serif" font-size="9" font-weight="bold" fill="#64748b" text-anchor="middle">[Fallback SVG Placeholder]</text>
+        </svg>
+      </div>
+
+      <div class="prop-body-m">
+        <div class="prop-city-m">Đà Nẵng &bull; Slug: da-nang-central</div>
+        <h3 class="prop-title-m">Khách Sạn Central Đà Nẵng</h3>
+        <p class="prop-addr-m">📍 Nguyễn Văn Linh, Hải Châu, TP. Đà Nẵng</p>
+        <button type="button" style="width: 100%; background: #fff; border: 1px solid #cbd5e1; color: #0f172a; border-radius: 10px; padding: 7px; font-size: 11px; font-weight: 700; cursor: pointer;">
+          Xem cơ sở này
+        </button>
+      </div>
+    </article>
+  </main>
+
+  <!-- Mobile Sticky Bottom Bar (Quote & Hold Action) -->
+  <aside class="sticky-bar-m">
+    <div>
+      <span style="font-size: 9px; color: #64748b; font-weight: 700; text-transform: uppercase; display: block;">TỔNG BÁO GIÁ (2 ĐÊM)</span>
+      <strong style="font-size: 15px; color: #4f46e5;">3.600.000 đ</strong>
+    </div>
+    <button type="button" class="btn-hold-m">
+      Giữ phòng 15 phút &rarr;
+    </button>
+  </aside>
+
+</body>
+</html>

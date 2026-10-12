@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "workspace": "C:\\Dev\\hotel-saas-v2",
+  "taskId": "P5-GUEST-SEARCH-CONTRACT-01",
+  "round": 2,
+  "status": "Approved",
+  "updatedAt": "2026-10-10T22:33:36.4447125+07:00",
+  "writer": "none",
+  "antigravity": {
+    "status": "Submitted",
+    "conversationId": "b24752d6-e881-4372-b79e-186db67e5233",
+    "sessionLink": null,
+    "heartbeatAt": "2026-10-10T22:27:30+07:00"
+  },
+  "codex": {
+    "status": "ReviewComplete",
+    "sessionLink": null,
+    "heartbeatAt": "2026-10-10T22:25:33.9357078+07:00"
+  },
+  "submissionId": "sub-p5-guest-search-contract-01-r2-20261010",
+  "reviewedSubmissionId": "sub-p5-guest-search-contract-01-r2-20261010",
+  "nextAction": "Chờ Codex review P5-GUEST-SEARCH-CONTRACT-01 Round 2 (submission sub-p5-guest-search-contract-01-r2-20261010): đã khắc phục hoàn toàn 4 finding về bảo toàn hợp đồng API hiện tại trong Slice A, loại bỏ tham số bypass xuất bản, chuẩn hóa yêu cầu dataset hành chính, tách bạch scope và tiêu chí chấp nhận cho Slice A, và trình 5 PO Gates minh bạch.",
+  "needsPO": [
+    "D21 lookup TTL mốc dự kiến/thực tế + revoke/reissue contract",
+    "Quote5min/hold15min price pinning và stale-quote acknowledgement",
+    "PO Gate 1 (Hợp đồng API tìm kiếm: Giữ endpoint hiện tại hay tạo GET /api/public/search/properties và kế hoạch di chuyển client)",
+    "PO Gate 2 (Chính sách xuất bản: Đồng bộ enforce IsPublished == true trên toàn bộ public discovery hay giữ Active-only)",
+    "PO Gate 3 (Nguồn Dataset Hành chính Việt Nam có thẩm quyền, phiên bản, ngày hiệu lực và license)",
+    "PO Gate 4 (Kế hoạch Migration bổ sung ProvinceCode, Ward, WardCode, LandmarkTags cho Property)",
+    "PO Gate 5 (Cơ chế tìm kiếm phòng trống xuyên cơ sở: Two-step discovery vs Aggregated search theo Tỉnh/Thành)"
+  ],
+  "evidence": [
+    "docs/p5-guest-search-contract-proposal.md",
+    "docs/agent-coordination/history/review-p5-guest-search-contract-01-r1-sub-p5-guest-search-contract-01-r1-20261010.md",
+    "docs/agent-coordination/assignment.md",
+    "docs/agent-coordination/decisions.md"
+  ]
+}

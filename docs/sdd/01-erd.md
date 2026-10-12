@@ -9,19 +9,28 @@
 
 ```mermaid
 erDiagram
-    Tenant ||--o{ Room : "has"
-    Tenant ||--o{ RoomType : "has"
-    Tenant ||--o{ Reservation : "has"
+    Tenant ||--o{ Property : "owns"
     Tenant ||--o{ TenantStaff : "employs"
+    Tenant ||--o{ SupportAccessGrant : "grants"
+    Tenant ||--|| Subscription : "has"
+    Subscription ||--o{ SubscriptionPayment : "paid via"
+
+    Property ||--o{ Room : "contains"
+    Property ||--o{ RoomType : "defines"
+    Property ||--o{ Reservation : "hosts"
+    Property ||--o{ TenantStaff : "assigned branch (optional)"
 
     User ||--o{ TenantStaff : "works at"
     User ||--o{ RefreshToken : "authenticates with"
     User ||--o{ Reservation : "books (as guest)"
+    User ||--o{ SupportAccessGrant : "granted support staff"
 
     RoomType ||--o{ Room : "categorizes"
     Room ||--o{ Reservation : "booked for"
 
     Reservation ||--o{ Payment : "paid via"
+    Reservation ||--o{ Invoice : "invoiced"
+    Invoice ||--o{ InvoiceItem : "contains"
 
     AccessRole ||--o{ RolePermission : "has"
     PermissionFunction ||--o{ RolePermission : "grants"
@@ -31,12 +40,8 @@ erDiagram
     Room ||--o{ HousekeepingTask : "cleaned by"
     TenantStaff ||--o{ HousekeepingTask : "assigned to"
 
-    Tenant ||--|| Subscription : "has"
-    Subscription ||--o{ SubscriptionPayment : "paid via"
-    Reservation ||--o{ Invoice : "invoiced"
-    Invoice ||--o{ InvoiceItem : "contains"
     User ||--o{ Notification : "receives"
-    Tenant ||--o{ Promotion : "offers"
+    Property ||--o{ Promotion : "offers"
     Reservation ||--o{ GuestReview : "reviewed"
     User ||--o{ GuestReview : "writes"
     User ||--o{ AiUsageLog : "triggers"
@@ -44,7 +49,7 @@ erDiagram
 
 ---
 
-## 2. ERD Module: Authentication & RBAC
+## 2. ERD Module: Doanh nghiệp, Chi nhánh & RBAC
 
 ```mermaid
 erDiagram
@@ -54,12 +59,11 @@ erDiagram
         string Email UK
         string PasswordHash
         string FullName
-        string PhoneNumber
-        string AvatarUrl
-        datetime EmailVerifiedAtUtc
-        enum GlobalRole "SuperAdmin | Customer | TenantStaff"
+        string PhoneNumber "nullable"
+        string AvatarUrl "nullable"
+        datetime EmailVerifiedAtUtc "nullable"
+        enum GlobalRole "PlatformAdmin | Customer | BusinessUser"
         bool IsActive
-        uuid TenantId FK "nullable"
         datetime CreatedAtUtc
         datetime UpdatedAtUtc
     }
@@ -78,23 +82,39 @@ erDiagram
         uuid Id PK
         string Name
         string Code UK
-        string Slug UK
+        string TaxId "Mã số thuế / ĐKKD"
+        string Description "nullable"
+        string Email "nullable"
+        string PhoneNumber "nullable"
+        string LogoUrl "nullable"
+        enum SubscriptionTier "Basic | Pro | Enterprise"
+        enum Status "PendingApproval | Active | Suspended"
+        datetime CreatedAtUtc
+        datetime UpdatedAtUtc
+    }
+
+    Property {
+        uuid Id PK
+        uuid TenantId FK
+        string Name
+        string Code "UK per Tenant"
+        string Slug UK "public portal slug"
         string Description "nullable"
         string Address
         string City
         string PhoneNumber "nullable"
         string Email "nullable"
-        string LogoUrl "nullable"
         enum PropertyType "Hotel | Hostel | B&B | Villa | Homestay"
         int StarRating
-        time CheckInTime "default 14:00"
+        time CheckInTime "default 12:00"
         time CheckOutTime "default 12:00"
+        int BufferMinutes "default 30, min 30"
         decimal TaxRatePercent
         decimal ServiceFeeRatePercent
         double Latitude "nullable"
         double Longitude "nullable"
-        enum SubscriptionTier "Basic | Pro | Enterprise"
-        enum Status "PendingApproval | Active | Suspended"
+        bool IsPublished
+        enum Status "Active | Maintenance | Closed"
         datetime CreatedAtUtc
         datetime UpdatedAtUtc
     }
@@ -102,12 +122,26 @@ erDiagram
     TenantStaff {
         uuid Id PK
         uuid TenantId FK
+        uuid PropertyId FK "nullable - null means all properties in tenant"
         uuid UserId FK
         uuid RoleId FK
-        enum StaffRole "Owner | Manager | Receptionist | Housekeeper"
+        enum StaffRole "Owner | Manager | Receptionist | Housekeeper | Accountant"
         bool IsActive
         datetime CreatedAtUtc
         datetime UpdatedAtUtc
+    }
+
+    SupportAccessGrant {
+        uuid Id PK
+        uuid TenantId FK
+        uuid PropertyId FK "nullable - null means all properties in tenant"
+        uuid GrantedToUserId FK "Platform Support Staff"
+        uuid GrantedByUserId FK "Tenant Admin / Owner"
+        string Reason "Bắt buộc lý do hỗ trợ"
+        datetime ExpiresAtUtc "Tối đa 8 giờ"
+        datetime RevokedAtUtc "nullable"
+        uuid RevokedByUserId FK "nullable"
+        datetime CreatedAtUtc
     }
 
     AccessRole {
@@ -115,17 +149,18 @@ erDiagram
         string Code UK
         string Name
         string Description "nullable"
+        enum ScopeType "TenantWide | PropertyScoped"
         bool IsSystemRole
-        uuid TenantId FK "nullable - null means global"
+        uuid TenantId FK "nullable - null means system role"
         datetime CreatedAtUtc
     }
 
     PermissionFunction {
         uuid Id PK
-        string Code UK "e.g. RESERVATION, ROOM, PAYMENT"
+        string Code UK "e.g. RESERVATION, ROOM, PAYMENT, PROPERTY"
         string Name
         string ModuleCode
-        int SupportedActionMask "default 127 (all 7 actions)"
+        int SupportedActionMask "default 127"
         bool IsActive
     }
 
@@ -133,12 +168,16 @@ erDiagram
         uuid Id PK
         uuid RoleId FK
         uuid FunctionId FK
-        int ActionMask "bitmask: Read=1 Create=2 Update=4 Delete=8 Export=16 Approve=32 Execute=64"
+        int ActionMask "bitmask: Read=1 Create=2 Update=4 Delete=8 Approve=16 Export=32 Manage=64"
     }
 
-    User ||--o{ RefreshToken : "has"
-    User ||--o{ TenantStaff : "profiles"
-    Tenant ||--o{ TenantStaff : "staff"
+    Tenant ||--o{ Property : "owns"
+    Tenant ||--o{ TenantStaff : "employs"
+    Tenant ||--o{ SupportAccessGrant : "authorizes"
+    Property ||--o{ TenantStaff : "assigned branch (optional)"
+    User ||--o{ TenantStaff : "memberships"
+    User ||--o{ SupportAccessGrant : "support recipient"
+    User ||--o{ RefreshToken : "sessions"
     AccessRole ||--o{ RolePermission : "permissions"
     PermissionFunction ||--o{ RolePermission : "granted in"
     AccessRole ||--o{ TenantStaff : "assigned via"
@@ -146,15 +185,16 @@ erDiagram
 
 ---
 
-## 3. ERD Module: Room & Reservation
+## 3. ERD Module: Phòng & Đặt phòng (Property-Scoped)
 
 ```mermaid
 erDiagram
     RoomType {
         uuid Id PK
         uuid TenantId FK
+        uuid PropertyId FK
         string Name
-        string Code
+        string Code "UK per Property"
         string Description "nullable"
         decimal BasePrice
         int MaxOccupancy
@@ -165,11 +205,26 @@ erDiagram
         datetime UpdatedAtUtc
     }
 
+    RoomTypeRate {
+        uuid Id PK
+        uuid TenantId FK
+        uuid PropertyId FK
+        uuid RoomTypeId FK
+        decimal AmountPerNight
+        string Currency
+        date EffectiveFrom "inclusive"
+        date EffectiveTo "exclusive"
+        uuid CreatedByUserId FK
+        string ChangeReason "nullable"
+        datetime CreatedAtUtc
+    }
+
     Room {
         uuid Id PK
         uuid TenantId FK
+        uuid PropertyId FK
         uuid RoomTypeId FK
-        string RoomNumber
+        string RoomNumber "UK per Property"
         int Floor
         enum Status "Clean | Dirty | Cleaning | Occupied | OutOfService"
         string Notes "nullable"
@@ -181,15 +236,21 @@ erDiagram
     Reservation {
         uuid Id PK
         uuid TenantId FK
+        uuid PropertyId FK
         uuid RoomId FK
-        uuid GuestUserId FK "nullable - walk-in guest"
+        uuid GuestUserId FK "nullable - walk-in / guest checkout"
         string GuestName
         string GuestEmail
         string GuestPhone "nullable"
-        date CheckInDate
-        date CheckOutDate
+        datetime StartAtUtc "thời điểm bắt đầu thực tế UTC"
+        datetime EndAtUtc "thời điểm kết thúc thực tế UTC"
+        date CheckInDate "ngày nhận phòng địa phương Asia/Ho_Chi_Minh"
+        date CheckOutDate "ngày trả phòng địa phương Asia/Ho_Chi_Minh"
         int NumberOfGuests
         decimal TotalAmount
+        string Currency "VND theo D11"
+        json PricingSnapshot "per-stay immutable quote"
+        enum StayType "Hourly = 1 | Overnight = 2"
         enum Status "PendingPayment | Confirmed | CheckedIn | CheckedOut | Cancelled | NoShow"
         string Notes "nullable"
         string ConfirmationCode UK "6-char uppercase"
@@ -202,19 +263,24 @@ erDiagram
     Payment {
         uuid Id PK
         uuid TenantId FK
+        uuid PropertyId FK
         uuid ReservationId FK
         decimal Amount
         enum Method "VNPay | Cash | BankTransfer | CreditCard"
         enum Status "Pending | Completed | Failed | Refunded | Expired"
         string TransactionRef "nullable - VNPay txn ref"
         string IdempotencyKey UK
+        uuid RefundApprovedById FK "nullable - Chỉ Owner/Admin hoặc Manager theo D23; KHÔNG Accountant"
+        string RefundReason "nullable"
         datetime PaidAtUtc "nullable"
         datetime CreatedAtUtc
     }
 
     RoomType ||--o{ Room : "categorizes"
+    RoomType ||--o{ RoomTypeRate : "rate history"
     Room ||--o{ Reservation : "booked"
     Reservation ||--o{ Payment : "paid via"
+    Property ||--o{ Payment : "transacted at"
     User ||--o{ Reservation : "guest"
 ```
 
@@ -227,6 +293,7 @@ erDiagram
     HousekeepingTask {
         uuid Id PK
         uuid TenantId FK
+        uuid PropertyId FK
         uuid RoomId FK
         uuid AssignedToId FK "nullable - TenantStaff"
         uuid CreatedById FK "TenantStaff or system"
@@ -287,44 +354,71 @@ erDiagram
 
 | Quan hệ | Kiểu | Mô tả |
 |---------|------|-------|
-| Tenant → Room | 1:N | Mỗi property có nhiều phòng |
-| Tenant → RoomType | 1:N | Mỗi property có nhiều loại phòng |
-| Tenant → TenantStaff | 1:N | Mỗi property có nhiều nhân viên |
-| Tenant → Reservation | 1:N | Mỗi property có nhiều booking |
+| Tenant → Property | 1:N | Doanh nghiệp sở hữu 1 hoặc nhiều chi nhánh (khách sạn độc lập có đúng 1 chi nhánh) |
+| Property → RoomType | 1:N | Chi nhánh định nghĩa danh mục các loại phòng riêng biệt |
+| Property → Room | 1:N | Chi nhánh quản lý các phòng vật lý cụ thể |
+| Property → Reservation | 1:N | Chi nhánh tiếp nhận và phục vụ các đơn đặt phòng |
+| Property → Payment | 1:N | Giao dịch thanh toán phát sinh và hạch toán tại chi nhánh |
+| Property → Invoice | 1:N | Hóa đơn lưu trú phát hành gắn với chi nhánh |
+| Property → HousekeepingTask | 1:N | Công việc buồng phòng thực hiện tại chi nhánh |
+| Tenant → TenantStaff | 1:N | Doanh nghiệp quản lý hồ sơ nhân sự (Tenant-wide hoặc gán chi nhánh) |
+| Property → TenantStaff | 1:N | Chi nhánh tiếp nhận nhân sự được phân công cụ thể (`PropertyId != null`) |
+| Tenant → SupportAccessGrant | 1:N | Doanh nghiệp cấp quyền hỗ trợ kỹ thuật có thời hạn |
 | RoomType → Room | 1:N | Mỗi loại phòng có nhiều phòng thực tế |
-| Room → Reservation | 1:N | Mỗi phòng có nhiều booking (theo thời gian) |
-| Reservation → Payment | 1:N | Mỗi booking có thể có nhiều payment attempts |
-| User → TenantStaff | 1:N | 1 user có thể làm ở nhiều property |
-| User → Reservation | 1:N | 1 guest có thể đặt nhiều booking |
-| User → RefreshToken | 1:N | 1 user có nhiều refresh tokens (multi-device) |
-| AccessRole → RolePermission | 1:N | 1 role có nhiều permissions |
-| PermissionFunction → RolePermission | 1:N | 1 function được gán cho nhiều roles |
-| AccessRole → TenantStaff | 1:N | 1 role được gán cho nhiều staff |
-| Room → HousekeepingTask | 1:N | 1 phòng có nhiều task theo thời gian |
-| Tenant → Subscription | 1:1 | Mỗi property có 1 subscription |
-| Subscription → SubscriptionPayment | 1:N | Mỗi subscription có nhiều thanh toán |
-| Reservation → Invoice | 1:N | Mỗi booking có thể có nhiều hóa đơn |
-| Invoice → InvoiceItem | 1:N | Mỗi hóa đơn có nhiều line items |
-| User → HousekeepingTask | 1:N | 1 user được gán nhiều task dọn phòng |
-| User → Notification | 1:N | 1 user nhận nhiều thông báo |
-| Tenant → Promotion | 1:N | Mỗi property có nhiều khuyến mãi |
-| Reservation → GuestReview | 1:N | Mỗi booking có thể có đánh giá |
-| User → GuestReview | 1:N | 1 khách viết nhiều đánh giá |
-| User → AiUsageLog | 1:N | 1 user có nhiều AI usage logs |
+| Room → Reservation | 1:N | Mỗi phòng có nhiều booking theo các mốc thời gian |
+| Reservation → Payment | 1:N | Mỗi booking có thể có nhiều lượt thanh toán/cọc/hoàn tiền |
+| User → TenantStaff | 1:N | 1 user có thể tham gia nhiều chi nhánh hoặc doanh nghiệp khác nhau |
+| User → Reservation | 1:N | 1 khách hàng có thể đặt nhiều đơn đặt phòng |
+| User → RefreshToken | 1:N | 1 user có nhiều refresh tokens (đa thiết bị, bảo mật cao) |
+| AccessRole → RolePermission | 1:N | 1 role có nhiều permissions qua bitmask |
+| PermissionFunction → RolePermission | 1:N | 1 function được phân quyền trong nhiều roles |
+| AccessRole → TenantStaff | 1:N | 1 role được gán cho nhân sự |
+| Room → HousekeepingTask | 1:N | 1 phòng có nhiều task dọn dẹp theo thời gian |
+| Tenant → Subscription | 1:1 | Mỗi doanh nghiệp duy trì 1 gói cước SaaS |
+| Subscription → SubscriptionPayment | 1:N | Mỗi gói cước có lịch sử thanh toán định kỳ |
+| Reservation → Invoice | 1:N | Mỗi booking có thể xuất hóa đơn tương ứng |
+| Invoice → InvoiceItem | 1:N | Mỗi hóa đơn có nhiều dòng mục chi phí |
+| User → HousekeepingTask | 1:N | Nhân viên buồng phòng được phân công task |
+| User → Notification | 1:N | Người dùng nhận các thông báo riêng tư |
+| Tenant → Promotion | 1:N | Doanh nghiệp thiết lập các chương trình khuyến mãi |
+| Reservation → GuestReview | 1:N | Khách hàng đánh giá sau khi trả phòng |
+| User → GuestReview | 1:N | Người dùng viết đánh giá |
+| User → AiUsageLog | 1:N | Ghi nhận telemetry sử dụng AI (nặc danh hóa PII) |
 
 ---
 
 ## 7. Index Strategy
 
+> Đây là danh sách thiết kế ban đầu cần đối chiếu với truy vấn thật và `EXPLAIN (ANALYZE, BUFFERS)`. Tạo index qua migration, đo cả tốc độ đọc lẫn chi phí ghi; không thêm index trùng hoặc index chưa có truy vấn cần dùng.
+
 | Table | Index | Columns | Type | Lý do |
 |-------|-------|---------|------|-------|
-| Reservation | IX_Reservation_TenantId | TenantId | Non-clustered | Multi-tenant filter |
-| Reservation | IX_Reservation_RoomId_Dates | RoomId, CheckInDate, CheckOutDate | Composite | Overlap check |
-| Reservation | IX_Reservation_ConfirmCode | ConfirmationCode | Unique | Quick lookup |
-| Room | IX_Room_TenantId_Status | TenantId, Status | Composite | Available rooms query |
-| Payment | IX_Payment_IdempotencyKey | IdempotencyKey | Unique | Prevent duplicate |
-| User | IX_User_Email | Email | Unique | Login lookup |
-| TenantStaff | IX_Staff_TenantId_UserId | TenantId, UserId | Unique | Prevent duplicate staff |
+| Reservation | IX_Reservation_TenantId | TenantId | B-tree | Multi-tenant filter |
+| Reservation | IX_Reservation_RoomId_Dates | TenantId, RoomId, CheckInDate, CheckOutDate | Composite | Overlap/availability lookup |
+| Reservation | UX_Reservation_ConfirmCode | ConfirmationCode | Unique | Tra cứu mã xác nhận (global theo rule hiện tại) |
+| Reservation | IX_Reservation_Property_Status_CheckIn | PropertyId, Status, StartAtUtc | Composite | Tra cứu booking theo chi nhánh & thời gian |
+| Reservation | IX_Reservation_Tenant_CreatedAt | TenantId, CreatedAtUtc | Composite | Lọc booking cấp doanh nghiệp theo thời gian |
+| Room | IX_Room_Property_Status | PropertyId, Status | Composite | Available rooms query theo chi nhánh |
+| Room | IX_Room_Property_RoomType_Active | PropertyId, RoomTypeId, IsActive | Composite | Inventory theo loại phòng tại chi nhánh |
+| RoomTypeRate | IX_RoomTypeRate_Tenant_RoomType_Effective | TenantId, RoomTypeId, EffectiveFrom, EffectiveTo | Composite | Tìm giá áp dụng theo khoảng lưu trú |
+| Tenant | UX_Tenant_Slug | Slug | Unique | Public tenant lookup |
+| Property | UX_Property_TenantId_Code | TenantId, Code | Unique | Mã chi nhánh duy nhất trong doanh nghiệp |
+| Property | UX_Property_Slug | Slug | Unique | Public property lookup |
+| Tenant | IX_Tenant_PublicCatalog | Status, IsPublished, City | Composite/partial candidate | Public catalog; xác nhận với query plan |
+| Payment | UX_Payment_IdempotencyKey | IdempotencyKey | Unique | Prevent duplicate |
+| User | UX_User_Email | Email | Unique | Login lookup |
+| TenantStaff | uq_tenant_staff_tenant_wide | TenantId, UserId (WHERE PropertyId IS NULL) | Partial Unique | Mỗi user tối đa 1 vai trò Tenant-wide trên 1 doanh nghiệp |
+| TenantStaff | uq_tenant_staff_property_scoped | TenantId, UserId, PropertyId (WHERE PropertyId IS NOT NULL) | Partial Unique | Mỗi user tối đa 1 vai trò trên mỗi chi nhánh cụ thể |
+| SupportAccessGrant | IX_SupportGrant_ActiveLookup | TenantId, GrantedToUserId, ExpiresAtUtc, RevokedAtUtc | Composite | Tra cứu thẩm định quyền hỗ trợ realtime |
+
+Đối với tìm kiếm tiếng Việt không dấu và truy vấn bán kính, chọn index riêng sau khi xác định provider/dữ liệu và đo query. B-tree thông thường không thay thế full-text hoặc spatial indexing.
+
+### Partitioning decision
+
+- MVP: không partition; chưa có volume/latency evidence để bù chi phí vận hành, migration và constraint phức tạp.
+- Revisit khi có số liệu tăng trưởng, kích thước bảng, tỉ lệ ghi/đọc, retention và query plans. Audit/event/notification/payment theo thời gian là các ứng viên để đánh giá.
+- Không partition `Reservation` theo ngày tạo/check-in nếu chưa giải quyết unique confirmation code, FK từ payment/invoice/review, overlap booking và yêu cầu partition key cho các truy vấn.
+- Nếu partition được duyệt, ADR phải nêu key/granularity, pruning, unique/FK constraints, retention, migration/backfill, rollback và giám sát.
 
 ---
 
@@ -367,6 +461,7 @@ erDiagram
     Invoice {
         uuid Id PK
         uuid TenantId FK
+        uuid PropertyId FK
         uuid ReservationId FK
         string InvoiceNumber UK "auto-generated"
         decimal SubTotal
