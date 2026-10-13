@@ -1,49 +1,56 @@
-# Submission GUEST-ROOM-MEDIA-PLAN-01 — Round 2
+# Submission GUEST-ROOM-MEDIA-PLAN-01 — Round 3
 
 - **TaskId:** `GUEST-ROOM-MEDIA-PLAN-01`
-- **Round:** 2
-- **SubmissionId:** `sub-guest-room-media-plan-01-r2-20261013`
-- **ReviewedSubmissionId:** `sub-guest-room-media-plan-01-r1-20261012`
+- **Round:** 3
+- **SubmissionId:** `sub-guest-room-media-plan-01-r3-20261013`
+- **ReviewedSubmissionId:** `sub-guest-room-media-plan-01-r2-20261013`
 - **Workspace:** `C:\Dev\hotel-saas-v2`
-- **SubmittedAt:** `2026-10-13T08:12:00+07:00` (UTC: `2026-10-13T01:12:00Z` — Đồng hồ cục bộ, không xác thực độc lập)
+- **SubmittedAt:** `2026-10-13T08:24:00+07:00` (UTC: `2026-10-13T01:24:00Z` — Đồng hồ cục bộ, không xác thực độc lập)
 - **Actor:** `antigravity`
 - **ConversationId:** `b24752d6-e881-4372-b79e-186db67e5233`
 - **Status:** `Submitted`
 
 ---
 
-## 1. Tổng Quan Cập Nhật Theo Phản Hồi Vòng 1 (Review Findings Resolution)
+## 1. Tổng Quan Cập Nhật Theo Phản Hồi Vòng 2 (Review Findings Resolution)
 
-Bản đệ trình Vòng 2 giải quyết toàn diện 3 điểm phản hồi (Findings 1, 2, 3) từ Codex Reviewer trong `docs/agent-coordination/review.md`:
+Bản đệ trình Vòng 3 giải quyết triệt để điểm phản hồi [P2] từ Codex Reviewer trong `docs/agent-coordination/review.md`:
 
-### 1.1. Giải quyết Finding 1 [P1] — Phân tách Broken-Image Fallback khỏi AI Provenance:
-- **Hiện tượng cũ:** Mục 4.1 trong Vòng 1 gán nhãn "Ảnh minh họa AI" cho mọi URL và tự động chèn chú thích minh họa vào thuộc tính `alt`.
-- **Khắc phục Vòng 2:**
-  - Lát cắt tối thiểu được phân tách độc lập, chỉ tập trung vào **xử lý lỗi ảnh vỡ (Broken-Image Error Fallback)** cho bất kỳ phương tiện media nào hiện có.
-  - Hợp đồng DTO công khai hiện tại chỉ có `imageUrl?: string`, không có trường chỉ báo xuất xứ (provenance discriminator). Không suy diễn AI hay ảnh thật dựa trên sự có mặt của URL hay mã/tên phòng.
-  - Bảo toàn nguyên vẹn thuộc tính `[alt]="rt.roomTypeName"` cho thẻ `<img>`.
-  - Khối SVG dự phòng tiếp tục mang nhãn minh họa kiến trúc (`"Hình minh họa — bố trí phòng mẫu"` / `"HÌNH MINH HỌA HẠNG PHÒNG"`).
-  - Huy hiệu AI được tách rời hoàn toàn và chỉ hiển thị khi có siêu dữ liệu xuất xứ demo được xác minh rõ ràng (verified explicit demo provenance) hoặc khi có hợp đồng mới được phê duyệt riêng biệt trong tương lai.
+### 1.1. Khắc Phục Lỗi Đánh Giá Lại Biểu Thức Template Khi Sự Kiện Kích Hoạt:
+- **Nguyên nhân kỹ thuật được chỉ ra:** Khi template truyền trực tiếp các thuộc tính component như `availabilityRequestId` hay `selectedProperty()`, biểu thức Angular trong `(error)` được đánh giá lại tại thời điểm sự kiện kích hoạt (runtime evaluation). Khi đó, nếu component đã chuyển sang cơ sở mới hoặc thế hệ tìm kiếm mới, tham số được truyền vào hàm là ID mới, khiến phép so sánh `eventRequestId !== this.availabilityRequestId` so sánh ID mới với chính nó và **không thể nhận diện sự kiện muộn của ảnh cũ**.
+- **Giải pháp Vòng 3:**
+  - Thiết kế kiểu dữ liệu ảnh chụp ngữ cảnh render bất biến:
+    ```typescript
+    export interface RoomImageRenderContext {
+      readonly propertyId: string;
+      readonly generation: number;
+      readonly roomTypeId: string;
+      readonly url: string;
+    }
+    ```
+  - Khi nhận dữ liệu availability, mỗi phần tử được gắn sẵn `imageContext` bất biến đóng băng 4 thông tin: `propertyId`, `generation`, `roomTypeId`, `url`.
+  - Template truyền trực tiếp snapshot `imageContext` vào hàm bắt lỗi: `(error)="onRoomImageError(item.imageContext)"`.
 
-### 1.2. Giải quyết Finding 2 [P2] — Quản lý Khóa Lỗi Theo Ngữ Cảnh, Thế Hệ & URL, Hỗ Trợ Retry:
-- **Hiện tượng cũ:** `failedRoomImageIds` chỉ lưu `roomTypeId`, khiến một URL mới cho cùng loại phòng bị kẹt lỗi vĩnh viễn, và sự kiện lỗi muộn từ ảnh cũ có thể vô hiệu hóa ảnh mới.
-- **Khắc phục Vòng 2:**
-  - Nâng cấp cơ chế quản lý lỗi thành `failedImageKeys = signal<Set<string>>(new Set())` với khóa định danh đầy đủ theo ngữ cảnh: `${propertyId}:${roomTypeId}:${url}`.
-  - Bộ bắt lỗi nhận tham số thế hệ: `onRoomImageError(roomTypeId, url, eventRequestId)`. Bỏ qua sự kiện lỗi đến muộn nếu `eventRequestId !== this.availabilityRequestId` hoặc URL trống.
-  - Khi cùng một `roomTypeId` nhận URL mới, URL mới có key khác nên được phép render ngay lập tức.
-  - Bổ sung phương thức thử lại tường minh `retryRoomImage(roomTypeId, url)` giúp xóa khóa lỗi và thử tải lại tài nguyên khi cần.
-  - Bổ sung đầy đủ 7 tiêu chí chấp nhận hành vi dựa trên nguồn (AC-MEDIA-01 đến 07) gồm URL mới cho cùng ID, sự kiện lỗi trễ sau chuyển cơ sở, URL rỗng/trắng, và retry.
+### 1.2. Đóng Chặt Cơ Chế Khi Thiếu Property (Fail Closed, Loại Bỏ 'global' Fallback):
+- Khi `selectedProperty()` là `null`, `isImageAvailable` trả về `false`, không render ảnh, không dùng chuỗi `'global'` làm giá trị dự phòng.
+- Trong handler `onRoomImageError(ctx)`: nếu không có `currentProperty` hoặc `currentProperty.id !== ctx.propertyId`, sự kiện lỗi lập tức bị hủy bỏ (bỏ qua sự kiện từ cơ sở cũ).
 
-### 1.3. Giải quyết Finding 3 [P2] — Hiệu Chỉnh Khảo Sát Mã Nguồn & Giảm Thiểu Tuyên Bố Tuyệt Đối:
-- **Hiện tượng cũ:** Khảo sát ngụ ý mã nguồn chứng minh cột cơ sở dữ liệu vật lý tồn tại và seeder chứng minh toàn bộ dữ liệu DB là null; có các tuyên bố "100% race-proof / ngăn chặn tuyệt đối".
-- **Khắc phục Vòng 2:**
-  - Mục 1.2 nêu rõ: trường `RoomType.ImageUrl` được định nghĩa trong mô hình C# và phép chiếu EF Core, nhưng cơ sở dữ liệu vật lý runtime là **CHƯA ĐƯỢC XÁC MINH (DB NOT VERIFIED)**.
-  - Mục 1.4 nêu rõ: `LocalDevDataSeeder` khi tạo mẫu mới bỏ qua `ImageUrl`, nhưng điều này không chứng minh toàn bộ dữ liệu DB hiện hữu có null hay không (`DB NOT VERIFIED`).
-  - Thay thế các tuyên bố tuyệt đối bằng mô tả kỹ thuật chính xác về cơ chế hủy subscription và tăng thế hệ request ID.
+### 1.3. Kháng Sự Kiện Muộn Trên DOM Thực Tế (Mounted DOM Late Event Cases):
+- Khi chuyển cơ sở A $\to$ B hoặc khi làm mới thế hệ tìm kiếm (generation $1 \to 2$):
+  - Thẻ `<img>` cũ còn gắn trên DOM phát sinh sự kiện lỗi muộn: `imgElement.dispatchEvent(new Event('error'))`.
+  - Handler đối chiếu `ctx.propertyId !== currentProperty.id` hoặc `ctx.generation !== this.availabilityRequestId` và **bỏ qua hoàn toàn**, không ghi nhận khóa lỗi cho cơ sở mới.
 
-### 1.4. Phân Tách Các Vấn Đề Dài Hạn Khỏi Lát Cắt Giao Diện:
-- Khẳng định rõ: Việc xử lý ảnh vỡ trên giao diện là chi tiết UI thông thường, **không đòi hỏi PO phê duyệt lại nghiệp vụ hay cấp hạ tầng mới**.
-- Các vấn đề: Cung cấp ảnh thật, bản quyền, migration lược đồ `Property.ImageUrl` và hạ tầng Blob Storage là các chủ đề dài hạn, độc lập và không phải là điều kiện tiên quyết (non-blocking) đối với lát cắt này.
+### 1.4. Bộ Tiêu Chí Nghiệm Thu Mở Rộng (AC-MEDIA-01 đến 09):
+- Bổ sung đầy đủ 9 tiêu chí chấp nhận dựa trên nguồn:
+  - AC-MEDIA-01: Fail closed khi thiếu Property.
+  - AC-MEDIA-02: Fallback an toàn với URL null/rỗng/khoảng trắng.
+  - AC-MEDIA-03: Bắt lỗi ảnh vỡ runtime với snapshot chính xác.
+  - AC-MEDIA-04: Render bình thường khi cùng `roomTypeId` nhận URL mới.
+  - AC-MEDIA-05: Bỏ qua sự kiện lỗi muộn từ DOM cũ khi chuyển cơ sở A $\to$ B (`imgElement.dispatchEvent`).
+  - AC-MEDIA-06: Bỏ qua sự kiện lỗi muộn từ DOM cũ khi làm mới thế hệ tìm kiếm.
+  - AC-MEDIA-07: Cô lập khóa lỗi giữa các cơ sở dù trùng `roomTypeId` hay `url`.
+  - AC-MEDIA-08: Thao tác retry tường minh cho cùng URL.
+  - AC-MEDIA-09: Bảo toàn thuộc tính `[alt]="item.roomTypeName"` cho media hiện có.
 
 ---
 
@@ -51,9 +58,9 @@ Bản đệ trình Vòng 2 giải quyết toàn diện 3 điểm phản hồi (F
 
 | STT | Đường Dẫn Tệp | Mô Tả & Nội Dung |
 |:---:|---|---|
-| 1 | [`docs/agent-coordination/media-integration-plan.md`](file:///C:/Dev/hotel-saas-v2/docs/agent-coordination/media-integration-plan.md) | Kế hoạch tích hợp media Vòng 2: khảo sát source-backed hiệu chỉnh, phân tách broken-image fallback độc lập, quản lý khóa lỗi theo ngữ cảnh/URL, phương thức retry, 7 tiêu chí chấp nhận AC-MEDIA-01 đến 07. |
-| 2 | [`docs/agent-coordination/task.json`](file:///C:/Dev/hotel-saas-v2/docs/agent-coordination/task.json) | Cập nhật round 2, submissionId `sub-guest-room-media-plan-01-r2-20261013`, giải phóng khóa `writer: "none"`, trạng thái `Submitted`. |
-| 3 | [`docs/agent-coordination/submission.md`](file:///C:/Dev/hotel-saas-v2/docs/agent-coordination/submission.md) | Báo cáo đệ trình Vòng 2 của nhiệm vụ `GUEST-ROOM-MEDIA-PLAN-01`. |
+| 1 | [`docs/agent-coordination/media-integration-plan.md`](file:///C:/Dev/hotel-saas-v2/docs/agent-coordination/media-integration-plan.md) | Kế hoạch tích hợp media Vòng 3: chụp ảnh ngữ cảnh render bất biến `RoomImageRenderContext`, đóng chặt khi thiếu Property, xử lý sự kiện DOM muộn, 9 tiêu chí AC-MEDIA-01 đến 09. |
+| 2 | [`docs/agent-coordination/task.json`](file:///C:/Dev/hotel-saas-v2/docs/agent-coordination/task.json) | Cập nhật round 3, submissionId `sub-guest-room-media-plan-01-r3-20261013`, giải phóng khóa `writer: "none"`, trạng thái `Submitted`. |
+| 3 | [`docs/agent-coordination/submission.md`](file:///C:/Dev/hotel-saas-v2/docs/agent-coordination/submission.md) | Báo cáo đệ trình Vòng 3 của nhiệm vụ `GUEST-ROOM-MEDIA-PLAN-01`. |
 
 ---
 

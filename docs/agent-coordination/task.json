@@ -2,24 +2,24 @@
   "schemaVersion": 1,
   "workspace": "C:\\Dev\\hotel-saas-v2",
   "taskId": "GUEST-ROOM-MEDIA-PLAN-01",
-  "round": 2,
-  "status": "ChangesRequested",
-  "updatedAt": "2026-10-13T01:13:59Z",
+  "round": 3,
+  "status": "Submitted",
+  "updatedAt": "2026-10-13T01:25:00Z",
   "writer": "none",
   "antigravity": {
     "status": "Submitted",
     "conversationId": "b24752d6-e881-4372-b79e-186db67e5233",
     "sessionLink": null,
-    "heartbeatAt": "2026-10-13T08:12:00+07:00"
+    "heartbeatAt": "2026-10-13T08:25:00+07:00"
   },
   "codex": {
     "status": "ChangesRequested",
     "sessionLink": null,
     "heartbeatAt": "2026-10-13T01:13:59Z"
   },
-  "submissionId": "sub-guest-room-media-plan-01-r2-20261013",
+  "submissionId": "sub-guest-room-media-plan-01-r3-20261013",
   "reviewedSubmissionId": "sub-guest-room-media-plan-01-r2-20261013",
-  "nextAction": "Round3 minimal correction: immutable render property/generation/id/url snapshot, no global context; mounted DOM stale-event cases. Do not repeat survey.",
+  "nextAction": "Codex reviewer evaluates Round 3 submission.",
   "needsPO": [
     "D21 lookup TTL mốc dự kiến/thực tế + revoke/reissue contract",
     "Quote5min/hold15min price pinning và stale-quote acknowledgement",
