@@ -2,24 +2,24 @@
   "schemaVersion": 1,
   "workspace": "C:\\Dev\\hotel-saas-v2",
   "taskId": "GUEST-ROOM-MEDIA-PLAN-01",
-  "round": 1,
-  "status": "Submitted",
-  "updatedAt": "2026-10-12T12:56:00Z",
+  "round": 2,
+  "status": "ChangesRequested",
+  "updatedAt": "2026-10-13T01:13:59Z",
   "writer": "none",
   "antigravity": {
     "status": "Submitted",
     "conversationId": "b24752d6-e881-4372-b79e-186db67e5233",
     "sessionLink": null,
-    "heartbeatAt": "2026-10-12T19:56:00+07:00"
+    "heartbeatAt": "2026-10-13T08:12:00+07:00"
   },
   "codex": {
-    "status": "Approved",
+    "status": "ChangesRequested",
     "sessionLink": null,
-    "heartbeatAt": "2026-10-12T12:30:24Z"
+    "heartbeatAt": "2026-10-13T01:13:59Z"
   },
-  "submissionId": "sub-guest-room-media-plan-01-r1-20261012",
-  "reviewedSubmissionId": "sub-room-ai-demo-pack-01-r2-20261012",
-  "nextAction": "Await Codex review of docs/agent-coordination/media-integration-plan.md.",
+  "submissionId": "sub-guest-room-media-plan-01-r2-20261013",
+  "reviewedSubmissionId": "sub-guest-room-media-plan-01-r2-20261013",
+  "nextAction": "Round3 minimal correction: immutable render property/generation/id/url snapshot, no global context; mounted DOM stale-event cases. Do not repeat survey.",
   "needsPO": [
     "D21 lookup TTL mốc dự kiến/thực tế + revoke/reissue contract",
     "Quote5min/hold15min price pinning và stale-quote acknowledgement",

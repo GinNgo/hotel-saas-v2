@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "workspace": "C:\\Dev\\hotel-saas-v2",
+  "taskId": "GUEST-ROOM-MEDIA-PLAN-01",
+  "round": 2,
+  "status": "ChangesRequested",
+  "updatedAt": "2026-10-13T01:13:59Z",
+  "writer": "none",
+  "antigravity": {
+    "status": "Submitted",
+    "conversationId": "b24752d6-e881-4372-b79e-186db67e5233",
+    "sessionLink": null,
+    "heartbeatAt": "2026-10-13T08:12:00+07:00"
+  },
+  "codex": {
+    "status": "ChangesRequested",
+    "sessionLink": null,
+    "heartbeatAt": "2026-10-13T01:13:59Z"
+  },
+  "submissionId": "sub-guest-room-media-plan-01-r2-20261013",
+  "reviewedSubmissionId": "sub-guest-room-media-plan-01-r2-20261013",
+  "nextAction": "Round3 minimal correction: immutable render property/generation/id/url snapshot, no global context; mounted DOM stale-event cases. Do not repeat survey.",
+  "needsPO": [
+    "D21 lookup TTL mốc dự kiến/thực tế + revoke/reissue contract",
+    "Quote5min/hold15min price pinning và stale-quote acknowledgement",
+    "PO Gate 1 (Hợp đồng API tìm kiếm: Giữ endpoint hiện tại hay tạo GET /api/public/search/properties và kế hoạch di chuyển client)",
+    "PO Gate 2 (Chính sách xuất bản: Đồng bộ enforce IsPublished == true trên toàn bộ public discovery hay giữ Active-only)",
+    "PO Gate 3 (Nguồn Dataset Hành chính Việt Nam có thẩm quyền, phiên bản, ngày hiệu lực và license)",
+    "PO Gate 4 (Kế hoạch Migration bổ sung ProvinceCode, Ward, WardCode, LandmarkTags cho Property)",
+    "PO Gate 5 (Cơ chế tìm kiếm phòng trống xuyên cơ sở: Two-step discovery vs Aggregated search theo Tỉnh/Thành)"
+  ],
+  "evidence": [
+    "docs/agent-coordination/assignment.md",
+    "docs/agent-coordination/review.md",
+    "docs/agent-coordination/submission.md",
+    "docs/agent-coordination/media-integration-plan.md"
+  ]
+}

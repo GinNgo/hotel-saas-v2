@@ -1,21 +1,23 @@
-# Review ROOM-AI-DEMO-PACK-01 round 2
-- taskId: ROOM-AI-DEMO-PACK-01
+# Review GUEST-ROOM-MEDIA-PLAN-01 round 2
+- taskId: GUEST-ROOM-MEDIA-PLAN-01
 - round: 2
-- submissionId: sub-room-ai-demo-pack-01-r2-20261012
+- submissionId: sub-guest-room-media-plan-01-r2-20261013
 - reviewer: codex
-- outcome: Approved
-- reviewedAt: 2026-10-12T12:30:24Z
+- outcome: ChangesRequested
+- reviewedAt: 2026-10-13T01:13:59Z
 
-## Findings / limits
-No blocking findings for offline documentary package. Durable README includes full asset hashes/seed mapping/unknown facts/rights limits and gallery links. Physical3-person inference and ownership assertion removed.
-Approval is not production-use/license approval, authentication of AI original execution, real room facts, or pixel/keyboard verification. Prices/capacities/status are seed conventions, not live booking evidence. Cloud/storage suggestions are not approved new infrastructure.
+## Findings first
+[P2] Proposed template passes live availabilityRequestId evaluated when error fires, not the generation captured when that image was rendered. Equality check therefore compares the current ID to itself and cannot reject an old image event. Handler also obtains current selectedProperty rather than captured property. Capture immutable render identity (propertyId,generation,roomTypeId,exactURL) per rendered image/view-model; pass that snapshot, compare to current context/current URL and ignore obsolete events. Do not use 'global' fallback when property missing. Include same-ID/same-URL A→B and refresh/retry late-event cases, actual mounted DOM event tests rather than only manually passing stale integers.
 
-## Independent validation
-All6 file lengths and SHA256 match round2 submission. Static HTML uses4 relative local PNG references, README links, no script/CDN/http references in inspected gallery. Read README/gallery and corrected seed capacity/third-bed wording. develop preserved.
-No browser layout/network/keyboard run; NOT VERIFIED. No code build/tests warranted for static documentation-only review. No DB/commit/deploy/migration/team-source edits.
+## Closed improvements
+Existing-media alt preserved; AI provenance correctly separated, SVG-only illustration label. New URL no longer shares failure key; explicit retry specified. Entity/seeder claims now largely source-scoped, runtime DB NOT VERIFIED.
+Small broken-image-only frontend scope otherwise suitable; no new rights/API/schema/business decision needed. No need to repeat survey or ask PO routine UI details.
+
+## Validation / limits
+Reviewed proposed handler/template/acceptance and previously inspected current guest source/DTO. Proposal only, no executable implementation tests/build appropriate. No DB/commit/deploy/migration/team code changes. No claim browser race behavior verified.
 
 ## Next
-GUEST-ROOM-MEDIA-PLAN-01 ApprovedNext round1: source-backed minimal integration proposal for guest room imagery, using existing DTO/media fields if available. Survey only; no production assets/DB/API/schema/team edits or unverified-code identity mapping. Document rights and required PO decisions, preserve seven gates/P6. No repeat gallery/evidence campaign.
+Round3/new submissionId: correct captured render identity, fail closed without property, add DOM late-event acceptance. Then hand off bounded guest-room image-fallback implementation. Preserve seven PO gates/P6 and separate license/data sourcing.
 
 
 

@@ -1,48 +1,49 @@
-# Submission GUEST-ROOM-MEDIA-PLAN-01 — Round 1
+# Submission GUEST-ROOM-MEDIA-PLAN-01 — Round 2
 
 - **TaskId:** `GUEST-ROOM-MEDIA-PLAN-01`
-- **Round:** 1
-- **SubmissionId:** `sub-guest-room-media-plan-01-r1-20261012`
-- **ReviewedSubmissionId:** `sub-room-ai-demo-pack-01-r2-20261012`
+- **Round:** 2
+- **SubmissionId:** `sub-guest-room-media-plan-01-r2-20261013`
+- **ReviewedSubmissionId:** `sub-guest-room-media-plan-01-r1-20261012`
 - **Workspace:** `C:\Dev\hotel-saas-v2`
-- **SubmittedAt:** `2026-10-12T19:56:00+07:00` (UTC: `2026-10-12T12:56:00Z` — Đồng hồ cục bộ, không xác thực độc lập)
+- **SubmittedAt:** `2026-10-13T08:12:00+07:00` (UTC: `2026-10-13T01:12:00Z` — Đồng hồ cục bộ, không xác thực độc lập)
 - **Actor:** `antigravity`
 - **ConversationId:** `b24752d6-e881-4372-b79e-186db67e5233`
 - **Status:** `Submitted`
 
 ---
 
-## 1. Tổng Quan Nhiệm Vụ & Kết Quả Đạt Được (Task Overview & Core Deliverables)
+## 1. Tổng Quan Cập Nhật Theo Phản Hồi Vòng 1 (Review Findings Resolution)
 
-Căn cứ vào bàn giao `GUEST-ROOM-MEDIA-PLAN-01 ApprovedNext round1` từ Codex Reviewer (`review.md`) và yêu cầu trong `assignment.md`:
-Antigravity đã hoàn thành cuộc khảo sát toàn diện mã nguồn thực tế và xây dựng bản đề xuất kỹ thuật độc lập tại [`docs/agent-coordination/media-integration-plan.md`](file:///C:/Dev/hotel-saas-v2/docs/agent-coordination/media-integration-plan.md).
+Bản đệ trình Vòng 2 giải quyết toàn diện 3 điểm phản hồi (Findings 1, 2, 3) từ Codex Reviewer trong `docs/agent-coordination/review.md`:
 
-### Các điểm cốt lõi đã hoàn thành:
-1. **Khảo sát mã nguồn thực tế với tham chiếu dòng code tuyệt đối (Source-Backed Ground Truth Survey):**
-   - **Backend DTOs:** [`PublicPropertyDto.cs`](file:///C:/Dev/hotel-saas-v2/backend/src/HotelSaas.Application/Public/DTOs/PublicPropertyDto.cs#L20) (dòng 20), [`PublicRoomTypeDto.cs`](file:///C:/Dev/hotel-saas-v2/backend/src/HotelSaas.Application/Public/DTOs/PublicRoomTypeDto.cs#L19) (dòng 19), [`PublicRoomTypeAvailabilityDto.cs`](file:///C:/Dev/hotel-saas-v2/backend/src/HotelSaas.Application/Public/DTOs/PublicRoomTypeAvailabilityDto.cs#L16) (dòng 16) đều đã có sẵn thuộc tính `public string? ImageUrl { get; set; }`. Hợp đồng DTO công khai đã hoàn chỉnh và không đòi hỏi bất kỳ sự sửa đổi nào.
-   - **Domain Entities & Lược đồ DB:** Thực thể [`RoomType.cs`](file:///C:/Dev/hotel-saas-v2/backend/src/HotelSaas.Domain/Entities/RoomType.cs#L68) (dòng 68) đã có sẵn cột `ImageUrl` trong database schema và EF Core. Tuy nhiên, thực thể [`Property.cs`](file:///C:/Dev/hotel-saas-v2/backend/src/HotelSaas.Domain/Entities/Property.cs) **chưa có cột `ImageUrl`** (ghi nhận khoảng cách kỹ thuật / Gap).
-   - **Backend Handlers:** [`GetPublicAvailabilityQuery.cs`](file:///C:/Dev/hotel-saas-v2/backend/src/HotelSaas.Application/Public/Queries/GetPublicAvailability/GetPublicAvailabilityQuery.cs#L175) (dòng 175) và [`GetPublicRoomTypesQuery.cs`](file:///C:/Dev/hotel-saas-v2/backend/src/HotelSaas.Application/Public/Queries/GetPublicRoomTypes/GetPublicRoomTypesQuery.cs#L63) (dòng 63) đã chiếu trực tiếp `ImageUrl = rt.ImageUrl`. Ngược lại, [`GetPublicPropertiesQuery.cs`](file:///C:/Dev/hotel-saas-v2/backend/src/HotelSaas.Application/Public/Queries/GetPublicProperties/GetPublicPropertiesQuery.cs#L57) (dòng 57) chiếu cứng `ImageUrl = null` do giới hạn schema của `Property`.
-   - **Seed Data:** [`LocalDevDataSeeder.cs`](file:///C:/Dev/hotel-saas-v2/backend/src/HotelSaas.Infrastructure/Persistence/LocalDevDataSeeder.cs#L626-L637) không gán `ImageUrl`, do đó mọi bản ghi kiểm thử đều có `ImageUrl == null`.
-   - **Frontend UI & Components:** [`booking.page.ts`](file:///C:/Dev/hotel-saas-v2/frontend/src/app/features/public-booking/booking.page.ts) đã có rẽ nhánh `*ngIf="rt.imageUrl"` (dòng 577) và khối SVG dự phòng nội tuyến khi `null` (dòng 578–591) kèm nhãn minh họa (dòng 594). Thẻ cơ sở cũng đã có khối SVG hoàng hôn kiến trúc ("Architectural Twilight Fallback", dòng 385–430). Cơ chế cô lập khi đổi cơ sở `resetSelectionAndAvailability()` (dòng 978–989) xóa sạch danh sách phòng và hủy yêu cầu dở dang, đảm bảo không rò rỉ ảnh cũ.
+### 1.1. Giải quyết Finding 1 [P1] — Phân tách Broken-Image Fallback khỏi AI Provenance:
+- **Hiện tượng cũ:** Mục 4.1 trong Vòng 1 gán nhãn "Ảnh minh họa AI" cho mọi URL và tự động chèn chú thích minh họa vào thuộc tính `alt`.
+- **Khắc phục Vòng 2:**
+  - Lát cắt tối thiểu được phân tách độc lập, chỉ tập trung vào **xử lý lỗi ảnh vỡ (Broken-Image Error Fallback)** cho bất kỳ phương tiện media nào hiện có.
+  - Hợp đồng DTO công khai hiện tại chỉ có `imageUrl?: string`, không có trường chỉ báo xuất xứ (provenance discriminator). Không suy diễn AI hay ảnh thật dựa trên sự có mặt của URL hay mã/tên phòng.
+  - Bảo toàn nguyên vẹn thuộc tính `[alt]="rt.roomTypeName"` cho thẻ `<img>`.
+  - Khối SVG dự phòng tiếp tục mang nhãn minh họa kiến trúc (`"Hình minh họa — bố trí phòng mẫu"` / `"HÌNH MINH HỌA HẠNG PHÒNG"`).
+  - Huy hiệu AI được tách rời hoàn toàn và chỉ hiển thị khi có siêu dữ liệu xuất xứ demo được xác minh rõ ràng (verified explicit demo provenance) hoặc khi có hợp đồng mới được phê duyệt riêng biệt trong tương lai.
 
-2. **Xác định các khoảng cách kỹ thuật (Gaps) của giao diện:**
-   - Chưa có bộ bắt lỗi tải ảnh: Khi `rt.imageUrl` gặp lỗi 404 hoặc mạng hỏng, thẻ `<img>` bị vỡ mà không tự động rơi về khối SVG dự phòng.
-   - Chưa có huy hiệu công bố AI minh họa động: Khi hiển thị ảnh mô phỏng AI từ `rt.imageUrl`, chưa có nhãn công bố minh bạch trên ảnh.
-   - Chính sách text thay thế (`alt`) chưa phản ánh rõ ngữ cảnh minh họa cho trình đọc màn hình.
+### 1.2. Giải quyết Finding 2 [P2] — Quản lý Khóa Lỗi Theo Ngữ Cảnh, Thế Hệ & URL, Hỗ Trợ Retry:
+- **Hiện tượng cũ:** `failedRoomImageIds` chỉ lưu `roomTypeId`, khiến một URL mới cho cùng loại phòng bị kẹt lỗi vĩnh viễn, và sự kiện lỗi muộn từ ảnh cũ có thể vô hiệu hóa ảnh mới.
+- **Khắc phục Vòng 2:**
+  - Nâng cấp cơ chế quản lý lỗi thành `failedImageKeys = signal<Set<string>>(new Set())` với khóa định danh đầy đủ theo ngữ cảnh: `${propertyId}:${roomTypeId}:${url}`.
+  - Bộ bắt lỗi nhận tham số thế hệ: `onRoomImageError(roomTypeId, url, eventRequestId)`. Bỏ qua sự kiện lỗi đến muộn nếu `eventRequestId !== this.availabilityRequestId` hoặc URL trống.
+  - Khi cùng một `roomTypeId` nhận URL mới, URL mới có key khác nên được phép render ngay lập tức.
+  - Bổ sung phương thức thử lại tường minh `retryRoomImage(roomTypeId, url)` giúp xóa khóa lỗi và thử tải lại tài nguyên khi cần.
+  - Bổ sung đầy đủ 7 tiêu chí chấp nhận hành vi dựa trên nguồn (AC-MEDIA-01 đến 07) gồm URL mới cho cùng ID, sự kiện lỗi trễ sau chuyển cơ sở, URL rỗng/trắng, và retry.
 
-3. **Đề xuất lát cắt triển khai tối thiểu (Smallest Implementation Slice Proposal):**
-   - Giữ nguyên 100% backend C#, database schema, quyền hạn và controllers.
-   - Đề xuất bổ sung tín hiệu `failedRoomImageIds = signal<Set<string>>(new Set())` cùng sự kiện `(error)="onRoomImageError(rt.roomTypeId)"` vào `booking.page.ts`.
-   - Thêm nhãn công bố AI bán trong suốt (`"Ảnh minh họa AI"`) và chuẩn hóa alt text có ngữ cảnh.
-   - Reset danh sách lỗi ảnh đồng thời với `resetSelectionAndAvailability()` khi chuyển đổi chi nhánh.
-   - Tuyệt đối không thêm remote CDN, thư viện bên thứ ba hay cloud storage mới.
+### 1.3. Giải quyết Finding 3 [P2] — Hiệu Chỉnh Khảo Sát Mã Nguồn & Giảm Thiểu Tuyên Bố Tuyệt Đối:
+- **Hiện tượng cũ:** Khảo sát ngụ ý mã nguồn chứng minh cột cơ sở dữ liệu vật lý tồn tại và seeder chứng minh toàn bộ dữ liệu DB là null; có các tuyên bố "100% race-proof / ngăn chặn tuyệt đối".
+- **Khắc phục Vòng 2:**
+  - Mục 1.2 nêu rõ: trường `RoomType.ImageUrl` được định nghĩa trong mô hình C# và phép chiếu EF Core, nhưng cơ sở dữ liệu vật lý runtime là **CHƯA ĐƯỢC XÁC MINH (DB NOT VERIFIED)**.
+  - Mục 1.4 nêu rõ: `LocalDevDataSeeder` khi tạo mẫu mới bỏ qua `ImageUrl`, nhưng điều này không chứng minh toàn bộ dữ liệu DB hiện hữu có null hay không (`DB NOT VERIFIED`).
+  - Thay thế các tuyên bố tuyệt đối bằng mô tả kỹ thuật chính xác về cơ chế hủy subscription và tăng thế hệ request ID.
 
-4. **Ranh giới pháp lý & 4 câu hỏi cần PO phê duyệt:**
-   - 33 ảnh Legacy (`LEGACY-ROOM-ASSETS-01`) tiếp tục duy trì cách ly nghiêm ngặt (**Quarantine**, `Rights NOT VERIFIED`).
-   - 4 ảnh AI (`ROOM-AI-DEMO-PACK-01`) là tài liệu mô phỏng offline, **chưa có quyền thương mại sản xuất (`Commercial Rights NOT VERIFIED`)**. Tuyệt đối không copy vào `frontend/src/assets` production.
-   - Nêu rõ 4 câu hỏi trọng tâm cho PO: (Q1) Bản quyền và thời điểm cung cấp ảnh thật; (Q2) Chính sách bắt buộc nhãn AI minh họa; (Q3) Migration bổ sung `Property.ImageUrl`; (Q4) Phương án hạ tầng lưu trữ media production (Local vs S3 Blob).
-   - Bảo toàn 7 Cổng quyết định PO trong `decisions.md` và giữ Phase 6 tiếp tục đóng.
-   - Bảo toàn ranh giới công việc của Nguyên (`Rooms`, `RoomTypes`) và Tân (`Housekeeping`).
+### 1.4. Phân Tách Các Vấn Đề Dài Hạn Khỏi Lát Cắt Giao Diện:
+- Khẳng định rõ: Việc xử lý ảnh vỡ trên giao diện là chi tiết UI thông thường, **không đòi hỏi PO phê duyệt lại nghiệp vụ hay cấp hạ tầng mới**.
+- Các vấn đề: Cung cấp ảnh thật, bản quyền, migration lược đồ `Property.ImageUrl` và hạ tầng Blob Storage là các chủ đề dài hạn, độc lập và không phải là điều kiện tiên quyết (non-blocking) đối với lát cắt này.
 
 ---
 
@@ -50,9 +51,9 @@ Antigravity đã hoàn thành cuộc khảo sát toàn diện mã nguồn thực
 
 | STT | Đường Dẫn Tệp | Mô Tả & Nội Dung |
 |:---:|---|---|
-| 1 | [`docs/agent-coordination/media-integration-plan.md`](file:///C:/Dev/hotel-saas-v2/docs/agent-coordination/media-integration-plan.md) | Kế hoạch tích hợp media chi tiết: khảo sát source-backed, phân tích gap, đề xuất lát cắt frontend tối thiểu, chính sách bản quyền, câu hỏi PO, tiêu chí nghiệm thu (AC-MEDIA-01 đến 05). |
-| 2 | [`docs/agent-coordination/task.json`](file:///C:/Dev/hotel-saas-v2/docs/agent-coordination/task.json) | Cập nhật trạng thái `Submitted`, giải phóng khóa `writer: "none"`, chuyển giao cho Codex Reviewer. |
-| 3 | [`docs/agent-coordination/submission.md`](file:///C:/Dev/hotel-saas-v2/docs/agent-coordination/submission.md) | Báo cáo đệ trình Vòng 1 của nhiệm vụ `GUEST-ROOM-MEDIA-PLAN-01`. |
+| 1 | [`docs/agent-coordination/media-integration-plan.md`](file:///C:/Dev/hotel-saas-v2/docs/agent-coordination/media-integration-plan.md) | Kế hoạch tích hợp media Vòng 2: khảo sát source-backed hiệu chỉnh, phân tách broken-image fallback độc lập, quản lý khóa lỗi theo ngữ cảnh/URL, phương thức retry, 7 tiêu chí chấp nhận AC-MEDIA-01 đến 07. |
+| 2 | [`docs/agent-coordination/task.json`](file:///C:/Dev/hotel-saas-v2/docs/agent-coordination/task.json) | Cập nhật round 2, submissionId `sub-guest-room-media-plan-01-r2-20261013`, giải phóng khóa `writer: "none"`, trạng thái `Submitted`. |
+| 3 | [`docs/agent-coordination/submission.md`](file:///C:/Dev/hotel-saas-v2/docs/agent-coordination/submission.md) | Báo cáo đệ trình Vòng 2 của nhiệm vụ `GUEST-ROOM-MEDIA-PLAN-01`. |
 
 ---
 
