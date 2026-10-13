@@ -34,6 +34,18 @@ export function addDaysToDateString(dateStr: string, days: number): string {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * Ảnh chụp bất biến của ngữ cảnh hiển thị ảnh tại thời điểm render.
+ * Đóng băng thông tin cơ sở, thế hệ yêu cầu, loại phòng, URL chính xác và lượt thử lại.
+ */
+export interface RoomImageRenderContext {
+  readonly propertyId: string;
+  readonly generation: number;
+  readonly roomTypeId: string;
+  readonly url: string;
+  readonly retryAttempt: number;
+}
+
 @Component({
   selector: 'app-public-booking',
   standalone: true,
@@ -574,8 +586,25 @@ export function addDaysToDateString(dateStr: string, days: number): string {
               <div class="p-5 sm:p-6">
                 <!-- Room Card Visual Graphic / Fallback -->
                 <div class="relative bg-slate-100 h-36 flex items-center justify-center overflow-hidden rounded-2xl mb-4">
-                  <img *ngIf="rt.imageUrl" [src]="rt.imageUrl" [alt]="rt.roomTypeName" class="w-full h-full object-cover" />
-                  <svg *ngIf="!rt.imageUrl" class="w-full h-full" viewBox="0 0 320 140" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+                  <ng-container *ngIf="getRoomImageContext(rt) as ctx">
+                    <img
+                      *ngIf="isRoomImageRenderable(ctx)"
+                      [src]="ctx.url"
+                      [alt]="rt.roomTypeName"
+                      (error)="onRoomImageError(ctx)"
+                      class="w-full h-full object-cover"
+                      [attr.data-testid]="'room-img-' + rt.roomTypeId"
+                      [attr.data-render-key]="getRoomImageRenderKey(rt)"
+                    />
+                  </ng-container>
+                  <svg
+                    *ngIf="!isRoomImageRenderable(getRoomImageContext(rt))"
+                    class="w-full h-full"
+                    viewBox="0 0 320 140"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    preserveAspectRatio="xMidYMid slice"
+                    [attr.data-testid]="'room-fallback-svg-' + rt.roomTypeId">
                     <rect width="320" height="140" fill="#f8fafc"/>
                     <rect x="30" y="25" width="260" height="95" rx="6" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
                     <rect x="80" y="40" width="160" height="20" rx="3" fill="#cbd5e1"/>
@@ -590,9 +619,22 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                     <text x="160" y="125" font-family="system-ui, sans-serif" font-size="8.5" font-weight="600" letter-spacing="1" fill="#94a3b8" text-anchor="middle">HÌNH MINH HỌA HẠNG PHÒNG</text>
                   </svg>
                   <!-- Transparent Illustration Disclosure Badge (Uncropped overlay with high contrast) -->
-                  <div *ngIf="!rt.imageUrl" class="absolute bottom-2.5 right-2.5 bg-slate-900/80 backdrop-blur-xs text-slate-200 text-[10px] font-semibold px-2.5 py-0.5 rounded-md border border-slate-700/70 shadow-2xs pointer-events-none">
+                  <div
+                    *ngIf="!isRoomImageRenderable(getRoomImageContext(rt))"
+                    class="absolute bottom-2.5 right-2.5 bg-slate-900/80 backdrop-blur-xs text-slate-200 text-[10px] font-semibold px-2.5 py-0.5 rounded-md border border-slate-700/70 shadow-2xs pointer-events-none"
+                    [attr.data-testid]="'room-fallback-badge-' + rt.roomTypeId">
                     Hình minh họa — bố trí phòng mẫu
                   </div>
+                  <!-- Nút thử lại nếu là ảnh bị lỗi tải và có context -->
+                  <button
+                    *ngIf="canRetryRoomImage(rt)"
+                    type="button"
+                    (click)="retryRoomImage(rt); $event.stopPropagation()"
+                    class="absolute top-2.5 right-2.5 bg-white/90 hover:bg-white text-slate-700 text-[11px] font-semibold px-2 py-1 rounded-md border border-slate-200 shadow-xs flex items-center gap-1 cursor-pointer transition-colors"
+                    [attr.data-testid]="'room-image-retry-btn-' + rt.roomTypeId">
+                    <svg class="w-3 h-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <span>Thử lại</span>
+                  </button>
                 </div>
 
                 <div class="flex items-start justify-between gap-2 mb-2">
@@ -879,6 +921,14 @@ export class BookingPage implements OnInit, OnDestroy {
   selectedRoomType = signal<PublicRoomTypeAvailabilityDto | null>(null);
   currentQuote = signal<QuoteDto | null>(null);
 
+  // Quản lý khóa ảnh lỗi: key = `${propertyId}:${roomTypeId}:${url}`
+  failedImageKeys = signal<Set<string>>(new Set<string>());
+  private itemContextMap = new Map<PublicRoomTypeAvailabilityDto, RoomImageRenderContext>();
+
+  get currentAvailabilityRequestId(): number {
+    return this.availabilityRequestId;
+  }
+
   isComboboxOpen = signal<boolean>(false);
   activeSuggestionIndex = signal<number>(-1);
   activeSuggestionId = computed<string | undefined>(() => {
@@ -986,6 +1036,7 @@ export class BookingPage implements OnInit, OnDestroy {
     this.quoteRequestId++;        // Invalidate pending quote requests
     this.availabilitySub?.unsubscribe();
     this.quoteSub?.unsubscribe();
+    this.itemContextMap.clear();
   }
 
   loadProperties(searchTerm?: string): void {
@@ -1308,6 +1359,22 @@ export class BookingPage implements OnInit, OnDestroy {
           return;
         }
         this.availabilityList.set(avail);
+        const currentProp = this.selectedProperty();
+        const currentGen = this.availabilityRequestId;
+        if (currentProp) {
+          for (const rt of avail) {
+            const rawUrl = rt.imageUrl?.trim();
+            if (rawUrl) {
+              this.itemContextMap.set(rt, {
+                propertyId: currentProp.id,
+                generation: currentGen,
+                roomTypeId: rt.roomTypeId,
+                url: rawUrl,
+                retryAttempt: 0
+              });
+            }
+          }
+        }
         this.isLoadingAvailability.set(false);
       },
       error: err => {
@@ -1479,5 +1546,154 @@ export class BookingPage implements OnInit, OnDestroy {
         this.alertService.toastError(err?.error?.message || 'Không thể tạo yêu cầu giữ phòng. Vui lòng thử lại.');
       }
     });
+  }
+
+  // =========================================================================
+  // GUEST ROOM IMAGE FALLBACK & IMMUTABLE RENDER CONTEXT (AC-MEDIA-01 - 09)
+  // =========================================================================
+
+  /**
+   * Lấy ảnh chụp ngữ cảnh render bất biến cho loại phòng.
+   * Ưu tiên ngữ cảnh đã snapshot từ lúc nhận availability; lazily snapshot nếu gọi độc lập.
+   */
+  getRoomImageContext(rt: PublicRoomTypeAvailabilityDto | null | undefined): RoomImageRenderContext | null {
+    if (!rt) return null;
+    let ctx = this.itemContextMap.get(rt);
+    if (!ctx) {
+      const prop = this.selectedProperty();
+      const rawUrl = rt.imageUrl?.trim();
+      if (prop && rawUrl) {
+        ctx = {
+          propertyId: prop.id,
+          generation: this.availabilityRequestId,
+          roomTypeId: rt.roomTypeId,
+          url: rawUrl,
+          retryAttempt: 0
+        };
+        this.itemContextMap.set(rt, ctx);
+      }
+    }
+    return ctx || null;
+  }
+
+  /**
+   * Kiểm tra ảnh có sẵn sàng để hiển thị không.
+   * Fail closed nếu thiếu property, lệch generation, hoặc khóa ảnh đã nằm trong failedImageKeys.
+   */
+  isRoomImageRenderable(ctx: RoomImageRenderContext | null): boolean {
+    if (!ctx) return false;
+
+    const currentProperty = this.selectedProperty();
+    // 1. Fail closed nếu thiếu cơ sở hoặc cơ sở không khớp
+    if (!currentProperty || currentProperty.id !== ctx.propertyId) {
+      return false;
+    }
+
+    // 2. Thế hệ không khớp với yêu cầu hiện hành
+    if (this.availabilityRequestId !== ctx.generation) {
+      return false;
+    }
+
+    // 3. Khóa ảnh đã bị đánh dấu lỗi
+    const key = `${ctx.propertyId}:${ctx.roomTypeId}:${ctx.url}`;
+    return !this.failedImageKeys().has(key);
+  }
+
+  /**
+   * Kiểm tra có thể hiển thị nút Thử lại (Retry) cho ảnh hay không.
+   */
+  canRetryRoomImage(rt: PublicRoomTypeAvailabilityDto): boolean {
+    const ctx = this.getRoomImageContext(rt);
+    if (!ctx) return false;
+
+    const currentProperty = this.selectedProperty();
+    if (!currentProperty || currentProperty.id !== ctx.propertyId) return false;
+    if (this.availabilityRequestId !== ctx.generation) return false;
+
+    const key = `${ctx.propertyId}:${ctx.roomTypeId}:${ctx.url}`;
+    return this.failedImageKeys().has(key);
+  }
+
+  /**
+   * Thao tác thử lại tải ảnh (Retry) cho cùng một URL.
+   * Xóa khóa lỗi và tăng retryAttempt để kích hoạt render mới với khóa định danh mới.
+   */
+  retryRoomImage(rt: PublicRoomTypeAvailabilityDto): void {
+    const ctx = this.getRoomImageContext(rt);
+    if (!ctx) return;
+
+    const currentProperty = this.selectedProperty();
+    if (!currentProperty || currentProperty.id !== ctx.propertyId) return;
+    if (this.availabilityRequestId !== ctx.generation) return;
+
+    const key = `${ctx.propertyId}:${ctx.roomTypeId}:${ctx.url}`;
+    if (!this.failedImageKeys().has(key)) return;
+
+    // Xóa khóa lỗi để cho phép thử tải lại
+    const nextFailed = new Set(this.failedImageKeys());
+    nextFailed.delete(key);
+    this.failedImageKeys.set(nextFailed);
+
+    // Cập nhật context snapshot với retryAttempt tăng dần để kích hoạt render mới
+    const nextCtx: RoomImageRenderContext = {
+      ...ctx,
+      retryAttempt: ctx.retryAttempt + 1
+    };
+    this.itemContextMap.set(rt, nextCtx);
+  }
+
+  /**
+   * Khóa định danh render của ảnh phòng (phục vụ DOM keying / tracking).
+   */
+  getRoomImageRenderKey(rt: PublicRoomTypeAvailabilityDto): string {
+    const ctx = this.getRoomImageContext(rt);
+    if (!ctx) return 'fallback';
+    return `${ctx.propertyId}:${ctx.generation}:${ctx.roomTypeId}:${ctx.url}:${ctx.retryAttempt}`;
+  }
+
+  /**
+   * Xử lý khi thẻ <img> gặp lỗi tải tài nguyên.
+   * Nhận ảnh chụp bất biến được truyền từ template tại thời điểm render.
+   */
+  onRoomImageError(ctx: RoomImageRenderContext | null): void {
+    if (!ctx) return;
+
+    const currentProperty = this.selectedProperty();
+
+    // 1. Fail closed nếu không có cơ sở hiện tại
+    if (!currentProperty) {
+      return;
+    }
+
+    // 2. Loại bỏ sự kiện muộn khi chuyển cơ sở A -> B
+    if (currentProperty.id !== ctx.propertyId) {
+      return;
+    }
+
+    // 3. Loại bỏ sự kiện muộn khi đổi ngày/thế hệ tìm kiếm
+    if (this.availabilityRequestId !== ctx.generation) {
+      return;
+    }
+
+    // 4. Bỏ qua URL rỗng hoặc khoảng trắng
+    if (!ctx.url || !ctx.url.trim()) {
+      return;
+    }
+
+    // 5. Loại bỏ sự kiện muộn của lượt thử cũ nếu đã retry
+    const currentItem = this.availabilityList().find(item => item.roomTypeId === ctx.roomTypeId);
+    if (!currentItem) {
+      return;
+    }
+    const currentCtx = this.itemContextMap.get(currentItem);
+    if (!currentCtx || currentCtx.retryAttempt !== ctx.retryAttempt || currentCtx.url !== ctx.url) {
+      return;
+    }
+
+    // 6. Ghi nhận lỗi theo đúng khóa ngữ cảnh được cô lập
+    const key = `${ctx.propertyId}:${ctx.roomTypeId}:${ctx.url}`;
+    const currentSet = new Set(this.failedImageKeys());
+    currentSet.add(key);
+    this.failedImageKeys.set(currentSet);
   }
 }

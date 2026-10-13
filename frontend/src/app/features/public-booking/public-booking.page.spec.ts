@@ -1,10 +1,39 @@
+import { JSDOM } from 'jsdom';
+
+if (typeof document === 'undefined') {
+  const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
+    url: 'http://localhost'
+  });
+  const win = dom.window;
+  (globalThis as any).window = win;
+  (globalThis as any).document = win.document;
+  (globalThis as any).HTMLElement = win.HTMLElement;
+  (globalThis as any).HTMLImageElement = win.HTMLImageElement;
+  (globalThis as any).customElements = win.customElements;
+  (globalThis as any).Node = win.Node;
+  (globalThis as any).Event = win.Event;
+  (globalThis as any).UIEvent = win.UIEvent;
+  (globalThis as any).CustomEvent = win.CustomEvent;
+  (globalThis as any).KeyboardEvent = win.KeyboardEvent;
+  (globalThis as any).MouseEvent = win.MouseEvent;
+  (globalThis as any).MutationObserver = win.MutationObserver;
+}
+
 import '@angular/compiler';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Injector, runInInjectionContext } from '@angular/core';
+import { TestBed, ComponentFixture } from '@angular/core/testing';
+import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { FormBuilder } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { of, throwError, Subject } from 'rxjs';
-import { BookingPage } from './booking.page';
+import { BookingPage, RoomImageRenderContext } from './booking.page';
+
+try {
+  TestBed.initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
+} catch {
+  // Already initialized in test environment
+}
 import { BookingHoldPage } from './booking-hold.page';
 import { BookingStatusPage } from './booking-status.page';
 import { PublicBookingService } from '../../core/services/public-booking.service';
@@ -1518,6 +1547,371 @@ describe('Public Booking Pages (P5-GUEST-BOOKING-01)', () => {
       expect(component.booking()?.paidAmount).toBe(300000);
       expect(component.booking()?.remainingBalance).toBe(700000);
       expect(component.getStatusLabel('Confirmed')).toBe('Đã xác nhận');
+    });
+  });
+
+  // =========================================================================
+  // 4. MOUNTED DOM & BEHAVIORAL IMAGE FALLBACK ACCEPTANCE TESTS (AC-MEDIA-01 - 09)
+  // =========================================================================
+  describe('4. Mounted DOM & Behavioral Image Fallback Tests (GUEST-ROOM-IMAGE-FALLBACK-01 / AC-MEDIA-01 - 09)', () => {
+    let fixture: ComponentFixture<BookingPage>;
+    let component: BookingPage;
+    let localMockBookingService: any;
+    let localMockAlertService: any;
+    let localMockRouter: any;
+
+    const testPropertyA: PublicPropertyDto = {
+      id: 'prop-alpha',
+      name: 'Resort Biển Alpha',
+      code: 'ALPHA',
+      slug: 'resort-alpha',
+      address: '100 Tran Phu',
+      city: 'Nha Trang',
+      checkInTime: '14:00',
+      checkOutTime: '12:00',
+      bufferMinutes: 30,
+      maxHourlyHours: 12
+    };
+
+    const testPropertyB: PublicPropertyDto = {
+      id: 'prop-beta',
+      name: 'Khách Sạn Beta',
+      code: 'BETA',
+      slug: 'hotel-beta',
+      address: '200 Vo Thi Sau',
+      city: 'Vung Tau',
+      checkInTime: '14:00',
+      checkOutTime: '12:00',
+      bufferMinutes: 30,
+      maxHourlyHours: 12
+    };
+
+    const testRoomWithImage: PublicRoomTypeAvailabilityDto = {
+      roomTypeId: 'rt-standard',
+      roomTypeName: 'Standard Room Alpha',
+      description: 'Phòng tiêu chuẩn có ảnh',
+      maxOccupancy: 2,
+      bedType: 'Queen',
+      squareMeters: 28,
+      imageUrl: 'https://images.hotel-saas.local/rooms/rt-standard.jpg',
+      totalRooms: 5,
+      availableRooms: 3,
+      isAvailable: true,
+      estimatedPrice: 750000
+    };
+
+    const testRoomWithoutImage: PublicRoomTypeAvailabilityDto = {
+      roomTypeId: 'rt-no-img',
+      roomTypeName: 'Economy Room Alpha',
+      description: 'Phòng không có ảnh',
+      maxOccupancy: 1,
+      bedType: 'Single',
+      squareMeters: 18,
+      imageUrl: undefined,
+      totalRooms: 3,
+      availableRooms: 2,
+      isAvailable: true,
+      estimatedPrice: 450000
+    };
+
+    const testRoomWhitespaceImage: PublicRoomTypeAvailabilityDto = {
+      roomTypeId: 'rt-space-img',
+      roomTypeName: 'Whitespace Room Alpha',
+      description: 'Phòng có ảnh chứa khoảng trắng',
+      maxOccupancy: 2,
+      bedType: 'Double',
+      squareMeters: 22,
+      imageUrl: '   ',
+      totalRooms: 2,
+      availableRooms: 1,
+      isAvailable: true,
+      estimatedPrice: 500000
+    };
+
+    beforeEach(async () => {
+      localMockBookingService = {
+        getProperties: vi.fn().mockReturnValue(of([testPropertyA, testPropertyB])),
+        getPropertyBySlug: vi.fn().mockReturnValue(of(testPropertyA)),
+        getRoomTypes: vi.fn().mockReturnValue(of([])),
+        getAvailability: vi.fn().mockReturnValue(of([testRoomWithImage])),
+        calculateQuote: vi.fn().mockReturnValue(of(sampleQuote)),
+        createHold: vi.fn().mockReturnValue(of(sampleHold)),
+        getBookingByToken: vi.fn().mockReturnValue(of(sampleDetail)),
+        confirmBooking: vi.fn().mockReturnValue(of(sampleDetail))
+      };
+
+      localMockAlertService = {
+        toastSuccess: vi.fn(),
+        toastError: vi.fn(),
+        toastInfo: vi.fn(),
+        toastWarning: vi.fn()
+      };
+
+      localMockRouter = {
+        navigate: vi.fn()
+      };
+
+      TestBed.resetTestingModule();
+      await TestBed.configureTestingModule({
+        imports: [BookingPage],
+        providers: [
+          FormBuilder,
+          { provide: ActivatedRoute, useValue: mockActivatedRoute },
+          { provide: PublicBookingService, useValue: localMockBookingService },
+          { provide: AlertService, useValue: localMockAlertService },
+          { provide: Router, useValue: localMockRouter }
+        ]
+      }).compileComponents();
+
+      fixture = TestBed.createComponent(BookingPage);
+      component = fixture.componentInstance;
+    });
+
+    it('AC-MEDIA-01: should fail closed when Property is missing or null, displaying fallback SVG and rejecting synthetic events', () => {
+      component.ngOnInit();
+      fixture.detectChanges();
+
+      // No property selected initially in two-step discovery
+      expect(component.selectedProperty()).toBeNull();
+      expect(component.getRoomImageContext(testRoomWithImage)).toBeNull();
+      expect(component.isRoomImageRenderable(null)).toBe(false);
+
+      // Synthetic error handler call without selectedProperty fails closed
+      const fakeCtx: RoomImageRenderContext = {
+        propertyId: 'prop-unknown',
+        generation: 1,
+        roomTypeId: 'rt-test',
+        url: 'https://images.hotel-saas.local/rooms/fake.jpg',
+        retryAttempt: 0
+      };
+      component.onRoomImageError(fakeCtx);
+      expect(component.failedImageKeys().size).toBe(0);
+    });
+
+    it('AC-MEDIA-02: should render SVG fallback and disclosure badge for null, empty or whitespace URL without retry button', () => {
+      localMockBookingService.getAvailability.mockReturnValue(of([testRoomWithoutImage, testRoomWhitespaceImage]));
+      component.ngOnInit();
+      component.selectProperty(testPropertyA);
+      fixture.detectChanges();
+
+      // Verify null URL room card
+      const imgNo = fixture.nativeElement.querySelector('img[data-testid="room-img-rt-no-img"]');
+      const svgNo = fixture.nativeElement.querySelector('svg[data-testid="room-fallback-svg-rt-no-img"]');
+      const badgeNo = fixture.nativeElement.querySelector('[data-testid="room-fallback-badge-rt-no-img"]');
+      const retryBtnNo = fixture.nativeElement.querySelector('button[data-testid="room-image-retry-btn-rt-no-img"]');
+
+      expect(imgNo).toBeNull();
+      expect(svgNo).not.toBeNull();
+      expect(badgeNo).not.toBeNull();
+      expect(badgeNo.textContent.trim()).toContain('Hình minh họa — bố trí phòng mẫu');
+      expect(retryBtnNo).toBeNull();
+
+      // Verify whitespace URL room card
+      const imgSpace = fixture.nativeElement.querySelector('img[data-testid="room-img-rt-space-img"]');
+      const svgSpace = fixture.nativeElement.querySelector('svg[data-testid="room-fallback-svg-rt-space-img"]');
+      const badgeSpace = fixture.nativeElement.querySelector('[data-testid="room-fallback-badge-rt-space-img"]');
+      const retryBtnSpace = fixture.nativeElement.querySelector('button[data-testid="room-image-retry-btn-rt-space-img"]');
+
+      expect(imgSpace).toBeNull();
+      expect(svgSpace).not.toBeNull();
+      expect(badgeSpace).not.toBeNull();
+      expect(retryBtnSpace).toBeNull();
+    });
+
+    it('AC-MEDIA-03: should transition from image to SVG fallback and show retry button when mounted DOM img fires error event', () => {
+      component.ngOnInit();
+      component.selectProperty(testPropertyA);
+      fixture.detectChanges();
+
+      // Initial state: image is mounted
+      const img = fixture.nativeElement.querySelector('img[data-testid="room-img-rt-standard"]');
+      expect(img).not.toBeNull();
+      expect(img.getAttribute('src')).toBe(testRoomWithImage.imageUrl);
+      expect(fixture.nativeElement.querySelector('svg[data-testid="room-fallback-svg-rt-standard"]')).toBeNull();
+
+      // Dispatch real DOM error event on mounted img
+      img.dispatchEvent(new Event('error'));
+      fixture.detectChanges();
+
+      // Transitioned state: image destroyed, fallback SVG mounted with badge and retry button
+      expect(fixture.nativeElement.querySelector('img[data-testid="room-img-rt-standard"]')).toBeNull();
+      const fallbackSvg = fixture.nativeElement.querySelector('svg[data-testid="room-fallback-svg-rt-standard"]');
+      const badge = fixture.nativeElement.querySelector('[data-testid="room-fallback-badge-rt-standard"]');
+      const retryBtn = fixture.nativeElement.querySelector('button[data-testid="room-image-retry-btn-rt-standard"]');
+
+      expect(fallbackSvg).not.toBeNull();
+      expect(badge).not.toBeNull();
+      expect(badge.textContent.trim()).toContain('Hình minh họa — bố trí phòng mẫu');
+      expect(retryBtn).not.toBeNull();
+
+      const expectedKey = `${testPropertyA.id}:${testRoomWithImage.roomTypeId}:${testRoomWithImage.imageUrl}`;
+      expect(component.failedImageKeys().has(expectedKey)).toBe(true);
+    });
+
+    it('AC-MEDIA-04: should render new URL successfully for the same roomTypeId after previous URL encountered error', () => {
+      component.ngOnInit();
+      component.selectProperty(testPropertyA);
+      fixture.detectChanges();
+
+      // Trigger error on initial image
+      const img = fixture.nativeElement.querySelector('img[data-testid="room-img-rt-standard"]');
+      img.dispatchEvent(new Event('error'));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('svg[data-testid="room-fallback-svg-rt-standard"]')).not.toBeNull();
+
+      // Subsequent availability response returns a NEW valid URL for rt-standard
+      const newUrl = 'https://images.hotel-saas.local/rooms/rt-standard-v2.jpg';
+      const updatedRoom: PublicRoomTypeAvailabilityDto = {
+        ...testRoomWithImage,
+        imageUrl: newUrl
+      };
+      localMockBookingService.getAvailability.mockReturnValue(of([updatedRoom]));
+      component.searchAvailability();
+      fixture.detectChanges();
+
+      // The new URL must render as an <img> and NOT be blocked by the previous error key
+      const newImg = fixture.nativeElement.querySelector('img[data-testid="room-img-rt-standard"]');
+      expect(newImg).not.toBeNull();
+      expect(newImg.getAttribute('src')).toBe(newUrl);
+      expect(fixture.nativeElement.querySelector('svg[data-testid="room-fallback-svg-rt-standard"]')).toBeNull();
+    });
+
+    it('AC-MEDIA-05: should ignore late error event dispatched by mounted DOM img of Property A after switching to Property B', () => {
+      component.ngOnInit();
+      component.selectProperty(testPropertyA);
+      fixture.detectChanges();
+
+      // Mount and capture Property A img element
+      const imgA = fixture.nativeElement.querySelector('img[data-testid="room-img-rt-standard"]');
+      expect(imgA).not.toBeNull();
+
+      // User switches to Property B
+      const roomB: PublicRoomTypeAvailabilityDto = {
+        ...testRoomWithImage,
+        roomTypeId: 'rt-standard',
+        roomTypeName: 'Standard Room Beta',
+        imageUrl: 'https://images.hotel-saas.local/rooms/rt-standard-beta.jpg'
+      };
+      localMockBookingService.getAvailability.mockReturnValue(of([roomB]));
+      component.selectProperty(testPropertyB);
+      fixture.detectChanges();
+
+      expect(component.selectedProperty()?.id).toBe(testPropertyB.id);
+
+      // Now late error fires from old Property A img element
+      imgA.dispatchEvent(new Event('error'));
+      fixture.detectChanges();
+
+      // Invariant: Property B must not have any error key recorded, and Property B image remains intact
+      const betaKeys = Array.from(component.failedImageKeys()).filter(k => k.startsWith(`${testPropertyB.id}:`));
+      expect(betaKeys.length).toBe(0);
+      const imgB = fixture.nativeElement.querySelector('img[data-testid="room-img-rt-standard"]');
+      expect(imgB).not.toBeNull();
+      expect(imgB.getAttribute('src')).toBe(roomB.imageUrl);
+    });
+
+    it('AC-MEDIA-06: should ignore late error event dispatched by mounted DOM img when availability generation has advanced', () => {
+      component.ngOnInit();
+      component.selectProperty(testPropertyA);
+      fixture.detectChanges();
+
+      const imgGen1 = fixture.nativeElement.querySelector('img[data-testid="room-img-rt-standard"]');
+      expect(imgGen1).not.toBeNull();
+      const initialGen = component.currentAvailabilityRequestId;
+
+      // Pending search request advances generation while old DOM image is still mounted
+      const pendingSubject = new Subject<any>();
+      localMockBookingService.getAvailability.mockReturnValue(pendingSubject);
+      component.searchAvailability();
+
+      expect(component.currentAvailabilityRequestId).toBeGreaterThan(initialGen);
+
+      // Late error fires on imgGen1 element (which holds initialGen context)
+      imgGen1.dispatchEvent(new Event('error'));
+      fixture.detectChanges();
+
+      // Error must be ignored because generation mismatched
+      expect(component.failedImageKeys().size).toBe(0);
+    });
+
+    it('AC-MEDIA-07: should isolate image error keys across properties when roomTypeId or URL are identical', () => {
+      const sharedUrl = 'https://images.hotel-saas.local/rooms/shared-photo.jpg';
+      const roomA: PublicRoomTypeAvailabilityDto = { ...testRoomWithImage, imageUrl: sharedUrl };
+      const roomB: PublicRoomTypeAvailabilityDto = { ...testRoomWithImage, imageUrl: sharedUrl };
+
+      // Trigger error in Property A
+      component.ngOnInit();
+      localMockBookingService.getAvailability.mockReturnValue(of([roomA]));
+      component.selectProperty(testPropertyA);
+      fixture.detectChanges();
+
+      const imgA = fixture.nativeElement.querySelector('img[data-testid="room-img-rt-standard"]');
+      imgA.dispatchEvent(new Event('error'));
+      fixture.detectChanges();
+
+      const keyA = `${testPropertyA.id}:${roomA.roomTypeId}:${sharedUrl}`;
+      expect(component.failedImageKeys().has(keyA)).toBe(true);
+
+      // Switch to Property B with same roomTypeId and same URL
+      localMockBookingService.getAvailability.mockReturnValue(of([roomB]));
+      component.selectProperty(testPropertyB);
+      fixture.detectChanges();
+
+      // For Property B, image must render cleanly because key is prefixed by Property B ID
+      const ctxB = component.getRoomImageContext(roomB);
+      expect(ctxB).not.toBeNull();
+      expect(component.isRoomImageRenderable(ctxB)).toBe(true);
+
+      const imgB = fixture.nativeElement.querySelector('img[data-testid="room-img-rt-standard"]');
+      expect(imgB).not.toBeNull();
+      expect(imgB.getAttribute('src')).toBe(sharedUrl);
+    });
+
+    it('AC-MEDIA-08: should clear error key and remount image on explicit retry, incrementing retryAttempt and rejecting old attempt errors', () => {
+      component.ngOnInit();
+      component.selectProperty(testPropertyA);
+      fixture.detectChanges();
+
+      // Trigger error
+      const img = fixture.nativeElement.querySelector('img[data-testid="room-img-rt-standard"]');
+      img.dispatchEvent(new Event('error'));
+      fixture.detectChanges();
+
+      const retryBtn = fixture.nativeElement.querySelector('button[data-testid="room-image-retry-btn-rt-standard"]');
+      expect(retryBtn).not.toBeNull();
+
+      // Click retry
+      retryBtn.click();
+      fixture.detectChanges();
+
+      // Invariant 1: Key is removed from failedImageKeys, image is remounted
+      const expectedKey = `${testPropertyA.id}:${testRoomWithImage.roomTypeId}:${testRoomWithImage.imageUrl}`;
+      expect(component.failedImageKeys().has(expectedKey)).toBe(false);
+      const remountedImg = fixture.nativeElement.querySelector('img[data-testid="room-img-rt-standard"]');
+      expect(remountedImg).not.toBeNull();
+      expect(remountedImg.getAttribute('data-render-key')).toContain(':1'); // retryAttempt incremented to 1
+
+      // Invariant 2: A stale error from retryAttempt 0 is rejected
+      const staleCtx: RoomImageRenderContext = {
+        propertyId: testPropertyA.id,
+        generation: component.currentAvailabilityRequestId,
+        roomTypeId: testRoomWithImage.roomTypeId,
+        url: testRoomWithImage.imageUrl!,
+        retryAttempt: 0
+      };
+      component.onRoomImageError(staleCtx);
+      expect(component.failedImageKeys().has(expectedKey)).toBe(false); // Stale attempt rejected!
+    });
+
+    it('AC-MEDIA-09: should preserve alt attribute with exact roomTypeName without AI inference or URL mutation', () => {
+      component.ngOnInit();
+      component.selectProperty(testPropertyA);
+      fixture.detectChanges();
+
+      const img = fixture.nativeElement.querySelector('img[data-testid="room-img-rt-standard"]');
+      expect(img).not.toBeNull();
+      expect(img.getAttribute('alt')).toBe('Standard Room Alpha');
+      expect(img.getAttribute('alt')).toBe(testRoomWithImage.roomTypeName);
     });
   });
 });

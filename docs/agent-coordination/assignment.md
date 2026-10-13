@@ -1,4 +1,15 @@
-# GUEST-ROOM-MEDIA-PLAN-01 — task hiện hành ApprovedNext
+# GUEST-ROOM-IMAGE-FALLBACK-01 — task hiện hành ApprovedNext
+
+## Bàn giao GUEST-ROOM-IMAGE-FALLBACK-01 round1
+
+Dependency media-plan round3/sub-guest-room-media-plan-01-r3-20261013 Approved behavioral contract. Triển khai ngay fallback ảnh lỗi hiện hữu, không cần PO duyệt lại chi tiết UI. Các mục dưới là lịch sử.
+- Kiểm tra checkout/dirty baseline/AGENTS/README/Angular/UI skills và Spec Kit nếu có; claim một writer, archive submission trước thay. Chỉ guest booking page và targeted tests, không shared services/DTOs/backend/modules Nguyên/Tân.
+- AC-MEDIA01–09: null/blank/whitespace URL và thiếu property fallback SVG có nhãn; error ảnh chuyển SVG; giữ alt roomTypeName cho media hiện có, không suy AI từ URL; new URL cùng ID render được; same-URL retry tường minh.
+- Chụp property/generation/roomTypeId/exactURL từ accepted request/render, không đọc generation hiện hành trong event binding. Key/recreate DOM image theo immutable identity và retry attempt hoặc cách tương đương để view reuse không đổi context của lỗi cũ. Validate current identity/URL/generation trong error/retry; thiếu property fail closed, không global.
+- Mounted DOM tests dùng actual error events, verify fallback template; A→B sameID/sameURL, refresh generation, URL replacement và late error sau retry; không chỉ gọi handler với số stale tự đặt. Không duplicate availability business state hoặc đổi quote/hold/confirm/price/booking semantics.
+- Chạy installed Vitest targeted tests và npm run build theo repo hiện có; inspect setup trước, không npx/install/dependency mới, không backend/DB startup. Visual chưa chạy ghi NOT VERIFIED. Lưu log thật/source baseline/hash và limitation, không fullMVP/coverage/SUS claims.
+- Không import4AI/33legacy assets vào production/DB, không schema/API/quyền/remote/CDN/storage mới, commit/deploy/migration/P6. Giữ7PO gates. Submit task round1 ID mới/writer none; cần runtime ACK.
+
 
 ## Bàn giao GUEST-ROOM-MEDIA-PLAN-01 round1
 

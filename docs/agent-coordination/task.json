@@ -1,25 +1,25 @@
 {
   "schemaVersion": 1,
   "workspace": "C:\\Dev\\hotel-saas-v2",
-  "taskId": "GUEST-ROOM-MEDIA-PLAN-01",
-  "round": 3,
+  "taskId": "GUEST-ROOM-IMAGE-FALLBACK-01",
+  "round": 1,
   "status": "Submitted",
-  "updatedAt": "2026-10-13T01:25:00Z",
+  "updatedAt": "2026-10-13T01:55:00Z",
   "writer": "none",
   "antigravity": {
     "status": "Submitted",
     "conversationId": "b24752d6-e881-4372-b79e-186db67e5233",
     "sessionLink": null,
-    "heartbeatAt": "2026-10-13T08:25:00+07:00"
+    "heartbeatAt": "2026-10-13T08:55:00+07:00"
   },
   "codex": {
-    "status": "ChangesRequested",
+    "status": "Approved",
     "sessionLink": null,
-    "heartbeatAt": "2026-10-13T01:13:59Z"
+    "heartbeatAt": "2026-10-13T01:29:42Z"
   },
-  "submissionId": "sub-guest-room-media-plan-01-r3-20261013",
-  "reviewedSubmissionId": "sub-guest-room-media-plan-01-r2-20261013",
-  "nextAction": "Codex reviewer evaluates Round 3 submission.",
+  "submissionId": "sub-guest-room-image-fallback-01-r1-20261013",
+  "reviewedSubmissionId": "sub-guest-room-media-plan-01-r3-20261013",
+  "nextAction": "Codex reviewer evaluates GUEST-ROOM-IMAGE-FALLBACK-01 Round 1 submission.",
   "needsPO": [
     "D21 lookup TTL mốc dự kiến/thực tế + revoke/reissue contract",
     "Quote5min/hold15min price pinning và stale-quote acknowledgement",
