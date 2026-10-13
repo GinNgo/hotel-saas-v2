@@ -10,6 +10,7 @@ import { AlertService } from '../../core/services/alert.service';
 import { RoomTypeRateDto, RoomTypeRateAuditDto, CreateRoomTypeRateRequest } from '../../core/models/rate.model';
 import { RoomTypeDto } from '../../core/models/room-type.model';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { SkeletonTableComponent } from '../../shared/components/skeleton-table/skeleton-table.component';
 
 /** Helper to get today's date formatted as YYYY-MM-DD in Vietnam timezone (UTC+7) */
 export function getTodayVnDateString(): string {
@@ -37,7 +38,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
 @Component({
   selector: 'app-rates',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, EmptyStateComponent],
+  imports: [CommonModule, ReactiveFormsModule, EmptyStateComponent, SkeletonTableComponent],
   template: `
     <div class="max-w-6xl mx-auto space-y-6">
       <!-- Page Header -->
@@ -140,9 +141,8 @@ export function addDaysToDateString(dateStr: string, days: number): string {
 
         <!-- Content Area -->
         @if (isLoadingRoomTypes()) {
-          <div class="p-8 text-center bg-white rounded-2xl border border-slate-200/80 animate-pulse">
-            <i class="pi pi-spin pi-spinner text-2xl text-slate-400"></i>
-            <p class="text-xs text-slate-500 mt-2">Đang tải danh sách loại phòng...</p>
+          <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+            <app-skeleton-table [rows]="3" />
           </div>
         } @else if (roomTypes().length === 0) {
           <app-empty-state
@@ -215,9 +215,8 @@ export function addDaysToDateString(dateStr: string, days: number): string {
           <!-- Tab 1: Active & Upcoming Rates Table -->
           @if (activeTab() === 'rates') {
             @if (isLoadingRates()) {
-              <div class="p-8 text-center bg-white rounded-2xl border border-slate-200/80 animate-pulse">
-                <i class="pi pi-spin pi-spinner text-2xl text-slate-400"></i>
-                <p class="text-xs text-slate-500 mt-2">Đang tải dữ liệu bảng giá...</p>
+              <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+                <app-skeleton-table [rows]="4" />
               </div>
             } @else if (ratesErrorMessage()) {
               <div class="p-6 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-3">
@@ -260,16 +259,16 @@ export function addDaysToDateString(dateStr: string, days: number): string {
             } @else {
               <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
                 <div class="overflow-x-auto">
-                  <table class="w-full text-left border-collapse">
+                  <table class="w-full text-left border-collapse" aria-label="Bảng giá phòng theo khoảng ngày hiệu lực">
                     <thead>
                       <tr class="border-b border-slate-200/80 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                        <th class="py-3 px-4">Khoảng ngày hiệu lực</th>
-                        <th class="py-3 px-4">Trạng thái</th>
-                        <th class="py-3 px-4">Gói giờ đầu</th>
-                        <th class="py-3 px-4">Mỗi giờ thêm</th>
-                        <th class="py-3 px-4">Giá qua đêm</th>
-                        <th class="py-3 px-4">Lý do thay đổi</th>
-                        <th class="py-3 px-4 text-right">Ngày cấu hình</th>
+                        <th scope="col" class="py-3 px-4">Khoảng ngày hiệu lực</th>
+                        <th scope="col" class="py-3 px-4">Trạng thái</th>
+                        <th scope="col" class="py-3 px-4">Gói giờ đầu</th>
+                        <th scope="col" class="py-3 px-4">Mỗi giờ thêm</th>
+                        <th scope="col" class="py-3 px-4">Giá qua đêm</th>
+                        <th scope="col" class="py-3 px-4">Lý do thay đổi</th>
+                        <th scope="col" class="py-3 px-4 text-right">Ngày cấu hình</th>
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 text-xs">
@@ -343,9 +342,8 @@ export function addDaysToDateString(dateStr: string, days: number): string {
           <!-- Tab 2: Rate History & Interval Splitting Audit Table -->
           @if (activeTab() === 'history') {
             @if (isLoadingHistory()) {
-              <div class="p-8 text-center bg-white rounded-2xl border border-slate-200/80 animate-pulse">
-                <i class="pi pi-spin pi-spinner text-2xl text-slate-400"></i>
-                <p class="text-xs text-slate-500 mt-2">Đang tải lịch sử thay đổi bảng giá...</p>
+              <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+                <app-skeleton-table [rows]="4" />
               </div>
             } @else if (historyErrorMessage()) {
               <div class="p-6 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-3">
@@ -372,15 +370,15 @@ export function addDaysToDateString(dateStr: string, days: number): string {
             } @else {
               <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
                 <div class="overflow-x-auto">
-                  <table class="w-full text-left border-collapse">
+                  <table class="w-full text-left border-collapse" aria-label="Lịch sử thay đổi bảng giá và chia khoảng">
                     <thead>
                       <tr class="border-b border-slate-200/80 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                        <th class="py-3 px-4">Thao tác</th>
-                        <th class="py-3 px-4">Khoảng ngày áp dụng</th>
-                        <th class="py-3 px-4">Giá qua đêm</th>
-                        <th class="py-3 px-4">Lý do thay đổi</th>
-                        <th class="py-3 px-4">Thời gian ghi nhận</th>
-                        <th class="py-3 px-4 text-right">Người thực hiện</th>
+                        <th scope="col" class="py-3 px-4">Thao tác</th>
+                        <th scope="col" class="py-3 px-4">Khoảng ngày áp dụng</th>
+                        <th scope="col" class="py-3 px-4">Giá qua đêm</th>
+                        <th scope="col" class="py-3 px-4">Lý do thay đổi</th>
+                        <th scope="col" class="py-3 px-4">Thời gian ghi nhận</th>
+                        <th scope="col" class="py-3 px-4 text-right">Người thực hiện</th>
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 text-xs">
@@ -555,7 +553,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                     type="number"
                     min="1"
                     formControlName="firstHours"
-                    class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                     aria-label="Số giờ gói đầu"
                   />
                   <p class="text-[10px] text-slate-400">Mặc định: 2 giờ</p>
@@ -572,7 +570,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                     step="5000"
                     formControlName="firstHoursPrice"
                     placeholder="Nhập giá gói đầu..."
-                    class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                     aria-label="Giá gói đầu"
                   />
                 </div>
@@ -588,7 +586,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                     step="5000"
                     formControlName="additionalHourPrice"
                     placeholder="Nhập giá mỗi giờ thêm..."
-                    class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                     aria-label="Giá mỗi giờ thêm"
                   />
                 </div>
@@ -606,7 +604,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                     step="10000"
                     formControlName="nightlyPrice"
                     placeholder="Nhập giá thuê qua đêm..."
-                    class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-emerald-800 focus:outline-none focus:border-emerald-500"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-emerald-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                     aria-label="Giá thuê qua đêm tiêu chuẩn"
                   />
                   <span class="absolute right-3 top-2 text-xs text-slate-400 font-semibold">VND</span>
@@ -622,7 +620,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                   rows="2"
                   formControlName="changeReason"
                   placeholder="Ví dụ: Cập nhật giá mùa du lịch, áp dụng khuyến mãi hè..."
-                  class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
+                  class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                   aria-label="Lý do thay đổi"
                 ></textarea>
               </div>

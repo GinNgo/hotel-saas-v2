@@ -1,16 +1,12 @@
 import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
 
 /**
  * Khung màn hình Quản lý Buồng phòng (Housekeeping Scaffold)
- * Phân hệ phụ trách: Trần Trọng Tân (MSSV: 24TX810025)
- * Nhánh tính năng: feature/tan-housekeeping
- * (Mã nguồn hoàn chỉnh sẽ được đưa vào qua Pull Request từ feature/tan-housekeeping)
+ * (Mã nguồn hoàn chỉnh sẽ được đưa vào qua Pull Request từ nhánh tính năng)
  */
 @Component({
   selector: 'app-housekeeping',
   standalone: true,
-  imports: [CommonModule],
   template: `
     <div class="max-w-7xl mx-auto space-y-6">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
@@ -28,7 +24,7 @@ import { CommonModule } from '@angular/common';
         </div>
         <h3 class="text-base font-semibold text-slate-800">Phân hệ Bảng Buồng phòng & Trạng thái phòng</h3>
         <p class="text-xs sm:text-sm text-slate-500 mt-1 max-w-md mx-auto">
-          Màn hình đang được hoàn thiện bởi <b>Trần Trọng Tân (24TX810025)</b> trên nhánh tính năng <code>feature/tan-housekeeping</code>.
+          Tính năng này đang được phát triển và sẽ sớm ra mắt trong các phiên bản tiếp theo.
         </p>
       </div>
     </div>

@@ -1,5 +1,4 @@
-import { Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, computed, input } from '@angular/core';
 
 /**
  * Component hiển thị khung chờ tải dữ liệu (Loading Skeleton) dạng bảng:
@@ -10,14 +9,13 @@ import { CommonModule } from '@angular/common';
 @Component({
   selector: 'app-skeleton-table',
   standalone: true,
-  imports: [CommonModule],
   template: `
     <div class="p-4 space-y-3">
       <!-- Header row skeleton -->
       <div class="h-8 bg-slate-100 rounded-lg animate-pulse w-full"></div>
 
       <!-- Data rows skeleton -->
-      @for (i of rowArray; track i) {
+      @for (i of rowArray(); track i) {
         <div class="flex items-center gap-4 py-3 border-b border-slate-100 last:border-0">
           <div class="h-6 bg-slate-100 rounded animate-pulse w-1/6"></div>
           <div class="h-6 bg-slate-100 rounded animate-pulse w-1/4"></div>
@@ -30,9 +28,7 @@ import { CommonModule } from '@angular/common';
   `
 })
 export class SkeletonTableComponent {
-  @Input() rows: number = 5;
+  readonly rows = input<number>(5);
 
-  get rowArray(): number[] {
-    return Array.from({ length: this.rows }, (_, i) => i);
-  }
+  readonly rowArray = computed(() => Array.from({ length: this.rows() }, (_, i) => i));
 }

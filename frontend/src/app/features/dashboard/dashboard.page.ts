@@ -1,25 +1,25 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
-import { CommonModule, AsyncPipe } from '@angular/common';
+import { Component, inject, signal, effect, computed, untracked } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { Button } from 'primeng/button';
 import { AuthService } from '../../core/services/auth.service';
 import { RoomService } from '../../core/services/room.service';
 import { RoomDto } from '../../core/models/room.model';
 import { RoomStatus, ROOM_STATUS_LABELS } from '../../core/models/enums';
+import { CommonModule } from '@angular/common';
 
 /**
  * Trang Dashboard tổng quan hệ thống Hotel SaaS.
  * NGUYÊN TẮC QUAN TRỌNG:
  * - Chỉ hiển thị số liệu THẬT lấy từ API Backend (GET /api/rooms).
  * - Tuyệt đối không bịa số mock cho các API chưa hoàn thành (Đặt phòng, Doanh thu).
- * - Các chỉ số chưa có API được gắn nhãn rõ ràng: "Chưa hỗ trợ (Cần API P3A)".
+ * - Các chỉ số chưa có API được gắn nhãn rõ ràng: "Chưa hỗ trợ (Đang phát triển)".
  */
 @Component({
   selector: 'app-dashboard',
   standalone: true,
   imports: [
     CommonModule,
-    AsyncPipe,
     RouterLink,
     Button
   ],
@@ -38,7 +38,7 @@ import { RoomStatus, ROOM_STATUS_LABELS } from '../../core/models/enums';
             </span>
           </div>
           <h1 class="text-xl sm:text-2xl font-bold text-slate-800 mt-1.5 tracking-tight">
-            Xin chào, {{ (authService.currentUser$ | async)?.fullName || 'Nhân viên' }}!
+            Xin chào, {{ currentUser()?.fullName || 'Nhân viên' }}!
           </h1>
           <p class="text-xs sm:text-sm text-slate-500 mt-1">
             Bảng theo dõi trạng thái phòng và vận hành thời gian thực tại chi nhánh.
@@ -46,23 +46,44 @@ import { RoomStatus, ROOM_STATUS_LABELS } from '../../core/models/enums';
         </div>
 
         <div class="flex items-center gap-2.5 shrink-0">
-          <a routerLink="/rooms">
-            <p-button
-              label="Quản lý phòng"
-              icon="pi pi-th-large"
-              styleClass="p-button-success"
-            />
-          </a>
-          <a routerLink="/room-types">
-            <p-button
-              label="Loại phòng"
-              icon="pi pi-tags"
-              [outlined]="true"
-              severity="secondary"
-            />
-          </a>
+          @if (canManageRooms()) {
+            <a routerLink="/rooms">
+              <p-button
+                label="Quản lý phòng"
+                icon="pi pi-th-large"
+                styleClass="p-button-success"
+              />
+            </a>
+          }
+          @if (canManageRoomTypes()) {
+            <a routerLink="/room-types">
+              <p-button
+                label="Loại phòng"
+                icon="pi pi-tags"
+                [outlined]="true"
+                severity="secondary"
+              />
+            </a>
+          }
         </div>
       </div>
+
+      <!-- Error Banner -->
+      @if (error()) {
+        <div class="rounded-xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-800 flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <i class="pi pi-exclamation-circle text-rose-600 text-base shrink-0"></i>
+            <span>{{ error() }}</span>
+          </div>
+          <button
+            type="button"
+            (click)="loadRoomsData()"
+            class="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs transition-colors shrink-0 shadow-2xs"
+          >
+            Thử lại
+          </button>
+        </div>
+      }
 
       <!-- Real Metrics Grid (Dữ liệu thật từ GET /api/rooms) -->
       <!-- Scope Disclosure Note -->
@@ -79,7 +100,7 @@ import { RoomStatus, ROOM_STATUS_LABELS } from '../../core/models/enums';
       <!-- Real Metrics Grid -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <!-- Card 1: Tổng số phòng (Dữ liệu thật từ backend CountAsync) -->
-        <div class="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs hover:border-emerald-300 transition-all">
+        <div class="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs">
           <div class="flex items-center justify-between">
             <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng số phòng</span>
             <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100">
@@ -100,7 +121,7 @@ import { RoomStatus, ROOM_STATUS_LABELS } from '../../core/models/enums';
         </div>
 
         <!-- Card 2: Phòng sẵn sàng / Sạch (Trong mẫu hiển thị) -->
-        <div class="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs hover:border-emerald-300 transition-all">
+        <div class="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs">
           <div class="flex items-center justify-between">
             <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Phòng sạch (Sẵn sàng)</span>
             <div class="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center border border-teal-100">
@@ -120,7 +141,7 @@ import { RoomStatus, ROOM_STATUS_LABELS } from '../../core/models/enums';
         </div>
 
         <!-- Card 3: Phòng bẩn / Đang dọn (Trong mẫu hiển thị) -->
-        <div class="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs hover:border-emerald-300 transition-all">
+        <div class="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs">
           <div class="flex items-center justify-between">
             <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cần dọn / Đang dọn</span>
             <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-100">
@@ -140,7 +161,7 @@ import { RoomStatus, ROOM_STATUS_LABELS } from '../../core/models/enums';
         </div>
 
         <!-- Card 4: Bảo trì / Ngừng phục vụ (Trong mẫu hiển thị) -->
-        <div class="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs hover:border-emerald-300 transition-all">
+        <div class="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs">
           <div class="flex items-center justify-between">
             <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Bảo trì / Ngừng dùng</span>
             <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center border border-slate-200">
@@ -194,7 +215,7 @@ import { RoomStatus, ROOM_STATUS_LABELS } from '../../core/models/enums';
           } @else {
             <div class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               @for (r of rooms(); track r.id) {
-                <div class="p-3 rounded-xl border border-slate-200/80 hover:border-emerald-300 transition-colors bg-[#fbfbfa]">
+                <div class="p-3 rounded-xl border border-slate-200/80 transition-colors bg-[#fbfbfa]">
                   <div class="flex items-center justify-between">
                     <span class="text-base font-bold text-slate-800">Phòng {{ r.roomNumber }}</span>
                     <span class="text-[11px] text-slate-400 font-medium">T{{ r.floor }}</span>
@@ -222,14 +243,14 @@ import { RoomStatus, ROOM_STATUS_LABELS } from '../../core/models/enums';
           <div class="bg-amber-50/60 rounded-2xl border border-amber-200/80 p-5">
             <div class="flex items-center gap-2.5 text-amber-800 font-semibold text-sm">
               <i class="pi pi-info-circle text-base text-amber-600"></i>
-              <span>Đặt phòng hôm nay (P3A)</span>
+              <span>Đặt phòng hôm nay (Đang phát triển)</span>
             </div>
             <div class="mt-2.5">
               <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-200/70 text-amber-900 mb-2">
                 Chưa hỗ trợ - Cần API
               </span>
               <p class="text-xs text-amber-900/80 leading-relaxed">
-                Backend hiện tại chưa cung cấp endpoint báo cáo đặt phòng theo chi nhánh (thuộc phạm vi Phase P3A - Reservation Change Spec). Giao diện không bịa số giả.
+                Backend hiện tại chưa cung cấp endpoint báo cáo đặt phòng theo chi nhánh (thuộc phạm vi giai đoạn phát triển tiếp theo). Giao diện không bịa số giả.
               </p>
             </div>
           </div>
@@ -238,7 +259,7 @@ import { RoomStatus, ROOM_STATUS_LABELS } from '../../core/models/enums';
           <div class="bg-purple-50/60 rounded-2xl border border-purple-200/80 p-5">
             <div class="flex items-center gap-2.5 text-purple-800 font-semibold text-sm">
               <i class="pi pi-chart-line text-base text-purple-600"></i>
-              <span>Doanh thu tháng (P3A)</span>
+              <span>Doanh thu tháng (Đang phát triển)</span>
             </div>
             <div class="mt-2.5">
               <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-200/70 text-purple-900 mb-2">
@@ -249,37 +270,25 @@ import { RoomStatus, ROOM_STATUS_LABELS } from '../../core/models/enums';
               </p>
             </div>
           </div>
-
-          <!-- Branch Quick Info -->
-          <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
-            <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Thông tin kết nối</h3>
-            <div class="text-xs space-y-2 text-slate-600">
-              <div class="flex justify-between py-1 border-b border-slate-100">
-                <span class="text-slate-400">Database:</span>
-                <span class="font-mono font-medium text-slate-800">hotel_saas_dev_ngoc</span>
-              </div>
-              <div class="flex justify-between py-1 border-b border-slate-100">
-                <span class="text-slate-400">Mã chi nhánh:</span>
-                <span class="font-mono font-medium text-emerald-700">{{ authService.activePropertyCode() || 'Chưa chọn' }}</span>
-              </div>
-              <div class="flex justify-between py-1">
-                <span class="text-slate-400">Trạng thái API:</span>
-                <span class="inline-flex items-center gap-1 text-emerald-600 font-semibold">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Hoạt động
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
   `
 })
-export class DashboardPage implements OnInit {
+export class DashboardPage {
   readonly authService = inject(AuthService);
   private readonly roomService = inject(RoomService);
 
+  /** D-2: Convert Observable to Signal for consistent reactive paradigm */
+  readonly currentUser = toSignal(inject(AuthService).currentUser$);
+
+  /** D-6: RBAC-gated quick actions */
+  readonly canManageRooms = computed(() => this.authService.hasPermission('ROOMS', 1));
+  readonly canManageRoomTypes = computed(() => this.authService.hasPermission('ROOM_TYPES', 1));
+
   loading = signal(true);
+  /** D-1: Error signal for user-visible error feedback */
+  error = signal<string | null>(null);
   rooms = signal<RoomDto[]>([]);
   totalRooms = signal(0);
   cleanRooms = signal(0);
@@ -287,12 +296,19 @@ export class DashboardPage implements OnInit {
   cleaningRooms = signal(0);
   oosRooms = signal(0);
 
-  ngOnInit(): void {
-    this.loadRoomsData();
+  constructor() {
+    /** D-4: Context reactivity — reload when active property changes */
+    effect(() => {
+      const propId = this.authService.activePropertyId();
+      untracked(() => {
+        this.loadRoomsData();
+      });
+    });
   }
 
   loadRoomsData(): void {
     this.loading.set(true);
+    this.error.set(null);
     this.roomService.getRooms({ page: 1, pageSize: 100 }).subscribe({
       next: (res) => {
         this.loading.set(false);
@@ -305,8 +321,9 @@ export class DashboardPage implements OnInit {
         this.cleaningRooms.set(items.filter(r => r.status === RoomStatus.Cleaning).length);
         this.oosRooms.set(items.filter(r => r.status === RoomStatus.OutOfService).length);
       },
-      error: () => {
+      error: (err) => {
         this.loading.set(false);
+        this.error.set(err?.error?.message || 'Không thể tải dữ liệu phòng. Vui lòng thử lại.');
       }
     });
   }
@@ -332,3 +349,4 @@ export class DashboardPage implements OnInit {
     }
   }
 }
+

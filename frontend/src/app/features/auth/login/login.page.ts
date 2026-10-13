@@ -30,7 +30,7 @@ import { UserMembershipDto } from '../../../core/models/auth.model';
   template: `
     <div class="w-full">
       <h2 class="text-xl font-bold text-slate-800 text-center mb-1.5">Đăng nhập tài khoản</h2>
-      <p class="text-xs text-slate-500 text-center mb-6">Truy cập bảng điều khiển quản lý khách sạn</p>
+      <p class="text-xs sm:text-sm text-slate-500 text-center mb-6">Truy cập bảng điều khiển quản lý khách sạn</p>
 
       @if (errorMessage()) {
         <div class="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-start gap-2.5">
@@ -145,7 +145,8 @@ import { UserMembershipDto } from '../../../core/models/auth.model';
 
     <!-- Modal bắt buộc chọn chi nhánh khi login bằng Bootstrap Token -->
     <app-context-selector-dialog
-      [(visible)]="showBranchSelector"
+      [visible]="showBranchSelector()"
+      (visibleChange)="showBranchSelector.set($event)"
       [requireSelection]="true"
       (contextSwitched)="onBranchSelected($event)"
     />
@@ -164,7 +165,7 @@ export class LoginPage {
 
   loading = signal(false);
   errorMessage = signal<string | null>(null);
-  showBranchSelector = false;
+  showBranchSelector = signal(false);
 
   quickFill(email: string): void {
     this.loginForm.patchValue({
@@ -193,7 +194,7 @@ export class LoginPage {
         // Trường hợp 1: Có từ 2 chi nhánh trở lên -> BẮT BUỘC hiện modal chọn chi nhánh (không tự ý chọn nhánh đầu)
         if (branchMemberships.length > 1) {
           this.notification.info('Vui lòng chọn chi nhánh làm việc.');
-          this.showBranchSelector = true;
+          this.showBranchSelector.set(true);
           return;
         }
 
@@ -226,7 +227,7 @@ export class LoginPage {
   }
 
   onBranchSelected(membership: UserMembershipDto): void {
-    this.showBranchSelector = false;
+    this.showBranchSelector.set(false);
     this.router.navigate(['/dashboard']);
   }
 }

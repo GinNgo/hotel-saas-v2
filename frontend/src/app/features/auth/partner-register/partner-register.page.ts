@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { InputText } from 'primeng/inputtext';
+import { Password } from 'primeng/password';
 import { AuthService } from '../../../core/services/auth.service';
 import { LocationService } from '../../../core/services/location.service';
 import { Province, Ward } from '../../../core/models/location.model';
@@ -31,7 +32,8 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
     CommonModule,
     ReactiveFormsModule,
     RouterLink,
-    InputText
+    InputText,
+    Password
   ],
   template: `
     <div class="w-full max-w-4xl mx-auto py-4">
@@ -163,17 +165,21 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
                   <label for="password" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                     Mật khẩu tài khoản <span class="text-rose-500">*</span>
                   </label>
-                  <input
+                  <p-password
                     id="password"
-                    pInputText
-                    type="password"
                     formControlName="password"
-                    placeholder="Ít nhất 6 ký tự"
-                    class="w-full text-sm py-2 px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    [class.border-rose-400]="isFieldInvalid('password')"
+                    [feedback]="true"
+                    [toggleMask]="true"
+                    placeholder="Ít nhất 8 ký tự"
+                    promptLabel="Nhập mật khẩu an toàn"
+                    weakLabel="Yếu"
+                    mediumLabel="Trung bình"
+                    strongLabel="Mạnh"
+                    styleClass="w-full"
+                    inputStyleClass="w-full text-sm"
                   />
                   @if (isFieldInvalid('password')) {
-                    <p class="text-xs text-rose-500 mt-1">Mật khẩu tối thiểu phải từ 6 ký tự.</p>
+                    <p class="text-xs text-rose-500 mt-1">Mật khẩu tối thiểu phải từ 8 ký tự.</p>
                   }
                 </div>
 
@@ -181,14 +187,14 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
                   <label for="confirmPassword" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                     Xác nhận mật khẩu <span class="text-rose-500">*</span>
                   </label>
-                  <input
+                  <p-password
                     id="confirmPassword"
-                    pInputText
-                    type="password"
                     formControlName="confirmPassword"
+                    [feedback]="false"
+                    [toggleMask]="true"
                     placeholder="Nhập lại chính xác mật khẩu"
-                    class="w-full text-sm py-2 px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    [class.border-rose-400]="registerForm.get('confirmPassword')?.touched && registerForm.get('confirmPassword')?.errors?.['passwordMismatch']"
+                    styleClass="w-full"
+                    inputStyleClass="w-full text-sm"
                   />
                   @if (registerForm.get('confirmPassword')?.touched && registerForm.get('confirmPassword')?.errors?.['passwordMismatch']) {
                     <p class="text-xs text-rose-500 mt-1">Mật khẩu xác nhận không khớp.</p>
@@ -322,11 +328,19 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
         </form>
       }
 
-      <div class="text-center mt-6 text-sm text-slate-500">
-        Bạn muốn quay lại cổng đặt phòng?
-        <a routerLink="/booking" class="text-indigo-600 font-semibold hover:underline ml-1">
-          Trang chủ đặt phòng
-        </a>
+      <div class="text-center mt-6 text-xs text-slate-500 space-y-2">
+        <div>
+          <span>Đã có tài khoản? </span>
+          <a routerLink="/login" class="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">
+            Đăng nhập ngay
+          </a>
+        </div>
+        <div>
+          Bạn muốn quay lại cổng đặt phòng?
+          <a routerLink="/booking" class="text-indigo-600 font-semibold hover:underline ml-1">
+            Trang chủ đặt phòng
+          </a>
+        </div>
       </div>
     </div>
   `
@@ -352,7 +366,7 @@ export class PartnerRegisterPage implements OnInit {
     fullName: ['', [Validators.required, Validators.maxLength(150)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(200)]],
     phoneNumber: ['', [Validators.required, Validators.maxLength(20)]],
-    password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(100)]],
+    password: ['', [Validators.required, Validators.minLength(8), Validators.maxLength(100)]],
     confirmPassword: ['', [Validators.required]],
     propertyName: ['', [Validators.required, Validators.maxLength(200)]],
     provinceCode: ['', [Validators.required]],

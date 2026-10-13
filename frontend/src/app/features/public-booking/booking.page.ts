@@ -54,7 +54,7 @@ export interface RoomImageRenderContext {
     <div class="min-h-screen bg-slate-50/70 flex flex-col font-sans text-slate-900 antialiased selection:bg-indigo-500 selection:text-white">
       
       <!-- Top Trust Bar & Global Header -->
-      <header class="bg-white border-b border-slate-200/80 sticky top-0 z-40 shadow-xs backdrop-blur-md bg-white/95">
+      <header class="border-b border-slate-200/80 sticky top-0 z-40 shadow-xs backdrop-blur-md bg-white/95">
         <!-- Reassurance Micro-banner -->
         <div class="bg-slate-900 text-slate-200 text-[11px] font-medium py-1 px-4 sm:px-6">
           <div class="max-w-7xl mx-auto flex items-center justify-between gap-2">
@@ -102,7 +102,7 @@ export interface RoomImageRenderContext {
       </header>
 
       <!-- Main Content -->
-      <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full pb-36 sm:pb-28">
+      <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full" [ngClass]="selectedRoomType() && currentQuote() ? 'pb-36 sm:pb-28' : ''">
         
         <!-- Hero Section with Unified Search Card (Deliberate Hospitality Editorial) -->
         <div class="relative bg-slate-900 rounded-3xl p-4 sm:p-6 lg:p-8 text-white shadow-xl mb-8 border border-slate-800">
@@ -400,21 +400,21 @@ export interface RoomImageRenderContext {
                 <!-- SVG Architectural Twilight Fallback when ImageUrl is null/empty -->
                 <svg *ngIf="!prop.imageUrl" class="w-full h-full" viewBox="0 0 400 220" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
                   <defs>
-                    <linearGradient id="skyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <linearGradient [attr.id]="'skyGrad-' + prop.id" x1="0%" y1="0%" x2="100%" y2="100%">
                       <stop offset="0%" stop-color="#0f172a"/>
                       <stop offset="50%" stop-color="#1e1b4b"/>
                       <stop offset="100%" stop-color="#312e81"/>
                     </linearGradient>
-                    <linearGradient id="bldgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <linearGradient [attr.id]="'bldgGrad-' + prop.id" x1="0%" y1="0%" x2="0%" y2="100%">
                       <stop offset="0%" stop-color="#3730a3"/>
                       <stop offset="100%" stop-color="#1e1b4b"/>
                     </linearGradient>
-                    <linearGradient id="warmWin" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <linearGradient [attr.id]="'warmWin-' + prop.id" x1="0%" y1="0%" x2="0%" y2="100%">
                       <stop offset="0%" stop-color="#fef08a"/>
                       <stop offset="100%" stop-color="#f59e0b"/>
                     </linearGradient>
                   </defs>
-                  <rect width="400" height="220" fill="url(#skyGrad)"/>
+                  <rect width="400" height="220" [attr.fill]="'url(#skyGrad-' + prop.id + ')'"/>
                   <circle cx="45" cy="35" r="1.5" fill="#ffffff" opacity="0.6"/>
                   <circle cx="95" cy="20" r="1" fill="#ffffff" opacity="0.4"/>
                   <circle cx="160" cy="40" r="1.5" fill="#ffffff" opacity="0.7"/>
@@ -424,30 +424,30 @@ export interface RoomImageRenderContext {
                   <circle cx="330" cy="50" r="14" fill="#fef08a" opacity="0.25"/>
                   <circle cx="330" cy="50" r="11" fill="#fef08a" opacity="0.85"/>
                   <path d="M0 180L40 160L80 170L130 150L180 175L230 155L290 170L340 145L400 170V220H0Z" fill="#111827" opacity="0.5"/>
-                  <rect x="80" y="65" width="240" height="155" rx="6" fill="url(#bldgGrad)" stroke="#4338ca" stroke-width="1.5"/>
+                  <rect x="80" y="65" width="240" height="155" rx="6" [attr.fill]="'url(#bldgGrad-' + prop.id + ')'" stroke="#4338ca" stroke-width="1.5"/>
                   <rect x="130" y="45" width="140" height="22" rx="3" fill="#4338ca" stroke="#6366f1" stroke-width="1"/>
-                  <rect x="145" y="50" width="110" height="12" rx="2" fill="url(#warmWin)" opacity="0.9"/>
-                  <rect x="100" y="80" width="22" height="16" rx="2" fill="url(#warmWin)" opacity="0.95"/>
-                  <rect x="135" y="80" width="22" height="16" rx="2" fill="url(#warmWin)" opacity="0.85"/>
+                  <rect x="145" y="50" width="110" height="12" rx="2" [attr.fill]="'url(#warmWin-' + prop.id + ')'" opacity="0.9"/>
+                  <rect x="100" y="80" width="22" height="16" rx="2" [attr.fill]="'url(#warmWin-' + prop.id + ')'" opacity="0.95"/>
+                  <rect x="135" y="80" width="22" height="16" rx="2" [attr.fill]="'url(#warmWin-' + prop.id + ')'" opacity="0.85"/>
                   <rect x="170" y="80" width="22" height="16" rx="2" fill="#c7d2fe" opacity="0.3"/>
-                  <rect x="205" y="80" width="22" height="16" rx="2" fill="url(#warmWin)" opacity="0.9"/>
-                  <rect x="240" y="80" width="22" height="16" rx="2" fill="url(#warmWin)" opacity="0.75"/>
+                  <rect x="205" y="80" width="22" height="16" rx="2" [attr.fill]="'url(#warmWin-' + prop.id + ')'" opacity="0.9"/>
+                  <rect x="240" y="80" width="22" height="16" rx="2" [attr.fill]="'url(#warmWin-' + prop.id + ')'" opacity="0.75"/>
                   <rect x="275" y="80" width="22" height="16" rx="2" fill="#c7d2fe" opacity="0.25"/>
                   <rect x="100" y="106" width="22" height="16" rx="2" fill="#c7d2fe" opacity="0.3"/>
-                  <rect x="135" y="106" width="22" height="16" rx="2" fill="url(#warmWin)" opacity="0.9"/>
-                  <rect x="170" y="106" width="22" height="16" rx="2" fill="url(#warmWin)" opacity="0.85"/>
+                  <rect x="135" y="106" width="22" height="16" rx="2" [attr.fill]="'url(#warmWin-' + prop.id + ')'" opacity="0.9"/>
+                  <rect x="170" y="106" width="22" height="16" rx="2" [attr.fill]="'url(#warmWin-' + prop.id + ')'" opacity="0.85"/>
                   <rect x="205" y="106" width="22" height="16" rx="2" fill="#c7d2fe" opacity="0.35"/>
-                  <rect x="240" y="106" width="22" height="16" rx="2" fill="url(#warmWin)" opacity="0.95"/>
-                  <rect x="275" y="106" width="22" height="16" rx="2" fill="url(#warmWin)" opacity="0.8"/>
-                  <rect x="100" y="132" width="22" height="16" rx="2" fill="url(#warmWin)" opacity="0.85"/>
+                  <rect x="240" y="106" width="22" height="16" rx="2" [attr.fill]="'url(#warmWin-' + prop.id + ')'" opacity="0.95"/>
+                  <rect x="275" y="106" width="22" height="16" rx="2" [attr.fill]="'url(#warmWin-' + prop.id + ')'" opacity="0.8"/>
+                  <rect x="100" y="132" width="22" height="16" rx="2" [attr.fill]="'url(#warmWin-' + prop.id + ')'" opacity="0.85"/>
                   <rect x="135" y="132" width="22" height="16" rx="2" fill="#c7d2fe" opacity="0.25"/>
-                  <rect x="170" y="132" width="22" height="16" rx="2" fill="url(#warmWin)" opacity="0.9"/>
-                  <rect x="205" y="132" width="22" height="16" rx="2" fill="url(#warmWin)" opacity="0.75"/>
+                  <rect x="170" y="132" width="22" height="16" rx="2" [attr.fill]="'url(#warmWin-' + prop.id + ')'" opacity="0.9"/>
+                  <rect x="205" y="132" width="22" height="16" rx="2" [attr.fill]="'url(#warmWin-' + prop.id + ')'" opacity="0.75"/>
                   <rect x="240" y="132" width="22" height="16" rx="2" fill="#c7d2fe" opacity="0.3"/>
-                  <rect x="275" y="132" width="22" height="16" rx="2" fill="url(#warmWin)" opacity="0.9"/>
-                  <rect x="100" y="158" width="57" height="24" rx="2" fill="url(#warmWin)" opacity="0.95"/>
+                  <rect x="275" y="132" width="22" height="16" rx="2" [attr.fill]="'url(#warmWin-' + prop.id + ')'" opacity="0.9"/>
+                  <rect x="100" y="158" width="57" height="24" rx="2" [attr.fill]="'url(#warmWin-' + prop.id + ')'" opacity="0.95"/>
                   <rect x="175" y="158" width="50" height="30" rx="3" fill="#ffffff" opacity="0.95"/>
-                  <rect x="240" y="158" width="57" height="24" rx="2" fill="url(#warmWin)" opacity="0.95"/>
+                  <rect x="240" y="158" width="57" height="24" rx="2" [attr.fill]="'url(#warmWin-' + prop.id + ')'" opacity="0.95"/>
                   <polygon points="165,160 235,160 245,168 155,168" fill="#e0e7ff" opacity="0.9"/>
                   <rect x="0" y="200" width="400" height="20" fill="#090d16"/>
                   <circle cx="65" cy="195" r="4" fill="#fbbf24" opacity="0.8"/>
@@ -680,7 +680,7 @@ export interface RoomImageRenderContext {
                     <span class="text-[11px] text-slate-500">Theo lịch lưu trú</span>
                   </div>
                   <div class="text-right">
-                    <span class="text-xl font-black text-indigo-600">{{ rt.estimatedPrice | number:'1.0-0' }} đ</span>
+                    <span class="text-xl font-black text-indigo-600">{{ rt.estimatedPrice | number:'1.0-0' }} ₫</span>
                   </div>
                 </div>
               </div>
@@ -738,14 +738,14 @@ export interface RoomImageRenderContext {
                   <div class="space-y-2 bg-white p-4 rounded-2xl border border-slate-100">
                     <div *ngFor="let item of currentQuote()?.breakdown" class="flex justify-between text-xs sm:text-sm py-1.5 border-b border-slate-100 last:border-0">
                       <span class="text-slate-600 font-medium">{{ item.description }}</span>
-                      <strong class="text-slate-900 font-bold">{{ item.amount | number:'1.0-0' }} đ</strong>
+                      <strong class="text-slate-900 font-bold">{{ item.amount | number:'1.0-0' }} ₫</strong>
                     </div>
                   </div>
 
                   <div class="border-t border-slate-200 pt-4 space-y-3">
                     <div class="flex justify-between items-baseline text-base sm:text-lg font-black">
                       <span class="text-slate-900">Tổng tiền phòng:</span>
-                      <span class="text-indigo-600 text-xl sm:text-2xl font-black">{{ currentQuote()?.totalAmount | number:'1.0-0' }} đ</span>
+                      <span class="text-indigo-600 text-xl sm:text-2xl font-black">{{ currentQuote()?.totalAmount | number:'1.0-0' }} ₫</span>
                     </div>
                     <div class="flex items-center justify-between text-xs font-semibold text-indigo-950 bg-indigo-50/80 rounded-2xl p-3.5 border border-indigo-200/80">
                       <span class="flex items-center gap-1.5">
@@ -764,7 +764,7 @@ export interface RoomImageRenderContext {
             </div>
 
             <!-- Right Column: Guest Information & Hold Form -->
-            <div class="bg-white rounded-3xl p-2 sm:p-0">
+            <div class="bg-white rounded-3xl p-0 sm:p-2">
               <form [formGroup]="guestForm" (ngSubmit)="submitHold()">
                 <div class="space-y-4">
                   <div>
@@ -876,7 +876,7 @@ export interface RoomImageRenderContext {
             <!-- Mobile-only inline total amount -->
             <div class="sm:hidden text-right shrink-0">
               <span class="text-[10px] text-slate-400 block font-bold leading-none uppercase">Tổng:</span>
-              <strong class="text-xs font-bold text-indigo-600 leading-tight block">{{ currentQuote()?.totalAmount | number:'1.0-0' }} đ</strong>
+              <strong class="text-xs font-bold text-indigo-600 leading-tight block">{{ currentQuote()?.totalAmount | number:'1.0-0' }} ₫</strong>
             </div>
           </div>
 
@@ -884,7 +884,7 @@ export interface RoomImageRenderContext {
           <div class="flex items-center gap-4 shrink-0 w-full sm:w-auto">
             <div class="text-right hidden sm:block">
               <span class="text-[10px] text-slate-400 block font-bold uppercase">Tổng thanh toán:</span>
-              <strong class="text-base sm:text-lg text-indigo-600 font-extrabold">{{ currentQuote()?.totalAmount | number:'1.0-0' }} đ</strong>
+              <strong class="text-base sm:text-lg text-indigo-600 font-extrabold">{{ currentQuote()?.totalAmount | number:'1.0-0' }} ₫</strong>
             </div>
             <button
               type="button"
@@ -1477,9 +1477,11 @@ export class BookingPage implements OnInit, OnDestroy {
   }
 
   scrollToQuoteSection(): void {
-    const el = document.getElementById('quoteSection');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
+    if (typeof document !== 'undefined') {
+      const el = document.getElementById('quoteSection');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
     }
   }
 

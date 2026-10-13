@@ -38,7 +38,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
       <h2 class="text-xl font-bold text-slate-800 text-center mb-6">Tạo tài khoản mới</h2>
 
       @if (errorMessage()) {
-        <div class="mb-5 p-3.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-start gap-2.5">
+        <div class="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-start gap-2.5">
           <i class="pi pi-exclamation-triangle text-base text-rose-500 mt-0.5"></i>
           <span>{{ errorMessage() }}</span>
         </div>
@@ -47,7 +47,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
       <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" class="space-y-4">
         <!-- Full Name Field -->
         <div>
-          <label for="fullName" class="block text-sm font-medium text-slate-700 mb-1.5">
+          <label for="fullName" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
             Họ và tên <span class="text-rose-500">*</span>
           </label>
           <input
@@ -65,7 +65,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
 
         <!-- Email Field -->
         <div>
-          <label for="email" class="block text-sm font-medium text-slate-700 mb-1.5">
+          <label for="email" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
             Email <span class="text-rose-500">*</span>
           </label>
           <input
@@ -87,7 +87,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
 
         <!-- Password Field -->
         <div>
-          <label for="password" class="block text-sm font-medium text-slate-700 mb-1.5">
+          <label for="password" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
             Mật khẩu <span class="text-rose-500">*</span>
           </label>
           <p-password
@@ -113,7 +113,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
 
         <!-- Confirm Password Field -->
         <div>
-          <label for="confirmPassword" class="block text-sm font-medium text-slate-700 mb-1.5">
+          <label for="confirmPassword" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
             Xác nhận mật khẩu <span class="text-rose-500">*</span>
           </label>
           <p-password
@@ -125,6 +125,9 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
             styleClass="w-full"
             inputStyleClass="w-full text-sm"
           />
+          @if (registerForm.get('confirmPassword')?.hasError('required') && registerForm.get('confirmPassword')?.touched) {
+            <p class="text-xs text-rose-600 mt-1">Xác nhận mật khẩu không được để trống</p>
+          }
           @if (registerForm.get('confirmPassword')?.hasError('passwordMismatch') && registerForm.get('confirmPassword')?.touched) {
             <p class="text-xs text-rose-600 mt-1">Mật khẩu xác nhận không khớp</p>
           }
@@ -143,7 +146,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
         </div>
       </form>
 
-      <div class="mt-6 pt-5 border-t border-slate-100 text-center text-sm text-slate-600 space-y-2">
+      <div class="mt-6 pt-5 border-t border-slate-100 text-center text-xs text-slate-500 space-y-2">
         <div>
           <span>Đã có tài khoản? </span>
           <a routerLink="/login" class="font-semibold text-emerald-600 hover:text-emerald-700 hover:underline">

@@ -1,5 +1,6 @@
-import { Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Component, inject, signal } from '@angular/core';
+import { RouterOutlet, NavigationEnd, Router } from '@angular/router';
+import { filter } from 'rxjs/operators';
 
 /**
  * Layout cho các trang xác thực (Đăng nhập, Đăng ký).
@@ -7,6 +8,9 @@ import { RouterOutlet } from '@angular/router';
  * - Nền sáng, trung tính ấm (#fbfbfa, stone-50/amber-50).
  * - Không dùng nền tối toàn trang.
  * - Nhấn nhá thương hiệu emerald sắc nét, typography thoáng và chuyên nghiệp.
+ *
+ * Hỗ trợ chế độ `wide` (max-w-4xl) cho các trang cần nhiều không gian hơn (ví dụ: partner-register).
+ * Tự động phát hiện qua URL path.
  */
 @Component({
   selector: 'app-auth-layout',
@@ -14,7 +18,7 @@ import { RouterOutlet } from '@angular/router';
   imports: [RouterOutlet],
   template: `
     <div class="min-h-screen flex flex-col justify-center items-center bg-[#fbfbfa] bg-gradient-to-br from-stone-100/60 via-slate-50 to-emerald-50/40 p-4 sm:p-6 transition-colors">
-      <div class="w-full max-w-md">
+      <div class="w-full" [class.max-w-md]="!wide()" [class.max-w-4xl]="wide()">
         <!-- Logo & Brand Header -->
         <div class="text-center mb-7">
           <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20 mb-3.5 transform transition-transform hover:scale-105">
@@ -38,4 +42,21 @@ import { RouterOutlet } from '@angular/router';
     </div>
   `
 })
-export class AuthLayoutComponent {}
+export class AuthLayoutComponent {
+  wide = signal(false);
+
+  private readonly router = inject(Router);
+
+  constructor() {
+    // Detect wide mode on navigation
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd)
+    ).subscribe((e) => {
+      this.wide.set(e.urlAfterRedirects.includes('/partner-register'));
+    });
+
+    // Also check initial URL on first load
+    this.wide.set(this.router.url.includes('/partner-register'));
+  }
+}
+

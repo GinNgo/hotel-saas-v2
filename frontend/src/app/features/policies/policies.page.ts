@@ -119,7 +119,8 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
           <button
             type="button"
             (click)="loadPolicies()"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors"
+            aria-label="Thử tải lại chính sách"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors cursor-pointer"
           >
             <i class="pi pi-refresh"></i>
             <span>Thử lại</span>
@@ -316,7 +317,7 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
                       </div>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
                       <!-- Loại phụ thu -->
                       <div class="space-y-1">
                         <label class="block text-[11px] font-medium text-slate-600">Loại phụ thu</label>
@@ -325,7 +326,7 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
                           [disabled]="!canUpdate()"
                           aria-label="Loại phụ thu"
                           title="Loại phụ thu"
-                          class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:border-emerald-500"
+                          class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-colors"
                         >
                           <option [ngValue]="1">Nhận sớm (Early Check-In)</option>
                           <option [ngValue]="2">Trả muộn (Late Check-Out)</option>
@@ -341,7 +342,7 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
                           [readonly]="!canUpdate()"
                           aria-label="Từ giờ"
                           title="Từ giờ"
-                          class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 font-mono focus:outline-none focus:border-emerald-500"
+                          class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 font-mono focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                         />
                       </div>
 
@@ -354,7 +355,7 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
                           [readonly]="!canUpdate()"
                           aria-label="Đến giờ"
                           title="Đến giờ"
-                          class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 font-mono focus:outline-none focus:border-emerald-500"
+                          class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 font-mono focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                         />
                       </div>
 
@@ -366,7 +367,7 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
                           [disabled]="!canUpdate()"
                           aria-label="Phương thức tính phụ thu"
                           title="Phương thức tính phụ thu"
-                          class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:border-emerald-500"
+                          class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-colors"
                         >
                           <option [ngValue]="1">% Giá đêm phòng</option>
                           <option [ngValue]="2">Số tiền cố định (VND)</option>
@@ -393,7 +394,7 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
                               placeholder="30"
                               aria-label="Mức phụ thu theo phần trăm"
                               title="Mức phụ thu theo phần trăm"
-                              class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:border-emerald-500"
+                              class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                             />
                             <span class="absolute right-2.5 top-1.5 text-xs text-slate-400 font-semibold">%</span>
                           </div>
@@ -408,7 +409,7 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
                               placeholder="100000"
                               aria-label="Mức phụ thu theo số tiền cố định"
                               title="Mức phụ thu theo số tiền cố định"
-                              class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:border-emerald-500"
+                              class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                             />
                             <span class="absolute right-2.5 top-1.5 text-[10px] text-slate-400 font-medium">đ</span>
                           </div>

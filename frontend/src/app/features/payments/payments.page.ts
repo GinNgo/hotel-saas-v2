@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, inject, signal, computed, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DatePicker } from 'primeng/datepicker';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { PaymentService, GetPaymentsFilter } from '../../core/services/payment.service';
@@ -13,6 +14,7 @@ import {
   PAYMENT_STATUS_LABELS
 } from '../../core/models/payment.model';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 
 /**
  * Helper: Lấy chuỗi ngày YYYY-MM-DD theo múi giờ Việt Nam (UTC+7).
@@ -28,20 +30,23 @@ export function getTodayVietnamDateString(baseDate: Date = new Date()): string {
 }
 
 /**
- * Helper: Định dạng timestamp ISO sang chuỗi Ngày Giờ chuẩn UTC rõ ràng (dd/MM/yyyy HH:mm:ss UTC).
+ * Helper: Định dạng timestamp ISO sang chuỗi Ngày Giờ theo múi giờ Việt Nam (UTC+7) (dd/MM/yyyy HH:mm:ss Giờ VN).
  */
 export function formatUtcDateTimeString(isoString: string | null | undefined): string {
   if (!isoString) return '—';
   try {
     const d = new Date(isoString);
     if (isNaN(d.getTime())) return isoString;
-    const day = String(d.getUTCDate()).padStart(2, '0');
-    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-    const year = d.getUTCFullYear();
-    const hours = String(d.getUTCHours()).padStart(2, '0');
-    const minutes = String(d.getUTCMinutes()).padStart(2, '0');
-    const seconds = String(d.getUTCSeconds()).padStart(2, '0');
-    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds} UTC`;
+    // Convert to Vietnam time (UTC+7)
+    const vnMs = d.getTime() + (7 * 3600000);
+    const vnDate = new Date(vnMs);
+    const day = String(vnDate.getUTCDate()).padStart(2, '0');
+    const month = String(vnDate.getUTCMonth() + 1).padStart(2, '0');
+    const year = vnDate.getUTCFullYear();
+    const hours = String(vnDate.getUTCHours()).padStart(2, '0');
+    const minutes = String(vnDate.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(vnDate.getUTCSeconds()).padStart(2, '0');
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds} Giờ VN`;
   } catch {
     return isoString;
   }
@@ -64,7 +69,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
 @Component({
   selector: 'app-payments',
   standalone: true,
-  imports: [CommonModule, FormsModule, EmptyStateComponent],
+  imports: [CommonModule, FormsModule, DatePicker, EmptyStateComponent, PaginationComponent],
   template: `
     <div class="max-w-7xl mx-auto space-y-6 pb-12">
       <!-- Page Header -->
@@ -144,12 +149,15 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
             <!-- Date Selector & Refresh -->
             <div class="flex items-center gap-2">
               <label for="summaryDateInput" class="text-xs text-slate-500 font-medium">Ngày (VN):</label>
-              <input
-                id="summaryDateInput"
-                type="date"
-                [(ngModel)]="summaryDate"
-                (ngModelChange)="onSummaryDateChange()"
-                class="px-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+              <p-datepicker
+                inputId="summaryDateInput"
+                [(ngModel)]="summaryDateObj"
+                (ngModelChange)="onSummaryDateObjChange($event)"
+                dateFormat="dd/mm/yy"
+                [showIcon]="true"
+                [maxDate]="todayDate"
+                appendTo="body"
+                [inputStyleClass]="'text-xs'"
               />
               <button
                 type="button"
@@ -285,25 +293,31 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 p-3.5 rounded-xl bg-slate-50/70 border border-slate-200/60">
             <!-- Filter: Date From -->
             <div>
-              <label for="filterDateFromInput" class="block text-[11px] font-medium text-slate-500 mb-1">Từ ngày (UTC):</label>
-              <input
-                id="filterDateFromInput"
-                type="date"
-                [(ngModel)]="filterDateFrom"
-                (ngModelChange)="onFilterChange()"
-                class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              <label for="filterDateFromInput" class="block text-[11px] font-medium text-slate-500 mb-1">Từ ngày:</label>
+              <p-datepicker
+                inputId="filterDateFromInput"
+                [(ngModel)]="filterDateFromObj"
+                (ngModelChange)="onFilterDateFromChange($event)"
+                dateFormat="dd/mm/yy"
+                [showIcon]="true"
+                appendTo="body"
+                placeholder="Chọn ngày"
+                [inputStyleClass]="'w-full text-xs'"
               />
             </div>
 
             <!-- Filter: Date To -->
             <div>
-              <label for="filterDateToInput" class="block text-[11px] font-medium text-slate-500 mb-1">Đến ngày (UTC):</label>
-              <input
-                id="filterDateToInput"
-                type="date"
-                [(ngModel)]="filterDateTo"
-                (ngModelChange)="onFilterChange()"
-                class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              <label for="filterDateToInput" class="block text-[11px] font-medium text-slate-500 mb-1">Đến ngày:</label>
+              <p-datepicker
+                inputId="filterDateToInput"
+                [(ngModel)]="filterDateToObj"
+                (ngModelChange)="onFilterDateToChange($event)"
+                dateFormat="dd/mm/yy"
+                [showIcon]="true"
+                appendTo="body"
+                placeholder="Chọn ngày"
+                [inputStyleClass]="'w-full text-xs'"
               />
             </div>
 
@@ -392,7 +406,41 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
 
           <!-- Table Content for Payments -->
           @if (!isLoadingPayments() && !paymentsError() && payments().length > 0) {
-            <div class="overflow-x-auto rounded-xl border border-slate-200/80 shadow-2xs">
+            <!-- Mobile Card Layout (shown on sm and below) -->
+            <div class="space-y-3 md:hidden">
+              @for (p of payments(); track p.id) {
+                <div class="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs space-y-2.5">
+                  <div class="flex items-center justify-between">
+                    <span class="font-bold text-sm text-slate-900">
+                      {{ p.amount | number:'1.0-0' }} <span class="text-xs font-normal text-slate-500">{{ p.currency || 'VND' }}</span>
+                    </span>
+                    <span [class]="getStatusBadgeClass(p.status)">
+                      {{ p.statusName || getStatusLabel(p.status) }}
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span [class]="getMethodBadgeClass(p.method)">
+                      {{ p.methodName || getMethodLabel(p.method) }}
+                    </span>
+                    <span class="text-[11px] text-slate-400 font-mono">
+                      {{ formatUtc(p.createdAtUtc) }}
+                    </span>
+                  </div>
+                  <div class="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
+                    <span class="font-mono" [title]="p.id">Mã: {{ p.id.substring(0, 8) }}...</span>
+                    @if (p.transactionRef) {
+                      <span class="font-mono">Ref: {{ p.transactionRef }}</span>
+                    }
+                  </div>
+                  @if (p.notes) {
+                    <p class="text-[11px] text-slate-400 truncate">{{ p.notes }}</p>
+                  }
+                </div>
+              }
+            </div>
+
+            <!-- Desktop Table Layout (hidden on mobile) -->
+            <div class="overflow-x-auto rounded-xl border border-slate-200/80 shadow-2xs hidden md:block">
               <table class="w-full text-left text-xs border-collapse">
                 <thead class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold uppercase text-[10px] tracking-wider">
                   <tr>
@@ -402,7 +450,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                     <th class="py-3 px-3.5">Phương Thức</th>
                     <th class="py-3 px-3.5">Trạng Thái</th>
                     <th class="py-3 px-3.5">Mã Tham Chiếu</th>
-                    <th class="py-3 px-3.5">Thời Gian Tạo (UTC)</th>
+                    <th class="py-3 px-3.5">Thời Gian Tạo (Giờ VN)</th>
                     <th class="py-3 px-3.5">Ghi Chú</th>
                   </tr>
                 </thead>
@@ -450,7 +498,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                         {{ p.transactionRef || '—' }}
                       </td>
 
-                      <!-- CreatedAt UTC -->
+                      <!-- CreatedAt VN -->
                       <td class="py-3 px-3.5 text-slate-600 font-mono text-[11px] whitespace-nowrap">
                         {{ formatUtc(p.createdAtUtc) }}
                       </td>
@@ -465,32 +513,15 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               </table>
             </div>
 
-            <!-- Pagination Controls -->
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 text-xs text-slate-500">
-              <div>
-                Trang <span class="font-semibold text-slate-800">{{ currentPage() }}</span> /
-                <span class="font-semibold text-slate-800">{{ totalPages() }}</span>
-                (Tổng cộng {{ totalCount() }} giao dịch)
-              </div>
-              <div class="flex items-center gap-2">
-                <button
-                  type="button"
-                  (click)="onPageChange(currentPage() - 1)"
-                  [disabled]="currentPage() <= 1 || isLoadingPayments()"
-                  class="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-slate-700 font-medium transition-colors"
-                >
-                  <i class="pi pi-chevron-left text-[10px] mr-1"></i> Trước
-                </button>
-                <button
-                  type="button"
-                  (click)="onPageChange(currentPage() + 1)"
-                  [disabled]="currentPage() >= totalPages() || isLoadingPayments()"
-                  class="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-slate-700 font-medium transition-colors"
-                >
-                  Sau <i class="pi pi-chevron-right text-[10px] ml-1"></i>
-                </button>
-              </div>
-            </div>
+            <!-- Pagination Controls (Shared Component) -->
+            <app-pagination
+              [page]="currentPage()"
+              [pageSize]="pageSize()"
+              [totalCount]="totalCount()"
+              [pageSizeOptions]="[10, 20, 50]"
+              (pageChange)="onPageChange($event)"
+              (pageSizeChange)="onPageSizeChange($event)"
+            />
           }
         </section>
       }
@@ -507,9 +538,7 @@ export class PaymentsPage implements OnInit, OnDestroy {
   // Context Signals
   readonly activePropertyId = computed(() => this.authService.activePropertyId());
   readonly activePropertyName = computed(() => this.authService.activePropertyName());
-  canReadPayments(): boolean {
-    return this.authService.hasPermission('PAYMENTS', 1);
-  }
+  readonly canReadPayments = computed(() => this.authService.hasPermission('PAYMENTS', 1));
 
   // Access Denied Persistent Latch State
   readonly isAccessDenied = signal<boolean>(false);
@@ -517,6 +546,8 @@ export class PaymentsPage implements OnInit, OnDestroy {
 
   // Stream 1: Summary State
   summaryDate = getTodayVietnamDateString();
+  summaryDateObj: Date = new Date();
+  readonly todayDate: Date = new Date();
   readonly summary = signal<PaymentSummaryDto | null>(null);
   readonly isLoadingSummary = signal<boolean>(false);
   readonly summaryError = signal<string | null>(null);
@@ -526,6 +557,8 @@ export class PaymentsPage implements OnInit, OnDestroy {
   // Stream 2: Payments List State
   filterDateFrom = '';
   filterDateTo = '';
+  filterDateFromObj: Date | null = null;
+  filterDateToObj: Date | null = null;
   filterMethod: number | null = null;
   filterStatus: number | null = null;
   readonly currentPage = signal<number>(1);
@@ -537,6 +570,7 @@ export class PaymentsPage implements OnInit, OnDestroy {
   private paymentsRequestId = 0;
   private paymentsSub?: Subscription;
   private authSub?: Subscription;
+  private filterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly totalPages = computed(() => {
     const total = this.totalCount();
@@ -676,6 +710,10 @@ export class PaymentsPage implements OnInit, OnDestroy {
     if (this.authSub && !this.authSub.closed) {
       this.authSub.unsubscribe();
     }
+    if (this.filterDebounceTimer) {
+      clearTimeout(this.filterDebounceTimer);
+      this.filterDebounceTimer = null;
+    }
     this.summaryRequestId++;
     this.paymentsRequestId++;
   }
@@ -797,14 +835,27 @@ export class PaymentsPage implements OnInit, OnDestroy {
 
   onFilterChange(): void {
     if (this.isAccessDenied()) return;
-    this.currentPage.set(1);
-    this.loadPayments();
+    // P-8: Debounce filter changes to avoid API flooding
+    if (this.filterDebounceTimer) {
+      clearTimeout(this.filterDebounceTimer);
+    }
+    this.filterDebounceTimer = setTimeout(() => {
+      this.currentPage.set(1);
+      this.loadPayments();
+      this.filterDebounceTimer = null;
+    }, 300);
   }
 
   resetFilters(): void {
     if (this.isAccessDenied()) return;
+    if (this.filterDebounceTimer) {
+      clearTimeout(this.filterDebounceTimer);
+      this.filterDebounceTimer = null;
+    }
     this.filterDateFrom = '';
     this.filterDateTo = '';
+    this.filterDateFromObj = null;
+    this.filterDateToObj = null;
     this.filterMethod = null;
     this.filterStatus = null;
     this.currentPage.set(1);
@@ -816,6 +867,52 @@ export class PaymentsPage implements OnInit, OnDestroy {
     if (page < 1 || page > this.totalPages()) return;
     this.currentPage.set(page);
     this.loadPayments();
+  }
+
+  /** P-3: Handle page size change from shared PaginationComponent */
+  onPageSizeChange(newSize: number): void {
+    if (this.isAccessDenied()) return;
+    this.pageSize.set(newSize);
+    this.currentPage.set(1);
+    this.loadPayments();
+  }
+
+  /** P-1: Convert PrimeNG DatePicker Date object to YYYY-MM-DD string for summary API */
+  onSummaryDateObjChange(date: Date | null): void {
+    if (date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      this.summaryDate = `${y}-${m}-${d}`;
+    } else {
+      this.summaryDate = getTodayVietnamDateString();
+    }
+    this.onSummaryDateChange();
+  }
+
+  /** P-2: Convert filter DatePicker dates to YYYY-MM-DD strings */
+  onFilterDateFromChange(date: Date | null): void {
+    if (date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      this.filterDateFrom = `${y}-${m}-${d}`;
+    } else {
+      this.filterDateFrom = '';
+    }
+    this.onFilterChange();
+  }
+
+  onFilterDateToChange(date: Date | null): void {
+    if (date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      this.filterDateTo = `${y}-${m}-${d}`;
+    } else {
+      this.filterDateTo = '';
+    }
+    this.onFilterChange();
   }
 
   formatUtc(isoString: string | null | undefined): string {

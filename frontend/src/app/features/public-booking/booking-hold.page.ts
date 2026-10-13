@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -13,7 +13,7 @@ import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
   template: `
     <div class="min-h-screen bg-slate-50 flex flex-col font-sans">
       <!-- Header -->
-      <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+      <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold text-base shadow-sm">
@@ -29,17 +29,24 @@ import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
 
       <main class="flex-1 max-w-4xl mx-auto px-4 sm:px-6 py-8 w-full">
         <!-- Loading State -->
-        <div *ngIf="isLoading()" class="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+        @if (isLoading()) {
+        <div class="bg-white rounded-2xl border border-slate-200 p-12 text-center">
           <div class="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto mb-3"></div>
           <p class="text-sm text-slate-600">Đang tải thông tin giữ phòng...</p>
         </div>
+        }
 
-        <div *ngIf="!isLoading() && booking()" class="space-y-6">
+        @if (!isLoading() && booking()) {
+        <div class="space-y-6">
           <!-- Countdown Timer Banner -->
           <div [ngClass]="isExpired() ? 'bg-rose-50 border-rose-200 text-rose-900' : 'bg-indigo-50 border-indigo-200 text-indigo-900'" class="rounded-2xl border p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
             <div class="flex items-center gap-3.5">
               <div [ngClass]="isExpired() ? 'bg-rose-100 text-rose-600' : 'bg-indigo-100 text-indigo-600'" class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl font-bold">
-                {{ isExpired() ? '⚠️' : '⏱' }}
+                @if (isExpired()) {
+                  <i class="pi pi-exclamation-triangle text-xl"></i>
+                } @else {
+                  <i class="pi pi-clock text-xl"></i>
+                }
               </div>
               <div>
                 <h2 class="text-base font-bold">{{ isExpired() ? 'Thời gian giữ phòng 15 phút đã hết hạn' : 'Đang giữ phòng cho quý khách' }}</h2>
@@ -50,18 +57,22 @@ import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
             </div>
 
             <!-- Big Digital Countdown -->
-            <div *ngIf="!isExpired()" class="bg-white px-5 py-2.5 rounded-xl border border-indigo-200 shadow-sm text-center">
+            @if (!isExpired()) {
+            <div class="bg-white px-5 py-2.5 rounded-xl border border-indigo-200 shadow-sm text-center">
               <div class="text-2xl font-black text-indigo-600 font-mono tracking-widest">
                 {{ formattedTimeRemaining() }}
               </div>
               <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Thời gian còn lại</span>
             </div>
+            }
 
-            <div *ngIf="isExpired()">
+            @if (isExpired()) {
+            <div>
               <a routerLink="/booking" class="inline-flex px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition-colors">
                 Đặt lại phòng mới →
               </a>
             </div>
+            }
           </div>
 
           <!-- Booking Summary Card -->
@@ -69,8 +80,8 @@ import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
             <div class="p-6 sm:p-8 border-b border-slate-100">
               <div class="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                    {{ booking()?.status }}
+                  <span [ngClass]="statusBadgeClass()" class="px-2.5 py-1 text-xs font-semibold rounded-full border">
+                    {{ statusLabel() }}
                   </span>
                   <h1 class="text-2xl font-bold text-slate-900 mt-2">{{ booking()?.propertyName }}</h1>
                   <p class="text-xs text-slate-500 mt-0.5">{{ booking()?.propertyAddress }}</p>
@@ -91,7 +102,7 @@ import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
                 </div>
                 <div class="flex justify-between py-1.5 border-b border-slate-200/60">
                   <span class="text-slate-500">Hình thức thuê:</span>
-                  <span class="font-semibold text-slate-900">{{ booking()?.rentalType }}</span>
+                  <span class="font-semibold text-slate-900">{{ rentalTypeLabel() }}</span>
                 </div>
                 <div class="flex justify-between py-1.5 border-b border-slate-200/60">
                   <span class="text-slate-500">Số lượng khách:</span>
@@ -105,33 +116,34 @@ import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
 
               <!-- Right Financial Folio Breakdown -->
               <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3">
-                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Chi phí & Tiền cọc</h3>
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Chi phí &amp; Tiền cọc</h3>
                 <div class="flex justify-between text-sm">
                   <span class="text-slate-600">Tổng tiền phòng:</span>
-                  <span class="font-bold text-slate-900">{{ booking()?.totalAmount | number:'1.0-0' }} đ</span>
+                  <span class="font-bold text-slate-900">{{ booking()?.totalAmount | number:'1.0-0' }} ₫</span>
                 </div>
                 <div class="flex justify-between text-base font-extrabold text-indigo-700 bg-indigo-50/60 rounded-xl p-3 border border-indigo-100">
                   <span>Tiền cọc cần nộp (30%):</span>
-                  <span>{{ booking()?.depositRequired | number:'1.0-0' }} đ</span>
+                  <span>{{ booking()?.depositRequired | number:'1.0-0' }} ₫</span>
                 </div>
                 <div class="flex justify-between text-xs text-slate-500">
                   <span>Còn lại thanh toán khi check-in:</span>
-                  <span>{{ ((booking()?.totalAmount || 0) - (booking()?.depositRequired || 0)) | number:'1.0-0' }} đ</span>
+                  <span>{{ ((booking()?.totalAmount || 0) - (booking()?.depositRequired || 0)) | number:'1.0-0' }} ₫</span>
                 </div>
               </div>
             </div>
 
-            <!-- Payment Instructions & Status Navigation Section (Decisions D08, D15, D21) -->
-            <div *ngIf="!isExpired()" class="p-6 sm:p-8 bg-white border-t border-slate-100">
+            <!-- Payment Instructions & Status Navigation Section -->
+            @if (!isExpired()) {
+            <div class="p-6 sm:p-8 bg-white border-t border-slate-100">
               <h3 class="text-base font-bold text-slate-900 mb-2">Hướng dẫn thanh toán tiền cọc 30%</h3>
               <p class="text-xs text-slate-600 mb-4">
-                Theo quy định D08/D15, tiền cọc được xác nhận bởi nhân viên lễ tân sau khi kiểm tra chuyển khoản hoặc thu tiền tại quầy. Hệ thống công khai không tự động tạo giao dịch tài chính.
+                Tiền cọc được xác nhận bởi nhân viên lễ tân sau khi kiểm tra chuyển khoản hoặc thu tiền tại quầy. Hệ thống công khai không tự động tạo giao dịch tài chính.
               </p>
 
               <div class="bg-indigo-50/60 border border-indigo-100 rounded-2xl p-4 mb-6 space-y-2 text-xs">
                 <div class="flex justify-between items-center text-slate-700">
                   <span class="font-medium">Số tiền cọc cần nộp (30%):</span>
-                  <span class="text-base font-bold text-indigo-700 font-mono">{{ booking()?.depositRequired | number:'1.0-0' }} đ</span>
+                  <span class="text-base font-bold text-indigo-700 font-mono">{{ booking()?.depositRequired | number:'1.0-0' }} ₫</span>
                 </div>
                 <div class="flex justify-between items-center text-slate-700">
                   <span class="font-medium">Cú pháp nội dung chuyển khoản:</span>
@@ -139,7 +151,7 @@ import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
                 </div>
                 <div class="flex justify-between items-center text-slate-700">
                   <span class="font-medium">Tài khoản thụ hưởng:</span>
-                  <span class="font-semibold text-slate-800">Vietcombank - 0123456789 (Khách sạn)</span>
+                  <span class="font-semibold text-slate-800">{{ bankAccountInfo() }}</span>
                 </div>
               </div>
 
@@ -154,9 +166,23 @@ import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
                 </a>
               </div>
             </div>
+            }
           </div>
         </div>
+        }
       </main>
+
+      <!-- Footer -->
+      <footer class="bg-white border-t border-slate-200 py-8 text-center text-xs text-slate-500">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p>© 2026 Hotel Booking. Hệ thống quản lý và đặt phòng lưu trú trực tuyến.</p>
+          <div class="flex items-center gap-4 text-slate-400">
+            <span>Bảo mật thông tin đặt phòng</span>
+            <span>&bull;</span>
+            <span>Điều khoản dịch vụ</span>
+          </div>
+        </div>
+      </footer>
     </div>
   `
 })
@@ -171,7 +197,58 @@ export class BookingHoldPage implements OnInit, OnDestroy {
   isExpired = signal<boolean>(false);
   secondsRemaining = signal<number>(0);
 
-  private timerInterval: any = null;
+  /** Maps raw booking status enum to Vietnamese display label */
+  statusLabel = computed<string>(() => {
+    const status = this.booking()?.status;
+    switch (status) {
+      case 'PendingDeposit': return 'Đang chờ đặt cọc';
+      case 'PendingPayment': return 'Đang chờ thanh toán';
+      case 'Confirmed': return 'Đã xác nhận';
+      case 'CheckedIn': return 'Đã nhận phòng';
+      case 'Expired': return 'Đã hết hạn';
+      case 'Cancelled': return 'Đã hủy';
+      default: return status || '';
+    }
+  });
+
+  /** Maps raw booking status to appropriate badge styling */
+  statusBadgeClass = computed<string>(() => {
+    const status = this.booking()?.status;
+    switch (status) {
+      case 'Confirmed':
+      case 'CheckedIn':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'Expired':
+      case 'Cancelled':
+        return 'bg-rose-50 text-rose-700 border-rose-200';
+      case 'PendingDeposit':
+      case 'PendingPayment':
+      default:
+        return 'bg-amber-50 text-amber-700 border-amber-200';
+    }
+  });
+
+  /** Maps raw rentalType value to Vietnamese display label */
+  rentalTypeLabel = computed<string>(() => {
+    const rt = this.booking()?.rentalType;
+    switch (rt) {
+      case '1': case 'Hourly': return 'Theo giờ (Hourly)';
+      case '2': case 'Overnight': return 'Qua đêm (Overnight)';
+      default: return rt || '';
+    }
+  });
+
+  /**
+   * Bank account info derived from booking data.
+   * TODO: API should provide property-specific bank details (bankName, accountNumber, accountHolder).
+   * Currently displays a generic message since the API does not expose payment account info.
+   */
+  bankAccountInfo = computed<string>(() => {
+    // When backend provides bank info, use: this.booking()?.bankAccountInfo
+    return 'Thông tin chuyển khoản sẽ được cung cấp bởi khách sạn';
+  });
+
+  private timerInterval: ReturnType<typeof setInterval> | null = null;
 
   ngOnInit(): void {
     const token = this.route.snapshot.paramMap.get('token');
@@ -229,7 +306,9 @@ export class BookingHoldPage implements OnInit, OnDestroy {
       if (remaining <= 0) {
         this.secondsRemaining.set(0);
         this.isExpired.set(true);
-        clearInterval(this.timerInterval);
+        if (this.timerInterval) {
+          clearInterval(this.timerInterval);
+        }
       } else {
         this.secondsRemaining.set(remaining);
       }
