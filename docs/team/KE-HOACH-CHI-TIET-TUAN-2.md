@@ -3,9 +3,33 @@
 - **Kho lưu trữ GitHub:** [https://github.com/GinNgo/hotel-saas-v2](https://github.com/GinNgo/hotel-saas-v2)
 - **Nhánh tích hợp chính:** [`develop`](https://github.com/GinNgo/hotel-saas-v2/tree/develop)
 - **Thời gian thực hiện:** Tuần 2 (13/10/2026 – 19/10/2026)
-- **Mục tiêu cốt lõi:** Xây dựng Multi-tier Pricing Engine (theo giờ, theo đêm, ngày, phụ thu lũy tiến, anti-overlap 409); Quản lý kho phòng chuyên sâu (Batch Room Generator, Modal CRUD, validation số phòng theo tầng); Bảng điều hành buồng phòng trực quan (Floor Grid, State Machine 1 chạm, chống xung đột 409 `ERR_STALE_STATE`, Live KPI Bar); Chuẩn hóa quy trình Git độc lập cho từng thành viên.
+- **Mục tiêu cốt lõi:** Xây dựng Multi-tier Pricing Engine (theo giờ, theo đêm, ngày, phụ thu lũy tiến, anti-overlap 409); Quản lý kho phòng chuyên sâu (Batch Room Generator, Modal CRUD, validation số phòng theo tầng); Bảng điều hành buồng phòng trực quan (Floor Grid, State Machine 1 chạm, chống xung đột 409 `ERR_STALE_STATE`, Live KPI Bar); Tích hợp danh mục địa giới hành chính 2 cấp (Tỉnh thành & Xã phường); Chuẩn hóa quy trình Git độc lập cho từng thành viên.
+- **Nguồn tham chiếu cũ:** `C:\Projects\He-thong-quan-ly-khach-san` (LuxeStay)
 
 ---
+
+## 0. PHÂN TÍCH TÁI SỬ DỤNG DỰ ÁN CŨ & DANH MỤC HÀNH CHÍNH 2 CẤP
+
+### 1. Kế thừa từ dự án cũ (`He-thong-quan-ly-khach-san`) & Khắc phục triệt để lỗi:
+- **Điểm kế thừa:** Giữ nguyên các luồng nghiệp vụ thực tế đã được kiểm nghiệm: Danh mục 5 hạng phòng chuẩn (Single, Double, Twin, Family, Suite), sơ đồ phòng trực quan, máy trạng thái buồng phòng, thanh toán Folio và trải nghiệm tìm kiếm công khai.
+- **Khắc phục lỗi cũ:**
+  1. *Triệt tiêu lỗi chồng chéo (Circular Dependencies):* Bản cũ các service gọi trực tiếp lẫn nhau gây crash dây chuyền. Bản mới sử dụng Clean Architecture 4 tầng + MediatR CQRS, mỗi Command/Query độc lập hoàn toàn.
+  2. *Chống xung đột đồng thời (Concurrency Control):* Sử dụng Btree_gist exclusion constraint trên PostgreSQL 17 và Optimistic Concurrency Token (`xmin`) kết hợp thời gian đệm 30 phút dọn phòng (`cleaningBufferMinutes`), loại bỏ 100% lỗi Overbooking.
+  3. *Bảo mật đa chi nhánh fail-closed:* Thay thế việc truyền `hotelId` thủ công bằng `TenantPropertyContextMiddleware` và EF Core Global Query Filter tự động cách ly dữ liệu.
+
+### 2. Tích hợp Danh mục Địa giới Hành chính 2 Cấp:
+- Hệ thống chuẩn hóa dữ liệu địa lý Việt Nam theo mô hình 2 cấp (Tỉnh/Thành phố $\to$ Phường/Xã, không qua cấp Quận/Huyện) để tối ưu hóa trải nghiệm tìm kiếm và cấu hình chi nhánh:
+  - `docs/DMTinhThanh_2Cap.csv`: 63 Tỉnh/Thành phố trực thuộc trung ương.
+  - `docs/DMXaPhuong_2Cap.csv`: 10.051 Xã/Phường/Thị trấn trực thuộc.
+- Dữ liệu phục vụ thiết lập địa chỉ cơ sở khách sạn (`Property.Address`, `ProvinceCode`, `WardCode`) và autocomplete tìm kiếm khách sạn công khai không dấu tiếng Việt.
+
+### 3. Chiến lược phân công & Đồng bộ Git (Tránh đè mã nguồn):
+- **Trên nhánh `develop`:** Tuấn An (Leader) đẩy mã nguồn hoàn chỉnh 100% của Backend Core Engine, API, Policies, Seeder và Unit Tests.
+- **Phần của Nguyên & Tân trên `develop`:** Chỉ đẩy thư mục và file scaffold placeholder mô tả yêu cầu implement.
+- **Mã nguồn thực tế của thành viên:**
+  - Nguyễn Khởi Nguyên lập trình trên nhánh riêng: `feature/nguyen-rooms`.
+  - Trần Trọng Tân lập trình trên nhánh riêng: `feature/tan-housekeeping`.
+- **Đồng bộ hóa:** Sau khi các bạn hoàn thành trên nhánh riêng, Tuấn An sẽ review chất lượng, merge vào `develop` và push lên GitHub hoàn tất cột mốc.
 
 ## 1. MA TRẬN PHÂN CÔNG CÔNG VIỆC TUẦN 2 (QUY CHUẨN ENTERPRISE)
 
