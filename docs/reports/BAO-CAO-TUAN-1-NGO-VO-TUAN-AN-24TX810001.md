@@ -49,10 +49,15 @@
 | **WebApi Layer** | `AuthController.cs`, `ExceptionHandlingMiddleware.cs`, `TenantPropertyContextMiddleware.cs` | API đăng nhập/lấy token, middleware xử lý lỗi chuẩn RFC 7807 (400, 401, 403, 404, 409, 500) |
 | **DevOps & CI/CD** | `.github/workflows/ci.yml`, `docker-compose.yml`, `.gitignore` | Quy trình tự động hóa kiểm tra build, lint, test và môi trường container |
 
-### 2. Các chỉ số kỹ thuật đạt được
+### 2. Các chỉ số kỹ thuật và Minh chứng Commit trên Git
 - **Chất lượng mã nguồn:** Biên dịch Release mode `Build succeeded. 0 Warning(s) 0 Error(s)`.
 - **Độ bao phủ kiểm thử:** Xây dựng bộ Integration Tests và Unit Tests xác thực chặt chẽ cơ chế bảo mật (Context Mismatch, Bitmask Permission Check, Tenant Isolation).
-- **Mã commit trên Git:** Các commit tiêu biểu từ `677cd99` đến `0498559` trên nhánh `develop`.
+- **Kho lưu trữ GitHub:** [https://github.com/GinNgo/hotel-saas-v2](https://github.com/GinNgo/hotel-saas-v2) (Nhánh làm việc chính: `develop`)
+- **Danh sách Commit đối chiếu của Ngô Võ Tuấn An trong Tuần 1:**
+  1. [Commit 677cd99](https://github.com/GinNgo/hotel-saas-v2/commit/677cd99): *feat: Phase 0 complete - docs, scaffold, entities, rules* — Khởi tạo Solution Clean Architecture .NET 10, Docker Postgres/Redis, bộ tài liệu SRS & SDD.
+  2. [Commit 3f95339](https://github.com/GinNgo/hotel-saas-v2/commit/3f95339): *feat(auth): implement Auth + RBAC - Phase 1A complete* — Xác thực JWT, xoay vòng Refresh Token, SaveChangesInterceptor Multi-tenant, Bitmask Permissions.
+  3. [Commit 94c93fd](https://github.com/GinNgo/hotel-saas-v2/commit/94c93fd): *feat: Phase 1 complete - architecture foundation, auth & RBAC...* — Hoàn thiện toàn bộ nền tảng Phase 1, LocalDevDataSeeder 500+ dòng và tích hợp các module.
+  4. [Commit 34e3f31](https://github.com/GinNgo/hotel-saas-v2/commit/34e3f31): *chore(docs): clean up redundant docs and update official week 1 reports and ai usage log* — Dọn dẹp kho lưu trữ, chuẩn hóa cấu trúc thư mục nộp bài chuẩn quy cách Khoa CNTT.
 
 ---
 

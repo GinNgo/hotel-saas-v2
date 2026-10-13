@@ -60,6 +60,10 @@ Nhóm đã hoàn thành hệ thống tài liệu đồ án chuyên nghiệp, đ�
   - `HotelSaas.Infrastructure/Persistence/` (ApplicationDbContext, Interceptors, LocalDevDataSeeder).
   - `HotelSaas.WebApi/Middleware/` (ExceptionHandlingMiddleware chuẩn RFC 7807, TenantPropertyContextMiddleware).
   - `.github/workflows/ci.yml` (CI Pipeline đa giai đoạn).
+* **Minh chứng Commit trên Git:**
+  - [Commit 677cd99](https://github.com/GinNgo/hotel-saas-v2/commit/677cd99): Scaffold .NET 10 Clean Architecture, Docker Compose, Docs SRS/SDD.
+  - [Commit 3f95339](https://github.com/GinNgo/hotel-saas-v2/commit/3f95339): Auth JWT + Refresh Token Rotation, SaveChangesInterceptor Multi-tenant, Bitmask RBAC.
+  - [Commit 94c93fd](https://github.com/GinNgo/hotel-saas-v2/commit/94c93fd): Tích hợp hoàn thiện Phase 1 và Seeder dữ liệu mẫu.
 * **Kết quả:** Xây dựng thành công nền móng vững chắc giúp 2 thành viên còn lại phát triển tính năng độc lập, không xảy ra xung đột.
 
 ### 2. Nguyễn Khởi Nguyên (Thành viên — MSSV: 24TX810011)
@@ -68,6 +72,8 @@ Nhóm đã hoàn thành hệ thống tài liệu đồ án chuyên nghiệp, đ�
   - Backend Commands & Queries: `CreateRoomType`, `UpdateRoomType`, `DeleteRoomType`, `GetRoomTypes`, `CreateRoom`, `UpdateRoom`, `DeleteRoom`, `GetRooms`.
   - Bộ tiện ích kiểm tra nghiệp vụ: `room-types-filter.util.ts`, `rooms-validation.util.ts`.
   - Frontend Pages: `room-types.page.ts`, `rooms.page.ts` (giao diện quản trị danh mục, phân trang, tìm kiếm theo tầng và trạng thái).
+* **Minh chứng Commit trên Git:**
+  - Tích hợp tại [Commit 94c93fd](https://github.com/GinNgo/hotel-saas-v2/commit/94c93fd) trên nhánh `develop`.
 * **Kết quả:** Hoàn thành trọn vẹn nghiệp vụ quản lý buồng phòng, tích hợp chuẩn xác với cơ chế Multi-tenant của nhóm trưởng.
 
 ### 3. Trần Trọng Tân (Thành viên — MSSV: 24TX810025)
@@ -77,6 +83,9 @@ Nhóm đã hoàn thành hệ thống tài liệu đồ án chuyên nghiệp, đ�
   - Endpoint cập nhật trạng thái buồng phòng với Concurrency Check (`expectedOldStatus`) chống tình trạng ghi đè dữ liệu cũ (Stale Update).
   - Frontend Housekeeping Board: `housekeeping.page.ts` (giao diện thẻ phòng trực quan theo màu sắc trạng thái, đổi trạng thái tức thì Optimistic UI).
   - Tiện ích xử lý dữ liệu: `housekeeping-concurrency.util.ts`, `housekeeping-kpi.util.ts` (tính toán tỷ lệ phòng sạch, phòng bẩn, phòng bảo trì phục vụ báo cáo vận hành).
+* **Minh chứng Commit trên Git:**
+  - [Commit 58c29ba](https://github.com/GinNgo/hotel-saas-v2/commit/58c29ba) trên nhánh `feature/tan-housekeeping`.
+  - Pull Request tích hợp: [Pull Request #2](https://github.com/GinNgo/hotel-saas-v2/pull/2).
 * **Kết quả:** Module chạy mượt mà, độc lập, hỗ trợ nhân viên dọn phòng thao tác nhanh chóng và chính xác.
 
 ---
