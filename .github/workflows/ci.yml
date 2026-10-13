@@ -40,6 +40,7 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+          -c max_connections=500
 
     steps:
       - uses: actions/checkout@v4
@@ -57,8 +58,8 @@ jobs:
 
       - name: Run tests with coverage
         env:
-          TEST_DB_CONNECTION: "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;"
-        run: dotnet test --no-build --configuration Release --collect:"XPlat Code Coverage" --results-directory ./coverage
+          TEST_DB_CONNECTION: "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;Pooling=true;Maximum Pool Size=15;"
+        run: dotnet test --no-build --configuration Release --collect:"XPlat Code Coverage" --results-directory ./coverage -- RunConfiguration.DisableParallelization=true
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -85,7 +86,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       - name: Lint
         run: npm run lint --if-present
