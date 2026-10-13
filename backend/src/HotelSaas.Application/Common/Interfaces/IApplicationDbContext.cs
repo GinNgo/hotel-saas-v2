@@ -44,6 +44,9 @@ public interface IApplicationDbContext
     /// <summary>Payments.</summary>
     DbSet<Payment> Payments { get; }
 
+    /// <summary>Tenant subscriptions.</summary>
+    DbSet<Subscription> Subscriptions { get; }
+
     /// <summary>Cấu hình gói dịch vụ hệ thống.</summary>
     DbSet<SubscriptionPlan> SubscriptionPlans { get; }
 

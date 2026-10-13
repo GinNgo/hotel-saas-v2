@@ -143,11 +143,19 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
         </div>
       </form>
 
-      <div class="mt-6 pt-5 border-t border-slate-100 text-center text-sm text-slate-600">
-        <span>Đã có tài khoản? </span>
-        <a routerLink="/login" class="font-semibold text-emerald-600 hover:text-emerald-700 hover:underline">
-          Đăng nhập ngay
-        </a>
+      <div class="mt-6 pt-5 border-t border-slate-100 text-center text-sm text-slate-600 space-y-2">
+        <div>
+          <span>Đã có tài khoản? </span>
+          <a routerLink="/login" class="font-semibold text-emerald-600 hover:text-emerald-700 hover:underline">
+            Đăng nhập ngay
+          </a>
+        </div>
+        <div>
+          <a routerLink="/partner-register" class="inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 font-semibold hover:underline">
+            <i class="pi pi-building"></i>
+            <span>Bạn là chủ khách sạn? Đăng ký mở khách sạn tại đây</span>
+          </a>
+        </div>
       </div>
     </div>
   `

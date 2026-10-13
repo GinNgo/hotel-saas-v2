@@ -44,6 +44,7 @@ public static class DependencyInjection
         services.AddScoped<IMembershipLookupService, MembershipLookupService>();
         services.AddScoped<IPasswordHasher, PasswordHasherService>();
         services.AddScoped<IJwtService, JwtService>();
+        services.AddSingleton<ILocationLookupService, LocationLookupService>();
 
         return services;
     }

@@ -51,6 +51,27 @@ public sealed class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Registers a new hotel partner, creates tenant enterprise and primary property branch.
+    /// </summary>
+    /// <param name="command">Partner registration payload including owner credentials and hotel location details.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Created partner tenant, branch, and owner summary.</returns>
+    /// <response code="201">Partner registered successfully.</response>
+    /// <response code="400">Validation errors in the request body.</response>
+    /// <response code="409">Email already in use.</response>
+    [HttpPost("partner-register")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> PartnerRegister(
+        [FromBody] HotelSaas.Application.Auth.Commands.RegisterPartner.RegisterPartnerCommand command,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(command, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created, new { success = true, data = result });
+    }
+
+    /// <summary>
     /// Authenticates a user with email and password credentials.
     /// </summary>
     /// <param name="command">Login credentials.</param>

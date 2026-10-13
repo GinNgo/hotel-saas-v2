@@ -9,6 +9,8 @@ import {
   LoginResponse,
   RegisterRequest,
   RegisterResponse,
+  PartnerRegisterRequest,
+  PartnerRegisterResponse,
   RefreshTokenRequest,
   UserDto,
   UserMembershipDto,
@@ -58,6 +60,10 @@ export class AuthService {
 
   register(request: RegisterRequest): Observable<ApiResponse<RegisterResponse>> {
     return this.http.post<ApiResponse<RegisterResponse>>(`${this.apiUrl}/register`, request);
+  }
+
+  partnerRegister(request: PartnerRegisterRequest): Observable<ApiResponse<PartnerRegisterResponse>> {
+    return this.http.post<ApiResponse<PartnerRegisterResponse>>(`${this.apiUrl}/partner-register`, request);
   }
 
   /**

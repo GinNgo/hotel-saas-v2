@@ -49,6 +49,27 @@ export interface RegisterRequest {
   fullName: string;
 }
 
+/** Partner Register request */
+export interface PartnerRegisterRequest {
+  fullName: string;
+  email: string;
+  password: string;
+  phoneNumber: string;
+  propertyName: string;
+  address: string;
+  provinceCode: string;
+  wardCode?: string | null;
+}
+
+/** Partner Register response */
+export interface PartnerRegisterResponse {
+  userId: string;
+  tenantId: string;
+  propertyId: string;
+  propertyName: string;
+  message: string;
+}
+
 /** Refresh token request */
 export interface RefreshTokenRequest {
   accessToken: string;

@@ -127,11 +127,19 @@ import { UserMembershipDto } from '../../../core/models/auth.model';
         </div>
       </div>
 
-      <div class="mt-4 pt-3 border-t border-slate-100 text-center text-xs text-slate-500">
-        <span>Chưa có tài khoản? </span>
-        <a routerLink="/register" class="font-semibold text-emerald-600 hover:text-emerald-700 hover:underline">
-          Đăng ký tài khoản mới
-        </a>
+      <div class="mt-4 pt-3 border-t border-slate-100 text-center text-xs text-slate-500 space-y-2">
+        <div>
+          <span>Chưa có tài khoản khách lẻ? </span>
+          <a routerLink="/register" class="font-semibold text-emerald-600 hover:text-emerald-700 hover:underline">
+            Đăng ký tài khoản
+          </a>
+        </div>
+        <div class="pt-1">
+          <a routerLink="/partner-register" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs border border-indigo-200 transition-colors">
+            <i class="pi pi-building"></i>
+            <span>Bạn là chủ khách sạn? Đăng ký mở khách sạn</span>
+          </a>
+        </div>
       </div>
     </div>
 

@@ -378,6 +378,7 @@ public sealed class GetPublicPropertiesSyntheticTests
         public DbSet<Room> Rooms => throw new NotImplementedException();
         public DbSet<Reservation> Reservations => throw new NotImplementedException();
         public DbSet<Payment> Payments => throw new NotImplementedException();
+        public DbSet<Subscription> Subscriptions => throw new NotImplementedException();
         public DbSet<SubscriptionPlan> SubscriptionPlans => throw new NotImplementedException();
         public DbSet<SystemBanner> SystemBanners => throw new NotImplementedException();
         public DbSet<PropertySurchargePolicy> PropertySurchargePolicies => throw new NotImplementedException();
