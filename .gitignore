@@ -42,7 +42,15 @@ docker/data/
 Thumbs.db
 Desktop.ini
 
+# ── Scripts build artifacts ──
+scripts/**/bin/
+scripts/**/obj/
+
 # ── Logs & Archives ──
 *.log
 logs/
 *.zip
+
+# ── Internal local handoff packages (do not push to remote repo) ──
+team-handoff/
+

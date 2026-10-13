@@ -587,15 +587,17 @@ export interface RoomImageRenderContext {
                 <!-- Room Card Visual Graphic / Fallback -->
                 <div class="relative bg-slate-100 h-36 flex items-center justify-center overflow-hidden rounded-2xl mb-4">
                   <ng-container *ngIf="getRoomImageContext(rt) as ctx">
-                    <img
-                      *ngIf="isRoomImageRenderable(ctx)"
-                      [src]="ctx.url"
-                      [alt]="rt.roomTypeName"
-                      (error)="onRoomImageError(ctx)"
-                      class="w-full h-full object-cover"
-                      [attr.data-testid]="'room-img-' + rt.roomTypeId"
-                      [attr.data-render-key]="getRoomImageRenderKey(rt)"
-                    />
+                    <ng-container *ngFor="let key of [getRoomImageRenderKey(rt)]; trackBy: trackByRenderKey">
+                      <img
+                        *ngIf="isRoomImageRenderable(ctx)"
+                        [src]="ctx.url"
+                        [alt]="rt.roomTypeName"
+                        (error)="onRoomImageError(ctx)"
+                        class="w-full h-full object-cover"
+                        [attr.data-testid]="'room-img-' + rt.roomTypeId"
+                        [attr.data-render-key]="key"
+                      />
+                    </ng-container>
                   </ng-container>
                   <svg
                     *ngIf="!isRoomImageRenderable(getRoomImageContext(rt))"
@@ -1037,6 +1039,7 @@ export class BookingPage implements OnInit, OnDestroy {
     this.availabilitySub?.unsubscribe();
     this.quoteSub?.unsubscribe();
     this.itemContextMap.clear();
+    this.failedImageKeys.set(new Set<string>());
   }
 
   loadProperties(searchTerm?: string): void {
@@ -1650,6 +1653,8 @@ export class BookingPage implements OnInit, OnDestroy {
     if (!ctx) return 'fallback';
     return `${ctx.propertyId}:${ctx.generation}:${ctx.roomTypeId}:${ctx.url}:${ctx.retryAttempt}`;
   }
+
+  trackByRenderKey = (_index: number, key: string): string => key;
 
   /**
    * Xử lý khi thẻ <img> gặp lỗi tải tài nguyên.
