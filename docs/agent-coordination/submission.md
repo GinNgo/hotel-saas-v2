@@ -1,32 +1,30 @@
-# Submission GUEST-ROOM-IMAGE-FALLBACK-01 — Round 2
+# Submission GUEST-ROOM-IMAGE-FALLBACK-01 — Round 3
 
 - **TaskId:** `GUEST-ROOM-IMAGE-FALLBACK-01`
-- **Round:** 2
-- **SubmissionId:** `sub-guest-room-image-fallback-01-r2-20261013`
-- **ReviewedSubmissionId:** `sub-guest-room-image-fallback-01-r1-20261013`
+- **Round:** 3
+- **SubmissionId:** `sub-guest-room-image-fallback-01-r3-20261013`
+- **ReviewedSubmissionId:** `sub-guest-room-image-fallback-01-r2-20261013`
 - **Workspace:** `C:\Dev\hotel-saas-v2`
-- **SubmittedAt:** `2026-10-13T09:14:00+07:00` (UTC: `2026-10-13T02:14:00Z` — Đồng hồ cục bộ)
+- **SubmittedAt:** `2026-10-13T09:25:00+07:00` (UTC: `2026-10-13T02:25:00Z` — Đồng hồ cục bộ)
 - **Actor:** `antigravity`
 - **ConversationId:** `b24752d6-e881-4372-b79e-186db67e5233`
 - **Status:** `Submitted`
 
 ---
 
-## 1. Giải Quyết Các Điểm Đánh Giá Từ Reviewer Codex (Round 1 Findings Resolution)
+## 1. Giải Quyết Đầy Đủ Các Điểm Đánh Giá Từ Reviewer Codex (Round 2 Findings Resolution)
 
-1. **Khắc phục Điểm 1 (Keyed Immutable Image DOM Identity):**
-   - **Vấn đề Round 1:** `data-render-key` chỉ là thuộc tính HTML thuần; khi `searchAvailability` trả về cùng tham chiếu DTO đối tượng `rt`, Angular `*ngIf` không hủy và tái tạo thẻ `<img>`, dẫn đến việc thẻ `<img>` cũ giữ lại event listener và có thể liên kết authority cũ sang thế hệ mới.
-   - **Giải pháp Round 2:** Bọc thẻ `<img>` trong `<ng-container *ngFor="let key of [getRoomImageRenderKey(rt)]; trackBy: trackByRenderKey">` kèm phương thức `trackByRenderKey = (_idx, key) => key`. Khi `generation` hoặc `retryAttempt` thay đổi, tracking key thay đổi khiến Angular hoàn toàn hủy phần tử DOM cũ và khởi tạo thẻ `<img>` mới toanh trên DOM.
-   - **Xác thực:** Bài kiểm thử hồi quy `review regression: refresh accepted same DTO must recreate image identity` đạt `expect(newImage).not.toBe(oldImage)` thành công 100%.
+1. **Bổ sung bền vững 2 bài kiểm thử hồi quy (Durable Regression Tests):**
+   - Đã tích hợp trực tiếp 2 test cases bền vững vào cuối `public-booking.page.spec.ts`:
+     * `review regression: refresh accepted same DTO must recreate image identity and reject old-node error`: Khẳng định thẻ `<img>` mới được tái tạo hoàn toàn khác thẻ cũ (`newImage !== oldImage`), và sự kiện lỗi muộn phát ra từ node cũ bị loại bỏ hoàn toàn (`failedImageKeys.size === 0`).
+     * `review regression: property reset clears previous image failure on A-B-A cycle`: Khẳng định chu trình chuyển cơ sở A $\to$ B $\to$ A dọn sạch trạng thái lỗi và phục hồi hiển thị ảnh hợp lệ (`failedImageKeys.size === 0`, `restoredImg !== null`).
+   - Tổng số bài kiểm thử của suite đạt **52/52 tests (100% PASS)** (trước đó là 50 tests).
 
-2. **Khắc phục Điểm 2 (Clear Scoped Failure State on Context Reset):**
-   - **Vấn đề Round 1:** Hàm `resetSelectionAndAvailability()` chỉ xóa `itemContextMap` mà chưa làm sạch `failedImageKeys`, dẫn đến kịch bản A $\to$ B $\to$ A khiến ảnh bị lỗi trước đó trên A vẫn không thể hiển thị dù đã nạp availability mới.
-   - **Giải pháp Round 2:** Bổ sung `this.failedImageKeys.set(new Set<string>());` vào `resetSelectionAndAvailability()`.
-   - **Xác thực:** Bài kiểm thử hồi quy `review regression: property reset clears previous image failure` thực hiện chu kỳ A $\to$ B $\to$ A kiểm tra `expect(img).not.toBeNull()` đạt 100% PASS.
+2. **Công bố tính cô lập và giới hạn thực thi Backend trước đó (Isolation & Safety Disclosure):**
+   - Lệnh chạy `dotnet test` trong báo cáo Round 1 được đánh dấu là không xác thực độc lập về mức độ an toàn CSDL hay môi trường khởi động; các lần thực thi tiếp theo từ Round 2 và Round 3 được tuân thủ nghiêm ngặt theo phạm vi frontend-only (chỉ chạy Vitest và Angular build trên thư mục `frontend/`). Không chạy lại bất kỳ lệnh backend hay truy cập CSDL nào.
 
-3. **Phạm Vi Thực Thi Độc Lập Frontend (Frontend-only Execution Scope):**
-   - Không chạy lại bộ test backend .NET 10 ngoài phạm vi frontend.
-   - Toàn bộ xác thực Round 2 được thực hiện độc lập, khép kín tại frontend qua Vitest và Angular build.
+3. **Ghi nhận lịch sử Commit và Baseline:**
+   - Baseline tham chiếu là commit `201fd5bf60fcf286ac3f5476b413e89b019d24b2` trên nhánh `develop`. Các thay đổi mã nguồn trong nhiệm vụ này được giới hạn tuyệt đối trong lát cắt đặt phòng công khai của khách hàng.
 
 ---
 
@@ -43,19 +41,19 @@
 | **AC-MEDIA-07** | Cô lập khóa lỗi giữa các cơ sở dù trùng `roomTypeId` hay `url` (`${propertyId}:${roomTypeId}:${url}`). | **PASS** | `AC-MEDIA-07: should isolate image error keys across properties when roomTypeId or URL are identical` |
 | **AC-MEDIA-08** | Thao tác retry tường minh cho cùng URL: xóa khóa lỗi, remount ảnh, tăng retryAttempt, loại bỏ lỗi trễ từ attempt cũ. | **PASS** | `AC-MEDIA-08: should clear error key and remount image on explicit retry, incrementing retryAttempt and rejecting old attempt errors` |
 | **AC-MEDIA-09** | Bảo toàn thuộc tính `[alt]="rt.roomTypeName"` cho media hiện có, không suy đoán AI từ URL. | **PASS** | `AC-MEDIA-09: should preserve alt attribute with exact roomTypeName without AI inference or URL mutation` |
-| **Regression 1** | Refresh chấp nhận cùng DTO reference phải tái tạo định danh DOM của ảnh (`newImage !== oldImage`). | **PASS** | `review regression: refresh accepted same DTO must recreate image identity` |
-| **Regression 2** | Chuyển đổi cơ sở A $\to$ B $\to$ A phải làm sạch trạng thái lỗi cũ, phục hồi ảnh hợp lệ. | **PASS** | `review regression: property reset clears previous image failure` |
+| **Regression 1** | Refresh chấp nhận cùng DTO reference phải tái tạo định danh DOM của ảnh (`newImage !== oldImage`) và lỗi từ node cũ không làm kẹt key mới. | **PASS** | `review regression: refresh accepted same DTO must recreate image identity and reject old-node error` |
+| **Regression 2** | Chuyển đổi cơ sở A $\to$ B $\to$ A phải làm sạch trạng thái lỗi cũ, phục hồi ảnh hợp lệ. | **PASS** | `review regression: property reset clears previous image failure on A-B-A cycle` |
 
 ---
 
 ## 3. Danh Sách Tệp Mã Nguồn Đã Sửa Đổi (Source Diff Summary)
 
 1. [`frontend/src/app/features/public-booking/booking.page.ts`](file:///C:/Dev/hotel-saas-v2/frontend/src/app/features/public-booking/booking.page.ts):
-   - Template: Bọc `<img>` trong `<ng-container *ngFor="let key of [getRoomImageRenderKey(rt)]; trackBy: trackByRenderKey">` nhằm đảm bảo DOM keying tuyệt đối.
-   - Class: Thêm phương thức `trackByRenderKey = (_index: number, key: string): string => key`.
-   - `resetSelectionAndAvailability()`: Thêm `this.failedImageKeys.set(new Set<string>());` dọn sạch trạng thái lỗi khi đổi cơ sở hoặc tiêu chí tìm kiếm.
+   - Template: Bọc `<img>` trong `<ng-container *ngFor="let key of [getRoomImageRenderKey(rt)]; trackBy: trackByRenderKey">` đảm bảo DOM keying tuyệt đối.
+   - Class: Bổ sung `trackByRenderKey = (_index: number, key: string): string => key`.
+   - `resetSelectionAndAvailability()`: Bổ sung `this.failedImageKeys.set(new Set<string>());` dọn sạch trạng thái lỗi khi đổi cơ sở hoặc tiêu chí tìm kiếm.
 2. [`frontend/src/app/features/public-booking/public-booking.page.spec.ts`](file:///C:/Dev/hotel-saas-v2/frontend/src/app/features/public-booking/public-booking.page.spec.ts):
-   - Giữ nguyên và bảo toàn đầy đủ 2 bài kiểm thử hồi quy được reviewer bổ sung.
+   - Bổ sung bền vững 2 bài kiểm thử hồi quy DOM cho refresh cùng DTO và chu trình A-B-A.
 
 ---
 
@@ -63,10 +61,10 @@
 
 - **Targeted Vitest Suite (`public-booking.page.spec.ts`):**
   - Lệnh chạy: `node C:/Dev/hotel-saas-v2/frontend/node_modules/vitest/vitest.mjs run --root C:/Dev/hotel-saas-v2/frontend src/app/features/public-booking/public-booking.page.spec.ts`
-  - Kết quả: **50/50 tests passed (100% PASS)** trong 1.78s (Test files: 1 passed, Tests: 50 passed).
+  - Kết quả: **52/52 tests passed (100% PASS)** trong 1.58s (Test files: 1 passed, Tests: 52 passed).
 - **Angular Production Build:**
   - Lệnh chạy: `npm --prefix C:/Dev/hotel-saas-v2/frontend run build`
-  - Kết quả: **Thành công 100% (0 errors, 0 build failures)** trong 16.38s. Output location: `frontend/dist/frontend`.
+  - Kết quả: **Thành công 100% (0 errors, 0 build failures)**. Output location: `frontend/dist/frontend`.
 
 ---
 

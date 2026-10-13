@@ -1913,5 +1913,53 @@ describe('Public Booking Pages (P5-GUEST-BOOKING-01)', () => {
       expect(img.getAttribute('alt')).toBe('Standard Room Alpha');
       expect(img.getAttribute('alt')).toBe(testRoomWithImage.roomTypeName);
     });
+
+    it('review regression: refresh accepted same DTO must recreate image identity and reject old-node error', () => {
+      component.ngOnInit();
+      component.selectProperty(testPropertyA);
+      fixture.detectChanges();
+
+      const oldImage = fixture.nativeElement.querySelector('img[data-testid="room-img-rt-standard"]');
+      expect(oldImage).not.toBeNull();
+
+      component.searchAvailability();
+      fixture.detectChanges();
+
+      const newImage = fixture.nativeElement.querySelector('img[data-testid="room-img-rt-standard"]');
+      expect(newImage).not.toBeNull();
+      expect(newImage).not.toBe(oldImage);
+
+      // Old node error dispatched after generation advance must leave failedImageKeys empty
+      oldImage.dispatchEvent(new Event('error'));
+      fixture.detectChanges();
+      expect(component.failedImageKeys().size).toBe(0);
+    });
+
+    it('review regression: property reset clears previous image failure on A-B-A cycle', () => {
+      component.ngOnInit();
+      component.selectProperty(testPropertyA);
+      fixture.detectChanges();
+
+      const imgA = fixture.nativeElement.querySelector('img[data-testid="room-img-rt-standard"]');
+      expect(imgA).not.toBeNull();
+
+      // Trigger error on Property A
+      imgA.dispatchEvent(new Event('error'));
+      fixture.detectChanges();
+      expect(component.failedImageKeys().size).toBe(1);
+
+      // Switch to Property B
+      component.selectProperty(testPropertyB);
+      fixture.detectChanges();
+      expect(component.failedImageKeys().size).toBe(0);
+
+      // Return to Property A: failure state must be cleared and image rendered
+      component.selectProperty(testPropertyA);
+      fixture.detectChanges();
+      expect(component.failedImageKeys().size).toBe(0);
+      const restoredImg = fixture.nativeElement.querySelector('img[data-testid="room-img-rt-standard"]');
+      expect(restoredImg).not.toBeNull();
+    });
   });
 });
+

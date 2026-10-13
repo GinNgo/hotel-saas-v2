@@ -51,6 +51,12 @@ scripts/**/obj/
 logs/
 *.zip
 
-# ── Internal local handoff packages (do not push to remote repo) ──
+# ── Internal local handoff packages & team coordination (do not push to remote repo) ──
 team-handoff/
+docs/team/
+docs/team-handoff-package.md
+docs/reports/BAO-CAO-TUAN-1-NGUYEN*
+docs/reports/BAO-CAO-TUAN-1-TRAN-TRONG-TAN*
+docs/reports/BAO-CAO-TUAN-1-TAN*
+docs/reports/BAO-CAO-TUAN-1-TUAN-ANH*
 
