@@ -35,15 +35,15 @@ stateDiagram-v2
 
 ---
 
-## 2. MA TRẬN PHÂN CÔNG VÀ TIẾN ĐỘ TỔNG QUAN
+## 2. MA TRẬN PHÂN CÔNG VÀ TIẾN ĐỘ TỔNG QUAN (TUẦN 2)
 
-| Mã Task | Tên Nhiệm Vụ | Kỹ Sư Phụ Trách (Đề Xuất) | Kỹ Sư Review Chéo (Peer Reviewer) | Nghiệm Thu Cuối (Tech Lead) | Trạng Thái Hiện Tại |
+| Mã Task | Tên Nhiệm Vụ | Kỹ Sư Phụ Trách | Kỹ Sư Review Chéo (Peer Reviewer) | Nghiệm Thu Cuối (Tech Lead) | Trạng Thái Hiện Tại |
 | :--- | :--- | :--- | :--- | :--- | :---: |
-| **`FE-AUTH-01`** | Luồng Login, Modal Chọn Chi Nhánh & Header Context Switcher | **Nguyên** (Full-Stack) | **Tân** (Full-Stack) | Tech Lead / Reviewer | 🟡 **`Backlog`** *(Chờ PO duyệt)* |
-| **`FE-ROOM-01`** | Giao Diện Quản Lý Danh Mục Phòng & Loại Phòng (CRUD) | **Tân** (Full-Stack) | **Nguyên** (Full-Stack) | Tech Lead / Reviewer | 🟡 **`Backlog`** *(Chờ PO duyệt)* |
-| **`FE-HK-01`** | Giao Diện Bảng Trạng Thái Buồng Phòng (Housekeeping Board) | *(Chờ phân công sau)* | *(Chờ phân công sau)* | Tech Lead / Reviewer | 🟡 **`Backlog`** *(Phụ thuộc Auth & Rooms)* |
-| **`DOC-API-01`** | Xuất Bản Bộ API Collection & OpenAPI Hướng Dẫn Tích Hợp | **Nguyên** & **Tân** | Tech Lead | Tech Lead / Reviewer | 🟡 **`Backlog`** |
-| **`DELIVERY-CATALOG-01`** | Hoàn thiện Danh mục Phòng/Loại phòng, Date Filter Backend, RxJS Stream Guard & Dashboard Honest Scope | **Toàn đội ngũ** (Full-Stack) | Technical Reviewer | Tech Lead / PO | 🔵 **`In Review`** *(Chờ nghiệm thu - KHÔNG ĐƯỢC ĐÁNH DẤU DONE)* |
+| **`BE-RESERV-01`** | Reservation Engine Core, Khóa đồng thời Anti-overlap, Stay Lifecycle API (Check-in/Out) | **Tuấn An** (Leader / Backend) | Reviewer Kỹ Thuật | PO / Giảng viên | 🟢 **`In Progress`** *(Đang hoàn thiện)* |
+| **`FE-RESERV-01`** | Màn hình Đặt phòng Lễ tân tại quầy (`reservations.page.ts`), Chọn phòng trực quan & Timeline | **Khởi Nguyên** (Frontend) | **Trọng Tân** (Peer) | Tuấn An (Tech Lead) | 🟡 **`Ready`** *(Bắt đầu sprint Tuần 2)* |
+| **`FE-OPS-01`** | Quy trình Check-in/Check-out liên thông Buồng phòng & Bảng kê Hóa đơn Folio Thu ngân (`payments.page.ts`) | **Trọng Tân** (Frontend) | **Khởi Nguyên** (Peer) | Tuấn An (Tech Lead) | 🟡 **`Ready`** *(Bắt đầu sprint Tuần 2)* |
+| **`DATA-LOC-01`** | Tích hợp Danh mục Địa giới Hành chính 2 cấp (63 Tỉnh thành & 10.051 Xã phường) | **Tuấn An** (Backend) | Toàn nhóm | Tuấn An (Tech Lead) | 🟢 **`In Progress`** |
+| **`DELIVERY-WEEK1`** | Nghiệm thu Cột mốc Tuần 1: Clean Architecture, Auth JWT, Room Catalog & Housekeeping FSM | **Toàn đội ngũ** | Technical Reviewer | PO / Giảng viên | 🔵 **`Done`** *(Đã hoàn tất Tuần 1)* |
 
 ---
 
