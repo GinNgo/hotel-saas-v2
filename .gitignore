@@ -63,3 +63,6 @@ docs/reports/BAO-CAO-TUAN-1-TRAN-TRONG-TAN*
 docs/reports/BAO-CAO-TUAN-1-TAN*
 docs/reports/BAO-CAO-TUAN-1-TUAN-ANH*
 
+# ── Internal Agent Coordination & Prompts ──
+docs/agent-coordination/
+docs/prompts/
