@@ -158,6 +158,28 @@ import { UserMembershipDto } from '../../core/models/auth.model';
                 <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">Mới</span>
               </a>
             }
+
+            <a
+              routerLink="/reports"
+              routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+              (click)="onNavItemClick()"
+              class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+            >
+              <i class="pi pi-chart-bar text-base text-emerald-700"></i>
+              <span>Báo cáo & Thống kê</span>
+              <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">Mới</span>
+            </a>
+
+            <a
+              routerLink="/subscriptions"
+              routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+              (click)="onNavItemClick()"
+              class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+            >
+              <i class="pi pi-box text-base text-emerald-700"></i>
+              <span>Gói cước SaaS</span>
+              <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">Mới</span>
+            </a>
           </div>
 
           <!-- Pending Review & Roadmap Group (Chưa triển khai / Bị Blocker) -->

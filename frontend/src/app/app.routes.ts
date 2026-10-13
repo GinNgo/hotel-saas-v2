@@ -82,6 +82,14 @@ export const routes: Routes = [
         canActivate: [permissionGuard],
         data: { permission: 'PAYMENTS', action: 1 },
         loadComponent: () => import('./features/payments/payments.page').then(m => m.PaymentsPage)
+      },
+      {
+        path: 'reports',
+        loadComponent: () => import('./features/reports/reports.page').then(m => m.ReportsPage)
+      },
+      {
+        path: 'subscriptions',
+        loadComponent: () => import('./features/subscriptions/subscriptions.page').then(m => m.SubscriptionsPage)
       }
     ]
   },

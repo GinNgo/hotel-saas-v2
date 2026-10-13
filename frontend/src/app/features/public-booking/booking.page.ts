@@ -12,6 +12,7 @@ import {
 } from '../../core/models/public-booking.model';
 import { QuoteDto } from '../../core/models/reservation.model';
 import { parseDateParts } from '../../core/utils/date-time.util';
+import { AiConciergeWidgetComponent } from './ai-concierge-widget/ai-concierge-widget.component';
 
 export function getTodayVnDateString(): string {
   const now = new Date();
@@ -49,7 +50,7 @@ export interface RoomImageRenderContext {
 @Component({
   selector: 'app-public-booking',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, AiConciergeWidgetComponent],
   template: `
     <div class="min-h-screen bg-slate-50/70 flex flex-col font-sans text-slate-900 antialiased selection:bg-indigo-500 selection:text-white">
       
@@ -973,6 +974,9 @@ export interface RoomImageRenderContext {
           </div>
         </div>
       </footer>
+
+      <!-- AI Concierge 24/7 Floating Assistant -->
+      <app-ai-concierge-widget [propertySlug]="selectedProperty()?.slug"></app-ai-concierge-widget>
     </div>
   `
 })
