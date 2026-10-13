@@ -15,14 +15,15 @@ namespace HotelSaas.Application.Auth.Commands.RegisterPartner;
 
 /// <summary>
 /// Handles partner hotel registration: validates email and 2-level administrative location,
-/// hashes password, creates the tenant enterprise, primary physical branch, owner staff profile,
-/// and assigns the starter subscription.
+/// supports both brand-new partners and existing logged-in customer accounts upgrading to hotel owners,
+/// creates the tenant enterprise, primary physical branch, owner staff profile, and assigns starter subscription.
 /// </summary>
 public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPartnerCommand, RegisterPartnerResponse>
 {
     private readonly IApplicationDbContext _context;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ILocationLookupService _locationService;
+    private readonly ICurrentUserContext _userContext;
 
     /// <summary>
     /// Initializes a new instance of <see cref="RegisterPartnerCommandHandler"/>.
@@ -30,24 +31,47 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
     public RegisterPartnerCommandHandler(
         IApplicationDbContext context,
         IPasswordHasher passwordHasher,
-        ILocationLookupService locationService)
+        ILocationLookupService locationService,
+        ICurrentUserContext userContext)
     {
         _context = context;
         _passwordHasher = passwordHasher;
         _locationService = locationService;
+        _userContext = userContext;
     }
 
     /// <inheritdoc />
     public async Task<RegisterPartnerResponse> Handle(RegisterPartnerCommand request, CancellationToken cancellationToken)
     {
-        // 1. Verify email uniqueness
         var emailNormalized = request.Email.Trim().ToLowerInvariant();
-        var emailExists = await _context.Users
-            .AnyAsync(u => u.Email.ToLower() == emailNormalized, cancellationToken);
 
-        if (emailExists)
+        // 1. Resolve User (Existing Authenticated User, Existing by Email, or New User)
+        User? user = null;
+
+        if (_userContext.IsAuthenticated && _userContext.UserId != Guid.Empty)
         {
-            throw new ConflictException("Email này đã được sử dụng trên hệ thống.");
+            // Scenario A: Caller is already authenticated (e.g. Logged-in Customer upgrading to Partner)
+            user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == _userContext.UserId, cancellationToken);
+        }
+
+        if (user == null)
+        {
+            // Scenario B: Check if an account already exists with this email
+            var existingUser = await _context.Users
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == emailNormalized, cancellationToken);
+
+            if (existingUser != null)
+            {
+                // Verify password to authenticate the upgrade if not logged in
+                if (string.IsNullOrWhiteSpace(request.Password) ||
+                    !_passwordHasher.Verify(request.Password, existingUser.PasswordHash))
+                {
+                    throw new ConflictException("Email này đã được sử dụng. Vui lòng đăng nhập bằng tài khoản này để tiếp tục đăng ký mở khách sạn.");
+                }
+
+                user = existingUser;
+            }
         }
 
         // 2. Validate Vietnamese 2-level administrative location
@@ -79,7 +103,6 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
 
         if (ownerRole == null)
         {
-            // Fallback: search by name or first system role
             ownerRole = await _context.AccessRoles
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(r => r.IsSystemRole, cancellationToken);
@@ -93,7 +116,6 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
         // 4. Generate unique identifiers and slugs
         var tenantId = Guid.NewGuid();
         var propertyId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
 
         var baseSlug = GenerateSlug(request.PropertyName);
         var tenantSlug = await EnsureUniqueTenantSlugAsync(baseSlug, cancellationToken);
@@ -145,20 +167,45 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
         };
         _context.Properties.Add(property);
 
-        // 7. Create User Account
-        var user = new User
+        // 7. Ensure User Account
+        if (user == null)
         {
-            Id = userId,
-            Email = emailNormalized,
-            Username = emailNormalized,
-            PasswordHash = _passwordHasher.Hash(request.Password),
-            FullName = request.FullName.Trim(),
-            PhoneNumber = request.PhoneNumber.Trim(),
-            GlobalRole = GlobalUserRole.TenantStaff,
-            IsActive = true,
-            TenantId = tenantId
-        };
-        _context.Users.Add(user);
+            // Scenario C: Create new user
+            if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 6)
+            {
+                throw new BadRequestException("ERR_INVALID_PASSWORD", "Mật khẩu phải có ít nhất 6 ký tự.");
+            }
+
+            user = new User
+            {
+                Id = Guid.NewGuid(),
+                Email = emailNormalized,
+                Username = emailNormalized,
+                PasswordHash = _passwordHasher.Hash(request.Password),
+                FullName = request.FullName.Trim(),
+                PhoneNumber = request.PhoneNumber.Trim(),
+                GlobalRole = GlobalUserRole.TenantStaff,
+                IsActive = true,
+                TenantId = tenantId
+            };
+            _context.Users.Add(user);
+        }
+        else
+        {
+            // Upgrading existing customer/user to TenantStaff
+            if (user.GlobalRole == GlobalUserRole.Customer)
+            {
+                user.GlobalRole = GlobalUserRole.TenantStaff;
+            }
+            if (string.IsNullOrWhiteSpace(user.PhoneNumber) && !string.IsNullOrWhiteSpace(request.PhoneNumber))
+            {
+                user.PhoneNumber = request.PhoneNumber.Trim();
+            }
+            if (user.TenantId == null)
+            {
+                user.TenantId = tenantId;
+            }
+        }
 
         // 8. Create Owner Staff Assignment (Tenant-wide)
         var staffMember = new TenantStaff
@@ -166,14 +213,14 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
             Id = Guid.NewGuid(),
             TenantId = tenantId,
             PropertyId = null, // NULL indicates tenant-wide owner privileges
-            UserId = userId,
+            UserId = user.Id,
             RoleId = ownerRole.Id,
             StaffRole = StaffRole.Owner,
             IsActive = true
         };
         _context.TenantStaffMembers.Add(staffMember);
 
-        // 9. Assign Initial Free/Starter Subscription
+        // 9. Assign Initial Starter Subscription
         var subscription = new Subscription
         {
             Id = Guid.NewGuid(),
@@ -192,11 +239,11 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
         await _context.SaveChangesAsync(cancellationToken);
 
         return new RegisterPartnerResponse(
-            userId,
+            user.Id,
             tenantId,
             propertyId,
             request.PropertyName.Trim(),
-            "Đăng ký đối tác khách sạn thành công! Bạn có thể đăng nhập ngay để thiết lập cơ sở lưu trú.");
+            "Đăng ký đối tác khách sạn thành công! Bạn có thể bắt đầu thiết lập phòng và nhận khách ngay.");
     }
 
     private static string GenerateSlug(string text)

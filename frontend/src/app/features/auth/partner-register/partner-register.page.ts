@@ -3,8 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { InputText } from 'primeng/inputtext';
-import { Password } from 'primeng/password';
-import { Button } from 'primeng/button';
 import { AuthService } from '../../../core/services/auth.service';
 import { LocationService } from '../../../core/services/location.service';
 import { Province, Ward } from '../../../core/models/location.model';
@@ -21,8 +19,10 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
 }
 
 /**
- * Trang Đăng ký Đối tác Mở Khách sạn (Partner Hotel Registration & Onboarding).
- * Tích hợp danh mục địa giới hành chính 2 cấp chuẩn Việt Nam (63 Tỉnh/Thành & 10.051 Phường/Xã).
+ * Trang Đăng ký Đối tác Mở Khách sạn (Partner Hotel Registration & Customer Upgrade).
+ * Hỗ trợ 2 luồng:
+ * 1. Khách vãng lai (Guest): Tạo tài khoản mới + Cơ sở lưu trú.
+ * 2. Khách hàng đã đăng nhập (Customer Upgrade): Tự động nạp profile, bỏ qua mật khẩu, nâng cấp trực tiếp lên Hotel Owner.
  */
 @Component({
   selector: 'app-partner-register',
@@ -38,13 +38,34 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
       <div class="text-center mb-6">
         <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-semibold uppercase tracking-wider mb-2">
           <i class="pi pi-building"></i>
-          Dành Cho Chủ Cơ Sở Lưu Trú & Khách Sạn
+          Dành Cho Chủ Cơ Sở Lưu Trú & Đối Tác
         </div>
-        <h2 class="text-2xl font-bold text-slate-800">Đăng ký Đối tác Mở Khách sạn</h2>
-        <p class="text-sm text-slate-500 mt-1">
-          Gia nhập nền tảng quản trị khách sạn đa cơ sở hiện đại. Thiết lập cơ sở lưu trú đầu tiên của bạn chỉ trong 2 phút.
+        <h2 class="text-2xl font-bold text-slate-800">
+          {{ isAuthenticated() ? 'Nâng Cấp Tài Khoản Mở Khách Sạn' : 'Đăng Ký Đối Tác Mở Khách Sạn' }}
+        </h2>
+        <p class="text-sm text-slate-500 mt-1 max-w-2xl mx-auto">
+          {{ isAuthenticated()
+              ? 'Tài khoản khách hàng của bạn sẽ được nâng cấp thành Chủ khách sạn (Owner). Dễ dàng quản lý phòng và tiếp cận hàng ngàn lượt đặt.'
+              : 'Gia nhập nền tảng quản trị khách sạn đa cơ sở hiện đại. Thiết lập cơ sở lưu trú đầu tiên của bạn chỉ trong 2 phút.' }}
         </p>
       </div>
+
+      @if (isAuthenticated()) {
+        <div class="mb-5 p-4 rounded-2xl bg-indigo-50/80 border border-indigo-200/90 text-indigo-950 text-sm shadow-sm flex items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0">
+              <i class="pi pi-user-check text-lg"></i>
+            </div>
+            <div>
+              <p class="font-bold text-slate-800">Đang nâng cấp từ tài khoản khách hàng</p>
+              <p class="text-xs text-indigo-700">{{ currentEmail() }} ({{ currentFullName() }})</p>
+            </div>
+          </div>
+          <span class="px-2.5 py-1 bg-indigo-200 text-indigo-900 text-xs font-bold rounded-lg shrink-0">
+            Đã đăng nhập
+          </span>
+        </div>
+      }
 
       @if (errorMessage()) {
         <div class="mb-5 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-start gap-3 shadow-sm">
@@ -57,20 +78,21 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
       }
 
       @if (successMessage()) {
-        <div class="mb-5 p-5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm shadow-sm flex flex-col items-center text-center">
-          <i class="pi pi-check-circle text-3xl text-emerald-600 mb-2"></i>
-          <h3 class="font-bold text-base text-emerald-900">Chúc mừng bạn đã đăng ký thành công!</h3>
-          <p class="mt-1 text-emerald-700">{{ successMessage() }}</p>
-          <div class="mt-4 flex gap-3">
-            <a routerLink="/login" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-sm shadow transition-colors">
-              Đăng nhập ngay
+        <div class="mb-5 p-6 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm shadow-sm flex flex-col items-center text-center">
+          <i class="pi pi-check-circle text-4xl text-emerald-600 mb-2"></i>
+          <h3 class="font-bold text-lg text-emerald-900">Chúc mừng bạn đã hoàn tất đăng ký đối tác!</h3>
+          <p class="mt-1 text-emerald-700 max-w-lg">{{ successMessage() }}</p>
+          <div class="mt-5 flex gap-3">
+            <a routerLink="/login" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm shadow transition-colors flex items-center gap-2">
+              <i class="pi pi-sign-in"></i>
+              Đăng nhập quản trị khách sạn
             </a>
           </div>
         </div>
       } @else {
         <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" class="space-y-6">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Cột 1: Thông tin người đại diện / Quản trị viên -->
+            <!-- Cột 1: Thông tin người đại diện / Chủ sở hữu -->
             <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
               <div class="flex items-center gap-2 pb-2 border-b border-slate-100">
                 <i class="pi pi-user text-indigo-600 font-bold"></i>
@@ -98,15 +120,17 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
               <!-- Email Field -->
               <div>
                 <label for="email" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Email đăng nhập <span class="text-rose-500">*</span>
+                  Email liên hệ & đăng nhập <span class="text-rose-500">*</span>
                 </label>
                 <input
                   id="email"
                   pInputText
                   type="email"
                   formControlName="email"
+                  [readonly]="isAuthenticated()"
                   placeholder="chu.khachsan@example.com"
                   class="w-full text-sm py-2 px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  [class.bg-slate-100]="isAuthenticated()"
                   [class.border-rose-400]="isFieldInvalid('email')"
                 />
                 @if (isFieldInvalid('email')) {
@@ -133,43 +157,44 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
                 }
               </div>
 
-              <!-- Password Field -->
-              <div>
-                <label for="password" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Mật khẩu bảo vệ <span class="text-rose-500">*</span>
-                </label>
-                <input
-                  id="password"
-                  pInputText
-                  type="password"
-                  formControlName="password"
-                  placeholder="Ít nhất 6 ký tự"
-                  class="w-full text-sm py-2 px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  [class.border-rose-400]="isFieldInvalid('password')"
-                />
-                @if (isFieldInvalid('password')) {
-                  <p class="text-xs text-rose-500 mt-1">Mật khẩu tối thiểu phải từ 6 ký tự.</p>
-                }
-              </div>
+              <!-- Password Fields (Chỉ hiển thị với khách vãng lai chưa đăng nhập) -->
+              @if (!isAuthenticated()) {
+                <div>
+                  <label for="password" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Mật khẩu tài khoản <span class="text-rose-500">*</span>
+                  </label>
+                  <input
+                    id="password"
+                    pInputText
+                    type="password"
+                    formControlName="password"
+                    placeholder="Ít nhất 6 ký tự"
+                    class="w-full text-sm py-2 px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    [class.border-rose-400]="isFieldInvalid('password')"
+                  />
+                  @if (isFieldInvalid('password')) {
+                    <p class="text-xs text-rose-500 mt-1">Mật khẩu tối thiểu phải từ 6 ký tự.</p>
+                  }
+                </div>
 
-              <!-- Confirm Password Field -->
-              <div>
-                <label for="confirmPassword" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Xác nhận lại mật khẩu <span class="text-rose-500">*</span>
-                </label>
-                <input
-                  id="confirmPassword"
-                  pInputText
-                  type="password"
-                  formControlName="confirmPassword"
-                  placeholder="Nhập lại chính xác mật khẩu"
-                  class="w-full text-sm py-2 px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  [class.border-rose-400]="registerForm.get('confirmPassword')?.touched && registerForm.get('confirmPassword')?.errors?.['passwordMismatch']"
-                />
-                @if (registerForm.get('confirmPassword')?.touched && registerForm.get('confirmPassword')?.errors?.['passwordMismatch']) {
-                  <p class="text-xs text-rose-500 mt-1">Mật khẩu xác nhận không khớp.</p>
-                }
-              </div>
+                <div>
+                  <label for="confirmPassword" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Xác nhận mật khẩu <span class="text-rose-500">*</span>
+                  </label>
+                  <input
+                    id="confirmPassword"
+                    pInputText
+                    type="password"
+                    formControlName="confirmPassword"
+                    placeholder="Nhập lại chính xác mật khẩu"
+                    class="w-full text-sm py-2 px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    [class.border-rose-400]="registerForm.get('confirmPassword')?.touched && registerForm.get('confirmPassword')?.errors?.['passwordMismatch']"
+                  />
+                  @if (registerForm.get('confirmPassword')?.touched && registerForm.get('confirmPassword')?.errors?.['passwordMismatch']) {
+                    <p class="text-xs text-rose-500 mt-1">Mật khẩu xác nhận không khớp.</p>
+                  }
+                </div>
+              }
             </div>
 
             <!-- Cột 2: Thông tin Cơ sở lưu trú đầu tiên -->
@@ -269,11 +294,11 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
               <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 space-y-1">
                 <div class="font-semibold text-slate-700 flex items-center gap-1.5">
                   <i class="pi pi-info-circle text-indigo-500"></i>
-                  Chính sách vận hành mặc định:
+                  Chính sách vận hành ban đầu:
                 </div>
                 <p>• Nhận phòng (Check-in): <strong>14:00</strong> | Trả phòng (Check-out): <strong>12:00</strong></p>
-                <p>• Thời gian đệm dọn phòng: <strong>30 phút</strong> (tránh chồng chéo buồng phòng)</p>
-                <p class="text-slate-400 text-[11px] italic">Bạn có thể tùy chỉnh lại chính sách này trong phần Cài đặt sau khi đăng nhập.</p>
+                <p>• Thời gian đệm dọn phòng: <strong>30 phút</strong></p>
+                <p class="text-slate-400 text-[11px] italic">Bạn có thể cấu hình thêm phòng và bảng giá sau khi đăng nhập.</p>
               </div>
             </div>
           </div>
@@ -290,7 +315,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
                 <span>Đang khởi tạo khách sạn của bạn...</span>
               } @else {
                 <i class="pi pi-building-columns text-lg"></i>
-                <span>Đăng Ký & Thiết Lập Khách Sạn Ngay</span>
+                <span>{{ isAuthenticated() ? 'Xác Nhận Nâng Cấp & Mở Khách Sạn' : 'Đăng Ký & Thiết Lập Khách Sạn Ngay' }}</span>
               }
             </button>
           </div>
@@ -298,9 +323,9 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
       }
 
       <div class="text-center mt-6 text-sm text-slate-500">
-        Bạn đã có tài khoản khách sạn hoặc là khách lẻ?
-        <a routerLink="/login" class="text-indigo-600 font-semibold hover:underline ml-1">
-          Đăng nhập tại đây
+        Bạn muốn quay lại cổng đặt phòng?
+        <a routerLink="/booking" class="text-indigo-600 font-semibold hover:underline ml-1">
+          Trang chủ đặt phòng
         </a>
       </div>
     </div>
@@ -319,6 +344,10 @@ export class PartnerRegisterPage implements OnInit {
   readonly wards = signal<Ward[]>([]);
   readonly wardsLoading = signal(false);
 
+  readonly isAuthenticated = signal(false);
+  readonly currentEmail = signal('');
+  readonly currentFullName = signal('');
+
   registerForm = this.fb.group({
     fullName: ['', [Validators.required, Validators.maxLength(150)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(200)]],
@@ -336,7 +365,33 @@ export class PartnerRegisterPage implements OnInit {
   }
 
   ngOnInit(): void {
+    this.checkAuthenticatedStatus();
     this.loadProvinces();
+  }
+
+  private checkAuthenticatedStatus(): void {
+    if (this.authService.isLoggedIn) {
+      this.isAuthenticated.set(true);
+      const user = this.authService.currentUser;
+      if (user) {
+        this.currentEmail.set(user.email);
+        this.currentFullName.set(user.fullName || '');
+        this.registerForm.patchValue({
+          fullName: user.fullName || '',
+          email: user.email
+        });
+      }
+
+      // Remove password requirement for authenticated users
+      const pwd = this.registerForm.get('password');
+      const confirmPwd = this.registerForm.get('confirmPassword');
+      pwd?.clearValidators();
+      confirmPwd?.clearValidators();
+      pwd?.updateValueAndValidity();
+      confirmPwd?.updateValueAndValidity();
+      this.registerForm.clearValidators(); // Clear passwordMatchValidator
+      this.registerForm.updateValueAndValidity();
+    }
   }
 
   loadProvinces(): void {
@@ -390,7 +445,7 @@ export class PartnerRegisterPage implements OnInit {
     this.authService.partnerRegister({
       fullName: formVal.fullName || '',
       email: formVal.email || '',
-      password: formVal.password || '',
+      password: this.isAuthenticated() ? '' : (formVal.password || ''),
       phoneNumber: formVal.phoneNumber || '',
       propertyName: formVal.propertyName || '',
       provinceCode: formVal.provinceCode || '',
@@ -406,7 +461,7 @@ export class PartnerRegisterPage implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.isLoading.set(false);
         if (err.status === 409) {
-          this.errorMessage.set('Email này đã được sử dụng. Vui lòng sử dụng email khác hoặc đăng nhập.');
+          this.errorMessage.set('Email này đã được sử dụng. Vui lòng đăng nhập hoặc sử dụng email khác.');
         } else if (err.error?.message) {
           this.errorMessage.set(err.error.message);
         } else {

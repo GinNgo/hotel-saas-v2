@@ -89,9 +89,13 @@ export interface RoomImageRenderContext {
               <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
               <span>Tra cứu đặt phòng</span>
             </a>
-            <a routerLink="/login" class="text-xs sm:text-sm font-semibold text-indigo-700 hover:text-indigo-800 px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100/80 border border-indigo-200/80 transition-all flex items-center gap-1.5 min-h-[44px]" title="Đăng nhập nội bộ" aria-label="Đăng nhập nội bộ">
+            <a routerLink="/partner-register" class="text-xs sm:text-sm font-semibold text-amber-800 hover:text-amber-900 px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100/80 border border-amber-200 transition-all flex items-center gap-1.5 min-h-[44px]" title="Đăng ký mở khách sạn">
+              <svg class="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+              <span class="hidden md:inline">Mở khách sạn / Đối tác</span>
+            </a>
+            <a routerLink="/login" class="text-xs sm:text-sm font-semibold text-indigo-700 hover:text-indigo-800 px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100/80 border border-indigo-200/80 transition-all flex items-center gap-1.5 min-h-[44px]" title="Đăng nhập" aria-label="Đăng nhập">
               <svg class="w-4 h-4 text-indigo-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
-              <span class="hidden sm:inline">Đăng nhập nội bộ</span>
+              <span class="hidden sm:inline">Đăng nhập</span>
             </a>
           </nav>
         </div>

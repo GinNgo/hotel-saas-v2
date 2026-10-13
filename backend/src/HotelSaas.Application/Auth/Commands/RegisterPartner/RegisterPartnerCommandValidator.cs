@@ -19,9 +19,9 @@ public sealed class RegisterPartnerCommandValidator : AbstractValidator<Register
             .MaximumLength(200).WithMessage("Email không được vượt quá 200 ký tự.");
 
         RuleFor(x => x.Password)
-            .NotEmpty().WithMessage("Mật khẩu không được để trống.")
             .MinimumLength(6).WithMessage("Mật khẩu phải có ít nhất 6 ký tự.")
-            .MaximumLength(100).WithMessage("Mật khẩu không được vượt quá 100 ký tự.");
+            .MaximumLength(100).WithMessage("Mật khẩu không được vượt quá 100 ký tự.")
+            .When(x => !string.IsNullOrWhiteSpace(x.Password));
 
         RuleFor(x => x.PhoneNumber)
             .NotEmpty().WithMessage("Số điện thoại không được để trống.")
