@@ -41,7 +41,7 @@ public sealed class P1B02B_ContextAuthorizationIntegrationTests
         if (!string.IsNullOrWhiteSpace(envConn))
             return envConn;
 
-        return "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
+        return "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
     }
 
     private static void ValidateTestDatabaseTarget(string connStr)
@@ -120,6 +120,13 @@ public sealed class P1B02B_ContextAuthorizationIntegrationTests
         {
             SearchPath = testSchema
         };
+        if (string.IsNullOrWhiteSpace(builder.Password))
+        {
+            var baseConn = new NpgsqlConnectionStringBuilder(GetConnectionString());
+            builder.Password = baseConn.Password;
+            if (string.IsNullOrWhiteSpace(builder.Username))
+                builder.Username = baseConn.Username;
+        }
         var propSvc = propertyService ?? new MockPropertyService();
         var interceptor = new TenantPropertySaveChangesInterceptor(tenantService, propSvc);
 
@@ -187,6 +194,13 @@ public sealed class P1B02B_ContextAuthorizationIntegrationTests
         {
             SearchPath = testSchema
         };
+        if (string.IsNullOrWhiteSpace(builder.Password))
+        {
+            var baseConn = new NpgsqlConnectionStringBuilder(GetConnectionString());
+            builder.Password = baseConn.Password;
+            if (string.IsNullOrWhiteSpace(builder.Username))
+                builder.Username = baseConn.Username;
+        }
         var dict = new Dictionary<string, string>
         {
             {"ConnectionStrings:DefaultConnection", builder.ConnectionString},
