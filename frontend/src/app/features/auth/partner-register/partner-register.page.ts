@@ -52,6 +52,37 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
         </p>
       </div>
 
+      <!-- Value Proposition Bar -->
+      <div class="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+            <i class="pi pi-bolt text-sm"></i>
+          </div>
+          <div>
+            <div class="text-xs font-bold text-slate-800">Khởi tạo tức thì</div>
+            <div class="text-[11px] text-slate-500">Hoạt động trong 2 phút</div>
+          </div>
+        </div>
+        <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+            <i class="pi pi-sitemap text-sm"></i>
+          </div>
+          <div>
+            <div class="text-xs font-bold text-slate-800">Quản lý đa chi nhánh</div>
+            <div class="text-[11px] text-slate-500">Đổi cơ sở 1 chạm</div>
+          </div>
+        </div>
+        <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+            <i class="pi pi-chart-line text-sm"></i>
+          </div>
+          <div>
+            <div class="text-xs font-bold text-slate-800">Biểu giá thông minh</div>
+            <div class="text-[11px] text-slate-500">Giờ, đêm &amp; phụ thu</div>
+          </div>
+        </div>
+      </div>
+
       @if (isAuthenticated()) {
         <div class="mb-5 p-4 rounded-2xl bg-indigo-50/80 border border-indigo-200/90 text-indigo-950 text-sm shadow-sm flex items-center justify-between gap-4">
           <div class="flex items-center gap-3">

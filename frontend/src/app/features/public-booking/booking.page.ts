@@ -107,13 +107,28 @@ export interface RoomImageRenderContext {
         <!-- Hero Section with Unified Search Card (Deliberate Hospitality Editorial) -->
         <div class="relative bg-slate-900 rounded-3xl p-4 sm:p-6 lg:p-8 text-white shadow-xl mb-8 border border-slate-800">
           <!-- Hero Title Section -->
-          <div class="text-center mb-5 sm:mb-6 max-w-2xl mx-auto">
-            <h1 class="text-xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight">
-              Tìm kiếm &amp; Đặt phòng khách sạn
+          <div class="text-center mb-6 max-w-2xl mx-auto">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[11px] font-semibold mb-3 tracking-wide uppercase">
+              <i class="pi pi-sparkles text-amber-400"></i> Nền Tảng Đặt Phòng &amp; Nghỉ Dưỡng Trực Tuyến
+            </span>
+            <h1 class="text-2xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
+              Khám Phá &amp; Đặt Phòng Trực Tuyến
             </h1>
-            <p class="mt-1.5 text-xs sm:text-sm text-slate-300 font-normal leading-relaxed">
-              Chọn cơ sở lưu trú, kiểm tra tình trạng phòng trống và nhận báo giá chính thức
+            <p class="mt-2 text-xs sm:text-sm text-slate-300 font-normal leading-relaxed">
+              Trải nghiệm lưu trú đẳng cấp, giá minh bạch và quy trình giữ phòng 15 phút bảo mật tức thì
             </p>
+            <!-- Trust badges -->
+            <div class="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mt-4 text-[11px] text-slate-300">
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700/80 text-slate-200">
+                <i class="pi pi-shield text-emerald-400"></i> Giữ phòng 15p an toàn
+              </span>
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700/80 text-slate-200">
+                <i class="pi pi-check-circle text-emerald-400"></i> Giá niêm yết chính xác
+              </span>
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700/80 text-slate-200">
+                <i class="pi pi-clock text-indigo-400"></i> Thuê theo Giờ &amp; Đêm
+              </span>
+            </div>
           </div>
 
           <!-- Unified Agoda/Booking Floating Search Card -->
@@ -356,6 +371,53 @@ export interface RoomImageRenderContext {
               <button type="button" (click)="clearPropertySearch()" class="text-indigo-600 hover:text-indigo-800 font-bold ml-2 underline min-h-[36px] flex items-center">
                 Xem tất cả
               </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Booking Stepper Progress Tracker -->
+        <div class="mb-8 bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
+          <div class="flex items-center justify-between max-w-3xl mx-auto">
+            <!-- Step 1 -->
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-xs"
+                [ngClass]="selectedProperty() ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white ring-4 ring-indigo-50'">
+                <i *ngIf="selectedProperty()" class="pi pi-check text-xs"></i>
+                <span *ngIf="!selectedProperty()">1</span>
+              </div>
+              <div class="hidden sm:block">
+                <div class="text-xs font-bold text-slate-800">1. Chọn cơ sở</div>
+                <div class="text-[10px] text-slate-400 truncate max-w-[140px]">{{ selectedProperty() ? selectedProperty()?.name : 'Tìm khách sạn' }}</div>
+              </div>
+            </div>
+
+            <div class="flex-1 h-0.5 mx-3 sm:mx-6 transition-colors" [ngClass]="selectedProperty() ? 'bg-emerald-500' : 'bg-slate-200'"></div>
+
+            <!-- Step 2 -->
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-xs"
+                [ngClass]="selectedRoomType() ? 'bg-emerald-600 text-white' : (selectedProperty() ? 'bg-indigo-600 text-white ring-4 ring-indigo-50' : 'bg-slate-100 text-slate-400')">
+                <i *ngIf="selectedRoomType()" class="pi pi-check text-xs"></i>
+                <span *ngIf="!selectedRoomType()">2</span>
+              </div>
+              <div class="hidden sm:block">
+                <div class="text-xs font-bold text-slate-800">2. Hạng phòng</div>
+                <div class="text-[10px] text-slate-400 truncate max-w-[140px]">{{ selectedRoomType() ? selectedRoomType()?.roomTypeName : 'Chọn loại phòng' }}</div>
+              </div>
+            </div>
+
+            <div class="flex-1 h-0.5 mx-3 sm:mx-6 transition-colors" [ngClass]="selectedRoomType() && currentQuote() ? 'bg-emerald-500' : 'bg-slate-200'"></div>
+
+            <!-- Step 3 -->
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-xs"
+                [ngClass]="currentQuote() ? 'bg-indigo-600 text-white ring-4 ring-indigo-50' : 'bg-slate-100 text-slate-400'">
+                <span>3</span>
+              </div>
+              <div class="hidden sm:block">
+                <div class="text-xs font-bold text-slate-800">3. Báo giá &amp; Giữ phòng</div>
+                <div class="text-[10px] text-slate-400">15 phút miễn phí</div>
+              </div>
             </div>
           </div>
         </div>

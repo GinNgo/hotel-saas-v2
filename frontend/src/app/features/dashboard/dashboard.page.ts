@@ -40,8 +40,13 @@ import { CommonModule } from '@angular/common';
           <h1 class="text-xl sm:text-2xl font-bold text-slate-800 mt-1.5 tracking-tight">
             Xin chào, {{ currentUser()?.fullName || 'Nhân viên' }}!
           </h1>
-          <p class="text-xs sm:text-sm text-slate-500 mt-1">
-            Bảng theo dõi trạng thái phòng và vận hành thời gian thực tại chi nhánh.
+          <p class="text-xs sm:text-sm text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
+            <span class="capitalize">{{ todayDateString() }}</span>
+            <span class="text-slate-300">&bull;</span>
+            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Sẵn sàng đón khách: {{ readyRate() }}%
+            </span>
           </p>
         </div>
 
@@ -181,6 +186,29 @@ import { CommonModule } from '@angular/common';
         </div>
       </div>
 
+      <!-- Room Readiness Progress Bar -->
+      <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
+        <div class="flex items-center justify-between text-xs mb-2.5">
+          <span class="font-bold text-slate-800 flex items-center gap-2">
+            <i class="pi pi-chart-pie text-emerald-600 text-sm"></i>
+            Tỷ lệ phòng sạch sẵn sàng đón khách
+          </span>
+          <span class="font-extrabold" [ngClass]="readyRate() >= 60 ? 'text-emerald-700' : 'text-amber-700'">
+            {{ readyRate() }}% ({{ cleanRooms() }}/{{ totalRooms() }} phòng sạch)
+          </span>
+        </div>
+        <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex">
+          <div class="bg-emerald-500 h-full transition-all duration-500" [style.width.%]="readyRate()"></div>
+          <div class="bg-amber-400 h-full transition-all duration-500" [style.width.%]="totalRooms() > 0 ? (cleaningRooms() / totalRooms()) * 100 : 0"></div>
+          <div class="bg-rose-500 h-full transition-all duration-500" [style.width.%]="totalRooms() > 0 ? (dirtyRooms() / totalRooms()) * 100 : 0"></div>
+        </div>
+        <div class="flex items-center gap-4 text-[11px] text-slate-500 mt-2.5 flex-wrap">
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Sạch sẵn sàng ({{ cleanRooms() }})</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> Đang dọn dẹp ({{ cleaningRooms() }})</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Cần dọn ngay ({{ dirtyRooms() }})</span>
+        </div>
+      </div>
+
       <!-- Real Rooms Overview Table & Missing Feature Disclosures -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Left: Real Rooms Snapshot (2 cols) -->
@@ -285,6 +313,22 @@ export class DashboardPage {
   /** D-6: RBAC-gated quick actions */
   readonly canManageRooms = computed(() => this.authService.hasPermission('ROOMS', 1));
   readonly canManageRoomTypes = computed(() => this.authService.hasPermission('ROOM_TYPES', 1));
+
+  readonly todayDateString = computed(() => {
+    const now = new Date();
+    return now.toLocaleDateString('vi-VN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  });
+
+  readonly readyRate = computed(() => {
+    const total = this.totalRooms();
+    if (total <= 0) return 0;
+    return Math.round((this.cleanRooms() / total) * 100);
+  });
 
   loading = signal(true);
   /** D-1: Error signal for user-visible error feedback */
