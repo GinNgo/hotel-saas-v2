@@ -44,8 +44,15 @@ public sealed class P1B01A_RealDatabaseExecutionTests
 
     private static string GetConnectionString()
     {
-        return Environment.GetEnvironmentVariable("HOTEL_SAAS_TEST_CONNECTION_STRING")
-               ?? "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres";
+        var rawConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION")
+               ?? Environment.GetEnvironmentVariable("HOTEL_SAAS_TEST_CONNECTION_STRING")
+               ?? "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
+
+        var builder = new NpgsqlConnectionStringBuilder(rawConn)
+        {
+            Pooling = false
+        };
+        return builder.ConnectionString;
     }
 
     /// <summary>
@@ -154,6 +161,8 @@ public sealed class P1B01A_RealDatabaseExecutionTests
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = $"DROP SCHEMA IF EXISTS \"{testSchema}\" CASCADE;";
         await cmd.ExecuteNonQueryAsync();
+
+        NpgsqlConnection.ClearPool(conn);
     }
 
     /// <summary>
