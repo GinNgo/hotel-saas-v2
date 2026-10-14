@@ -6,6 +6,7 @@ using HotelSaas.Application.Auth.DTOs;
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Utils;
+using HotelSaas.Application.Public.Services;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using MediatR;
@@ -165,6 +166,10 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
             Status = PropertyStatus.Active,
             IsPublished = false
         };
+
+        // Auto-match nearest landmarks and tourist zones (3-layer fallback)
+        GeoProximityHelper.AutoMatchNearbyLandmarks(property, _locationService, request.ProvinceCode, request.WardCode);
+
         _context.Properties.Add(property);
 
         // 7. Ensure User Account

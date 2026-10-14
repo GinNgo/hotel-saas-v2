@@ -50,4 +50,20 @@ public sealed class PublicPropertyDto
 
     public List<PublicLandmarkDistanceDto> NearbyLandmarks { get; set; } = new();
     public string? NearestLandmarkInfo { get; set; }
+
+    /// <summary>
+    /// Calculated proximity distance in meters from the user's location or the target landmark.
+    /// </summary>
+    public double? DistanceMeters { get; set; }
+
+    /// <summary>
+    /// Human-friendly distance label (e.g. "Cách 450m" or "Cách 2.3km").
+    /// </summary>
+    public string? DistanceFormatted { get; set; }
+
+    /// <summary>
+    /// Indicates whether this property was included as an expanded nearby fallback suggestion
+    /// when the narrow radius returned few or no properties.
+    /// </summary>
+    public bool IsExpandedNearbySuggestion { get; set; }
 }

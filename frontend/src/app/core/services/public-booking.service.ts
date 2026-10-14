@@ -57,11 +57,16 @@ export class PublicBookingService {
       if (filter.maxDistanceKm !== undefined && filter.maxDistanceKm !== null) {
         params = params.set('maxDistanceKm', filter.maxDistanceKm.toString());
       }
-      if (filter.latitude !== undefined && filter.latitude !== null) {
-        params = params.set('latitude', filter.latitude.toString());
+      if ((filter as any).maxDistanceMeters !== undefined && (filter as any).maxDistanceMeters !== null) {
+        params = params.set('maxDistanceMeters', (filter as any).maxDistanceMeters.toString());
       }
-      if (filter.longitude !== undefined && filter.longitude !== null) {
-        params = params.set('longitude', filter.longitude.toString());
+      const lat = (filter as any).userLatitude ?? filter.latitude;
+      if (lat !== undefined && lat !== null) {
+        params = params.set('userLatitude', lat.toString());
+      }
+      const lng = (filter as any).userLongitude ?? filter.longitude;
+      if (lng !== undefined && lng !== null) {
+        params = params.set('userLongitude', lng.toString());
       }
       if (filter.page) {
         params = params.set('page', filter.page.toString());

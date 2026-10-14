@@ -54,6 +54,9 @@ public sealed class PublicController : ControllerBase
         [FromQuery] string? touristZoneSlug,
         [FromQuery] string? landmarkSlug,
         [FromQuery] double? maxDistanceKm,
+        [FromQuery] double? maxDistanceMeters,
+        [FromQuery] double? userLatitude,
+        [FromQuery] double? userLongitude,
         CancellationToken cancellationToken)
     {
         List<PropertyType>? parsedTypes = null;
@@ -73,7 +76,10 @@ public sealed class PublicController : ControllerBase
             RentalType: rentalType,
             TouristZoneSlug: touristZoneSlug,
             LandmarkSlug: landmarkSlug,
-            MaxDistanceKm: maxDistanceKm);
+            MaxDistanceKm: maxDistanceKm,
+            MaxDistanceMeters: maxDistanceMeters,
+            UserLatitude: userLatitude,
+            UserLongitude: userLongitude);
 
         var result = await _mediator.Send(query, cancellationToken);
         return Ok(result);

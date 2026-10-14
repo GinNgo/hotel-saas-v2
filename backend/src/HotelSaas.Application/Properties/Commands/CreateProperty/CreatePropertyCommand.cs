@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Properties.DTOs;
+using HotelSaas.Application.Public.Services;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using MediatR;
@@ -106,6 +107,9 @@ public sealed class CreatePropertyCommandHandler : IRequestHandler<CreatePropert
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
         };
+
+        // Auto-match nearest landmarks and tourist zones if not explicitly provided
+        GeoProximityHelper.AutoMatchNearbyLandmarks(property, _locationService);
 
         _context.Properties.Add(property);
         await _context.SaveChangesAsync(cancellationToken);

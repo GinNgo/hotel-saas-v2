@@ -5,8 +5,13 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Interfaces;
+using HotelSaas.Application.Common.Utils;
+using HotelSaas.Application.Public.DTOs;
+using HotelSaas.Application.Public.Queries.GetPublicProperties;
+using HotelSaas.Application.Public.Services;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -16,7 +21,7 @@ namespace HotelSaas.WebApi.Controllers;
 
 /// <summary>
 /// AI Concierge service providing 24/7 intelligent hospitality assistant,
-/// Vietnamese semantic room search, and dynamic pricing advice.
+/// Vietnamese semantic room search, dynamic filter chips, and dynamic pricing advice.
 /// </summary>
 [ApiController]
 [Route("api/ai")]
@@ -25,11 +30,19 @@ public sealed class AiController : ControllerBase
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserContext _currentUser;
+    private readonly ISender _mediator;
+    private readonly ILocationLookupService _locationService;
 
-    public AiController(IApplicationDbContext context, ICurrentUserContext currentUser)
+    public AiController(
+        IApplicationDbContext context,
+        ICurrentUserContext currentUser,
+        ISender mediator,
+        ILocationLookupService locationService)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _currentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
+        _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
+        _locationService = locationService ?? throw new ArgumentNullException(nameof(locationService));
     }
 
     /// <summary>
@@ -243,6 +256,232 @@ public sealed class AiController : ControllerBase
                        "Quý khách hãy cho em biết dự kiến ngày đi và số lượng người để em tư vấn lựa chọn hoàn hảo nhất cho mình nhé!";
         }
     }
+
+    /// <summary>
+    /// AI Smart Search endpoint: parses natural Vietnamese query, maps to landmarks/provinces/rentals,
+    /// queries authoritative database properties (zero-hallucination), and returns dynamic suggested filter chips.
+    /// </summary>
+    [HttpPost("smart-search")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(AiSmartSearchResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SmartSearch([FromBody] AiSmartSearchRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request?.Query))
+        {
+            return BadRequest(new { code = "ERR_EMPTY_QUERY", message = "Truy vấn tìm kiếm không được để trống." });
+        }
+
+        var rawQuery = request.Query.Trim();
+        var normQuery = VietnameseTextNormalizer.Normalize(rawQuery);
+
+        // 1. Extract criteria from query
+        var extracted = ExtractSmartSearchCriteria(rawQuery, normQuery);
+
+        // 2. Query properties via authoritative GetPublicPropertiesQuery (Zero-Hallucination)
+        var query = new GetPublicPropertiesQuery(
+            Search: null,
+            DestinationKeyword: extracted.DestinationKeyword,
+            PropertyTypes: extracted.PropertyTypes.Count > 0 ? extracted.PropertyTypes : null,
+            RentalType: extracted.RentalType,
+            TouristZoneSlug: extracted.TouristZoneSlug,
+            LandmarkSlug: extracted.LandmarkSlug,
+            MaxDistanceKm: null,
+            MaxDistanceMeters: extracted.MaxDistanceMeters,
+            UserLatitude: request.UserLatitude,
+            UserLongitude: request.UserLongitude);
+
+        var properties = await _mediator.Send(query, cancellationToken);
+
+        // Filter by MaxPrice if specified
+        if (extracted.MaxPrice.HasValue && extracted.MaxPrice.Value > 0)
+        {
+            var filtered = properties
+                .Where(p => !p.StartingPrice.HasValue || p.StartingPrice.Value <= extracted.MaxPrice.Value)
+                .ToList();
+            if (filtered.Count > 0)
+            {
+                properties = filtered;
+            }
+        }
+
+        // 3. Resolve matched landmark for chips
+        LandmarkDto? matchedLandmark = null;
+        if (!string.IsNullOrWhiteSpace(extracted.LandmarkSlug))
+        {
+            matchedLandmark = _locationService.GetLandmarkBySlug(extracted.LandmarkSlug);
+        }
+
+        // 4. Build dynamic smart filter chips based on real results
+        var chips = GeoProximityHelper.BuildSmartFilterChips(
+            properties,
+            queryKeyword: extracted.DestinationKeyword,
+            targetLandmark: matchedLandmark,
+            currentRentalType: extracted.RentalType);
+
+        // 5. Build conversational summary message
+        var summary = BuildSmartSearchSummary(rawQuery, extracted, properties.Count, matchedLandmark);
+
+        var response = new AiSmartSearchResponseDto
+        {
+            Query = rawQuery,
+            SummaryMessage = summary,
+            ExtractedFilters = extracted,
+            SuggestedFilterChips = chips,
+            Properties = properties,
+            TotalResults = properties.Count
+        };
+
+        return Ok(response);
+    }
+
+    private AiSmartExtractedFiltersDto ExtractSmartSearchCriteria(string rawQuery, string normQuery)
+    {
+        var criteria = new AiSmartExtractedFiltersDto();
+
+        // Rental type extraction
+        if (normQuery.Contains("theo gio") || normQuery.Contains("hourly") || Regex.IsMatch(normQuery, @"\b\d+h\b") || normQuery.Contains("vai tieng"))
+        {
+            criteria.RentalType = RentalType.Hourly;
+        }
+        else if (normQuery.Contains("qua dem") || normQuery.Contains("overnight"))
+        {
+            criteria.RentalType = RentalType.Overnight;
+        }
+        else if (normQuery.Contains("theo ngay") || normQuery.Contains("daily"))
+        {
+            criteria.RentalType = RentalType.Daily;
+        }
+
+        // Property types extraction
+        if (normQuery.Contains("nha nghi") || normQuery.Contains("motel") || normQuery.Contains("guesthouse"))
+        {
+            criteria.PropertyTypes.Add(PropertyType.Motel);
+        }
+        if (normQuery.Contains("khach san") || normQuery.Contains("hotel"))
+        {
+            criteria.PropertyTypes.Add(PropertyType.Hotel);
+        }
+        if (normQuery.Contains("homestay"))
+        {
+            criteria.PropertyTypes.Add(PropertyType.Homestay);
+        }
+        if (normQuery.Contains("resort") || normQuery.Contains("nghi duong"))
+        {
+            criteria.PropertyTypes.Add(PropertyType.Resort);
+        }
+        if (normQuery.Contains("villa") || normQuery.Contains("biet thu"))
+        {
+            criteria.PropertyTypes.Add(PropertyType.Villa);
+        }
+
+        // Number of guests extraction
+        var guestMatch = Regex.Match(normQuery, @"(\d+)\s*(nguoi|khach|ng\b)");
+        if (guestMatch.Success && int.TryParse(guestMatch.Groups[1].Value, out var guests))
+        {
+            criteria.MinGuests = guests;
+        }
+
+        // Price extraction
+        if (normQuery.Contains("gia re") || normQuery.Contains("tiet kiem") || normQuery.Contains("binh dan"))
+        {
+            criteria.MaxPrice = criteria.RentalType == RentalType.Hourly ? 150000m : 450000m;
+        }
+        else
+        {
+            var priceMatch = Regex.Match(normQuery, @"duoi\s*(\d+(?:[.,]\d+)?)\s*(k|trieu|tr\b)", RegexOptions.IgnoreCase);
+            if (priceMatch.Success)
+            {
+                var numStr = priceMatch.Groups[1].Value.Replace(',', '.');
+                if (decimal.TryParse(numStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var num))
+                {
+                    var unit = priceMatch.Groups[2].Value.ToLowerInvariant();
+                    criteria.MaxPrice = unit switch
+                    {
+                        "k" => num * 1000m,
+                        "trieu" or "tr" => num * 1000000m,
+                        _ => num
+                    };
+                }
+            }
+        }
+
+        // Landmark / Destination extraction
+        var landmark = _locationService.FindLandmark(rawQuery);
+        if (landmark != null)
+        {
+            criteria.LandmarkSlug = landmark.Slug;
+            criteria.LandmarkName = landmark.Name;
+            criteria.DestinationKeyword = landmark.Name;
+            criteria.TouristZoneSlug = landmark.TouristZoneSlug;
+            criteria.ProvinceCode = landmark.ProvinceCode;
+            criteria.MaxDistanceMeters = 3000.0; // default 3km for landmark search
+        }
+        else
+        {
+            var zone = _locationService.FindTouristZone(rawQuery);
+            if (zone != null)
+            {
+                criteria.TouristZoneSlug = zone.Slug;
+                criteria.DestinationKeyword = zone.Name;
+                criteria.ProvinceCode = zone.ProvinceCode;
+            }
+            else
+            {
+                // Check provinces
+                var prov = _locationService.GetProvinces()
+                    .FirstOrDefault(p => normQuery.Contains(VietnameseTextNormalizer.Normalize(p.Name)));
+                if (prov != null)
+                {
+                    criteria.ProvinceCode = prov.Code;
+                    criteria.DestinationKeyword = prov.Name;
+                }
+                else
+                {
+                    criteria.DestinationKeyword = rawQuery;
+                }
+            }
+        }
+
+        return criteria;
+    }
+
+    private static string BuildSmartSearchSummary(
+        string rawQuery,
+        AiSmartExtractedFiltersDto criteria,
+        int resultCount,
+        LandmarkDto? matchedLandmark)
+    {
+        var dest = matchedLandmark != null
+            ? $"khu vực gần {matchedLandmark.Name}"
+            : (!string.IsNullOrWhiteSpace(criteria.DestinationKeyword) ? criteria.DestinationKeyword : "hệ thống");
+
+        var modeStr = criteria.RentalType switch
+        {
+            RentalType.Hourly => "thuê theo giờ",
+            RentalType.Overnight => "thuê qua đêm",
+            RentalType.Daily => "thuê theo ngày",
+            _ => "lưu trú linh hoạt"
+        };
+
+        var priceNote = criteria.MaxPrice.HasValue ? $" với mức giá ưu đãi (dưới {criteria.MaxPrice.Value:N0}đ)" : "";
+
+        if (resultCount > 0)
+        {
+            return $"Dạ chào Quý khách! Em đã tìm thấy {resultCount} cơ sở lưu trú phù hợp tại {dest} ({modeStr}{priceNote}). " +
+                   "Dưới đây là danh sách các phòng còn trống đã được hệ thống xác thực giá trực tiếp từ cơ sở, Quý khách có thể bấm vào các gợi ý bộ lọc bên dưới để thu hẹp kết quả nhé!";
+        }
+
+        return $"Dạ chào Quý khách! Hiện tại khu vực {dest} với tiêu chí {modeStr}{priceNote} đang có ít cơ sở mở bán trực tuyến. " +
+               "Em đã mở rộng bán kính tìm kiếm sang các cơ sở lân cận trong cùng khu vực để Quý khách tiện tham khảo thêm ạ!";
+    }
+}
+
+public sealed class AiSmartSearchRequest
+{
+    public string Query { get; set; } = string.Empty;
+    public double? UserLatitude { get; set; }
+    public double? UserLongitude { get; set; }
 }
 
 public sealed class AiConciergeRequest

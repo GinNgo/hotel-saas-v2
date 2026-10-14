@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Properties.DTOs;
+using HotelSaas.Application.Public.Services;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using MediatR;
@@ -84,6 +85,11 @@ public sealed class UpdatePropertyCommandHandler : IRequestHandler<UpdatePropert
         property.Latitude = request.Latitude;
         property.Longitude = request.Longitude;
         property.UpdatedAtUtc = DateTime.UtcNow;
+
+        if (string.IsNullOrWhiteSpace(property.NearbyLandmarksJson))
+        {
+            GeoProximityHelper.AutoMatchNearbyLandmarks(property, _locationService);
+        }
 
         await _context.SaveChangesAsync(cancellationToken);
 

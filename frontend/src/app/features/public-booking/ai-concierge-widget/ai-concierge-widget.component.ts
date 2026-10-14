@@ -1,14 +1,16 @@
-import { Component, Input, inject, signal } from '@angular/core';
+import { Component, Input, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AiService } from '../../../core/services/ai.service';
 import { AiConciergeResponse, SuggestedRoomCardDto } from '../../../core/models/ai.model';
+import { SuggestedFilterChipDto, AiSmartSearchResponseDto } from '../../../core/models/public-booking.model';
 
 interface ChatMessage {
   sender: 'ai' | 'user';
   text: string;
   time: string;
   suggestedRooms?: SuggestedRoomCardDto[];
+  suggestedChips?: SuggestedFilterChipDto[];
 }
 
 @Component({
@@ -105,6 +107,21 @@ interface ChatMessage {
                       </div>
                     }
 
+                    <!-- Suggested Smart Filter Chips -->
+                    @if (msg.suggestedChips && msg.suggestedChips.length > 0) {
+                      <div class="flex flex-wrap gap-1.5 pt-1.5">
+                        @for (chip of msg.suggestedChips; track chip.id) {
+                          <button
+                            type="button"
+                            (click)="onChipClick(chip)"
+                            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
+                          >
+                            <span>{{ chip.label }}</span>
+                          </button>
+                        }
+                      </div>
+                    }
+
                     <div class="text-[9px] text-slate-400 pl-1">{{ msg.time }}</div>
                   </div>
                 </div>
@@ -195,6 +212,7 @@ interface ChatMessage {
 })
 export class AiConciergeWidgetComponent {
   @Input() propertySlug?: string;
+  readonly applyFilterChip = output<SuggestedFilterChipDto>();
 
   private readonly aiService = inject(AiService);
 
@@ -219,6 +237,10 @@ export class AiConciergeWidgetComponent {
     this.sendMessage();
   }
 
+  onChipClick(chip: SuggestedFilterChipDto): void {
+    this.applyFilterChip.emit(chip);
+  }
+
   sendMessage(): void {
     const text = this.userInput.trim();
     if (!text || this.isLoading()) return;
@@ -230,30 +252,74 @@ export class AiConciergeWidgetComponent {
     this.userInput = '';
     this.isLoading.set(true);
 
-    this.aiService.askConcierge(text, this.propertySlug).subscribe({
-      next: (res: AiConciergeResponse) => {
-        this.isLoading.set(false);
-        this.messages.update(list => [
-          ...list,
-          {
-            sender: 'ai',
-            text: res.reply,
-            time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-            suggestedRooms: res.suggestedRooms
-          }
-        ]);
-      },
-      error: () => {
-        this.isLoading.set(false);
-        this.messages.update(list => [
-          ...list,
-          {
-            sender: 'ai',
-            text: 'Dạ em xin lỗi, kết nối tới hệ thống AI đang bị gián đoạn đôi chút. Quý khách vui lòng chọn các bộ lọc tìm kiếm trực tiếp trên trang hoặc thử lại sau giây lát nhé!',
-            time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-          }
-        ]);
-      }
-    });
+    if (this.propertySlug) {
+      this.aiService.askConcierge(text, this.propertySlug).subscribe({
+        next: (res: AiConciergeResponse) => {
+          this.isLoading.set(false);
+          this.messages.update(list => [
+            ...list,
+            {
+              sender: 'ai',
+              text: res.reply,
+              time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+              suggestedRooms: res.suggestedRooms
+            }
+          ]);
+        },
+        error: () => {
+          this.isLoading.set(false);
+          this.messages.update(list => [
+            ...list,
+            {
+              sender: 'ai',
+              text: 'Dạ em xin lỗi, kết nối tới hệ thống AI đang bị gián đoạn đôi chút. Quý khách vui lòng chọn các bộ lọc tìm kiếm trực tiếp trên trang hoặc thử lại sau giây lát nhé!',
+              time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+            }
+          ]);
+        }
+      });
+    } else {
+      this.aiService.smartSearch(text).subscribe({
+        next: (res: AiSmartSearchResponseDto) => {
+          this.isLoading.set(false);
+          this.messages.update(list => [
+            ...list,
+            {
+              sender: 'ai',
+              text: res.summaryMessage || `Em đã tìm thấy ${res.totalResults} cơ sở phù hợp với yêu cầu của Quý khách. Quý khách có thể bấm vào các gợi ý bộ lọc bên dưới để thu hẹp kết quả:`,
+              time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+              suggestedChips: res.suggestedFilterChips
+            }
+          ]);
+        },
+        error: () => {
+          this.aiService.askConcierge(text).subscribe({
+            next: (res: AiConciergeResponse) => {
+              this.isLoading.set(false);
+              this.messages.update(list => [
+                ...list,
+                {
+                  sender: 'ai',
+                  text: res.reply,
+                  time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+                  suggestedRooms: res.suggestedRooms
+                }
+              ]);
+            },
+            error: () => {
+              this.isLoading.set(false);
+              this.messages.update(list => [
+                ...list,
+                {
+                  sender: 'ai',
+                  text: 'Dạ em xin lỗi, kết nối tới hệ thống AI đang bị gián đoạn đôi chút. Quý khách vui lòng chọn các bộ lọc tìm kiếm trực tiếp trên trang hoặc thử lại sau giây lát nhé!',
+                  time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                }
+              ]);
+            }
+          });
+        }
+      });
+    }
   }
 }

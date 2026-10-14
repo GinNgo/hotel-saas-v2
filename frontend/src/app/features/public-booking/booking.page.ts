@@ -20,6 +20,7 @@ import {
   PublicPropertyDto,
   PublicRoomTypeAvailabilityDto,
   RentalType,
+  SuggestedFilterChipDto,
 } from '../../core/models/public-booking.model';
 import { PublicBookingService } from '../../core/services/public-booking.service';
 import { AlertService } from '../../core/services/alert.service';
@@ -96,6 +97,46 @@ interface TenantBrandFacet {
             (selectDestination)="onPopularDestinationClick($event)"
           />
         </div>
+
+        <!-- SMART AI FILTER CHIPS ROW -->
+        @if (smartFilterChips().length > 0) {
+          <div
+            class="mb-6 bg-white p-3.5 rounded-2xl border border-indigo-100 shadow-sm flex items-center gap-2 overflow-x-auto"
+            aria-label="Gợi ý bộ lọc thông minh AI"
+          >
+            <div class="flex items-center gap-1.5 text-xs font-bold text-indigo-700 shrink-0 mr-1">
+              <i class="pi pi-sparkles text-amber-500"></i>
+              <span>Gợi ý AI & Gần đó:</span>
+            </div>
+            <div class="flex items-center gap-2 flex-nowrap">
+              @for (chip of smartFilterChips(); track chip.id) {
+                <button
+                  type="button"
+                  (click)="onSmartChipClick(chip)"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border whitespace-nowrap"
+                  [class.bg-indigo-600]="isChipActive(chip)"
+                  [class.text-white]="isChipActive(chip)"
+                  [class.border-indigo-600]="isChipActive(chip)"
+                  [class.bg-indigo-50]="!isChipActive(chip)"
+                  [class.text-indigo-900]="!isChipActive(chip)"
+                  [class.border-indigo-200]="!isChipActive(chip)"
+                  [class.hover:bg-indigo-100]="!isChipActive(chip)"
+                >
+                  <span>{{ chip.label }}</span>
+                  @if (chip.count) {
+                    <span
+                      class="text-[10px] px-1.5 py-0.2 rounded-full"
+                      [class.bg-white/20]="isChipActive(chip)"
+                      [class.bg-indigo-200/80]="!isChipActive(chip)"
+                    >
+                      {{ chip.count }}
+                    </span>
+                  }
+                </button>
+              }
+            </div>
+          </div>
+        }
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <!-- SIDEBAR BỘ LỌC CHUYÊN SÂU (3 CỘT) -->
@@ -335,6 +376,24 @@ interface TenantBrandFacet {
 
                         <!-- Badges Khu vực Du lịch & Khoảng cách tới Địa danh -->
                         <div class="flex flex-wrap items-center gap-2 mt-3">
+                          @if (property.isExpandedNearbySuggestion) {
+                            <span
+                              class="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200"
+                            >
+                              <i class="pi pi-sparkles text-[11px] text-indigo-600"></i>
+                              <span>Gợi ý mở rộng gần đó</span>
+                            </span>
+                          }
+
+                          @if (property.distanceFormatted) {
+                            <span
+                              class="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200"
+                            >
+                              <i class="pi pi-map-marker text-[11px] text-blue-600"></i>
+                              <span>{{ property.distanceFormatted }}</span>
+                            </span>
+                          }
+
                           @if (property.touristZoneName) {
                             <span
                               class="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200"
@@ -437,7 +496,7 @@ interface TenantBrandFacet {
       </div>
 
       <!-- TRỢ LÝ AI TÌM PHÒNG TIẾNG VIỆT (KHÔNG BỊA GIÁ) -->
-      <app-ai-concierge-widget />
+      <app-ai-concierge-widget (applyFilterChip)="onSmartChipClick($event)" />
 
       <!-- MODAL BỘ SƯU TẬP ẢNH CƠ SỞ -->
       <app-photo-gallery-modal
@@ -474,6 +533,7 @@ export class BookingPageComponent implements OnInit {
   readonly minPrice = signal<number | null>(null);
   readonly maxPrice = signal<number | null>(null);
   readonly sortBy = signal<BookingSortOption>('recommended');
+  readonly smartFilterChips = signal<SuggestedFilterChipDto[]>([]);
 
   // --- SIGNALS QUẢN LÝ MODAL ---
   readonly isGalleryOpen = signal<boolean>(false);
@@ -578,12 +638,16 @@ export class BookingPageComponent implements OnInit {
       if (tenantId && prop.tenantId !== tenantId) {
         return false;
       }
-      // 4. Lọc theo khoảng cách tới địa danh gần nhất
-      if (maxDist !== null && prop.nearbyLandmarks.length > 0) {
-        const minLandmarkDist = Math.min(
-          ...prop.nearbyLandmarks.map((l) => l.distanceMeters)
-        );
-        if (minLandmarkDist > maxDist) return false;
+      // 4. Lọc theo khoảng cách tới địa danh gần nhất hoặc toạ độ GPS
+      if (maxDist !== null) {
+        if (prop.distanceMeters !== undefined && prop.distanceMeters !== null) {
+          if (prop.distanceMeters > maxDist) return false;
+        } else if (prop.nearbyLandmarks.length > 0) {
+          const minLandmarkDist = Math.min(
+            ...prop.nearbyLandmarks.map((l) => l.distanceMeters)
+          );
+          if (minLandmarkDist > maxDist) return false;
+        }
       }
       // 5. Lọc theo ngân sách
       const price = prop.startingPriceForSelectedMode;
@@ -594,6 +658,10 @@ export class BookingPageComponent implements OnInit {
     });
 
     return [...list].sort((a, b) => {
+      // Direct matches come before expanded suggestions
+      if (a.isExpandedNearbySuggestion !== b.isExpandedNearbySuggestion) {
+        return a.isExpandedNearbySuggestion ? 1 : -1;
+      }
       if (sort === 'price_asc') {
         return a.startingPriceForSelectedMode - b.startingPriceForSelectedMode;
       }
@@ -604,8 +672,8 @@ export class BookingPageComponent implements OnInit {
         return b.ratingAverage - a.ratingAverage;
       }
       if (sort === 'distance_asc') {
-        const distA = a.nearbyLandmarks[0]?.distanceMeters ?? 999999;
-        const distB = b.nearbyLandmarks[0]?.distanceMeters ?? 999999;
+        const distA = a.distanceMeters ?? a.nearbyLandmarks[0]?.distanceMeters ?? 999999;
+        const distB = b.distanceMeters ?? b.nearbyLandmarks[0]?.distanceMeters ?? 999999;
         return distA - distB;
       }
       return 0;
@@ -661,6 +729,143 @@ export class BookingPageComponent implements OnInit {
     this.minPrice.set(null);
     this.maxPrice.set(null);
     this.sortBy.set('recommended');
+  }
+
+  // --- SMART AI FILTER CHIPS ---
+  onSmartChipClick(chip: SuggestedFilterChipDto): void {
+    if (chip.filterKey === 'maxDistanceMeters') {
+      const current = this.maxDistanceMeters();
+      this.maxDistanceMeters.set(current === chip.filterValue ? null : chip.filterValue);
+    } else if (chip.filterKey === 'destinationKeyword') {
+      this.searchFilter.update((f) => ({
+        ...f,
+        destinationKeyword: f.destinationKeyword === chip.filterValue ? '' : chip.filterValue,
+      }));
+      this.loadPublicProperties();
+    } else if (chip.filterKey === 'maxPrice') {
+      const current = this.maxPrice();
+      this.maxPrice.set(current === chip.filterValue ? null : chip.filterValue);
+    } else if (chip.filterKey === 'rentalType') {
+      this.searchFilter.update((f) => ({
+        ...f,
+        rentalType: chip.filterValue,
+      }));
+      this.loadPublicProperties();
+    }
+  }
+
+  isChipActive(chip: SuggestedFilterChipDto): boolean {
+    if (chip.filterKey === 'maxDistanceMeters') {
+      return this.maxDistanceMeters() === chip.filterValue;
+    }
+    if (chip.filterKey === 'destinationKeyword') {
+      return this.searchFilter().destinationKeyword === chip.filterValue;
+    }
+    if (chip.filterKey === 'maxPrice') {
+      return this.maxPrice() === chip.filterValue;
+    }
+    if (chip.filterKey === 'rentalType') {
+      return this.searchFilter().rentalType === chip.filterValue;
+    }
+    return false;
+  }
+
+  private generateDynamicChips(props: PublicPropertyDto[]): void {
+    const chips: SuggestedFilterChipDto[] = [];
+    const keyword = this.searchFilter().destinationKeyword;
+
+    if (keyword) {
+      chips.push({
+        id: 'chip-near-1km',
+        label: `📍 Gần ${keyword} (< 1km)`,
+        category: 'nearby',
+        filterKey: 'maxDistanceMeters',
+        filterValue: 1000,
+      });
+      chips.push({
+        id: 'chip-near-3km',
+        label: `📍 Bán kính ${keyword} (< 3km)`,
+        category: 'nearby',
+        filterKey: 'maxDistanceMeters',
+        filterValue: 3000,
+      });
+    }
+
+    // Nearby landmarks appearing in results
+    const landmarkCounts = new Map<string, number>();
+    for (const p of props) {
+      for (const lm of p.nearbyLandmarks) {
+        landmarkCounts.set(lm.landmarkName, (landmarkCounts.get(lm.landmarkName) ?? 0) + 1);
+      }
+    }
+    const topLandmarks = Array.from(landmarkCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2);
+
+    for (const [name, count] of topLandmarks) {
+      chips.push({
+        id: `chip-lm-${name.toLowerCase().replace(/\s+/g, '-')}`,
+        label: `📍 ${name}`,
+        category: 'nearby',
+        filterKey: 'destinationKeyword',
+        filterValue: name,
+        count,
+      });
+    }
+
+    // Price chips
+    const validPrices = props
+      .map((p) => p.startingPriceForSelectedMode)
+      .filter((p) => p > 0);
+
+    if (validPrices.length > 0) {
+      if (this.searchFilter().rentalType === 'Hourly') {
+        chips.push({
+          id: 'chip-price-hourly-120k',
+          label: '💰 Dưới 120k / 2h',
+          category: 'price',
+          filterKey: 'maxPrice',
+          filterValue: 120000,
+        });
+      } else {
+        chips.push({
+          id: 'chip-price-350k',
+          label: '💰 Dưới 350k / đêm',
+          category: 'price',
+          filterKey: 'maxPrice',
+          filterValue: 350000,
+        });
+        chips.push({
+          id: 'chip-price-600k',
+          label: '💰 Dưới 600k / đêm',
+          category: 'price',
+          filterKey: 'maxPrice',
+          filterValue: 600000,
+        });
+      }
+    }
+
+    // Rental type chips
+    if (this.searchFilter().rentalType !== 'Hourly' && props.some((p) => p.allowedRentalTypes.includes('Hourly'))) {
+      chips.push({
+        id: 'chip-mode-hourly',
+        label: '⏰ Có cho thuê theo giờ',
+        category: 'rentalType',
+        filterKey: 'rentalType',
+        filterValue: 'Hourly',
+      });
+    }
+    if (this.searchFilter().rentalType !== 'Overnight' && props.some((p) => p.allowedRentalTypes.includes('Overnight'))) {
+      chips.push({
+        id: 'chip-mode-overnight',
+        label: '🌙 Thuê qua đêm',
+        category: 'rentalType',
+        filterKey: 'rentalType',
+        filterValue: 'Overnight',
+      });
+    }
+
+    this.smartFilterChips.set(chips);
   }
 
   // --- HIỂN THỊ GIÁ LINH HOẠT THEO CHẾ ĐỘ THUÊ ---
@@ -809,6 +1014,9 @@ export class BookingPageComponent implements OnInit {
       touristZoneSlug: filter.touristZoneSlug || undefined,
       landmarkSlug: filter.landmarkSlug || undefined,
       maxDistanceKm: filter.maxDistanceMeters ? filter.maxDistanceMeters / 1000 : undefined,
+      maxDistanceMeters: filter.maxDistanceMeters ?? undefined,
+      userLatitude: filter.userLatitude ?? undefined,
+      userLongitude: filter.userLongitude ?? undefined,
       page: filter.page,
       pageSize: filter.pageSize,
     };
@@ -882,6 +1090,9 @@ export class BookingPageComponent implements OnInit {
               nearbyLandmarks: landmarks,
               startingPriceForSelectedMode: startPrice,
               startingPrice: startPrice,
+              distanceMeters: p.distanceMeters,
+              distanceFormatted: p.distanceFormatted,
+              isExpandedNearbySuggestion: p.isExpandedNearbySuggestion ?? false,
               availableRoomTypes: (p.availableRoomTypes && p.availableRoomTypes.length > 0)
                 ? p.availableRoomTypes.map((rt: any) => ({
                     roomTypeId: rt.roomTypeId || rt.id || 'rt-1',
@@ -913,6 +1124,7 @@ export class BookingPageComponent implements OnInit {
             };
           });
           this.properties.set(mappedList);
+          this.generateDynamicChips(mappedList);
         } else {
           this.loadDemoFallbackProperties();
         }

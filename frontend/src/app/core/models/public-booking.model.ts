@@ -64,6 +64,25 @@ export interface LandmarkDto {
   addressHint?: string;
 }
 
+export interface SuggestedFilterChipDto {
+  id: string;
+  label: string;
+  category: 'nearby' | 'price' | 'rating' | 'rentalType' | 'amenity';
+  filterKey: string;
+  filterValue: any;
+  count?: number;
+  isActive?: boolean;
+}
+
+export interface AiSmartSearchResponseDto {
+  query: string;
+  summaryMessage: string;
+  extractedFilters: any;
+  suggestedFilterChips: SuggestedFilterChipDto[];
+  properties: PublicPropertyDto[];
+  totalResults: number;
+}
+
 export interface PublicBookingSearchFilter {
   rentalType: RentalType;
   destinationKeyword: string;
@@ -79,6 +98,8 @@ export interface PublicBookingSearchFilter {
   guests: number;
   roomsCount: number;
   maxDistanceMeters: number | null;
+  userLatitude?: number | null;
+  userLongitude?: number | null;
   minPrice: number | null;
   maxPrice: number | null;
   sortBy: BookingSortOption;
@@ -159,6 +180,9 @@ export interface PublicPropertyDto {
   overnightStartingPrice?: number;
   dailyStartingPrice?: number;
   availableRoomTypes: PublicRoomTypeAvailabilityDto[];
+  distanceMeters?: number;
+  distanceFormatted?: string;
+  isExpandedNearbySuggestion?: boolean;
 }
 
 export interface PublicPropertiesFilter {

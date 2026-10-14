@@ -121,11 +121,20 @@ export interface DestinationSelection {
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
         <!-- Cột 1: Điểm đến / Địa danh / Khu du lịch / Tên cơ sở (4 cột) -->
         <div class="lg:col-span-4 relative">
-          <label
-            class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
-          >
-            Địa danh, Khu du lịch, Thành phố hoặc Cơ sở
-          </label>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Địa danh, Khu du lịch hoặc Cơ sở
+            </label>
+            <button
+              type="button"
+              (click)="useCurrentLocation()"
+              class="text-xs text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
+              title="Tìm cơ sở lưu trú gần vị trí của tôi"
+            >
+              <i class="pi pi-compass text-xs" [class.pi-spin]="isLocating()"></i>
+              <span>{{ isLocating() ? 'Đang định vị...' : '📍 Gần tôi' }}</span>
+            </button>
+          </div>
           <div class="relative">
             <i
               class="pi pi-map-marker absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-600"
@@ -516,6 +525,8 @@ export class BookingFilterBarComponent {
   readonly guests = signal<number>(2);
   readonly roomsCount = signal<number>(1);
   readonly showSuggestionsDropdown = signal<boolean>(false);
+  readonly isLocating = signal<boolean>(false);
+  readonly userCoords = signal<{ lat: number; lng: number } | null>(null);
 
   // --- COMPUTED SIGNALS ---
   readonly nightCount = computed<number>(() => {
@@ -678,6 +689,36 @@ export class BookingFilterBarComponent {
     this.emitSearch();
   }
 
+  useCurrentLocation(): void {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      alert('Trình duyệt của bạn không hỗ trợ hoặc chưa cấp quyền định vị GPS.');
+      return;
+    }
+
+    this.isLocating.set(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        this.isLocating.set(false);
+        this.userCoords.set({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        });
+        this.destinationKeyword.set('Vị trí hiện tại của tôi (GPS)');
+        this.selectedProvinceCode.set(null);
+        this.selectedTouristZoneSlug.set(null);
+        this.selectedLandmarkSlug.set(null);
+        this.showSuggestionsDropdown.set(false);
+        this.emitSearch();
+      },
+      (err) => {
+        this.isLocating.set(false);
+        console.warn('Geolocation error:', err);
+        alert('Không thể lấy vị trí hiện tại. Vui lòng cấp quyền truy cập vị trí trên trình duyệt.');
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  }
+
   emitSearch(): void {
     this.showSuggestionsDropdown.set(false);
     this.filterChange.emit({
@@ -695,6 +736,8 @@ export class BookingFilterBarComponent {
       guests: this.guests(),
       roomsCount: this.roomsCount(),
       maxDistanceMeters: null,
+      userLatitude: this.userCoords()?.lat ?? null,
+      userLongitude: this.userCoords()?.lng ?? null,
       minPrice: null,
       maxPrice: null,
       sortBy: 'recommended',

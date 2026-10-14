@@ -15,12 +15,33 @@ public sealed record WardDto(string Code, string Name, string Type, string Provi
 /// <summary>
 /// Data transfer object representing a recognized tourist zone or destination area.
 /// </summary>
-public sealed record TouristZoneDto(string Slug, string Name, string ProvinceCode, string? Description = null, string? ImageUrl = null);
+public sealed record TouristZoneDto(
+    string Slug,
+    string Name,
+    string ProvinceCode,
+    string? Description = null,
+    string? ImageUrl = null,
+    double? CenterLatitude = null,
+    double? CenterLongitude = null,
+    IReadOnlyList<string>? WardCodes = null,
+    string? Code = null);
 
 /// <summary>
 /// Data transfer object representing a prominent tourist landmark or point of interest.
 /// </summary>
-public sealed record LandmarkDto(string Slug, string Name, string Category, string ProvinceCode, string? TouristZoneSlug, double Latitude, double Longitude, string? Address = null);
+public sealed record LandmarkDto(
+    string Slug,
+    string Name,
+    string Category,
+    string ProvinceCode,
+    string? TouristZoneSlug,
+    double Latitude,
+    double Longitude,
+    string? Address = null,
+    string? NormalizedName = null,
+    IReadOnlyList<string>? Aliases = null,
+    string? WardCode = null,
+    int PopularSearchRank = 0);
 
 /// <summary>
 /// Interface for reading and resolving standardized 2-level Vietnamese administrative locations,
@@ -70,6 +91,11 @@ public interface ILocationLookupService
     TouristZoneDto? GetTouristZoneBySlug(string slug);
 
     /// <summary>
+    /// Finds a recognized tourist zone by slug, name, or normalized text.
+    /// </summary>
+    TouristZoneDto? FindTouristZone(string query);
+
+    /// <summary>
     /// Gets prominent landmarks, optionally filtered by province or tourist zone.
     /// </summary>
     IReadOnlyList<LandmarkDto> GetLandmarks(string? provinceCode = null, string? touristZoneSlug = null);
@@ -78,4 +104,14 @@ public interface ILocationLookupService
     /// Finds a landmark by its unique URL slug.
     /// </summary>
     LandmarkDto? GetLandmarkBySlug(string slug);
+
+    /// <summary>
+    /// Searches for a recognized landmark by slug, name, normalized name, or common aliases.
+    /// </summary>
+    LandmarkDto? FindLandmark(string query);
+
+    /// <summary>
+    /// Searches prominent landmarks matching query keyword and optional province code.
+    /// </summary>
+    IReadOnlyList<LandmarkDto> SearchLandmarks(string query, string? provinceCode = null, int maxResults = 10);
 }

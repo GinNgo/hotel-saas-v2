@@ -12,11 +12,14 @@ using HotelSaas.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
+using HotelSaas.Application.Public.Services;
+
 namespace HotelSaas.Application.Public.Queries.GetPublicProperties;
 
 /// <summary>
 /// Query to retrieve active properties available for public discovery.
-/// Supports search, destination keyword, property type filters, rental types, tourist zones, and landmarks.
+/// Supports search, destination keyword, property type filters, rental types, tourist zones, landmarks,
+/// user GPS coordinates, and smart fallback recommendations.
 /// </summary>
 public sealed record GetPublicPropertiesQuery(
     string? Search = null,
@@ -25,7 +28,10 @@ public sealed record GetPublicPropertiesQuery(
     RentalType? RentalType = null,
     string? TouristZoneSlug = null,
     string? LandmarkSlug = null,
-    double? MaxDistanceKm = null) : IRequest<IReadOnlyList<PublicPropertyDto>>;
+    double? MaxDistanceKm = null,
+    double? MaxDistanceMeters = null,
+    double? UserLatitude = null,
+    double? UserLongitude = null) : IRequest<IReadOnlyList<PublicPropertyDto>>;
 
 public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicPropertiesQuery, IReadOnlyList<PublicPropertyDto>>
 {
@@ -42,17 +48,46 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        // 1. Query active properties
+        // 1. Resolve Landmark and Tourist Zone if provided or matching DestinationKeyword
+        LandmarkDto? targetLandmark = null;
+        string? effectiveZoneSlug = request.TouristZoneSlug?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(request.LandmarkSlug) && _locationService != null)
+        {
+            targetLandmark = _locationService.GetLandmarkBySlug(request.LandmarkSlug.Trim());
+            if (targetLandmark != null && string.IsNullOrEmpty(effectiveZoneSlug) && !string.IsNullOrEmpty(targetLandmark.TouristZoneSlug))
+            {
+                effectiveZoneSlug = targetLandmark.TouristZoneSlug;
+            }
+        }
+
+        if (targetLandmark == null && !string.IsNullOrWhiteSpace(request.DestinationKeyword) && _locationService != null)
+        {
+            targetLandmark = _locationService.FindLandmark(request.DestinationKeyword.Trim());
+            if (targetLandmark != null && string.IsNullOrEmpty(effectiveZoneSlug) && !string.IsNullOrEmpty(targetLandmark.TouristZoneSlug))
+            {
+                effectiveZoneSlug = targetLandmark.TouristZoneSlug;
+            }
+            else if (string.IsNullOrEmpty(effectiveZoneSlug))
+            {
+                var zone = _locationService.FindTouristZone(request.DestinationKeyword.Trim());
+                if (zone != null)
+                {
+                    effectiveZoneSlug = zone.Slug;
+                }
+            }
+        }
+
+        // 2. Query active properties
         var query = _context.Properties
             .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(p => p.Status == PropertyStatus.Active);
 
         // Filter by TouristZoneSlug if specified
-        if (!string.IsNullOrWhiteSpace(request.TouristZoneSlug))
+        if (!string.IsNullOrWhiteSpace(effectiveZoneSlug))
         {
-            var zoneSlug = request.TouristZoneSlug.Trim();
-            query = query.Where(p => p.TouristZoneSlug == zoneSlug);
+            query = query.Where(p => p.TouristZoneSlug == effectiveZoneSlug);
         }
 
         // Filter by PropertyTypes if specified
@@ -85,6 +120,26 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
             .ThenBy(p => p.Id)
             .ToListAsync(cancellationToken);
 
+        // If filtering by zone returned empty and we had an effectiveZoneSlug, fallback to all active properties
+        if (rawProperties.Count == 0 && !string.IsNullOrWhiteSpace(effectiveZoneSlug))
+        {
+            var fallbackQuery = _context.Properties
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(p => p.Status == PropertyStatus.Active);
+
+            if (request.RentalType.HasValue)
+            {
+                switch (request.RentalType.Value)
+                {
+                    case RentalType.Hourly: fallbackQuery = fallbackQuery.Where(p => p.AllowHourlyBooking); break;
+                    case RentalType.Overnight: fallbackQuery = fallbackQuery.Where(p => p.AllowOvernightBooking); break;
+                    case RentalType.Daily: fallbackQuery = fallbackQuery.Where(p => p.AllowDailyBooking); break;
+                }
+            }
+            rawProperties = await fallbackQuery.ToListAsync(cancellationToken);
+        }
+
         if (rawProperties.Count == 0)
         {
             return Array.Empty<PublicPropertyDto>();
@@ -92,7 +147,7 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
 
         var propertyIds = rawProperties.Select(p => p.Id).ToList();
 
-        // 2. Load active rates to compute starting prices
+        // 3. Load active rates to compute starting prices
         var rates = await _context.RoomTypeRates
             .IgnoreQueryFilters()
             .AsNoTracking()
@@ -102,14 +157,22 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
         var ratesByProperty = rates.GroupBy(r => r.PropertyId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        // 3. Resolve Landmark if LandmarkSlug was queried
-        LandmarkDto? targetLandmark = null;
-        if (!string.IsNullOrWhiteSpace(request.LandmarkSlug) && _locationService != null)
+        // Determine reference point for proximity calculation
+        double? refLat = null;
+        double? refLon = null;
+
+        if (targetLandmark != null)
         {
-            targetLandmark = _locationService.GetLandmarkBySlug(request.LandmarkSlug.Trim());
+            refLat = targetLandmark.Latitude;
+            refLon = targetLandmark.Longitude;
+        }
+        else if (request.UserLatitude.HasValue && request.UserLongitude.HasValue)
+        {
+            refLat = request.UserLatitude.Value;
+            refLon = request.UserLongitude.Value;
         }
 
-        var dtoList = new List<PublicPropertyDto>(rawProperties.Count);
+        var allDtos = new List<PublicPropertyDto>(rawProperties.Count);
 
         foreach (var p in rawProperties)
         {
@@ -151,17 +214,18 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
                 nearestLandmarkInfo = $"{closest.DistanceFormatted} {closest.Name}";
             }
 
-            // Check distance to target landmark if requested
-            if (targetLandmark != null && p.Latitude.HasValue && p.Longitude.HasValue)
+            // Calculate distance to reference point if available
+            double? distanceMeters = null;
+            string? distanceFormatted = null;
+
+            if (refLat.HasValue && refLon.HasValue && p.Latitude.HasValue && p.Longitude.HasValue)
             {
-                var distKm = CalculateDistanceKm(p.Latitude.Value, p.Longitude.Value, targetLandmark.Latitude, targetLandmark.Longitude);
-                if (request.MaxDistanceKm.HasValue && distKm > request.MaxDistanceKm.Value)
-                {
-                    continue; // Skip properties outside max distance
-                }
+                var meters = GeoProximityHelper.CalculateDistanceMeters(refLat.Value, refLon.Value, p.Latitude.Value, p.Longitude.Value);
+                distanceMeters = Math.Round(meters);
+                distanceFormatted = GeoProximityHelper.FormatDistance(meters);
             }
 
-            dtoList.Add(new PublicPropertyDto
+            allDtos.Add(new PublicPropertyDto
             {
                 Id = p.Id,
                 Name = p.Name,
@@ -189,16 +253,73 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
                 DailyStartingPrice = dailyStart,
                 StartingPrice = startingPrice,
                 NearbyLandmarks = nearbyLandmarks,
-                NearestLandmarkInfo = nearestLandmarkInfo
+                NearestLandmarkInfo = nearestLandmarkInfo,
+                DistanceMeters = distanceMeters,
+                DistanceFormatted = distanceFormatted,
+                IsExpandedNearbySuggestion = false
             });
         }
 
-        // 4. Search and filter by Search keyword or DestinationKeyword
+        // 4. Proximity distance constraint and Smart Radius Fallback
+        double? maxAllowedMeters = request.MaxDistanceMeters;
+        if (!maxAllowedMeters.HasValue && request.MaxDistanceKm.HasValue)
+        {
+            maxAllowedMeters = request.MaxDistanceKm.Value * 1000.0;
+        }
+
+        var resultList = new List<PublicPropertyDto>();
+
+        if (maxAllowedMeters.HasValue && refLat.HasValue && refLon.HasValue)
+        {
+            var directMatches = allDtos
+                .Where(d => d.DistanceMeters.HasValue && d.DistanceMeters.Value <= maxAllowedMeters.Value)
+                .OrderBy(d => d.DistanceMeters!.Value)
+                .ToList();
+
+            resultList.AddRange(directMatches);
+
+            // Smart Radius Fallback: If narrow radius returns fewer than 2 properties, include expanded suggestions
+            if (directMatches.Count < 2)
+            {
+                var fallbackCandidates = allDtos
+                    .Where(d => !directMatches.Any(m => m.Id == d.Id))
+                    .OrderBy(d => d.DistanceMeters ?? 9999999.0)
+                    .Take(4)
+                    .ToList();
+
+                foreach (var fb in fallbackCandidates)
+                {
+                    fb.IsExpandedNearbySuggestion = true;
+                    resultList.Add(fb);
+                }
+            }
+        }
+        else
+        {
+            resultList = allDtos;
+        }
+
+        // 5. Search and filter by Search keyword or DestinationKeyword
         var effectiveQuery = !string.IsNullOrWhiteSpace(request.DestinationKeyword)
             ? request.DestinationKeyword
             : request.Search;
 
-        return FilterAndRank(dtoList, effectiveQuery);
+        // If the query was purely a landmark name and we already resolved it, avoid over-filtering with text search
+        if (targetLandmark != null && !string.IsNullOrWhiteSpace(effectiveQuery) &&
+            VietnameseTextNormalizer.Matches(targetLandmark.Name, effectiveQuery.Trim()))
+        {
+            // If sorted by distance, keep distance order
+            if (refLat.HasValue && refLon.HasValue)
+            {
+                return resultList
+                    .OrderBy(d => d.IsExpandedNearbySuggestion ? 1 : 0)
+                    .ThenBy(d => d.DistanceMeters ?? 999999.0)
+                    .ToList();
+            }
+            return resultList;
+        }
+
+        return FilterAndRank(resultList, effectiveQuery);
     }
 
     private List<PublicLandmarkDistanceDto> ResolveLandmarks(Property property)

@@ -115,7 +115,8 @@ public sealed class GetPublicPropertiesSerializationTests
         "allowHourlyBooking",
         "allowOvernightBooking",
         "allowDailyBooking",
-        "nearbyLandmarks"
+        "nearbyLandmarks",
+        "isExpandedNearbySuggestion"
     };
 
     private static readonly HashSet<string> AllowedKeysWhenNullIncluded = new(StringComparer.Ordinal)
@@ -146,7 +147,10 @@ public sealed class GetPublicPropertiesSerializationTests
         "dailyStartingPrice",
         "startingPrice",
         "nearbyLandmarks",
-        "nearestLandmarkInfo"
+        "nearestLandmarkInfo",
+        "distanceMeters",
+        "distanceFormatted",
+        "isExpandedNearbySuggestion"
     };
 
     private static readonly string[] ForbiddenInternalFieldSubstrings = new[]
