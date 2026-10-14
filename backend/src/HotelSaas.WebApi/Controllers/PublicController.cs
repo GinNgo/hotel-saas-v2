@@ -162,6 +162,7 @@ public sealed class PublicController : ControllerBase
     /// Calculates authoritative quote using the core pricing engine.
     /// </summary>
     [HttpPost("quotes/calculate")]
+    [HttpPost("quotes")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(QuoteDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

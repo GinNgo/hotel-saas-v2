@@ -51,22 +51,86 @@ export const routes: Routes = [
     ]
   },
 
-  // 4. Public Booking & Guest Portal (Trang chủ khách sạn)
+  // 4. Public Booking & Guest Portal (Trang chủ khách sạn & Trải nghiệm Khách lưu trú)
   {
     path: 'booking',
-    loadComponent: () => import('./features/public-booking/booking.page').then(m => m.BookingPage)
-  },
-  {
-    path: 'booking/hold/:token',
-    loadComponent: () => import('./features/public-booking/booking-hold.page').then(m => m.BookingHoldPage)
-  },
-  {
-    path: 'booking/lookup',
-    loadComponent: () => import('./features/public-booking/booking-status.page').then(m => m.BookingStatusPage)
-  },
-  {
-    path: 'booking/status/:token',
-    loadComponent: () => import('./features/public-booking/booking-status.page').then(m => m.BookingStatusPage)
+    loadComponent: () =>
+      import('./layouts/guest-layout/guest-layout').then(m => m.GuestLayoutComponent),
+    children: [
+      {
+        path: '',
+        loadComponent: () =>
+          import('./features/public-booking/booking.page').then(m => m.BookingPageComponent)
+      },
+      {
+        path: 'destinations',
+        loadComponent: () =>
+          import('./features/public-booking/destination-explore.page').then(
+            m => m.DestinationExplorePageComponent
+          )
+      },
+      {
+        path: 'destinations/:slug',
+        loadComponent: () =>
+          import('./features/public-booking/destination-explore.page').then(
+            m => m.DestinationExplorePageComponent
+          )
+      },
+      {
+        path: 'brands',
+        loadComponent: () =>
+          import('./features/public-booking/tenant-brand.page').then(
+            m => m.TenantBrandPageComponent
+          )
+      },
+      {
+        path: 'brands/:tenantSlug',
+        loadComponent: () =>
+          import('./features/public-booking/tenant-brand.page').then(
+            m => m.TenantBrandPageComponent
+          )
+      },
+      {
+        path: 'properties/:slug',
+        loadComponent: () =>
+          import('./features/public-booking/property-detail.page').then(
+            m => m.PropertyDetailPageComponent
+          )
+      },
+      {
+        path: 'deals',
+        loadComponent: () =>
+          import('./features/public-booking/promotions.page').then(m => m.PromotionsPageComponent)
+      },
+      {
+        path: 'lookup',
+        loadComponent: () =>
+          import('./features/public-booking/booking-lookup.page').then(
+            m => m.BookingLookupPageComponent
+          )
+      },
+      {
+        path: 'hold',
+        loadComponent: () =>
+          import('./features/public-booking/booking-hold.page').then(
+            m => m.BookingHoldPageComponent
+          )
+      },
+      {
+        path: 'hold/:token',
+        loadComponent: () =>
+          import('./features/public-booking/booking-hold.page').then(
+            m => m.BookingHoldPageComponent
+          )
+      },
+      {
+        path: 'status/:token',
+        loadComponent: () =>
+          import('./features/public-booking/booking-status.page').then(
+            m => m.BookingStatusPageComponent
+          )
+      }
+    ]
   },
 
   // 5. Admin Management Routes (Hỗ trợ tiền tố /admin/...)

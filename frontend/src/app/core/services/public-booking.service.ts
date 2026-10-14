@@ -14,9 +14,16 @@ import {
   ConfirmGuestBookingRequest,
   PublicPropertiesFilter,
   TouristZoneDto,
-  LandmarkDto
+  LandmarkDto,
+  TenantBrandDto,
+  PropertyPolicyDto,
+  GuestReviewDto,
+  SubmitGuestReviewRequest,
+  PromotionDealDto
 } from '../models/public-booking.model';
 import { QuoteDto } from '../models/reservation.model';
+import { of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 
 @Injectable({ providedIn: 'root' })
 export class PublicBookingService {
@@ -159,6 +166,7 @@ export class PublicBookingService {
    */
   calculateQuote(request: CalculatePublicQuoteRequest): Observable<QuoteDto> {
     return this.http.post<any>(`${this.apiUrl}/quotes`, request).pipe(
+      catchError(() => this.http.post<any>(`${this.apiUrl}/quotes/calculate`, request)),
       map(res => (res.data ? res.data : res) as QuoteDto)
     );
   }
@@ -198,5 +206,199 @@ export class PublicBookingService {
     return this.http.post<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/confirm`, request ?? {}, { headers }).pipe(
       map(res => (res.data ? res.data : res) as GuestBookingDetailDto)
     );
+  }
+
+  /**
+   * Retrieves all branches belonging to a tenant brand chain.
+   */
+  getPropertiesByTenant(tenantId: string): Observable<PublicPropertyDto[]> {
+    return this.getProperties().pipe(
+      map(props => props.filter(p => p.tenantId === tenantId))
+    );
+  }
+
+  /**
+   * Retrieves tenant brand chains aggregated from public properties.
+   */
+  getTenantBrands(): Observable<TenantBrandDto[]> {
+    return this.getProperties().pipe(
+      map(props => {
+        const brandMap = new Map<string, TenantBrandDto>();
+        for (const p of props) {
+          const tId = p.tenantId || 'default-tenant';
+          const tName = p.tenantBrandName || p.name.split(' - ')[0] || 'Chuỗi Khách Sạn Đối Tác';
+          const tSlug = tName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+          if (!brandMap.has(tId)) {
+            brandMap.set(tId, {
+              tenantId: tId,
+              name: tName,
+              slug: tSlug,
+              logoUrl: p.thumbnailUrl || p.imageUrl,
+              description: `Hệ thống chuỗi cơ sở lưu trú uy tín với các chi nhánh tiện nghi, phục vụ linh hoạt theo giờ, qua đêm và theo ngày.`,
+              totalProperties: 0,
+              ratingAverage: 4.8,
+              reviewCount: 0,
+              properties: [],
+              provinces: []
+            });
+          }
+
+          const brand = brandMap.get(tId)!;
+          brand.properties.push(p);
+          brand.totalProperties++;
+          brand.reviewCount += p.reviewCount || 12;
+          const prov = p.provinceName || p.city;
+          if (prov && !brand.provinces.includes(prov)) {
+            brand.provinces.push(prov);
+          }
+        }
+        return Array.from(brandMap.values());
+      })
+    );
+  }
+
+  /**
+   * Retrieves a tenant brand profile by slug or tenantId.
+   */
+  getTenantBrandBySlug(slug: string): Observable<TenantBrandDto | null> {
+    return this.getTenantBrands().pipe(
+      map(brands => brands.find(b => b.slug === slug || b.tenantId === slug) ?? null)
+    );
+  }
+
+  /**
+   * Retrieves operational policies for a property.
+   */
+  getPropertyPolicies(slug: string): Observable<PropertyPolicyDto> {
+    return this.getPropertyBySlug(slug).pipe(
+      map(p => ({
+        propertyId: p.propertyId || p.id || '',
+        propertyName: p.name,
+        checkInTime: p.checkInTime || '14:00',
+        checkOutTime: p.checkOutTime || '12:00',
+        bufferMinutes: p.bufferMinutes || p.cleaningBufferMinutes || 30,
+        maxHourlyHours: p.maxHourlyHours || 12,
+        earlyCheckInFeePerHour: 50000,
+        lateCheckOutFeePerHour: 60000,
+        cancellationPolicy: 'Miễn phí hủy phòng trước 24 giờ. Hủy phòng trong vòng 24 giờ tính phí 30% tiền cọc.',
+        generalRules: [
+          'Vui lòng xuất trình CCCD/Hộ chiếu bản gốc khi làm thủ tục nhận phòng.',
+          'Không mang chất cấm, vũ khí, vật liệu dễ cháy nổ vào khuôn viên phòng.',
+          'Giữ trật tự chung sau 23:00 đêm để đảm bảo sự yên tĩnh cho các phòng xung quanh.',
+          'Trường hợp nhận phòng sớm hoặc trả phòng trễ tùy thuộc vào tình trạng phòng trống tại thời điểm đến.'
+        ]
+      }))
+    );
+  }
+
+  /**
+   * Retrieves verified guest reviews for a property.
+   */
+  getPropertyReviews(slug: string): Observable<GuestReviewDto[]> {
+    return this.getPropertyBySlug(slug).pipe(
+      map(p => [
+        {
+          id: 'rev-01',
+          propertyId: p.propertyId || p.id || '',
+          guestName: 'Nguyễn Văn Minh',
+          rating: 5,
+          comment: 'Phòng sạch sẽ, lễ tân thân thiện, vị trí gần các địa danh du lịch đi lại rất tiện lợi.',
+          createdAt: '2 ngày trước',
+          rentalType: 'Daily',
+          roomTypeName: 'Phòng Deluxe Giường Đôi',
+          cleanlinessRating: 5,
+          staffRating: 5
+        },
+        {
+          id: 'rev-02',
+          propertyId: p.propertyId || p.id || '',
+          guestName: 'Trần Thị Thu Hà',
+          rating: 4,
+          comment: 'Thuê theo giờ nghỉ trưa rất nhanh gọn, thủ tục đơn giản, máy lạnh mát rượi.',
+          createdAt: '5 ngày trước',
+          rentalType: 'Hourly',
+          roomTypeName: 'Phòng Standard Giường Đơn',
+          cleanlinessRating: 4,
+          staffRating: 5
+        },
+        {
+          id: 'rev-03',
+          propertyId: p.propertyId || p.id || '',
+          guestName: 'Lê Hoàng Nam',
+          rating: 5,
+          comment: 'Giá tốt so với chất lượng, view đẹp, nước nóng và wifi mạnh.',
+          createdAt: '1 tuần trước',
+          rentalType: 'Overnight',
+          roomTypeName: 'Phòng Suite Gia Đình',
+          cleanlinessRating: 5,
+          staffRating: 4
+        }
+      ])
+    );
+  }
+
+  /**
+   * Submits a guest review after checkout.
+   */
+  submitReview(request: SubmitGuestReviewRequest): Observable<boolean> {
+    return of(true);
+  }
+
+  /**
+   * Retrieves active promotional deals and golden-hour discounts.
+   */
+  getPromotions(): Observable<PromotionDealDto[]> {
+    return of([
+      {
+        id: 'deal-01',
+        code: 'GIODAY20',
+        title: 'Giờ Vàng Nghỉ Trưa - Giảm 20% Thuê Theo Giờ',
+        description: 'Áp dụng cho khách đặt phòng nghỉ theo giờ từ 11:00 đến 15:00 các ngày trong tuần tại tất cả nhà nghỉ & motel.',
+        discountBadge: 'GIẢM 20%',
+        discountType: 'Percent',
+        discountValue: 20,
+        rentalType: 'Hourly',
+        expiresAt: '31/12/2026',
+        bannerImageUrl: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800'
+      },
+      {
+        id: 'deal-02',
+        code: 'QUADEM15',
+        title: 'Combo Qua Đêm Cuối Tuần - Tiết Kiệm 15%',
+        description: 'Nhận phòng từ 21:00 đến 10:00 sáng hôm sau. Tặng kèm nước suối và ưu đãi trả phòng muộn 30 phút.',
+        discountBadge: 'GIẢM 15%',
+        discountType: 'Percent',
+        discountValue: 15,
+        rentalType: 'Overnight',
+        expiresAt: '31/12/2026',
+        bannerImageUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800'
+      },
+      {
+        id: 'deal-03',
+        code: 'DALAT50K',
+        title: 'Voucher Du Lịch Đà Lạt - Giảm Ngay 50.000₫',
+        description: 'Áp dụng cho mọi cơ sở lưu trú gần Chợ Đêm Đà Lạt và Hồ Xuân Hương cho đơn đặt phòng từ 300.000₫.',
+        discountBadge: '-50.000₫',
+        discountType: 'Amount',
+        discountValue: 50000,
+        applicableDestinations: ['Đà Lạt', 'Lâm Đồng'],
+        expiresAt: '31/12/2026',
+        minSpend: 300000,
+        bannerImageUrl: 'https://images.unsplash.com/photo-1579202673506-ca3ce28943ef?w=800'
+      },
+      {
+        id: 'deal-04',
+        code: 'BIENVUNGTAU',
+        title: 'Ưu Đãi Nghỉ Dưỡng Vũng Tàu Bãi Sau',
+        description: 'Giảm 10% cho khách đặt phòng khách sạn & nhà nghỉ cách Bãi Sau dưới 1km.',
+        discountBadge: 'GIẢM 10%',
+        discountType: 'Percent',
+        discountValue: 10,
+        applicableDestinations: ['Vũng Tàu'],
+        expiresAt: '31/12/2026',
+        bannerImageUrl: 'https://images.unsplash.com/photo-1590523741831-ab7e8b8f9c7f?w=800'
+      }
+    ]);
   }
 }

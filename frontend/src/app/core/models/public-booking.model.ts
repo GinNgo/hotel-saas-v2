@@ -29,9 +29,11 @@ export interface DestinationSuggestionDto {
 export interface NearbyLandmarkBadgeDto {
   landmarkId: string;
   landmarkName: string;
+  name?: string; // compatibility alias
   landmarkSlug: string;
   category: 'Market' | 'Beach' | 'Heritage' | 'Airport' | 'Center';
   distanceMeters: number;
+  distanceFormatted?: string; // compatibility formatted string (e.g. "500m")
 }
 
 export interface LandmarkDistanceDto {
@@ -342,3 +344,66 @@ export interface ConfirmGuestBookingRequest {
   transactionRef?: string;
   idempotencyKey?: string;
 }
+
+export interface TenantBrandDto {
+  tenantId: string;
+  name: string;
+  slug: string;
+  logoUrl?: string;
+  description?: string;
+  totalProperties: number;
+  ratingAverage: number;
+  reviewCount: number;
+  properties: PublicPropertyDto[];
+  provinces: string[];
+}
+
+export interface PropertyPolicyDto {
+  propertyId: string;
+  propertyName: string;
+  checkInTime: string;
+  checkOutTime: string;
+  bufferMinutes: number;
+  maxHourlyHours: number;
+  earlyCheckInFeePerHour?: number;
+  lateCheckOutFeePerHour?: number;
+  cancellationPolicy: string;
+  generalRules: string[];
+}
+
+export interface GuestReviewDto {
+  id: string;
+  propertyId: string;
+  guestName: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+  rentalType: RentalType;
+  roomTypeName?: string;
+  cleanlinessRating?: number;
+  staffRating?: number;
+}
+
+export interface SubmitGuestReviewRequest {
+  lookupToken: string;
+  rating: number;
+  cleanlinessRating?: number;
+  staffRating?: number;
+  comment: string;
+}
+
+export interface PromotionDealDto {
+  id: string;
+  code: string;
+  title: string;
+  description: string;
+  discountBadge: string;
+  discountType: 'Percent' | 'Amount';
+  discountValue: number;
+  rentalType?: RentalType;
+  applicableDestinations?: string[];
+  expiresAt: string;
+  minSpend?: number;
+  bannerImageUrl?: string;
+}
+

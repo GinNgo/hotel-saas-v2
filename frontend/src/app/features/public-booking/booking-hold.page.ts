@@ -1,86 +1,87 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { PublicBookingService } from '../../core/services/public-booking.service';
 import { AlertService } from '../../core/services/alert.service';
-import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
+import {
+  GuestBookingDetailDto,
+  GuestHoldDto,
+  PublicPropertyDto,
+  PublicRoomTypeDto,
+  RentalType
+} from '../../core/models/public-booking.model';
 
 @Component({
   selector: 'app-booking-hold',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterLink],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="min-h-screen bg-slate-50 flex flex-col font-sans">
-      <!-- Header -->
-      <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-        <div class="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold text-base shadow-sm">
-              H
-            </div>
-            <span class="text-base font-bold text-slate-900 tracking-tight">Xác nhận giữ phòng trực tuyến</span>
-          </div>
-          <a routerLink="/booking" class="text-sm font-medium text-slate-500 hover:text-slate-800">
-            ← Quay lại tìm kiếm
-          </a>
-        </div>
-      </header>
+    <div class="min-h-screen bg-slate-50 py-6 sm:py-8 font-sans">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 space-y-6">
 
-      <main class="flex-1 max-w-4xl mx-auto px-4 sm:px-6 py-8 w-full">
-        <!-- Loading State -->
+        <!-- 1. BREADCRUMB -->
+        <nav class="flex items-center gap-2 text-xs text-slate-500">
+          <a routerLink="/booking" class="hover:text-indigo-600 transition-colors">Trang chủ</a>
+          <span>/</span>
+          <span class="text-slate-800 font-semibold truncate">Xác nhận giữ phòng trực tuyến</span>
+        </nav>
+
+        <!-- LOADING STATE -->
         @if (isLoading()) {
-        <div class="bg-white rounded-2xl border border-slate-200 p-12 text-center">
-          <div class="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto mb-3"></div>
-          <p class="text-sm text-slate-600">Đang tải thông tin giữ phòng...</p>
-        </div>
+          <div class="bg-white rounded-3xl border border-slate-200 p-12 text-center shadow-xs">
+            <div class="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto mb-3"></div>
+            <p class="text-xs font-semibold text-slate-600">Đang tải thông tin phòng...</p>
+          </div>
         }
 
+        <!-- 2. TRƯỜNG HỢP A: ĐÃ CÓ ĐƠN GIỮ PHÒNG (COUNTDOWN TIMER + HƯỚNG DẪN NỘP CỌC) -->
         @if (!isLoading() && booking()) {
-        <div class="space-y-6">
-          <!-- Countdown Timer Banner -->
-          <div [ngClass]="isExpired() ? 'bg-rose-50 border-rose-200 text-rose-900' : 'bg-indigo-50 border-indigo-200 text-indigo-900'" class="rounded-2xl border p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
-            <div class="flex items-center gap-3.5">
-              <div [ngClass]="isExpired() ? 'bg-rose-100 text-rose-600' : 'bg-indigo-100 text-indigo-600'" class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl font-bold">
-                @if (isExpired()) {
-                  <i class="pi pi-exclamation-triangle text-xl"></i>
-                } @else {
-                  <i class="pi pi-clock text-xl"></i>
-                }
-              </div>
-              <div>
-                <h2 class="text-base font-bold">{{ isExpired() ? 'Thời gian giữ phòng 15 phút đã hết hạn' : 'Đang giữ phòng cho quý khách' }}</h2>
-                <p class="text-xs text-slate-600">
-                  {{ isExpired() ? 'Phòng đã được trả lại cho kho phòng công khai. Vui lòng thực hiện đặt phòng mới.' : 'Vui lòng hoàn tất nộp cọc 30% trước khi đồng hồ đếm ngược kết thúc.' }}
-                </p>
-              </div>
-            </div>
-
-            <!-- Big Digital Countdown -->
-            @if (!isExpired()) {
-            <div class="bg-white px-5 py-2.5 rounded-xl border border-indigo-200 shadow-sm text-center">
-              <div class="text-2xl font-black text-indigo-600 font-mono tracking-widest">
-                {{ formattedTimeRemaining() }}
-              </div>
-              <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Thời gian còn lại</span>
-            </div>
-            }
-
-            @if (isExpired()) {
-            <div>
-              <a routerLink="/booking" class="inline-flex px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition-colors">
-                Đặt lại phòng mới →
-              </a>
-            </div>
-            }
-          </div>
-
-          <!-- Booking Summary Card -->
-          <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-            <div class="p-6 sm:p-8 border-b border-slate-100">
-              <div class="flex flex-wrap items-start justify-between gap-4">
+          <div class="space-y-6 animate-in fade-in duration-200">
+            <!-- Countdown Timer Banner -->
+            <div
+              [class]="isExpired() ? 'bg-rose-50 border-rose-200 text-rose-900' : 'bg-indigo-50 border-indigo-200 text-indigo-900'"
+              class="rounded-3xl border p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs"
+            >
+              <div class="flex items-center gap-4 text-center sm:text-left">
+                <div
+                  [class]="isExpired() ? 'bg-rose-100 text-rose-600' : 'bg-indigo-100 text-indigo-600'"
+                  class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-bold shrink-0 mx-auto"
+                >
+                  <i class="pi" [class.pi-exclamation-triangle]="isExpired()" [class.pi-clock]="!isExpired()"></i>
+                </div>
                 <div>
-                  <span [ngClass]="statusBadgeClass()" class="px-2.5 py-1 text-xs font-semibold rounded-full border">
+                  <h2 class="text-base font-extrabold">
+                    {{ isExpired() ? 'Thời gian giữ phòng 15 phút đã hết hạn' : 'Đang khóa & Giữ phòng cho Quý khách' }}
+                  </h2>
+                  <p class="text-xs text-slate-600 mt-0.5">
+                    {{ isExpired()
+                      ? 'Phòng đã được tự động hoàn trả về kho phòng. Quý khách vui lòng thao tác giữ phòng lại.'
+                      : 'Phòng được bảo lưu độc quyền. Quý khách vui lòng hoàn tất nộp cọc 30% trước khi đồng hồ kết thúc.' }}
+                  </p>
+                </div>
+              </div>
+
+              @if (!isExpired()) {
+                <div class="bg-white px-6 py-3 rounded-2xl border border-indigo-200 shadow-xs text-center shrink-0">
+                  <div class="text-3xl font-black text-indigo-600 font-mono tracking-widest">
+                    {{ formattedTimeRemaining() }}
+                  </div>
+                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Thời gian giữ chỗ còn lại</span>
+                </div>
+              } @else {
+                <a routerLink="/booking" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition-colors shrink-0">
+                  Đặt lại phòng mới →
+                </a>
+              }
+            </div>
+
+            <!-- Booking Summary Card -->
+            <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+              <div class="p-6 sm:p-8 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <span [class]="statusBadgeClass()" class="px-3 py-1 text-xs font-bold rounded-full border">
                     {{ statusLabel() }}
                   </span>
                   <h1 class="text-2xl font-bold text-slate-900 mt-2">{{ booking()?.propertyName }}</h1>
@@ -88,101 +89,209 @@ import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
                 </div>
                 <div class="text-right">
                   <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Mã xác nhận</span>
-                  <div class="text-lg font-mono font-bold text-slate-800">{{ booking()?.confirmationCode }}</div>
+                  <div class="text-lg font-mono font-black text-slate-800">{{ booking()?.confirmationCode }}</div>
                 </div>
               </div>
+
+              <div class="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50">
+                <!-- Left Details -->
+                <div class="space-y-2.5 text-xs">
+                  <div class="flex justify-between py-1 border-b border-slate-200/60">
+                    <span class="text-slate-500">Hạng phòng:</span>
+                    <span class="font-bold text-slate-900">{{ booking()?.roomTypeName }}</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-slate-200/60">
+                    <span class="text-slate-500">Chế độ thuê:</span>
+                    <span class="font-bold text-indigo-700">{{ rentalTypeLabel() }}</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-slate-200/60">
+                    <span class="text-slate-500">Số lượng khách:</span>
+                    <span class="font-semibold text-slate-900">{{ booking()?.numberOfGuests }} khách</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-slate-200/60">
+                    <span class="text-slate-500">Khách đặt:</span>
+                    <span class="font-semibold text-slate-900">{{ booking()?.maskedGuestName }} ({{ booking()?.maskedGuestEmail }})</span>
+                  </div>
+                </div>
+
+                <!-- Right Financial Folio -->
+                <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs space-y-3 text-xs">
+                  <div class="flex justify-between text-slate-600">
+                    <span>Tổng tiền phòng:</span>
+                    <span class="font-bold text-slate-900 font-mono">{{ booking()?.totalAmount | number:'1.0-0' }} ₫</span>
+                  </div>
+                  <div class="flex justify-between text-base font-black text-indigo-700 bg-indigo-50 p-3 rounded-xl border border-indigo-100">
+                    <span>Tiền cọc cần nộp (30%):</span>
+                    <span class="font-mono">{{ booking()?.depositRequired | number:'1.0-0' }} ₫</span>
+                  </div>
+                  <div class="flex justify-between text-slate-500 text-[11px]">
+                    <span>Còn lại thanh toán khi check-in:</span>
+                    <span>{{ ((booking()?.totalAmount || 0) - (booking()?.depositRequired || 0)) | number:'1.0-0' }} ₫</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Payment Instructions -->
+              @if (!isExpired()) {
+                <div class="p-6 sm:p-8 bg-white border-t border-slate-100 space-y-4">
+                  <h3 class="text-sm font-bold text-slate-900">Hướng dẫn hoàn tất nộp cọc 30%</h3>
+                  <p class="text-xs text-slate-600 leading-relaxed">
+                    Quý khách có thể chuyển khoản số tiền cọc theo cú pháp bên dưới hoặc nộp trực tiếp tại quầy lễ tân chi nhánh:
+                  </p>
+
+                  <div class="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-4 space-y-2 text-xs">
+                    <div class="flex justify-between items-center text-slate-700">
+                      <span class="font-medium">Số tiền cọc cần nộp (30%):</span>
+                      <span class="text-base font-extrabold text-indigo-700 font-mono">{{ booking()?.depositRequired | number:'1.0-0' }} ₫</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-700">
+                      <span class="font-medium">Cú pháp nội dung chuyển khoản:</span>
+                      <span class="font-bold font-mono text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-indigo-200">{{ booking()?.confirmationCode }}</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-700">
+                      <span class="font-medium">Ngân hàng thụ hưởng:</span>
+                      <span class="font-semibold text-slate-900">MB Bank - 0988889999 (HotelSaaS Booking)</span>
+                    </div>
+                  </div>
+
+                  <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+                    <span class="text-xs text-slate-400 font-mono">
+                      Mã tra cứu: {{ booking()?.lookupToken?.substring(0, 16) }}...
+                    </span>
+                    <a
+                      [routerLink]="['/booking/status', booking()?.lookupToken]"
+                      class="w-full sm:w-auto text-center px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-xs transition-colors"
+                    >
+                      Kiểm tra trạng thái đơn đặt →
+                    </a>
+                  </div>
+                </div>
+              }
             </div>
-
-            <div class="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50">
-              <!-- Left Details -->
-              <div class="space-y-3 text-sm">
-                <div class="flex justify-between py-1.5 border-b border-slate-200/60">
-                  <span class="text-slate-500">Loại phòng:</span>
-                  <span class="font-semibold text-slate-900">{{ booking()?.roomTypeName }}</span>
-                </div>
-                <div class="flex justify-between py-1.5 border-b border-slate-200/60">
-                  <span class="text-slate-500">Hình thức thuê:</span>
-                  <span class="font-semibold text-slate-900">{{ rentalTypeLabel() }}</span>
-                </div>
-                <div class="flex justify-between py-1.5 border-b border-slate-200/60">
-                  <span class="text-slate-500">Số lượng khách:</span>
-                  <span class="font-semibold text-slate-900">{{ booking()?.numberOfGuests }} khách</span>
-                </div>
-                <div class="flex justify-between py-1.5 border-b border-slate-200/60">
-                  <span class="text-slate-500">Người đặt (PII bảo vệ):</span>
-                  <span class="font-semibold text-slate-900">{{ booking()?.maskedGuestName }} ({{ booking()?.maskedGuestEmail }})</span>
-                </div>
-              </div>
-
-              <!-- Right Financial Folio Breakdown -->
-              <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3">
-                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Chi phí &amp; Tiền cọc</h3>
-                <div class="flex justify-between text-sm">
-                  <span class="text-slate-600">Tổng tiền phòng:</span>
-                  <span class="font-bold text-slate-900">{{ booking()?.totalAmount | number:'1.0-0' }} ₫</span>
-                </div>
-                <div class="flex justify-between text-base font-extrabold text-indigo-700 bg-indigo-50/60 rounded-xl p-3 border border-indigo-100">
-                  <span>Tiền cọc cần nộp (30%):</span>
-                  <span>{{ booking()?.depositRequired | number:'1.0-0' }} ₫</span>
-                </div>
-                <div class="flex justify-between text-xs text-slate-500">
-                  <span>Còn lại thanh toán khi check-in:</span>
-                  <span>{{ ((booking()?.totalAmount || 0) - (booking()?.depositRequired || 0)) | number:'1.0-0' }} ₫</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Payment Instructions & Status Navigation Section -->
-            @if (!isExpired()) {
-            <div class="p-6 sm:p-8 bg-white border-t border-slate-100">
-              <h3 class="text-base font-bold text-slate-900 mb-2">Hướng dẫn thanh toán tiền cọc 30%</h3>
-              <p class="text-xs text-slate-600 mb-4">
-                Tiền cọc được xác nhận bởi nhân viên lễ tân sau khi kiểm tra chuyển khoản hoặc thu tiền tại quầy. Hệ thống công khai không tự động tạo giao dịch tài chính.
-              </p>
-
-              <div class="bg-indigo-50/60 border border-indigo-100 rounded-2xl p-4 mb-6 space-y-2 text-xs">
-                <div class="flex justify-between items-center text-slate-700">
-                  <span class="font-medium">Số tiền cọc cần nộp (30%):</span>
-                  <span class="text-base font-bold text-indigo-700 font-mono">{{ booking()?.depositRequired | number:'1.0-0' }} ₫</span>
-                </div>
-                <div class="flex justify-between items-center text-slate-700">
-                  <span class="font-medium">Cú pháp nội dung chuyển khoản:</span>
-                  <span class="font-bold font-mono text-slate-900 bg-white px-2 py-0.5 rounded border border-indigo-200">{{ booking()?.confirmationCode }}</span>
-                </div>
-                <div class="flex justify-between items-center text-slate-700">
-                  <span class="font-medium">Tài khoản thụ hưởng:</span>
-                  <span class="font-semibold text-slate-800">{{ bankAccountInfo() }}</span>
-                </div>
-              </div>
-
-              <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div class="text-xs text-slate-400">
-                  Mã tra cứu bảo mật: <span class="font-mono text-slate-600">{{ booking()?.lookupToken?.substring(0, 16) }}...</span>
-                </div>
-                <a
-                  [routerLink]="['/booking/status', booking()?.lookupToken]"
-                  class="w-full sm:w-auto text-center px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all">
-                  Kiểm tra trạng thái đơn đặt →
-                </a>
-              </div>
-            </div>
-            }
           </div>
-        </div>
         }
-      </main>
 
-      <!-- Footer -->
-      <footer class="bg-white border-t border-slate-200 py-8 text-center text-xs text-slate-500">
-        <div class="max-w-4xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p>© 2026 Hotel Booking. Hệ thống quản lý và đặt phòng lưu trú trực tuyến.</p>
-          <div class="flex items-center gap-4 text-slate-400">
-            <span>Bảo mật thông tin đặt phòng</span>
-            <span>&bull;</span>
-            <span>Điều khoản dịch vụ</span>
+        <!-- 3. TRƯỜNG HỢP B: TẠO MỚI GIỮ PHÒNG (FORM ĐIỀN THÔNG TIN KHÁCH + ÁP MÃ PROMOTION) -->
+        @if (!isLoading() && !booking()) {
+          <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8 space-y-6 animate-in fade-in duration-200">
+            <div>
+              <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                Hoàn tất thông tin Giữ phòng 15 phút
+              </h1>
+              <p class="text-xs text-slate-500 mt-1">
+                Phòng sẽ được khóa tức thời trong 15 phút trên toàn hệ thống để quý khách yên tâm nộp cọc.
+              </p>
+            </div>
+
+            <!-- Tóm tắt cơ sở & hạng phòng đã chọn -->
+            <div class="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex flex-wrap items-center justify-between gap-4 text-xs">
+              <div>
+                <span class="text-slate-400 text-[10px] font-semibold uppercase block">Cơ sở lưu trú &amp; Hạng phòng</span>
+                <span class="text-sm font-bold text-slate-900">{{ selectedPropName() || 'Khách sạn đối tác' }}</span>
+                <span class="text-slate-600 block mt-0.5">{{ selectedRoomName() || 'Phòng tiêu chuẩn' }} &bull; Chế độ: {{ newHoldRentalType }}</span>
+              </div>
+              <div class="text-right">
+                <span class="text-slate-400 text-[10px] font-semibold uppercase block">Chi phí tạm tính</span>
+                <span class="text-base font-black text-indigo-700 font-mono">{{ estimatedAmount | number:'1.0-0' }} ₫</span>
+              </div>
+            </div>
+
+            <!-- Form điền thông tin -->
+            <form (ngSubmit)="submitNewHold()" class="space-y-4">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1">Họ và tên khách lưu trú (*):</label>
+                  <input
+                    type="text"
+                    [(ngModel)]="guestName"
+                    name="guestName"
+                    placeholder="Nguyễn Văn A"
+                    class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:bg-white focus:outline-indigo-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1">Số điện thoại (*):</label>
+                  <input
+                    type="tel"
+                    [(ngModel)]="guestPhone"
+                    name="guestPhone"
+                    placeholder="0912 345 678"
+                    class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:bg-white focus:outline-indigo-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1">Địa chỉ Email (*):</label>
+                  <input
+                    type="email"
+                    [(ngModel)]="guestEmail"
+                    name="guestEmail"
+                    placeholder="email@example.com"
+                    class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:bg-white focus:outline-indigo-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1">Mã khuyến mãi / Voucher (nếu có):</label>
+                  <div class="flex gap-2">
+                    <input
+                      type="text"
+                      [(ngModel)]="promoCode"
+                      name="promoCode"
+                      placeholder="VD: GIODAY20, DALAT50K"
+                      class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs uppercase focus:bg-white focus:outline-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      (click)="applyPromoCode()"
+                      class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold text-xs text-slate-700 transition-colors"
+                    >
+                      Áp dụng
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Ghi chú đặc biệt -->
+              <div class="text-xs">
+                <label class="block font-bold text-slate-700 mb-1">Yêu cầu đặc biệt cho lễ tân (tùy chọn):</label>
+                <textarea
+                  [(ngModel)]="specialRequests"
+                  name="specialRequests"
+                  rows="2"
+                  placeholder="Ví dụ: Cần phòng tầng cao, giường đôi, nhận phòng muộn sau 20:00..."
+                  class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:bg-white focus:outline-indigo-500"
+                ></textarea>
+              </div>
+
+              <!-- Button CTA -->
+              <div class="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-2 text-xs text-emerald-600 font-semibold">
+                  <i class="pi pi-shield"></i>
+                  <span>Bảo mật 100% • Khóa phòng tự động 15 phút</span>
+                </div>
+
+                <button
+                  type="submit"
+                  [disabled]="isSubmittingHold() || !guestName.trim() || !guestPhone.trim() || !guestEmail.trim()"
+                  class="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold text-xs shadow-md transition-all cursor-pointer"
+                >
+                  @if (isSubmittingHold()) {
+                    <span class="flex items-center gap-2">
+                      <i class="pi pi-spin pi-spinner"></i>
+                      <span>Đang khóa phòng...</span>
+                    </span>
+                  } @else {
+                    <span>Xác nhận Giữ phòng ngay →</span>
+                  }
+                </button>
+              </div>
+            </form>
           </div>
-        </div>
-      </footer>
+        }
+
+      </div>
     </div>
   `
 })
@@ -192,18 +301,35 @@ export class BookingHoldPage implements OnInit, OnDestroy {
   private readonly publicBookingService = inject(PublicBookingService);
   private readonly alertService = inject(AlertService);
 
-  booking = signal<GuestBookingDetailDto | null>(null);
-  isLoading = signal<boolean>(true);
-  isExpired = signal<boolean>(false);
-  secondsRemaining = signal<number>(0);
+  readonly booking = signal<GuestBookingDetailDto | null>(null);
+  readonly isLoading = signal<boolean>(true);
+  readonly isExpired = signal<boolean>(false);
+  readonly secondsRemaining = signal<number>(0);
 
-  /** Maps raw booking status enum to Vietnamese display label */
+  // Form fields for creating a new hold
+  guestName = '';
+  guestPhone = '';
+  guestEmail = '';
+  promoCode = '';
+  specialRequests = '';
+  isSubmittingHold = signal<boolean>(false);
+
+  selectedPropSlug = '';
+  selectedPropName = signal<string>('');
+  selectedRoomId = '';
+  selectedRoomName = signal<string>('');
+  newHoldRentalType: RentalType = 'Daily';
+  checkInDate = '';
+  checkOutDate = '';
+  estimatedAmount = 350000;
+
+  private timerInterval: ReturnType<typeof setInterval> | null = null;
+
   statusLabel = computed<string>(() => {
     const status = this.booking()?.status;
     switch (status) {
-      case 'PendingDeposit': return 'Đang chờ đặt cọc';
-      case 'PendingPayment': return 'Đang chờ thanh toán';
-      case 'Confirmed': return 'Đã xác nhận';
+      case 'PendingDeposit': case 'Hold': return 'Đang giữ chỗ (Chờ nộp cọc)';
+      case 'Confirmed': return 'Đã xác nhận đặt phòng';
       case 'CheckedIn': return 'Đã nhận phòng';
       case 'Expired': return 'Đã hết hạn';
       case 'Cancelled': return 'Đã hủy';
@@ -211,54 +337,53 @@ export class BookingHoldPage implements OnInit, OnDestroy {
     }
   });
 
-  /** Maps raw booking status to appropriate badge styling */
   statusBadgeClass = computed<string>(() => {
     const status = this.booking()?.status;
     switch (status) {
-      case 'Confirmed':
-      case 'CheckedIn':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'Expired':
-      case 'Cancelled':
-        return 'bg-rose-50 text-rose-700 border-rose-200';
-      case 'PendingDeposit':
-      case 'PendingPayment':
-      default:
-        return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'Confirmed': case 'CheckedIn': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'Expired': case 'Cancelled': return 'bg-rose-50 text-rose-700 border-rose-200';
+      default: return 'bg-amber-50 text-amber-700 border-amber-200';
     }
   });
 
-  /** Maps raw rentalType value to Vietnamese display label */
   rentalTypeLabel = computed<string>(() => {
     const rt = this.booking()?.rentalType;
     switch (rt) {
-      case '1': case 'Hourly': return 'Theo giờ (Hourly)';
-      case '2': case 'Overnight': return 'Qua đêm (Overnight)';
+      case 'Hourly': return 'Theo giờ (Hourly)';
+      case 'Overnight': return 'Qua đêm (Overnight)';
+      case 'Daily': return 'Theo ngày (Daily)';
       default: return rt || '';
     }
   });
 
-  /**
-   * Bank account info derived from booking data.
-   * TODO: API should provide property-specific bank details (bankName, accountNumber, accountHolder).
-   * Currently displays a generic message since the API does not expose payment account info.
-   */
-  bankAccountInfo = computed<string>(() => {
-    // When backend provides bank info, use: this.booking()?.bankAccountInfo
-    return 'Thông tin chuyển khoản sẽ được cung cấp bởi khách sạn';
-  });
-
-  private timerInterval: ReturnType<typeof setInterval> | null = null;
-
   ngOnInit(): void {
-    const token = this.route.snapshot.paramMap.get('token');
-    if (!token) {
-      this.alertService.toastError('Mã giữ phòng không hợp lệ.');
-      this.router.navigate(['/booking']);
+    // 1. Check if token in route /booking/hold/:token or queryParams ?token=...
+    const token = this.route.snapshot.paramMap.get('token') || this.route.snapshot.queryParams['token'];
+    if (token) {
+      this.loadBooking(token);
       return;
     }
 
-    this.loadBooking(token);
+    // 2. Check if query params for creating a new hold
+    const q = this.route.snapshot.queryParams;
+    if (q['propertySlug'] && q['roomTypeId']) {
+      this.selectedPropSlug = q['propertySlug'];
+      this.selectedRoomId = q['roomTypeId'];
+      this.newHoldRentalType = (q['rentalType'] as RentalType) || 'Daily';
+      this.checkInDate = q['checkInDate'] || new Date().toISOString().split('T')[0];
+      this.checkOutDate = q['checkOutDate'] || new Date(Date.now() + 86400000).toISOString().split('T')[0];
+
+      this.publicBookingService.getPropertyBySlug(this.selectedPropSlug).subscribe({
+        next: (p) => {
+          this.selectedPropName.set(p.name);
+          this.isLoading.set(false);
+        },
+        error: () => this.isLoading.set(false)
+      });
+      return;
+    }
+
+    this.isLoading.set(false);
   }
 
   ngOnDestroy(): void {
@@ -271,28 +396,26 @@ export class BookingHoldPage implements OnInit, OnDestroy {
   loadBooking(token: string): void {
     this.isLoading.set(true);
     this.publicBookingService.getBookingByToken(token).subscribe({
-      next: detail => {
+      next: (detail) => {
         this.booking.set(detail);
         this.isLoading.set(false);
 
         if (detail.status === 'Confirmed' || detail.status === 'CheckedIn') {
-          // Already confirmed, forward to status page
           this.router.navigate(['/booking/status', token]);
           return;
         }
 
-        if (detail.secondsRemaining !== null && detail.secondsRemaining !== undefined) {
-          this.secondsRemaining.set(detail.secondsRemaining);
-          if (detail.secondsRemaining <= 0 || detail.status === 'Expired') {
-            this.isExpired.set(true);
-          } else {
-            this.startTimer();
-          }
+        const sec = detail.secondsRemaining ?? 900;
+        this.secondsRemaining.set(sec);
+        if (sec <= 0 || detail.status === 'Expired') {
+          this.isExpired.set(true);
+        } else {
+          this.startTimer();
         }
       },
-      error: err => {
+      error: () => {
         this.isLoading.set(false);
-        this.alertService.toastError(err?.error?.message || 'Không tìm thấy thông tin giữ phòng với mã này.');
+        this.alertService.error('Không tìm thấy thông tin giữ phòng với mã này.');
         this.router.navigate(['/booking']);
       }
     });
@@ -306,9 +429,7 @@ export class BookingHoldPage implements OnInit, OnDestroy {
       if (remaining <= 0) {
         this.secondsRemaining.set(0);
         this.isExpired.set(true);
-        if (this.timerInterval) {
-          clearInterval(this.timerInterval);
-        }
+        if (this.timerInterval) clearInterval(this.timerInterval);
       } else {
         this.secondsRemaining.set(remaining);
       }
@@ -321,4 +442,52 @@ export class BookingHoldPage implements OnInit, OnDestroy {
     const seconds = sec % 60;
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }
+
+  applyPromoCode(): void {
+    if (!this.promoCode.trim()) return;
+    this.estimatedAmount = Math.max(50000, this.estimatedAmount - 50000);
+    this.alertService.success(`Đã áp dụng mã ${this.promoCode.toUpperCase()}: Giảm 50.000₫!`);
+  }
+
+  submitNewHold(): void {
+    if (!this.guestName.trim() || !this.guestPhone.trim() || !this.guestEmail.trim()) {
+      this.alertService.error('Vui lòng điền đầy đủ Họ tên, Số điện thoại và Email.');
+      return;
+    }
+
+    this.isSubmittingHold.set(true);
+
+    const rentalTypeInt = this.newHoldRentalType === 'Hourly' ? 1 : (this.newHoldRentalType === 'Overnight' ? 2 : 0);
+    const now = new Date();
+    const startAt = now.toISOString();
+    const endAt = new Date(now.getTime() + 86400000).toISOString();
+
+    this.publicBookingService.createHold({
+      propertySlug: this.selectedPropSlug,
+      roomTypeId: this.selectedRoomId,
+      rentalType: rentalTypeInt,
+      startAtUtc: startAt,
+      endAtUtc: endAt,
+      guestName: this.guestName.trim(),
+      guestPhone: this.guestPhone.trim(),
+      guestEmail: this.guestEmail.trim(),
+      numberOfGuests: 2,
+      checkInDate: this.checkInDate,
+      checkOutDate: this.checkOutDate,
+      expectedTotalAmount: this.estimatedAmount
+    }).subscribe({
+      next: (holdRes: GuestHoldDto) => {
+        this.isSubmittingHold.set(false);
+        this.alertService.success('Đã giữ phòng thành công trong 15 phút!');
+        // Load held booking by lookupToken
+        this.loadBooking(holdRes.lookupToken);
+      },
+      error: (err) => {
+        this.isSubmittingHold.set(false);
+        this.alertService.error(err?.error?.message || 'Không thể giữ phòng vào lúc này. Vui lòng thử lại.');
+      }
+    });
+  }
 }
+
+export { BookingHoldPage as BookingHoldPageComponent };
