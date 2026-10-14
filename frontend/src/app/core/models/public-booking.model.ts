@@ -336,6 +336,8 @@ export interface CreateGuestHoldRequest {
   checkOutDate?: string;
   expectedTotalAmount?: number;
   idempotencyKey?: string;
+  pointsToRedeem?: number;
+  guestUserId?: string;
 }
 
 export interface ConfirmGuestBookingRequest {

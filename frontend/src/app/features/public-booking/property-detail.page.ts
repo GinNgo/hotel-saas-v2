@@ -78,13 +78,35 @@ import { QuoteDto } from '../../core/models/reservation.model';
                 </div>
               </div>
 
-              <!-- Brand chain tag -->
-              <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-right sm:text-left flex flex-col justify-center">
-                <span class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Hệ thống chuỗi</span>
-                <span class="text-sm font-bold text-slate-900">{{ property()?.tenantBrandName || 'Hệ thống đối tác HotelSaaS' }}</span>
-                <a routerLink="/booking/brands" class="text-xs text-indigo-600 hover:underline font-medium mt-1">
-                  Xem tất cả chi nhánh →
-                </a>
+              <div class="flex flex-col sm:flex-row gap-3">
+                <!-- Loyalty Membership Callout -->
+                <div class="bg-gradient-to-r from-amber-50 to-indigo-50 border border-amber-200/80 rounded-2xl p-4 flex flex-col justify-between gap-2">
+                  <div class="flex items-center gap-2">
+                    <span class="w-7 h-7 rounded-lg bg-amber-400 text-slate-950 flex items-center justify-center font-black text-xs shrink-0">
+                      <i class="pi pi-crown"></i>
+                    </span>
+                    <div>
+                      <span class="text-xs font-extrabold text-slate-900 block">Hội viên Cơ sở & Chuỗi</span>
+                      <span class="text-[11px] text-slate-600">Giảm ngay 5-12% & Tích điểm</span>
+                    </div>
+                  </div>
+                  <a
+                    routerLink="/booking/profile"
+                    class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 text-xs font-bold transition-all shadow-xs"
+                  >
+                    <i class="pi pi-plus-circle text-xs"></i>
+                    <span>Đăng ký thành viên cơ sở này (Nhận ưu đãi & tích điểm)</span>
+                  </a>
+                </div>
+
+                <!-- Brand chain tag -->
+                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-right sm:text-left flex flex-col justify-center">
+                  <span class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Hệ thống chuỗi</span>
+                  <span class="text-sm font-bold text-slate-900">{{ property()?.tenantBrandName || 'Hệ thống đối tác HotelSaaS' }}</span>
+                  <a routerLink="/booking/brands" class="text-xs text-indigo-600 hover:underline font-medium mt-1">
+                    Xem tất cả chi nhánh →
+                  </a>
+                </div>
               </div>
             </div>
 

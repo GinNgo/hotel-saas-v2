@@ -129,6 +129,13 @@ export const routes: Routes = [
           import('./features/public-booking/booking-status.page').then(
             m => m.BookingStatusPageComponent
           )
+      },
+      {
+        path: 'profile',
+        loadComponent: () =>
+          import('./features/public-booking/member/guest-profile.page').then(
+            m => m.GuestProfilePageComponent
+          )
       }
     ]
   },

@@ -5,6 +5,7 @@ using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Reservations.DTOs;
+using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -185,6 +186,70 @@ public sealed class CheckOutReservationCommandHandler : IRequestHandler<CheckOut
         reservation.Status = ReservationStatus.CheckedOut;
         room.Status = RoomStatus.Dirty;
         room.UpdatedAtUtc = DateTime.UtcNow;
+
+        // Rule D: Earn points on checkout for registered guest members
+        if (reservation.GuestUserId.HasValue && reservation.PointsEarned == 0)
+        {
+            var loyaltyMembership = await _context.GuestLoyaltyMemberships
+                .FirstOrDefaultAsync(m => m.TenantId == tenantId.Value && m.UserId == reservation.GuestUserId.Value, cancellationToken);
+
+            if (loyaltyMembership != null)
+            {
+                var earnRate = loyaltyMembership.Tier switch
+                {
+                    LoyaltyTier.Diamond => 0.06m,
+                    LoyaltyTier.Gold => 0.04m,
+                    _ => 0.02m
+                };
+
+                var earnedPoints = (int)Math.Floor(reservation.TotalAmount * earnRate / 1000m);
+                if (earnedPoints < 1 && reservation.TotalAmount > 0)
+                {
+                    earnedPoints = 1;
+                }
+
+                loyaltyMembership.PointsBalance += earnedPoints;
+                loyaltyMembership.LifetimePoints += earnedPoints;
+                loyaltyMembership.CompletedStaysCount += 1;
+
+                if (loyaltyMembership.CompletedStaysCount >= 15)
+                {
+                    loyaltyMembership.Tier = LoyaltyTier.Diamond;
+                }
+                else if (loyaltyMembership.CompletedStaysCount >= 5)
+                {
+                    loyaltyMembership.Tier = LoyaltyTier.Gold;
+                }
+
+                loyaltyMembership.UpdatedAtUtc = DateTime.UtcNow;
+
+                var earnTx = new LoyaltyPointTransaction
+                {
+                    Id = Guid.NewGuid(),
+                    MembershipId = loyaltyMembership.Id,
+                    TenantId = tenantId.Value,
+                    PropertyId = request.PropertyId,
+                    ReservationId = reservation.Id,
+                    TransactionType = LoyaltyPointTransactionType.EarnedOnCheckout,
+                    PointsDelta = earnedPoints,
+                    BalanceAfter = loyaltyMembership.PointsBalance,
+                    Description = $"Cộng {earnedPoints} điểm thưởng tích lũy sau khi Check-out {reservation.ConfirmationCode} (Hạng {loyaltyMembership.Tier})",
+                    CreatedAtUtc = DateTime.UtcNow
+                };
+                _context.LoyaltyPointTransactions.Add(earnTx);
+
+                reservation.PointsEarned = earnedPoints;
+
+                var invoice = await _context.Invoices
+                    .FirstOrDefaultAsync(i => i.ReservationId == reservation.Id && i.TenantId == tenantId.Value, cancellationToken);
+                if (invoice != null)
+                {
+                    invoice.PointsEarned = earnedPoints;
+                    invoice.PointsRedeemed = reservation.PointsRedeemed;
+                    invoice.PointsDiscountAmount = reservation.PointsDiscountAmount;
+                }
+            }
+        }
 
         await _context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

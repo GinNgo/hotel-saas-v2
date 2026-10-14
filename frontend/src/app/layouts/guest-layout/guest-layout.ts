@@ -98,11 +98,29 @@ import { AuthService } from '../../core/services/auth.service';
                 <i class="pi pi-bolt text-amber-500 text-xs"></i>
                 <span>Ưu đãi & Giờ vàng</span>
               </a>
+
+              <a
+                routerLink="/booking/profile"
+                routerLinkActive="bg-indigo-50 text-indigo-600"
+                class="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-indigo-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+              >
+                <i class="pi pi-id-card text-indigo-500 text-xs"></i>
+                <span>Hồ sơ & Ví điểm</span>
+              </a>
             </nav>
           </div>
 
           <!-- Cụm nút chức năng bên phải -->
           <div class="flex items-center gap-2.5">
+            <!-- Nút Ví điểm & Hóa đơn -->
+            <a
+              routerLink="/booking/profile"
+              class="px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100/50 text-xs font-semibold text-indigo-700 flex items-center gap-1.5 transition-all"
+            >
+              <i class="pi pi-wallet text-indigo-600"></i>
+              <span class="hidden sm:inline">Ví điểm & Hóa đơn</span>
+            </a>
+
             <!-- Nút Tra cứu Đặt phòng nhanh bằng Token/Mã -->
             <a
               routerLink="/booking/lookup"
@@ -193,6 +211,7 @@ import { AuthService } from '../../core/services/auth.service';
             </h4>
             <ul class="space-y-2">
               <li><a routerLink="/booking/lookup" class="hover:text-white transition-colors">Tra cứu mã giữ chỗ / Đặt phòng</a></li>
+              <li><a routerLink="/booking/profile" class="hover:text-white transition-colors">Hồ sơ khách hàng, Ví điểm & Hóa đơn</a></li>
               <li><a routerLink="/auth/partner-register" class="hover:text-white transition-colors">Đăng ký mở chuỗi Khách sạn / Nhà nghỉ</a></li>
               <li><a routerLink="/auth/login" class="hover:text-white transition-colors">Cổng vận hành Lễ tân & Chủ cơ sở</a></li>
             </ul>

@@ -205,6 +205,17 @@ public sealed class PublicController : ControllerBase
             idempotencyKey = headerKey.ToString();
         }
 
+        Guid? guestUserId = request.GuestUserId;
+        if (!guestUserId.HasValue && User?.Identity?.IsAuthenticated == true)
+        {
+            var subClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? User.FindFirst("sub")?.Value;
+            if (Guid.TryParse(subClaim, out var parsedUserId))
+            {
+                guestUserId = parsedUserId;
+            }
+        }
+
         var command = new CreateGuestHoldCommand(
             request.PropertySlug,
             request.RoomTypeId,
@@ -218,7 +229,9 @@ public sealed class PublicController : ControllerBase
             request.CheckInDate,
             request.CheckOutDate,
             request.ExpectedTotalAmount,
-            idempotencyKey);
+            idempotencyKey,
+            request.PointsToRedeem,
+            guestUserId);
 
         var result = await _mediator.Send(command, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, result);
@@ -329,7 +342,9 @@ public sealed record CreateGuestHoldRequest(
     DateOnly? CheckInDate = null,
     DateOnly? CheckOutDate = null,
     decimal? ExpectedTotalAmount = null,
-    string? IdempotencyKey = null
+    string? IdempotencyKey = null,
+    int? PointsToRedeem = null,
+    Guid? GuestUserId = null
 );
 
 public sealed record ConfirmGuestBookingRequest(

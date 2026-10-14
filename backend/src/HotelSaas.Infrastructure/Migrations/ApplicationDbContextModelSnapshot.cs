@@ -111,6 +111,67 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.ToTable("AiUsageLogs");
                 });
 
+            modelBuilder.Entity("HotelSaas.Domain.Entities.GuestLoyaltyMembership", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("CompletedStaysCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EnrolledPropertyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("LifetimePoints")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MemberCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("PointsBalance")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Tier")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EnrolledPropertyId");
+
+                    b.HasIndex("MemberCode")
+                        .IsUnique()
+                        .HasDatabaseName("UX_GuestLoyaltyMemberships_MemberCode");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("TenantId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_GuestLoyaltyMemberships_Tenant_User");
+
+                    b.ToTable("GuestLoyaltyMemberships", (string)null);
+                });
+
             modelBuilder.Entity("HotelSaas.Domain.Entities.GuestReview", b =>
                 {
                     b.Property<Guid>("Id")
@@ -177,6 +238,18 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.Property<decimal>("Balance")
                         .HasColumnType("numeric");
 
+                    b.Property<string>("BuyerAddress")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BuyerCompanyName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BuyerEmail")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BuyerTaxCode")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -211,6 +284,18 @@ namespace HotelSaas.Infrastructure.Migrations
 
                     b.Property<decimal>("PaidAmount")
                         .HasColumnType("numeric");
+
+                    b.Property<decimal>("PointsDiscountAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("PointsEarned")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PointsRedeemed")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PointsRefunded")
+                        .HasColumnType("integer");
 
                     b.Property<string>("PropertyAddress")
                         .IsRequired()
@@ -300,6 +385,64 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.HasIndex("InvoiceId");
 
                     b.ToTable("InvoiceItems");
+                });
+
+            modelBuilder.Entity("HotelSaas.Domain.Entities.LoyaltyPointTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BalanceAfter")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("InvoiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MembershipId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("PointsDelta")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("PropertyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ReservationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("TransactionType")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.HasIndex("PropertyId");
+
+                    b.HasIndex("ReservationId")
+                        .HasDatabaseName("IX_LoyaltyPointTransactions_ReservationId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("MembershipId", "CreatedAtUtc")
+                        .HasDatabaseName("IX_LoyaltyPointTransactions_Membership_CreatedAt");
+
+                    b.ToTable("LoyaltyPointTransactions", (string)null);
                 });
 
             modelBuilder.Entity("HotelSaas.Domain.Entities.Notification", b =>
@@ -743,6 +886,18 @@ namespace HotelSaas.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("BuyerAddress")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BuyerCompanyName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BuyerEmail")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BuyerTaxCode")
+                        .HasColumnType("text");
+
                     b.Property<string>("CancellationReason")
                         .HasColumnType("text");
 
@@ -780,6 +935,18 @@ namespace HotelSaas.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<int>("NumberOfGuests")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("PointsDiscountAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("PointsEarned")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PointsRedeemed")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PointsRefunded")
                         .HasColumnType("integer");
 
                     b.Property<Guid>("PropertyId")
@@ -1456,6 +1623,15 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.Property<string>("AvatarUrl")
                         .HasColumnType("text");
 
+                    b.Property<string>("CompanyAddress")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyTaxCode")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -1518,6 +1694,36 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("HotelSaas.Domain.Entities.GuestLoyaltyMembership", b =>
+                {
+                    b.HasOne("HotelSaas.Domain.Entities.Property", "EnrolledProperty")
+                        .WithMany()
+                        .HasForeignKey("EnrolledPropertyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_GuestLoyaltyMemberships_Properties_EnrolledPropertyId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_GuestLoyaltyMemberships_Tenants_TenantId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.User", "User")
+                        .WithMany("LoyaltyMemberships")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_GuestLoyaltyMemberships_Users_UserId");
+
+                    b.Navigation("EnrolledProperty");
+
+                    b.Navigation("Tenant");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("HotelSaas.Domain.Entities.GuestReview", b =>
                 {
                     b.HasOne("HotelSaas.Domain.Entities.Reservation", "Reservation")
@@ -1557,6 +1763,51 @@ namespace HotelSaas.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Invoice");
+                });
+
+            modelBuilder.Entity("HotelSaas.Domain.Entities.LoyaltyPointTransaction", b =>
+                {
+                    b.HasOne("HotelSaas.Domain.Entities.Invoice", "Invoice")
+                        .WithMany()
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("FK_LoyaltyPointTransactions_Invoices_InvoiceId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.GuestLoyaltyMembership", "Membership")
+                        .WithMany("Transactions")
+                        .HasForeignKey("MembershipId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_LoyaltyPointTransactions_Memberships_MembershipId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.Property", "Property")
+                        .WithMany()
+                        .HasForeignKey("PropertyId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("FK_LoyaltyPointTransactions_Properties_PropertyId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.Reservation", "Reservation")
+                        .WithMany()
+                        .HasForeignKey("ReservationId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("FK_LoyaltyPointTransactions_Reservations_ReservationId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_LoyaltyPointTransactions_Tenants_TenantId");
+
+                    b.Navigation("Invoice");
+
+                    b.Navigation("Membership");
+
+                    b.Navigation("Property");
+
+                    b.Navigation("Reservation");
+
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("HotelSaas.Domain.Entities.Notification", b =>
@@ -1966,6 +2217,11 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.Navigation("Permissions");
                 });
 
+            modelBuilder.Entity("HotelSaas.Domain.Entities.GuestLoyaltyMembership", b =>
+                {
+                    b.Navigation("Transactions");
+                });
+
             modelBuilder.Entity("HotelSaas.Domain.Entities.Invoice", b =>
                 {
                     b.Navigation("InvoiceItems");
@@ -2037,6 +2293,8 @@ namespace HotelSaas.Infrastructure.Migrations
 
             modelBuilder.Entity("HotelSaas.Domain.Entities.User", b =>
                 {
+                    b.Navigation("LoyaltyMemberships");
+
                     b.Navigation("RefreshTokens");
 
                     b.Navigation("TenantStaffProfiles");

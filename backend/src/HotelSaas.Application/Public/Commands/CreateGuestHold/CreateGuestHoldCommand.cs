@@ -30,7 +30,9 @@ public sealed record CreateGuestHoldCommand(
     DateOnly? CheckInDate = null,
     DateOnly? CheckOutDate = null,
     decimal? ExpectedTotalAmount = null,
-    string? IdempotencyKey = null
+    string? IdempotencyKey = null,
+    int? PointsToRedeem = null,
+    Guid? GuestUserId = null
 ) : IRequest<GuestHoldDto>;
 
 public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestHoldCommand, GuestHoldDto>
@@ -369,8 +371,42 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
         }
 
         // 5. Setup 15-minute hold parameters (Decision D03, D15, D02, D21)
+        var pointsToRedeem = request.PointsToRedeem.GetValueOrDefault(0);
+        decimal pointsDiscount = 0m;
+        GuestLoyaltyMembership? membership = null;
+
+        if (pointsToRedeem > 0)
+        {
+            if (!request.GuestUserId.HasValue || request.GuestUserId.Value == Guid.Empty)
+            {
+                await tx.RollbackAsync(cancellationToken);
+                throw new BadRequestException("ERR_POINTS_AUTH_REQUIRED", "Yêu cầu đăng nhập tài khoản để sử dụng điểm thưởng thành viên.");
+            }
+
+            pointsDiscount = pointsToRedeem * 1000m;
+            var maxDiscount = Math.Round(quote.TotalAmount * 0.50m, 0, MidpointRounding.AwayFromZero);
+            if (pointsDiscount > maxDiscount)
+            {
+                await tx.RollbackAsync(cancellationToken);
+                throw new BadRequestException("ERR_POINTS_EXCEEDS_LIMIT", $"Số điểm quy đổi ({pointsToRedeem:N0} điểm = {pointsDiscount:N0} đ) vượt quá 50% tổng giá trị đơn ({maxDiscount:N0} đ).");
+            }
+
+            membership = await _context.GuestLoyaltyMemberships
+                .FirstOrDefaultAsync(m => m.TenantId == property.TenantId && m.UserId == request.GuestUserId.Value, cancellationToken);
+
+            if (membership == null || membership.PointsBalance < pointsToRedeem)
+            {
+                await tx.RollbackAsync(cancellationToken);
+                throw new BadRequestException("ERR_INSUFFICIENT_LOYALTY_POINTS", $"Số dư điểm thưởng không đủ (Hiện có: {membership?.PointsBalance ?? 0} điểm, yêu cầu: {pointsToRedeem} điểm).");
+            }
+
+            membership.PointsBalance -= pointsToRedeem;
+            membership.UpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        var finalTotalAmount = Math.Max(0m, quote.TotalAmount - pointsDiscount);
         var holdExpiresAtUtc = DateTime.UtcNow.AddMinutes(15);
-        var depositRequired = Math.Round(quote.TotalAmount * 0.30m, 0, MidpointRounding.AwayFromZero);
+        var depositRequired = Math.Round(finalTotalAmount * 0.30m, 0, MidpointRounding.AwayFromZero);
         var lookupToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
         var confirmationCode = await GenerateUniqueConfirmationCodeAsync(property.TenantId, cancellationToken);
 
@@ -382,7 +418,7 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
             BufferMinutes = bufferMinutes,
             RoomTypeId = roomType.Id,
             RoomTypeName = roomType.Name,
-            TotalAmount = quote.TotalAmount,
+            TotalAmount = finalTotalAmount,
             Currency = quote.Currency,
             Breakdown = quote.Breakdown,
             AppliedPolicies = quote.AppliedPolicies,
@@ -402,13 +438,16 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
             TenantId = property.TenantId,
             PropertyId = property.Id,
             RoomId = assignedRoom.Id,
+            GuestUserId = request.GuestUserId,
             GuestName = request.GuestName.Trim(),
             GuestEmail = request.GuestEmail.Trim(),
             GuestPhone = request.GuestPhone?.Trim(),
             CheckInDate = checkInDate,
             CheckOutDate = checkOutDate,
             NumberOfGuests = request.NumberOfGuests,
-            TotalAmount = quote.TotalAmount,
+            TotalAmount = finalTotalAmount,
+            PointsRedeemed = pointsToRedeem,
+            PointsDiscountAmount = pointsDiscount,
             Status = ReservationStatus.PendingPayment,
             Notes = ReservationSnapshotHelper.Serialize(snapshot),
             ConfirmationCode = confirmationCode,
@@ -417,6 +456,25 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
         };
 
         _context.Reservations.Add(reservation);
+
+        if (pointsToRedeem > 0 && membership != null)
+        {
+            var holdTx = new LoyaltyPointTransaction
+            {
+                Id = Guid.NewGuid(),
+                MembershipId = membership.Id,
+                TenantId = property.TenantId,
+                PropertyId = property.Id,
+                ReservationId = reservation.Id,
+                TransactionType = LoyaltyPointTransactionType.HeldForBooking,
+                PointsDelta = -pointsToRedeem,
+                BalanceAfter = membership.PointsBalance,
+                Description = $"Khóa tạm {pointsToRedeem} điểm thưởng cho đơn giữ chỗ {confirmationCode}",
+                CreatedAtUtc = DateTime.UtcNow
+            };
+            _context.LoyaltyPointTransactions.Add(holdTx);
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
@@ -436,12 +494,14 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
             EndAtUtc = effectiveEndUtc,
             CheckInDate = reservation.CheckInDate,
             CheckOutDate = reservation.CheckOutDate,
-            TotalAmount = quote.TotalAmount,
+            TotalAmount = finalTotalAmount,
             DepositRequired = depositRequired,
             Currency = quote.Currency,
             HoldExpiresAtUtc = holdExpiresAtUtc,
             SecondsRemaining = 900, // 15 minutes = 900 seconds
             Status = ReservationStatus.PendingPayment.ToString(),
+            PointsRedeemed = pointsToRedeem,
+            PointsDiscountAmount = pointsDiscount,
             Breakdown = quote.Breakdown
         };
     }

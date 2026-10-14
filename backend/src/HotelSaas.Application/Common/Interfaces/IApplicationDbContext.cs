@@ -62,6 +62,18 @@ public interface IApplicationDbContext
     /// <summary>Audit trail for room type rate modifications and interval splittings.</summary>
     DbSet<RoomTypeRateAudit> RoomTypeRateAudits { get; }
 
+    /// <summary>Invoices issued for reservations.</summary>
+    DbSet<Invoice> Invoices { get; }
+
+    /// <summary>Line items on invoices.</summary>
+    DbSet<InvoiceItem> InvoiceItems { get; }
+
+    /// <summary>Thẻ thành viên tích điểm chuỗi/cơ sở của khách hàng.</summary>
+    DbSet<GuestLoyaltyMembership> GuestLoyaltyMemberships { get; }
+
+    /// <summary>Sổ cái giao dịch điểm thưởng bất biến.</summary>
+    DbSet<LoyaltyPointTransaction> LoyaltyPointTransactions { get; }
+
     /// <summary>
     /// Starts a database transaction asynchronously.
     /// </summary>

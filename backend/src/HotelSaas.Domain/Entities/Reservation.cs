@@ -109,6 +109,48 @@ public class Reservation : BaseEntity, IPropertyScopedEntity
     /// </summary>
     public string? CancellationReason { get; set; }
 
+    // ── Loyalty Points & VAT Details ───────────────────────────────────
+
+    /// <summary>
+    /// Số điểm thưởng thành viên đã dùng để giảm trừ thanh toán cho đơn này.
+    /// </summary>
+    public int PointsRedeemed { get; set; }
+
+    /// <summary>
+    /// Số tiền quy đổi được giảm nhờ điểm thành viên (1 điểm = 1.000 VNĐ).
+    /// </summary>
+    public decimal PointsDiscountAmount { get; set; }
+
+    /// <summary>
+    /// Số điểm tích lũy được cộng vào ví khách sau khi hoàn tất trả phòng.
+    /// </summary>
+    public int PointsEarned { get; set; }
+
+    /// <summary>
+    /// Số điểm đã hoàn trả lại vào ví khách trong trường hợp hủy đơn hoặc hết hạn giữ chỗ.
+    /// </summary>
+    public int PointsRefunded { get; set; }
+
+    /// <summary>
+    /// Tên công ty/đơn vị mua hàng để xuất hóa đơn điện tử / VAT.
+    /// </summary>
+    public string? BuyerCompanyName { get; set; }
+
+    /// <summary>
+    /// Mã số thuế công ty của khách hàng.
+    /// </summary>
+    public string? BuyerTaxCode { get; set; }
+
+    /// <summary>
+    /// Địa chỉ pháp lý công ty phục vụ xuất hóa đơn.
+    /// </summary>
+    public string? BuyerAddress { get; set; }
+
+    /// <summary>
+    /// Email nhận hóa đơn điện tử của công ty/khách hàng.
+    /// </summary>
+    public string? BuyerEmail { get; set; }
+
     // ── Navigation Properties ──────────────────────────────────────────
 
     /// <summary>

@@ -385,6 +385,10 @@ public sealed class GetPublicPropertiesSyntheticTests
         public DbSet<SystemBanner> SystemBanners => throw new NotImplementedException();
         public DbSet<PropertySurchargePolicy> PropertySurchargePolicies => throw new NotImplementedException();
         public DbSet<RoomTypeRateAudit> RoomTypeRateAudits => throw new NotImplementedException();
+        public DbSet<Invoice> Invoices => throw new NotImplementedException();
+        public DbSet<InvoiceItem> InvoiceItems => throw new NotImplementedException();
+        public DbSet<GuestLoyaltyMembership> GuestLoyaltyMemberships => throw new NotImplementedException();
+        public DbSet<LoyaltyPointTransaction> LoyaltyPointTransactions => throw new NotImplementedException();
 
         public Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task LockUserRowAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();

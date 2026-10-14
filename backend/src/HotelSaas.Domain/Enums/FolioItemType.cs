@@ -48,5 +48,10 @@ public enum FolioItemType
     /// <summary>
     /// Service charge percentage applied to the folio.
     /// </summary>
-    ServiceCharge = 9
+    ServiceCharge = 9,
+
+    /// <summary>
+    /// Member loyalty points redemption discount applied to the folio.
+    /// </summary>
+    PointsRedemption = 10
 }

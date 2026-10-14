@@ -5,6 +5,7 @@ using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Reservations.DTOs;
+using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -171,6 +172,48 @@ public sealed class CancelReservationCommandHandler : IRequestHandler<CancelRese
         reservation.Status = ReservationStatus.Cancelled;
         reservation.CancelledAtUtc = DateTime.UtcNow;
         reservation.CancellationReason = reason;
+
+        // Rule C: Automatic, idempotent points refund on reservation cancellation
+        if (reservation.PointsRedeemed > 0 && reservation.PointsRefunded == 0)
+        {
+            GuestLoyaltyMembership? loyaltyMembership = null;
+            if (reservation.GuestUserId.HasValue)
+            {
+                loyaltyMembership = await _context.GuestLoyaltyMemberships
+                    .FirstOrDefaultAsync(m => m.TenantId == tenantId.Value && m.UserId == reservation.GuestUserId.Value, cancellationToken);
+            }
+
+            if (loyaltyMembership == null)
+            {
+                var holdTx = await _context.LoyaltyPointTransactions
+                    .Include(t => t.Membership)
+                    .FirstOrDefaultAsync(t => t.ReservationId == reservation.Id && t.TransactionType == LoyaltyPointTransactionType.HeldForBooking, cancellationToken);
+                loyaltyMembership = holdTx?.Membership;
+            }
+
+            if (loyaltyMembership != null)
+            {
+                loyaltyMembership.PointsBalance += reservation.PointsRedeemed;
+                loyaltyMembership.UpdatedAtUtc = DateTime.UtcNow;
+
+                var refundTx = new LoyaltyPointTransaction
+                {
+                    Id = Guid.NewGuid(),
+                    MembershipId = loyaltyMembership.Id,
+                    TenantId = tenantId.Value,
+                    PropertyId = request.PropertyId,
+                    ReservationId = reservation.Id,
+                    TransactionType = LoyaltyPointTransactionType.RefundedOnCancel,
+                    PointsDelta = reservation.PointsRedeemed,
+                    BalanceAfter = loyaltyMembership.PointsBalance,
+                    Description = $"Hoàn trả 100% ({reservation.PointsRedeemed} điểm) do hủy đơn đặt phòng {reservation.ConfirmationCode}",
+                    CreatedAtUtc = DateTime.UtcNow
+                };
+                _context.LoyaltyPointTransactions.Add(refundTx);
+            }
+
+            reservation.PointsRefunded = reservation.PointsRedeemed;
+        }
 
         await _context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

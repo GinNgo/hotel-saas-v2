@@ -1,9 +1,12 @@
 import { ChangeDetectionStrategy, Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { environment } from '../../../environments/environment';
 import { PublicBookingService } from '../../core/services/public-booking.service';
 import { AlertService } from '../../core/services/alert.service';
+import { AuthService } from '../../core/services/auth.service';
 import {
   GuestBookingDetailDto,
   GuestHoldDto,
@@ -192,7 +195,10 @@ import {
               </div>
               <div class="text-right">
                 <span class="text-slate-400 text-[10px] font-semibold uppercase block">Chi phí tạm tính</span>
-                <span class="text-base font-black text-indigo-700 font-mono">{{ estimatedAmount | number:'1.0-0' }} ₫</span>
+                <span class="text-base font-black text-indigo-700 font-mono">{{ finalEstimatedAmount() | number:'1.0-0' }} ₫</span>
+                @if (usePoints() && pointsToRedeem() > 0) {
+                  <span class="text-[10px] text-emerald-600 font-bold block">Đã giảm {{ pointsDiscount() | number:'1.0-0' }}₫ ({{ pointsToRedeem() }} điểm)</span>
+                }
               </div>
             </div>
 
@@ -265,6 +271,78 @@ import {
                 ></textarea>
               </div>
 
+              <!-- TÍCH HỢP ĐIỂM THƯỞNG HỘI VIÊN & GIẢM GIÁ (LOYALTY REWARDS) -->
+              @if (!isLoggedIn()) {
+                <div class="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 flex items-center justify-between gap-3 text-xs">
+                  <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-sm shrink-0">
+                      <i class="pi pi-gift"></i>
+                    </div>
+                    <div>
+                      <span class="font-bold text-slate-800 block">Bạn là Hội viên hoặc muốn dùng điểm thưởng?</span>
+                      <span class="text-slate-500 text-[11px]">Đăng nhập để giảm tới 50% tiền cọc bằng điểm thưởng (1 điểm = 1.000₫) và tích điểm sau trả phòng.</span>
+                    </div>
+                  </div>
+                  <a
+                    routerLink="/auth/login"
+                    class="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shrink-0 transition-colors shadow-2xs"
+                  >
+                    Đăng nhập
+                  </a>
+                </div>
+              } @else {
+                <div class="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                      <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                        <i class="pi pi-sparkles"></i>
+                      </div>
+                      <div>
+                        <span class="font-bold text-slate-800">Ví điểm thành viên</span>
+                        <span class="text-[11px] text-slate-500 block">
+                          Số dư khả dụng: <strong class="text-indigo-600 font-mono">{{ availablePoints() }}</strong> điểm (Quy đổi: 1 điểm = 1.000₫)
+                        </span>
+                      </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        [checked]="usePoints()"
+                        (change)="toggleUsePoints($event)"
+                        [disabled]="availablePoints() <= 0"
+                        class="sr-only peer"
+                      />
+                      <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                      <span class="ms-2 text-xs font-bold text-slate-700">Dùng điểm</span>
+                    </label>
+                  </div>
+
+                  @if (usePoints() && availablePoints() > 0) {
+                    <div class="pt-3 border-t border-slate-200/80 space-y-2">
+                      <div class="flex justify-between items-center text-xs">
+                        <span class="text-slate-600 font-medium">Số điểm sử dụng:</span>
+                        <span class="font-bold text-indigo-700 font-mono text-sm">
+                          {{ pointsToRedeem() }} điểm (-{{ pointsDiscount() | number:'1.0-0' }}₫)
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        [max]="maxRedeemablePoints()"
+                        step="10"
+                        [value]="pointsToRedeem()"
+                        (input)="onPointsSliderChange($event)"
+                        class="w-full accent-indigo-600 cursor-pointer"
+                      />
+                      <div class="flex justify-between text-[10px] text-slate-400">
+                        <span>0 điểm</span>
+                        <span>Tối đa: {{ maxRedeemablePoints() }} điểm (50% giá trị phòng)</span>
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+
               <!-- Button CTA -->
               <div class="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div class="flex items-center gap-2 text-xs text-emerald-600 font-semibold">
@@ -297,14 +375,22 @@ import {
 })
 export class BookingHoldPage implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
+  readonly router = inject(Router);
   private readonly publicBookingService = inject(PublicBookingService);
   private readonly alertService = inject(AlertService);
+  private readonly authService = inject(AuthService);
+  private readonly http = inject(HttpClient);
 
   readonly booking = signal<GuestBookingDetailDto | null>(null);
   readonly isLoading = signal<boolean>(true);
   readonly isExpired = signal<boolean>(false);
   readonly secondsRemaining = signal<number>(0);
+
+  // Loyalty rewards signals
+  readonly isLoggedIn = signal<boolean>(false);
+  readonly availablePoints = signal<number>(0);
+  readonly usePoints = signal<boolean>(false);
+  readonly pointsToRedeem = signal<number>(0);
 
   // Form fields for creating a new hold
   guestName = '';
@@ -324,6 +410,18 @@ export class BookingHoldPage implements OnInit, OnDestroy {
   estimatedAmount = 350000;
 
   private timerInterval: ReturnType<typeof setInterval> | null = null;
+
+  readonly pointsDiscount = computed<number>(() => this.pointsToRedeem() * 1000);
+
+  readonly maxRedeemablePoints = computed<number>(() => {
+    const maxFromCost = Math.floor((this.estimatedAmount * 0.5) / 1000);
+    return Math.min(this.availablePoints(), maxFromCost);
+  });
+
+  readonly finalEstimatedAmount = computed<number>(() => {
+    if (!this.usePoints()) return this.estimatedAmount;
+    return Math.max(0, this.estimatedAmount - this.pointsDiscount());
+  });
 
   statusLabel = computed<string>(() => {
     const status = this.booking()?.status;
@@ -357,6 +455,14 @@ export class BookingHoldPage implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
+    // 0. Detect authenticated guest & pre-fill info
+    this.isLoggedIn.set(this.authService.isLoggedIn);
+    if (this.authService.isLoggedIn && this.authService.currentUser) {
+      if (!this.guestName) this.guestName = this.authService.currentUser.fullName || '';
+      if (!this.guestEmail) this.guestEmail = this.authService.currentUser.email || '';
+      this.loadGuestPoints();
+    }
+
     // 1. Check if token in route /booking/hold/:token or queryParams ?token=...
     const token = this.route.snapshot.paramMap.get('token') || this.route.snapshot.queryParams['token'];
     if (token) {
@@ -384,6 +490,32 @@ export class BookingHoldPage implements OnInit, OnDestroy {
     }
 
     this.isLoading.set(false);
+  }
+
+  loadGuestPoints(): void {
+    this.http.get<any>(`${environment.apiUrl}/guest/profile`).subscribe({
+      next: (res) => {
+        const bal = res?.data?.totalPointsBalance ?? res?.totalPointsBalance ?? 0;
+        this.availablePoints.set(bal);
+      },
+      error: () => {
+        this.availablePoints.set(0);
+      }
+    });
+  }
+
+  toggleUsePoints(event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.usePoints.set(checked);
+    if (checked && this.pointsToRedeem() === 0) {
+      const def = Math.min(this.maxRedeemablePoints(), 50);
+      this.pointsToRedeem.set(def);
+    }
+  }
+
+  onPointsSliderChange(event: Event): void {
+    const val = Number((event.target as HTMLInputElement).value);
+    this.pointsToRedeem.set(val);
   }
 
   ngOnDestroy(): void {
@@ -462,6 +594,8 @@ export class BookingHoldPage implements OnInit, OnDestroy {
     const startAt = now.toISOString();
     const endAt = new Date(now.getTime() + 86400000).toISOString();
 
+    const pointsRedeem = (this.usePoints() && this.pointsToRedeem() > 0) ? this.pointsToRedeem() : undefined;
+
     this.publicBookingService.createHold({
       propertySlug: this.selectedPropSlug,
       roomTypeId: this.selectedRoomId,
@@ -474,7 +608,9 @@ export class BookingHoldPage implements OnInit, OnDestroy {
       numberOfGuests: 2,
       checkInDate: this.checkInDate,
       checkOutDate: this.checkOutDate,
-      expectedTotalAmount: this.estimatedAmount
+      expectedTotalAmount: this.estimatedAmount,
+      pointsToRedeem: pointsRedeem,
+      guestUserId: this.authService.currentUser?.id
     }).subscribe({
       next: (holdRes: GuestHoldDto) => {
         this.isSubmittingHold.set(false);
