@@ -1,0 +1,77 @@
+# ═══════════════════════════════════════════════════════
+# Hotel SaaS Platform — Root .gitignore
+# ═══════════════════════════════════════════════════════
+
+# ── .NET ──
+backend/**/bin/
+backend/**/obj/
+backend/**/*.user
+backend/**/*.suo
+backend/**/.vs/
+*.nupkg
+
+# ── Node / Angular ──
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+
+# ── Environment & Secrets ──
+.env
+.env.*
+!.env.example
+**/appsettings.*.json
+!**/appsettings.json
+!**/appsettings.Development.json
+
+# ── Docker ──
+docker/data/
+
+# ── IDE ──
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── Scripts build artifacts ──
+scripts/**/bin/
+scripts/**/obj/
+
+# ── Logs & Archives ──
+*.log
+logs/
+*.zip
+
+# ── Internal local handoff packages & pre-written code (do not push to remote repo) ──
+team-handoff/
+docs/team-handoff-package.md
+docs/team/handoff/
+docs/team/members/
+docs/team/guides/
+docs/team/assets/
+
+# ── Internal Agent Coordination & Prompts ──
+docs/agent-coordination/
+docs/prompts/
+.agents/
+
+# ── Scratch & Ad-hoc Testing / Automation Scripts ──
+*.py
+scratch/
+scripts/test-*.js
+scripts/temp/
+temp/
+screenshots/
+team-handoff*.zip
+
+
+.gemini/

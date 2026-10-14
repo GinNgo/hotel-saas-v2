@@ -1,0 +1,73 @@
+# ═══════════════════════════════════════════════════════
+# Hotel SaaS Platform — Docker Compose
+# ═══════════════════════════════════════════════════════
+# Usage: docker compose up -d
+# ═══════════════════════════════════════════════════════
+
+services:
+  # ── PostgreSQL 17 ──
+  postgres:
+    image: postgres:17-alpine
+    container_name: hotelsaas-db
+    environment:
+      POSTGRES_DB: hotel_saas_dev_ngoc
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hotel_saas_dev_ngoc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Redis (Cache & Rate Limiting) ──
+  redis:
+    image: redis:7-alpine
+    container_name: hotelsaas-redis
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── pgAdmin (Database Management UI) ──
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: hotelsaas-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@hotelsaas.local
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_LISTEN_PORT: 5050
+    ports:
+      - "5050:5050"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Seq (Structured Logging UI) ──
+  seq:
+    image: datalust/seq:latest
+    container_name: hotelsaas-seq
+    environment:
+      ACCEPT_EULA: "Y"
+    ports:
+      - "5341:80"       # UI
+      - "5342:5341"     # Ingestion
+    volumes:
+      - seq-data:/data
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  seq-data:
