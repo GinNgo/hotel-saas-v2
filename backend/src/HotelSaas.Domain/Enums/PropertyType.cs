@@ -3,6 +3,7 @@ namespace HotelSaas.Domain.Enums;
 /// <summary>
 /// Defines the type of hospitality property a tenant operates.
 /// </summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter))]
 public enum PropertyType
 {
     /// <summary>

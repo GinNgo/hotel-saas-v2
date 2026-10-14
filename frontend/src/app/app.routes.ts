@@ -80,8 +80,18 @@ export const routes: Routes = [
         path: 'dashboard',
         loadComponent: () => import('./features/dashboard/dashboard.page').then(m => m.DashboardPage)
       },
-      // Phân hệ Room & RoomType do Nguyễn Khởi Nguyên phụ trách (tích hợp qua branch feature/nguyen-rooms)
-      { path: 'rooms', redirectTo: 'dashboard', pathMatch: 'full' },
+      {
+        path: 'properties',
+        canActivate: [permissionGuard],
+        data: { permission: 'PROPERTIES', action: 1 },
+        loadComponent: () => import('./features/properties/properties.page').then(m => m.PropertiesPage)
+      },
+      {
+        path: 'rooms',
+        canActivate: [permissionGuard],
+        data: { permission: 'ROOMS', action: 1 },
+        loadComponent: () => import('./features/rooms/rooms.page').then(m => m.RoomsPage)
+      },
       { path: 'room-types', redirectTo: 'dashboard', pathMatch: 'full' },
 
       // Phân hệ Housekeeping do Trần Trọng Tân phụ trách (tích hợp qua branch feature/tan-housekeeping)
@@ -131,7 +141,18 @@ export const routes: Routes = [
         path: 'dashboard',
         loadComponent: () => import('./features/dashboard/dashboard.page').then(m => m.DashboardPage)
       },
-      { path: 'rooms', redirectTo: 'dashboard', pathMatch: 'full' },
+      {
+        path: 'properties',
+        canActivate: [permissionGuard],
+        data: { permission: 'PROPERTIES', action: 1 },
+        loadComponent: () => import('./features/properties/properties.page').then(m => m.PropertiesPage)
+      },
+      {
+        path: 'rooms',
+        canActivate: [permissionGuard],
+        data: { permission: 'ROOMS', action: 1 },
+        loadComponent: () => import('./features/rooms/rooms.page').then(m => m.RoomsPage)
+      },
       { path: 'room-types', redirectTo: 'dashboard', pathMatch: 'full' },
       { path: 'housekeeping', redirectTo: 'dashboard', pathMatch: 'full' },
       {

@@ -49,4 +49,26 @@ public sealed class LocationsController : ControllerBase
         var wards = _locationService.GetWardsByProvince(provinceCode);
         return Ok(new { success = true, data = wards });
     }
+
+    /// <summary>
+    /// Gets recognized tourist zones, optionally filtered by province.
+    /// </summary>
+    [HttpGet("tourist-zones")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public IActionResult GetTouristZones([FromQuery] string? provinceCode)
+    {
+        var zones = _locationService.GetTouristZones(provinceCode);
+        return Ok(new { success = true, data = zones });
+    }
+
+    /// <summary>
+    /// Gets prominent landmarks, optionally filtered by province or tourist zone.
+    /// </summary>
+    [HttpGet("landmarks")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public IActionResult GetLandmarks([FromQuery] string? provinceCode, [FromQuery] string? touristZoneSlug)
+    {
+        var landmarks = _locationService.GetLandmarks(provinceCode, touristZoneSlug);
+        return Ok(new { success = true, data = landmarks });
+    }
 }

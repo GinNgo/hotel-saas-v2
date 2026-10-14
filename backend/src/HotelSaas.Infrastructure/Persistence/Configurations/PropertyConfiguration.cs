@@ -75,6 +75,24 @@ public class PropertyConfiguration : IEntityTypeConfiguration<Property>
             .HasPrecision(5, 2)
             .HasDefaultValue(0.00m);
 
+        builder.Property(p => p.TouristZoneSlug)
+            .HasMaxLength(100);
+
+        builder.Property(p => p.TouristZoneName)
+            .HasMaxLength(200);
+
+        builder.Property(p => p.NearbyLandmarksJson)
+            .HasMaxLength(4000);
+
+        builder.Property(p => p.AllowHourlyBooking)
+            .HasDefaultValue(true);
+
+        builder.Property(p => p.AllowOvernightBooking)
+            .HasDefaultValue(true);
+
+        builder.Property(p => p.AllowDailyBooking)
+            .HasDefaultValue(true);
+
         builder.Property(p => p.IsPublished)
             .HasDefaultValue(false);
 

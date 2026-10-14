@@ -8,15 +8,18 @@ import { AlertService } from '../../core/services/alert.service';
 import {
   PublicPropertyDto,
   PublicRoomTypeAvailabilityDto,
-  CreateGuestHoldRequest
+  CreateGuestHoldRequest,
+  TouristZoneDto,
+  LandmarkDto,
+  PublicPropertiesFilter
 } from '../../core/models/public-booking.model';
 import { QuoteDto } from '../../core/models/reservation.model';
 import { parseDateParts } from '../../core/utils/date-time.util';
 import { RoomGalleryService, RoomPhoto, RoomAmenityItem } from '../../core/services/room-gallery.service';
-import { PhotoGalleryModalComponent, RoomDetailModalComponent } from '../../shared';
+import { PhotoGalleryModalComponent, RoomDetailModalComponent, StatusBadgeComponent } from '../../shared';
 import { AiConciergeWidgetComponent } from './ai-concierge-widget/ai-concierge-widget.component';
 import { PopularDestinationsComponent } from './components/popular-destinations/popular-destinations.component';
-import { BookingFilterBarComponent, BookingFilterCriteria } from './components/booking-filter-bar/booking-filter-bar.component';
+import { BookingFilterBarComponent, BookingFilterCriteria, DestinationSelection } from './components/booking-filter-bar/booking-filter-bar.component';
 
 export function getTodayVnDateString(): string {
   const now = new Date();
@@ -63,7 +66,8 @@ export interface RoomImageRenderContext {
     PopularDestinationsComponent,
     BookingFilterBarComponent,
     PhotoGalleryModalComponent,
-    RoomDetailModalComponent
+    RoomDetailModalComponent,
+    StatusBadgeComponent
   ],
   template: `
     <div class="min-h-screen bg-slate-50/70 flex flex-col font-sans text-slate-900 antialiased selection:bg-indigo-500 selection:text-white">
@@ -148,28 +152,37 @@ export interface RoomImageRenderContext {
 
           <!-- Unified Agoda/Booking Floating Search Card -->
           <div class="bg-white rounded-2xl sm:rounded-3xl shadow-xl border border-slate-100 p-3.5 sm:p-5 text-slate-900 w-full min-w-0 box-border" id="heroSearchCard">
-            <!-- Rental Type Selection Button Group -->
-            <div class="flex items-center gap-2 mb-3.5 pb-3 border-b border-slate-100" role="group" aria-label="Hình thức thuê phòng">
+            <!-- Rental Type Selection Button Group: 3 Distinct Tabs -->
+            <div class="flex items-center gap-2 mb-3.5 pb-3 border-b border-slate-100 flex-wrap" role="group" aria-label="Hình thức thuê phòng">
               <button
                 type="button"
-                [attr.aria-pressed]="searchForm.get('rentalType')?.value === 2"
-                (click)="setRentalType(2)"
-                [ngClass]="searchForm.get('rentalType')?.value === 2 ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-200' : 'bg-slate-100 text-slate-700 hover:text-slate-900 hover:bg-slate-200'"
-                class="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl text-xs font-bold transition-all min-h-[44px] min-w-[44px] flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
-                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                <span>Theo đêm</span>
+                [attr.aria-pressed]="searchForm.get('rentalType')?.value === 3"
+                (click)="setRentalType(3)"
+                [ngClass]="searchForm.get('rentalType')?.value === 3 ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-200' : 'bg-slate-100 text-slate-700 hover:text-slate-900 hover:bg-slate-200'"
+                class="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl text-xs font-bold transition-all min-h-[44px] min-w-[44px] flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 cursor-pointer">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                <span>Theo ngày (Hotel/Resort)</span>
               </button>
               <button
                 type="button"
                 [attr.aria-pressed]="searchForm.get('rentalType')?.value === 1"
                 (click)="setRentalType(1)"
                 [ngClass]="searchForm.get('rentalType')?.value === 1 ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-200' : 'bg-slate-100 text-slate-700 hover:text-slate-900 hover:bg-slate-200'"
-                class="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl text-xs font-bold transition-all min-h-[44px] min-w-[44px] flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                class="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl text-xs font-bold transition-all min-h-[44px] min-w-[44px] flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 cursor-pointer">
                 <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                <span>Theo giờ</span>
+                <span>Theo giờ (Nhà nghỉ/Motel)</span>
+              </button>
+              <button
+                type="button"
+                [attr.aria-pressed]="searchForm.get('rentalType')?.value === 2"
+                (click)="setRentalType(2)"
+                [ngClass]="searchForm.get('rentalType')?.value === 2 ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-200' : 'bg-slate-100 text-slate-700 hover:text-slate-900 hover:bg-slate-200'"
+                class="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl text-xs font-bold transition-all min-h-[44px] min-w-[44px] flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 cursor-pointer">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                <span>Qua đêm</span>
               </button>
               <span class="text-xs text-slate-400 ml-auto hidden md:inline font-medium">
-                Tìm theo tên khách sạn hoặc địa điểm
+                Tìm cơ sở lưu trú &amp; địa danh du lịch
               </span>
             </div>
 
@@ -213,7 +226,7 @@ export interface RoomImageRenderContext {
                   *ngIf="isComboboxOpen()"
                   id="property-suggestions-list"
                   role="listbox"
-                  class="absolute top-[calc(100%+6px)] left-0 right-0 z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-72 overflow-y-auto p-2 space-y-1">
+                  class="absolute top-[calc(100%+6px)] left-0 right-0 z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-80 overflow-y-auto p-2 space-y-2">
                   <!-- Loading State -->
                   <div *ngIf="isLoadingProperties()" class="p-3 text-xs text-indigo-600 flex items-center gap-2">
                     <svg class="w-4 h-4 animate-spin shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"/></svg>
@@ -229,42 +242,104 @@ export interface RoomImageRenderContext {
                   </div>
 
                   <!-- Empty State -->
-                  <div *ngIf="!isLoadingProperties() && !propertiesError() && properties().length === 0" class="p-4 text-xs text-slate-500 text-center">
-                    Không tìm thấy cơ sở lưu trú nào phù hợp với từ khóa này.
+                  <div *ngIf="!isLoadingProperties() && !propertiesError() && filteredSuggestions().length === 0 && properties().length === 0" class="p-4 text-xs text-slate-500 text-center">
+                    Không tìm thấy địa điểm hoặc cơ sở lưu trú nào phù hợp.
                   </div>
 
-                  <!-- Option Items -->
-                  <div
-                    *ngFor="let prop of properties(); let i = index"
-                    [id]="'suggestion-' + i"
-                    role="option"
-                    [attr.aria-selected]="selectedProperty()?.id === prop.id || activeSuggestionIndex() === i"
-                    (click)="selectSuggestion(prop)"
-                    (mouseenter)="activeSuggestionIndex.set(i)"
-                    [ngClass]="activeSuggestionIndex() === i || selectedProperty()?.id === prop.id ? 'bg-indigo-50 border-indigo-200 ring-1 ring-indigo-200' : 'hover:bg-slate-50 border-transparent'"
-                    class="p-3 rounded-xl cursor-pointer border transition-colors flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
-                      <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                  <!-- Group 1: Thành phố / Tỉnh -->
+                  <div *ngIf="groupedSuggestions().cities.length > 0" class="space-y-1">
+                    <div class="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                      <i class="pi pi-map text-indigo-500 text-[10px]"></i>
+                      <span>Thành phố / Tỉnh</span>
                     </div>
-                    <div class="min-w-0 flex-1">
-                      <div class="text-xs font-bold text-slate-900 truncate">{{ prop.name }}</div>
-                      <div class="text-[11px] text-slate-500 truncate">{{ prop.address }} &bull; {{ prop.city || 'Việt Nam' }}</div>
+                    <div
+                      *ngFor="let item of groupedSuggestions().cities"
+                      (click)="selectSuggestionItem(item)"
+                      class="px-3 py-2 rounded-xl hover:bg-indigo-50 text-xs font-semibold text-slate-700 hover:text-indigo-900 cursor-pointer flex items-center justify-between transition-colors">
+                      <div class="flex items-center gap-2">
+                        <i class="pi pi-building text-slate-400 text-xs"></i>
+                        <span>{{ item.displayName }}</span>
+                      </div>
+                      <span class="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-full">Tỉnh/Thành</span>
                     </div>
-                    <span *ngIf="selectedProperty()?.id === prop.id" class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 shrink-0">Đã chọn</span>
+                  </div>
+
+                  <!-- Group 2: Khu vực du lịch -->
+                  <div *ngIf="groupedSuggestions().zones.length > 0" class="space-y-1 pt-1 border-t border-slate-100">
+                    <div class="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                      <i class="pi pi-compass text-emerald-500 text-[10px]"></i>
+                      <span>Khu vực du lịch</span>
+                    </div>
+                    <div
+                      *ngFor="let item of groupedSuggestions().zones"
+                      (click)="selectSuggestionItem(item)"
+                      class="px-3 py-2 rounded-xl hover:bg-emerald-50 text-xs font-semibold text-slate-700 hover:text-emerald-900 cursor-pointer flex items-center justify-between transition-colors">
+                      <div class="flex items-center gap-2">
+                        <i class="pi pi-map-marker text-emerald-500 text-xs"></i>
+                        <span>{{ item.displayName }}</span>
+                      </div>
+                      <span class="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">Khu du lịch</span>
+                    </div>
+                  </div>
+
+                  <!-- Group 3: Địa danh nổi tiếng -->
+                  <div *ngIf="groupedSuggestions().landmarks.length > 0" class="space-y-1 pt-1 border-t border-slate-100">
+                    <div class="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                      <i class="pi pi-flag text-amber-500 text-[10px]"></i>
+                      <span>Địa danh nổi tiếng</span>
+                    </div>
+                    <div
+                      *ngFor="let item of groupedSuggestions().landmarks"
+                      (click)="selectSuggestionItem(item)"
+                      class="px-3 py-2 rounded-xl hover:bg-amber-50 text-xs font-semibold text-slate-700 hover:text-amber-900 cursor-pointer flex items-center justify-between transition-colors">
+                      <div class="flex items-center gap-2">
+                        <i class="pi pi-star text-amber-500 text-xs"></i>
+                        <span>{{ item.displayName }}</span>
+                      </div>
+                      <span class="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-full">Địa danh hot</span>
+                    </div>
+                  </div>
+
+                  <!-- Group 4: Cơ sở lưu trú -->
+                  <div *ngIf="groupedSuggestions().properties.length > 0 || properties().length > 0" class="space-y-1 pt-1 border-t border-slate-100">
+                    <div class="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                      <i class="pi pi-home text-purple-500 text-[10px]"></i>
+                      <span>Khách sạn &amp; Cơ sở lưu trú</span>
+                    </div>
+                    <div
+                      *ngFor="let prop of properties(); let i = index"
+                      [id]="'suggestion-' + i"
+                      role="option"
+                      [attr.aria-selected]="selectedProperty()?.id === prop.id || activeSuggestionIndex() === i"
+                      (click)="selectSuggestion(prop)"
+                      (mouseenter)="activeSuggestionIndex.set(i)"
+                      [ngClass]="activeSuggestionIndex() === i || selectedProperty()?.id === prop.id ? 'bg-indigo-50 border-indigo-200 ring-1 ring-indigo-200' : 'hover:bg-slate-50 border-transparent'"
+                      class="p-2.5 rounded-xl cursor-pointer border transition-colors flex items-center gap-2.5">
+                      <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                        <i class="pi pi-building text-xs"></i>
+                      </div>
+                      <div class="min-w-0 flex-1">
+                        <div class="text-xs font-bold text-slate-900 truncate">{{ prop.name }}</div>
+                        <div class="text-[10px] text-slate-500 truncate">{{ prop.address }} &bull; {{ prop.city || 'Việt Nam' }}</div>
+                      </div>
+                      <span *ngIf="selectedProperty()?.id === prop.id" class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">Đã chọn</span>
+                    </div>
                   </div>
                 </div>
               </div>
 
               <!-- Segment 2: Stay Dates Range (md:col-span-4) -->
               <div class="md:col-span-4 bg-slate-50 border border-slate-200 hover:border-slate-300 focus-within:border-indigo-600 focus-within:ring-2 focus-within:ring-indigo-100 rounded-2xl p-2.5 transition-all min-h-[64px] flex flex-col justify-center min-w-0" [formGroup]="searchForm">
-                <!-- Overnight Mode -->
-                <ng-container *ngIf="searchForm.get('rentalType')?.value === 2">
+                <!-- Daily (3) & Overnight (2) Mode -->
+                <ng-container *ngIf="searchForm.get('rentalType')?.value === 2 || searchForm.get('rentalType')?.value === 3">
                   <div class="flex items-center justify-between gap-2 mb-0.5 min-w-0">
                     <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 truncate">
                       <svg class="w-3.5 h-3.5 text-indigo-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                       <span>Thời gian lưu trú</span>
                     </span>
-                    <span class="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full shrink-0">{{ nightCount() }} đêm</span>
+                    <span class="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full shrink-0">
+                      {{ searchForm.get('rentalType')?.value === 3 ? (nightCount() + ' ngày') : (nightCount() + ' đêm') }}
+                    </span>
                   </div>
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center min-w-0 w-full">
                     <div class="min-w-0 flex flex-col">
@@ -293,18 +368,20 @@ export interface RoomImageRenderContext {
                   <div class="sr-only" role="status" aria-live="polite">{{ dateAdjustmentNotice() }}</div>
                 </ng-container>
 
-                <!-- Hourly Mode -->
+                <!-- Hourly Mode (1) -->
                 <ng-container *ngIf="searchForm.get('rentalType')?.value === 1">
                   <div class="flex items-center justify-between gap-2 mb-0.5 min-w-0">
                     <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 truncate">
                       <svg class="w-3.5 h-3.5 text-indigo-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                       <span>Thời gian thuê giờ</span>
                     </span>
-                    <span class="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full shrink-0">{{ searchForm.get('hourlyDurationHours')?.value }} giờ</span>
+                    <span class="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full shrink-0">
+                      {{ searchForm.get('checkInHour')?.value || '14:00' }} &bull; {{ searchForm.get('hourlyDurationHours')?.value }} giờ
+                    </span>
                   </div>
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center min-w-0 w-full">
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-1.5 items-center min-w-0 w-full">
                     <div class="min-w-0 flex flex-col">
-                      <label for="hourlyDateInput" class="text-[10px] font-semibold text-slate-500 leading-tight">Ngày thuê</label>
+                      <label for="hourlyDateInput" class="text-[10px] font-semibold text-slate-500 leading-tight">Ngày</label>
                       <input
                         id="hourlyDateInput"
                         type="date"
@@ -315,16 +392,37 @@ export interface RoomImageRenderContext {
                       />
                     </div>
                     <div class="min-w-0 flex flex-col">
-                      <label for="hourlyDurationSelect" class="text-[10px] font-semibold text-slate-500 leading-tight">Thời lượng</label>
+                      <label for="hourlyCheckInHourSelect" class="text-[10px] font-semibold text-slate-500 leading-tight">Giờ vào</label>
+                      <select
+                        id="hourlyCheckInHourSelect"
+                        formControlName="checkInHour"
+                        (change)="onSearchCriteriaChange()"
+                        class="w-full min-w-0 bg-transparent border-0 p-0 text-xs font-bold text-slate-900 focus:outline-none focus:ring-0 min-h-[28px]"
+                        aria-label="Giờ nhận phòng thuê theo giờ">
+                        <option value="08:00">08:00</option>
+                        <option value="10:00">10:00</option>
+                        <option value="12:00">12:00</option>
+                        <option value="14:00">14:00</option>
+                        <option value="16:00">16:00</option>
+                        <option value="18:00">18:00</option>
+                        <option value="20:00">20:00</option>
+                        <option value="22:00">22:00</option>
+                      </select>
+                    </div>
+                    <div class="min-w-0 flex flex-col">
+                      <label for="hourlyDurationSelect" class="text-[10px] font-semibold text-slate-500 leading-tight">Số giờ</label>
                       <select
                         id="hourlyDurationSelect"
                         formControlName="hourlyDurationHours"
                         (change)="onSearchCriteriaChange()"
                         class="w-full min-w-0 bg-transparent border-0 p-0 text-xs font-bold text-slate-900 focus:outline-none focus:ring-0 min-h-[28px]"
                         aria-label="Thời lượng thuê theo giờ">
+                        <option [value]="1">1 giờ</option>
                         <option [value]="2">2 giờ</option>
                         <option [value]="3">3 giờ</option>
                         <option [value]="4">4 giờ</option>
+                        <option [value]="5">5 giờ</option>
+                        <option [value]="6">6 giờ</option>
                       </select>
                     </div>
                   </div>
@@ -459,6 +557,53 @@ export interface RoomImageRenderContext {
             </div>
           </div>
 
+          <!-- Property Type Filter Chips -->
+          <div class="flex items-center gap-1.5 flex-wrap mb-5">
+            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Loại hình:</span>
+            <button
+              type="button"
+              (click)="onPropertyTypeFilterChange('ALL')"
+              [ngClass]="selectedPropertyType() === 'ALL' ? 'bg-indigo-600 text-white font-bold shadow-xs' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'"
+              class="px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer">
+              Tất cả ({{ properties().length }})
+            </button>
+            <button
+              type="button"
+              (click)="onPropertyTypeFilterChange(1)"
+              [ngClass]="selectedPropertyType() === 1 ? 'bg-indigo-600 text-white font-bold shadow-xs' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'"
+              class="px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer">
+              🏨 Khách sạn (Hotel)
+            </button>
+            <button
+              type="button"
+              (click)="onPropertyTypeFilterChange(3)"
+              [ngClass]="selectedPropertyType() === 3 ? 'bg-indigo-600 text-white font-bold shadow-xs' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'"
+              class="px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer">
+              🏡 Nhà nghỉ
+            </button>
+            <button
+              type="button"
+              (click)="onPropertyTypeFilterChange(2)"
+              [ngClass]="selectedPropertyType() === 2 ? 'bg-indigo-600 text-white font-bold shadow-xs' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'"
+              class="px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer">
+              ⚡ Motel
+            </button>
+            <button
+              type="button"
+              (click)="onPropertyTypeFilterChange(4)"
+              [ngClass]="selectedPropertyType() === 4 ? 'bg-indigo-600 text-white font-bold shadow-xs' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'"
+              class="px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer">
+              🌿 Homestay
+            </button>
+            <button
+              type="button"
+              (click)="onPropertyTypeFilterChange(5)"
+              [ngClass]="selectedPropertyType() === 5 ? 'bg-indigo-600 text-white font-bold shadow-xs' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'"
+              class="px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer">
+              🏖️ Resort
+            </button>
+          </div>
+
           <!-- Property Cards Grid -->
           <div *ngIf="properties().length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <article
@@ -537,11 +682,22 @@ export interface RoomImageRenderContext {
                   <text x="200" y="214" font-family="system-ui, sans-serif" font-size="9" font-weight="600" letter-spacing="1" fill="#94a3b8" text-anchor="middle">HÌNH MINH HỌA KIẾN TRÚC</text>
                 </svg>
 
-                <!-- City Tag Overlay -->
-                <div class="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-md text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-md">
+                <!-- Property Type Badge Overlay (Top Left) -->
+                <div class="absolute top-3 left-3 z-10">
+                  <app-status-badge
+                    [status]="prop.propertyTypeName || 'Khách sạn'"
+                    type="custom"
+                    [customLabel]="prop.propertyTypeName || 'Khách sạn'"
+                    [color]="getPropertyTypeColor(prop.propertyType)"
+                  />
+                </div>
+
+                <!-- City Tag Overlay (Top Right) -->
+                <div class="absolute top-3 right-3 bg-slate-900/80 backdrop-blur-md text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-md">
                   {{ prop.city || 'Việt Nam' }}
                 </div>
-                <!-- Transparent Illustration Disclosure Badge (Uncropped overlay with high contrast) -->
+
+                <!-- Transparent Illustration Disclosure Badge -->
                 <div *ngIf="!prop.imageUrl" class="absolute bottom-3 right-3 bg-slate-900/85 backdrop-blur-xs text-slate-200 text-[10px] font-semibold px-2.5 py-1 rounded-md border border-slate-700/80 shadow-xs pointer-events-none">
                   Hình minh họa — chưa có ảnh cơ sở
                 </div>
@@ -558,13 +714,38 @@ export interface RoomImageRenderContext {
                   <h3 class="text-lg font-extrabold text-slate-900 leading-snug hover:text-indigo-600 transition-colors">
                     {{ prop.name }}
                   </h3>
-                  <p class="text-xs text-slate-500 mt-2 flex items-start gap-1.5 line-clamp-2">
+                  <p class="text-xs text-slate-500 mt-1 flex items-start gap-1.5 line-clamp-2">
                     <svg class="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                     <span>{{ prop.address }}</span>
                   </p>
 
+                  <!-- Distance to Nearest Landmark -->
+                  <div *ngIf="prop.nearbyLandmarks && prop.nearbyLandmarks.length > 0" class="mt-2.5 flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50/90 px-2.5 py-1.5 rounded-xl border border-indigo-100 font-medium">
+                    <i class="pi pi-map-marker text-[11px] text-indigo-600 shrink-0"></i>
+                    <span class="truncate">Cách {{ prop.nearbyLandmarks[0].name }}: <strong>{{ prop.nearbyLandmarks[0].formattedDistance }}</strong></span>
+                  </div>
+
+                  <!-- Tourist Zone Tag -->
+                  <div *ngIf="prop.touristZoneName" class="mt-1.5 flex items-center gap-1 text-[11px] text-emerald-700 font-medium">
+                    <i class="pi pi-compass text-[10px] text-emerald-600"></i>
+                    <span>{{ prop.touristZoneName }}</span>
+                  </div>
+
+                  <!-- Supported Rental Modes Tags -->
+                  <div class="flex items-center gap-1.5 flex-wrap mt-2.5">
+                    <span *ngIf="prop.allowDailyBooking" class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      ☀️ Theo ngày
+                    </span>
+                    <span *ngIf="prop.allowOvernightBooking" class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                      🌙 Qua đêm
+                    </span>
+                    <span *ngIf="prop.allowHourlyBooking" class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200">
+                      ⚡ Theo giờ
+                    </span>
+                  </div>
+
                   <!-- Time & Operational Badges -->
-                  <div class="grid grid-cols-2 gap-2 mt-4 bg-slate-50/80 border border-slate-100 rounded-2xl p-3 text-[11px] text-slate-600">
+                  <div class="grid grid-cols-2 gap-2 mt-3 bg-slate-50/80 border border-slate-100 rounded-2xl p-2.5 text-[11px] text-slate-600">
                     <div class="flex items-center gap-1.5">
                       <span class="text-slate-400">Nhận phòng:</span>
                       <strong class="text-slate-900">{{ prop.checkInTime }}</strong>
@@ -575,30 +756,48 @@ export interface RoomImageRenderContext {
                     </div>
                     <div class="flex items-center gap-1.5">
                       <span class="text-slate-400">Giờ tối đa:</span>
-                      <strong class="text-slate-900">{{ prop.maxHourlyHours }} giờ</strong>
+                      <strong class="text-slate-900">{{ prop.maxHourlyHours }}h</strong>
                     </div>
                     <div class="flex items-center gap-1.5">
                       <span class="text-slate-400">Khu vực:</span>
                       <strong class="text-slate-900">{{ prop.city || 'Việt Nam' }}</strong>
                     </div>
                   </div>
+
+                  <!-- Starting Price Indicator -->
+                  <div *ngIf="prop.startingPrice" class="mt-3 pt-2.5 border-t border-slate-100 flex items-baseline justify-between">
+                    <span class="text-[10px] text-slate-400 font-medium">Giá chỉ từ</span>
+                    <div class="text-right">
+                      <strong class="text-base font-black text-indigo-700">{{ prop.startingPrice | number:'1.0-0' }} ₫</strong>
+                      <span class="text-[10px] text-slate-500 font-medium">/{{ rentalTypeUnitLabel() }}</span>
+                    </div>
+                  </div>
                 </div>
 
-                <!-- Card Action Button -->
-                <div class="mt-5 pt-4 border-t border-slate-100">
+                <!-- Card Action Buttons (View Gallery + Select Room) -->
+                <div class="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
+                  <button
+                    type="button"
+                    (click)="openPropertyGallery(prop); $event.stopPropagation()"
+                    class="py-2.5 px-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-slate-700 hover:text-indigo-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 min-h-[44px] cursor-pointer"
+                    title="Xem ảnh cơ sở lưu trú">
+                    <i class="pi pi-images text-xs text-indigo-600"></i>
+                    <span>Xem ảnh</span>
+                  </button>
+
                   <button
                     type="button"
                     (click)="selectProperty(prop)"
                     [disabled]="!isPropertySelectable(prop)"
                     [attr.aria-pressed]="selectedProperty()?.id === prop.id"
                     [ngClass]="selectedProperty()?.id === prop.id ? 'bg-indigo-700 text-white shadow-sm ring-2 ring-indigo-200' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed'"
-                    class="w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
+                    class="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 cursor-pointer">
                     <span *ngIf="selectedProperty()?.id === prop.id" class="flex items-center justify-center gap-2">
-                      <span>Đang chọn cơ sở này &bull; Xem loại phòng bên dưới</span>
+                      <span>Đang chọn &bull; Xem loại phòng</span>
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                     </span>
                     <span *ngIf="selectedProperty()?.id !== prop.id" class="flex items-center justify-center gap-2">
-                      <span>Chọn cơ sở này &amp; Xem phòng</span>
+                      <span>Chọn cơ sở &amp; Xem phòng</span>
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
                     </span>
                   </button>
@@ -663,11 +862,18 @@ export interface RoomImageRenderContext {
           <!-- Interactive Room Filter & Sorting Bar -->
           <app-booking-filter-bar
             *ngIf="!isLoadingAvailability() && selectedProperty() && availabilityList().length > 0"
+            [rentalType]="searchForm.get('rentalType')?.value"
+            [propertyType]="selectedPropertyType()"
+            [touristZones]="touristZones()"
+            [landmarks]="landmarks()"
+            [properties]="properties()"
             [priceRange]="filterCriteria().priceRange"
             [bedType]="filterCriteria().bedType"
             [activeAmenities]="filterCriteria().amenities"
             [sortBy]="filterCriteria().sortBy"
-            (filterChange)="onFilterCriteriaChange($event)">
+            (filterChange)="onFilterCriteriaChange($event)"
+            (rentalTypeChange)="setRentalType($event)"
+            (propertyTypeChange)="onPropertyTypeFilterChange($event)">
           </app-booking-filter-bar>
 
           <!-- Empty state when filters return 0 rooms -->
@@ -1195,6 +1401,8 @@ export class BookingPage implements OnInit, OnDestroy {
 
   // Bộ lọc tìm kiếm & sắp xếp phòng
   filterCriteria = signal<BookingFilterCriteria>({
+    rentalType: 3,
+    propertyType: 'ALL',
     priceRange: 'ALL',
     bedType: 'ALL',
     amenities: [],
@@ -1337,14 +1545,152 @@ export class BookingPage implements OnInit, OnDestroy {
   isLoadingQuote = signal<boolean>(false);
   isSubmittingHold = signal<boolean>(false);
 
+  touristZones = signal<TouristZoneDto[]>([]);
+  landmarks = signal<LandmarkDto[]>([]);
+  selectedPropertyType = signal<number | 'ALL'>('ALL');
+  selectedTouristZoneSlug = signal<string | undefined>(undefined);
+  selectedLandmarkSlug = signal<string | undefined>(undefined);
+
   searchForm: FormGroup = this.fb.group({
     propertySlug: ['', Validators.required],
-    rentalType: [2, Validators.required],
+    rentalType: [3, Validators.required],
     checkInDate: [getTodayVnDateString(), Validators.required],
     checkOutDate: [addDaysToDateString(getTodayVnDateString(), 1), Validators.required],
     hourlyDate: [getTodayVnDateString(), Validators.required],
+    checkInHour: ['14:00', Validators.required],
     hourlyDurationHours: [2, Validators.required]
   });
+
+  rentalTypeUnitLabel = computed<string>(() => {
+    const rt = this.searchForm?.get('rentalType')?.value;
+    if (rt === 1) return 'giờ';
+    if (rt === 2) return 'đêm';
+    return 'ngày';
+  });
+
+  allDestinationsList = computed<DestinationSelection[]>(() => {
+    const list: DestinationSelection[] = [];
+
+    // Distinct Cities
+    const cities = new Set<string>();
+    this.touristZones().forEach(z => {
+      if (z.provinceName) cities.add(z.provinceName);
+    });
+    this.properties().forEach(p => {
+      if (p.city) cities.add(p.city);
+    });
+    cities.forEach(c => {
+      list.push({ category: 'city', displayName: c, searchTerm: c });
+    });
+
+    // Tourist Zones
+    this.touristZones().forEach(z => {
+      list.push({ category: 'touristZone', displayName: `${z.name} (${z.provinceName})`, searchTerm: z.name, slug: z.slug });
+    });
+
+    // Landmarks
+    this.landmarks().forEach(lm => {
+      list.push({ category: 'landmark', displayName: lm.name, searchTerm: lm.name, slug: lm.slug });
+    });
+
+    // Properties
+    this.properties().forEach(p => {
+      list.push({ category: 'property', displayName: `${p.name} - ${p.address}`, searchTerm: p.name, slug: p.slug });
+    });
+
+    return list;
+  });
+
+  filteredSuggestions = computed<DestinationSelection[]>(() => {
+    const kw = (this.propertySearchControl.value || '').trim().toLowerCase();
+    const all = this.allDestinationsList();
+    if (!kw) return all.slice(0, 15);
+    return all.filter(item => item.displayName.toLowerCase().includes(kw)).slice(0, 20);
+  });
+
+  groupedSuggestions = computed(() => {
+    const list = this.filteredSuggestions();
+    return {
+      cities: list.filter(i => i.category === 'city'),
+      zones: list.filter(i => i.category === 'touristZone'),
+      landmarks: list.filter(i => i.category === 'landmark'),
+      properties: list.filter(i => i.category === 'property')
+    };
+  });
+
+  selectSuggestionItem(item: DestinationSelection): void {
+    this.propertySearchControl.setValue(item.searchTerm);
+    this.isComboboxOpen.set(false);
+    if (item.category === 'touristZone') {
+      this.selectedTouristZoneSlug.set(item.slug);
+      this.selectedLandmarkSlug.set(undefined);
+    } else if (item.category === 'landmark') {
+      this.selectedLandmarkSlug.set(item.slug);
+      this.selectedTouristZoneSlug.set(undefined);
+    } else if (item.category === 'property') {
+      const match = this.properties().find(p => p.slug === item.slug);
+      if (match) {
+        this.selectSuggestion(match);
+        return;
+      }
+    } else {
+      this.selectedTouristZoneSlug.set(undefined);
+      this.selectedLandmarkSlug.set(undefined);
+    }
+    this.loadProperties(item.searchTerm);
+  }
+
+  getPropertyTypeColor(type?: number): 'blue' | 'emerald' | 'amber' | 'purple' | 'rose' | 'slate' {
+    switch (type) {
+      case 1: return 'blue';
+      case 2: return 'amber';
+      case 3: return 'rose';
+      case 4: return 'emerald';
+      case 5: return 'purple';
+      default: return 'slate';
+    }
+  }
+
+  onPropertyTypeFilterChange(type: number | 'ALL'): void {
+    this.selectedPropertyType.set(type);
+    const val = this.propertySearchControl.value?.trim() || undefined;
+    this.loadProperties(val);
+  }
+
+  openPropertyGallery(prop: PublicPropertyDto): void {
+    const photos: RoomPhoto[] = [
+      {
+        url: prop.imageUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80',
+        title: prop.name,
+        category: 'Không gian'
+      },
+      {
+        url: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1200&q=80',
+        title: 'Không gian phòng nghỉ sạch sẽ tiêu chuẩn',
+        category: 'Tiện nghi'
+      },
+      {
+        url: 'https://images.unsplash.com/photo-1584132967334-10e028bd69f7?auto=format&fit=crop&w=1200&q=80',
+        title: 'Sảnh đón tiếp & Cảnh quan',
+        category: 'Không gian'
+      }
+    ];
+    this.galleryModalTitle.set(`${prop.name} — Thư viện ảnh`);
+    this.galleryModalPhotos.set(photos);
+    this.galleryActiveIndex.set(0);
+    this.isGalleryModalOpen.set(true);
+  }
+
+  loadTouristZonesAndLandmarks(): void {
+    this.publicBookingService.getTouristZones().subscribe({
+      next: zones => this.touristZones.set(zones),
+      error: () => {}
+    });
+    this.publicBookingService.getLandmarks().subscribe({
+      next: lms => this.landmarks.set(lms),
+      error: () => {}
+    });
+  }
 
   guestForm: FormGroup = this.fb.group({
     guestName: ['', Validators.required],
@@ -1363,6 +1709,7 @@ export class BookingPage implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadProperties();
+    this.loadTouristZonesAndLandmarks();
 
     this.searchSubscription = this.propertySearchControl.valueChanges.subscribe(val => {
       this.cancelPendingSearchDebounce();
@@ -1427,6 +1774,8 @@ export class BookingPage implements OnInit, OnDestroy {
 
   resetFilters(): void {
     this.filterCriteria.set({
+      rentalType: this.searchForm?.get('rentalType')?.value || 3,
+      propertyType: 'ALL',
       priceRange: 'ALL',
       bedType: 'ALL',
       amenities: [],
@@ -1531,7 +1880,17 @@ export class BookingPage implements OnInit, OnDestroy {
     this.propertiesError.set(null);
 
     this.propertiesSub?.unsubscribe();
-    this.propertiesSub = this.publicBookingService.getProperties(searchTerm).subscribe({
+
+    const filter: PublicPropertiesFilter = {
+      search: searchTerm,
+      destinationKeyword: searchTerm,
+      rentalType: Number(this.searchForm.get('rentalType')?.value) || undefined,
+      propertyTypes: this.selectedPropertyType() !== 'ALL' ? [this.selectedPropertyType() as number] : undefined,
+      touristZoneSlug: this.selectedTouristZoneSlug(),
+      landmarkSlug: this.selectedLandmarkSlug()
+    };
+
+    this.propertiesSub = this.publicBookingService.getProperties(filter).subscribe({
       next: props => {
         if (requestId !== this.propertySearchRequestId) {
           // Stale response: discard to enforce latest-request-wins
@@ -1663,7 +2022,7 @@ export class BookingPage implements OnInit, OnDestroy {
   areDatesValid(): boolean {
     const todayStr = getTodayVnDateString();
     const rentalType = Number(this.searchForm.get('rentalType')?.value);
-    if (rentalType === 2) {
+    if (rentalType === 2 || rentalType === 3) {
       const checkInDate = this.searchForm.get('checkInDate')?.value;
       const checkOutDate = this.searchForm.get('checkOutDate')?.value;
       if (!checkInDate || !checkOutDate) {
@@ -1817,7 +2176,7 @@ export class BookingPage implements OnInit, OnDestroy {
     let checkInDate: string | undefined;
     let checkOutDate: string | undefined;
 
-    if (rentalType === 2) {
+    if (rentalType === 2 || rentalType === 3) {
       checkInDate = this.searchForm.get('checkInDate')?.value;
       checkOutDate = this.searchForm.get('checkOutDate')?.value;
       startAtUtc = `${checkInDate}T07:00:00Z`;
@@ -1906,7 +2265,7 @@ export class BookingPage implements OnInit, OnDestroy {
     let checkInDate: string | undefined;
     let checkOutDate: string | undefined;
 
-    if (rentalType === 2) {
+    if (rentalType === 2 || rentalType === 3) {
       checkInDate = this.searchForm.get('checkInDate')?.value;
       checkOutDate = this.searchForm.get('checkOutDate')?.value;
       startAtUtc = `${checkInDate}T07:00:00Z`;
@@ -1992,7 +2351,7 @@ export class BookingPage implements OnInit, OnDestroy {
     let checkInDate: string | undefined;
     let checkOutDate: string | undefined;
 
-    if (rentalType === 2) {
+    if (rentalType === 2 || rentalType === 3) {
       checkInDate = this.searchForm.get('checkInDate')?.value;
       checkOutDate = this.searchForm.get('checkOutDate')?.value;
       startAtUtc = `${checkInDate}T07:00:00Z`;

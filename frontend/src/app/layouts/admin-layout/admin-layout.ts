@@ -70,6 +70,19 @@ import { UserMembershipDto } from '../../core/models/auth.model';
               <span>Tổng quan</span>
             </a>
 
+            @if (hasPropertiesPermission()) {
+              <a
+                routerLink="/properties"
+                routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                (click)="onNavItemClick()"
+                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+              >
+                <i class="pi pi-building text-base text-emerald-700"></i>
+                <span>Cơ sở & Chi nhánh</span>
+                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">HQ</span>
+              </a>
+            }
+
             @if (hasRoomsPermission()) {
               <a
                 routerLink="/rooms"
@@ -245,20 +258,25 @@ import { UserMembershipDto } from '../../core/models/auth.model';
               <i class="pi pi-bars text-base sm:text-lg"></i>
             </button>
 
-            <!-- Context Switcher Pill (Bấm để chọn/đổi chi nhánh) -->
+            <!-- Context Switcher Pill (Bấm để chọn/đổi chi nhánh hoặc quản lý chuỗi) -->
             <button
               type="button"
               (click)="openBranchSwitcher()"
-              class="group flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-xl border border-slate-200/90 bg-slate-50/80 hover:bg-emerald-50 hover:border-emerald-300 transition-all duration-200 cursor-pointer shadow-2xs text-left max-w-[155px] sm:max-w-[240px] lg:max-w-none min-w-0"
-              title="Nhấn để đổi chi nhánh làm việc"
-              aria-label="Đổi chi nhánh làm việc"
+              class="group flex items-center gap-2 sm:gap-2.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200/90 bg-slate-50/80 hover:bg-emerald-50 hover:border-emerald-300 transition-all duration-200 cursor-pointer shadow-2xs text-left max-w-[200px] sm:max-w-[320px] lg:max-w-none min-w-0"
+              title="Nhấn để đổi chi nhánh làm việc hoặc chuyển sang HQ"
+              aria-label="Đổi chi nhánh làm việc hoặc chuyển sang HQ"
             >
-              <div class="flex items-center justify-center min-w-[24px] px-1.5 h-6 sm:h-7 rounded-lg bg-emerald-600 text-white text-[10px] sm:text-xs font-bold shrink-0 whitespace-nowrap">
-                {{ authService.activePropertyCode() || 'CN' }}
+              <div class="flex items-center justify-center min-w-[26px] px-1.5 h-6 sm:h-7 rounded-lg bg-emerald-600 text-white text-[10px] sm:text-xs font-bold shrink-0 whitespace-nowrap shadow-xs">
+                {{ authService.activePropertyCode() || 'HQ' }}
               </div>
               <div class="min-w-0 pr-1 truncate">
-                <div class="text-[11px] sm:text-xs font-semibold text-slate-800 group-hover:text-emerald-800 truncate">
-                  {{ authService.activePropertyName() || 'Chưa chọn chi nhánh' }}
+                <div class="flex items-center gap-1.5 truncate">
+                  <span class="text-[9px] sm:text-[10px] font-extrabold uppercase text-emerald-800 bg-emerald-100/90 px-1.5 py-0.2 rounded shrink-0">
+                    {{ tenantBrandName }}
+                  </span>
+                  <span class="text-[11px] sm:text-xs font-semibold text-slate-800 group-hover:text-emerald-900 truncate">
+                    {{ authService.activePropertyName() || 'Chế độ Chuỗi HQ' }}
+                  </span>
                 </div>
                 <div class="text-[9px] sm:text-[10px] text-slate-500 group-hover:text-emerald-700 truncate hidden sm:block">
                   Nhấn để đổi chi nhánh
@@ -323,6 +341,14 @@ export class AdminLayoutComponent {
 
   isMobileSidebarOpen = signal(false);
   showBranchDialog = false;
+  get tenantBrandName(): string {
+    const membership = this.authService.memberships[0];
+    return membership?.tenantName || 'HQ Chuỗi';
+  }
+
+  hasPropertiesPermission(): boolean {
+    return this.authService.isTenantWide || this.authService.hasPermission('PROPERTIES', 1);
+  }
 
   hasRoomsPermission(): boolean {
     return this.authService.hasPermission('ROOMS', 1);

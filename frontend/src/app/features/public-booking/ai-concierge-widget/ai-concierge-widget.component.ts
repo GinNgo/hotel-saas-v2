@@ -130,28 +130,42 @@ interface ChatMessage {
             }
           </div>
 
-          <!-- Quick Suggestion Chips -->
+          <!-- Quick Suggestion Chips (Landmarks & Rental Models) -->
           <div class="px-3 py-2 bg-white border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto shrink-0 scrollbar-none">
             <button
               type="button"
-              (click)="sendQuickPrompt('Tôi muốn tìm phòng đôi view đẹp')"
+              (click)="sendQuickPrompt('Tìm nhà nghỉ thuê theo giờ gần Bãi Sau Vũng Tàu dưới 300k')"
               class="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] whitespace-nowrap cursor-pointer transition-colors"
             >
-              Phòng đôi view đẹp
+              Nhà nghỉ thuê giờ Bãi Sau Vũng Tàu
             </button>
             <button
               type="button"
-              (click)="sendQuickPrompt('Có phòng gia đình 4 người không?')"
+              (click)="sendQuickPrompt('Khách sạn gần Chợ đêm Đà Lạt cho 2 người cuối tuần này')"
               class="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] whitespace-nowrap cursor-pointer transition-colors"
             >
-              Phòng gia đình 4 người
+              Khách sạn Chợ đêm Đà Lạt
             </button>
             <button
               type="button"
-              (click)="sendQuickPrompt('Chính sách nhận phòng sớm và trả phòng muộn thế nào?')"
+              (click)="sendQuickPrompt('Homestay có bồn tắm view đẹp tại Hồ Tuyền Lâm')"
               class="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] whitespace-nowrap cursor-pointer transition-colors"
             >
-              Chính sách check-in
+              Homestay Hồ Tuyền Lâm
+            </button>
+            <button
+              type="button"
+              (click)="sendQuickPrompt('Resort nghỉ dưỡng tại Phú Quốc cho gia đình')"
+              class="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] whitespace-nowrap cursor-pointer transition-colors"
+            >
+              Resort Phú Quốc
+            </button>
+            <button
+              type="button"
+              (click)="sendQuickPrompt('Khách sạn gần Cầu Rồng Đà Nẵng')"
+              class="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] whitespace-nowrap cursor-pointer transition-colors"
+            >
+              Khách sạn Cầu Rồng Đà Nẵng
             </button>
           </div>
 

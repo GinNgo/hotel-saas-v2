@@ -36,7 +36,7 @@ public sealed class LocalDevDataSeederTests
         if (!string.IsNullOrWhiteSpace(envConn))
             return envConn;
 
-        return "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
+        return "Host=localhost;Port=5435;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
     }
 
     private static ApplicationDbContext CreateDbContext(string connString, string testSchema)

@@ -11,7 +11,10 @@ import {
   GuestBookingDetailDto,
   CalculatePublicQuoteRequest,
   CreateGuestHoldRequest,
-  ConfirmGuestBookingRequest
+  ConfirmGuestBookingRequest,
+  PublicPropertiesFilter,
+  TouristZoneDto,
+  LandmarkDto
 } from '../models/public-booking.model';
 import { QuoteDto } from '../models/reservation.model';
 
@@ -21,16 +24,80 @@ export class PublicBookingService {
   private readonly apiUrl = `${environment.apiUrl}/public`;
 
   /**
-   * Retrieves all active properties available for public booking.
+   * Retrieves all active properties available for public booking with rich multi-criteria filters.
    */
-  getProperties(search?: string): Observable<PublicPropertyDto[]> {
+  getProperties(filter?: string | PublicPropertiesFilter): Observable<PublicPropertyDto[]> {
     let params = new HttpParams();
-    if (search?.trim()) {
-      params = params.set('search', search.trim());
+
+    if (typeof filter === 'string') {
+      if (filter.trim()) {
+        params = params.set('search', filter.trim());
+      }
+    } else if (filter) {
+      if (filter.search?.trim()) {
+        params = params.set('search', filter.search.trim());
+      }
+      if (filter.destinationKeyword?.trim()) {
+        params = params.set('destinationKeyword', filter.destinationKeyword.trim());
+      }
+      if (filter.rentalType !== undefined && filter.rentalType !== null) {
+        params = params.set('rentalType', filter.rentalType.toString());
+      }
+      if (filter.propertyTypes && filter.propertyTypes.length > 0) {
+        filter.propertyTypes.forEach(pt => {
+          params = params.append('propertyTypes', pt.toString());
+        });
+      }
+      if (filter.touristZoneSlug?.trim()) {
+        params = params.set('touristZoneSlug', filter.touristZoneSlug.trim());
+      }
+      if (filter.landmarkSlug?.trim()) {
+        params = params.set('landmarkSlug', filter.landmarkSlug.trim());
+      }
+      if (filter.maxDistanceKm !== undefined && filter.maxDistanceKm !== null) {
+        params = params.set('maxDistanceKm', filter.maxDistanceKm.toString());
+      }
+      if (filter.latitude !== undefined && filter.latitude !== null) {
+        params = params.set('latitude', filter.latitude.toString());
+      }
+      if (filter.longitude !== undefined && filter.longitude !== null) {
+        params = params.set('longitude', filter.longitude.toString());
+      }
+      if (filter.page) {
+        params = params.set('page', filter.page.toString());
+      }
+      if (filter.pageSize) {
+        params = params.set('pageSize', filter.pageSize.toString());
+      }
     }
 
     return this.http.get<any>(`${this.apiUrl}/properties`, { params }).pipe(
       map(res => (res.data ? res.data : res) as PublicPropertyDto[])
+    );
+  }
+
+  /**
+   * Retrieves list of tourist zones for destination discovery and autocomplete.
+   */
+  getTouristZones(): Observable<TouristZoneDto[]> {
+    return this.http.get<any>(`${this.apiUrl}/tourist-zones`).pipe(
+      map(res => (res.data ? res.data : res) as TouristZoneDto[])
+    );
+  }
+
+  /**
+   * Retrieves landmarks for a given province or tourist zone.
+   */
+  getLandmarks(options?: { provinceCode?: string; touristZoneSlug?: string }): Observable<LandmarkDto[]> {
+    let params = new HttpParams();
+    if (options?.provinceCode) {
+      params = params.set('provinceCode', options.provinceCode);
+    }
+    if (options?.touristZoneSlug) {
+      params = params.set('touristZoneSlug', options.touristZoneSlug);
+    }
+    return this.http.get<any>(`${this.apiUrl}/landmarks`, { params }).pipe(
+      map(res => (res.data ? res.data : res) as LandmarkDto[])
     );
   }
 

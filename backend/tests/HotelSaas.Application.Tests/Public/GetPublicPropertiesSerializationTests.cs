@@ -108,7 +108,14 @@ public sealed class GetPublicPropertiesSerializationTests
         "checkInTime",
         "checkOutTime",
         "bufferMinutes",
-        "maxHourlyHours"
+        "maxHourlyHours",
+        "propertyType",
+        "propertyTypeName",
+        "starRating",
+        "allowHourlyBooking",
+        "allowOvernightBooking",
+        "allowDailyBooking",
+        "nearbyLandmarks"
     };
 
     private static readonly HashSet<string> AllowedKeysWhenNullIncluded = new(StringComparer.Ordinal)
@@ -123,7 +130,23 @@ public sealed class GetPublicPropertiesSerializationTests
         "checkOutTime",
         "bufferMinutes",
         "maxHourlyHours",
-        "imageUrl"
+        "imageUrl",
+        "propertyType",
+        "propertyTypeName",
+        "starRating",
+        "latitude",
+        "longitude",
+        "touristZoneSlug",
+        "touristZoneName",
+        "allowHourlyBooking",
+        "allowOvernightBooking",
+        "allowDailyBooking",
+        "hourlyStartingPrice",
+        "overnightStartingPrice",
+        "dailyStartingPrice",
+        "startingPrice",
+        "nearbyLandmarks",
+        "nearestLandmarkInfo"
     };
 
     private static readonly string[] ForbiddenInternalFieldSubstrings = new[]

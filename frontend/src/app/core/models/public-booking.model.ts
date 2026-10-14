@@ -1,5 +1,35 @@
 import { QuoteBreakdownItemDto } from './reservation.model';
 
+export interface LandmarkDistanceDto {
+  name: string;
+  distanceMeters?: number;
+  distanceKm?: number;
+  formattedDistance: string;
+  category?: string;
+}
+
+export interface TouristZoneDto {
+  slug: string;
+  name: string;
+  provinceCode: string;
+  provinceName: string;
+  description?: string;
+  landmarksCount: number;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface LandmarkDto {
+  slug: string;
+  name: string;
+  touristZoneSlug: string;
+  provinceCode: string;
+  category?: string;
+  latitude?: number;
+  longitude?: number;
+  addressHint?: string;
+}
+
 export interface PublicPropertyDto {
   id: string;
   name: string;
@@ -12,6 +42,76 @@ export interface PublicPropertyDto {
   bufferMinutes: number;
   maxHourlyHours: number;
   imageUrl?: string;
+  propertyType?: number;
+  propertyTypeName?: string;
+  touristZoneSlug?: string;
+  touristZoneName?: string;
+  latitude?: number;
+  longitude?: number;
+  nearbyLandmarks?: LandmarkDistanceDto[];
+  startingPrice?: number;
+  allowHourlyBooking?: boolean;
+  allowOvernightBooking?: boolean;
+  allowDailyBooking?: boolean;
+}
+
+export interface PublicPropertiesFilter {
+  search?: string;
+  destinationKeyword?: string;
+  propertyTypes?: number[];
+  rentalType?: number;
+  touristZoneSlug?: string;
+  landmarkSlug?: string;
+  maxDistanceKm?: number;
+  latitude?: number;
+  longitude?: number;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface TenantPropertySummaryDto {
+  id: string;
+  name: string;
+  code: string;
+  slug: string;
+  address: string;
+  city: string;
+  propertyType: number;
+  propertyTypeName: string;
+  touristZoneName?: string;
+  totalRooms: number;
+  occupiedRooms: number;
+  todayRevenue: number;
+  allowHourlyBooking: boolean;
+  allowOvernightBooking: boolean;
+  allowDailyBooking: boolean;
+  isActive: boolean;
+}
+
+export interface CreatePropertyRequest {
+  name: string;
+  code: string;
+  slug: string;
+  address: string;
+  city?: string;
+  provinceCode: string;
+  propertyType: number;
+  touristZoneSlug?: string;
+  touristZoneName?: string;
+  checkInTime?: string;
+  checkOutTime?: string;
+  bufferMinutes?: number;
+  maxHourlyHours?: number;
+  allowHourlyBooking?: boolean;
+  allowOvernightBooking?: boolean;
+  allowDailyBooking?: boolean;
+  latitude?: number;
+  longitude?: number;
+  nearbyLandmarksJson?: string;
+}
+
+export interface UpdatePropertyRequest extends CreatePropertyRequest {
+  isActive?: boolean;
 }
 
 export interface PublicRoomTypeDto {
