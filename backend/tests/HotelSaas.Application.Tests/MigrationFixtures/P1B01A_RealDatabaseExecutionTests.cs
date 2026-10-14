@@ -138,7 +138,7 @@ public sealed class P1B01A_RealDatabaseExecutionTests
         // Dedicated test schema isolation: 'public' is strictly EXCLUDED from search_path
         await using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = $"CREATE SCHEMA IF NOT EXISTS \"{testSchema}\"; SET search_path TO \"{testSchema}\";";
+            cmd.CommandText = $"DISCARD ALL; CREATE SCHEMA IF NOT EXISTS \"{testSchema}\"; SET search_path TO \"{testSchema}\";";
             await cmd.ExecuteNonQueryAsync();
         }
 
@@ -159,10 +159,10 @@ public sealed class P1B01A_RealDatabaseExecutionTests
 
         // Cleanup strictly drops only the test's own schema, surfacing any errors without swallowing
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"DROP SCHEMA IF EXISTS \"{testSchema}\" CASCADE;";
+        cmd.CommandText = $"SET search_path TO public; DROP SCHEMA IF EXISTS \"{testSchema}\" CASCADE; DISCARD ALL;";
         await cmd.ExecuteNonQueryAsync();
 
-        NpgsqlConnection.ClearPool(conn);
+        NpgsqlConnection.ClearAllPools();
     }
 
     /// <summary>

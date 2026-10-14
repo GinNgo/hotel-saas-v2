@@ -59,7 +59,7 @@ jobs:
         env:
           TEST_DB_CONNECTION: "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;Pooling=false;"
           HOTEL_SAAS_TEST_CONNECTION_STRING: "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;Pooling=false;"
-        run: dotnet test --no-build --configuration Release --collect:"XPlat Code Coverage" --results-directory ./coverage -- RunConfiguration.DisableParallelization=true
+        run: dotnet test --no-build --configuration Release --collect:"XPlat Code Coverage" --results-directory ./coverage -- RunConfiguration.DisableParallelization=true xunit.parallelizeAssembly=false xunit.parallelizeTestCollections=false xunit.maxParallelThreads=1
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4

@@ -465,11 +465,13 @@ BEGIN
     FOREACH v_tbl IN ARRAY v_required_tables
     LOOP
         SELECT EXISTS (
-            SELECT 1 FROM pg_indexes i
-            WHERE i.schemaname = v_schema 
-              AND i.tablename = v_tbl 
-              AND i.indexname = 'PK_' || v_tbl
-              AND i.indexdef LIKE '%UNIQUE INDEX%'
+            SELECT 1 FROM pg_index idx
+            JOIN pg_class c_idx ON c_idx.oid = idx.indexrelid
+            JOIN pg_class c_tbl ON c_tbl.oid = idx.indrelid
+            WHERE c_tbl.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = v_schema)
+              AND c_tbl.relname = v_tbl
+              AND c_idx.relname = 'PK_' || v_tbl
+              AND idx.indisunique = true
         ) INTO v_idx_valid;
 
         IF NOT v_idx_valid THEN
