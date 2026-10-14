@@ -1,5 +1,39 @@
 import { QuoteBreakdownItemDto } from './reservation.model';
 
+export type RentalType = 'Hourly' | 'Overnight' | 'Daily';
+
+export type PropertyType = 'Hotel' | 'Motel' | 'Guesthouse' | 'Homestay' | 'Resort';
+
+export type DestinationSuggestionType = 'Province' | 'TouristZone' | 'Landmark' | 'Property';
+
+export type BookingSortOption =
+  | 'recommended'
+  | 'price_asc'
+  | 'price_desc'
+  | 'distance_asc'
+  | 'rating_desc';
+
+export interface DestinationSuggestionDto {
+  id: string;
+  name: string;
+  slug: string;
+  type: DestinationSuggestionType;
+  provinceCode: string;
+  provinceName: string;
+  touristZoneName?: string;
+  distanceLabel?: string;
+  propertyCount?: number;
+  propertyType?: PropertyType;
+}
+
+export interface NearbyLandmarkBadgeDto {
+  landmarkId: string;
+  landmarkName: string;
+  landmarkSlug: string;
+  category: 'Market' | 'Beach' | 'Heritage' | 'Airport' | 'Center';
+  distanceMeters: number;
+}
+
 export interface LandmarkDistanceDto {
   name: string;
   distanceMeters?: number;
@@ -30,29 +64,101 @@ export interface LandmarkDto {
   addressHint?: string;
 }
 
-export interface PublicPropertyDto {
-  id: string;
+export interface PublicBookingSearchFilter {
+  rentalType: RentalType;
+  destinationKeyword: string;
+  provinceCode: string | null;
+  touristZoneSlug: string | null;
+  landmarkSlug: string | null;
+  tenantSlug: string | null;
+  propertyTypes: PropertyType[];
+  checkInDate: string; // YYYY-MM-DD
+  checkOutDate: string; // YYYY-MM-DD
+  checkInTime: string; // HH:mm (dùng cho Hourly & Overnight)
+  durationHours: number; // Số giờ thuê (dùng cho Hourly: 1, 2, 3, 4, 6...)
+  guests: number;
+  roomsCount: number;
+  maxDistanceMeters: number | null;
+  minPrice: number | null;
+  maxPrice: number | null;
+  sortBy: BookingSortOption;
+  page: number;
+  pageSize: number;
+}
+
+export interface PublicRoomTypeAvailabilityDto {
+  roomTypeId: string;
   name: string;
+  roomTypeName?: string; // for compatibility
   code: string;
-  slug: string;
-  address: string;
-  city?: string;
-  checkInTime: string;
-  checkOutTime: string;
-  bufferMinutes: number;
-  maxHourlyHours: number;
+  description?: string;
+  maxGuests: number;
+  maxOccupancy?: number; // for compatibility
+  bedConfiguration?: string;
+  bedType?: string; // for compatibility
+  areaSqm?: number;
+  squareMeters?: number; // for compatibility
+  availableRoomsCount: number;
+  availableRooms: number; // for compatibility
+  totalRooms?: number;
+  isAvailable?: boolean;
+  amenities: string[];
+  images: string[];
   imageUrl?: string;
-  propertyType?: number;
+  // Giá tương ứng với từng chế độ thuê
+  hourlyBasePrice?: number; // Giá block giờ đầu (VD: 2 giờ đầu)
+  hourlyBaseHours?: number; // Số giờ block đầu (mặc định 2h)
+  hourlyExtraHourPrice?: number; // Phụ thu mỗi giờ tiếp theo
+  overnightPrice?: number; // Giá qua đêm
+  dailyPrice?: number; // Giá theo ngày/đêm
+  calculatedQuoteTotal: number; // Tổng tiền tạm tính theo bộ lọc hiện tại
+  estimatedPrice?: number; // for compatibility
+}
+
+export interface PublicPropertyDto {
+  propertyId: string;
+  id?: string; // for compatibility
+  tenantId: string;
+  tenantBrandName: string; // Tên Tenant chính (Chuỗi thương hiệu)
+  name: string; // Tên cơ sở / chi nhánh
+  code?: string;
+  slug: string;
+  propertyType: PropertyType;
   propertyTypeName?: string;
-  touristZoneSlug?: string;
+  starRating?: number;
+  addressLine: string;
+  address?: string; // for compatibility
+  wardName: string;
+  city?: string;
+  provinceCode: string;
+  provinceName: string;
   touristZoneName?: string;
+  touristZoneSlug?: string;
   latitude?: number;
   longitude?: number;
-  nearbyLandmarks?: LandmarkDistanceDto[];
-  startingPrice?: number;
+  thumbnailUrl: string;
+  imageUrl?: string; // for compatibility
+  galleryUrls: string[];
+  allowedRentalTypes: RentalType[];
   allowHourlyBooking?: boolean;
   allowOvernightBooking?: boolean;
   allowDailyBooking?: boolean;
+  checkInTime?: string;
+  checkOutTime?: string;
+  overnightCheckInTime: string; // VD: "21:00"
+  overnightCheckOutTime: string; // VD: "10:00"
+  cleaningBufferMinutes: number; // VD: 15 hoặc 30 phút
+  bufferMinutes?: number;
+  maxHourlyHours?: number;
+  ratingAverage: number;
+  reviewCount: number;
+  nearbyLandmarks: NearbyLandmarkBadgeDto[];
+  startingPriceForSelectedMode: number;
+  startingPrice?: number;
+  hourlyStartingPrice?: number;
+  overnightStartingPrice?: number;
+  dailyStartingPrice?: number;
+  availableRoomTypes: PublicRoomTypeAvailabilityDto[];
 }
 
 export interface PublicPropertiesFilter {
@@ -125,20 +231,6 @@ export interface PublicRoomTypeDto {
   bedType?: string;
   squareMeters?: number;
   imageUrl?: string;
-}
-
-export interface PublicRoomTypeAvailabilityDto {
-  roomTypeId: string;
-  roomTypeName: string;
-  description?: string;
-  maxOccupancy: number;
-  bedType?: string;
-  squareMeters?: number;
-  imageUrl?: string;
-  totalRooms: number;
-  availableRooms: number;
-  isAvailable: boolean;
-  estimatedPrice: number;
 }
 
 export interface GuestHoldDto {
