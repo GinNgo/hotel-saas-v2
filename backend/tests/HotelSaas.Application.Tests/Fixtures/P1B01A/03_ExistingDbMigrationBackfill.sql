@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
 DO $$
 DECLARE
     v_schema text := current_schema();
+    v_schema_oid oid;
     v_total_required_tables integer := 22;
     v_existing_tables_count integer := 0;
     v_missing_elements text := '';
@@ -391,6 +392,8 @@ DECLARE
     ];
     v_fk_row text[];
 BEGIN
+    SELECT oid INTO v_schema_oid FROM pg_namespace WHERE nspname = v_schema;
+
     -- 1.1. ĐẾM VÀ KIỂM TRA SỰ TỒN TẠI CỦA TOÀN BỘ 22 BẢNG BASELINE
     FOREACH v_tbl IN ARRAY v_required_tables
     LOOP
@@ -416,8 +419,8 @@ BEGIN
     LOOP
         SELECT EXISTS (
             SELECT 1 FROM pg_constraint c
-            JOIN pg_class cl ON cl.oid = c.conrelid
-            WHERE c.connamespace = (SELECT oid FROM pg_namespace WHERE nspname = v_schema)
+            JOIN pg_class cl ON cl.oid = c.conrelid AND cl.relnamespace = v_schema_oid
+            WHERE c.connamespace = v_schema_oid
               AND c.contype = 'p'
               AND cl.relname = v_tbl
               AND pg_get_constraintdef(c.oid) LIKE 'PRIMARY KEY ("Id")%'
@@ -433,10 +436,10 @@ BEGIN
     LOOP
         SELECT EXISTS (
             SELECT 1 FROM pg_constraint c
-            JOIN pg_class cl_src ON cl_src.oid = c.conrelid
-            JOIN pg_class cl_dst ON cl_dst.oid = c.confrelid
-            WHERE c.connamespace = (SELECT oid FROM pg_namespace WHERE nspname = v_schema)
-              AND cl_dst.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = v_schema)
+            JOIN pg_class cl_src ON cl_src.oid = c.conrelid AND cl_src.relnamespace = v_schema_oid
+            JOIN pg_class cl_dst ON cl_dst.oid = c.confrelid AND cl_dst.relnamespace = v_schema_oid
+            WHERE c.connamespace = v_schema_oid
+              AND cl_dst.relnamespace = v_schema_oid
               AND c.contype = 'f'
               AND c.confdeltype = v_fk_row[5]
               AND cl_src.relname = v_fk_row[1]
@@ -455,10 +458,9 @@ BEGIN
     LOOP
         SELECT EXISTS (
             SELECT 1 FROM pg_index idx
-            JOIN pg_class c_idx ON c_idx.oid = idx.indexrelid
-            JOIN pg_class c_tbl ON c_tbl.oid = idx.indrelid
-            WHERE c_tbl.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = v_schema)
-              AND c_tbl.relname = v_tbl
+            JOIN pg_class c_idx ON c_idx.oid = idx.indexrelid AND c_idx.relnamespace = v_schema_oid
+            JOIN pg_class c_tbl ON c_tbl.oid = idx.indrelid AND c_tbl.relnamespace = v_schema_oid
+            WHERE c_tbl.relname = v_tbl
               AND c_idx.relname = 'PK_' || v_tbl
               AND idx.indisunique = true
         ) INTO v_idx_valid;
@@ -475,19 +477,19 @@ BEGIN
         SELECT EXISTS (
             SELECT 1 
             FROM pg_index idx
-            JOIN pg_class c_idx ON c_idx.oid = idx.indexrelid
-            JOIN pg_class c_tbl ON c_tbl.oid = idx.indrelid
+            JOIN pg_class c_idx ON c_idx.oid = idx.indexrelid AND c_idx.relnamespace = v_schema_oid
+            JOIN pg_class c_tbl ON c_tbl.oid = idx.indrelid AND c_tbl.relnamespace = v_schema_oid
             JOIN pg_am am ON am.oid = c_idx.relam
-            WHERE c_tbl.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = v_schema)
-              AND c_tbl.relname = v_idx_row[1]
+            WHERE c_tbl.relname = v_idx_row[1]
               AND c_idx.relname = v_idx_row[2]
               AND (CASE WHEN idx.indisunique THEN 'YES' ELSE 'NO' END) = v_idx_row[3]
               AND am.amname = v_idx_row[4]
+              AND (idx.indpred IS NULL OR v_idx_row[6] <> 'NONE')
+              AND COALESCE(pg_get_expr(idx.indpred, idx.indrelid), 'NONE') = v_idx_row[6]
               AND TRIM(REGEXP_REPLACE(
                     REGEXP_REPLACE(pg_get_indexdef(c_idx.oid), '^.* USING [a-z]+ ', ''),
                     ' WHERE .*$', ''
                   )) = v_idx_row[5]
-              AND COALESCE(pg_get_expr(idx.indpred, idx.indrelid), 'NONE') = v_idx_row[6]
               AND REPLACE(REPLACE(pg_get_indexdef(c_idx.oid), v_schema || '.', ''), '"' || v_schema || '".', '') = v_idx_row[7]
         ) INTO v_idx_valid;
 

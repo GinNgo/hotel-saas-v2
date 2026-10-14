@@ -27,10 +27,15 @@ public sealed class LocalDevDataSeederWebApiPipelineTests
     private static string GetConnectionString()
     {
         var envConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION");
-        if (!string.IsNullOrWhiteSpace(envConn))
-            return envConn;
+        var baseConn = !string.IsNullOrWhiteSpace(envConn)
+            ? envConn
+            : "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
 
-        return "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
+        var builder = new NpgsqlConnectionStringBuilder(baseConn)
+        {
+            Pooling = false
+        };
+        return builder.ConnectionString;
     }
 
     private static void ValidateTestDatabaseTarget(string connStr)
@@ -258,10 +263,14 @@ public sealed class LocalDevDataSeederWebApiPipelineTests
                 try
                 {
                     await using var cleanupCmd = conn.CreateCommand();
-                    cleanupCmd.CommandText = $"DROP SCHEMA IF EXISTS \"{testSchema}\" CASCADE;";
+                    cleanupCmd.CommandText = $"SET search_path TO public; DROP SCHEMA IF EXISTS \"{testSchema}\" CASCADE;";
                     await cleanupCmd.ExecuteNonQueryAsync();
                 }
                 catch { }
+                finally
+                {
+                    NpgsqlConnection.ClearAllPools();
+                }
             }
         }
     }
