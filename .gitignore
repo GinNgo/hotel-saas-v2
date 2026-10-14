@@ -1,6 +1,6 @@
-# ═══════════════════════════════════════════════════════
+﻿# ══════════════════════════════════════════════════════════════════
 # Hotel SaaS Platform — Root .gitignore
-# ═══════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════
 
 # ── .NET ──
 backend/**/bin/
@@ -30,14 +30,14 @@ frontend/test-results/
 # ── Docker ──
 docker/data/
 
-# ── IDE ──
+# ── IDE & Editor ──
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
 
-# ── OS ──
+# ── OS Generated ──
 .DS_Store
 Thumbs.db
 Desktop.ini
@@ -50,28 +50,41 @@ scripts/**/obj/
 *.log
 logs/
 *.zip
+*.tar.gz
+*.7z
 
-# ── Internal local handoff packages & pre-written code (do not push to remote repo) ──
+# ── Local handoff packages & Teammate workspaces ──
 team-handoff/
+team-handoff*.zip
 docs/team-handoff-package.md
 docs/team/handoff/
 docs/team/members/
 docs/team/guides/
 docs/team/assets/
+hotel-members-tasks/
+members-tasks/
 
-# ── Internal Agent Coordination & Prompts ──
+# ── AI Agent Tooling & Coordination ──
+.gemini/
+.agents/
 docs/agent-coordination/
 docs/prompts/
-.agents/
+docs/agent-logs/
 
-# ── Scratch & Ad-hoc Testing / Automation Scripts ──
+# ── Scratch, Drafts & Ad-hoc Testing Scripts ──
 *.py
 scratch/
-scripts/test-*.js
-scripts/temp/
 temp/
 screenshots/
-team-handoff*.zip
+scripts/test-*.js
+scripts/temp/
 
-
-.gemini/
+# ── Redundant / Draft Documentation ──
+docs/specs/
+docs/scratch/
+docs/drafts/
+docs/**/drafts/
+docs/weekly-reports/
+*CHAM_DIEM*
+*cham-diem*
+*self-assessment*

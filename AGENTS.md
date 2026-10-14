@@ -1,138 +1,101 @@
-# 🤖 CẨM NANG PHÁT TRIỂN & QUY CHUẨN DÀNH CHO AI AGENT (AGENTS.md)
+﻿# AI Agent Development Guidelines & Engineering Standards (AGENTS.md)
+## Hotel SaaS Platform v2 (.NET 10 + Angular 22 + PostgreSQL 17)
 
-> **Dành cho mọi AI Agent (Antigravity, Cursor, Claude Code, GitHub Copilot...) và Lập trình viên:**  
-> Bắt buộc đọc kỹ và tuân thủ 100% các quy định dưới đây trước khi đọc hiểu, thiết kế, sinh mã nguồn hoặc thao tác Git trong kho lưu trữ **Hotel SaaS Platform** (`hotel-saas-v2`).
-
----
-
-## 🎯 1. NGUYÊN TẮC VÀNG #1: TÁI SỬ DỤNG TRƯỚC TIÊN (REUSE-FIRST & ANTI-FRAGMENTATION)
-
-### ⚠️ Banned Pattern (Hành vi bị nghiêm cấm):
-1. **CẤM tạo file lẻ tẻ rải rác:** Mỗi khi thêm tính năng mới, tuyệt đối không tự tiện tạo các file util 10–20 dòng nằm rải rác hay tự viết lại component UI riêng rẽ mà không kiểm tra kho dùng chung.
-2. **CẤM Duplicate UI Code:** Tuyệt đối không tự viết lại inline HTML/CSS cho Badge trạng thái, Thẻ KPI, Nút phân trang, Header trang, Trạng thái rỗng (Empty state) hay Bảng dữ liệu.
-3. **CẤM Inline HTTP calls:** Không gọi `HttpClient` trực tiếp trong component; bắt buộc đi qua tầng Service (`src/app/core/services/`).
-
-### 📋 Quy trình 3 bước bắt buộc trước khi tạo bất kỳ file nào (Pre-Creation Checklist):
-```
-┌─────────────────┐       ┌──────────────────────┐       ┌────────────────────────┐
-│  1. TRA CỨU     │  ───> │  2. MỞ RỘNG (EXTEND) │  ───> │  3. ĐƯA RA DÙNG CHUNG  │
-│  (Lookup First) │       │  (Tái sử dụng tối đa)│       │  (Elevate to Common)   │
-└─────────────────┘       └──────────────────────┘       └────────────────────────┘
-```
-1. **TRA CỨU (Lookup):** Kiểm tra xem component, utility, helper, DTO hoặc service tương tự đã tồn tại trong `@shared`, `@core` (Frontend) hoặc `Application.Common`, `WebApi.Controllers.BaseApiController` (Backend) chưa.
-2. **MỞ RỘNG (Extend):** Nếu đã có thứ tương tự, ưu tiên tái sử dụng và mở rộng bằng `optional input` / `parameter` thay vì tạo file mới.
-3. **ĐƯA RA DÙNG CHUNG (Elevate to Common):** Nếu một thành phần UI hoặc một hàm logic được dùng ở $\ge 2$ màn hình/tính năng, **BẮT BUỘC đưa ra thư mục dùng chung** và xuất ra qua barrel file (`index.ts`).
+This document establishes the technical specifications, coding standards, and architectural constraints for AI coding assistants and software engineers contributing to the **Hotel SaaS Platform** repository.
 
 ---
 
-## 🧩 2. DANH MỤC THÀNH PHẦN DÙNG CHUNG (SHARED & COMMON REGISTRY)
+## 1. Architectural Foundation & Layering Constraints
 
-### 2.1. Frontend Angular (Standalone Components & Signals)
+The system adheres strictly to **Clean Architecture** and **Domain-Driven Design (DDD)** principles across four isolated layers:
 
-Toàn bộ các component dùng chung được tập trung tại `frontend/src/app/shared/` và xuất qua barrel file `src/app/shared/index.ts`:
+`
+[ Domain Layer ]  <-- Core entities, enums, domain exceptions, domain events (Zero dependencies)
+       ^
+[ Application Layer ] <-- CQRS Commands/Queries, MediatR Handlers, FluentValidation, Interfaces
+       ^
+[ Infrastructure Layer ] <-- EF Core, DbContext, Migrations, External Integrations, Background Jobs
+       ^
+[ WebApi / Presentation Layer ] <-- ASP.NET Core Minimal APIs / Controllers, Middlewares, Auth
+`
 
-| Tên Component | Selector / Export | Vị Trí File | Mục Đích Tái Sử Dụng |
-|:---|:---|:---|:---|
-| **StatusBadgeComponent** | `<app-status-badge>` | `shared/components/status-badge/` | Hiển thị huy hiệu trạng thái chuẩn Luxury cho Buồng phòng (Clean, Dirty, Cleaning, Occupied, OutOfService), Đơn đặt phòng (Pending, Confirmed, CheckedIn, CheckedOut, Cancelled), Thanh toán và Boolean (Active/Inactive). |
-| **StatCardComponent** | `<app-stat-card>` | `shared/components/stat-card/` | Thẻ thống kê chỉ số KPI / Metrics có icon container, trend biến động (↑/↓ %), đa dạng màu sắc (indigo, emerald, amber, rose, sky, purple). Dùng chung cho Dashboard, Buồng phòng, Báo cáo, Thu ngân. |
-| **PageHeaderComponent** | `<app-page-header>` | `shared/components/page-header/` | Tiêu đề trang chuẩn, phụ đề và khu vực đặt nút bấm hành động (Action Buttons). |
-| **PaginationComponent** | `<app-pagination>` | `shared/components/pagination/` | Phân trang danh sách, chọn số bản ghi trên trang (10, 25, 50, 100), nút Prev/Next đồng bộ. |
-| **EmptyStateComponent** | `<app-empty-state>` | `shared/components/empty-state/` | Hiển thị trạng thái rỗng khi danh sách/bảng không có dữ liệu kèm icon và nút tạo mới. |
-| **LoadingSpinnerComponent** | `<app-loading-spinner>` | `shared/components/loading-spinner/` | Vòng xoay tải dữ liệu đồng bộ giao diện PrimeNG. |
-| **SkeletonTableComponent** | `<app-skeleton-table>` | `shared/components/skeleton-table/` | Hiệu ứng khung chờ tải bảng dữ liệu (chống giật layout CLS). |
-| **DateRangeFilterComponent**| `<app-date-range-filter>` | `shared/components/date-range-filter/` | Bộ lọc khoảng ngày chọn nhanh (Hôm nay, 7 ngày qua, Tháng này...). |
-| **PhotoGalleryModalComponent** | `<app-photo-gallery-modal>` | `shared/components/photo-gallery-modal/` | Modal Lightbox xem bộ sưu tập ảnh độ nét cao (Phòng ngủ, Phòng tắm, Ban công, View, Tiện ích), phím mũi tên & thanh thumbnail cuộn. |
-| **RoomDetailModalComponent** | `<app-room-detail-modal>` | `shared/components/room-detail-modal/` | Modal chi tiết hạng phòng: đầy đủ thông số m², sức chứa, loại giường, danh mục tiện nghi, chính sách lưu trú & nút chọn phòng. |
-| **BusinessDatePipe** | `{{ date \| businessDate }}` | `shared/pipes/business-date.pipe.ts` | Pipe định dạng ngày giờ chuẩn múi giờ nghiệp vụ Việt Nam (`Asia/Ho_Chi_Minh` UTC+7). |
-
-#### 📦 Barrel Export Tiện ích Core (`frontend/src/app/core/utils/index.ts`):
-Không import rải rác từng file util riêng rẽ. Luôn import tập trung từ `src/app/core/utils`:
-```typescript
-import {
-  formatBusinessDate,
-  calculateHousekeepingKpis,
-  handleRoomStatusConcurrencyError,
-  filterRoomTypes,
-  validateRoomNumberWithFloor
-} from '../../../core/utils';
-```
+### Invariant Architectural Rules:
+1. **Dependency Inversion:** Outer layers depend on inner layers; inner layers never depend on outer layers.
+2. **Interface Isolation:** The Application layer defines interfaces (IApplicationDbContext, ICurrentTenantService, etc.); the Infrastructure layer implements them.
+3. **CQRS Pattern:**
+   - Every mutation is handled by a Command (IRequest<ApiResponse<T>>) validated via FluentValidation.
+   - Every data read is handled by a Query (IRequest<ApiResponse<T>>) optimized with AsNoTracking().
+4. **Thin Controllers:** WebApi controllers only dispatch requests via MediatR and return standard HTTP responses (ApiResponse<T>).
 
 ---
 
-### 2.2. Backend .NET 10 (Clean Architecture & CQRS)
+## 2. Multi-Tenant SaaS Isolation (Fail-Closed)
 
-Toàn bộ các thành phần dùng chung được tập trung tại các vị trí quy chuẩn:
+The platform is an enterprise-grade multi-tenant PMS & booking engine. Cross-tenant data leakage is a critical security violation.
 
-| Thành Phần Dùng Chung | Vị Trí Quy Chuẩn | Mô Tả & Hướng Dẫn Sử Dụng |
-|:---|:---|:---|
-| **BaseApiController** | `HotelSaas.WebApi/Controllers/BaseApiController.cs` | Controller cha kế thừa `ControllerBase`. Tự động cung cấp `ISender Mediator`, `CurrentTenantId`, `CurrentPropertyId`, các phương thức `OkResponse<T>()` và `CreatedResponse<T>()`. |
-| **ApiResponse\<T\>** | `HotelSaas.Application/Common/Models/ApiResponse.cs` | Khuôn mẫu phản hồi JSON chuẩn: `{ success, data, message, errorCode, errors, timestamp }`. Dùng `ApiResponse.Ok(data)` hoặc `ApiResponse.Fail(msg)`. |
-| **PagedResult\<T\>** | `HotelSaas.Application/Common/Models/PagedResult.cs` | Dữ liệu phân trang chuẩn: `{ items, totalCount, pageNumber, pageSize, totalPages }`. |
-| **Application Exceptions** | `HotelSaas.Application/Common/Exceptions/` | Bộ lỗi chuẩn: `NotFoundException`, `ConflictException`, `ValidationException`, `ForbiddenException`, `BadRequestException`. Tự động được `ExceptionHandlingMiddleware` chuyển thành mã HTTP chuẩn. |
-| **Context Interfaces** | `HotelSaas.Application/Common/Interfaces/` | `ICurrentTenantService`, `ICurrentPropertyService`, `ICurrentUserContext`, `IApplicationDbContext`. |
-| **Domain Common** | `HotelSaas.Domain/Common/` | `BaseEntity`, `ITenantScopedEntity`, `ISoftDelete`. |
-
-#### Ví dụ tạo Controller mới kế thừa chuẩn dùng chung:
-```csharp
-[Authorize]
-public sealed class RatesController : BaseApiController
-{
-    [HttpGet]
-    public async Task<ActionResult<ApiResponse<PagedResult<RoomRateDto>>>> GetRates(
-        [FromQuery] GetRoomRatesQuery query, CancellationToken ct)
-    {
-        var result = await Mediator.Send(query, ct);
-        return OkResponse(result);
-    }
-}
-```
+1. **Entity Scoping:** Every tenant-specific domain entity must implement ITenantScopedEntity (Guid TenantId { get; set; }). Property-specific entities implement IPropertyScopedEntity (Guid PropertyId { get; set; }).
+2. **Global Query Filters:** All queries executed via EF Core automatically apply tenant and property filters at the DbContext level.
+3. **Audit & Save Interceptor:** TenantPropertySaveChangesInterceptor automatically assigns and validates TenantId and PropertyId on entities during SaveChangesAsync().
+4. **Context Injection:** Never accept TenantId or PropertyId as parameters from user payloads. Always resolve them from authenticated claims and verified request context headers (X-Tenant-Id, X-Property-Id).
+5. **Fail-Closed Principle:** If a scoped request arrives without valid tenant context, the middleware must immediately reject it with HTTP 401 Unauthorized or HTTP 403 Forbidden.
 
 ---
 
-## 🧹 3. NGUYÊN TẮC VÀNG #2: VỆ SINH MÃ NGUỒN & QUẢN LÝ GIT (GIT HYGIENE)
+## 3. Frontend Standards (Angular 22 Standalone Signals)
 
-### 🚫 Danh sách BẮT BUỘC KHÔNG ĐƯỢC ĐẨY LÊN GIT:
-1. **Không commit test scripts chạy thử:** Tuyệt đối không commit các file như `test-guid.js`, `test-*.js`, `.py` chạy thử. Mọi kiểm thử phải nằm trong dự án kiểm thử chính thức: `backend/tests/` (xUnit) hoặc `frontend/src/**/*.spec.ts`.
-2. **Không commit file kịch bản chụp ảnh màn hình / scratchpad:** Các file sinh dữ liệu tạm, file chụp màn hình Playwright tự chế, file ghi chú nháp phải được đặt trong thư mục bị ignore (`scratch/`, `temp/`).
-3. **Không commit file zip, file backup, file log:** Đã được chặn tự động trong `.gitignore`.
-4. **Không để file trôi nổi ngoài thư mục gốc (Root Clutter):** Gốc repository chỉ chứa các file cấu hình chuẩn: `.gitignore`, `.editorconfig`, `.env.example`, `README.md`, `AGENTS.md`.
+1. **Component Architecture:**
+   - 100% Standalone components (standalone: true).
+   - Use Angular Signals (signal(), computed(), effect()) for state management. Avoid imperative manual subscriptions.
+   - Use ChangeDetectionStrategy.OnPush across all feature components.
+2. **Component Reuse & Shared Registry:**
+   - Always check src/app/shared/ before creating new UI elements.
+   - Reuse core shared components:
+     - <app-page-header> for standard page titles and action button slots.
+     - <app-stat-card> for KPI and operational metric cards.
+     - <app-status-badge> for lifecycle and operational status badges.
+     - <app-pagination> for table/grid pagination controls.
+     - <app-empty-state> for empty data placeholders.
+     - {{ date | businessDate }} pipe for business timezone dates.
+3. **Service Layer Isolation:**
+   - Never inject HttpClient directly into components.
+   - All network operations must be encapsulated in dedicated services in src/app/core/services/.
+4. **Type Safety:** Maintain strict TypeScript typing. Do not use ny.
 
-### 🛡️ Tiêu chuẩn kiểm tra trước khi Commit (Build Gate):
-Trước khi tạo bất kỳ commit nào, Agent **BẮT BUỘC** chạy và xác nhận 2 lệnh build thành công 100%:
-```bash
-# 1. Backend Build Gate
+---
+
+## 4. Git Workflow & Conventional Commits
+
+Contributions follow a standard **Trunk-based Development Workflow**:
+
+`
+feature/<feature-name>  ──>  Pull Request  ──>  Code Review  ──>  develop  ──>  main
+`
+
+### Commit Message Convention:
+Follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+* eat(<scope>): <description> — New feature implementation.
+* ix(<scope>): <description> — Bug fix.
+* efactor(<scope>): <description> — Code reorganization without functional changes.
+* 	est(<scope>): <description> — Adding or updating test suites.
+* docs(<scope>): <description> — Documentation updates.
+* chore(<scope>): <description> — Tooling, dependencies, or configuration changes.
+
+---
+
+## 5. Verification & Pre-Commit Quality Gates
+
+Before committing any changes, verify that the solution passes all automated quality gates:
+
+`ash
+# 1. Backend Verification (.NET 10)
 dotnet build backend/HotelSaas.slnx --verbosity minimal
-# YÊU CẦU: Build succeeded. 0 Warning(s), 0 Error(s)
+dotnet test backend/HotelSaas.slnx --no-build
 
-# 2. Frontend Build Gate
+# 2. Frontend Verification (Angular 22)
 npm --prefix frontend run build
-# YÊU CẦU: Application bundle generation complete. 0 Errors.
-```
+`
 
-### 📝 Chuẩn Commit Message (Conventional Commits):
-* `feat(<scope>): <mô tả>`: Tính năng mới theo kế hoạch phân kỳ.
-* `fix(<scope>): <mô tả>`: Sửa lỗi nghiệp vụ hoặc kỹ thuật.
-* `refactor(<scope>): <mô tả>`: Tái cấu trúc, đưa code vào module dùng chung.
-* `docs(<scope>): <mô tả>`: Cập nhật tài liệu SRS/SDD/Báo cáo tuần.
-* `test(<scope>): <mô tả>`: Thêm unit/integration tests chính thức.
-
----
-
-## 🔒 4. NGUYÊN TẮC VÀNG #3: BẢO VỆ ĐA CHI NHÁNH & AN TOÀN DỮ LIỆU (FAIL-CLOSED)
-
-1. **Multi-tenant Data Isolation:** Mọi entity dữ liệu khách sạn bắt buộc kế thừa `ITenantScopedEntity`.
-2. **Tự động áp TenantId:** Trong các Command Handler tạo dữ liệu mới, bắt buộc gán `TenantId = _currentTenantService.TenantId!.Value`. Không nhận `tenantId` từ client payload.
-3. **Fail-Closed Principle:** Nếu một request đòi hỏi ngữ cảnh Tenant/Property mà thiếu header `X-Tenant-Id` hoặc `X-Property-Id`, hệ thống phải từ chối ngay lập tức (HTTP 401 hoặc 403), không cho phép thực thi ở trạng thái mở.
-4. **Bảo toàn cơ sở dữ liệu:** Không chạy migration hoặc sửa schema database đang chạy của các thành viên khác khi chưa có sự thống nhất trong kế hoạch phân kỳ.
-
----
-
-## 🎨 5. QUY CHUẨN SINH HÌNH ẢNH TRỰC QUAN (IMAGE GENERATION STANDARD)
-
-Khi cần sinh hình ảnh đồ họa, banner, phối cảnh phòng khách sạn hoặc tư liệu trực quan cho hệ thống, sử dụng Local AI Endpoint chuyên dụng:
-
-* **Endpoint:** `http://localhost:20128/v1/images/generations`
-* **Method:** `POST`
-* **Header:** `Authorization: Bearer sk-b3a81036624ac7f5-l0yjhu-6d5d0d22`
-* **Model:** `ag/gemini-3.1-flash-image`
-* **Phong cách prompt:** Luxury hotel architecture, photorealistic, elegant warm ambient lighting, 8k resolution.
+**Quality Acceptance Criteria:**
+- 0 Build Errors, 0 Build Warnings.
+- 100% of unit tests must pass.
+- No debug scripts, temporary logs, or scratch artifacts committed.
