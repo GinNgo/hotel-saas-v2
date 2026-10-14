@@ -159,25 +159,25 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ### 1. Bảng Tổng Hợp Khai Báo Sử Dụng AI (Chuẩn 8 Cột Của Bộ Môn)
 
-| STT | Thành Viên & MSSV | Công Cụ AI | Chức Năng Cụ Thể | Tóm Tắt Prompt Đã Dùng | Kết Quả AI Đã Sinh Ra | Sinh Viên Phản Biện & Sửa Chữa | Lỗi Ảo Giác (Hallucination) Đã Khắc Phục | Commit Đối Chiếu |
+| STT | Thành Viên & MSSV | Công Cụ AI & Phiên Bản Model | Chức Năng Cụ Thể | Tóm Tắt Prompt Đã Dùng | Kết Quả AI Đã Sinh Ra | Sinh Viên Phản Biện & Sửa Chữa | Lỗi Ảo Giác (Hallucination) Đã Khắc Phục | Commit Đối Chiếu |
 |:---:|:---|:---|:---|:---|:---|:---|:---|:---:|
-| **#01** | Ngô Võ Tuấn An (`24TX810001`) | Google Antigravity / Claude 3.5 | Clean Architecture .NET 10 & Docker Compose | Yêu cầu dựng 4 tầng Clean Architecture, Docker Compose Postgres 17 + Redis 7 | Cấu trúc solution `.sln`, `.csproj`, `docker-compose.yml` | Sửa đăng ký MediatR sang chuẩn .NET 10, sửa port mapping Docker trên Windows | AI sinh cú pháp MediatR cũ bị deprecated $\to$ Sinh viên sửa sang API chuẩn mới | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
-| **#02** | Ngô Võ Tuấn An (`24TX810001`) | Google Antigravity | Multi-tenant Data Isolation (Filter & Interceptor) | Yêu cầu tạo Global Query Filter và SaveChangesInterceptor tự động gán và lọc TenantId | Class Interceptor và cấu hình DbContext | Thêm điều kiện an toàn khi không có HTTP context (Background Job), ngăn chặn ghi đè cross-tenant | AI không xử lý trường hợp TenantId rỗng $\to$ Sinh viên bổ sung exception handling an toàn | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
-| **#03** | Ngô Võ Tuấn An (`24TX810001`) | Google Antigravity | Auth JWT & Refresh Token Rotation | Yêu cầu module xác thực JWT có cơ chế xoay vòng Refresh Token chống Replay Attack | `JwtService.cs`, `AuthController.cs` | Thay SHA256 thô bằng BCrypt work factor 12, bổ sung thu hồi toàn bộ token family khi bị replay | AI sinh mã hóa mật khẩu không muối (unsalted) $\to$ Sinh viên thay bằng BCrypt chuẩn an toàn | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
-| **#04** | Ngô Võ Tuấn An (`24TX810001`) | Google Antigravity | Phân quyền RBAC Bitmask & Middleware RFC 7807 | Yêu cầu phân quyền bitmask bitwise và middleware bắt lỗi trả về ProblemDetails RFC 7807 | Enum Bitmask và Middleware tập trung | Chuyển sang dùng `ProblemDetails` native của .NET 10, cấu hình traceId chuẩn RFC | AI tự sinh JSON string thủ công không chuẩn RFC 7807 $\to$ Sinh viên refactor theo chuẩn Microsoft | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
-| **#05** | Ngô Võ Tuấn An (`24TX810001`) | Google Antigravity | LocalDevDataSeeder Môi Trường Cục Bộ | Yêu cầu tạo dữ liệu mẫu Idempotent gồm Tenant, Khách sạn, User, Role, Phòng | Class Seeder dùng `EnsureCreated` | Bỏ `EnsureCreated`, chuyển sang kiểm tra `AnyAsync()` và Deterministic GUID chống lỗi trùng khóa | AI gọi AddRange gây lỗi Primary Key khi chạy lại $\to$ Sinh viên chuyển sang logic Idempotent | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
-| **#06** | Ngô Võ Tuấn An (`24TX810001`) | Google Antigravity | GitHub Actions CI/CD Pipeline 6 Stages | Yêu cầu pipeline CI kiểm thử tự động, container Postgres 17, build .NET 10 và Angular | File YAML `.github/workflows/ci.yml` | Nâng cấp action lên `@v4`, sửa healthcheck Postgres container với `pg_isready` | AI dùng action cũ v3 không hỗ trợ .NET 10 $\to$ Sinh viên nâng cấp v4 và thêm cache npm/nuget | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
-| **#07** | Nguyễn Khởi Nguyên (`24TX810011`) | GitHub Copilot / ChatGPT | Entity Room & RoomType + Fluent API Multi-tenant | Yêu cầu tạo thực thể Room, RoomType và cấu hình Unique Index cho số phòng | Domain Entities và Fluent API config | Phát hiện AI tạo Unique Index chỉ trên `RoomNumber`, sửa thành composite index kèm TenantId + PropertyId | AI quên scoped Multi-tenant làm trùng số phòng giữa các khách sạn $\to$ Sinh viên sửa composite index | [`cafb63e`](https://github.com/GinNgo/hotel-saas-v2/commit/cafb63e) |
-| **#08** | Nguyễn Khởi Nguyên (`24TX810011`) | GitHub Copilot | Quản lý Hạng phòng (Create/Update RoomType) | Yêu cầu viết Command, Handler và FluentValidation kiểm tra trùng mã Hạng phòng | CQRS Commands, Handlers, Validators | Chuẩn hóa `Code.Trim().ToUpper()`, bổ sung kiểm tra phân quyền chi nhánh và mapping DTO an toàn | AI kiểm tra trùng mã không kèm TenantId $\to$ Sinh viên bổ sung tenant scoping | [`cafb63e`](https://github.com/GinNgo/hotel-saas-v2/commit/cafb63e) |
-| **#09** | Nguyễn Khởi Nguyên (`24TX810011`) | GitHub Copilot | Bảng giá Hạng phòng & Lịch sử Audit Rate | Yêu cầu tạo bảng giá theo thời gian và lưu lịch sử thay đổi giá | `CreateRoomTypeRateCommand`, Audit query | Thêm ràng buộc `EffectiveFrom < EffectiveTo` và kiểm tra chống trùng lấn thời gian (overlapping) | AI bỏ qua kiểm tra trùng lấn ngày áp dụng giá $\to$ Sinh viên viết query chặn khoảng ngày giao nhau | [`cafb63e`](https://github.com/GinNgo/hotel-saas-v2/commit/cafb63e) |
-| **#10** | Nguyễn Khởi Nguyên (`24TX810011`) | GitHub Copilot | Xóa Phòng an toàn & Ràng buộc Đơn đặt phòng | Yêu cầu viết lệnh xóa phòng có kiểm tra ràng buộc phòng đang có khách hoặc có lịch đặt | `DeleteRoomCommand.cs` | Bác bỏ code xóa cứng của AI, thay bằng kiểm tra ngoại lệ `ValidationException` và chuyển sang Soft Delete | AI sinh lệnh xóa cứng `Remove()` làm mất toàn vẹn dữ liệu $\to$ Sinh viên sửa thành kiểm tra ràng buộc | [`cafb63e`](https://github.com/GinNgo/hotel-saas-v2/commit/cafb63e) |
-| **#11** | Nguyễn Khởi Nguyên (`24TX810011`) | GitHub Copilot | Query Lọc Phòng, WebApi Controllers & UI Angular | Yêu cầu viết Query lọc theo tầng/loại phòng, WebApi Controllers và utils kiểm tra số phòng | `GetRoomsQuery`, Controllers, UI utils | Sửa lỗi in-memory evaluation của LINQ sang câu lệnh SQL phân trang, viết regex validate số phòng | AI gọi `.ToList()` trước khi `.Skip().Take()` gây quá tải RAM $\to$ Sinh viên tối ưu truy vấn CSDL | [`cafb63e`](https://github.com/GinNgo/hotel-saas-v2/commit/cafb63e) |
-| **#12** | Trần Trọng Tân (`24TX810025`) | Claude 3.5 Sonnet / Antigravity | Mô hình HousekeepingTask & Enum 5 RoomStatus | Yêu cầu thiết kế thực thể nhiệm vụ dọn phòng và 5 trạng thái phòng chuẩn quốc tế | `HousekeepingTask.cs`, Enums | Chuẩn hóa múi giờ sang UTC (`DateTimeKind.Utc`), bổ sung quan hệ khóa ngoại giữa Task và Room | AI dùng Local DateTime gây lỗi lệch múi giờ $\to$ Sinh viên chuẩn hóa toàn bộ sang UTC | [`5e39c97`](https://github.com/GinNgo/hotel-saas-v2/commit/5e39c97) |
-| **#13** | Trần Trọng Tân (`24TX810025`) | Claude 3.5 Sonnet | Máy trạng thái hữu hạn Buồng phòng FSM | Yêu cầu viết `RoomStatusTransitionValidator` kiểm soát chuyển trạng thái giữa Clean, Dirty, etc. | Class FSM State Machine Validator | Bổ sung đường dẫn từ `OutOfService` về `Dirty`/`Inspecting` mà AI bỏ sót trong ma trận | AI chặn đường chuyển trạng thái phòng sau bảo dưỡng $\to$ Sinh viên bổ sung quy tắc chuyển đổi | [`5e39c97`](https://github.com/GinNgo/hotel-saas-v2/commit/5e39c97) |
-| **#14** | Trần Trọng Tân (`24TX810025`) | Claude 3.5 Sonnet | Khóa Lạc Quan Concurrency Lock 409 Conflict | Yêu cầu chống xung đột đồng thời 2 nhân viên cùng đổi trạng thái bằng `ExpectedOldStatus` | `UpdateRoomStatusCommand` | Sử dụng `ReloadAsync()` đảm bảo lấy trạng thái mới nhất từ DB, ánh xạ trả về lỗi HTTP 409 Conflict | AI đọc cache cũ của DbContext không bắt được xung đột $\to$ Sinh viên viết lại logic concurrency | [`5e39c97`](https://github.com/GinNgo/hotel-saas-v2/commit/5e39c97) |
-| **#15** | Trần Trọng Tân (`24TX810025`) | Claude 3.5 Sonnet | WebApi Buồng phòng & Thuật toán KPI Thời gian thực | Yêu cầu viết controller buồng phòng và tiện ích tính tỷ lệ phòng sạch, phòng bẩn | `HousekeepingController`, `housekeeping-kpi.util.ts` | Bổ sung kiểm tra chia cho 0 (`totalRooms === 0`), định dạng hiển thị phần trăm chuẩn | AI không kiểm tra chia cho 0 gây lỗi `NaN%` trên UI $\to$ Sinh viên thêm guard condition | [`5e39c97`](https://github.com/GinNgo/hotel-saas-v2/commit/5e39c97) |
-| **#16** | Trần Trọng Tân (`24TX810025`) | Google Antigravity | Màn hình Housekeeping Board bằng Angular Signals | Yêu cầu xây dựng bảng điều phối buồng phòng chia theo tầng, đổi màu trạng thái, khóa nút khi gửi request | `housekeeping.page.ts` (686 dòng) | Viết lại hoàn toàn sang Angular Signals thuần (`computed`, `signal`), quản lý state khóa nút khi click | AI đề xuất thư viện ngoài và RxJS rườm rà $\to$ Sinh viên tự viết bằng Angular Signals hiện đại | [`5e39c97`](https://github.com/GinNgo/hotel-saas-v2/commit/5e39c97) |
-| **#17** | Trần Trọng Tân (`24TX810025`) | Claude 3.5 Sonnet | Bộ Unit Tests Kiểm Thử Tự Động xUnit FSM | Yêu cầu viết unit tests xUnit bao phủ các trường hợp chuyển đổi trạng thái hợp lệ và bất hợp lệ | Các test cases xUnit kiểm thử FSM | Sử dụng `[Theory]` và `[InlineData]` bao phủ toàn diện ma trận 5x5 trạng thái (25 kịch bản) | AI chỉ viết 3 test cases sơ sài $\to$ Sinh viên bổ sung trọn vẹn 25 test cases kiểm thử biên | [`5e39c97`](https://github.com/GinNgo/hotel-saas-v2/commit/5e39c97) |
+| **#01** | Ngô Võ Tuấn An (`24TX810001`) | Google Gemini<br>*(Model: Gemini Flash 3.8)* | Clean Architecture .NET 10 & Docker Compose | Yêu cầu dựng 4 tầng Clean Architecture, Docker Compose Postgres 17 + Redis 7 | Cấu trúc solution `.sln`, `.csproj`, `docker-compose.yml` | Sửa đăng ký MediatR sang chuẩn .NET 10, sửa port mapping Docker trên Windows | AI sinh cú pháp MediatR cũ bị deprecated $\to$ Sinh viên sửa sang API chuẩn mới | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
+| **#02** | Ngô Võ Tuấn An (`24TX810001`) | Google Gemini<br>*(Model: Gemini Flash 3.8)* | Multi-tenant Data Isolation (Filter & Interceptor) | Yêu cầu tạo Global Query Filter và SaveChangesInterceptor tự động gán và lọc TenantId | Class Interceptor và cấu hình DbContext | Thêm điều kiện an toàn khi không có HTTP context (Background Job), ngăn chặn ghi đè cross-tenant | AI không xử lý trường hợp TenantId rỗng $\to$ Sinh viên bổ sung exception handling an toàn | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
+| **#03** | Ngô Võ Tuấn An (`24TX810001`) | ChatGPT / Codex<br>*(Model: Codex Astra 6.1)* | Auth JWT & Refresh Token Rotation | Yêu cầu module xác thực JWT có cơ chế xoay vòng Refresh Token chống Replay Attack | `JwtService.cs`, `AuthController.cs` | Thay SHA256 thô bằng BCrypt work factor 12, bổ sung thu hồi toàn bộ token family khi bị replay | AI sinh mã hóa mật khẩu không muối (unsalted) $\to$ Sinh viên thay bằng BCrypt chuẩn an toàn | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
+| **#04** | Ngô Võ Tuấn An (`24TX810001`) | Google Gemini<br>*(Model: Gemini Flash 3.8)* | Phân quyền RBAC Bitmask & Middleware RFC 7807 | Yêu cầu phân quyền bitmask bitwise và middleware bắt lỗi trả về ProblemDetails RFC 7807 | Enum Bitmask và Middleware tập trung | Chuyển sang dùng `ProblemDetails` native của .NET 10, cấu hình traceId chuẩn RFC | AI tự sinh JSON string thủ công không chuẩn RFC 7807 $\to$ Sinh viên refactor theo chuẩn Microsoft | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
+| **#05** | Ngô Võ Tuấn An (`24TX810001`) | ChatGPT / Codex<br>*(Model: Codex Astra 6.1)* | LocalDevDataSeeder Môi Trường Cục Bộ | Yêu cầu tạo dữ liệu mẫu Idempotent gồm Tenant, Khách sạn, User, Role, Phòng | Class Seeder dùng `EnsureCreated` | Bỏ `EnsureCreated`, chuyển sang kiểm tra `AnyAsync()` và Deterministic GUID chống lỗi trùng khóa | AI gọi AddRange gây lỗi Primary Key khi chạy lại $\to$ Sinh viên chuyển sang logic Idempotent | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
+| **#06** | Ngô Võ Tuấn An (`24TX810001`) | Google Gemini<br>*(Model: Gemini Flash 3.8)* | GitHub Actions CI/CD Pipeline 6 Stages | Yêu cầu pipeline CI kiểm thử tự động, container Postgres 17, build .NET 10 và Angular | File YAML `.github/workflows/ci.yml` | Nâng cấp action lên `@v4`, sửa healthcheck Postgres container với `pg_isready` | AI dùng action cũ v3 không hỗ trợ .NET 10 $\to$ Sinh viên nâng cấp v4 và thêm cache npm/nuget | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
+| **#07** | Nguyễn Khởi Nguyên (`24TX810011`) | ChatGPT / Codex<br>*(Model: Codex Astra 6.1)* | Entity Room & RoomType + Fluent API Multi-tenant | Yêu cầu tạo thực thể Room, RoomType và cấu hình Unique Index cho số phòng | Domain Entities và Fluent API config | Phát hiện AI tạo Unique Index chỉ trên `RoomNumber`, sửa thành composite index kèm TenantId + PropertyId | AI quên scoped Multi-tenant làm trùng số phòng giữa các khách sạn $\to$ Sinh viên sửa composite index | [`cafb63e`](https://github.com/GinNgo/hotel-saas-v2/commit/cafb63e) |
+| **#08** | Nguyễn Khởi Nguyên (`24TX810011`) | ChatGPT / Codex<br>*(Model: Codex Astra 6.1)* | Quản lý Hạng phòng (Create/Update RoomType) | Yêu cầu viết Command, Handler và FluentValidation kiểm tra trùng mã Hạng phòng | CQRS Commands, Handlers, Validators | Chuẩn hóa `Code.Trim().ToUpper()`, bổ sung kiểm tra phân quyền chi nhánh và mapping DTO an toàn | AI kiểm tra trùng mã không kèm TenantId $\to$ Sinh viên bổ sung tenant scoping | [`cafb63e`](https://github.com/GinNgo/hotel-saas-v2/commit/cafb63e) |
+| **#09** | Nguyễn Khởi Nguyên (`24TX810011`) | ChatGPT / Codex<br>*(Model: Codex Astra 6.1)* | Bảng giá Hạng phòng & Lịch sử Audit Rate | Yêu cầu tạo bảng giá theo thời gian và lưu lịch sử thay đổi giá | `CreateRoomTypeRateCommand`, Audit query | Thêm ràng buộc `EffectiveFrom < EffectiveTo` và kiểm tra chống trùng lấn thời gian (overlapping) | AI bỏ qua kiểm tra trùng lấn ngày áp dụng giá $\to$ Sinh viên viết query chặn khoảng ngày giao nhau | [`cafb63e`](https://github.com/GinNgo/hotel-saas-v2/commit/cafb63e) |
+| **#10** | Nguyễn Khởi Nguyên (`24TX810011`) | ChatGPT / Codex<br>*(Model: Codex Astra 6.1)* | Xóa Phòng an toàn & Ràng buộc Đơn đặt phòng | Yêu cầu viết lệnh xóa phòng có kiểm tra ràng buộc phòng đang có khách hoặc có lịch đặt | `DeleteRoomCommand.cs` | Bác bỏ code xóa cứng của AI, thay bằng kiểm tra ngoại lệ `ValidationException` và chuyển sang Soft Delete | AI sinh lệnh xóa cứng `Remove()` làm mất toàn vẹn dữ liệu $\to$ Sinh viên sửa thành kiểm tra ràng buộc | [`cafb63e`](https://github.com/GinNgo/hotel-saas-v2/commit/cafb63e) |
+| **#11** | Nguyễn Khởi Nguyên (`24TX810011`) | ChatGPT / Codex<br>*(Model: Codex Astra 6.1)* | Query Lọc Phòng, WebApi Controllers & UI Angular | Yêu cầu viết Query lọc theo tầng/loại phòng, WebApi Controllers và utils kiểm tra số phòng | `GetRoomsQuery`, Controllers, UI utils | Sửa lỗi in-memory evaluation của LINQ sang câu lệnh SQL phân trang, viết regex validate số phòng | AI gọi `.ToList()` trước khi `.Skip().Take()` gây quá tải RAM $\to$ Sinh viên tối ưu truy vấn CSDL | [`cafb63e`](https://github.com/GinNgo/hotel-saas-v2/commit/cafb63e) |
+| **#12** | Trần Trọng Tân (`24TX810025`) | Google Gemini<br>*(Model: Gemini Flash 3.8)* | Mô hình HousekeepingTask & Enum 5 RoomStatus | Yêu cầu thiết kế thực thể nhiệm vụ dọn phòng và 5 trạng thái phòng chuẩn quốc tế | `HousekeepingTask.cs`, Enums | Chuẩn hóa múi giờ sang UTC (`DateTimeKind.Utc`), bổ sung quan hệ khóa ngoại giữa Task và Room | AI dùng Local DateTime gây lỗi lệch múi giờ $\to$ Sinh viên chuẩn hóa toàn bộ sang UTC | [`5e39c97`](https://github.com/GinNgo/hotel-saas-v2/commit/5e39c97) |
+| **#13** | Trần Trọng Tân (`24TX810025`) | Google Gemini<br>*(Model: Gemini Flash 3.8)* | Máy trạng thái hữu hạn Buồng phòng FSM | Yêu cầu viết `RoomStatusTransitionValidator` kiểm soát chuyển trạng thái giữa Clean, Dirty, etc. | Class FSM State Machine Validator | Bổ sung đường dẫn từ `OutOfService` về `Dirty`/`Inspecting` mà AI bỏ sót trong ma trận | AI chặn đường chuyển trạng thái phòng sau bảo dưỡng $\to$ Sinh viên bổ sung quy tắc chuyển đổi | [`5e39c97`](https://github.com/GinNgo/hotel-saas-v2/commit/5e39c97) |
+| **#14** | Trần Trọng Tân (`24TX810025`) | Google Gemini<br>*(Model: Gemini Flash 3.8)* | Khóa Lạc Quan Concurrency Lock 409 Conflict | Yêu cầu chống xung đột đồng thời 2 nhân viên cùng đổi trạng thái bằng `ExpectedOldStatus` | `UpdateRoomStatusCommand` | Sử dụng `ReloadAsync()` đảm bảo lấy trạng thái mới nhất từ DB, ánh xạ trả về lỗi HTTP 409 Conflict | AI đọc cache cũ của DbContext không bắt được xung đột $\to$ Sinh viên viết lại logic concurrency | [`5e39c97`](https://github.com/GinNgo/hotel-saas-v2/commit/5e39c97) |
+| **#15** | Trần Trọng Tân (`24TX810025`) | Google Gemini<br>*(Model: Gemini Flash 3.8)* | WebApi Buồng phòng & Thuật toán KPI Thời gian thực | Yêu cầu viết controller buồng phòng và tiện ích tính tỷ lệ phòng sạch, phòng bẩn | `HousekeepingController`, `housekeeping-kpi.util.ts` | Bổ sung kiểm tra chia cho 0 (`totalRooms === 0`), định dạng hiển thị phần trăm chuẩn | AI không kiểm tra chia cho 0 gây lỗi `NaN%` trên UI $\to$ Sinh viên thêm guard condition | [`5e39c97`](https://github.com/GinNgo/hotel-saas-v2/commit/5e39c97) |
+| **#16** | Trần Trọng Tân (`24TX810025`) | Google Gemini<br>*(Model: Gemini Flash 3.8)* | Màn hình Housekeeping Board bằng Angular Signals | Yêu cầu xây dựng bảng điều phối buồng phòng chia theo tầng, đổi màu trạng thái, khóa nút khi gửi request | `housekeeping.page.ts` (686 dòng) | Viết lại hoàn toàn sang Angular Signals thuần (`computed`, `signal`), quản lý state khóa nút khi click | AI đề xuất thư viện ngoài và RxJS rườm rà $\to$ Sinh viên tự viết bằng Angular Signals hiện đại | [`5e39c97`](https://github.com/GinNgo/hotel-saas-v2/commit/5e39c97) |
+| **#17** | Trần Trọng Tân (`24TX810025`) | Google Gemini<br>*(Model: Gemini Flash 3.8)* | Bộ Unit Tests Kiểm Thử Tự Động xUnit FSM | Yêu cầu viết unit tests xUnit bao phủ các trường hợp chuyển đổi trạng thái hợp lệ và bất hợp lệ | Các test cases xUnit kiểm thử FSM | Sử dụng `[Theory]` và `[InlineData]` bao phủ toàn diện ma trận 5x5 trạng thái (25 kịch bản) | AI chỉ viết 3 test cases sơ sài $\to$ Sinh viên bổ sung trọn vẹn 25 test cases kiểm thử biên | [`5e39c97`](https://github.com/GinNgo/hotel-saas-v2/commit/5e39c97) |
 
 ---
 
@@ -187,6 +187,7 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ##### 📌 Chức năng 1: Khởi tạo Clean Architecture .NET 10 & Môi trường Docker Compose
 * **Tệp mã nguồn:** `backend/HotelSaas.slnx`, `docker-compose.yml`
+* **Công cụ AI & Model:** `Google Gemini (Model: Gemini Flash 3.8)`
 * **Prompt thực tế sử dụng:**
   ```text
   "Tôi đang xây dựng backend .NET 10 cho hệ thống Hotel SaaS đa chi nhánh theo mô hình Clean Architecture (4 tầng: Domain, Application, Infrastructure, WebApi). Nhờ bạn hướng dẫn cấu trúc thư mục chuẩn, cấu hình file docker-compose.yml khởi chạy PostgreSQL 17 và Redis 7, đồng thời thiết lập MediatR v12+ và FluentValidation. Yêu cầu đảm bảo tuân thủ nguyên lý Dependency Inversion."
@@ -203,6 +204,7 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ##### 📌 Chức năng 2: Cơ chế cách ly dữ liệu Multi-tenant SaaS (Filter & Interceptor)
 * **Tệp mã nguồn:** [`BaseEntity.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Common/BaseEntity.cs), [`ApplicationDbContext.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Persistence/ApplicationDbContext.cs), [`TenantPropertySaveChangesInterceptor.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Persistence/Interceptors/TenantPropertySaveChangesInterceptor.cs)
+* **Công cụ AI & Model:** `Google Gemini (Model: Gemini Flash 3.8)`
 * **Prompt thực tế sử dụng:**
   ```text
   "Hãy viết giúp tôi giải pháp Multi-tenancy cho EF Core trên .NET 10 để bảo vệ dữ liệu SaaS. Mỗi entity đều kế thừa từ BaseEntity có TenantId và PropertyId. Tạo cơ chế Global Query Filters tự động lọc dữ liệu theo ngữ cảnh khách thuê hiện tại lấy từ ICurrentTenantService và ICurrentPropertyService, đồng thời viết một SaveChangesInterceptor tự động điền TenantId/PropertyId khi Insert và chặn ghi đè chéo (Cross-tenant data pollution) khi Update."
@@ -215,6 +217,7 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ##### 📌 Chức năng 3: Hệ thống Xác thực JWT & Refresh Token Rotation
 * **Tệp mã nguồn:** [`JwtService.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Services/JwtService.cs), [`PasswordHasher.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Services/PasswordHasher.cs), [`AuthController.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Controllers/AuthController.cs)
+* **Công cụ AI & Model:** `ChatGPT / Codex (Model: Codex Astra 6.1)`
 * **Prompt thực tế sử dụng:**
   ```text
   "Hãy triển khai module xác thực JWT hoàn chỉnh cho .NET 10 với cơ chế Refresh Token xoay vòng (Token Rotation) nhằm ngăn chặn tấn công phát lại (Replay Attack). Khi client gửi Refresh Token hợp lệ lên, hệ thống phải hủy token cũ, sinh một cặp Access Token + Refresh Token mới, lưu lại lịch sử thu hồi (RevokedAtUtc, ReplacedByToken). Nếu một token đã bị thu hồi bị tái sử dụng, hệ thống phải lập tức vô hiệu hóa toàn bộ chuỗi token của người dùng đó (Revoke Token Family) và ghi cảnh báo bảo mật."
@@ -227,6 +230,7 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ##### 📌 Chức năng 4: Hệ thống Phân quyền RBAC Bitmask & Middleware RFC 7807
 * **Tệp mã nguồn:** [`RolePermission.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Entities/RolePermission.cs), [`ExceptionHandlingMiddleware.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Middleware/ExceptionHandlingMiddleware.cs)
+* **Công cụ AI & Model:** `Google Gemini (Model: Gemini Flash 3.8)`
 * **Prompt thực tế sử dụng:**
   ```text
   "Tôi muốn thiết kế hệ thống phân quyền phân hệ theo dạng Bitmask (Read = 1, Create = 2, Update = 4, Delete = 8, Admin = 16) trong C# .NET 10 để kiểm tra quyền truy cập tài nguyên siêu nhanh bằng toán tử bitwise (userPerm & requiredPerm) != 0. Ngoài ra, viết một middleware ASP.NET Core tập trung bắt tất cả Exception và trả về chuẩn RFC 7807 ProblemDetails (gồm traceId, title, status, errors dictionary cho 400 Validation, 401 Unauthorized, 403 Forbidden, 409 Conflict, 500 Server Error)."
@@ -239,6 +243,7 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ##### 📌 Chức năng 5: Bộ nạp dữ liệu mẫu môi trường phát triển cục bộ (`LocalDevDataSeeder`)
 * **Tệp mã nguồn:** [`LocalDevDataSeeder.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Persistence/LocalDevDataSeeder.cs)
+* **Công cụ AI & Model:** `ChatGPT / Codex (Model: Codex Astra 6.1)`
 * **Prompt thực tế sử dụng:**
   ```text
   "Viết class C# LocalDevDataSeeder.cs trong tầng Infrastructure để tự động nạp dữ liệu mẫu ban đầu khi ứng dụng khởi chạy ở môi trường Development. Dữ liệu gồm: 1 Tenant mẫu ('Grand Palace Group'), 2 Khách sạn trực thuộc ('Grand Palace Sài Gòn' & 'Grand Palace Đà Nẵng'), 4 tài khoản người dùng tương ứng với các vai trò (SystemAdmin, TenantOwner, PropertyManager, Staff/Housekeeper), 4 loại phòng (Deluxe, Suite, Executive, Standard) và 20 phòng vật lý. Seeder phải có tính chất Idempotent (chạy lặp lại nhiều lần không bị lỗi trùng khóa chính)."
@@ -251,6 +256,7 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ##### 📌 Chức năng 6: Quy trình tích hợp liên tục CI/CD GitHub Actions 6 giai đoạn
 * **Tệp mã nguồn:** [`.github/workflows/ci.yml`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/.github/workflows/ci.yml)
+* **Công cụ AI & Model:** `Google Gemini (Model: Gemini Flash 3.8)`
 * **Prompt thực tế sử dụng:**
   ```text
   "Hãy tạo file pipeline GitHub Actions .github/workflows/ci.yml kích hoạt mỗi khi có pull request hoặc push vào nhánh develop và main. Pipeline gồm các job: kiểm tra format code, bảo mật secret scanning (gitleaks), khởi tạo service container PostgreSQL 17, build và chạy toàn bộ unit tests .NET 10 với code coverage, build frontend Angular 22 với lệnh npm run build, và kiểm tra Docker build."
@@ -267,6 +273,7 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ##### 📌 Chức năng 7: Thiết kế thực thể và cấu hình CSDL Hạng phòng & Phòng vật lý
 * **Tệp mã nguồn:** [`RoomType.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Entities/RoomType.cs), [`Room.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Entities/Room.cs)
+* **Công cụ AI & Model:** `ChatGPT / Codex (Model: Codex Astra 6.1)`
 * **Prompt thực tế sử dụng:**
   ```text
   "Tôi phụ trách phân hệ Quản lý Phòng của Hotel SaaS. Hãy viết 2 Domain Entities RoomType.cs và Room.cs kế thừa BaseEntity. RoomType gồm: Name, Code, BasePrice, MaxOccupancy, TotalRooms, Description, AmenitiesJson. Room gồm: RoomNumber, FloorNumber, RoomTypeId, CurrentStatus (enum Clean, Dirty, Occupied, etc.), Notes. Viết thêm EF Core Fluent API Configuration trong Infrastructure đảm bảo số phòng RoomNumber là duy nhất trong cùng một chi nhánh PropertyId."
@@ -279,6 +286,7 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ##### 📌 Chức năng 8: Nghiệp vụ Quản lý Hạng phòng (Create & Update RoomType Command + Validator)
 * **Tệp mã nguồn:** [`CreateRoomTypeCommand.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/RoomTypes/Commands/CreateRoomType/CreateRoomTypeCommand.cs), [`CreateRoomTypeCommandValidator.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/RoomTypes/Commands/CreateRoomType/CreateRoomTypeCommandValidator.cs), [`UpdateRoomTypeCommand.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/RoomTypes/Commands/UpdateRoomType/UpdateRoomTypeCommand.cs)
+* **Công cụ AI & Model:** `ChatGPT / Codex (Model: Codex Astra 6.1)`
 * **Prompt thực tế sử dụng:**
   ```text
   "Hãy viết CreateRoomTypeCommand, UpdateRoomTypeCommand, CommandHandler và FluentValidation validator sử dụng MediatR trong C# .NET 10. Yêu cầu kiểm tra: Code không được rỗng và không quá 10 ký tự, BasePrice phải > 0, MaxOccupancy từ 1 đến 10 người. Trong Handler, kiểm tra mã Hạng phòng không được trùng lặp trong chi nhánh hiện tại trước khi lưu vào CSDL."
@@ -291,6 +299,7 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ##### 📌 Chức năng 9: Nghiệp vụ Bảng giá Hạng phòng & Lịch sử Audit Rate
 * **Tệp mã nguồn:** [`CreateRoomTypeRateCommand.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/RoomTypes/Commands/CreateRoomTypeRate/CreateRoomTypeRateCommand.cs), [`GetRoomTypeRateHistoryQuery.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/RoomTypes/Queries/GetRoomTypeRateHistory/GetRoomTypeRateHistoryQuery.cs)
+* **Công cụ AI & Model:** `ChatGPT / Codex (Model: Codex Astra 6.1)`
 * **Prompt thực tế sử dụng:**
   ```text
   "Hãy viết tính năng cập nhật bảng giá theo mùa/ngày cho Hạng phòng (CreateRoomTypeRateCommand.cs và GetRoomTypeRateHistoryQuery.cs). Bảng giá có EffectiveFromUtc, EffectiveToUtc, PriceAdjustmentRate, Currency. Khi giá thay đổi, hệ thống phải tự động ghi một bản ghi vào bảng Audit log để ban giám đốc đối chiếu lịch sử thay đổi giá."
@@ -303,6 +312,7 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ##### 📌 Chức năng 10: Nghiệp vụ Xóa Phòng an toàn & Ràng buộc Đơn đặt phòng
 * **Tệp mã nguồn:** [`DeleteRoomCommand.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Rooms/Commands/DeleteRoom/DeleteRoomCommand.cs)
+* **Công cụ AI & Model:** `ChatGPT / Codex (Model: Codex Astra 6.1)`
 * **Prompt thực tế sử dụng:**
   ```text
   "Viết DeleteRoomCommand.cs và Handler. Trong khách sạn, phòng không được phép xóa tùy tiện nếu đang có khách ở hoặc có đơn đặt phòng (Reservation) tương lai. Hãy viết logic kiểm tra: nếu phòng đang ở trạng thái Occupied hoặc có liên kết khóa ngoại với đơn đặt phòng chưa hoàn thành thì từ chối xóa và trả về lỗi nghiệp vụ rõ ràng, ngược lại mới cho phép xóa hoặc đánh dấu IsDeleted."
@@ -315,6 +325,7 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ##### 📌 Chức năng 11: Query Lọc danh sách Phòng, WebApi Controllers & UI Angular
 * **Tệp mã nguồn:** [`GetRoomsQuery.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Rooms/Queries/GetRooms/GetRoomsQuery.cs), [`RoomTypesController.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Controllers/RoomTypesController.cs), [`RoomsController.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Controllers/RoomsController.cs), [`room-types-filter.util.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/utils/room-types-filter.util.ts), [`rooms-validation.util.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/utils/rooms-validation.util.ts)
+* **Công cụ AI & Model:** `ChatGPT / Codex (Model: Codex Astra 6.1)`
 * **Prompt thực tế sử dụng:**
   ```text
   "Hãy viết GetRoomsQuery.cs với bộ lọc linh hoạt: lọc theo Tầng (FloorNumber), lọc theo Hạng phòng (RoomTypeId), lọc theo Trạng thái (RoomStatus), hỗ trợ phân trang (PageNumber, PageSize). Viết RoomsController.cs và RoomTypesController.cs với đầy đủ Swagger documentation. Phía Frontend Angular 22, viết room-types-filter.util.ts và rooms-validation.util.ts để format tiền tệ VNĐ và validate định dạng số phòng."
@@ -331,6 +342,7 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ##### 📌 Chức năng 12: Thiết kế mô hình dữ liệu Buồng phòng & Hệ thống 5 Trạng thái Phòng
 * **Tệp mã nguồn:** [`HousekeepingTask.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Entities/HousekeepingTask.cs), [`RoomStatus.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Enums/RoomStatus.cs), [`HousekeepingPriority.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Enums/HousekeepingPriority.cs)
+* **Công cụ AI & Model:** `Google Gemini (Model: Gemini Flash 3.8)`
 * **Prompt thực tế sử dụng:**
   ```text
   "Tôi phụ trách phân hệ Housekeeping. Hãy thiết kế thực thể HousekeepingTask.cs gồm: RoomId, AssignedToUserId, TaskStatus (Pending, InProgress, Completed, Cancelled), Priority (Low, Medium, High, Urgent), StartedAtUtc, CompletedAtUtc, Notes, CleanlinessScore. Thiết kế Enum RoomStatus.cs gồm 5 trạng thái chuẩn khách sạn quốc tế: Clean (Sạch sẵn sàng đón khách), Dirty (Bẩn cần dọn), Inspecting (Đang kiểm tra chất lượng sau dọn), Occupied (Có khách đang lưu trú), OutOfService (Hỏng hóc, bảo trì)."
@@ -343,6 +355,7 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ##### 📌 Chức năng 13: Máy trạng thái hữu hạn Buồng phòng FSM (`RoomStatusTransitionValidator`)
 * **Tệp mã nguồn:** [`RoomStatusTransitionValidator.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Rooms/Services/RoomStatusTransitionValidator.cs)
+* **Công cụ AI & Model:** `Google Gemini (Model: Gemini Flash 3.8)`
 * **Prompt thực tế sử dụng:**
   ```text
   "Viết một service C# RoomStatusTransitionValidator.cs hiện thực máy trạng thái hữu hạn (Finite State Machine - FSM) kiểm tra tính hợp lệ của việc chuyển đổi giữa 5 trạng thái phòng: Clean, Dirty, Inspecting, Occupied, OutOfService. Ví dụ: Phòng Dirty chỉ được chuyển sang Inspecting hoặc OutOfService, không thể nhảy cóc thẳng sang Clean khi chưa qua kiểm tra. Phương thức IsValidTransition(RoomStatus from, RoomStatus to) trả về boolean kèm danh sách các trạng thái kế tiếp được phép (GetAllowedTransitions)."
@@ -355,6 +368,7 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ##### 📌 Chức năng 14: Cơ chế Khóa Lạc Quan Chống Xung Đột Đồng Thời (Concurrency Control Lock 409 Conflict)
 * **Tệp mã nguồn:** [`UpdateRoomStatusCommand.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Rooms/Commands/UpdateRoomStatus/UpdateRoomStatusCommand.cs), [`housekeeping-concurrency.util.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/utils/housekeeping-concurrency.util.ts)
+* **Công cụ AI & Model:** `Google Gemini (Model: Gemini Flash 3.8)`
 * **Prompt thực tế sử dụng:**
   ```text
   "Trong khách sạn, có thể xảy ra trường hợp hai nhân viên dọn phòng cùng mở ứng dụng và ấn đổi trạng thái của cùng một phòng cùng lúc (Race Condition). Hãy viết UpdateRoomStatusCommand.cs có cơ chế Khóa lạc quan (Optimistic Concurrency Control): Client phải gửi kèm ExpectedOldStatus. Trong Handler, truy vấn trạng thái hiện tại từ DB; nếu CurrentStatus != request.ExpectedOldStatus, lập tức hủy thao tác và ném lỗi 409 Conflict ProblemDetails với thông báo rõ ràng để giao diện thông báo cho người dùng và tự động làm mới dữ liệu."
@@ -367,6 +381,7 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ##### 📌 Chức năng 15: WebApi Buồng phòng & Thuật toán KPI Thời gian thực
 * **Tệp mã nguồn:** [`HousekeepingController.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Controllers/HousekeepingController.cs), [`UpdateRoomStatusRequest.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Models/UpdateRoomStatusRequest.cs), [`housekeeping-kpi.util.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/utils/housekeeping-kpi.util.ts)
+* **Công cụ AI & Model:** `Google Gemini (Model: Gemini Flash 3.8)`
 * **Prompt thực tế sử dụng:**
   ```text
   "Viết HousekeepingController.cs với endpoint PATCH /api/housekeeping/rooms/{id}/status nhận UpdateRoomStatusRequest (gồm NewStatus, ExpectedOldStatus, Notes). Viết tiện ích housekeeping-kpi.util.ts tính toán các chỉ số vận hành buồng phòng theo thời gian thực: Tỷ lệ phòng sẵn sàng đón khách (Clean Ratio = Clean Rooms / Total Rooms * 100%), Tỷ lệ phòng cần dọn khẩn cấp (Dirty/Urgent Ratio), và Thời gian dọn phòng trung bình (Average Turnover Duration)."
@@ -379,6 +394,7 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ##### 📌 Chức năng 16: Giao diện Bảng điều phối Buồng phòng (Housekeeping Board) bằng Angular Signals
 * **Tệp mã nguồn:** [`housekeeping.page.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/housekeeping/housekeeping.page.ts)
+* **Công cụ AI & Model:** `Google Gemini (Model: Gemini Flash 3.8)`
 * **Prompt thực tế sử dụng:**
   ```text
   "Hãy viết component Angular 22 housekeeping.page.ts (Standalone Component) xây dựng màn hình Housekeeping Board cho quản lý buồng phòng. Màn hình nhóm danh sách phòng theo từng Tầng (Floor), mỗi thẻ phòng hiển thị: Số phòng, Hạng phòng, Huy hiệu trạng thái đổi màu linh hoạt (Clean: xanh lục, Dirty: đỏ, Inspecting: vàng cam, Occupied: xanh lam, OutOfService: xám), nút thao tác đổi trạng thái nhanh. Sử dụng Angular Signals (signal, computed) để quản lý state không dùng RxJS Subject rườm rà. Áp dụng Optimistic UI Update và vô hiệu hóa nút bấm khi đang gửi request."
@@ -391,6 +407,7 @@ Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h 
 
 ##### 📌 Chức năng 17: Bộ kiểm thử tự động xUnit cho FSM Buồng phòng & Validation
 * **Tệp mã nguồn:** [`RoomStatusTransitionValidatorTests.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/tests/HotelSaas.Application.Tests/Rooms/RoomStatusTransitionValidatorTests.cs), [`UpdateRoomStatusCommandValidatorTests.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/tests/HotelSaas.Application.Tests/Rooms/UpdateRoomStatusCommandValidatorTests.cs)
+* **Công cụ AI & Model:** `Google Gemini (Model: Gemini Flash 3.8)`
 * **Prompt thực tế sử dụng:**
   ```text
   "Hãy viết bộ Unit Tests hoàn chỉnh bằng xUnit và FluentAssertions để kiểm thử toàn diện máy trạng thái RoomStatusTransitionValidator và UpdateRoomStatusCommandValidator. Viết các test case kiểm tra: (1) Tất cả các chuyển đổi trạng thái hợp lệ theo ma trận nghiệp vụ đều trả về True; (2) Các chuyển đổi trạng thái vi phạm (như Clean sang Clean, Clean nhảy cóc sang Inspecting, Dirty nhảy cóc sang Occupied) đều trả về False; (3) Validator bắt lỗi khi ExpectedOldStatus rỗng hoặc NewStatus không hợp lệ."
@@ -439,7 +456,7 @@ Nhóm sinh viên thực hiện đề tài Topic 578: "Nền Tảng Quản Lý Kh
    - 4acf372: feat(arch): initial core architecture foundation - Clean Architecture .NET 10, Multi-tenant, Auth + RBAC, Seed Data, CI/CD
 
 4. Khai báo sử dụng trí tuệ nhân tạo (AI Disclosure) chi tiết cho từng chức năng:
-   - Bảng tổng hợp 8 cột theo quy chuẩn của Khoa CNTT.
+   - Bảng tổng hợp 8 cột theo quy chuẩn của Khoa CNTT với 2 model chủ đạo: Codex Astra 6.1 (OpenAI/ChatGPT) và Gemini Flash 3.8 (Google Gemini).
    - Chi tiết 17 câu lệnh Prompt thực tế ứng với 17 chức năng đã xây dựng trong tuần.
    - Phân tích kết quả AI, hoạt động phản biện/sửa lỗi của sinh viên và các lỗi ảo giác (hallucination) đã khắc phục.
 

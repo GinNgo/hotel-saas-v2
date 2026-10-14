@@ -21,7 +21,8 @@
 |:---|:---|
 | **Thời gian thực hiện** | 03/10/2026 |
 | **Thành viên thực hiện** | Ngô Võ Tuấn An (`24TX810001`) |
-| **Công cụ AI sử dụng** | Google Antigravity / Claude 3.5 Sonnet & GPT-4o |
+| **Công cụ AI sử dụng** | Google Gemini |
+| **Phiên bản / Model** | **Gemini Flash 3.8** |
 | **Phạm vi công việc** | Thiết lập cấu trúc dự án Clean Architecture .NET 10, Angular 22 workspace, Docker Compose và tài liệu nền tảng |
 | **Nội dung Prompt chính** | *"Tôi đang dựng backend .NET 10 theo Clean Architecture cho đồ án SaaS quản lý khách sạn đa chi nhánh. Nhờ bạn gợi ý cấu trúc solution 4 tầng Domain, Application, Infrastructure, WebApi. Tích hợp EF Core với PostgreSQL 17, MediatR, FluentValidation và viết giúp file docker-compose chạy Postgres với Redis. Sau đó gợi ý cấu trúc thư mục tài liệu SRS, SDD chuẩn học thuật."* |
 | **Kết quả AI sinh ra** | AI đưa ra cấu trúc các thư mục, file solution `.sln`, các file `.csproj` tương ứng và file cấu hình `docker-compose.yml`. AI cũng gợi ý mục lục tài liệu kỹ thuật SRS và SDD. Tuy nhiên, ở phần MediatR, AI sinh cú pháp đăng ký Dependency Injection của phiên bản cũ `AddMediatR(typeof(Program))`. |
@@ -37,7 +38,8 @@
 |:---|:---|
 | **Thời gian thực hiện** | 04/10/2026 |
 | **Thành viên thực hiện** | Ngô Võ Tuấn An (`24TX810001`) |
-| **Công cụ AI sử dụng** | Google Antigravity |
+| **Công cụ AI sử dụng** | ChatGPT / Codex |
+| **Phiên bản / Model** | **Codex Astra 6.1** |
 | **Phạm vi công việc** | Triển khai Authentication (JWT + Refresh Token xoay vòng), Multi-tenant Query Filter, Interceptor lưu dữ liệu an toàn |
 | **Nội dung Prompt chính** | *"Hãy viết giúp tôi module Authentication bằng JWT có cơ chế Refresh Token xoay vòng (Token Rotation) để chống Replay Attack trong .NET 10. Đồng thời tạo giúp tôi EF Core Interceptor tự động lấy TenantId và PropertyId từ request header gắn vào entity khi thêm mới, ngăn không cho người dùng sửa hoặc đọc chéo dữ liệu của khách sạn khác."* |
 | **Kết quả AI sinh ra** | AI sinh ra file `AuthController` với các endpoint đăng nhập, làm mới token; middleware bắt lỗi chuẩn RFC 7807; và class `TenantPropertySaveChangesInterceptor`. Code cơ bản cấp phát được token và chặn được truy vấn đơn giản. |
@@ -53,7 +55,8 @@
 |:---|:---|
 | **Thời gian thực hiện** | 06/10/2026 – 08/10/2026 |
 | **Thành viên thực hiện** | Nguyễn Khởi Nguyên (`24TX810011`) |
-| **Công cụ AI sử dụng** | GitHub Copilot & ChatGPT Plus |
+| **Công cụ AI sử dụng** | ChatGPT / Codex |
+| **Phiên bản / Model** | **Codex Astra 6.1** |
 | **Phạm vi công việc** | Xây dựng CRUD RoomType và Room theo mẫu CQRS, xây dựng UI Angular Catalog |
 | **Nội dung Prompt chính** | *"Mình đang làm tính năng quản lý danh mục Loại phòng (RoomType) và Phòng (Room) cho khách sạn bằng C# .NET 10. Bạn viết giúp mình các Command và Query MediatR để thêm, sửa, xóa, lấy danh sách có phân trang và lọc theo tầng. Lưu ý số phòng không được trùng nhau trong cùng một khách sạn và không cho xóa loại phòng nếu đang có phòng trực thuộc."* |
 | **Kết quả AI sinh ra** | AI sinh ra đầy đủ các class Command, Query, Handler và Validator dùng FluentValidation, cùng với code service Angular để gọi API. Nhưng phần xử lý xóa thì AI lại viết xóa cứng (hard delete) trực tiếp vào database, không kiểm tra xem phòng đó trước đây đã từng có đơn đặt phòng (Reservation) nào chưa. |
@@ -69,7 +72,8 @@
 |:---|:---|
 | **Thời gian thực hiện** | 09/10/2026 – 12/10/2026 |
 | **Thành viên thực hiện** | Trần Trọng Tân (`24TX810025`) |
-| **Công cụ AI sử dụng** | Google Antigravity & Claude 3.5 Sonnet |
+| **Công cụ AI sử dụng** | Google Gemini |
+| **Phiên bản / Model** | **Gemini Flash 3.8** |
 | **Phạm vi công việc** | Thiết kế máy trạng thái buồng phòng FSM, Concurrency Lock bằng `expectedOldStatus`, giao diện Housekeeping Board |
 | **Nội dung Prompt chính** | *"Mình cần làm màn hình quản lý buồng phòng (Housekeeping) cho khách sạn. Khách sạn có 5 trạng thái phòng: Sạch, Bẩn, Đang dọn, Có khách và Hỏng/Bảo trì. Bạn viết giúp mình API đổi trạng thái phòng có kiểm tra luồng chuyển đổi hợp lệ và tránh trường hợp 2 nhân viên cùng bấm đổi trạng thái một lúc. Phía giao diện Angular hiển thị các thẻ phòng theo từng tầng và đổi màu theo trạng thái."* |
 | **Kết quả AI sinh ra** | AI đề xuất tạo class `RoomStatusTransitionValidator` để chặn các chuyển đổi sai luật, và gợi ý gửi kèm `expectedOldStatus` lên API PATCH để so khớp trạng thái cũ. Phía Angular thì AI sinh ra giao diện danh sách phòng có nút bấm đổi trạng thái nhưng lại dùng thư viện quản lý state bên ngoài. |
