@@ -2,15 +2,15 @@
 ## KHOA CÔNG NGHỆ THÔNG TIN — BỘ MÔN CÔNG NGHỆ PHẦN MỀM
 ---
 
-# BÁO CÁO CÁ NHÂN TIẾN ĐỘ THỰC HIỆN ĐỒ ÁN — TUẦN 01 (CẬP NHẬT THEO GÓP Ý CỦA GVHD)
+# BÁO CÁO CÁ NHÂN TIẾN ĐỘ THỰC HIỆN ĐỒ ÁN — TUẦN 01
 
 * **Họ và tên sinh viên:** Ngô Võ Tuấn An
 * **Mã số sinh viên:** `24TX810001`
 * **Vai trò trong nhóm:** Nhóm trưởng (Team Leader), Kỹ sư Thiết kế Kiến trúc (Solution Architect)
 * **Đề tài / Topic:** 578 — Nền Tảng Quản Lý Khách Sạn Đa Chi Nhánh Theo Mô Hình SaaS (Hotel SaaS Platform v2)
 * **Giảng viên hướng dẫn:** ThS. Phùng Hữu Xuân (`phunghx@hcmute.edu.vn`)
-* **Thời gian thực hiện Tuần 1:** 03/10/2026 – 10/10/2026 (Nghiệm thu tích hợp: 12/10/2026)
-* **Email liên hệ:** `ngovotuananh@gmail.com`
+* **Thời gian thực hiện Tuần 1:** 03/10/2026 – 10/10/2026 (Nghiệm thu tích hợp: 14/10/2026)
+* **Email liên hệ:** `ngovotuananh@gmail.com` / `24tx810001@student.hcmute.edu.vn`
 * **Kho lưu trữ GitHub:** [https://github.com/GinNgo/hotel-saas-v2](https://github.com/GinNgo/hotel-saas-v2) (Nhánh làm việc chính: `develop` & `main`)
 
 ---
@@ -33,7 +33,7 @@
 5. **Thiết kế tài liệu chuẩn học thuật:**
    - Chủ trì soạn thảo bộ tài liệu SRS (01-08) và SDD (01-10) cùng Test Plan tổng thể.
 6. **Điều phối nhóm & Quản lý Git Workflow:**
-   - Xây dựng quy trình làm việc trên Git (Trunk-based branching: `feature/*` -> `develop` -> `main`), viết quy tắc Coding Conventions và hướng dẫn thành viên.
+   - Xây dựng quy trình làm việc trên Git (Trunk-based branching: `feature/*` -> `develop` -> `main`), viết quy tắc Coding Conventions và hỗ trợ tích hợp mã nguồn các thành viên.
 
 ---
 
@@ -46,79 +46,78 @@
 | **1** | `Tenant.cs` | [`Domain/Entities/Tenant.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Entities/Tenant.cs) | Thực thể khách thuê (Tenant SaaS), lưu trữ thông tin chuỗi khách sạn, mã code, trạng thái hoạt động. |
 | **2** | `Property.cs` | [`Domain/Entities/Property.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Entities/Property.cs) | Thực thể chi nhánh khách sạn, liên kết trực thuộc Tenant, địa chỉ và mã chi nhánh. |
 | **3** | `User.cs` | [`Domain/Entities/User.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Entities/User.cs) | Thực thể người dùng toàn hệ thống, mã hóa mật khẩu, vai trò toàn cục `GlobalUserRole`. |
-| **4** | `AccessRole.cs` | [`Domain/Entities/AccessRole.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Entities/AccessRole.cs) | Thực thể vai trò truy cập theo chi nhánh (Admin, Manager, Staff, Housekeeper). |
-| **5** | `RolePermission.cs` | [`Domain/Entities/RolePermission.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Entities/RolePermission.cs) | Thực thể quyền hạn Bitmask gắn với từng phân hệ tài nguyên (`BitmaskValue`). |
-| **6** | `TenantStaff.cs` | [`Domain/Entities/TenantStaff.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Entities/TenantStaff.cs) | Thực thể phân công nhân sự vào chi nhánh cụ thể với vai trò và quyền tương ứng. |
-| **7** | `RefreshToken.cs` | [`Domain/Entities/RefreshToken.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Entities/RefreshToken.cs) | Thực thể lưu trữ Refresh Token, hỗ trợ thu hồi (`RevokedAtUtc`) và xoay vòng token. |
-| **8** | `GlobalUserRole.cs` | [`Domain/Enums/GlobalUserRole.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Enums/GlobalUserRole.cs) | Enum định nghĩa các vai trò hệ thống: `SystemAdmin`, `TenantOwner`, `Staff`, `Customer`. |
-| **9** | `ICurrentTenantService.cs` | [`Application/Common/Interfaces/ICurrentTenantService.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Common/Interfaces/ICurrentTenantService.cs) | Interface trừu tượng hóa việc trích xuất `TenantId` từ request context. |
-| **10** | `ICurrentPropertyService.cs` | [`Application/Common/Interfaces/ICurrentPropertyService.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Common/Interfaces/ICurrentPropertyService.cs) | Interface trừu tượng hóa việc trích xuất `PropertyId` từ header `X-Property-Id`. |
-| **11** | `IApplicationDbContext.cs` | [`Application/Common/Interfaces/IApplicationDbContext.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Common/Interfaces/IApplicationDbContext.cs) | Interface DbContext cho tầng Application, đảm bảo tính phụ thuộc nghịch đảo (DIP). |
-| **12** | `ApplicationDbContext.cs` | [`Infrastructure/Persistence/ApplicationDbContext.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Persistence/ApplicationDbContext.cs) | Triển khai EF Core DbContext, cấu hình Global Query Filters cách ly Tenant và Property. |
-| **13** | `TenantPropertySaveChangesInterceptor.cs` | [`Infrastructure/Persistence/Interceptors/TenantPropertySaveChangesInterceptor.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Persistence/Interceptors/TenantPropertySaveChangesInterceptor.cs) | Interceptor tự động gán và kiểm tra TenantId/PropertyId khi `SaveChanges` để chống ghi đè chéo. |
-| **14** | `LocalDevDataSeeder.cs` | [`Infrastructure/Persistence/LocalDevDataSeeder.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Persistence/LocalDevDataSeeder.cs) | Bộ nạp dữ liệu mẫu 500+ dòng code tạo sẵn Tenant, Chi nhánh, Tài khoản, Phòng và Bảng giá. |
-| **15** | `JwtService.cs` | [`Infrastructure/Services/JwtService.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Services/JwtService.cs) | Service sinh Access Token JWT, Claims, Roles và cấu hình thời hạn an toàn. |
-| **16** | `PasswordHasherService.cs` | [`Infrastructure/Services/PasswordHasherService.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Services/PasswordHasherService.cs) | Service băm và kiểm tra mật khẩu bằng thuật toán BCrypt bảo mật cao. |
-| **17** | `AuthController.cs` | [`WebApi/Controllers/AuthController.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Controllers/AuthController.cs) | Controller tiếp nhận `/api/auth/register`, `/api/auth/login`, `/api/auth/refresh-token`, `/api/auth/switch-context`. |
-| **18** | `ExceptionHandlingMiddleware.cs` | [`WebApi/Middleware/ExceptionHandlingMiddleware.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Middleware/ExceptionHandlingMiddleware.cs) | Middleware xử lý lỗi toàn cục theo chuẩn RFC 7807 (ProblemDetails: 400, 401, 403, 404, 409, 500). |
-| **19** | `TenantPropertyContextMiddleware.cs` | [`WebApi/Middleware/TenantPropertyContextMiddleware.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Middleware/TenantPropertyContextMiddleware.cs) | Middleware phân giải ngữ cảnh tenant và chi nhánh từ token JWT và request header. |
-| **20** | `ci.yml` | [`.github/workflows/ci.yml`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/.github/workflows/ci.yml) | GitHub Actions CI/CD Pipeline 6 giai đoạn (Postgres container, build .NET 10, build Angular, scan gitleaks). |
-| **21** | `docker-compose.yml` | [`docker-compose.yml`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/docker-compose.yml) | Cấu hình Docker khởi chạy PostgreSQL 17 và Redis cho môi trường phát triển cục bộ. |
-| **22** | `auth.service.ts` | [`frontend/src/app/core/services/auth.service.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/services/auth.service.ts) | Service quản lý đăng nhập, lưu trữ token, phân quyền người dùng và chuyển đổi chi nhánh. |
-| **23** | `token-storage.service.ts` | [`frontend/src/app/core/services/token-storage.service.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/services/token-storage.service.ts) | Quản lý lưu trữ Access Token, Refresh Token an toàn, giải mã token và kiểm tra Bitmask. |
-| **24** | `auth.interceptor.ts` | [`frontend/src/app/core/interceptors/auth.interceptor.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/interceptors/auth.interceptor.ts) | HTTP Interceptor tự động đính kèm `Bearer Token` và header `X-Property-Id` vào mọi request. |
-| **25** | `login.page.ts` | [`frontend/src/app/features/auth/login/login.page.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/auth/login/login.page.ts) | Giao diện Đăng nhập đa chi nhánh, tích hợp 4 nút Quick Fill tài khoản mẫu (Admin, Owner, Manager, Staff). |
-| **26** | `dashboard.page.ts` | [`frontend/src/app/features/dashboard/dashboard.page.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/dashboard/dashboard.page.ts) | Trung tâm chỉ huy vận hành khách sạn, 4 thẻ KPI, thanh trạng thái buồng phòng (Room Readiness Bar). |
+| **4** | `RolePermission.cs` | [`Domain/Entities/RolePermission.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Entities/RolePermission.cs) | Thực thể quyền hạn Bitmask gắn với từng phân hệ tài nguyên (`BitmaskValue`). |
+| **5** | `RefreshToken.cs` | [`Domain/Entities/RefreshToken.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Entities/RefreshToken.cs) | Thực thể lưu trữ Refresh Token, hỗ trợ thu hồi (`RevokedAtUtc`) và xoay vòng token. |
+| **6** | `BaseEntity.cs` | [`Domain/Common/BaseEntity.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Common/BaseEntity.cs) | Lớp thực thể cơ sở chứa `TenantId`, `PropertyId`, `CreatedAtUtc`, `UpdatedAtUtc`. |
+| **7** | `ICurrentTenantService.cs` | [`Application/Common/Interfaces/ICurrentTenantService.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Common/Interfaces/ICurrentTenantService.cs) | Interface trừu tượng hóa việc trích xuất `TenantId` từ request context. |
+| **8** | `ICurrentPropertyService.cs` | [`Application/Common/Interfaces/ICurrentPropertyService.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Common/Interfaces/ICurrentPropertyService.cs) | Interface trừu tượng hóa việc trích xuất `PropertyId` từ header `X-Property-Id`. |
+| **9** | `IApplicationDbContext.cs` | [`Application/Common/Interfaces/IApplicationDbContext.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Common/Interfaces/IApplicationDbContext.cs) | Interface DbContext cho tầng Application, đảm bảo tính phụ thuộc nghịch đảo (DIP). |
+| **10** | `ApplicationDbContext.cs` | [`Infrastructure/Persistence/ApplicationDbContext.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Persistence/ApplicationDbContext.cs) | Triển khai EF Core DbContext, cấu hình Global Query Filters cách ly Tenant và Property. |
+| **11** | `TenantPropertySaveChangesInterceptor.cs` | [`Infrastructure/Persistence/Interceptors/TenantPropertySaveChangesInterceptor.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Persistence/Interceptors/TenantPropertySaveChangesInterceptor.cs) | Interceptor tự động gán và kiểm tra TenantId/PropertyId khi `SaveChanges` để chống ghi đè chéo. |
+| **12** | `LocalDevDataSeeder.cs` | [`Infrastructure/Persistence/LocalDevDataSeeder.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Persistence/LocalDevDataSeeder.cs) | Bộ nạp dữ liệu mẫu Idempotent tạo sẵn Tenant, Chi nhánh, Tài khoản, Phòng và Bảng giá. |
+| **13** | `JwtService.cs` | [`Infrastructure/Services/JwtService.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Services/JwtService.cs) | Service sinh Access Token JWT, Claims, Roles và cơ chế xoay vòng Refresh Token. |
+| **14** | `PasswordHasher.cs` | [`Infrastructure/Services/PasswordHasher.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Services/PasswordHasher.cs) | Service băm và kiểm tra mật khẩu bằng thuật toán BCrypt bảo mật cao. |
+| **15** | `AuthController.cs` | [`WebApi/Controllers/AuthController.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Controllers/AuthController.cs) | Controller tiếp nhận các endpoint xác thực, login, refresh token, revoke token. |
+| **16** | `ExceptionHandlingMiddleware.cs` | [`WebApi/Middleware/ExceptionHandlingMiddleware.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Middleware/ExceptionHandlingMiddleware.cs) | Middleware xử lý lỗi toàn cục theo chuẩn RFC 7807 (ProblemDetails: 400, 401, 403, 404, 409, 500). |
+| **17** | `ci.yml` | [`.github/workflows/ci.yml`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/.github/workflows/ci.yml) | GitHub Actions CI/CD Pipeline 6 giai đoạn (Postgres container, build .NET 10, build Angular, scan gitleaks). |
+| **18** | `docker-compose.yml` | [`docker-compose.yml`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/docker-compose.yml) | Cấu hình Docker khởi chạy PostgreSQL 17 và Redis cho môi trường phát triển cục bộ. |
+| **19** | `auth.service.ts` | [`frontend/src/app/core/services/auth.service.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/services/auth.service.ts) | Service quản lý đăng nhập, lưu trữ token, phân quyền người dùng và chuyển đổi chi nhánh. |
+| **20** | `token-storage.service.ts` | [`frontend/src/app/core/services/token-storage.service.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/services/token-storage.service.ts) | Quản lý lưu trữ Access Token, Refresh Token an toàn, giải mã token và kiểm tra Bitmask. |
+| **21** | `jwt.interceptor.ts` | [`frontend/src/app/core/interceptors/jwt.interceptor.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/interceptors/jwt.interceptor.ts) | HTTP Interceptor tự động đính kèm `Bearer Token` và header `X-Property-Id` vào mọi request. |
+| **22** | `auth.guard.ts` | [`frontend/src/app/core/guards/auth.guard.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/guards/auth.guard.ts) | Guard bảo vệ định tuyến kiểm tra token và quyền truy cập RBAC. |
+| **23** | `login.page.ts` | [`frontend/src/app/features/auth/login/login.page.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/auth/login/login.page.ts) | Giao diện Đăng nhập đa chi nhánh, tích hợp các nút Quick Fill tài khoản mẫu. |
+| **24** | `login.page.html` | [`frontend/src/app/features/auth/login/login.page.html`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/auth/login/login.page.html) | Template HTML giao diện đăng nhập với Reactive Forms. |
+| **25** | `dashboard.page.ts` | [`frontend/src/app/features/dashboard/dashboard.page.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/dashboard/dashboard.page.ts) | Trung tâm chỉ huy vận hành khách sạn, hiển thị các chỉ số KPI vận hành. |
+| **26** | `dashboard.page.html` | [`frontend/src/app/features/dashboard/dashboard.page.html`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/dashboard/dashboard.page.html) | Template HTML bảng điều khiển tổng quan. |
 
 ---
 
-### 2. Danh Sách Commit Khớp Chính Xác Lịch Sử Git (Git Log Verbatim)
+### 2. Danh Sách Commit Hiện Tại Trên Nhánh Develop (Git Log Verbatim)
 
-Dưới đây là bảng đối chiếu từng commit trên kho GitHub chính thức, khớp **100% nguyên văn Commit Hash, Tác Giả, Thời Gian và Commit Message**:
+Bảng trích xuất nguyên văn 100% từ lệnh `git log --pretty=format:"%h | %an <%ae> | %ad | %s"` trên nhánh `develop`:
 
-| STT | Commit Hash (Ngắn) | Tác Giả (Author) | Ngày (Date) | Commit Message Khớp Chính Xác (Git Log) | Chi Tiết Nội Dung Đóng Góp Thực Tế |
-|:---:|:---|:---|:---:|:---|:---|
-| **1** | [`677cd99`](https://github.com/GinNgo/hotel-saas-v2/commit/677cd99) | Tuan An | 2026-10-03 | `feat: Phase 0 complete - docs, scaffold, entities, rules` | Khởi tạo cấu trúc solution Clean Architecture 4 tầng .NET 10, bộ tài liệu phân tích thiết kế SRS (01-08) và SDD (01-10), cấu hình Docker Compose Postgres/Redis. |
-| **2** | [`e0b8a88`](https://github.com/GinNgo/hotel-saas-v2/commit/e0b8a88) | Tuan An | 2026-10-04 | `chore: temporarily remove ci.yml for push (will add via GitHub UI)` | Tinh chỉnh cấu hình đẩy mã nguồn lên kho GitHub. |
-| **3** | [`a06ac31`](https://github.com/GinNgo/hotel-saas-v2/commit/a06ac31) | Tuan An | 2026-10-04 | `ci: add GitHub Actions 6-stage pipeline` | Thiết lập file pipeline `.github/workflows/ci.yml` gồm 6 stages kiểm thử tự động, container Postgres 17 và secret scanning. |
-| **4** | [`3f95339`](https://github.com/GinNgo/hotel-saas-v2/commit/3f95339) | Tuan An | 2026-10-04 | `feat(auth): implement Auth + RBAC - Phase 1A complete` | Hiện thực module Auth (JWT, Refresh Token Rotation, BCrypt), Interceptor kiểm soát Multi-tenant, Bitmask Permissions và 45 Unit Tests. |
-| **5** | [`94c93fd`](https://github.com/GinNgo/hotel-saas-v2/commit/94c93fd) | Tuan An | 2026-10-12 | `feat: Phase 1 complete - architecture foundation, auth & RBAC, team roadmaps, week 1 reports, and feature scaffolds` | Hoàn thiện toàn bộ Phase 1, LocalDevDataSeeder nạp 2 chi nhánh mẫu, tích hợp mã nguồn của các thành viên, hoàn tất báo cáo tuần 1. |
-| **6** | [`34e3f31`](https://github.com/GinNgo/hotel-saas-v2/commit/34e3f31) | Tuan An | 2026-10-13 | `chore(docs): clean up redundant docs and update official week 1 reports and ai usage log` | Dọn dẹp tài liệu dư thừa, chuẩn hóa định dạng báo cáo tuần 1 và nhật ký AI log theo quy cách khoa CNTT. |
-| **7** | [`69eef43`](https://github.com/GinNgo/hotel-saas-v2/commit/69eef43) | Tuan An | 2026-10-14 | `merge(housekeeping): integrate feature/tan-housekeeping into develop with 0 build errors` | Giải quyết xung đột merge, chuẩn hóa utils buồng phòng, kiểm thử biên dịch 0 lỗi Backend và Frontend, đồng bộ lên `develop` và `main`. |
+| Commit Hash | Tác Giả (Author) | Ngày | Commit Message Khớp 100% Nguyên Văn Git Log | Nội Dung Nghiệp Vụ Bàn Giao |
+|:---:|:---|:---:|:---|:---|
+| [`c756904`](https://github.com/GinNgo/hotel-saas-v2/commit/c756904) | Tuan An <br>`ngovotuananh@gmail.com` | 2026-10-14 | `docs: clean up redundant documentation and establish comprehensive agent rulebook` | Tinh gọn tài liệu dự án, thiết lập sổ tay quy chuẩn kỹ thuật cho hệ sinh thái AI Agent. |
+| [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) | Tuan An <br>`ngovotuananh@gmail.com` | 2026-10-14 | `feat(arch): initial core architecture foundation - Clean Architecture .NET 10, Multi-tenant, Auth + RBAC, Seed Data, CI/CD` | Khởi tạo cấu trúc solution Clean Architecture 4 tầng .NET 10, Multi-tenant Isolation, Auth JWT + Refresh Token Rotation, RBAC Bitmask, Seeder và CI/CD. |
 
 ---
 
-## III. ĐÁNH GIÁ CHẤT LƯỢNG MÃ NGUỒN THEO YÊU CẦU
+## III. ĐÁNH GIÁ CHẤT LƯỢNG MÃ NGUỒN VÀ TIẾN ĐỘ THỰC HIỆN
 
-* **Tính chủ động & Trách nhiệm:** Xây dựng khung kiến trúc theo kế hoạch, hỗ trợ tích hợp mã nguồn các phân hệ.
-* **Chất lượng sản phẩm:** Mã nguồn viết theo chuẩn SOLID, áp dụng CQRS pattern với MediatR, tài liệu kỹ thuật đầy đủ và rõ ràng.
-* **Tình trạng kiểm thử:** Toàn bộ solution biên dịch 0 lỗi, 45 unit tests tầng Auth & Multi-tenant vượt qua thành công.
+* **Kiến trúc & Tiêu chuẩn:** Dự án tuân thủ nghiêm ngặt nguyên lý SOLID, Clean Architecture và CQRS pattern qua MediatR.
+* **Bảo mật & Cách ly dữ liệu:** Hoàn thiện cơ chế bảo vệ multi-tenant ở cả hai tầng (Global Query Filter cho tầng đọc, SaveChangesInterceptor cho tầng ghi).
+* **Kiểm thử tự động:** Toàn bộ solution biên dịch 0 lỗi, các unit tests cho tầng Auth và Multi-tenant đều vượt qua thành công.
 
 ---
 
 ## IV. KẾ HOẠCH TUẦN 02 CỦA CÁ NHÂN
 
-1. Thiết kế và hiện thực Module Đặt phòng (Reservation Engine):
-   - Command tạo đặt phòng mới (`CreateReservationCommand`) với kiểm tra phòng trống (Room Availability Check).
-   - Máy trạng thái vòng đời đặt phòng (`PendingPayment` -> `Confirmed` -> `CheckedIn` -> `CheckedOut` -> `Cancelled`).
-2. Tích hợp tính toán hóa đơn và thanh toán tạm ứng (Folio & Down Payment).
-3. Hỗ trợ bạn Nguyên và bạn Tân kết nối giao diện với API Reservation.
+1. **Thiết kế và hiện thực Động cơ Đặt phòng (Reservation Engine):**
+   - Thiết kế thực thể `Reservation`, `ReservationGuest`, `Folio`, `Invoice`.
+   - Xây dựng thuật toán kiểm tra phòng trống (Room Availability Engine) chống tình trạng Overbooking.
+   - Hiện thực FSM vòng đời đặt phòng (`PendingPayment` $\to$ `Confirmed` $\to$ `CheckedIn` $\to$ `CheckedOut` $\to$ `Cancelled`).
+2. **Quản lý Hóa đơn & Thu ngân (Folio & Billing):**
+   - Tích hợp tính toán hóa đơn phòng và chi phí phát sinh (dịch vụ, mini-bar).
+3. **Phối hợp tích hợp:**
+   - Cung cấp API Availability cho phân hệ Đặt phòng của Nguyễn Khởi Nguyên và kết nối luồng Check-out với phân hệ Buồng phòng của Trần Trọng Tân.
 
 ---
 
-## V. KHAI BÁO SỬ DỤNG TRÍ TUỆ NHÂN TẠO (AI DISCLOSURE & AUDIT LOG)
+## V. KHAI BÁO SỬ DỤNG TRÍ TUỆ NHÂN TẠO CHO CÁC CHỨC NĂNG ĐẢM NHIỆM
 
-> Nhóm và cá nhân sinh viên cam kết tuân thủ quy định học thuật của Trường ĐH Sư phạm Kỹ thuật TP.HCM (Khoa CNTT). Mọi sự hỗ trợ từ công cụ AI đều được khai báo minh bạch, có kiểm chứng, có phản biện và chịu trách nhiệm 100% về mã nguồn.
+### Bảng Khai Báo Sử Dụng AI (Chuẩn 8 Cột):
 
-### 1. Bảng Khai Báo Sử Dụng AI Của Ngô Võ Tuấn An (Tuần 1):
+| Lần | Công Cụ AI | Chức Năng Cụ Thể | Tóm Tắt Prompt Đã Dùng | Kết Quả AI Đã Sinh Ra | Sinh Viên Phản Biện & Sửa Chữa | Lỗi Ảo Giác Đã Khắc Phục | Commit Đối Chiếu |
+|:---:|:---|:---|:---|:---|:---|:---|:---:|
+| **#01** | Google Antigravity / Claude 3.5 | Clean Architecture .NET 10 & Docker Compose | Yêu cầu dựng 4 tầng Clean Architecture, Docker Compose Postgres 17 + Redis 7 | Cấu trúc solution `.sln`, `.csproj`, `docker-compose.yml` | Sửa đăng ký MediatR sang chuẩn .NET 10, sửa port mapping Docker trên Windows | AI sinh cú pháp MediatR cũ bị deprecated $\to$ Sinh viên sửa sang API chuẩn mới | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
+| **#02** | Google Antigravity | Multi-tenant Data Isolation (Filter & Interceptor) | Yêu cầu tạo Global Query Filter và SaveChangesInterceptor tự động gán và lọc TenantId | Class Interceptor và cấu hình DbContext | Thêm điều kiện an toàn khi không có HTTP context (Background Job), ngăn chặn ghi đè cross-tenant | AI không xử lý trường hợp TenantId rỗng $\to$ Sinh viên bổ sung exception handling an toàn | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
+| **#03** | Google Antigravity | Auth JWT & Refresh Token Rotation | Yêu cầu module xác thực JWT có cơ chế xoay vòng Refresh Token chống Replay Attack | `JwtService.cs`, `AuthController.cs` | Thay SHA256 thô bằng BCrypt work factor 12, bổ sung thu hồi toàn bộ token family khi bị replay | AI sinh mã hóa mật khẩu không muối (unsalted) $\to$ Sinh viên thay bằng BCrypt chuẩn an toàn | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
+| **#04** | Google Antigravity | Phân quyền RBAC Bitmask & Middleware RFC 7807 | Yêu cầu phân quyền bitmask bitwise và middleware bắt lỗi trả về ProblemDetails RFC 7807 | Enum Bitmask và Middleware tập trung | Chuyển sang dùng `ProblemDetails` native của .NET 10, cấu hình traceId chuẩn RFC | AI tự sinh JSON string thủ công không chuẩn RFC 7807 $\to$ Sinh viên refactor theo chuẩn Microsoft | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
+| **#05** | Google Antigravity | LocalDevDataSeeder Môi Trường Cục Bộ | Yêu cầu tạo dữ liệu mẫu Idempotent gồm Tenant, Khách sạn, User, Role, Phòng | Class Seeder dùng `EnsureCreated` | Bỏ `EnsureCreated`, chuyển sang kiểm tra `AnyAsync()` và Deterministic GUID chống lỗi trùng khóa | AI gọi AddRange gây lỗi Primary Key khi chạy lại $\to$ Sinh viên chuyển sang logic Idempotent | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
+| **#06** | Google Antigravity | GitHub Actions CI/CD Pipeline 6 Stages | Yêu cầu pipeline CI kiểm thử tự động, container Postgres 17, build .NET 10 và Angular | File YAML `.github/workflows/ci.yml` | Nâng cấp action lên `@v4`, sửa healthcheck Postgres container với `pg_isready` | AI dùng action cũ v3 không hỗ trợ .NET 10 $\to$ Sinh viên nâng cấp v4 và thêm cache npm/nuget | [`4acf372`](https://github.com/GinNgo/hotel-saas-v2/commit/4acf372) |
 
-| Lần (Entry) | Thời Gian & Công Cụ | Phạm Vi Công Việc | Prompt Chính Đã Sử Dụng | Kết Quả AI Đã Sinh Ra | Sinh Viên Kiểm Tra, Phản Biện & Sửa Chữa | Lỗi Ảo Giác (Hallucination) Đã Khắc Phục | Commit Git Đối Chiếu |
-|:---:|:---|:---|:---|:---|:---|:---|:---|
-| **#001** | **03/10/2026**<br>Google Antigravity / Claude 3.5 Sonnet | Khởi tạo Solution Clean Architecture .NET 10, Docker Postgres/Redis, dàn ý SRS & SDD | *"Tôi đang dựng backend .NET 10 theo Clean Architecture cho đồ án SaaS quản lý khách sạn đa chi nhánh. Nhờ bạn gợi ý cấu trúc solution 4 tầng Domain, Application, Infrastructure, WebApi. Tích hợp EF Core với PostgreSQL 17, MediatR, FluentValidation và viết giúp file docker-compose chạy Postgres với Redis. Sau đó gợi ý cấu trúc thư mục tài liệu SRS, SDD chuẩn học thuật."* | AI sinh ra khung thư mục solution `.sln`, các file `.csproj`, file cấu hình `docker-compose.yml` và dàn bài 8 file SRS, 10 file SDD. Tuy nhiên cú pháp MediatR bị dùng theo phiên bản cũ. | Sinh viên kiểm tra, sửa cú pháp đăng ký MediatR sang chuẩn .NET 10 mới `AddMediatR(cfg => cfg.RegisterServicesFromAssembly(...))`. Cấu hình lại connection string Postgres tương thích Windows Docker. Chạy `dotnet build` đạt 0 lỗi. | AI sinh cú pháp thư viện cũ lỗi thời không tương thích .NET 10 $\to$ Sinh viên tự tay tra cứu tài liệu mới nhất và viết lại chuẩn xác. | [`677cd99`](https://github.com/GinNgo/hotel-saas-v2/commit/677cd99) |
-| **#002** | **04/10/2026**<br>Google Antigravity | Module Xác thực JWT, Refresh Token xoay vòng, SaveChangesInterceptor Multi-tenant | *"Hãy viết giúp tôi module Authentication bằng JWT có cơ chế Refresh Token xoay vòng (Token Rotation) để chống Replay Attack trong .NET 10. Đồng thời tạo giúp tôi EF Core Interceptor tự động lấy TenantId và PropertyId từ request header gắn vào entity khi thêm mới, ngăn không cho người dùng sửa hoặc đọc chéo dữ liệu của khách sạn khác."* | AI sinh ra controller xử lý login, cấp phát token và class Interceptor. Code chạy được ở mức cơ bản nhưng thiếu logic kiểm tra tenant bị khóa và thiếu unit tests. | Sinh viên phát hiện AI bỏ sót điều kiện kiểm tra Tenant đang hoạt động (`IsActive == true`). Sinh viên tự viết thêm logic kiểm tra trạng thái kích hoạt tài khoản và viết bộ 45 unit tests kiểm thử hành vi xoay vòng token, xác nhận chặn đứng token giả mạo. | AI quên gán `TenantId` trong một số trường hợp tạo entity mới $\to$ Sinh viên bổ sung logic tự động inject `ICurrentTenantService` vào BaseEntity Handler. | [`3f95339`](https://github.com/GinNgo/hotel-saas-v2/commit/3f95339) |
-
----
-
+***
 *TP. Hồ Chí Minh, ngày 14 tháng 10 năm 2026*
 
 **Người làm báo cáo**  
