@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
+using HotelSaas.Application.Loyalty.Services;
 using HotelSaas.Application.Reservations.DTOs;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
@@ -23,19 +24,22 @@ public sealed class CheckOutReservationCommandHandler : IRequestHandler<CheckOut
     private readonly ICurrentUserContext _userContext;
     private readonly IMembershipLookupService _membershipLookupService;
     private readonly ICurrentPropertyService _propertyService;
+    private readonly ILoyaltyLedgerService _loyaltyLedgerService;
 
     public CheckOutReservationCommandHandler(
         IApplicationDbContext context,
         ICurrentTenantService tenantService,
         ICurrentUserContext userContext,
         IMembershipLookupService membershipLookupService,
-        ICurrentPropertyService propertyService)
+        ICurrentPropertyService propertyService,
+        ILoyaltyLedgerService? loyaltyLedgerService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _tenantService = tenantService ?? throw new ArgumentNullException(nameof(tenantService));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _membershipLookupService = membershipLookupService ?? throw new ArgumentNullException(nameof(membershipLookupService));
         _propertyService = propertyService ?? throw new ArgumentNullException(nameof(propertyService));
+        _loyaltyLedgerService = loyaltyLedgerService ?? new LoyaltyLedgerService(_context);
     }
 
     public async Task<ReservationDetailDto> Handle(CheckOutReservationCommand request, CancellationToken cancellationToken)
@@ -187,61 +191,30 @@ public sealed class CheckOutReservationCommandHandler : IRequestHandler<CheckOut
         room.Status = RoomStatus.Dirty;
         room.UpdatedAtUtc = DateTime.UtcNow;
 
-        // Rule D: Earn points on checkout for registered guest members
+        // Rule D: Earn points on checkout for registered guest members via LoyaltyLedgerService
         if (reservation.GuestUserId.HasValue && reservation.PointsEarned == 0)
         {
+            var invoice = await _context.Invoices
+                .FirstOrDefaultAsync(i => i.ReservationId == reservation.Id && i.TenantId == tenantId.Value, cancellationToken);
+            var invoiceId = invoice?.Id ?? Guid.Empty;
+
             var loyaltyMembership = await _context.GuestLoyaltyMemberships
                 .FirstOrDefaultAsync(m => m.TenantId == tenantId.Value && m.UserId == reservation.GuestUserId.Value, cancellationToken);
 
             if (loyaltyMembership != null)
             {
-                var earnRate = loyaltyMembership.Tier switch
-                {
-                    LoyaltyTier.Diamond => 0.06m,
-                    LoyaltyTier.Gold => 0.04m,
-                    _ => 0.02m
-                };
-
-                var earnedPoints = (int)Math.Floor(reservation.TotalAmount * earnRate / 1000m);
-                if (earnedPoints < 1 && reservation.TotalAmount > 0)
-                {
-                    earnedPoints = 1;
-                }
-
-                loyaltyMembership.PointsBalance += earnedPoints;
-                loyaltyMembership.LifetimePoints += earnedPoints;
-                loyaltyMembership.CompletedStaysCount += 1;
-
-                if (loyaltyMembership.CompletedStaysCount >= 15)
-                {
-                    loyaltyMembership.Tier = LoyaltyTier.Diamond;
-                }
-                else if (loyaltyMembership.CompletedStaysCount >= 5)
-                {
-                    loyaltyMembership.Tier = LoyaltyTier.Gold;
-                }
-
-                loyaltyMembership.UpdatedAtUtc = DateTime.UtcNow;
-
-                var earnTx = new LoyaltyPointTransaction
-                {
-                    Id = Guid.NewGuid(),
-                    MembershipId = loyaltyMembership.Id,
-                    TenantId = tenantId.Value,
-                    PropertyId = request.PropertyId,
-                    ReservationId = reservation.Id,
-                    TransactionType = LoyaltyPointTransactionType.EarnedOnCheckout,
-                    PointsDelta = earnedPoints,
-                    BalanceAfter = loyaltyMembership.PointsBalance,
-                    Description = $"Cộng {earnedPoints} điểm thưởng tích lũy sau khi Check-out {reservation.ConfirmationCode} (Hạng {loyaltyMembership.Tier})",
-                    CreatedAtUtc = DateTime.UtcNow
-                };
-                _context.LoyaltyPointTransactions.Add(earnTx);
+                var earnedPoints = await _loyaltyLedgerService.EarnPointsAsync(
+                    reservation.GuestUserId.Value,
+                    tenantId.Value,
+                    request.PropertyId,
+                    reservation.Id,
+                    invoiceId,
+                    reservation.TotalAmount,
+                    loyaltyMembership.Tier.ToString(),
+                    cancellationToken);
 
                 reservation.PointsEarned = earnedPoints;
 
-                var invoice = await _context.Invoices
-                    .FirstOrDefaultAsync(i => i.ReservationId == reservation.Id && i.TenantId == tenantId.Value, cancellationToken);
                 if (invoice != null)
                 {
                     invoice.PointsEarned = earnedPoints;
