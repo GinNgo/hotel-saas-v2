@@ -34,18 +34,22 @@ public sealed class P2B02_BtreeGistLifecycleAndConcurrencyTests
 
     private static string GetBaseConnectionString()
     {
-        var envConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION");
-        if (!string.IsNullOrWhiteSpace(envConn))
-            return envConn;
-
-        return "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
+        var envConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION")
+               ?? Environment.GetEnvironmentVariable("HOTEL_SAAS_TEST_CONNECTION_STRING");
+        var rawConn = !string.IsNullOrWhiteSpace(envConn) ? envConn : "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
+        var builder = new NpgsqlConnectionStringBuilder(rawConn)
+        {
+            Pooling = false
+        };
+        return builder.ConnectionString;
     }
 
     private static string CreateDatabaseConnectionString(string databaseName)
     {
         var builder = new NpgsqlConnectionStringBuilder(GetBaseConnectionString())
         {
-            Database = databaseName
+            Database = databaseName,
+            Pooling = false
         };
         return builder.ConnectionString;
     }
@@ -59,7 +63,8 @@ public sealed class P2B02_BtreeGistLifecycleAndConcurrencyTests
     {
         var builder = new NpgsqlConnectionStringBuilder(connString)
         {
-            SearchPath = testSchema
+            SearchPath = testSchema,
+            Pooling = false
         };
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(builder.ConnectionString)

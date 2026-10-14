@@ -34,11 +34,15 @@ public sealed class P1B01B_RealDatabaseBehavioralTests
 
     private static string GetConnectionString()
     {
-        var envConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION");
-        if (!string.IsNullOrWhiteSpace(envConn))
-            return envConn;
+        var rawConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION")
+               ?? Environment.GetEnvironmentVariable("HOTEL_SAAS_TEST_CONNECTION_STRING")
+               ?? "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
 
-        return "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
+        var builder = new NpgsqlConnectionStringBuilder(rawConn)
+        {
+            Pooling = false
+        };
+        return builder.ConnectionString;
     }
 
     private static void ValidateTestDatabaseTarget(string connStr)
@@ -77,7 +81,8 @@ public sealed class P1B01B_RealDatabaseBehavioralTests
     {
         var builder = new NpgsqlConnectionStringBuilder(connString)
         {
-            SearchPath = testSchema
+            SearchPath = testSchema,
+            Pooling = false
         };
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(builder.ConnectionString)
@@ -127,8 +132,10 @@ public sealed class P1B01B_RealDatabaseBehavioralTests
         }
 
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"DROP SCHEMA IF EXISTS \"{testSchema}\" CASCADE;";
+        cmd.CommandText = $"SET search_path TO public; DROP SCHEMA IF EXISTS \"{testSchema}\" CASCADE;";
         await cmd.ExecuteNonQueryAsync();
+
+        NpgsqlConnection.ClearAllPools();
     }
 
     [Fact]
