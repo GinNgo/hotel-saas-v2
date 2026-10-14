@@ -1,0 +1,10 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allowlist documentation samples, unit tests, and local scripts"
+paths = [
+    '''docs/''',
+    '''backend/tests/''',
+    '''scripts/'''
+]

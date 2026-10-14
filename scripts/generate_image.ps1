@@ -24,7 +24,7 @@ param (
 $ErrorActionPreference = "Stop"
 
 $apiUrl = "http://localhost:20128/v1/images/generations"
-$apiKey = "sk-b3a81036624ac7f5-l0yjhu-6d5d0d22"
+$apiKey = if ($env:IMAGE_AI_API_KEY) { $env:IMAGE_AI_API_KEY } else { "dummy-local-image-key" }
 
 Write-Host "[Local Image AI] Đang gửi yêu cầu sinh ảnh..." -ForegroundColor Cyan
 Write-Host "  Model: $Model" -ForegroundColor DarkGray
