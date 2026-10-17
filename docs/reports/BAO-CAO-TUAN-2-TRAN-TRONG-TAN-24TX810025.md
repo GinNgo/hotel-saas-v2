@@ -9,7 +9,7 @@
 * **Tên đề tài:** Nền tảng Quản lý Khách sạn Đa chi nhánh theo Mô hình SaaS (Hotel SaaS Platform v2)
 * **Sinh viên thực hiện:** Trần Trọng Tân — `24TX810025`
 * **Email sinh viên:** `24tx810025@student.hcmute.edu.vn`
-* **Giảng viên hướng dẫn:** Phùng Xuân Phụng
+* **Giảng viên hướng dẫn:** Huỳnh Xuân Phụng
 * **Phạm vi tuần 02:** Giao diện vận hành lễ tân, liên thông buồng phòng và thu ngân.
 * **Kế hoạch phân công:** [Kế hoạch chi tiết tuần 2](../team/KE-HOACH-CHI-TIET-TUAN-2.md)
 * **Kho mã nguồn:** [GinNgo/hotel-saas-v2](https://github.com/GinNgo/hotel-saas-v2)
