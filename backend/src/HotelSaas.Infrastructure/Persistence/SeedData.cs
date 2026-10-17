@@ -16,7 +16,10 @@ public static class SeedData
     public static async Task SeedDefaultRolesAndPermissions(ApplicationDbContext context)
     {
         if (await context.AccessRoles.AnyAsync())
+        {
+            await EnsureRolePermissionsUpToDateAsync(context);
             return;
+        }
 
         // ── Permission Functions ──────────────────────────────────────────
         var permissions = new Dictionary<string, PermissionFunction>();
@@ -147,7 +150,7 @@ public static class SeedData
             IsSystemRole = true
         };
         var receptionistPerms = BuildPermissions(receptionistId, permissions,
-            ("DASHBOARD", Read), ("ROOMS", Read),
+            ("DASHBOARD", Read), ("ROOMS", Read), ("ROOM_TYPES", Read),
             ("RESERVATIONS", ReadCreateUpdate), ("GUESTS", ReadCreateUpdate),
             ("CHECK_IN_OUT", ReadCreateUpdate), ("PAYMENTS", ReadCreate),
             ("INVOICES", ReadExport));
@@ -173,5 +176,35 @@ public static class SeedData
              .. receptionistPerms, .. housekeeperPerms]);
 
         await context.SaveChangesAsync();
+    }
+
+    private static async Task EnsureRolePermissionsUpToDateAsync(ApplicationDbContext context)
+    {
+        var receptionistRole = await context.AccessRoles.FirstOrDefaultAsync(r => r.Code == "RECEPTIONIST");
+        if (receptionistRole == null) return;
+
+        var roomTypesFunc = await context.PermissionFunctions.FirstOrDefaultAsync(f => f.Code == "ROOM_TYPES");
+        if (roomTypesFunc == null) return;
+
+        const int Read = 1;
+        var existingPerm = await context.RolePermissions
+            .FirstOrDefaultAsync(rp => rp.RoleId == receptionistRole.Id && rp.FunctionId == roomTypesFunc.Id);
+
+        if (existingPerm == null)
+        {
+            context.RolePermissions.Add(new RolePermission
+            {
+                Id = Guid.NewGuid(),
+                RoleId = receptionistRole.Id,
+                FunctionId = roomTypesFunc.Id,
+                ActionMask = Read
+            });
+            await context.SaveChangesAsync();
+        }
+        else if ((existingPerm.ActionMask & Read) != Read)
+        {
+            existingPerm.ActionMask |= Read;
+            await context.SaveChangesAsync();
+        }
     }
 }

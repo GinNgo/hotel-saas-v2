@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -6,6 +7,7 @@ using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Payments.DTOs;
+using HotelSaas.Application.Quotes.DTOs;
 using HotelSaas.Application.Reservations.DTOs;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
@@ -143,6 +145,56 @@ public sealed class GetFolioQueryHandler : IRequestHandler<GetFolioQuery, FolioD
         var remainingBalance = reservation.TotalAmount - paidAmount;
         var isFullyPaid = remainingBalance <= 0;
 
+        var breakdown = snapshot?.Breakdown ?? Array.Empty<QuoteBreakdownItemDto>();
+        decimal? baseRoomAmount = null;
+        decimal? surchargesAmount = null;
+        decimal? servicesAmount = null;
+
+        // Phân loại có cấu trúc: Chỉ tính toán khi breakdown có trường Category rõ ràng
+        if (breakdown.Count > 0 && breakdown.Any(b => !string.IsNullOrWhiteSpace(b.Category)))
+        {
+            baseRoomAmount = breakdown
+                .Where(b => string.Equals(b.Category, "Room", StringComparison.OrdinalIgnoreCase))
+                .Sum(b => b.Amount);
+
+            surchargesAmount = breakdown
+                .Where(b => string.Equals(b.Category, "Surcharge", StringComparison.OrdinalIgnoreCase))
+                .Sum(b => b.Amount);
+
+            servicesAmount = breakdown
+                .Where(b => string.Equals(b.Category, "Service", StringComparison.OrdinalIgnoreCase))
+                .Sum(b => b.Amount);
+        }
+        // Nếu không có breakdown có cấu trúc, không suy đoán TotalAmount thành tiền phòng mà để null
+
+        var depositRequired = snapshot?.DepositRequired;
+        decimal? depositPaid = null;
+
+        var depositPayments = payments
+            .Where(p => p.Status == PaymentStatus.Completed &&
+                        !string.IsNullOrEmpty(p.TransactionRef) &&
+                        p.TransactionRef.Contains("[PURPOSE:DEPOSIT]", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (depositPayments.Count > 0)
+        {
+            depositPaid = depositPayments.Sum(p => p.Amount);
+        }
+        else if (paidAmount == 0)
+        {
+            depositPaid = 0m;
+        }
+        else if (depositRequired != null && depositRequired > 0)
+        {
+            // Đã có thanh toán nhưng không có giao dịch nào được gắn thẻ cọc có cấu trúc [PURPOSE:DEPOSIT]
+            // Không suy đoán khoản nào là cọc; đánh dấu null để UI hiển thị "Chưa xác định"
+            depositPaid = null;
+        }
+        else
+        {
+            depositPaid = 0m;
+        }
+
         return new FolioDto(
             reservation.Id,
             reservation.ConfirmationCode,
@@ -164,7 +216,13 @@ public sealed class GetFolioQueryHandler : IRequestHandler<GetFolioQuery, FolioD
             paidAmount,
             remainingBalance,
             isFullyPaid,
-            payments
+            payments,
+            breakdown,
+            baseRoomAmount,
+            surchargesAmount,
+            servicesAmount,
+            depositRequired,
+            depositPaid
         );
     }
 }

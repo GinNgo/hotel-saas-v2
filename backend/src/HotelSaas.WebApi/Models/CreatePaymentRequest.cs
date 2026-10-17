@@ -11,5 +11,6 @@ public sealed record CreatePaymentRequest(
     decimal Amount,
     PaymentMethod Method,
     string? TransactionRef = null,
-    string? IdempotencyKey = null
+    string? IdempotencyKey = null,
+    bool IsDeposit = false
 );

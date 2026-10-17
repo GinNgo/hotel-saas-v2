@@ -11,6 +11,7 @@ public sealed record QuoteBreakdownItemDto
     public decimal UnitPrice { get; init; }
     public int Quantity { get; init; }
     public decimal Amount { get; init; }
+    public string? Category { get; init; }
 }
 
 /// <summary>

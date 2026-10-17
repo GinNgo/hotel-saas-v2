@@ -155,6 +155,30 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
         if (normalizedKey != null)
         {
             await _context.LockIdempotencyKeyAsync(initialRes.PropertyId, normalizedKey, cancellationToken);
+
+            var ikTag = $"[IK:{normalizedKey}]";
+            var directPrefix = $"[IK:{normalizedKey}][BY:";
+            var depositPrefix = $"[PURPOSE:DEPOSIT][IK:{normalizedKey}][BY:";
+
+            var crossResPayment = await _context.Payments
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p =>
+                    p.TenantId == initialRes.TenantId &&
+                    p.PropertyId == initialRes.PropertyId &&
+                    p.Status == PaymentStatus.Completed &&
+                    p.TransactionRef != null &&
+                    (p.TransactionRef.StartsWith(directPrefix) ||
+                     p.TransactionRef.StartsWith(depositPrefix) ||
+                     p.TransactionRef.Contains(ikTag)),
+                    cancellationToken);
+
+            if (crossResPayment != null && crossResPayment.ReservationId != initialRes.Id)
+            {
+                await tx.RollbackAsync(cancellationToken);
+                throw new ConflictException("ERR_IDEMPOTENCY_PAYLOAD_MISMATCH",
+                    "Khóa Idempotency-Key đã được sử dụng cho một đơn đặt phòng khác.");
+            }
         }
 
         await _context.LockRoomRowAsync(initialRes.RoomId, initialRes.TenantId, initialRes.PropertyId, cancellationToken);
@@ -196,18 +220,25 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
         {
             if (normalizedKey != null)
             {
-                var keyPrefix = $"[IK:{normalizedKey}][BY:";
+                var ikTag = $"[IK:{normalizedKey}]";
+                var directPrefix = $"[IK:{normalizedKey}][BY:";
+                var depositPrefix = $"[PURPOSE:DEPOSIT][IK:{normalizedKey}][BY:";
+
                 var existingPayment = reservation.Payments
                     .FirstOrDefault(p => p.Status == PaymentStatus.Completed &&
                                          p.TransactionRef != null &&
-                                         p.TransactionRef.StartsWith(keyPrefix));
+                                         (p.TransactionRef.StartsWith(directPrefix, StringComparison.Ordinal) ||
+                                          p.TransactionRef.StartsWith(depositPrefix, StringComparison.Ordinal) ||
+                                          p.TransactionRef.Contains(ikTag, StringComparison.Ordinal)));
 
                 if (existingPayment != null)
                 {
                     var storedUserRef = ExtractUserRef(existingPayment.TransactionRef);
                     var safeUserRef = request.TransactionRef.Trim();
+                    var existingIsDeposit = HasDepositTag(existingPayment.TransactionRef);
 
-                    if (existingPayment.Amount != request.PaymentAmount ||
+                    if (!existingIsDeposit ||
+                        existingPayment.Amount != request.PaymentAmount ||
                         existingPayment.Method != request.PaymentMethod ||
                         storedUserRef != safeUserRef)
                     {
@@ -254,18 +285,25 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
         // 9. Check Existing Idempotent Payment Record under Lock
         if (normalizedKey != null)
         {
-            var keyPrefix = $"[IK:{normalizedKey}][BY:";
+            var ikTag = $"[IK:{normalizedKey}]";
+            var directPrefix = $"[IK:{normalizedKey}][BY:";
+            var depositPrefix = $"[PURPOSE:DEPOSIT][IK:{normalizedKey}][BY:";
+
             var existingPayment = reservation.Payments
                 .FirstOrDefault(p => p.Status == PaymentStatus.Completed &&
                                      p.TransactionRef != null &&
-                                     p.TransactionRef.StartsWith(keyPrefix));
+                                     (p.TransactionRef.StartsWith(directPrefix, StringComparison.Ordinal) ||
+                                      p.TransactionRef.StartsWith(depositPrefix, StringComparison.Ordinal) ||
+                                      p.TransactionRef.Contains(ikTag, StringComparison.Ordinal)));
 
             if (existingPayment != null)
             {
                 var storedUserRef = ExtractUserRef(existingPayment.TransactionRef);
                 var safeUserRef = request.TransactionRef.Trim();
+                var existingIsDeposit = HasDepositTag(existingPayment.TransactionRef);
 
-                if (existingPayment.Amount != request.PaymentAmount ||
+                if (!existingIsDeposit ||
+                    existingPayment.Amount != request.PaymentAmount ||
                     existingPayment.Method != request.PaymentMethod ||
                     storedUserRef != safeUserRef)
                 {
@@ -286,8 +324,8 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
         var userId = _userContext.UserId;
         var cleanRef = request.TransactionRef.Trim();
         var formattedRef = normalizedKey != null
-            ? $"[IK:{normalizedKey}][BY:{userId}] {cleanRef}"
-            : $"[BY:{userId}] {cleanRef}";
+            ? $"[PURPOSE:DEPOSIT][IK:{normalizedKey}][BY:{userId}] {cleanRef}"
+            : $"[PURPOSE:DEPOSIT][BY:{userId}] {cleanRef}";
 
         var payment = new Payment
         {
@@ -313,6 +351,12 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
         await tx.CommitAsync(cancellationToken);
 
         return await BuildDetailDtoAsync(reservation, snapshot, cancellationToken);
+    }
+
+    private static bool HasDepositTag(string? transactionRef)
+    {
+        return !string.IsNullOrEmpty(transactionRef) &&
+               transactionRef.Contains("[PURPOSE:DEPOSIT]", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ExtractUserRef(string? transactionRef)

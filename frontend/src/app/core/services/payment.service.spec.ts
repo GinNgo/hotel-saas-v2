@@ -5,7 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { of } from 'rxjs';
 import { PaymentService, GetPaymentsFilter } from './payment.service';
 import { environment } from '../../../environments/environment';
-import { CreatePaymentRequest, PaymentMethod, PaymentStatus } from '../models/payment.model';
+import { CreatePaymentRequest, PaymentMethod, PaymentStatus, ShiftType } from '../models/payment.model';
 
 describe('PaymentService', () => {
   let mockHttp: any;
@@ -141,11 +141,10 @@ describe('PaymentService', () => {
       propertyId: 'prop-001',
       date: '2026-10-10',
       totalCollected: 1200000,
-      cashTotal: 800000,
-      bankTransferTotal: 400000,
-      creditCardTotal: 0,
-      transactionCount: 2,
-      successfulTransactionCount: 2
+      cashCollected: 800000,
+      bankTransferCollected: 400000,
+      creditCardCollected: 0,
+      completedCount: 2
     };
 
     mockHttp.get.mockReturnValue(of({
@@ -155,12 +154,48 @@ describe('PaymentService', () => {
 
     service.getPaymentSummary('prop-001', '2026-10-10').subscribe(data => {
       expect(data.totalCollected).toBe(1200000);
-      expect(data.cashTotal).toBe(800000);
-      expect(data.bankTransferTotal).toBe(400000);
+      expect(data.cashCollected).toBe(800000);
+      expect(data.bankTransferCollected).toBe(400000);
     });
 
     expect(mockHttp.get).toHaveBeenCalledWith(
       `${environment.apiUrl}/payments/summary`,
+      expect.objectContaining({
+        params: expect.anything()
+      })
+    );
+  });
+
+  it('5. should call GET /payments/shift-report with propertyId, date, and shiftType', () => {
+    const mockShiftReport = {
+      propertyId: 'prop-001',
+      date: '2026-10-16',
+      shiftType: ShiftType.Morning,
+      shiftName: 'Ca 1 - Sáng (06:00 - 14:00)',
+      shiftStartUtc: '2026-10-15T23:00:00Z',
+      shiftEndUtc: '2026-10-16T06:59:59.999Z',
+      totalCollected: 950000,
+      cashCollected: 650000,
+      bankTransferCollected: 300000,
+      creditCardCollected: 0,
+      completedCount: 2,
+      payments: []
+    };
+
+    mockHttp.get.mockReturnValue(of({
+      success: true,
+      data: mockShiftReport
+    }));
+
+    service.getShiftReport('prop-001', '2026-10-16', ShiftType.Morning).subscribe(data => {
+      expect(data.shiftName).toBe('Ca 1 - Sáng (06:00 - 14:00)');
+      expect(data.totalCollected).toBe(950000);
+      expect(data.cashCollected).toBe(650000);
+      expect(data.completedCount).toBe(2);
+    });
+
+    expect(mockHttp.get).toHaveBeenCalledWith(
+      `${environment.apiUrl}/payments/shift-report`,
       expect.objectContaining({
         params: expect.anything()
       })

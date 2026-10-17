@@ -6,6 +6,7 @@ using HotelSaas.Application.Payments.Commands.CreatePayment;
 using HotelSaas.Application.Payments.DTOs;
 using HotelSaas.Application.Payments.Queries.GetPayments;
 using HotelSaas.Application.Payments.Queries.GetPaymentSummary;
+using HotelSaas.Application.Payments.Queries.GetShiftReport;
 using HotelSaas.Domain.Enums;
 using HotelSaas.WebApi.Authorization;
 using HotelSaas.WebApi.Models;
@@ -67,7 +68,8 @@ public sealed class PaymentsController : ControllerBase
             request.Amount,
             request.Method,
             request.TransactionRef,
-            idempotencyKey
+            idempotencyKey,
+            request.IsDeposit
         );
 
         var result = await _mediator.Send(command, cancellationToken);
@@ -134,6 +136,31 @@ public sealed class PaymentsController : ControllerBase
         }
 
         var query = new GetPaymentSummaryQuery(targetPropertyId.Value, date);
+        var result = await _mediator.Send(query, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Retrieves shift cashier collection report and line-by-line audit for a specific shift and date.
+    /// </summary>
+    [HttpGet("shift-report")]
+    [RequirePermission("PAYMENTS", PermissionAction.Read)]
+    [ProducesResponseType(typeof(ShiftReportDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetShiftReport(
+        [FromQuery] Guid? propertyId,
+        [FromQuery] DateOnly? date,
+        [FromQuery] ShiftType shiftType = ShiftType.Morning,
+        CancellationToken cancellationToken = default)
+    {
+        var targetPropertyId = ResolveTargetPropertyId(propertyId);
+        if (!targetPropertyId.HasValue)
+        {
+            return BadRequest(new { code = "ERR_PROPERTY_REQUIRED", message = "Property context (X-Property-Id header or query) is required." });
+        }
+
+        var query = new GetShiftReportQuery(targetPropertyId.Value, date, shiftType);
         var result = await _mediator.Send(query, cancellationToken);
         return Ok(result);
     }

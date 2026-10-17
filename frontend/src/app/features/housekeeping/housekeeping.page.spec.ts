@@ -1,6 +1,6 @@
 import '@angular/compiler';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Injector, runInInjectionContext } from '@angular/core';
+import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { of, throwError, Subject } from 'rxjs';
 import { HousekeepingPage } from './housekeeping.page';
 import { RoomService } from '../../core/services/room.service';
@@ -102,7 +102,8 @@ describe('HousekeepingPage Logic, Pagination & Server-Side Filtering', () => {
   beforeEach(() => {
     mockRoomService = {
       getRooms: vi.fn().mockReturnValue(of({ items: samplePage1Rooms, totalCount: 150 })),
-      updateRoomStatus: vi.fn()
+      updateRoomStatus: vi.fn(),
+      roomStatusChanged: signal<any>(null)
     };
 
     mockAlertService = {
@@ -112,7 +113,8 @@ describe('HousekeepingPage Logic, Pagination & Server-Side Filtering', () => {
     };
 
     mockAuthService = {
-      hasPermission: vi.fn().mockReturnValue(true)
+      hasPermission: vi.fn().mockReturnValue(true),
+      activePropertyId: signal<string | null>('prop-1')
     };
   });
 
@@ -408,6 +410,89 @@ describe('HousekeepingPage Logic, Pagination & Server-Side Filtering', () => {
 
       // State should not have been updated with emitted data
       expect(comp.rooms().length).toBe(0);
+    });
+  });
+
+  describe('Multi-Device Server Synchronization & Network Resilience', () => {
+    it('pollServerSync fetches server state and detects room transitioned to Dirty after checkout on another device', () => {
+      const comp = createComponent();
+      comp.ngOnInit();
+      expect(comp.rooms().length).toBe(5);
+      // Initially room-4 (202) is Occupied
+      expect(comp.rooms().find(r => r.id === 'room-4')?.status).toBe(RoomStatus.Occupied);
+
+      // On server, receptionist on Machine A checks out room 202 -> status becomes Dirty in database
+      const updatedServerRooms = samplePage1Rooms.map(r =>
+        r.id === 'room-4' ? { ...r, status: RoomStatus.Dirty } : r
+      );
+      mockRoomService.getRooms.mockReturnValue(of({ items: updatedServerRooms, totalCount: 150 }));
+
+      // Housekeeping screen on Machine B performs periodic sync poll
+      comp.pollServerSync();
+
+      expect(comp.rooms().find(r => r.id === 'room-4')?.status).toBe(RoomStatus.Dirty);
+      expect(comp.syncStatus()).toBe('connected');
+      expect(comp.lastSyncTime()).not.toBeNull();
+      expect(mockAlertService.toastWarning).toHaveBeenCalledWith(
+        expect.stringContaining('202')
+      );
+      comp.ngOnDestroy();
+    });
+
+    it('pauses polling and sets syncStatus to offline when network is disconnected', () => {
+      const comp = createComponent();
+      comp.ngOnInit();
+
+      // Mock offline
+      const nav = typeof globalThis !== 'undefined' ? (globalThis as any).navigator : navigator;
+      Object.defineProperty(nav, 'onLine', { value: false, configurable: true, writable: true });
+
+      comp.pollServerSync();
+      expect(comp.syncStatus()).toBe('offline');
+
+      // Restore
+      Object.defineProperty(nav, 'onLine', { value: true, configurable: true, writable: true });
+      comp.ngOnDestroy();
+    });
+
+    it('toggles autoSyncEnabled on and off cleanly', () => {
+      const comp = createComponent();
+      comp.ngOnInit();
+
+      expect(comp.autoSyncEnabled()).toBe(true);
+      comp.toggleAutoSync();
+      expect(comp.autoSyncEnabled()).toBe(false);
+
+      comp.toggleAutoSync();
+      expect(comp.autoSyncEnabled()).toBe(true);
+      comp.ngOnDestroy();
+    });
+
+    it('marks syncStatus as reconnecting when server returns HTTP error during sync poll', () => {
+      const comp = createComponent();
+      comp.ngOnInit();
+
+      mockRoomService.getRooms.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+      comp.pollServerSync();
+
+      expect(comp.syncStatus()).toBe('reconnecting');
+      comp.ngOnDestroy();
+    });
+
+    it('initializes auto-sync timer with 10-second default interval and formats lastSyncTime', () => {
+      const comp = createComponent();
+      const spy = vi.spyOn(comp, 'startAutoSync');
+      comp.ngOnInit();
+
+      // Verify startAutoSync was called on init with default interval 10000ms
+      expect(spy).toHaveBeenCalledWith();
+
+      // Verify formatLastSyncTime formatting
+      comp.lastSyncTime.set(new Date('2026-10-16T14:30:45'));
+      const formatted = comp.formatLastSyncTime();
+      expect(formatted).toMatch(/^\d{2}:\d{2}:\d{2}$/);
+
+      comp.ngOnDestroy();
     });
   });
 });

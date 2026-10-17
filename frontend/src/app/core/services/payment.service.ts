@@ -8,7 +8,9 @@ import {
   PaymentDto,
   FolioDto,
   CreatePaymentRequest,
-  PaymentSummaryDto
+  PaymentSummaryDto,
+  ShiftReportDto,
+  ShiftType
 } from '../models/payment.model';
 
 export interface GetPaymentsFilter {
@@ -101,6 +103,23 @@ export class PaymentService {
 
     return this.http.get<any>(`${this.apiUrl}/summary`, { params }).pipe(
       map(res => (res.data ? res.data : res) as PaymentSummaryDto)
+    );
+  }
+
+  /**
+   * Retrieves shift cashier collection report and line-by-line audit for a specific shift and date.
+   */
+  getShiftReport(propertyId: string, date?: string, shiftType: ShiftType = ShiftType.Morning): Observable<ShiftReportDto> {
+    let params = new HttpParams()
+      .set('propertyId', propertyId)
+      .set('shiftType', shiftType.toString());
+
+    if (date) {
+      params = params.set('date', date);
+    }
+
+    return this.http.get<any>(`${this.apiUrl}/shift-report`, { params }).pipe(
+      map(res => (res.data ? res.data : res) as ShiftReportDto)
     );
   }
 }

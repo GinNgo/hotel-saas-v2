@@ -45,6 +45,7 @@ export interface QuoteBreakdownItemDto {
   unitPrice: number;
   quantity: number;
   amount: number;
+  category?: string | null;
 }
 
 export interface AppliedPoliciesDto {

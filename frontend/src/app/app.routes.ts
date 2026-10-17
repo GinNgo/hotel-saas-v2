@@ -165,8 +165,12 @@ export const routes: Routes = [
       },
       { path: 'room-types', redirectTo: 'dashboard', pathMatch: 'full' },
 
-      // Phân hệ Housekeeping do Trần Trọng Tân phụ trách (tích hợp qua branch feature/tan-housekeeping)
-      { path: 'housekeeping', redirectTo: 'dashboard', pathMatch: 'full' },
+      {
+        path: 'housekeeping',
+        canActivate: [permissionGuard],
+        data: { permission: 'HOUSEKEEPING', action: 1 },
+        loadComponent: () => import('./features/housekeeping/housekeeping.page').then(m => m.HousekeepingPage)
+      },
       {
         path: 'policies',
         canActivate: [permissionGuard],
@@ -225,7 +229,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/rooms/rooms.page').then(m => m.RoomsPage)
       },
       { path: 'room-types', redirectTo: 'dashboard', pathMatch: 'full' },
-      { path: 'housekeeping', redirectTo: 'dashboard', pathMatch: 'full' },
+      {
+        path: 'housekeeping',
+        canActivate: [permissionGuard],
+        data: { permission: 'HOUSEKEEPING', action: 1 },
+        loadComponent: () => import('./features/housekeeping/housekeeping.page').then(m => m.HousekeepingPage)
+      },
       {
         path: 'policies',
         canActivate: [permissionGuard],

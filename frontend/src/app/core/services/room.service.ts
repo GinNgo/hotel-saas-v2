@@ -1,6 +1,7 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { PagedResult } from '../models/api-response.model';
 import { RoomDto, CreateRoomRequest, UpdateRoomRequest } from '../models/room.model';
@@ -23,10 +24,36 @@ export interface UpdateRoomStatusRequest {
   expectedOldStatus: RoomStatus;
 }
 
+export interface RoomStatusChangeEvent {
+  roomId: string;
+  status: RoomStatus;
+  roomNumber?: string;
+  timestamp: number;
+}
+
+export type RoomSyncStatus = 'connected' | 'syncing' | 'reconnecting' | 'offline';
+
 @Injectable({ providedIn: 'root' })
 export class RoomService {
   private readonly http = inject(HttpClient);
   private readonly apiUrl = `${environment.apiUrl}/rooms`;
+
+  /**
+   * Reactive signal broadcasting room status transitions across components (e.g. CheckOut -> Dirty for Housekeeping Board).
+   */
+  readonly roomStatusChanged = signal<RoomStatusChangeEvent | null>(null);
+
+  /**
+   * Notifies all listening components that a room's status has transitioned.
+   */
+  notifyRoomStatusChanged(roomId: string, status: RoomStatus, roomNumber?: string): void {
+    this.roomStatusChanged.set({
+      roomId,
+      status,
+      roomNumber,
+      timestamp: Date.now()
+    });
+  }
 
   getRooms(filter: GetRoomsFilter = {}): Observable<PagedResult<RoomDto>> {
     let params = new HttpParams()

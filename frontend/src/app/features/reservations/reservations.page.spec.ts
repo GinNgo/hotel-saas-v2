@@ -2,8 +2,9 @@ import '@angular/compiler';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
+import { TestBed } from '@angular/core/testing';
 import { of, throwError, Subject } from 'rxjs';
-import { ReservationsPage, getTodayVnDateString, addDaysToDateString } from './reservations.page';
+import { ReservationsPage, getTodayVnDateString, addDaysToDateString, formatVnDateDisplay } from './reservations.page';
 import { ReservationService } from '../../core/services/reservation.service';
 import { RoomTypeService } from '../../core/services/room-type.service';
 import { PolicyService } from '../../core/services/policy.service';
@@ -24,9 +25,9 @@ import {
   RoomAvailabilityDto,
   QuoteDto,
   RentalType,
-  ReservationStatus,
-  PagedResult
+  ReservationStatus
 } from '../../core/models/reservation.model';
+import { PagedResult } from '../../core/models/api-response.model';
 import { RoomTypeDto } from '../../core/models/room-type.model';
 
 describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availability', () => {
@@ -85,13 +86,11 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
     ...sampleReservationDto,
     breakdown: [
       {
-        rentalType: 'Overnight',
-        stayDate: '2026-10-15',
-        appliedPrice: 500000,
-        rateSource: 'StandardNightlyRate',
-        effectiveFrom: '2026-10-01',
-        effectiveTo: '2026-10-31',
-        currency: 'VND'
+        description: 'Tiền phòng 1 đêm',
+        unitPrice: 500000,
+        quantity: 1,
+        amount: 500000,
+        category: 'Room'
       }
     ],
     appliedPolicies: {
@@ -99,8 +98,7 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
       bufferMinutes: 30,
       checkInTime: '14:00',
       checkOutTime: '12:00'
-    },
-    customerNotes: 'Khách đến muộn'
+    }
   };
 
   const sampleQuoteDto: QuoteDto = {
@@ -113,13 +111,11 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
     expiresAtUtc: '2026-10-10T11:00:00Z',
     breakdown: [
       {
-        rentalType: 'Overnight',
-        stayDate: '2026-10-15',
-        appliedPrice: 500000,
-        rateSource: 'StandardNightlyRate',
-        effectiveFrom: '2026-10-01',
-        effectiveTo: '2026-10-31',
-        currency: 'VND'
+        description: 'Tiền phòng 1 đêm',
+        unitPrice: 500000,
+        quantity: 1,
+        amount: 500000,
+        category: 'Room'
       }
     ],
     appliedPolicies: {
@@ -157,7 +153,27 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
     checkInTime: '14:00:00',
     checkOutTime: '12:00:00',
     maxHourlyHours: 5,
-    bufferMinutes: 30
+    bufferMinutes: 30,
+    surcharges: []
+  };
+
+  const sampleFolio: FolioDto = {
+    reservationId: 'res-001',
+    confirmationCode: 'RES-AB12CD',
+    guestName: sampleReservationDto.guestName,
+    guestEmail: sampleReservationDto.guestEmail,
+    status: sampleReservationDto.status,
+    statusName: 'Đã xác nhận',
+    rentalType: sampleReservationDto.rentalType,
+    checkInDate: sampleReservationDto.checkInDate,
+    checkOutDate: sampleReservationDto.checkOutDate,
+    startAtUtc: sampleReservationDto.startAtUtc,
+    endAtUtc: sampleReservationDto.endAtUtc,
+    totalAmount: 500000,
+    paidAmount: 200000,
+    remainingBalance: 300000,
+    isFullyPaid: false,
+    payments: []
   };
 
   beforeEach(() => {
@@ -194,6 +210,15 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
       getFolio: vi.fn().mockReturnValue(of({
         reservationId: 'res-001',
         confirmationCode: 'RES-AB12CD',
+        guestName: sampleReservationDto.guestName,
+        guestEmail: sampleReservationDto.guestEmail,
+        status: sampleReservationDto.status,
+        statusName: 'Đã xác nhận',
+        rentalType: sampleReservationDto.rentalType,
+        checkInDate: sampleReservationDto.checkInDate,
+        checkOutDate: sampleReservationDto.checkOutDate,
+        startAtUtc: sampleReservationDto.startAtUtc,
+        endAtUtc: sampleReservationDto.endAtUtc,
         totalAmount: 500000,
         paidAmount: 200000,
         remainingBalance: 300000,
@@ -201,9 +226,9 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
         payments: [
           {
             id: 'pay-001',
-            propertyId: 'prop-123',
             reservationId: 'res-001',
             amount: 200000,
+            currency: 'VND',
             method: PaymentMethod.Cash,
             methodName: 'Tiền mặt',
             status: PaymentStatus.Completed,
@@ -211,18 +236,18 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
             createdAtUtc: '2026-10-10T10:00:00Z'
           }
         ]
-      } as FolioDto)),
+      } satisfies FolioDto)),
       createPayment: vi.fn().mockReturnValue(of({
         id: 'pay-002',
-        propertyId: 'prop-123',
         reservationId: 'res-001',
         amount: 300000,
+        currency: 'VND',
         method: PaymentMethod.Cash,
         methodName: 'Tiền mặt',
         status: PaymentStatus.Completed,
         statusName: 'Thành công',
         createdAtUtc: '2026-10-10T11:00:00Z'
-      } as PaymentDto)),
+      } satisfies PaymentDto)),
       getPayments: vi.fn().mockReturnValue(of({
         items: [],
         totalCount: 0,
@@ -253,6 +278,7 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
         if (code === 'CHECK_IN_OUT') return true;
         if (code === 'PROPERTIES') return true;
         if (code === 'PAYMENTS') return true;
+        if (code === 'ROOM_TYPES' && mask === 1) return true;
         return false;
       })
     };
@@ -279,6 +305,48 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
     });
     return runInInjectionContext(injector, () => new ReservationsPage());
   }
+
+  it('keeps the create dialog open when unrelated modal state changes', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+    comp.openCreateModal();
+
+    expect(comp.isCreateModalOpen()).toBe(true);
+    expect(comp.modalTargetPropertyId()).toBe('prop-123');
+    comp.ngOnDestroy();
+  });
+
+  it('shows the specific quote validation error instead of the generic API message', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+    comp.openCreateModal();
+    comp.createForm.patchValue({ roomTypeId: 'rt-101' });
+    mockReservationService.calculateQuote.mockReturnValue(throwError(() => ({
+      error: {
+        message: 'Dữ liệu đầu vào không hợp lệ.',
+        errors: { StartAtUtc: ['Thời điểm bắt đầu không được lùi quá 30 phút.'] }
+      }
+    })));
+
+    comp.onCalculateQuoteAndAvailability();
+
+    expect(comp.quoteError()).toBe('Thời điểm bắt đầu không được lùi quá 30 phút.');
+  });
+
+  it('defaults overnight booking to the next day after the branch check-in time has passed', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-10-17T08:50:00Z'));
+      const comp = createComponent();
+      comp.ngOnInit();
+      comp.openCreateModal();
+
+      expect(comp.createForm.get('checkInDate')?.value).toBe('2026-10-18');
+      expect(comp.createForm.get('checkOutDate')?.value).toBe('2026-10-19');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it('1. should initialize and load reservations and room types', () => {
     const comp = createComponent();
@@ -341,7 +409,7 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
     expect(mockReservationService.getReservationById).toHaveBeenCalledWith('res-001', 'prop-123');
     expect(comp.selectedReservationDetail()?.id).toBe('res-001');
     expect(comp.selectedReservationDetail()?.breakdown.length).toBe(1);
-    expect(comp.selectedReservationDetail()?.breakdown[0].appliedPrice).toBe(500000);
+    expect(comp.selectedReservationDetail()?.breakdown[0].unitPrice).toBe(500000);
 
     comp.closeDetailModal();
     expect(comp.selectedReservationDetail()).toBeNull();
@@ -1123,7 +1191,7 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
     expect(comp.paymentForm.get('amount')?.value).toBe(300000);
   });
 
-  it('29. should open cashier summary modal, fetch daily summary metrics, and allow closing it', () => {
+  it('29a. should open cashier summary modal, fetch daily summary metrics for today (UTC+7), and format VN date correctly', () => {
     const comp = createComponent();
     comp.ngOnInit();
 
@@ -1131,14 +1199,125 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
 
     comp.openSummaryModal();
 
+    const expectedDate = getTodayVnDateString();
     expect(comp.isSummaryModalOpen()).toBe(true);
-    expect(mockPaymentService.getPaymentSummary).toHaveBeenCalledWith('prop-123', expect.any(String));
+    expect(mockPaymentService.getPaymentSummary).toHaveBeenCalledWith('prop-123', expectedDate);
+    expect(comp.isLoadingSummary()).toBe(false);
+    expect(comp.summaryError()).toBeNull();
     expect(comp.paymentSummary()).toBeTruthy();
     expect(comp.paymentSummary()?.totalCollected).toBe(500000);
     expect(comp.paymentSummary()?.cashCollected).toBe(500000);
+    expect(comp.paymentSummary()?.bankTransferCollected).toBe(0);
+
+    // Verify formatVnDateDisplay formats YYYY-MM-DD to dd/MM/yyyy
+    expect(formatVnDateDisplay(comp.paymentSummary()?.date)).toBe('10/10/2026');
+    expect(formatVnDateDisplay('2026-10-17')).toBe('17/10/2026');
+    expect(formatVnDateDisplay(null)).toBe('—');
 
     comp.closeSummaryModal();
     expect(comp.isSummaryModalOpen()).toBe(false);
+    expect(comp.summaryError()).toBeNull();
+  });
+
+  it('29b. should handle zero transactions gracefully and display 0 amounts without leaving fields blank', () => {
+    mockPaymentService.getPaymentSummary.mockReturnValue(of({
+      propertyId: 'prop-123',
+      date: '2026-10-17',
+      totalCollected: 0,
+      cashCollected: 0,
+      bankTransferCollected: 0,
+      creditCardCollected: 0,
+      completedCount: 0
+    } as PaymentSummaryDto));
+
+    const comp = createComponent();
+    comp.ngOnInit();
+
+    comp.openSummaryModal();
+
+    expect(comp.isSummaryModalOpen()).toBe(true);
+    expect(comp.isLoadingSummary()).toBe(false);
+    expect(comp.summaryError()).toBeNull();
+    const summary = comp.paymentSummary();
+    expect(summary).not.toBeNull();
+    expect(summary?.totalCollected).toBe(0);
+    expect(summary?.cashCollected).toBe(0);
+    expect(summary?.bankTransferCollected).toBe(0);
+    expect(summary?.completedCount).toBe(0);
+  });
+
+  it('29c. should handle cashier summary API error, set error state, and recover upon retrySummary()', () => {
+    mockPaymentService.getPaymentSummary.mockReturnValueOnce(
+      throwError(() => ({ error: { message: 'Máy chủ bận, không thể tải báo cáo thu ngân.' } }))
+    );
+
+    const comp = createComponent();
+    comp.ngOnInit();
+
+    comp.openSummaryModal();
+
+    expect(comp.isSummaryModalOpen()).toBe(true);
+    expect(comp.isLoadingSummary()).toBe(false);
+    expect(comp.paymentSummary()).toBeNull();
+    expect(comp.summaryError()).toBe('Máy chủ bận, không thể tải báo cáo thu ngân.');
+    expect(mockAlertService.toastError).toHaveBeenCalledWith('Máy chủ bận, không thể tải báo cáo thu ngân.');
+
+    // Now API succeeds upon retry
+    mockPaymentService.getPaymentSummary.mockReturnValueOnce(of({
+      propertyId: 'prop-123',
+      date: '2026-10-17',
+      totalCollected: 1200000,
+      cashCollected: 500000,
+      bankTransferCollected: 700000,
+      creditCardCollected: 0,
+      completedCount: 2
+    } as PaymentSummaryDto));
+
+    comp.retrySummary();
+
+    expect(comp.isLoadingSummary()).toBe(false);
+    expect(comp.summaryError()).toBeNull();
+    expect(comp.paymentSummary()?.totalCollected).toBe(1200000);
+    expect(comp.paymentSummary()?.cashCollected).toBe(500000);
+    expect(comp.paymentSummary()?.bankTransferCollected).toBe(700000);
+  });
+
+  it('29d. should isolate cashier summary across property switches and reset modal state', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+
+    comp.openSummaryModal();
+    expect(comp.isSummaryModalOpen()).toBe(true);
+    expect(comp.paymentSummary()).not.toBeNull();
+
+    // Switch branch context to prop-456
+    activePropertyIdSignal.set('prop-456');
+    comp.handlePropertyContextChange('prop-456');
+
+    expect(comp.isSummaryModalOpen()).toBe(false);
+    expect(comp.paymentSummary()).toBeNull();
+    expect(comp.summaryError()).toBeNull();
+
+    // Reopen modal under new branch
+    comp.openSummaryModal();
+    const expectedDate = getTodayVnDateString();
+    expect(mockPaymentService.getPaymentSummary).toHaveBeenCalledWith('prop-456', expectedDate);
+  });
+
+  it('29e. should invalidate cached payment summary after a new payment is successfully recorded', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+
+    comp.openSummaryModal();
+    expect(comp.paymentSummary()).not.toBeNull();
+
+    // Record a payment for reservation
+    comp.viewDetails(sampleReservationDto);
+    comp.paymentForm.patchValue({ amount: 100000, method: PaymentMethod.Cash });
+    comp.onRecordPayment(sampleReservationDetailDto);
+
+    // Cache should be invalidated (set to null) so reopening modal re-fetches latest metrics
+    expect(comp.paymentSummary()).toBeNull();
   });
 
   it('30. should enforce PAYMENTS permission checks for creating payments and RESERVATIONS permission for folio', () => {
@@ -1229,6 +1408,7 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
 
     // Now late callback from A arrives
     folioSubjectA.next({
+      ...sampleFolio,
       reservationId: 'res-001',
       confirmationCode: 'RES-AB12CD',
       totalAmount: 500000,
@@ -1244,6 +1424,7 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
 
     // Response from B arrives
     folioSubjectB.next({
+      ...sampleFolio,
       reservationId: 'res-002',
       confirmationCode: 'RES-B22222',
       totalAmount: 1000000,
@@ -1352,5 +1533,129 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
     const newMethodKey = mockPaymentService.createPayment.mock.calls[3][0].idempotencyKey;
     expect(newMethodKey).not.toBe(newAmountKey);
   });
-});
 
+  it('35. should handle Folio loading failure in Check-out modal, provide retry, and reject checkout if Folio is null', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+
+    // Mock getFolio returning error
+    mockPaymentService.getFolio.mockReturnValue(throwError(() => ({
+      error: { message: 'Lỗi tải hóa đơn từ máy chủ' }
+    })));
+
+    comp.openCheckOutModal(sampleReservationDto);
+    expect(comp.isCheckOutModalOpen()).toBe(true);
+    expect(comp.isLoadingCheckOutFolio()).toBe(false);
+    expect(comp.checkOutFolio()).toBeNull();
+    expect(comp.checkOutFolioError()).toBe('Lỗi tải hóa đơn từ máy chủ');
+
+    // Attempting to confirm checkout while Folio is null MUST fail and notify user
+    comp.confirmCheckOutModal();
+    expect(mockAlertService.toastError).toHaveBeenCalledWith(
+      expect.stringContaining('Chưa xác thực được công nợ Folio')
+    );
+    expect(mockReservationService.checkOut).not.toHaveBeenCalled();
+
+    // Now mock getFolio succeeding on retry
+    const validZeroDebtFolio: FolioDto = {
+      ...sampleFolio,
+      reservationId: 'res-001',
+      confirmationCode: 'RES-AB12CD',
+      guestName: 'Nguyễn Văn A',
+      guestPhone: '0901234567',
+      roomNumber: '101',
+      roomTypeName: 'Deluxe Ocean View',
+      totalAmount: 500000,
+      paidAmount: 500000,
+      remainingBalance: 0,
+      isFullyPaid: true,
+      payments: []
+    };
+    mockPaymentService.getFolio.mockReturnValue(of(validZeroDebtFolio));
+
+    comp.retryCheckOutFolio();
+    expect(comp.isLoadingCheckOutFolio()).toBe(false);
+    expect(comp.checkOutFolioError()).toBeNull();
+    expect(comp.checkOutFolio()?.remainingBalance).toBe(0);
+
+    // Now confirm checkout should succeed
+    comp.confirmCheckOutModal();
+    expect(comp.isCheckOutModalOpen()).toBe(false);
+    expect(mockReservationService.checkOut).toHaveBeenCalledWith('res-001', 'prop-123');
+  });
+
+  it('36. should require in-person desk verification confirmation without storing or transmitting any document numbers', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+
+    comp.openCheckInModal(sampleReservationDto);
+    expect(comp.isCheckInModalOpen()).toBe(true);
+    expect(comp.isIdentityVerified()).toBe(false);
+
+    // Confirm without desk verification does not proceed
+    comp.confirmCheckInModal();
+    expect(comp.isCheckInModalOpen()).toBe(true);
+    expect(mockReservationService.checkIn).not.toHaveBeenCalled();
+
+    // Desk clerk confirms in-person ID verification
+    comp.toggleIdentityVerified();
+    expect(comp.isIdentityVerified()).toBe(true);
+
+    comp.confirmCheckInModal();
+    expect(comp.isCheckInModalOpen()).toBe(false);
+    // ReservationService checkIn is called with only (id, propertyId) - zero document numbers stored or transmitted
+    expect(mockReservationService.checkIn).toHaveBeenCalledWith('res-001', 'prop-123');
+  });
+
+  it('37. should support Receptionist role: possesses ROOM_TYPES:Read, can view and perform Check-in/Check-out, but lacks ROOM_TYPES mutation rights', () => {
+    // Receptionist role permissions profile:
+    mockAuthService.hasPermission.mockImplementation((code: string, mask: number) => {
+      // Receptionist: ROOM_TYPES:Read (1), RESERVATIONS:ReadCreateUpdate (7), CHECK_IN_OUT:ReadCreateUpdate (7), PAYMENTS:ReadCreate (3), ROOMS:Read (1)
+      if (code === 'ROOM_TYPES') return (1 & mask) === mask; // ONLY Read, NOT Create(2), Update(4), Delete(8)
+      if (code === 'RESERVATIONS') return (7 & mask) === mask;
+      if (code === 'CHECK_IN_OUT') return (7 & mask) === mask;
+      if (code === 'PAYMENTS') return (3 & mask) === mask;
+      if (code === 'ROOMS') return (1 & mask) === mask;
+      if (code === 'HOUSEKEEPING') return false; // Strictly no housekeeping
+      return false;
+    });
+
+    const comp = createComponent();
+    comp.ngOnInit();
+
+    // 1. Can read room types safely without error
+    expect(comp.canReadRoomTypes()).toBe(true);
+    expect(mockRoomTypeService.getRoomTypes).toHaveBeenCalledWith(undefined, 1, 100);
+    expect(comp.roomTypes().length).toBe(1);
+
+    // 2. Can view reservations and check-in/out
+    expect(comp.canCheckInOut()).toBe(true);
+    expect(comp.canCancel()).toBe(true);
+
+    // 3. Does NOT possess room types mutation permissions
+    expect(mockAuthService.hasPermission('ROOM_TYPES', 2)).toBe(false); // Create
+    expect(mockAuthService.hasPermission('ROOM_TYPES', 4)).toBe(false); // Update
+    expect(mockAuthService.hasPermission('ROOM_TYPES', 8)).toBe(false); // Delete
+
+    // 4. Strictly lacks HOUSEKEEPING permission
+    expect(mockAuthService.hasPermission('HOUSEKEEPING', 1)).toBe(false);
+  });
+
+  it('38. should skip room types API request gracefully when user lacks ROOM_TYPES:Read permission to avoid 403', () => {
+    mockAuthService.hasPermission.mockImplementation((code: string) => {
+      if (code === 'RESERVATIONS' || code === 'CHECK_IN_OUT') return true;
+      return false; // No ROOM_TYPES permission
+    });
+
+    const comp = createComponent();
+    comp.ngOnInit();
+
+    expect(comp.canReadRoomTypes()).toBe(false);
+    // MUST NOT call roomTypeService.getRoomTypes when permission is missing
+    expect(mockRoomTypeService.getRoomTypes).not.toHaveBeenCalled();
+    expect(comp.roomTypes()).toEqual([]);
+
+    // Check-in / check-out operations remain fully functional
+    expect(comp.canCheckInOut()).toBe(true);
+  });
+});

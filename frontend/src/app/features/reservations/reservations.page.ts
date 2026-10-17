@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, effect } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, inject, signal, computed, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Subscription } from 'rxjs';
@@ -22,6 +22,8 @@ import { RoomTypeDto } from '../../core/models/room-type.model';
 import { PolicyService } from '../../core/services/policy.service';
 import { PropertyPoliciesDto } from '../../core/models/policy.model';
 import { PaymentService } from '../../core/services/payment.service';
+import { RoomService } from '../../core/services/room.service';
+import { RoomStatus } from '../../core/models/enums';
 import {
   PaymentDto,
   FolioDto,
@@ -55,6 +57,16 @@ export function addDaysToDateString(dateStr: string, days: number): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+/** Format a YYYY-MM-DD date string to dd/MM/yyyy for Vietnamese UI presentation */
+export function formatVnDateDisplay(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
 }
 
 @Component({
@@ -307,9 +319,9 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                             <button
                               type="button"
                               [disabled]="actionReservationId() === res.id || isActionLoading()"
-                              (click)="onCheckIn(res)"
+                              (click)="openCheckInModal(res)"
                               class="px-2.5 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 disabled:opacity-50 rounded-md transition cursor-pointer flex items-center gap-1"
-                              title="Thực hiện nhận phòng"
+                              title="Mở thủ tục nhận phòng"
                             >
                               <i class="pi pi-sign-in text-[10px]" [class.animate-spin]="actionReservationId() === res.id"></i>
                               <span>Nhận phòng</span>
@@ -319,9 +331,9 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                             <button
                               type="button"
                               [disabled]="actionReservationId() === res.id || isActionLoading()"
-                              (click)="onCheckOut(res)"
+                              (click)="openCheckOutModal(res)"
                               class="px-2.5 py-1 text-[11px] font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 disabled:opacity-50 rounded-md transition cursor-pointer flex items-center gap-1"
-                              title="Thực hiện trả phòng"
+                              title="Mở thủ tục trả phòng"
                             >
                               <i class="pi pi-sign-out text-[10px]" [class.animate-spin]="actionReservationId() === res.id"></i>
                               <span>Trả phòng</span>
@@ -380,8 +392,8 @@ export function addDaysToDateString(dateStr: string, days: number): string {
 
       <!-- MODAL 1: VIEW RESERVATION DETAILS (IMMUTABLE SNAPSHOT) -->
       @if (selectedReservationDetail(); as detail) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div class="bg-white w-full max-w-2xl rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <dialog #detailDialog (cancel)="closeDetailModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(52rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-hidden bg-transparent backdrop:bg-slate-900/40 backdrop:backdrop-blur-xs">
+          <div class="bg-white w-full rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <!-- Modal Header -->
             <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
               <div>
@@ -403,7 +415,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
             </div>
 
             <!-- Modal Body -->
-            <div class="p-6 space-y-5 max-h-[75vh] overflow-y-auto text-xs">
+            <div class="p-6 space-y-5 max-h-[calc(100dvh-10rem)] overflow-y-auto overflow-x-hidden text-xs">
               <!-- Customer & Room Info Cards -->
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80 space-y-1.5">
@@ -447,7 +459,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                   <span class="text-[11px] text-slate-400 font-medium">Đơn vị: VND</span>
                 </div>
 
-                <div class="border border-slate-200 rounded-xl overflow-hidden">
+                <div class="border border-slate-200 rounded-xl overflow-x-auto">
                   <table class="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr class="bg-slate-100/80 border-b border-slate-200 text-slate-600 font-semibold">
@@ -528,15 +540,22 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                       </div>
                     }
                   } @else {
-                    <div class="py-3 px-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500 text-center">
-                      Không thể tải thông tin công nợ. Vui lòng thử lại.
+                    <div class="py-3 px-4 bg-rose-50 rounded-xl border border-rose-200 text-xs text-rose-800 text-center flex items-center justify-between gap-2">
+                      <span>Không thể tải thông tin công nợ Folio.</span>
+                      <button
+                        type="button"
+                        (click)="loadFolio(detail.id, detail.propertyId)"
+                        class="px-2.5 py-1 text-xs font-semibold text-rose-700 bg-white border border-rose-300 hover:bg-rose-100 rounded-lg transition shrink-0 cursor-pointer"
+                      >
+                        Thử lại
+                      </button>
                     </div>
                   }
 
                   <!-- Payment Audit History Table -->
                   @if (folio(); as f) {
                     @if (f.reservationId === detail.id && f.payments?.length) {
-                      <div class="border border-slate-200 rounded-xl overflow-hidden">
+                      <div class="border border-slate-200 rounded-xl overflow-x-auto">
                         <div class="bg-slate-100/70 px-3 py-1.5 font-semibold text-[11px] text-slate-700 border-b border-slate-200">
                           Lịch sử thu tiền & đặt cọc
                         </div>
@@ -689,7 +708,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                       <button
                         type="button"
                         [disabled]="isActionLoading()"
-                        (click)="onCheckIn(detail)"
+                        (click)="openCheckInModal(detail)"
                         class="px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
                       >
                         <i class="pi pi-sign-in" [class.animate-spin]="isActionLoading()"></i>
@@ -699,10 +718,10 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                     @if (detail.status === ReservationStatus.CheckedIn) {
                       <button
                         type="button"
-                        [disabled]="isActionLoading() || (folio()?.reservationId === detail.id && (folio()?.remainingBalance ?? 0) > 0)"
-                        (click)="onCheckOut(detail)"
+                        [disabled]="isActionLoading()"
+                        (click)="openCheckOutModal(detail)"
                         class="px-3.5 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
-                        [title]="(folio()?.reservationId === detail.id && (folio()?.remainingBalance ?? 0) > 0) ? 'Đơn còn dư nợ, vui lòng thu đủ tiền trước khi trả phòng' : 'Trả phòng'"
+                        title="Trả phòng"
                       >
                         <i class="pi pi-sign-out" [class.animate-spin]="isActionLoading()"></i>
                         <span>Trả phòng</span>
@@ -739,13 +758,13 @@ export function addDaysToDateString(dateStr: string, days: number): string {
               </button>
             </div>
           </div>
-        </div>
+        </dialog>
       }
 
       <!-- MODAL 2: CREATE NEW RESERVATION -->
       @if (isCreateModalOpen()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div class="bg-white w-full max-w-3xl rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <dialog #createDialog (cancel)="closeCreateModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(60rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/40 backdrop:backdrop-blur-xs">
+          <div class="bg-white w-full rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <!-- Modal Header -->
             <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
               <div>
@@ -1061,13 +1080,13 @@ export function addDaysToDateString(dateStr: string, days: number): string {
               </div>
             </form>
           </div>
-        </div>
+        </dialog>
       }
 
       <!-- MODAL 3: CANCEL RESERVATION -->
       @if (cancelModalReservation(); as targetRes) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div class="bg-white w-full max-w-md rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <dialog #cancelDialog (cancel)="closeCancelModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(28rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/40 backdrop:backdrop-blur-xs">
+          <div class="bg-white w-full rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div class="px-6 py-4 bg-rose-50 border-b border-rose-200 flex items-center justify-between">
               <div class="flex items-center gap-2">
                 <i class="pi pi-exclamation-circle text-rose-600 text-lg"></i>
@@ -1123,13 +1142,261 @@ export function addDaysToDateString(dateStr: string, days: number): string {
               </button>
             </div>
           </div>
-        </div>
+        </dialog>
+      }
+
+      <!-- MODAL: CHECK-IN (XÁC NHẬN NHẬN PHÒNG & ĐỐI CHIẾU CCCD) -->
+      @if (isCheckInModalOpen()) {
+        @if (checkInModalReservation(); as res) {
+          <dialog #checkInDialog (cancel)="closeCheckInModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(40rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/40 backdrop:backdrop-blur-xs">
+            <div class="bg-white w-full rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                    <i class="pi pi-sign-in text-sm"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-bold text-slate-800">Thủ tục nhận phòng (Check-in)</h3>
+                    <span class="font-mono text-xs font-bold text-emerald-700">Mã: {{ res.confirmationCode }}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  (click)="closeCheckInModal()"
+                  class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                >
+                  <i class="pi pi-times text-sm"></i>
+                </button>
+              </div>
+
+              <div class="p-6 space-y-4 text-xs">
+                <!-- Room & Guest Info Card -->
+                <div class="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <div>
+                    <span class="text-slate-400 text-[11px] block">Khách hàng</span>
+                    <span class="font-bold text-slate-800 text-sm">{{ res.guestName }}</span>
+                    <span class="text-slate-500 text-[11px] block">{{ res.guestPhone || 'Không có SĐT' }}</span>
+                  </div>
+                  <div>
+                    <span class="text-slate-400 text-[11px] block">Phòng được giao</span>
+                    <span class="font-bold text-emerald-800 text-sm">Phòng {{ res.roomNumber }}</span>
+                    <span class="text-slate-500 text-[11px] block">{{ res.roomTypeName }}</span>
+                  </div>
+                  <div>
+                    <span class="text-slate-400 text-[11px] block">Thời gian nhận</span>
+                    <span class="font-medium text-slate-700">{{ res.checkInDate }} ({{ formatUtcTime(res.startAtUtc) }})</span>
+                  </div>
+                  <div>
+                    <span class="text-slate-400 text-[11px] block">Thời gian trả</span>
+                    <span class="font-medium text-slate-700">{{ res.checkOutDate }} ({{ formatUtcTime(res.endAtUtc) }})</span>
+                  </div>
+                </div>
+
+                <!-- Identity Document Verification Step (Desk Verification) -->
+                <div class="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <div class="flex items-center justify-between">
+                    <label class="block font-semibold text-slate-700">
+                      <i class="pi pi-id-card text-emerald-600 mr-1"></i>
+                      Xác minh giấy tờ tùy thân (Kiểm tra tại quầy)
+                    </label>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      Đối chiếu trực quan
+                    </span>
+                  </div>
+                  <label class="flex items-start gap-2.5 p-3 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 cursor-pointer hover:bg-slate-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      [checked]="isIdentityVerified()"
+                      (change)="toggleIdentityVerified()"
+                      class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                    />
+                    <span class="leading-relaxed">
+                      Lễ tân xác nhận đã <b>đối chiếu trực tiếp giấy tờ tùy thân gốc</b> (CCCD / Hộ chiếu) của khách tại quầy. Hệ thống không lưu trữ hoặc truyền tải số giấy tờ qua API để tuân thủ quy định bảo vệ dữ liệu cá nhân (Nghị định 13/2023/NĐ-CP).
+                    </span>
+                  </label>
+                </div>
+
+                <!-- Notes -->
+                <div class="space-y-1.5">
+                  <label class="block font-semibold text-slate-700">Ghi chú nhận phòng</label>
+                  <textarea
+                    [value]="checkInNotesInput()"
+                    (input)="onCheckInNotesInput($event)"
+                    rows="2"
+                    placeholder="Ghi chú thêm (vd: khách yêu cầu thẻ phòng phụ, lưu ý chìa khóa)..."
+                    class="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                  ></textarea>
+                </div>
+
+                <!-- Operational Notice -->
+                <div class="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-emerald-900 text-[11px] flex items-start gap-2">
+                  <i class="pi pi-info-circle text-emerald-600 mt-0.5 shrink-0"></i>
+                  <div>
+                    Khi xác nhận, trạng thái phòng vật lý <b>{{ res.roomNumber }}</b> sẽ tự động chuyển sang màu đỏ <b>Occupied (Đang có khách)</b>.
+                  </div>
+                </div>
+              </div>
+
+              <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  (click)="closeCheckInModal()"
+                  class="px-3.5 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  [disabled]="isActionLoading() || !isIdentityVerified()"
+                  (click)="confirmCheckInModal()"
+                  class="px-4 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <i class="pi pi-check" [class.animate-spin]="isActionLoading()"></i>
+                  <span>Xác nhận nhận phòng</span>
+                </button>
+              </div>
+            </div>
+          </dialog>
+        }
+      }
+
+      <!-- MODAL: CHECK-OUT (TRẢ PHÒNG & KIỂM TRA CÔNG NỢ FOLIO) -->
+      @if (isCheckOutModalOpen()) {
+        @if (checkOutModalReservation(); as res) {
+          <dialog #checkOutDialog (cancel)="closeCheckOutModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(40rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/40 backdrop:backdrop-blur-xs">
+            <div class="bg-white w-full rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                    <i class="pi pi-sign-out text-sm"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-bold text-slate-800">Thủ tục trả phòng (Check-out)</h3>
+                    <span class="font-mono text-xs font-bold text-amber-700">Mã: {{ res.confirmationCode }}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  (click)="closeCheckOutModal()"
+                  class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                >
+                  <i class="pi pi-times text-sm"></i>
+                </button>
+              </div>
+
+              <div class="p-6 space-y-4 text-xs">
+                <!-- Room & Guest Info Card -->
+                <div class="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <div>
+                    <span class="text-slate-400 text-[11px] block">Khách hàng</span>
+                    <span class="font-bold text-slate-800 text-sm">{{ res.guestName }}</span>
+                  </div>
+                  <div>
+                    <span class="text-slate-400 text-[11px] block">Phòng trả</span>
+                    <span class="font-bold text-amber-800 text-sm">Phòng {{ res.roomNumber }}</span>
+                    <span class="text-slate-500 text-[11px] block">{{ res.roomTypeName }}</span>
+                  </div>
+                </div>
+
+                <!-- Folio Financial Audit Card -->
+                <div class="space-y-2">
+                  <span class="font-bold text-slate-800 flex items-center gap-1.5">
+                    <i class="pi pi-wallet text-amber-600"></i>
+                    Bảng kê công nợ & Quyết toán (Folio)
+                  </span>
+
+                  @if (isLoadingCheckOutFolio()) {
+                    <div class="py-4 flex items-center justify-center gap-2 text-slate-500 text-xs bg-slate-50 rounded-xl border border-slate-200">
+                      <i class="pi pi-spinner animate-spin text-amber-600 text-sm"></i>
+                      <span>Đang tải số liệu công nợ folio...</span>
+                    </div>
+                  } @else if (checkOutFolioError(); as errorMsg) {
+                    <div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between gap-3">
+                      <div class="flex items-center gap-2">
+                        <i class="pi pi-exclamation-triangle text-rose-600 text-sm shrink-0"></i>
+                        <span>{{ errorMsg }}</span>
+                      </div>
+                      <button
+                        type="button"
+                        (click)="retryCheckOutFolio()"
+                        class="px-2.5 py-1 text-xs font-semibold text-rose-700 bg-white border border-rose-300 hover:bg-rose-100 rounded-lg transition shrink-0 cursor-pointer"
+                      >
+                        Thử lại
+                      </button>
+                    </div>
+                  } @else if (checkOutFolio(); as f) {
+                    <div class="grid grid-cols-3 gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div>
+                        <span class="text-[10px] text-slate-400 font-medium block">Tổng tiền phòng</span>
+                        <span class="text-xs font-bold text-slate-800">{{ f.totalAmount | number:'1.0-0' }} đ</span>
+                      </div>
+                      <div>
+                        <span class="text-[10px] text-emerald-600 font-medium block">Đã thanh toán</span>
+                        <span class="text-xs font-bold text-emerald-700">{{ f.paidAmount | number:'1.0-0' }} đ</span>
+                      </div>
+                      <div>
+                        <span class="text-[10px] text-amber-600 font-medium block">Số dư còn nợ</span>
+                        <span class="text-xs font-bold text-amber-800">{{ f.remainingBalance | number:'1.0-0' }} đ</span>
+                      </div>
+                    </div>
+
+                    @if (f.remainingBalance > 0) {
+                      <div class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[11px] space-y-1">
+                        <div class="flex items-center gap-1.5 font-bold">
+                          <i class="pi pi-exclamation-triangle text-rose-600"></i>
+                          <span>Chưa thể trả phòng: Còn dư nợ {{ f.remainingBalance | number:'1.0-0' }} đ</span>
+                        </div>
+                        <p class="text-[10px] text-rose-700">
+                          Quy định POL-IO03 yêu cầu thanh toán đủ 100% công nợ trước khi hoàn tất trả phòng.
+                        </p>
+                      </div>
+                    } @else {
+                      <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] flex items-center gap-2">
+                        <i class="pi pi-check-circle text-emerald-600 text-base"></i>
+                        <div>
+                          <b>Đã thanh toán đủ (100%)</b>. Hóa đơn hợp lệ, sẵn sàng bàn giao phòng.
+                        </div>
+                      </div>
+                    }
+                  }
+                </div>
+
+                <!-- Housekeeping Notification Info -->
+                <div class="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-900 text-[11px] flex items-start gap-2">
+                  <i class="pi pi-sparkles text-amber-600 mt-0.5 shrink-0"></i>
+                  <div>
+                    Khi hoàn tất, phòng <b>{{ res.roomNumber }}</b> sẽ tự động chuyển sang màu cam <b>Dirty (Cần dọn dẹp)</b> và bắn tín hiệu sang Bảng buồng phòng để nhân viên đi dọn.
+                  </div>
+                </div>
+              </div>
+
+              <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  (click)="closeCheckOutModal()"
+                  class="px-3.5 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  [disabled]="isActionLoading() || isLoadingCheckOutFolio() || !!checkOutFolioError() || !checkOutFolio() || checkOutFolio()!.remainingBalance > 0"
+                  (click)="confirmCheckOutModal()"
+                  class="px-4 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition shadow-xs flex items-center gap-1.5"
+                >
+                  <i class="pi pi-check" [class.animate-spin]="isActionLoading()"></i>
+                  <span>Hoàn tất trả phòng</span>
+                </button>
+              </div>
+            </div>
+          </dialog>
+        }
       }
 
       <!-- MODAL 4: CASHIER SUMMARY (BÁO CÁO THU NGÂN) -->
       @if (isSummaryModalOpen()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div class="bg-white w-full max-w-lg rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <dialog #summaryDialog (cancel)="closeSummaryModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(32rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/40 backdrop:backdrop-blur-xs">
+          <div class="bg-white w-full rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
             <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
               <div class="flex items-center gap-2">
                 <i class="pi pi-chart-bar text-emerald-600 text-lg"></i>
@@ -1138,13 +1405,24 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                   <p class="text-xs text-slate-500">Thống kê giao dịch tiền mặt & chuyển khoản hôm nay (UTC+7)</p>
                 </div>
               </div>
-              <button
-                type="button"
-                (click)="closeSummaryModal()"
-                class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 transition cursor-pointer"
-              >
-                <i class="pi pi-times text-sm"></i>
-              </button>
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  (click)="loadCashierSummary()"
+                  [disabled]="isLoadingSummary()"
+                  title="Làm mới số liệu"
+                  class="text-slate-400 hover:text-emerald-700 p-1.5 rounded-lg hover:bg-slate-200 transition cursor-pointer disabled:opacity-50"
+                >
+                  <i class="pi pi-refresh text-sm" [class.animate-spin]="isLoadingSummary()"></i>
+                </button>
+                <button
+                  type="button"
+                  (click)="closeSummaryModal()"
+                  class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 transition cursor-pointer"
+                >
+                  <i class="pi pi-times text-sm"></i>
+                </button>
+              </div>
             </div>
 
             <div class="p-6 space-y-4">
@@ -1153,17 +1431,35 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                   <i class="pi pi-spinner animate-spin text-2xl text-emerald-600"></i>
                   <span>Đang tải số liệu tổng hợp...</span>
                 </div>
+              } @else if (summaryError()) {
+                <div class="py-8 flex flex-col items-center justify-center gap-3 text-center">
+                  <div class="w-10 h-10 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600">
+                    <i class="pi pi-exclamation-circle text-lg"></i>
+                  </div>
+                  <div class="space-y-1">
+                    <p class="text-xs font-semibold text-slate-800">Không thể tải báo cáo thu ngân</p>
+                    <p class="text-[11px] text-slate-500 max-w-xs">{{ summaryError() }}</p>
+                  </div>
+                  <button
+                    type="button"
+                    (click)="retrySummary()"
+                    class="px-3.5 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  >
+                    <i class="pi pi-refresh text-xs"></i>
+                    <span>Thử lại</span>
+                  </button>
+                </div>
               } @else if (paymentSummary(); as summary) {
                 <div class="grid grid-cols-2 gap-3">
                   <div class="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-100">
                     <div class="text-[11px] font-medium text-emerald-700 uppercase tracking-wider">Tổng thực thu</div>
-                    <div class="text-xl font-bold text-emerald-700 mt-1">{{ summary.totalCollected | currency:'VND':'symbol':'1.0-0':'vi-VN' }}</div>
-                    <div class="text-[11px] text-emerald-600 mt-0.5">{{ summary.completedCount }} giao dịch thành công</div>
+                    <div class="text-xl font-bold text-emerald-700 mt-1">{{ (summary.totalCollected ?? 0) | number:'1.0-0' }} đ</div>
+                    <div class="text-[11px] text-emerald-600 mt-0.5">{{ summary.completedCount ?? 0 }} giao dịch thành công</div>
                   </div>
                   <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
                     <div class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Ngày báo cáo</div>
-                    <div class="text-lg font-bold text-slate-800 mt-1">{{ summary.date }}</div>
-                    <div class="text-[11px] text-slate-500 mt-0.5">Múi giờ Asia/Ho_Chi_Minh</div>
+                    <div class="text-lg font-bold text-slate-800 mt-1">{{ formatVnDateDisplay(summary.date) }}</div>
+                    <div class="text-[11px] text-slate-500 mt-0.5">Múi giờ Việt Nam (UTC+7)</div>
                   </div>
                 </div>
 
@@ -1175,7 +1471,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                         <i class="pi pi-money-bill text-emerald-600"></i>
                         <span>Tiền mặt (Cash)</span>
                       </div>
-                      <span class="font-bold text-slate-900">{{ summary.cashCollected | currency:'VND':'symbol':'1.0-0':'vi-VN' }}</span>
+                      <span class="font-bold text-slate-900">{{ (summary.cashCollected ?? 0) | number:'1.0-0' }} đ</span>
                     </div>
 
                     <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs">
@@ -1183,8 +1479,18 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                         <i class="pi pi-credit-card text-blue-600"></i>
                         <span>Chuyển khoản (Bank Transfer)</span>
                       </div>
-                      <span class="font-bold text-slate-900">{{ summary.bankTransferCollected | currency:'VND':'symbol':'1.0-0':'vi-VN' }}</span>
+                      <span class="font-bold text-slate-900">{{ (summary.bankTransferCollected ?? 0) | number:'1.0-0' }} đ</span>
                     </div>
+
+                    @if ((summary.creditCardCollected ?? 0) > 0) {
+                      <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs">
+                        <div class="flex items-center gap-2 text-slate-700">
+                          <i class="pi pi-credit-card text-purple-600"></i>
+                          <span>Thẻ tín dụng / POS (Card)</span>
+                        </div>
+                        <span class="font-bold text-slate-900">{{ summary.creditCardCollected | number:'1.0-0' }} đ</span>
+                      </div>
+                    }
                   </div>
                 </div>
               } @else {
@@ -1204,12 +1510,47 @@ export function addDaysToDateString(dateStr: string, days: number): string {
               </button>
             </div>
           </div>
-        </div>
+        </dialog>
       }
     </div>
   `
 })
 export class ReservationsPage implements OnInit, OnDestroy {
+  @ViewChild('checkInDialog') set checkInDialog(element: ElementRef<HTMLDialogElement> | undefined) {
+    if (element && this.isCheckInModalOpen() && typeof element.nativeElement.showModal === 'function') {
+      element.nativeElement.showModal();
+    }
+  }
+
+  @ViewChild('checkOutDialog') set checkOutDialog(element: ElementRef<HTMLDialogElement> | undefined) {
+    if (element && this.isCheckOutModalOpen() && typeof element.nativeElement.showModal === 'function') {
+      element.nativeElement.showModal();
+    }
+  }
+
+  @ViewChild('cancelDialog') set cancelDialog(element: ElementRef<HTMLDialogElement> | undefined) {
+    if (element && this.cancelModalReservation() && typeof element.nativeElement.showModal === 'function') {
+      element.nativeElement.showModal();
+    }
+  }
+
+  @ViewChild('detailDialog') set detailDialog(element: ElementRef<HTMLDialogElement> | undefined) {
+    if (element && this.selectedReservationDetail() && typeof element.nativeElement.showModal === 'function') {
+      element.nativeElement.showModal();
+    }
+  }
+
+  @ViewChild('summaryDialog') set summaryDialog(element: ElementRef<HTMLDialogElement> | undefined) {
+    if (element && this.isSummaryModalOpen() && typeof element.nativeElement.showModal === 'function') {
+      element.nativeElement.showModal();
+    }
+  }
+
+  @ViewChild('createDialog') set createDialog(element: ElementRef<HTMLDialogElement> | undefined) {
+    if (element && this.isCreateModalOpen() && typeof element.nativeElement.showModal === 'function') {
+      element.nativeElement.showModal();
+    }
+  }
   private readonly reservationService = inject(ReservationService);
   private readonly roomTypeService = inject(RoomTypeService);
   private readonly policyService = inject(PolicyService);
@@ -1217,6 +1558,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
   private readonly authService = inject(AuthService);
   private readonly alertService = inject(AlertService);
   private readonly fb = inject(FormBuilder);
+  private readonly roomService = inject(RoomService, { optional: true });
 
   // Constants
   readonly RentalType = RentalType;
@@ -1240,6 +1582,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
   readonly canCreatePayment = computed(() => this.authService.hasPermission('PAYMENTS', 2)); // PermissionAction.Create = 2 on PAYMENTS
   readonly canReadPayment = computed(() => this.authService.hasPermission('PAYMENTS', 1)); // PermissionAction.Read = 1 on PAYMENTS
   readonly canReadFolio = computed(() => this.authService.hasPermission('RESERVATIONS', 1)); // PermissionAction.Read = 1 on RESERVATIONS (as per SDD-06:100)
+  readonly canReadRoomTypes = computed(() => this.authService.hasPermission('ROOM_TYPES', 1)); // PermissionAction.Read = 1 on ROOM_TYPES
 
   // Page State
   readonly reservations = signal<ReservationDto[]>([]);
@@ -1267,6 +1610,19 @@ export class ReservationsPage implements OnInit, OnDestroy {
   readonly actionReservationId = signal<string | null>(null);
   readonly isActionLoading = signal<boolean>(false);
 
+  // Check-In Modal State
+  readonly isCheckInModalOpen = signal<boolean>(false);
+  readonly checkInModalReservation = signal<ReservationDto | ReservationDetailDto | null>(null);
+  readonly isIdentityVerified = signal<boolean>(false);
+  readonly checkInNotesInput = signal<string>('');
+
+  // Check-Out Modal State
+  readonly isCheckOutModalOpen = signal<boolean>(false);
+  readonly checkOutModalReservation = signal<ReservationDto | ReservationDetailDto | null>(null);
+  readonly checkOutFolio = signal<FolioDto | null>(null);
+  readonly isLoadingCheckOutFolio = signal<boolean>(false);
+  readonly checkOutFolioError = signal<string | null>(null);
+
   // Create Modal State
   readonly roomTypes = signal<RoomTypeDto[]>([]);
   readonly branchPolicies = signal<PropertyPoliciesDto | null>(null);
@@ -1289,6 +1645,8 @@ export class ReservationsPage implements OnInit, OnDestroy {
   readonly isSummaryModalOpen = signal<boolean>(false);
   readonly paymentSummary = signal<PaymentSummaryDto | null>(null);
   readonly isLoadingSummary = signal<boolean>(false);
+  readonly summaryError = signal<string | null>(null);
+  readonly formatVnDateDisplay = formatVnDateDisplay;
 
   paymentForm!: FormGroup;
 
@@ -1325,7 +1683,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
     try {
       effect(() => {
         const propId = this.authService.activePropertyId();
-        this.handlePropertyContextChange(propId);
+        untracked(() => this.handlePropertyContextChange(propId));
       });
     } catch {
       // Ignored in headless tests
@@ -1356,6 +1714,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.detailReservationId.set(null);
     this.folio.set(null);
     this.paymentSummary.set(null);
+    this.summaryError.set(null);
     this.isSummaryModalOpen.set(false);
     this.isSubmittingPayment.set(false);
     this.currentSubmissionKey = null;
@@ -1407,6 +1766,10 @@ export class ReservationsPage implements OnInit, OnDestroy {
           const outTime = policies.checkOutTime ? policies.checkOutTime.slice(0, 5) : '';
           if (inTime && !this.createForm.get('checkInTime')?.dirty) {
             this.createForm.patchValue({ checkInTime: inTime });
+            if (!this.createForm.get('checkInDate')?.dirty && !this.createForm.get('checkOutDate')?.dirty) {
+              const dates = this.getDefaultOvernightDates(inTime);
+              this.createForm.patchValue({ checkInDate: dates.checkInDate, checkOutDate: dates.checkOutDate });
+            }
           }
           if (outTime && !this.createForm.get('checkOutTime')?.dirty) {
             this.createForm.patchValue({ checkOutTime: outTime });
@@ -1421,16 +1784,16 @@ export class ReservationsPage implements OnInit, OnDestroy {
 
   private initCreateForm(): void {
     const today = getTodayVnDateString();
-    const tomorrow = addDaysToDateString(today, 1);
     const policies = this.branchPolicies();
     const defaultCheckIn = policies?.checkInTime ? policies.checkInTime.slice(0, 5) : '';
     const defaultCheckOut = policies?.checkOutTime ? policies.checkOutTime.slice(0, 5) : '';
+    const dates = this.getDefaultOvernightDates(defaultCheckIn);
 
     this.createForm = this.fb.group({
       rentalType: [RentalType.Overnight, Validators.required],
-      checkInDate: [today, Validators.required],
+      checkInDate: [dates.checkInDate, Validators.required],
       checkInTime: [defaultCheckIn, [Validators.required, Validators.pattern(/^([01]\d|2[0-3]):[0-5]\d$/)]],
-      checkOutDate: [tomorrow, Validators.required],
+      checkOutDate: [dates.checkOutDate, Validators.required],
       checkOutTime: [defaultCheckOut, [Validators.required, Validators.pattern(/^([01]\d|2[0-3]):[0-5]\d$/)]],
       hourlyDate: [today],
       hourlyStartTime: ['09:00'],
@@ -1442,6 +1805,15 @@ export class ReservationsPage implements OnInit, OnDestroy {
       numberOfGuests: [2, [Validators.required, Validators.min(1), Validators.max(20)]],
       customerNotes: ['']
     });
+  }
+
+  private getDefaultOvernightDates(checkInTime: string): { checkInDate: string; checkOutDate: string } {
+    const today = getTodayVnDateString();
+    const start = checkInTime ? new Date(`${today}T${checkInTime}:00+07:00`) : null;
+    const checkInDate = start && start.getTime() < Date.now() - 30 * 60_000
+      ? addDaysToDateString(today, 1)
+      : today;
+    return { checkInDate, checkOutDate: addDaysToDateString(checkInDate, 1) };
   }
 
   private initPaymentForm(): void {
@@ -1490,7 +1862,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
 
   private loadRoomTypes(): void {
     const propId = this.activeProperty()?.id;
-    if (!propId) {
+    if (!propId || !this.canReadRoomTypes()) {
       this.roomTypes.set([]);
       return;
     }
@@ -1501,7 +1873,9 @@ export class ReservationsPage implements OnInit, OnDestroy {
         if (this.activeProperty()?.id !== propId) return;
         this.roomTypes.set(res.items || []);
       },
-      error: () => {}
+      error: () => {
+        this.roomTypes.set([]);
+      }
     });
   }
 
@@ -1780,7 +2154,9 @@ export class ReservationsPage implements OnInit, OnDestroy {
       error: (err) => {
         if (reqId !== this.quoteRequestId || this.activeProperty()?.id !== propId) return;
         this.isCalculatingQuote.set(false);
-        this.quoteError.set(err?.error?.message || 'Không thể tính giá đặt phòng theo chính sách hiện hành.');
+        const validationErrors = err?.error?.errors as Record<string, string[]> | undefined;
+        const validationMessage = validationErrors && Object.values(validationErrors).flat().find(Boolean);
+        this.quoteError.set(validationMessage || err?.error?.message || 'Không thể tính giá đặt phòng theo chính sách hiện hành.');
       }
     });
   }
@@ -1918,6 +2294,8 @@ export class ReservationsPage implements OnInit, OnDestroy {
         if (this.selectedReservationDetail()?.id === res.id) {
           this.selectedReservationDetail.set(updated);
         }
+        // Notify Housekeeping Board via real-time signal
+        this.roomService?.notifyRoomStatusChanged(res.roomId, RoomStatus.Occupied, res.roomNumber);
         this.loadReservations();
       },
       error: (err) => {
@@ -1964,6 +2342,8 @@ export class ReservationsPage implements OnInit, OnDestroy {
         if (this.selectedReservationDetail()?.id === res.id) {
           this.selectedReservationDetail.set(updated);
         }
+        // Realtime notification to Housekeeping Board: Room transitions to Dirty automatically
+        this.roomService?.notifyRoomStatusChanged(res.roomId, RoomStatus.Dirty, res.roomNumber);
         this.loadReservations();
       },
       error: (err) => {
@@ -1978,10 +2358,122 @@ export class ReservationsPage implements OnInit, OnDestroy {
     });
   }
 
+  // Check-In Modal Handlers
+  openCheckInModal(res: ReservationDto | ReservationDetailDto): void {
+    if (!this.canCheckInOut() || this.isActionLoading()) return;
+    if (this.selectedReservationDetail()?.id === res.id) this.closeDetailModal();
+    this.checkInModalReservation.set(res);
+    this.isIdentityVerified.set(false);
+    this.checkInNotesInput.set('');
+    this.isCheckInModalOpen.set(true);
+  }
+
+  closeCheckInModal(): void {
+    this.isCheckInModalOpen.set(false);
+    this.checkInModalReservation.set(null);
+    this.isIdentityVerified.set(false);
+    this.checkInNotesInput.set('');
+  }
+
+  toggleIdentityVerified(): void {
+    this.isIdentityVerified.update((v) => !v);
+  }
+
+  onCheckInNotesInput(event: Event): void {
+    this.checkInNotesInput.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  confirmCheckInModal(): void {
+    const res = this.checkInModalReservation();
+    if (!res || !this.isIdentityVerified()) return;
+    this.closeCheckInModal();
+    this.onCheckIn(res);
+  }
+
+  // Check-Out Modal Handlers
+  openCheckOutModal(res: ReservationDto | ReservationDetailDto): void {
+    if (!this.canCheckInOut() || this.isActionLoading()) return;
+    const propId = this.activeProperty()?.id;
+    if (!propId || res.propertyId !== propId) return;
+    if (this.selectedReservationDetail()?.id === res.id) this.closeDetailModal();
+
+    this.checkOutModalReservation.set(res);
+    this.isCheckOutModalOpen.set(true);
+    this.isLoadingCheckOutFolio.set(true);
+    this.checkOutFolio.set(null);
+    this.checkOutFolioError.set(null);
+
+    this.paymentService.getFolio(res.id, propId).subscribe({
+      next: (folio) => {
+        if (this.checkOutModalReservation()?.id === res.id) {
+          this.checkOutFolio.set(folio);
+          this.checkOutFolioError.set(null);
+          this.isLoadingCheckOutFolio.set(false);
+        }
+      },
+      error: (err) => {
+        if (this.checkOutModalReservation()?.id === res.id) {
+          this.isLoadingCheckOutFolio.set(false);
+          this.checkOutFolioError.set(err?.error?.message || 'Không thể tải bảng kê công nợ Folio. Vui lòng kiểm tra lại kết nối mạng.');
+        }
+      }
+    });
+  }
+
+  retryCheckOutFolio(): void {
+    const res = this.checkOutModalReservation();
+    const propId = this.activeProperty()?.id;
+    if (!res || !propId) return;
+
+    this.isLoadingCheckOutFolio.set(true);
+    this.checkOutFolioError.set(null);
+
+    this.paymentService.getFolio(res.id, propId).subscribe({
+      next: (folio) => {
+        if (this.checkOutModalReservation()?.id === res.id) {
+          this.checkOutFolio.set(folio);
+          this.checkOutFolioError.set(null);
+          this.isLoadingCheckOutFolio.set(false);
+        }
+      },
+      error: (err) => {
+        if (this.checkOutModalReservation()?.id === res.id) {
+          this.isLoadingCheckOutFolio.set(false);
+          this.checkOutFolioError.set(err?.error?.message || 'Không thể tải bảng kê công nợ Folio. Vui lòng kiểm tra lại kết nối mạng.');
+        }
+      }
+    });
+  }
+
+  closeCheckOutModal(): void {
+    this.isCheckOutModalOpen.set(false);
+    this.checkOutModalReservation.set(null);
+    this.checkOutFolio.set(null);
+    this.checkOutFolioError.set(null);
+  }
+
+  confirmCheckOutModal(): void {
+    const res = this.checkOutModalReservation();
+    if (!res) return;
+    if (this.isLoadingCheckOutFolio()) return;
+    const folio = this.checkOutFolio();
+    if (!folio) {
+      this.alertService.toastError('Chưa xác thực được công nợ Folio từ máy chủ. Vui lòng tải lại trước khi hoàn tất.');
+      return;
+    }
+    if (folio.remainingBalance > 0) {
+      this.alertService.toastError(`Đơn đặt phòng còn dư nợ ${folio.remainingBalance.toLocaleString('vi-VN')} đ. Vui lòng thu đủ tiền trước khi trả phòng.`);
+      return;
+    }
+    this.closeCheckOutModal();
+    this.onCheckOut(res);
+  }
+
   openCancelModal(res: ReservationDto | ReservationDetailDto): void {
     if (!this.canCancel() || this.isActionLoading()) return;
     const propId = this.activeProperty()?.id;
     if (!propId || res.propertyId !== propId) return;
+    if (this.selectedReservationDetail()?.id === res.id) this.closeDetailModal();
 
     this.cancelModalReservation.set(res);
     this.cancelModalTargetPropertyId.set(propId);
@@ -2191,6 +2683,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
         if (this.selectedReservationDetail()?.id === detail.id) {
           this.loadFolio(detail.id, propId);
         }
+        this.paymentSummary.set(null);
         this.loadReservations();
         if (detail.status === ReservationStatus.PendingPayment && this.selectedReservationDetail()?.id === detail.id) {
           this.viewDetails({ id: detail.id, propertyId: propId } as ReservationDto);
@@ -2215,6 +2708,33 @@ export class ReservationsPage implements OnInit, OnDestroy {
     });
   }
 
+  loadCashierSummary(): void {
+    const propId = this.activeProperty()?.id;
+    if (!propId) {
+      this.alertService.toastError('Vui lòng chọn chi nhánh để xem báo cáo thu ngân.');
+      return;
+    }
+    this.isLoadingSummary.set(true);
+    this.summaryError.set(null);
+
+    const todayVn = getTodayVnDateString();
+    this.summarySub?.unsubscribe();
+    this.summarySub = this.paymentService.getPaymentSummary(propId, todayVn).subscribe({
+      next: (sum) => {
+        if (this.activeProperty()?.id !== propId) return;
+        this.paymentSummary.set(sum);
+        this.isLoadingSummary.set(false);
+      },
+      error: (err) => {
+        if (this.activeProperty()?.id !== propId) return;
+        this.isLoadingSummary.set(false);
+        const msg = err?.error?.message || 'Không thể tải báo cáo thu ngân.';
+        this.summaryError.set(msg);
+        this.alertService.toastError(msg);
+      }
+    });
+  }
+
   openSummaryModal(): void {
     const propId = this.activeProperty()?.id;
     if (!propId) {
@@ -2222,26 +2742,18 @@ export class ReservationsPage implements OnInit, OnDestroy {
       return;
     }
     this.isSummaryModalOpen.set(true);
-    this.isLoadingSummary.set(true);
     this.paymentSummary.set(null);
+    this.loadCashierSummary();
+  }
 
-    const todayVn = getTodayVnDateString();
-    this.summarySub?.unsubscribe();
-    this.summarySub = this.paymentService.getPaymentSummary(propId, todayVn).subscribe({
-      next: (sum) => {
-        this.paymentSummary.set(sum);
-        this.isLoadingSummary.set(false);
-      },
-      error: (err) => {
-        this.isLoadingSummary.set(false);
-        this.alertService.toastError(err?.error?.message || 'Không thể tải báo cáo thu ngân.');
-      }
-    });
+  retrySummary(): void {
+    this.loadCashierSummary();
   }
 
   closeSummaryModal(): void {
     this.summarySub?.unsubscribe();
     this.isSummaryModalOpen.set(false);
+    this.summaryError.set(null);
   }
 }
 
