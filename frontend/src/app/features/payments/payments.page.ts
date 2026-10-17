@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, inject, signal, computed, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { DatePicker } from 'primeng/datepicker';
 import { Subscription } from 'rxjs';
@@ -1247,6 +1248,15 @@ export class PaymentsPage implements OnInit, OnDestroy {
   } | null>(null);
   private folioSub?: Subscription;
   private submitPaymentSub?: Subscription;
+  private activePaymentIntent: {
+    key: string;
+    reservationId: string;
+    propertyId: string;
+    amount: number;
+    method: PaymentMethod;
+    transactionRef?: string;
+    isDeposit: boolean;
+  } | null = null;
 
   constructor() {
     effect(() => {
@@ -1309,6 +1319,9 @@ export class PaymentsPage implements OnInit, OnDestroy {
     this.cancelSubscriptions();
     this.summaryRequestId++;
     this.paymentsRequestId++;
+    this.shiftReportRequestId++;
+    this.activePaymentIntent = null;
+    this.isSubmittingPayment.set(false);
 
     this.isAccessDenied.set(true);
     this.accessDeniedMessage.set(message);
@@ -1343,7 +1356,12 @@ export class PaymentsPage implements OnInit, OnDestroy {
     this.accessDeniedMessage.set('Bạn không có quyền xem thông tin thu ngân và giao dịch (PAYMENTS:Read). Vui lòng liên hệ quản trị viên.');
     this.summaryError.set(null);
     this.paymentsError.set(null);
+    this.shiftReportError.set(null);
     this.loadSummary();
+    if (this.isAccessDenied()) {
+      return;
+    }
+    this.loadShiftReport();
     if (this.isAccessDenied()) {
       return;
     }
@@ -1367,6 +1385,8 @@ export class PaymentsPage implements OnInit, OnDestroy {
     this.summaryRequestId++;
     this.paymentsRequestId++;
     this.shiftReportRequestId++;
+    this.activePaymentIntent = null;
+    this.isSubmittingPayment.set(false);
 
     // Xóa sạch dữ liệu cũ
     this.summary.set(null);
@@ -1393,6 +1413,9 @@ export class PaymentsPage implements OnInit, OnDestroy {
 
     // Tải dữ liệu cho chi nhánh mới: ngăn chặn loadPayments nếu loadSummary bị 403 đồng bộ
     this.loadSummary();
+    if (this.isAccessDenied()) {
+      return;
+    }
     this.loadShiftReport();
     if (this.isAccessDenied()) {
       return;
@@ -1403,9 +1426,8 @@ export class PaymentsPage implements OnInit, OnDestroy {
   loadShiftReport(): void {
     if (this.isAccessDenied()) return;
     const propId = this.activePropertyId();
-    if (!propId) {
-      this.isLoadingShiftReport.set(false);
-      this.shiftReport.set(null);
+    if (!this.canReadPayments() || !propId) {
+      this.handleAccessDenied('Bạn không có quyền xem thông tin thu ngân (PAYMENTS:Read).');
       return;
     }
 
@@ -1416,16 +1438,25 @@ export class PaymentsPage implements OnInit, OnDestroy {
     this.shiftReportSub?.unsubscribe();
     this.shiftReportSub = this.paymentService.getShiftReport(propId, this.shiftDate, this.selectedShiftType()).subscribe({
       next: (report) => {
-        if (currentReqId !== this.shiftReportRequestId || this.activePropertyId() !== propId) return;
+        if (currentReqId !== this.shiftReportRequestId || this.activePropertyId() !== propId || this.isAccessDenied()) return;
         this.shiftReport.set(report);
         this.isLoadingShiftReport.set(false);
       },
-      error: (err) => {
-        if (currentReqId !== this.shiftReportRequestId || this.activePropertyId() !== propId) return;
-        this.isLoadingShiftReport.set(false);
-        this.shiftReportError.set(err?.error?.message || 'Không thể tải báo cáo ca thu ngân.');
+      error: (err: HttpErrorResponse) => {
+        if (currentReqId !== this.shiftReportRequestId) return;
+        if (err?.status === 403) {
+          this.handleAccessDenied('Bạn không có quyền truy cập báo cáo ca thu ngân chi nhánh này (403 Forbidden).');
+        } else if (!this.isAccessDenied()) {
+          this.isLoadingShiftReport.set(false);
+          this.shiftReportError.set(err?.error?.message || 'Không thể tải báo cáo ca thu ngân.');
+        }
       }
     });
+  }
+
+  retryShiftReport(): void {
+    if (this.isAccessDenied()) return;
+    this.loadShiftReport();
   }
 
   onShiftDateObjChange(newDate: Date): void {
@@ -1710,6 +1741,10 @@ export class PaymentsPage implements OnInit, OnDestroy {
     const resId = (reservationId || this.searchReservationId || '').trim();
     if (!propId || !resId) return;
 
+    if (this.activePaymentIntent && this.activePaymentIntent.reservationId !== resId) {
+      this.activePaymentIntent = null;
+    }
+
     this.searchReservationId = resId;
     this.isLoadingFolio.set(true);
     this.folioError.set(null);
@@ -1769,12 +1804,44 @@ export class PaymentsPage implements OnInit, OnDestroy {
       }
     }
 
+    const currentFolio = this.folio();
+    if (currentFolio && currentFolio.reservationId === reservationId && amount > currentFolio.remainingBalance) {
+      this.folioError.set(`Số tiền thanh toán (${amount.toLocaleString('vi-VN')} đ) vượt quá dư nợ còn lại (${currentFolio.remainingBalance.toLocaleString('vi-VN')} đ).`);
+      return;
+    }
+
+    const cleanRef = this.paymentTransactionRef.trim() || undefined;
+    const method = this.paymentMethod();
+    const isDeposit = this.isDepositPayment();
+
+    const isSameIntent = this.activePaymentIntent !== null &&
+      this.activePaymentIntent.reservationId === reservationId &&
+      this.activePaymentIntent.propertyId === propId &&
+      this.activePaymentIntent.amount === amount &&
+      this.activePaymentIntent.method === method &&
+      (this.activePaymentIntent.transactionRef ?? undefined) === cleanRef &&
+      this.activePaymentIntent.isDeposit === isDeposit;
+
+    let idempotencyKey: string;
+    if (isSameIntent && this.activePaymentIntent) {
+      idempotencyKey = this.activePaymentIntent.key;
+    } else {
+      idempotencyKey = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : 'pay-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8);
+      this.activePaymentIntent = {
+        key: idempotencyKey,
+        reservationId,
+        propertyId: propId,
+        amount,
+        method,
+        transactionRef: cleanRef,
+        isDeposit
+      };
+    }
+
     this.isSubmittingPayment.set(true);
     this.folioError.set(null);
-
-    const idempotencyKey = typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : 'pay-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8);
 
     if (this.submitPaymentSub && !this.submitPaymentSub.closed) {
       this.submitPaymentSub.unsubscribe();
@@ -1783,15 +1850,17 @@ export class PaymentsPage implements OnInit, OnDestroy {
     this.submitPaymentSub = this.paymentService.createPayment({
       reservationId,
       amount,
-      method: this.paymentMethod(),
-      transactionRef: this.paymentTransactionRef.trim() || undefined,
+      method,
+      transactionRef: cleanRef,
       idempotencyKey,
-      isDeposit: this.isDepositPayment()
+      isDeposit
     }, propId).subscribe({
       next: (payment) => {
         this.isSubmittingPayment.set(false);
-        const currentFolio = this.folio();
-        const guestName = currentFolio?.guestName || 'Khách hàng';
+        this.activePaymentIntent = null;
+
+        const activeFolio = this.folio();
+        const guestName = activeFolio?.guestName || 'Khách hàng';
 
         // Trigger Receipt Voucher Modal
         this.receiptVoucher.set({
@@ -1810,13 +1879,24 @@ export class PaymentsPage implements OnInit, OnDestroy {
         this.isBankTransferConfirmed.set(false);
         this.isDepositPayment.set(false);
 
-        // Refresh Folio and both streams
+        // Refresh Folio and all data streams independently (preserving shiftDate and shiftType)
         this.loadFolio(reservationId);
         this.loadSummary();
         this.loadPayments();
+        this.loadShiftReport();
       },
-      error: (err) => {
+      error: (err: HttpErrorResponse) => {
         this.isSubmittingPayment.set(false);
+        const status = err?.status;
+        const code = err?.error?.code;
+
+        const isDefinitiveBusinessError = status === 400 || status === 404 || status === 422 ||
+          (status === 409 && (code === 'ERR_FOLIO_ALREADY_PAID' || code === 'ERR_RESERVATION_CANCELLED' || code === 'ERR_RESERVATION_SETTLED' || code === 'ERR_IDEMPOTENCY_PAYLOAD_MISMATCH'));
+
+        if (isDefinitiveBusinessError) {
+          this.activePaymentIntent = null;
+        }
+
         this.folioError.set(err?.error?.message || 'Giao dịch thu tiền thất bại. Vui lòng kiểm tra lại thông tin.');
       }
     });
