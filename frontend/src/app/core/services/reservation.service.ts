@@ -163,4 +163,18 @@ export class ReservationService {
       map(res => (res.data ? res.data : res) as ReservationDetailDto)
     );
   }
+
+  /**
+   * Retrieves reservations within a specific date window for Room Timeline / Gantt grid.
+   */
+  getTimelineReservations(propertyId: string, fromDate: string, toDate: string): Observable<ReservationDto[]> {
+    return this.getReservations({
+      propertyId,
+      from: fromDate,
+      to: toDate,
+      pageSize: 200
+    }).pipe(
+      map(res => res.items)
+    );
+  }
 }
