@@ -19,6 +19,10 @@ import {
   CreateReservationRequest
 } from '../../core/models/reservation.model';
 import { RoomTypeDto } from '../../core/models/room-type.model';
+import { RoomService } from '../../core/services/room.service';
+import { RoomDto } from '../../core/models/room.model';
+import { LocationService } from '../../core/services/location.service';
+import { Province, Ward } from '../../core/models/location.model';
 import { PolicyService } from '../../core/services/policy.service';
 import { PropertyPoliciesDto } from '../../core/models/policy.model';
 import { PaymentService } from '../../core/services/payment.service';
@@ -91,14 +95,44 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
           </p>
         </div>
 
-        <div class="flex items-center gap-2.5">
+        <div class="flex flex-wrap items-center gap-2.5">
+          <!-- View Mode Toggle -->
+          <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs font-medium">
+            <button
+              type="button"
+              (click)="setViewMode('table')"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md transition cursor-pointer"
+              [class.bg-white]="viewMode() === 'table'"
+              [class.text-slate-800]="viewMode() === 'table'"
+              [class.shadow-xs]="viewMode() === 'table'"
+              [class.text-slate-500]="viewMode() !== 'table'"
+              title="Xem danh sách bảng đặt phòng"
+            >
+              <i class="pi pi-list"></i>
+              <span>Danh sách</span>
+            </button>
+            <button
+              type="button"
+              (click)="setViewMode('timeline')"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md transition cursor-pointer"
+              [class.bg-white]="viewMode() === 'timeline'"
+              [class.text-slate-800]="viewMode() === 'timeline'"
+              [class.shadow-xs]="viewMode() === 'timeline'"
+              [class.text-slate-500]="viewMode() !== 'timeline'"
+              title="Xem sơ đồ lịch phòng theo thời gian (Timeline Gantt Grid)"
+            >
+              <i class="pi pi-calendar"></i>
+              <span>Sơ đồ Timeline</span>
+            </button>
+          </div>
+
           <button
             type="button"
-            (click)="loadReservations()"
+            (click)="onRefreshCurrentView()"
             class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition shadow-xs cursor-pointer"
-            title="Tải lại danh sách"
+            title="Tải lại dữ liệu"
           >
-            <i class="pi pi-refresh" [class.animate-spin]="isLoading()"></i>
+            <i class="pi pi-refresh" [class.animate-spin]="isLoading() || isTimelineLoading()"></i>
             <span>Làm mới</span>
           </button>
 
@@ -127,8 +161,9 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
         </div>
       </div>
 
-      <!-- Filters & Search Bar -->
-      <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs space-y-3">
+      @if (viewMode() === 'table') {
+        <!-- Filters & Search Bar -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs space-y-3">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <!-- Search box -->
           <div>
@@ -387,6 +422,253 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               </button>
             </div>
           </div>
+        </div>
+      }
+      }
+
+      <!-- SƠ ĐỒ LỊCH PHÒNG THEO THỜI GIAN (ROOM TIMELINE / GANTT GRID) -->
+      @if (viewMode() === 'timeline') {
+        <div class="space-y-4">
+          <!-- Timeline Controls Bar -->
+          <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <!-- Left: Navigation & Date Picker -->
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                (click)="goToToday()"
+                class="px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition border border-emerald-200 cursor-pointer"
+              >
+                Hôm nay
+              </button>
+
+              <div class="inline-flex rounded-lg border border-slate-200 bg-white shadow-2xs">
+                <button
+                  type="button"
+                  (click)="goToPreviousDays()"
+                  class="px-2.5 py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition rounded-l-lg border-r border-slate-200 cursor-pointer"
+                  title="Khoảng thời gian trước"
+                >
+                  <i class="pi pi-chevron-left text-xs"></i>
+                </button>
+                <button
+                  type="button"
+                  (click)="goToNextDays()"
+                  class="px-2.5 py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition rounded-r-lg cursor-pointer"
+                  title="Khoảng thời gian tiếp theo"
+                >
+                  <i class="pi pi-chevron-right text-xs"></i>
+                </button>
+              </div>
+
+              <!-- Start Date Picker -->
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs text-slate-500 font-medium">Từ ngày:</span>
+                <input
+                  type="date"
+                  [value]="timelineStartDate()"
+                  (change)="onTimelineStartDateChange($event)"
+                  class="px-2.5 py-1 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                />
+              </div>
+
+              <!-- Duration Selector -->
+              <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs font-medium">
+                <button
+                  type="button"
+                  (click)="setTimelineDaysCount(7)"
+                  class="px-2.5 py-1 rounded-md transition cursor-pointer"
+                  [class.bg-white]="timelineDaysCount() === 7"
+                  [class.text-slate-800]="timelineDaysCount() === 7"
+                  [class.shadow-xs]="timelineDaysCount() === 7"
+                  [class.text-slate-500]="timelineDaysCount() !== 7"
+                >
+                  7 ngày
+                </button>
+                <button
+                  type="button"
+                  (click)="setTimelineDaysCount(14)"
+                  class="px-2.5 py-1 rounded-md transition cursor-pointer"
+                  [class.bg-white]="timelineDaysCount() === 14"
+                  [class.text-slate-800]="timelineDaysCount() === 14"
+                  [class.shadow-xs]="timelineDaysCount() === 14"
+                  [class.text-slate-500]="timelineDaysCount() !== 14"
+                >
+                  14 ngày
+                </button>
+              </div>
+            </div>
+
+            <!-- Right: Filter by floor & room type -->
+            <div class="flex flex-wrap items-center gap-2">
+              <select
+                [value]="timelineFloorFilter() ?? ''"
+                (change)="onTimelineFloorChange($event)"
+                class="px-2.5 py-1 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-white text-slate-700"
+              >
+                <option value="">Tất cả các tầng</option>
+                @for (floor of timelineFloors(); track floor) {
+                  <option [value]="floor">Tầng {{ floor }}</option>
+                }
+              </select>
+
+              <select
+                [value]="timelineRoomTypeFilter() ?? ''"
+                (change)="onTimelineRoomTypeChange($event)"
+                class="px-2.5 py-1 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-white text-slate-700"
+              >
+                <option value="">Tất cả loại phòng</option>
+                @for (rt of roomTypes(); track rt.id) {
+                  <option [value]="rt.id">{{ rt.name }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <!-- Timeline Legend -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-600 px-1">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="font-semibold text-slate-700">Trạng thái:</span>
+              <span class="inline-flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                <span>Đã xác nhận</span>
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                <span>Đang lưu trú</span>
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                <span>Chờ thanh toán</span>
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                <span>Đã trả phòng</span>
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-orange-400"></span>
+                <span>Theo giờ</span>
+              </span>
+            </div>
+
+            <div class="text-slate-500 text-[11px] flex items-center gap-1">
+              <i class="pi pi-info-circle text-emerald-600"></i>
+              <span>Nhấp vào ô trống để đặt phòng nhanh cho ngày đó. Nhấp vào đơn để xem chi tiết.</span>
+            </div>
+          </div>
+
+          <!-- Timeline Gantt Grid Container -->
+          @if (isTimelineLoading()) {
+            <div class="bg-white p-12 rounded-xl border border-slate-200/80 shadow-xs flex flex-col items-center justify-center space-y-3">
+              <div class="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+              <span class="text-xs text-slate-500">Đang tải dữ liệu sơ đồ phòng...</span>
+            </div>
+          } @else if (filteredTimelineRooms().length === 0) {
+            <app-empty-state
+              title="Không có phòng nào phù hợp"
+              description="Hiện tại không có phòng nào trong danh mục hoặc không khớp với bộ lọc tầng/loại phòng đã chọn."
+              icon="pi pi-building"
+            ></app-empty-state>
+          } @else {
+            <div class="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
+              <div class="overflow-x-auto">
+                <table class="w-full border-collapse text-xs select-none">
+                  <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-700">
+                      <!-- Room header cell (Sticky left) -->
+                      <th class="py-3 px-3 min-w-[150px] max-w-[170px] sticky left-0 z-20 bg-slate-100 border-r border-slate-200 text-left font-bold text-slate-800">
+                        Phòng / Tầng
+                      </th>
+
+                      <!-- Date header cells -->
+                      @for (col of timelineDates(); track col.dateStr) {
+                        <th
+                          class="py-2.5 px-2 text-center min-w-[110px] border-r border-slate-200 font-semibold"
+                          [class.bg-emerald-50]="col.isToday"
+                          [class.text-emerald-800]="col.isToday"
+                          [class.bg-slate-50]="!col.isToday && !col.isWeekend"
+                          [class.bg-slate-100/70]="!col.isToday && col.isWeekend"
+                        >
+                          <div class="text-[10px] uppercase font-bold tracking-wider" [class.text-emerald-700]="col.isToday" [class.text-slate-500]="!col.isToday">
+                            {{ col.dayOfWeek }}
+                          </div>
+                          <div class="text-xs font-bold mt-0.5 flex items-center justify-center gap-1">
+                            <span>{{ col.dayNumber }}/{{ col.month }}</span>
+                            @if (col.isToday) {
+                              <span class="w-1.5 h-1.5 rounded-full bg-emerald-600" title="Hôm nay"></span>
+                            }
+                          </div>
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+
+                  <tbody class="divide-y divide-slate-100">
+                    @for (room of filteredTimelineRooms(); track room.id) {
+                      <tr class="hover:bg-slate-50/50 transition-colors">
+                        <!-- Sticky Room Label Column -->
+                        <td class="py-2.5 px-3 sticky left-0 z-10 bg-white border-r border-slate-200 shadow-2xs">
+                          <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-800 text-xs">P.{{ room.roomNumber }}</span>
+                            <span class="text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">T{{ room.floor }}</span>
+                          </div>
+                          <div class="text-[10px] text-slate-500 truncate max-w-[125px]" [title]="room.roomTypeName">
+                            {{ room.roomTypeName }}
+                          </div>
+                        </td>
+
+                        <!-- Date Cells for this room -->
+                        @for (col of timelineDates(); track col.dateStr) {
+                          <td
+                            class="p-1 border-r border-slate-200/80 align-top h-14 relative group transition-colors"
+                            [class.bg-emerald-50/20]="col.isToday"
+                          >
+                            @let bookings = getRoomBookingsForDate(room.id, col.dateStr);
+
+                            @if (bookings.length > 0) {
+                              <div class="space-y-1">
+                                @for (b of bookings; track b.id) {
+                                  <div
+                                    (click)="viewDetails(b)"
+                                    [title]="getBookingTooltip(b)"
+                                    class="p-1.5 rounded-md text-[10px] font-semibold transition cursor-pointer shadow-xs truncate flex flex-col justify-between"
+                                    [ngClass]="getTimelineBookingBadgeClass(b, col.dateStr)"
+                                  >
+                                    <div class="flex items-center justify-between gap-1">
+                                      <span class="truncate font-bold">{{ b.guestName }}</span>
+                                      @if (b.rentalType === RentalType.Hourly) {
+                                        <i class="pi pi-clock text-[9px]"></i>
+                                      }
+                                    </div>
+                                    <div class="text-[9px] opacity-90 truncate">
+                                      @if (b.rentalType === RentalType.Hourly) {
+                                        {{ formatUtcTime(b.startAtUtc) }} - {{ formatUtcTime(b.endAtUtc) }}
+                                      } @else {
+                                        {{ b.confirmationCode }}
+                                      }
+                                    </div>
+                                  </div>
+                                }
+                              </div>
+                            } @else {
+                              <!-- Free Cell -> Click to Quick Book -->
+                              <button
+                                type="button"
+                                (click)="openCreateModalWithPrefill(room, col.dateStr)"
+                                class="w-full h-full min-h-[44px] rounded-md border border-dashed border-transparent hover:border-emerald-300 hover:bg-emerald-50/60 transition flex items-center justify-center text-slate-300 hover:text-emerald-700 cursor-pointer"
+                                [title]="'Đặt nhanh phòng ' + room.roomNumber + ' cho ngày ' + col.dateStr"
+                              >
+                                <i class="pi pi-plus text-xs opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                              </button>
+                            }
+                          </td>
+                        }
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          }
         </div>
       }
 
@@ -790,7 +1072,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">1. Hình thức & Thời gian lưu trú</div>
 
                 <!-- Rental Type Radios -->
-                <div class="flex items-center gap-4">
+                <div class="flex flex-wrap items-center gap-4">
                   <label class="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
@@ -812,6 +1094,22 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                     />
                     <span class="font-semibold text-slate-800">Thuê theo giờ</span>
                   </label>
+
+                  <button
+                    type="button"
+                    (click)="applyDayUsePreset()"
+                    class="px-2.5 py-1 rounded-md text-[11px] font-semibold border transition flex items-center gap-1 cursor-pointer"
+                    [class.bg-amber-100]="isDayUsePresetActive()"
+                    [class.border-amber-300]="isDayUsePresetActive()"
+                    [class.text-amber-900]="isDayUsePresetActive()"
+                    [class.bg-slate-100]="!isDayUsePresetActive()"
+                    [class.border-slate-200]="!isDayUsePresetActive()"
+                    [class.text-slate-600]="!isDayUsePresetActive()"
+                    title="Cài đặt nhanh thuê theo giờ trong ngày (08:00 đến 18:00)"
+                  >
+                    <i class="pi pi-sun text-amber-500"></i>
+                    <span>Trong ngày (Day-use: 08:00 - 18:00)</span>
+                  </button>
                 </div>
 
                 <!-- Overnight date inputs -->
@@ -957,44 +1255,76 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                           <span class="font-medium">{{ item.amount | number:'1.0-0' }} đ</span>
                         </div>
                       }
+                      <div class="pt-2 mt-1 flex justify-between items-center text-xs text-amber-900 font-bold border-t border-emerald-200">
+                        <span class="flex items-center gap-1.5">
+                          <i class="pi pi-shield text-amber-600"></i>
+                          <span>Tiền cọc yêu cầu giữ chỗ (50%):</span>
+                        </span>
+                        <span class="text-emerald-700 font-extrabold">{{ estimatedDeposit() | number:'1.0-0' }} đ</span>
+                      </div>
                     </div>
                   </div>
                 }
 
-                <!-- Physical Room Selection -->
+                <!-- Physical Room Selection (Grouped by Floor) -->
                 @if (availableRooms().length > 0) {
-                  <div class="space-y-1.5">
-                    <label class="block text-xs font-medium text-slate-700">
-                      Chọn phòng vật lý cụ thể *
-                      <span class="text-[11px] font-normal text-slate-500">({{ availableCount() }} phòng khả dụng)</span>
-                    </label>
+                  <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                      <label class="block text-xs font-medium text-slate-700">
+                        Chọn phòng vật lý cụ thể *
+                        <span class="text-[11px] font-normal text-slate-500">({{ availableCount() }} phòng khả dụng)</span>
+                      </label>
+                      <span class="text-[10px] text-slate-400">Gom nhóm theo tầng lầu</span>
+                    </div>
 
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      @for (r of availableRooms(); track r.roomId) {
-                        <button
-                          type="button"
-                          [disabled]="!r.isAvailable"
-                          (click)="selectRoom(r)"
-                          class="p-2.5 rounded-lg border text-left transition flex flex-col justify-between cursor-pointer"
-                          [class.border-emerald-600]="selectedRoomId() === r.roomId"
-                          [class.bg-emerald-50]="selectedRoomId() === r.roomId"
-                          [class.border-slate-200]="selectedRoomId() !== r.roomId && r.isAvailable"
-                          [class.bg-white]="selectedRoomId() !== r.roomId && r.isAvailable"
-                          [class.opacity-40]="!r.isAvailable"
-                          [class.cursor-not-allowed]="!r.isAvailable"
-                          [class.bg-slate-100]="!r.isAvailable"
-                          [title]="r.conflictReason || 'Phòng sẵn sàng'"
-                        >
-                          <div class="flex items-center justify-between">
-                            <span class="font-bold text-sm text-slate-800">Phòng {{ r.roomNumber }}</span>
-                            @if (selectedRoomId() === r.roomId) {
-                              <i class="pi pi-check text-xs text-emerald-700"></i>
+                    <div class="space-y-2.5">
+                      @for (fg of availableRoomsByFloor(); track fg.floor) {
+                        <div class="p-2.5 rounded-lg border border-slate-200/80 bg-slate-50/60 space-y-1.5">
+                          <div class="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+                            <span class="flex items-center gap-1.5">
+                              <i class="pi pi-building text-slate-400 text-xs"></i>
+                              Tầng {{ fg.floor }}
+                            </span>
+                            <span
+                              class="text-[10px] px-1.5 py-0.5 rounded font-normal"
+                              [class.bg-emerald-100]="fg.availableCount > 0"
+                              [class.text-emerald-800]="fg.availableCount > 0"
+                              [class.bg-slate-200]="fg.availableCount === 0"
+                              [class.text-slate-600]="fg.availableCount === 0"
+                            >
+                              {{ fg.availableCount }}/{{ fg.totalCount }} phòng trống
+                            </span>
+                          </div>
+
+                          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            @for (r of fg.rooms; track r.roomId) {
+                              <button
+                                type="button"
+                                [disabled]="!r.isAvailable"
+                                (click)="selectRoom(r)"
+                                class="p-2.5 rounded-lg border text-left transition flex flex-col justify-between cursor-pointer"
+                                [class.border-emerald-600]="selectedRoomId() === r.roomId"
+                                [class.bg-emerald-50]="selectedRoomId() === r.roomId"
+                                [class.border-slate-200]="selectedRoomId() !== r.roomId && r.isAvailable"
+                                [class.bg-white]="selectedRoomId() !== r.roomId && r.isAvailable"
+                                [class.opacity-40]="!r.isAvailable"
+                                [class.cursor-not-allowed]="!r.isAvailable"
+                                [class.bg-slate-100]="!r.isAvailable"
+                                [title]="r.conflictReason || 'Phòng sẵn sàng'"
+                              >
+                                <div class="flex items-center justify-between">
+                                  <span class="font-bold text-sm text-slate-800">Phòng {{ r.roomNumber }}</span>
+                                  @if (selectedRoomId() === r.roomId) {
+                                    <i class="pi pi-check text-xs text-emerald-700"></i>
+                                  }
+                                </div>
+                                <div class="text-[10px] text-slate-500 mt-1">
+                                  Tầng {{ r.floor }} • {{ r.isAvailable ? 'Sẵn sàng' : 'Bận' }}
+                                </div>
+                              </button>
                             }
                           </div>
-                          <div class="text-[10px] text-slate-500 mt-1">
-                            Tầng {{ r.floor }} • {{ r.isAvailable ? 'Sẵn sàng' : 'Bận' }}
-                          </div>
-                        </button>
+                        </div>
                       }
                     </div>
                   </div>
@@ -1005,7 +1335,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               <div class="space-y-3 pt-2 border-t border-slate-100">
                 <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">3. Thông tin khách hàng & Ghi chú</div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div>
                     <label class="block text-xs font-medium text-slate-700 mb-1">Họ và tên khách hàng *</label>
                     <input
@@ -1037,12 +1367,82 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   </div>
 
                   <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">CCCD / Hộ chiếu</label>
+                    <input
+                      type="text"
+                      formControlName="identityNumber"
+                      placeholder="079... hoặc số Passport"
+                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">Quốc tịch</label>
+                    <input
+                      type="text"
+                      formControlName="nationality"
+                      placeholder="Việt Nam"
+                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                    />
+                  </div>
+
+                  <div>
                     <label class="block text-xs font-medium text-slate-700 mb-1">Số lượng khách *</label>
                     <input
                       type="number"
                       min="1"
                       max="10"
                       formControlName="numberOfGuests"
+                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                    />
+                  </div>
+
+                  <!-- 2-level Administrative Hierarchy: Province -> Ward -->
+                  <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1 flex items-center justify-between">
+                      <span>Tỉnh / Thành phố</span>
+                      @if (isLoadingProvinces()) {
+                        <i class="pi pi-spin pi-spinner text-slate-400 text-[10px]"></i>
+                      }
+                    </label>
+                    <select
+                      formControlName="provinceCode"
+                      (change)="onProvinceChange($event)"
+                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                    >
+                      <option value="">-- Chọn Tỉnh / Thành phố --</option>
+                      @for (prov of provinces(); track prov.code) {
+                        <option [value]="prov.code">{{ prov.name }}</option>
+                      }
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1 flex items-center justify-between">
+                      <span>Phường / Xã</span>
+                      @if (isLoadingWards()) {
+                        <i class="pi pi-spin pi-spinner text-slate-400 text-[10px]"></i>
+                      }
+                    </label>
+                    <select
+                      formControlName="wardCode"
+                      (change)="onWardChange($event)"
+                      [disabled]="!createForm.get('provinceCode')?.value || isLoadingWards()"
+                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white disabled:bg-slate-100 disabled:opacity-60"
+                    >
+                      <option value="">-- Chọn Phường / Xã --</option>
+                      @for (w of wards(); track w.code) {
+                        <option [value]="w.code">{{ w.name }}</option>
+                      }
+                    </select>
+                  </div>
+
+                  <div class="sm:col-span-2 lg:col-span-1">
+                    <label class="block text-xs font-medium text-slate-700 mb-1">Địa chỉ chi tiết</label>
+                    <input
+                      type="text"
+                      formControlName="addressDetail"
+                      placeholder="Số nhà, tên đường..."
                       class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
                     />
                   </div>
@@ -1553,6 +1953,8 @@ export class ReservationsPage implements OnInit, OnDestroy {
   }
   private readonly reservationService = inject(ReservationService);
   private readonly roomTypeService = inject(RoomTypeService);
+  private readonly roomService = inject(RoomService, { optional: true });
+  private readonly locationService = inject(LocationService, { optional: true });
   private readonly policyService = inject(PolicyService);
   private readonly paymentService = inject(PaymentService);
   private readonly authService = inject(AuthService);
@@ -1565,6 +1967,25 @@ export class ReservationsPage implements OnInit, OnDestroy {
   readonly ReservationStatus = ReservationStatus;
   readonly PaymentMethod = PaymentMethod;
   readonly PaymentStatus = PaymentStatus;
+
+  // View Mode: 'table' (Danh sách) vs 'timeline' (Sơ đồ lịch phòng theo thời gian)
+  readonly viewMode = signal<'table' | 'timeline'>('table');
+
+  // Timeline / Gantt State
+  readonly timelineStartDate = signal<string>(getTodayVnDateString());
+  readonly timelineDaysCount = signal<number>(7);
+  readonly timelineRooms = signal<RoomDto[]>([]);
+  readonly timelineReservations = signal<ReservationDto[]>([]);
+  readonly isTimelineLoading = signal<boolean>(false);
+  readonly timelineFloorFilter = signal<number | null>(null);
+  readonly timelineRoomTypeFilter = signal<string | null>(null);
+
+  // Administrative Divisions (2-level hierarchy: Province -> Ward)
+  readonly provinces = signal<Province[]>([]);
+  readonly wards = signal<Ward[]>([]);
+  readonly isLoadingProvinces = signal<boolean>(false);
+  readonly isLoadingWards = signal<boolean>(false);
+  readonly selectedRentalMode = signal<'overnight' | 'hourly' | 'dayuse'>('overnight');
 
   // Context & Permissions
   readonly activeProperty = computed(() => {
@@ -1636,6 +2057,93 @@ export class ReservationsPage implements OnInit, OnDestroy {
   readonly modalTargetPropertyId = signal<string | null>(null);
   readonly verifiedScheduleKey = signal<string | null>(null);
 
+  // Grouped rooms by floor for intuitive selection
+  readonly availableRoomsByFloor = computed(() => {
+    const rooms = this.availableRooms();
+    const map = new Map<number, RoomAvailabilityDto[]>();
+    for (const r of rooms) {
+      const floor = r.floor ?? 1;
+      if (!map.has(floor)) {
+        map.set(floor, []);
+      }
+      map.get(floor)!.push(r);
+    }
+    const sortedFloors = Array.from(map.keys()).sort((a, b) => a - b);
+    return sortedFloors.map(floor => {
+      const floorRooms = map.get(floor)!;
+      return {
+        floor,
+        availableCount: floorRooms.filter(r => r.isAvailable).length,
+        totalCount: floorRooms.length,
+        rooms: floorRooms
+      };
+    });
+  });
+
+  // Estimated deposit required (50% rule)
+  readonly estimatedDeposit = computed(() => {
+    const quote = this.calculatedQuote();
+    return quote ? Math.round(quote.totalAmount * 0.5) : 0;
+  });
+
+  // Timeline Computeds
+  readonly timelineDates = computed(() => {
+    const start = this.timelineStartDate();
+    const count = this.timelineDaysCount();
+    const dates: Array<{
+      dateStr: string;
+      dayOfWeek: string;
+      dayNumber: number;
+      month: number;
+      isToday: boolean;
+      isWeekend: boolean;
+    }> = [];
+
+    const todayStr = getTodayVnDateString();
+    const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+    for (let i = 0; i < count; i++) {
+      const dStr = addDaysToDateString(start, i);
+      const parts = dStr.split('-');
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      const dayIdx = d.getDay();
+      dates.push({
+        dateStr: dStr,
+        dayOfWeek: dayNames[dayIdx],
+        dayNumber: d.getDate(),
+        month: d.getMonth() + 1,
+        isToday: dStr === todayStr,
+        isWeekend: dayIdx === 0 || dayIdx === 6
+      });
+    }
+
+    return dates;
+  });
+
+  readonly timelineFloors = computed(() => {
+    const floors = new Set<number>();
+    for (const r of this.timelineRooms()) {
+      if (r.floor !== undefined && r.floor !== null) {
+        floors.add(r.floor);
+      }
+    }
+    return Array.from(floors).sort((a, b) => a - b);
+  });
+
+  readonly filteredTimelineRooms = computed(() => {
+    let list = this.timelineRooms();
+    const floorFilter = this.timelineFloorFilter();
+    const roomTypeFilter = this.timelineRoomTypeFilter();
+
+    if (floorFilter !== null) {
+      list = list.filter(r => r.floor === floorFilter);
+    }
+    if (roomTypeFilter) {
+      list = list.filter(r => r.roomTypeId === roomTypeFilter);
+    }
+    return list;
+  });
+
   createForm!: FormGroup;
 
   // Folio & Cashier State
@@ -1662,6 +2170,10 @@ export class ReservationsPage implements OnInit, OnDestroy {
   private folioSub?: Subscription;
   private paymentSub?: Subscription;
   private summarySub?: Subscription;
+  private timelineRoomsSub?: Subscription;
+  private timelineResSub?: Subscription;
+  private provincesSub?: Subscription;
+  private wardsSub?: Subscription;
 
   private listRequestId = 0;
   private detailRequestId = 0;
@@ -1730,10 +2242,16 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.actionReservationId.set(null);
     this.isActionLoading.set(false);
 
+    this.timelineRooms.set([]);
+    this.timelineReservations.set([]);
+
     if (newPropertyId) {
       this.loadReservations();
       this.loadRoomTypes();
       this.loadBranchPolicies(newPropertyId);
+      if (this.viewMode() === 'timeline') {
+        this.loadTimelineData();
+      }
     }
   }
 
@@ -1749,6 +2267,10 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.folioSub?.unsubscribe();
     this.paymentSub?.unsubscribe();
     this.summarySub?.unsubscribe();
+    this.timelineRoomsSub?.unsubscribe();
+    this.timelineResSub?.unsubscribe();
+    this.provincesSub?.unsubscribe();
+    this.wardsSub?.unsubscribe();
   }
 
   loadBranchPolicies(propId: string): void {
@@ -1802,6 +2324,13 @@ export class ReservationsPage implements OnInit, OnDestroy {
       guestName: ['', [Validators.required, Validators.maxLength(200)]],
       guestEmail: ['', [Validators.required, Validators.email, Validators.maxLength(255)]],
       guestPhone: [''],
+      identityNumber: [''],
+      nationality: ['Việt Nam'],
+      provinceCode: [''],
+      provinceName: [''],
+      wardCode: [''],
+      wardName: [''],
+      addressDetail: [''],
       numberOfGuests: [2, [Validators.required, Validators.min(1), Validators.max(20)]],
       customerNotes: ['']
     });
@@ -1984,6 +2513,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
 
     this.initCreateForm();
     this.resetCalculatedQuoteAndAvailability();
+    this.loadProvinces();
     this.modalTargetPropertyId.set(propId);
     this.isCreateModalOpen.set(true);
   }
@@ -2215,7 +2745,26 @@ export class ReservationsPage implements OnInit, OnDestroy {
       endAtUtc = new Date(`${form.hourlyDate}T${form.hourlyEndTime}:00+07:00`).toISOString();
     }
 
-    const currentFingerprint = `${propId}_${roomId}_${rentalType}_${startAtUtc}_${endAtUtc}_${form.guestName.trim()}_${form.guestEmail.trim()}_${form.guestPhone?.trim() || ''}_${form.numberOfGuests}_${form.customerNotes?.trim() || ''}_${quote.totalAmount}`;
+    let notes = form.customerNotes?.trim() || '';
+    const guestDetails: string[] = [];
+    if (form.identityNumber?.trim()) {
+      guestDetails.push(`CCCD/Passport: ${form.identityNumber.trim()}`);
+    }
+    if (form.nationality?.trim()) {
+      guestDetails.push(`Quốc tịch: ${form.nationality.trim()}`);
+    }
+    if (form.provinceName || form.wardName || form.addressDetail?.trim()) {
+      const addrParts = [form.addressDetail?.trim(), form.wardName, form.provinceName].filter(Boolean);
+      if (addrParts.length > 0) {
+        guestDetails.push(`Địa chỉ: ${addrParts.join(', ')}`);
+      }
+    }
+    if (guestDetails.length > 0) {
+      const guestHeader = `[${guestDetails.join(' | ')}]`;
+      notes = notes ? `${guestHeader} ${notes}` : guestHeader;
+    }
+
+    const currentFingerprint = `${propId}_${roomId}_${rentalType}_${startAtUtc}_${endAtUtc}_${form.guestName.trim()}_${form.guestEmail.trim()}_${form.guestPhone?.trim() || ''}_${form.identityNumber?.trim() || ''}_${form.provinceCode || ''}_${form.wardCode || ''}_${form.numberOfGuests}_${notes}_${quote.totalAmount}`;
     if (!this.currentSubmissionKey || this.lastSubmittedFingerprint !== currentFingerprint) {
       this.currentSubmissionKey = 'IDEMP-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
       this.lastSubmittedFingerprint = currentFingerprint;
@@ -2233,7 +2782,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
       guestEmail: form.guestEmail.trim(),
       guestPhone: form.guestPhone?.trim() || undefined,
       numberOfGuests: form.numberOfGuests,
-      customerNotes: form.customerNotes?.trim() || undefined,
+      customerNotes: notes || undefined,
       expectedTotalAmount: quote.totalAmount,
       idempotencyKey: this.currentSubmissionKey
     };
@@ -2254,6 +2803,9 @@ export class ReservationsPage implements OnInit, OnDestroy {
         this.closeCreateModal();
         this.alertService.toastSuccess(`Tạo đặt phòng thành công! Mã xác nhận: ${created.confirmationCode}`);
         this.loadReservations();
+        if (this.viewMode() === 'timeline') {
+          this.loadTimelineData();
+        }
       },
       error: (err) => {
         if (this.activeProperty()?.id !== propId || !this.isCreateModalOpen()) {
@@ -2754,6 +3306,226 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.summarySub?.unsubscribe();
     this.isSummaryModalOpen.set(false);
     this.summaryError.set(null);
+  }
+
+  // ── View Mode & Timeline Methods ──────────────────────────────────────────
+
+  setViewMode(mode: 'table' | 'timeline'): void {
+    this.viewMode.set(mode);
+    if (mode === 'timeline') {
+      this.loadTimelineData();
+    }
+  }
+
+  onRefreshCurrentView(): void {
+    if (this.viewMode() === 'timeline') {
+      this.loadTimelineData();
+    } else {
+      this.loadReservations();
+    }
+  }
+
+  loadTimelineData(): void {
+    const propId = this.activeProperty()?.id;
+    if (!propId) {
+      this.timelineRooms.set([]);
+      this.timelineReservations.set([]);
+      return;
+    }
+
+    this.isTimelineLoading.set(true);
+    const startDate = this.timelineStartDate();
+    const endDate = addDaysToDateString(startDate, this.timelineDaysCount() + 1);
+
+    // 1. Load rooms for property
+    this.timelineRoomsSub?.unsubscribe();
+    if (this.roomService) {
+      this.timelineRoomsSub = this.roomService.getRooms({ pageSize: 100 }).subscribe({
+        next: (res) => {
+          this.timelineRooms.set(res.items || []);
+        },
+        error: () => {
+          this.timelineRooms.set([]);
+        }
+      });
+    }
+
+    // 2. Load reservations in timeline window
+    this.timelineResSub?.unsubscribe();
+    this.timelineResSub = this.reservationService.getTimelineReservations(propId, startDate, endDate).subscribe({
+      next: (items) => {
+        this.timelineReservations.set(items || []);
+        this.isTimelineLoading.set(false);
+      },
+      error: () => {
+        this.timelineReservations.set([]);
+        this.isTimelineLoading.set(false);
+      }
+    });
+  }
+
+  goToToday(): void {
+    this.timelineStartDate.set(getTodayVnDateString());
+    this.loadTimelineData();
+  }
+
+  goToPreviousDays(): void {
+    const current = this.timelineStartDate();
+    const count = this.timelineDaysCount();
+    this.timelineStartDate.set(addDaysToDateString(current, -count));
+    this.loadTimelineData();
+  }
+
+  goToNextDays(): void {
+    const current = this.timelineStartDate();
+    const count = this.timelineDaysCount();
+    this.timelineStartDate.set(addDaysToDateString(current, count));
+    this.loadTimelineData();
+  }
+
+  onTimelineStartDateChange(event: Event): void {
+    const val = (event.target as HTMLInputElement).value;
+    if (val) {
+      this.timelineStartDate.set(val);
+      this.loadTimelineData();
+    }
+  }
+
+  setTimelineDaysCount(days: number): void {
+    this.timelineDaysCount.set(days);
+    this.loadTimelineData();
+  }
+
+  onTimelineFloorChange(event: Event): void {
+    const val = (event.target as HTMLSelectElement).value;
+    this.timelineFloorFilter.set(val ? parseInt(val, 10) : null);
+  }
+
+  onTimelineRoomTypeChange(event: Event): void {
+    const val = (event.target as HTMLSelectElement).value;
+    this.timelineRoomTypeFilter.set(val || null);
+  }
+
+  getRoomBookingsForDate(roomId: string, dateStr: string): ReservationDto[] {
+    return this.timelineReservations().filter(res => {
+      if (res.roomId !== roomId) return false;
+      if (res.status === ReservationStatus.Cancelled) return false;
+
+      if (res.rentalType === RentalType.Hourly) {
+        return res.checkInDate === dateStr;
+      } else {
+        // Overnight: checkInDate <= dateStr < checkOutDate
+        return res.checkInDate <= dateStr && dateStr < res.checkOutDate;
+      }
+    });
+  }
+
+  getTimelineBookingBadgeClass(res: ReservationDto, dateStr: string): string {
+    if (res.rentalType === RentalType.Hourly) {
+      return 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200';
+    }
+    switch (res.status) {
+      case ReservationStatus.Confirmed:
+        return 'bg-emerald-100 text-emerald-900 border border-emerald-300 hover:bg-emerald-200';
+      case ReservationStatus.CheckedIn:
+        return 'bg-blue-100 text-blue-900 border border-blue-300 hover:bg-blue-200';
+      case ReservationStatus.PendingPayment:
+        return 'bg-yellow-100 text-yellow-900 border border-yellow-300 hover:bg-yellow-200';
+      case ReservationStatus.CheckedOut:
+        return 'bg-slate-200 text-slate-800 border border-slate-300 hover:bg-slate-300';
+      default:
+        return 'bg-slate-100 text-slate-700 border border-slate-200';
+    }
+  }
+
+  getBookingTooltip(res: ReservationDto): string {
+    const rentalTypeLabel = res.rentalType === RentalType.Hourly ? 'Theo giờ' : 'Theo đêm';
+    const statusLabel = this.getStatusLabel(res.status);
+    return `${res.confirmationCode} - ${res.guestName}\n${rentalTypeLabel} | ${statusLabel}\nSĐT: ${res.guestPhone || 'Không có'}\nTổng tiền: ${res.totalAmount.toLocaleString('vi-VN')} đ`;
+  }
+
+  openCreateModalWithPrefill(room: RoomDto, dateStr: string): void {
+    this.openCreateModal();
+    const nextDay = addDaysToDateString(dateStr, 1);
+    this.createForm.patchValue({
+      rentalType: RentalType.Overnight,
+      checkInDate: dateStr,
+      checkOutDate: nextDay,
+      roomTypeId: room.roomTypeId
+    });
+    this.onCalculateQuoteAndAvailability();
+    this.selectedRoomId.set(room.id);
+  }
+
+  // ── Day-Use & Location (Administrative Divisions) Methods ──────────────────
+
+  isDayUsePresetActive(): boolean {
+    const val = this.createForm?.value;
+    return (
+      val?.rentalType === RentalType.Hourly &&
+      val?.hourlyStartTime === '08:00' &&
+      val?.hourlyEndTime === '18:00'
+    );
+  }
+
+  applyDayUsePreset(): void {
+    this.createForm.patchValue({
+      rentalType: RentalType.Hourly,
+      hourlyDate: this.createForm.get('checkInDate')?.value || getTodayVnDateString(),
+      hourlyStartTime: '08:00',
+      hourlyEndTime: '18:00'
+    });
+    this.onRentalTypeChanged();
+  }
+
+  loadProvinces(): void {
+    if (this.provinces().length > 0 || this.isLoadingProvinces()) return;
+    this.isLoadingProvinces.set(true);
+    this.provincesSub?.unsubscribe();
+    this.provincesSub = this.locationService?.getProvinces().subscribe({
+      next: (list) => {
+        this.provinces.set(list || []);
+        this.isLoadingProvinces.set(false);
+      },
+      error: () => {
+        this.isLoadingProvinces.set(false);
+      }
+    });
+  }
+
+  onProvinceChange(event: Event): void {
+    const code = (event.target as HTMLSelectElement).value;
+    const selected = this.provinces().find(p => p.code === code);
+    this.createForm.patchValue({
+      provinceCode: code,
+      provinceName: selected?.name || '',
+      wardCode: '',
+      wardName: ''
+    });
+    this.wards.set([]);
+
+    if (!code) return;
+
+    this.isLoadingWards.set(true);
+    this.wardsSub?.unsubscribe();
+    this.wardsSub = this.locationService?.getWards(code).subscribe({
+      next: (list) => {
+        this.wards.set(list || []);
+        this.isLoadingWards.set(false);
+      },
+      error: () => {
+        this.isLoadingWards.set(false);
+      }
+    });
+  }
+
+  onWardChange(event: Event): void {
+    const code = (event.target as HTMLSelectElement).value;
+    const selected = this.wards().find(w => w.code === code);
+    this.createForm.patchValue({
+      wardCode: code,
+      wardName: selected?.name || ''
+    });
   }
 }
 

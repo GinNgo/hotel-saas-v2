@@ -29,10 +29,15 @@ import {
 } from '../../core/models/reservation.model';
 import { PagedResult } from '../../core/models/api-response.model';
 import { RoomTypeDto } from '../../core/models/room-type.model';
+import { RoomService } from '../../core/services/room.service';
+import { LocationService } from '../../core/services/location.service';
+import { RoomStatus } from '../../core/models/enums';
 
 describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availability', () => {
   let mockReservationService: any;
   let mockRoomTypeService: any;
+  let mockRoomService: any;
+  let mockLocationService: any;
   let mockPolicyService: any;
   let mockPaymentService: any;
   let mockAuthService: any;
@@ -190,7 +195,47 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
       createReservation: vi.fn().mockReturnValue(of(sampleReservationDto)),
       checkIn: vi.fn().mockReturnValue(of({ ...sampleReservationDetailDto, status: ReservationStatus.CheckedIn })),
       checkOut: vi.fn().mockReturnValue(of({ ...sampleReservationDetailDto, status: ReservationStatus.CheckedOut })),
-      cancel: vi.fn().mockReturnValue(of({ ...sampleReservationDetailDto, status: ReservationStatus.Cancelled, cancellationReason: 'Test reason', cancelledAtUtc: '2026-10-10T12:00:00Z' }))
+      cancel: vi.fn().mockReturnValue(of({ ...sampleReservationDetailDto, status: ReservationStatus.Cancelled, cancellationReason: 'Test reason', cancelledAtUtc: '2026-10-10T12:00:00Z' })),
+      getTimelineReservations: vi.fn().mockReturnValue(of([sampleReservationDto]))
+    };
+
+    mockRoomService = {
+      getRooms: vi.fn().mockReturnValue(of({
+        items: [
+          {
+            id: 'room-101',
+            roomNumber: '101',
+            floor: 1,
+            roomTypeId: 'rt-101',
+            roomTypeName: 'Phòng Deluxe Giường Đôi',
+            status: RoomStatus.Clean,
+            isActive: true
+          },
+          {
+            id: 'room-201',
+            roomNumber: '201',
+            floor: 2,
+            roomTypeId: 'rt-101',
+            roomTypeName: 'Phòng Deluxe Giường Đôi',
+            status: RoomStatus.Clean,
+            isActive: true
+          }
+        ],
+        totalCount: 2,
+        page: 1,
+        pageSize: 100
+      }))
+    };
+
+    mockLocationService = {
+      getProvinces: vi.fn().mockReturnValue(of([
+        { code: '79', name: 'Thành phố Hồ Chí Minh', type: 'Thành phố Trung ương' },
+        { code: '01', name: 'Thành phố Hà Nội', type: 'Thành phố Trung ương' }
+      ])),
+      getWards: vi.fn().mockReturnValue(of([
+        { code: '26734', name: 'Phường Bến Nghé', provinceCode: '79', provinceName: 'Thành phố Hồ Chí Minh', type: 'Phường' },
+        { code: '26740', name: 'Phường Bến Thành', provinceCode: '79', provinceName: 'Thành phố Hồ Chí Minh', type: 'Phường' }
+      ]))
     };
 
     mockRoomTypeService = {
@@ -297,6 +342,8 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
         { provide: FormBuilder, useClass: FormBuilder },
         { provide: ReservationService, useValue: mockReservationService },
         { provide: RoomTypeService, useValue: mockRoomTypeService },
+        { provide: RoomService, useValue: mockRoomService },
+        { provide: LocationService, useValue: mockLocationService },
         { provide: PolicyService, useValue: mockPolicyService },
         { provide: PaymentService, useValue: mockPaymentService },
         { provide: AuthService, useValue: mockAuthService },
@@ -1534,7 +1581,299 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
     expect(newMethodKey).not.toBe(newAmountKey);
   });
 
-  it('35. should handle Folio loading failure in Check-out modal, provide retry, and reject checkout if Folio is null', () => {
+  // ── Timeline & Walk-in Front-Desk Reception Tests (Phase 2 & 3) ─────────────
+
+  it('35. should toggle view mode between table and timeline and load timeline data', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+
+    expect(comp.viewMode()).toBe('table');
+
+    comp.setViewMode('timeline');
+    expect(comp.viewMode()).toBe('timeline');
+    expect(mockRoomService.getRooms).toHaveBeenCalled();
+    expect(mockReservationService.getTimelineReservations).toHaveBeenCalledWith(
+      'prop-123',
+      expect.any(String),
+      expect.any(String)
+    );
+    expect(comp.timelineRooms().length).toBeGreaterThan(0);
+    expect(comp.timelineReservations().length).toBeGreaterThan(0);
+
+    comp.setViewMode('table');
+    expect(comp.viewMode()).toBe('table');
+  });
+
+  it('36. should handle timeline date navigation and days count toggle', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+    comp.setViewMode('timeline');
+
+    const initialStart = comp.timelineStartDate();
+    expect(comp.timelineDaysCount()).toBe(7);
+
+    // Navigate next
+    comp.goToNextDays();
+    expect(comp.timelineStartDate()).not.toBe(initialStart);
+
+    // Navigate previous
+    comp.goToPreviousDays();
+    expect(comp.timelineStartDate()).toBe(initialStart);
+
+    // Switch days count to 14
+    comp.setTimelineDaysCount(14);
+    expect(comp.timelineDaysCount()).toBe(14);
+    expect(comp.timelineDates().length).toBe(14);
+
+    // Go to today
+    comp.goToToday();
+    expect(comp.timelineStartDate()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('37. should filter rooms on timeline by floor and room type', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+    comp.setViewMode('timeline');
+
+    // Floors computation
+    expect(comp.timelineFloors()).toContain(1);
+    expect(comp.timelineFloors()).toContain(2);
+    expect(comp.filteredTimelineRooms().length).toBe(2);
+
+    // Filter by floor 1
+    comp.onTimelineFloorChange({ target: { value: '1' } } as any);
+    expect(comp.timelineFloorFilter()).toBe(1);
+    expect(comp.filteredTimelineRooms().every(r => r.floor === 1)).toBe(true);
+    expect(comp.filteredTimelineRooms().length).toBe(1);
+
+    // Clear floor filter
+    comp.onTimelineFloorChange({ target: { value: '' } } as any);
+    expect(comp.timelineFloorFilter()).toBeNull();
+
+    // Filter by room type
+    comp.onTimelineRoomTypeChange({ target: { value: 'rt-101' } } as any);
+    expect(comp.timelineRoomTypeFilter()).toBe('rt-101');
+    expect(comp.filteredTimelineRooms().every(r => r.roomTypeId === 'rt-101')).toBe(true);
+  });
+
+  it('38. should correctly match overnight and hourly bookings for a room on specific dates and exclude cancelled ones', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+
+    const mockResList: ReservationDto[] = [
+      {
+        ...sampleReservationDto,
+        id: 'res-night',
+        roomId: 'room-101',
+        rentalType: RentalType.Overnight,
+        checkInDate: '2026-10-15',
+        checkOutDate: '2026-10-17',
+        status: ReservationStatus.Confirmed
+      },
+      {
+        ...sampleReservationDto,
+        id: 'res-hour',
+        roomId: 'room-101',
+        rentalType: RentalType.Hourly,
+        checkInDate: '2026-10-18',
+        checkOutDate: '2026-10-18',
+        status: ReservationStatus.CheckedIn
+      },
+      {
+        ...sampleReservationDto,
+        id: 'res-cancelled',
+        roomId: 'room-101',
+        rentalType: RentalType.Overnight,
+        checkInDate: '2026-10-15',
+        checkOutDate: '2026-10-17',
+        status: ReservationStatus.Cancelled
+      }
+    ];
+
+    comp.timelineReservations.set(mockResList);
+
+    // On 2026-10-15, overnight is active, cancelled is ignored
+    const bookings15 = comp.getRoomBookingsForDate('room-101', '2026-10-15');
+    expect(bookings15.length).toBe(1);
+    expect(bookings15[0].id).toBe('res-night');
+
+    // On 2026-10-16, overnight is still active
+    const bookings16 = comp.getRoomBookingsForDate('room-101', '2026-10-16');
+    expect(bookings16.length).toBe(1);
+    expect(bookings16[0].id).toBe('res-night');
+
+    // On 2026-10-17 (checkout date), overnight is NOT active on that day
+    const bookings17 = comp.getRoomBookingsForDate('room-101', '2026-10-17');
+    expect(bookings17.length).toBe(0);
+
+    // On 2026-10-18, hourly booking is active
+    const bookings18 = comp.getRoomBookingsForDate('room-101', '2026-10-18');
+    expect(bookings18.length).toBe(1);
+    expect(bookings18[0].id).toBe('res-hour');
+  });
+
+  it('39. should prefill and open create modal when clicking empty cell on timeline', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+
+    const targetRoom: any = {
+      id: 'room-101',
+      roomNumber: '101',
+      floor: 1,
+      roomTypeId: 'rt-101',
+      roomTypeName: 'Deluxe Ocean View'
+    };
+
+    comp.openCreateModalWithPrefill(targetRoom, '2026-10-20');
+
+    expect(comp.isCreateModalOpen()).toBe(true);
+    expect(comp.createForm.get('checkInDate')?.value).toBe('2026-10-20');
+    expect(comp.createForm.get('checkOutDate')?.value).toBe('2026-10-21');
+    expect(comp.createForm.get('roomTypeId')?.value).toBe('rt-101');
+    expect(comp.selectedRoomId()).toBe('room-101');
+    expect(mockReservationService.calculateQuote).toHaveBeenCalled();
+  });
+
+  it('40. should load provinces on modal open and fetch wards when province changes', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+
+    comp.openCreateModal();
+    expect(mockLocationService.getProvinces).toHaveBeenCalled();
+    expect(comp.provinces().length).toBe(2);
+
+    // Change province to 79 (TP.HCM)
+    comp.onProvinceChange({ target: { value: '79' } } as any);
+    expect(comp.createForm.get('provinceCode')?.value).toBe('79');
+    expect(comp.createForm.get('provinceName')?.value).toBe('Thành phố Hồ Chí Minh');
+    expect(mockLocationService.getWards).toHaveBeenCalledWith('79');
+    expect(comp.wards().length).toBe(2);
+
+    // Select ward
+    comp.onWardChange({ target: { value: '26734' } } as any);
+    expect(comp.createForm.get('wardCode')?.value).toBe('26734');
+    expect(comp.createForm.get('wardName')?.value).toBe('Phường Bến Nghé');
+  });
+
+  it('41. should apply day-use preset with 08:00 - 18:00 timeframe and indicate active state', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+    comp.openCreateModal();
+
+    expect(comp.isDayUsePresetActive()).toBe(false);
+
+    comp.applyDayUsePreset();
+
+    expect(comp.createForm.get('rentalType')?.value).toBe(RentalType.Hourly);
+    expect(comp.createForm.get('hourlyStartTime')?.value).toBe('08:00');
+    expect(comp.createForm.get('hourlyEndTime')?.value).toBe('18:00');
+    expect(comp.isDayUsePresetActive()).toBe(true);
+  });
+
+  it('42. should group available rooms by floor with available and total counts', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+
+    comp.availableRooms.set([
+      {
+        roomId: 'room-101',
+        roomNumber: '101',
+        floor: 1,
+        roomTypeId: 'rt-101',
+        roomTypeName: 'Deluxe',
+        housekeepingStatus: 'Clean',
+        isAvailable: true
+      },
+      {
+        roomId: 'room-102',
+        roomNumber: '102',
+        floor: 1,
+        roomTypeId: 'rt-101',
+        roomTypeName: 'Deluxe',
+        housekeepingStatus: 'Clean',
+        isAvailable: false
+      },
+      {
+        roomId: 'room-201',
+        roomNumber: '201',
+        floor: 2,
+        roomTypeId: 'rt-101',
+        roomTypeName: 'Deluxe',
+        housekeepingStatus: 'Clean',
+        isAvailable: true
+      }
+    ]);
+
+    const floors = comp.availableRoomsByFloor();
+    expect(floors.length).toBe(2);
+
+    expect(floors[0].floor).toBe(1);
+    expect(floors[0].totalCount).toBe(2);
+    expect(floors[0].availableCount).toBe(1);
+
+    expect(floors[1].floor).toBe(2);
+    expect(floors[1].totalCount).toBe(1);
+    expect(floors[1].availableCount).toBe(1);
+  });
+
+  it('43. should compute 50% estimated deposit requirement based on quote totalAmount', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+
+    expect(comp.estimatedDeposit()).toBe(0);
+
+    comp.calculatedQuote.set({
+      ...sampleQuoteDto,
+      totalAmount: 1200000
+    });
+
+    expect(comp.estimatedDeposit()).toBe(600000);
+  });
+
+  it('44. should package CCCD, nationality, and administrative location into customerNotes on submission and reload timeline if active', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+    comp.setViewMode('timeline');
+    comp.openCreateModal();
+
+    comp.createForm.patchValue({
+      roomTypeId: 'rt-101',
+      guestName: 'Nguyễn Khôi Nguyên',
+      guestPhone: '0912345678',
+      guestEmail: 'nguyen@example.com',
+      identityNumber: '079123456789',
+      nationality: 'Việt Nam',
+      provinceCode: '79',
+      provinceName: 'Thành phố Hồ Chí Minh',
+      wardCode: '26734',
+      wardName: 'Phường Bến Nghé',
+      addressDetail: '123 Đồng Khởi',
+      rentalType: RentalType.Overnight,
+      checkInDate: '2026-10-15',
+      checkInTime: '14:00',
+      checkOutDate: '2026-10-16',
+      checkOutTime: '12:00',
+      numberOfGuests: 2,
+      customerNotes: 'Yêu cầu phòng tầng cao'
+    });
+
+    comp.onCalculateQuoteAndAvailability();
+    comp.selectedRoomId.set('room-101');
+
+    comp.onSubmitCreate();
+
+    expect(mockReservationService.createReservation).toHaveBeenCalledWith(expect.objectContaining({
+      propertyId: 'prop-123',
+      roomId: 'room-101',
+      guestName: 'Nguyễn Khôi Nguyên',
+      customerNotes: expect.stringContaining('[CCCD/Passport: 079123456789 | Quốc tịch: Việt Nam | Địa chỉ: 123 Đồng Khởi, Phường Bến Nghé, Thành phố Hồ Chí Minh] Yêu cầu phòng tầng cao')
+    }));
+
+    // Verify timeline reload was called since viewMode === 'timeline'
+    expect(mockReservationService.getTimelineReservations).toHaveBeenCalled();
+  });
+
+  it('45. should handle Folio loading failure in Check-out modal, provide retry, and reject checkout if Folio is null', () => {
     const comp = createComponent();
     comp.ngOnInit();
 
@@ -1584,7 +1923,7 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
     expect(mockReservationService.checkOut).toHaveBeenCalledWith('res-001', 'prop-123');
   });
 
-  it('36. should require in-person desk verification confirmation without storing or transmitting any document numbers', () => {
+  it('46. should require in-person desk verification confirmation without storing or transmitting any document numbers', () => {
     const comp = createComponent();
     comp.ngOnInit();
 
@@ -1607,7 +1946,7 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
     expect(mockReservationService.checkIn).toHaveBeenCalledWith('res-001', 'prop-123');
   });
 
-  it('37. should support Receptionist role: possesses ROOM_TYPES:Read, can view and perform Check-in/Check-out, but lacks ROOM_TYPES mutation rights', () => {
+  it('47. should support Receptionist role: possesses ROOM_TYPES:Read, can view and perform Check-in/Check-out, but lacks ROOM_TYPES mutation rights', () => {
     // Receptionist role permissions profile:
     mockAuthService.hasPermission.mockImplementation((code: string, mask: number) => {
       // Receptionist: ROOM_TYPES:Read (1), RESERVATIONS:ReadCreateUpdate (7), CHECK_IN_OUT:ReadCreateUpdate (7), PAYMENTS:ReadCreate (3), ROOMS:Read (1)
@@ -1641,7 +1980,7 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
     expect(mockAuthService.hasPermission('HOUSEKEEPING', 1)).toBe(false);
   });
 
-  it('38. should skip room types API request gracefully when user lacks ROOM_TYPES:Read permission to avoid 403', () => {
+  it('48. should skip room types API request gracefully when user lacks ROOM_TYPES:Read permission to avoid 403', () => {
     mockAuthService.hasPermission.mockImplementation((code: string) => {
       if (code === 'RESERVATIONS' || code === 'CHECK_IN_OUT') return true;
       return false; // No ROOM_TYPES permission
