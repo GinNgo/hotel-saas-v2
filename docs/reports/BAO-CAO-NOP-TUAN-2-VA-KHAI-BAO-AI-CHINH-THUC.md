@@ -110,7 +110,23 @@ Build local đầu vòng thành công nhưng có hai warning xung đột EF Core
 
 ### 3. Kết quả nghiệm thu cuối đợt
 
-**Đang cập nhật từ lần chạy sau sửa và sau merge. Chưa coi nhánh main đã đồng bộ hoặc CI đã pass ở thời điểm tạo bản báo cáo này.**
+Đợt tích hợp được theo dõi tại https://github.com/GinNgo/hotel-saas-v2/pull/7 với các mốc:
+
+- https://github.com/GinNgo/hotel-saas-v2/commit/c062cbe — commit/push local đã được chủ dự án xác nhận, gồm gate bảo mật và sửa lỗi khai báo trùng.
+- https://github.com/GinNgo/hotel-saas-v2/commit/5e40505 — merge bản sửa vận hành của Tân; giải quyết conflict test connection bằng cách giữ biến cổng và Persist Security Info, đồng bộ EmptyState theo Input/template tương thích.
+- https://github.com/GinNgo/hotel-saas-v2/commit/77fbc67 — chuyển CI sang `npm ci`; log thực tế cho thấy `--legacy-peer-deps` trước đó bỏ dependency peer Vite cần để nạp Vitest, dẫn tới thông báo không tìm thấy Vitest dù package đã được khai báo. Không tắt test để làm xanh pipeline.
+
+| Phạm vi kiểm tra | Kết quả trực tiếp |
+| --- | --- |
+| Frontend sau merge Tân, local | 360/360 tests pass, 35 files |
+| Frontend trên GitHub Actions tại 77fbc67 | 360/360 tests pass, 35 files; build production thành công |
+| Backend sau merge Tân, local | Release build: 0 warning, 0 error |
+| Backend CI trên cây mã 5e40505 | Application 366, Domain 1, WebApi 50: tổng 417 tests pass, 0 fail, 0 skip |
+| Safety/Domain chạy local riêng | 2 tests chặn social-login/VNPay thiếu cấu hình và 1 Domain test pass; nằm trong bộ backend, không cộng trùng vào tổng 417 |
+
+Minh chứng backend sau merge: https://github.com/GinNgo/hotel-saas-v2/actions/runs/39224402282 — job backend pass, **toàn run còn fail frontend** trước khi sửa cài peer dependencies. Minh chứng CI sau sửa: https://github.com/GinNgo/hotel-saas-v2/actions/runs/39224713549. Trạng thái đồng bộ main và các check trên bản merge cuối được kiểm tra tại PR #7 và https://github.com/GinNgo/hotel-saas-v2/actions.
+
+Build frontend còn warning CommonJS `sweetalert2`. `npm audit` báo 7 mục (5 high, 2 moderate), chủ yếu chuỗi công cụ Tailwind 3/glob/PostCSS; không chạy `npm audit fix --force` vì đề xuất đổi major Tailwind 4 có thể phá giao diện. Chưa kết luận khả năng khai thác runtime; cần đánh giá và nâng cấp trong task riêng. Bước lint dùng `--if-present` không tương đương có linter cấu hình; gitleaks hiện vẫn advisory (`continue-on-error`), không phải cổng security bắt buộc hay chứng nhận không có lỗ hổng.
 
 Không dùng lại số 347/348 của vòng audit trước làm kết quả nghiệm thu cho cây mã mới. Các test DB chỉ được chạy trong dịch vụ PostgreSQL test cô lập của CI; không chạy vào DB dev/prod/staging trên máy.
 
@@ -122,6 +138,7 @@ Không dùng lại số 347/348 của vòng audit trước làm kết quả nghi
 4. VNPay cần cấu hình merchant/secret riêng và kiểm thử sandbox hoàn chỉnh. Unit test chữ ký hoặc callback không chứng minh thanh toán hay hoàn tiền thực đã thành công.
 5. Tiếp tục regression ngữ cảnh tìm kiếm khi quay lại từ Detail; kiểm tra keyboard, mobile, zoom và nội dung component con sau thay đổi UI.
 6. Giữ các guard tenant/property, authorization, idempotency và chống đặt trùng trong mọi vòng tích hợp; không chạy migration/deploy thật trong đợt nộp mã này.
+7. Xử lý dependency audit theo đánh giá tương thích; duy trì test frontend thực sự được chạy trên clean install, không dựa node_modules cũ của máy thành viên.
 
 ## PHẦN V. KHAI BÁO SỬ DỤNG TRÍ TUỆ NHÂN TẠO
 
