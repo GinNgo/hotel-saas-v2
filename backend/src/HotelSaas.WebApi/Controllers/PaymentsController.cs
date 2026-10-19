@@ -6,6 +6,7 @@ using HotelSaas.Application.Payments.Commands.CreatePayment;
 using HotelSaas.Application.Payments.DTOs;
 using HotelSaas.Application.Payments.Queries.GetPayments;
 using HotelSaas.Application.Payments.Queries.GetPaymentSummary;
+using HotelSaas.Application.Payments.Queries.GetShiftReport;
 using HotelSaas.Domain.Enums;
 using HotelSaas.WebApi.Authorization;
 using HotelSaas.WebApi.Models;
@@ -67,7 +68,8 @@ public sealed class PaymentsController : ControllerBase
             request.Amount,
             request.Method,
             request.TransactionRef,
-            idempotencyKey
+            idempotencyKey,
+            request.IsDeposit
         );
 
         var result = await _mediator.Send(command, cancellationToken);
@@ -138,6 +140,83 @@ public sealed class PaymentsController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Retrieves shift cashier collection report and line-by-line audit for a specific shift and date.
+    /// </summary>
+    [HttpGet("shift-report")]
+    [RequirePermission("PAYMENTS", PermissionAction.Read)]
+    [ProducesResponseType(typeof(ShiftReportDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetShiftReport(
+        [FromQuery] Guid? propertyId,
+        [FromQuery] DateOnly? date,
+        [FromQuery] ShiftType shiftType = ShiftType.Morning,
+        CancellationToken cancellationToken = default)
+    {
+        var targetPropertyId = ResolveTargetPropertyId(propertyId);
+        if (!targetPropertyId.HasValue)
+        {
+            return BadRequest(new { code = "ERR_PROPERTY_REQUIRED", message = "Property context (X-Property-Id header or query) is required." });
+        }
+
+        var query = new GetShiftReportQuery(targetPropertyId.Value, date, shiftType);
+        var result = await _mediator.Send(query, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Creates a signed VNPay sandbox checkout URL for a reservation or booking hold.
+    /// </summary>
+    [HttpPost("vnpay/create-url")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(HotelSaas.Application.Common.Interfaces.VnpayCreateUrlResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CreateVnpayUrl(
+        [FromBody] CreateVnpayUrlApiRequest request,
+        CancellationToken cancellationToken)
+    {
+        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+        var command = new HotelSaas.Application.Payments.Commands.CreateVnpayUrl.CreateVnpayUrlCommand(
+            request.ReservationId,
+            request.LookupToken,
+            clientIp,
+            request.ReturnUrl);
+
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Asynchronous Server-to-Server IPN webhook endpoint invoked by VNPay payment gateway.
+    /// </summary>
+    [HttpGet("vnpay-ipn")]
+    [HttpGet("/api/public/payments/vnpay/ipn")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(HotelSaas.Application.Payments.Commands.ProcessVnpayIpn.VnpayIpnResponseDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> VnpayIpn(CancellationToken cancellationToken)
+    {
+        var queryDict = Request.Query.ToDictionary(q => q.Key, q => q.Value.ToString());
+        var command = new HotelSaas.Application.Payments.Commands.ProcessVnpayIpn.ProcessVnpayIpnCommand(queryDict);
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Return URL endpoint redirecting or confirming transaction status for client browser.
+    /// </summary>
+    [HttpGet("vnpay-return")]
+    [HttpGet("/api/public/payments/vnpay/return")]
+    [AllowAnonymous]
+    public async Task<IActionResult> VnpayReturn(CancellationToken cancellationToken)
+    {
+        var queryDict = Request.Query.ToDictionary(q => q.Key, q => q.Value.ToString());
+        var command = new HotelSaas.Application.Payments.Commands.ProcessVnpayIpn.ProcessVnpayIpnCommand(queryDict);
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(new { success = result.RspCode == "00" || result.RspCode == "02", data = result });
+    }
+
     private Guid? ResolveTargetPropertyId(Guid? queryPropertyId)
     {
         if (Request.Headers.TryGetValue("X-Property-Id", out var headerVal) &&
@@ -153,3 +232,9 @@ public sealed class PaymentsController : ControllerBase
         return queryPropertyId;
     }
 }
+
+public sealed record CreateVnpayUrlApiRequest(
+    Guid? ReservationId = null,
+    string? LookupToken = null,
+    string? ReturnUrl = null
+);

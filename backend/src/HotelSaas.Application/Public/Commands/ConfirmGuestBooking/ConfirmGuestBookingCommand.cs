@@ -100,6 +100,8 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
             }
         }
 
+        var safeUserRef = (request.TransactionRef ?? string.Empty).Trim().Replace("[", "(").Replace("]", ")");
+
         var token = request.LookupToken?.Trim();
         if (string.IsNullOrWhiteSpace(token) && !request.ReservationId.HasValue)
         {
@@ -155,6 +157,28 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
         if (normalizedKey != null)
         {
             await _context.LockIdempotencyKeyAsync(initialRes.PropertyId, normalizedKey, cancellationToken);
+
+            var directPrefix = $"[IK:{normalizedKey}]";
+            var depositPrefix = $"[PURPOSE:DEPOSIT][IK:{normalizedKey}]";
+
+            var crossResPayment = await _context.Payments
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p =>
+                    p.TenantId == initialRes.TenantId &&
+                    p.PropertyId == initialRes.PropertyId &&
+                    p.Status == PaymentStatus.Completed &&
+                    p.TransactionRef != null &&
+                    (p.TransactionRef.StartsWith(directPrefix) ||
+                     p.TransactionRef.StartsWith(depositPrefix)),
+                    cancellationToken);
+
+            if (crossResPayment != null && crossResPayment.ReservationId != initialRes.Id)
+            {
+                await tx.RollbackAsync(cancellationToken);
+                throw new ConflictException("ERR_IDEMPOTENCY_PAYLOAD_MISMATCH",
+                    "Khóa Idempotency-Key đã được sử dụng cho một đơn đặt phòng khác.");
+            }
         }
 
         await _context.LockRoomRowAsync(initialRes.RoomId, initialRes.TenantId, initialRes.PropertyId, cancellationToken);
@@ -196,18 +220,22 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
         {
             if (normalizedKey != null)
             {
-                var keyPrefix = $"[IK:{normalizedKey}][BY:";
+                var directPrefix = $"[IK:{normalizedKey}]";
+                var depositPrefix = $"[PURPOSE:DEPOSIT][IK:{normalizedKey}]";
+
                 var existingPayment = reservation.Payments
                     .FirstOrDefault(p => p.Status == PaymentStatus.Completed &&
                                          p.TransactionRef != null &&
-                                         p.TransactionRef.StartsWith(keyPrefix));
+                                         (p.TransactionRef.StartsWith(directPrefix, StringComparison.Ordinal) ||
+                                          p.TransactionRef.StartsWith(depositPrefix, StringComparison.Ordinal)));
 
                 if (existingPayment != null)
                 {
                     var storedUserRef = ExtractUserRef(existingPayment.TransactionRef);
-                    var safeUserRef = request.TransactionRef.Trim();
+                    var existingIsDeposit = HasDepositTag(existingPayment.TransactionRef);
 
-                    if (existingPayment.Amount != request.PaymentAmount ||
+                    if (!existingIsDeposit ||
+                        existingPayment.Amount != request.PaymentAmount ||
                         existingPayment.Method != request.PaymentMethod ||
                         storedUserRef != safeUserRef)
                     {
@@ -254,18 +282,22 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
         // 9. Check Existing Idempotent Payment Record under Lock
         if (normalizedKey != null)
         {
-            var keyPrefix = $"[IK:{normalizedKey}][BY:";
+            var directPrefix = $"[IK:{normalizedKey}]";
+            var depositPrefix = $"[PURPOSE:DEPOSIT][IK:{normalizedKey}]";
+
             var existingPayment = reservation.Payments
                 .FirstOrDefault(p => p.Status == PaymentStatus.Completed &&
                                      p.TransactionRef != null &&
-                                     p.TransactionRef.StartsWith(keyPrefix));
+                                     (p.TransactionRef.StartsWith(directPrefix, StringComparison.Ordinal) ||
+                                      p.TransactionRef.StartsWith(depositPrefix, StringComparison.Ordinal)));
 
             if (existingPayment != null)
             {
                 var storedUserRef = ExtractUserRef(existingPayment.TransactionRef);
-                var safeUserRef = request.TransactionRef.Trim();
+                var existingIsDeposit = HasDepositTag(existingPayment.TransactionRef);
 
-                if (existingPayment.Amount != request.PaymentAmount ||
+                if (!existingIsDeposit ||
+                    existingPayment.Amount != request.PaymentAmount ||
                     existingPayment.Method != request.PaymentMethod ||
                     storedUserRef != safeUserRef)
                 {
@@ -284,10 +316,9 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
         _propertyService.PropertyId = reservation.PropertyId;
 
         var userId = _userContext.UserId;
-        var cleanRef = request.TransactionRef.Trim();
         var formattedRef = normalizedKey != null
-            ? $"[IK:{normalizedKey}][BY:{userId}] {cleanRef}"
-            : $"[BY:{userId}] {cleanRef}";
+            ? (string.IsNullOrEmpty(safeUserRef) ? $"[PURPOSE:DEPOSIT][IK:{normalizedKey}][BY:{userId}]" : $"[PURPOSE:DEPOSIT][IK:{normalizedKey}][BY:{userId}] {safeUserRef}")
+            : (string.IsNullOrEmpty(safeUserRef) ? $"[PURPOSE:DEPOSIT][BY:{userId}]" : $"[PURPOSE:DEPOSIT][BY:{userId}] {safeUserRef}");
 
         var payment = new Payment
         {
@@ -307,6 +338,12 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
         _context.Payments.Add(payment);
 
         reservation.Status = ReservationStatus.Confirmed;
+        if (string.IsNullOrWhiteSpace(reservation.SmartLockPin))
+        {
+            reservation.SmartLockPin = System.Security.Cryptography.RandomNumberGenerator.GetInt32(100000, 999999).ToString();
+        }
+        reservation.SmartLockStatus = "Active";
+        reservation.SmartLockActivatedAtUtc = nowUtc;
         reservation.UpdatedAtUtc = nowUtc;
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -315,32 +352,41 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
         return await BuildDetailDtoAsync(reservation, snapshot, cancellationToken);
     }
 
+    private static bool HasDepositTag(string? transactionRef)
+    {
+        return !string.IsNullOrEmpty(transactionRef) &&
+               transactionRef.StartsWith("[PURPOSE:DEPOSIT]", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string ExtractUserRef(string? transactionRef)
     {
-        if (string.IsNullOrEmpty(transactionRef)) return string.Empty;
-        var byIndex = transactionRef.IndexOf("][BY:", StringComparison.Ordinal);
-        if (byIndex >= 0)
+        if (string.IsNullOrWhiteSpace(transactionRef)) return string.Empty;
+        var trimmed = transactionRef.Trim();
+
+        if (trimmed.StartsWith("[PURPOSE:DEPOSIT]", StringComparison.OrdinalIgnoreCase))
         {
-            var closeBracket = transactionRef.IndexOf(']', byIndex + 5);
-            if (closeBracket >= 0 && closeBracket + 1 < transactionRef.Length)
-            {
-                return transactionRef[(closeBracket + 1)..].Trim();
-            }
-            return string.Empty;
+            trimmed = trimmed["[PURPOSE:DEPOSIT]".Length..].TrimStart();
         }
 
-        var bareByIndex = transactionRef.IndexOf("[BY:", StringComparison.Ordinal);
-        if (bareByIndex >= 0)
+        if (trimmed.StartsWith("[IK:", StringComparison.OrdinalIgnoreCase))
         {
-            var closeBracket = transactionRef.IndexOf(']', bareByIndex + 4);
-            if (closeBracket >= 0 && closeBracket + 1 < transactionRef.Length)
+            var closing = trimmed.IndexOf(']');
+            if (closing >= 0)
             {
-                return transactionRef[(closeBracket + 1)..].Trim();
+                trimmed = trimmed[(closing + 1)..].TrimStart();
             }
-            return string.Empty;
         }
 
-        return transactionRef.Trim();
+        if (trimmed.StartsWith("[BY:", StringComparison.OrdinalIgnoreCase))
+        {
+            var closing = trimmed.IndexOf(']');
+            if (closing >= 0)
+            {
+                trimmed = trimmed[(closing + 1)..].TrimStart();
+            }
+        }
+
+        return trimmed;
     }
 
     private async Task<GuestBookingDetailDto> BuildDetailDtoAsync(
@@ -399,6 +445,8 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
             MaskedGuestPhone = PiiMaskingHelper.MaskPhone(reservation.GuestPhone),
             HoldExpiresAtUtc = snapshot.HoldExpiresAtUtc,
             SecondsRemaining = 0,
+            SmartLockPin = reservation.SmartLockPin,
+            SmartLockStatus = reservation.SmartLockStatus,
             CreatedAtUtc = reservation.CreatedAtUtc,
             Breakdown = snapshot.Breakdown ?? Array.Empty<QuoteBreakdownItemDto>()
         };

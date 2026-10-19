@@ -177,7 +177,8 @@ public sealed class CalculateQuoteQueryHandler : IRequestHandler<CalculateQuoteQ
                     Description = $"Gói {rate.FirstHours} giờ đầu tiên",
                     UnitPrice = firstHoursPrice,
                     Quantity = 1,
-                    Amount = firstHoursPrice
+                    Amount = firstHoursPrice,
+                    Category = "Room"
                 });
             }
             else
@@ -195,7 +196,8 @@ public sealed class CalculateQuoteQueryHandler : IRequestHandler<CalculateQuoteQ
                     Description = $"Gói {rate.FirstHours} giờ đầu tiên",
                     UnitPrice = firstHoursPrice,
                     Quantity = 1,
-                    Amount = firstHoursPrice
+                    Amount = firstHoursPrice,
+                    Category = "Room"
                 });
 
                 breakdown.Add(new QuoteBreakdownItemDto
@@ -203,7 +205,8 @@ public sealed class CalculateQuoteQueryHandler : IRequestHandler<CalculateQuoteQ
                     Description = $"Giờ phát sinh ({extraHours} giờ thêm)",
                     UnitPrice = additionalUnitPrice,
                     Quantity = extraHours,
-                    Amount = additionalAmount
+                    Amount = additionalAmount,
+                    Category = "Room"
                 });
             }
         }
@@ -268,7 +271,8 @@ public sealed class CalculateQuoteQueryHandler : IRequestHandler<CalculateQuoteQ
                     Description = $"Tiền phòng đêm {d:yyyy-MM-dd}",
                     UnitPrice = nightlyPrice,
                     Quantity = 1,
-                    Amount = nightlyPrice
+                    Amount = nightlyPrice,
+                    Category = "Room"
                 });
             }
 
@@ -309,7 +313,8 @@ public sealed class CalculateQuoteQueryHandler : IRequestHandler<CalculateQuoteQ
                     Description = $"Phụ thu nhận phòng sớm ({matchingPolicy.FromTime:HH\\:mm} - {matchingPolicy.ToTime:HH\\:mm})",
                     UnitPrice = surchargeAmount,
                     Quantity = 1,
-                    Amount = surchargeAmount
+                    Amount = surchargeAmount,
+                    Category = "Surcharge"
                 });
             }
 
@@ -350,7 +355,8 @@ public sealed class CalculateQuoteQueryHandler : IRequestHandler<CalculateQuoteQ
                     Description = $"Phụ thu trả phòng muộn ({matchingPolicy.FromTime:HH\\:mm} - {matchingPolicy.ToTime:HH\\:mm})",
                     UnitPrice = surchargeAmount,
                     Quantity = 1,
-                    Amount = surchargeAmount
+                    Amount = surchargeAmount,
+                    Category = "Surcharge"
                 });
             }
 

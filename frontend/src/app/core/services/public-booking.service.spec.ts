@@ -2,7 +2,7 @@ import '@angular/compiler';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Injector, runInInjectionContext } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { of } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
 import { PublicBookingService } from './public-booking.service';
 import { environment } from '../../../environments/environment';
 
@@ -43,6 +43,19 @@ describe('PublicBookingService', () => {
         params: expect.anything()
       })
     );
+  });
+
+  it('does not invent brands or aggregate review scores', async () => {
+    mockHttp.get.mockReturnValue(of([
+      { id: 'unknown', name: 'Independent hotel' },
+      { id: 'known', name: 'Branch', tenantId: 'brand-id', tenantBrandName: 'Real Brand' },
+    ]));
+    const brands = await firstValueFrom(service.getTenantBrands());
+      expect(brands).toHaveLength(1);
+      expect(brands[0].tenantId).toBe('brand-id');
+      expect(brands[0].ratingAverage).toBe(0);
+      expect(brands[0].reviewCount).toBe(0);
+      expect(brands[0].description).toBe('');
   });
 
   it('2. should call GET /public/properties/{slug} for single property details', () => {
@@ -98,6 +111,22 @@ describe('PublicBookingService', () => {
         params: expect.anything()
       })
     );
+  });
+
+  it('normalizes server availability field names without inventing capacity', () => {
+    mockHttp.get.mockReturnValue(of([{ roomTypeId: 'rt1', roomTypeName: 'Deluxe', availableRooms: 3, maxOccupancy: 4 }]));
+    service.getAvailability('hotel', { rentalType: 3, startAtUtc: '2099-10-20T07:00:00Z', endAtUtc: '2099-10-22T05:00:00Z' }).subscribe(rooms => {
+      expect(rooms[0]).toMatchObject({ availableRoomsCount: 3, maxGuests: 4, name: 'Deluxe' });
+    });
+  });
+
+  it('does not fabricate guest reviews or cancellation rules', () => {
+    mockHttp.get.mockReturnValue(of({ id: 'p', name: 'Hotel', checkInTime: '14:00:00', checkOutTime: '12:00:00' }));
+    service.getPropertyReviews('hotel').subscribe(reviews => expect(reviews).toEqual([]));
+    service.getPropertyPolicies('hotel').subscribe(policy => {
+      expect(policy.cancellationPolicy).toBe('');
+      expect(policy.earlyCheckInFeePerHour).toBeUndefined();
+    });
   });
 
   it('5. should call POST /public/quotes to calculate authoritative quote', () => {
@@ -225,7 +254,7 @@ describe('PublicBookingService with HttpTestingController (P7 Contract Regressio
         provideHttpClient(withNoXsrfProtection()),
         provideHttpClientTesting()
       ],
-      parent
+      parent as any
     );
 
     service = envInjector.get(PublicBookingService);

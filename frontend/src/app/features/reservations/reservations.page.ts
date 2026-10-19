@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, effect } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, inject, signal, computed, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Subscription } from 'rxjs';
@@ -19,9 +19,14 @@ import {
   CreateReservationRequest
 } from '../../core/models/reservation.model';
 import { RoomTypeDto } from '../../core/models/room-type.model';
+import { RoomService } from '../../core/services/room.service';
+import { RoomDto } from '../../core/models/room.model';
+import { LocationService } from '../../core/services/location.service';
+import { Province, Ward } from '../../core/models/location.model';
 import { PolicyService } from '../../core/services/policy.service';
 import { PropertyPoliciesDto } from '../../core/models/policy.model';
 import { PaymentService } from '../../core/services/payment.service';
+import { RoomStatus } from '../../core/models/enums';
 import {
   PaymentDto,
   FolioDto,
@@ -33,6 +38,7 @@ import {
   CreatePaymentRequest as CreatePaymentDtoRequest
 } from '../../core/models/payment.model';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { DateRangeFilterComponent, DateRangeFilterValue } from '../../shared/components/date-range-filter/date-range-filter.component';
 
 /** Helper to get today's date formatted as YYYY-MM-DD in Vietnam timezone (UTC+7) */
 export function getTodayVnDateString(): string {
@@ -57,10 +63,20 @@ export function addDaysToDateString(dateStr: string, days: number): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Format a YYYY-MM-DD date string to dd/MM/yyyy for Vietnamese UI presentation */
+export function formatVnDateDisplay(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
+}
+
 @Component({
   selector: 'app-reservations',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, EmptyStateComponent],
+  imports: [CommonModule, ReactiveFormsModule, EmptyStateComponent, DateRangeFilterComponent],
   template: `
     <div class="max-w-7xl mx-auto space-y-6">
       <!-- Header -->
@@ -79,14 +95,44 @@ export function addDaysToDateString(dateStr: string, days: number): string {
           </p>
         </div>
 
-        <div class="flex items-center gap-2.5">
+        <div class="flex flex-wrap items-center gap-2.5">
+          <!-- View Mode Toggle -->
+          <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs font-medium">
+            <button
+              type="button"
+              (click)="setViewMode('table')"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md transition cursor-pointer"
+              [class.bg-white]="viewMode() === 'table'"
+              [class.text-slate-800]="viewMode() === 'table'"
+              [class.shadow-xs]="viewMode() === 'table'"
+              [class.text-slate-500]="viewMode() !== 'table'"
+              title="Xem danh sách bảng đặt phòng"
+            >
+              <i class="pi pi-list"></i>
+              <span>Danh sách</span>
+            </button>
+            <button
+              type="button"
+              (click)="setViewMode('timeline')"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md transition cursor-pointer"
+              [class.bg-white]="viewMode() === 'timeline'"
+              [class.text-slate-800]="viewMode() === 'timeline'"
+              [class.shadow-xs]="viewMode() === 'timeline'"
+              [class.text-slate-500]="viewMode() !== 'timeline'"
+              title="Xem sơ đồ lịch phòng theo thời gian (Timeline Gantt Grid)"
+            >
+              <i class="pi pi-calendar"></i>
+              <span>Sơ đồ Timeline</span>
+            </button>
+          </div>
+
           <button
             type="button"
-            (click)="loadReservations()"
+            (click)="onRefreshCurrentView()"
             class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition shadow-xs cursor-pointer"
-            title="Tải lại danh sách"
+            title="Tải lại dữ liệu"
           >
-            <i class="pi pi-refresh" [class.animate-spin]="isLoading()"></i>
+            <i class="pi pi-refresh" [class.animate-spin]="isLoading() || isTimelineLoading()"></i>
             <span>Làm mới</span>
           </button>
 
@@ -115,11 +161,12 @@ export function addDaysToDateString(dateStr: string, days: number): string {
         </div>
       </div>
 
-      <!-- Filters & Search Bar -->
-      <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs space-y-3">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      @if (viewMode() === 'table') {
+        <!-- Filters & Search Bar -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs space-y-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
           <!-- Search box -->
-          <div>
+          <div class="lg:col-span-3">
             <label class="block text-xs font-medium text-slate-600 mb-1">Tìm kiếm</label>
             <div class="relative">
               <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
@@ -128,18 +175,18 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                 [value]="searchQuery()"
                 (input)="onSearchInput($event)"
                 placeholder="Mã đặt phòng, tên khách, SĐT, số phòng..."
-                class="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                class="w-full pl-8 pr-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
               />
             </div>
           </div>
 
           <!-- Status filter -->
-          <div>
+          <div class="lg:col-span-3">
             <label class="block text-xs font-medium text-slate-600 mb-1">Trạng thái</label>
             <select
               [value]="selectedStatus() ?? ''"
               (change)="onStatusChange($event)"
-              class="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+              class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
             >
               <option value="">Tất cả trạng thái</option>
               <option [value]="ReservationStatus.Confirmed">Đã xác nhận</option>
@@ -151,25 +198,13 @@ export function addDaysToDateString(dateStr: string, days: number): string {
             </select>
           </div>
 
-          <!-- Date from -->
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Từ ngày</label>
-            <input
-              type="date"
-              [value]="dateFrom()"
-              (change)="onDateFromChange($event)"
-              class="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
-            />
-          </div>
-
-          <!-- Date to -->
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Đến ngày</label>
-            <input
-              type="date"
-              [value]="dateTo()"
-              (change)="onDateToChange($event)"
-              class="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+          <!-- Formatted Date Range Filter Component -->
+          <div class="sm:col-span-2 lg:col-span-6">
+            <app-date-range-filter
+              label="Ngày lưu trú"
+              [initialFromDate]="dateFrom()"
+              [initialToDate]="dateTo()"
+              (filterChange)="onDateRangeFilterChange($event)"
             />
           </div>
         </div>
@@ -307,9 +342,9 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                             <button
                               type="button"
                               [disabled]="actionReservationId() === res.id || isActionLoading()"
-                              (click)="onCheckIn(res)"
+                              (click)="openCheckInModal(res)"
                               class="px-2.5 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 disabled:opacity-50 rounded-md transition cursor-pointer flex items-center gap-1"
-                              title="Thực hiện nhận phòng"
+                              title="Mở thủ tục nhận phòng"
                             >
                               <i class="pi pi-sign-in text-[10px]" [class.animate-spin]="actionReservationId() === res.id"></i>
                               <span>Nhận phòng</span>
@@ -319,9 +354,9 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                             <button
                               type="button"
                               [disabled]="actionReservationId() === res.id || isActionLoading()"
-                              (click)="onCheckOut(res)"
+                              (click)="openCheckOutModal(res)"
                               class="px-2.5 py-1 text-[11px] font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 disabled:opacity-50 rounded-md transition cursor-pointer flex items-center gap-1"
-                              title="Thực hiện trả phòng"
+                              title="Mở thủ tục trả phòng"
                             >
                               <i class="pi pi-sign-out text-[10px]" [class.animate-spin]="actionReservationId() === res.id"></i>
                               <span>Trả phòng</span>
@@ -377,33 +412,280 @@ export function addDaysToDateString(dateStr: string, days: number): string {
           </div>
         </div>
       }
+      }
+
+      <!-- SƠ ĐỒ LỊCH PHÒNG THEO THỜI GIAN (ROOM TIMELINE / GANTT GRID) -->
+      @if (viewMode() === 'timeline') {
+        <div class="space-y-4">
+          <!-- Timeline Controls Bar -->
+          <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <!-- Left: Navigation & Date Picker -->
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                (click)="goToToday()"
+                class="px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition border border-emerald-200 cursor-pointer"
+              >
+                Hôm nay
+              </button>
+
+              <div class="inline-flex rounded-lg border border-slate-200 bg-white shadow-2xs">
+                <button
+                  type="button"
+                  (click)="goToPreviousDays()"
+                  class="px-2.5 py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition rounded-l-lg border-r border-slate-200 cursor-pointer"
+                  title="Khoảng thời gian trước"
+                >
+                  <i class="pi pi-chevron-left text-xs"></i>
+                </button>
+                <button
+                  type="button"
+                  (click)="goToNextDays()"
+                  class="px-2.5 py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition rounded-r-lg cursor-pointer"
+                  title="Khoảng thời gian tiếp theo"
+                >
+                  <i class="pi pi-chevron-right text-xs"></i>
+                </button>
+              </div>
+
+              <!-- Start Date Picker -->
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs text-slate-500 font-medium">Từ ngày:</span>
+                <input
+                  type="date"
+                  [value]="timelineStartDate()"
+                  (change)="onTimelineStartDateChange($event)"
+                  class="px-2.5 py-1 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                />
+              </div>
+
+              <!-- Duration Selector -->
+              <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs font-medium">
+                <button
+                  type="button"
+                  (click)="setTimelineDaysCount(7)"
+                  class="px-2.5 py-1 rounded-md transition cursor-pointer"
+                  [class.bg-white]="timelineDaysCount() === 7"
+                  [class.text-slate-800]="timelineDaysCount() === 7"
+                  [class.shadow-xs]="timelineDaysCount() === 7"
+                  [class.text-slate-500]="timelineDaysCount() !== 7"
+                >
+                  7 ngày
+                </button>
+                <button
+                  type="button"
+                  (click)="setTimelineDaysCount(14)"
+                  class="px-2.5 py-1 rounded-md transition cursor-pointer"
+                  [class.bg-white]="timelineDaysCount() === 14"
+                  [class.text-slate-800]="timelineDaysCount() === 14"
+                  [class.shadow-xs]="timelineDaysCount() === 14"
+                  [class.text-slate-500]="timelineDaysCount() !== 14"
+                >
+                  14 ngày
+                </button>
+              </div>
+            </div>
+
+            <!-- Right: Filter by floor & room type -->
+            <div class="flex flex-wrap items-center gap-2">
+              <select
+                [value]="timelineFloorFilter() ?? ''"
+                (change)="onTimelineFloorChange($event)"
+                class="px-2.5 py-1 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-white text-slate-700"
+              >
+                <option value="">Tất cả các tầng</option>
+                @for (floor of timelineFloors(); track floor) {
+                  <option [value]="floor">Tầng {{ floor }}</option>
+                }
+              </select>
+
+              <select
+                [value]="timelineRoomTypeFilter() ?? ''"
+                (change)="onTimelineRoomTypeChange($event)"
+                class="px-2.5 py-1 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-white text-slate-700"
+              >
+                <option value="">Tất cả loại phòng</option>
+                @for (rt of roomTypes(); track rt.id) {
+                  <option [value]="rt.id">{{ rt.name }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <!-- Timeline Legend -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-600 px-1">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="font-semibold text-slate-700">Trạng thái:</span>
+              <span class="inline-flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                <span>Đã xác nhận</span>
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                <span>Đang lưu trú</span>
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                <span>Chờ thanh toán</span>
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                <span>Đã trả phòng</span>
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-orange-400"></span>
+                <span>Theo giờ</span>
+              </span>
+            </div>
+
+            <div class="text-slate-500 text-[11px] flex items-center gap-1">
+              <i class="pi pi-info-circle text-emerald-600"></i>
+              <span>Nhấp vào ô trống để đặt phòng nhanh cho ngày đó. Nhấp vào đơn để xem chi tiết.</span>
+            </div>
+          </div>
+
+          <!-- Timeline Gantt Grid Container -->
+          @if (isTimelineLoading()) {
+            <div class="bg-white p-12 rounded-xl border border-slate-200/80 shadow-xs flex flex-col items-center justify-center space-y-3">
+              <div class="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+              <span class="text-xs text-slate-500">Đang tải dữ liệu sơ đồ phòng...</span>
+            </div>
+          } @else if (filteredTimelineRooms().length === 0) {
+            <app-empty-state
+              title="Không có phòng nào phù hợp"
+              description="Hiện tại không có phòng nào trong danh mục hoặc không khớp với bộ lọc tầng/loại phòng đã chọn."
+              icon="pi pi-building"
+            ></app-empty-state>
+          } @else {
+            <div class="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
+              <div class="overflow-x-auto">
+                <table class="w-full border-collapse text-xs select-none">
+                  <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-700">
+                      <!-- Room header cell (Sticky left) -->
+                      <th class="py-3 px-3 min-w-[150px] max-w-[170px] sticky left-0 z-20 bg-slate-100 border-r border-slate-200 text-left font-bold text-slate-800">
+                        Phòng / Tầng
+                      </th>
+
+                      <!-- Date header cells -->
+                      @for (col of timelineDates(); track col.dateStr) {
+                        <th
+                          class="py-2.5 px-2 text-center min-w-[110px] border-r border-slate-200 font-semibold"
+                          [class.bg-emerald-50]="col.isToday"
+                          [class.text-emerald-800]="col.isToday"
+                          [class.bg-slate-50]="!col.isToday && !col.isWeekend"
+                          [class.bg-slate-100/70]="!col.isToday && col.isWeekend"
+                        >
+                          <div class="text-[10px] uppercase font-bold tracking-wider" [class.text-emerald-700]="col.isToday" [class.text-slate-500]="!col.isToday">
+                            {{ col.dayOfWeek }}
+                          </div>
+                          <div class="text-xs font-bold mt-0.5 flex items-center justify-center gap-1">
+                            <span>{{ col.dayNumber }}/{{ col.month }}</span>
+                            @if (col.isToday) {
+                              <span class="w-1.5 h-1.5 rounded-full bg-emerald-600" title="Hôm nay"></span>
+                            }
+                          </div>
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+
+                  <tbody class="divide-y divide-slate-100">
+                    @for (room of filteredTimelineRooms(); track room.id) {
+                      <tr class="hover:bg-slate-50/50 transition-colors">
+                        <!-- Sticky Room Label Column -->
+                        <td class="py-2.5 px-3 sticky left-0 z-10 bg-white border-r border-slate-200 shadow-2xs">
+                          <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-800 text-xs">P.{{ room.roomNumber }}</span>
+                            <span class="text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">T{{ room.floor }}</span>
+                          </div>
+                          <div class="text-[10px] text-slate-500 truncate max-w-[125px]" [title]="room.roomTypeName">
+                            {{ room.roomTypeName }}
+                          </div>
+                        </td>
+
+                        <!-- Date Cells for this room -->
+                        @for (col of timelineDates(); track col.dateStr) {
+                          <td
+                            class="p-1 border-r border-slate-200/80 align-top h-14 relative group transition-colors"
+                            [class.bg-emerald-50/20]="col.isToday"
+                          >
+                            @let bookings = getRoomBookingsForDate(room.id, col.dateStr);
+
+                            @if (bookings.length > 0) {
+                              <div class="space-y-1">
+                                @for (b of bookings; track b.id) {
+                                  <div
+                                    (click)="viewDetails(b)"
+                                    [title]="getBookingTooltip(b)"
+                                    class="p-1.5 rounded-md text-[10px] font-semibold transition cursor-pointer shadow-xs truncate flex flex-col justify-between"
+                                    [ngClass]="getTimelineBookingBadgeClass(b, col.dateStr)"
+                                  >
+                                    <div class="flex items-center justify-between gap-1">
+                                      <span class="truncate font-bold">{{ b.guestName }}</span>
+                                      @if (b.rentalType === RentalType.Hourly) {
+                                        <i class="pi pi-clock text-[9px]"></i>
+                                      }
+                                    </div>
+                                    <div class="text-[9px] opacity-90 truncate">
+                                      @if (b.rentalType === RentalType.Hourly) {
+                                        {{ formatUtcTime(b.startAtUtc) }} - {{ formatUtcTime(b.endAtUtc) }}
+                                      } @else {
+                                        {{ b.confirmationCode }}
+                                      }
+                                    </div>
+                                  </div>
+                                }
+                              </div>
+                            } @else {
+                              <!-- Free Cell -> Click to Quick Book -->
+                              <button
+                                type="button"
+                                (click)="openCreateModalWithPrefill(room, col.dateStr)"
+                                class="w-full h-full min-h-[44px] rounded-md border border-dashed border-transparent hover:border-emerald-300 hover:bg-emerald-50/60 transition flex items-center justify-center text-slate-300 hover:text-emerald-700 cursor-pointer"
+                                [title]="'Đặt nhanh phòng ' + room.roomNumber + ' cho ngày ' + col.dateStr"
+                              >
+                                <i class="pi pi-plus text-xs opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                              </button>
+                            }
+                          </td>
+                        }
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          }
+        </div>
+      }
 
       <!-- MODAL 1: VIEW RESERVATION DETAILS (IMMUTABLE SNAPSHOT) -->
       @if (selectedReservationDetail(); as detail) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div class="bg-white w-full max-w-2xl rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <dialog #detailDialog (cancel)="closeDetailModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(54rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-hidden bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
+          <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <!-- Modal Header -->
-            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between">
               <div>
                 <div class="flex items-center gap-2">
-                  <h3 class="text-base font-bold text-slate-800">Chi tiết đơn đặt phòng</h3>
-                  <span class="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  <h3 class="text-base font-bold text-slate-900">Chi tiết đơn đặt phòng</h3>
+                  <span class="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
                     {{ detail.confirmationCode }}
                   </span>
                 </div>
-                <p class="text-xs text-slate-500 mt-0.5">Bản chụp snapshot giá và chính sách bất biến tại thời điểm đặt.</p>
+                <p class="text-xs text-slate-500 mt-1">Bản chụp snapshot giá và chính sách bất biến tại thời điểm đặt.</p>
               </div>
               <button
                 type="button"
                 (click)="closeDetailModal()"
-                class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
               >
                 <i class="pi pi-times text-sm"></i>
               </button>
             </div>
 
             <!-- Modal Body -->
-            <div class="p-6 space-y-5 max-h-[75vh] overflow-y-auto text-xs">
+            <div class="p-6 space-y-5 max-h-[calc(100dvh-10rem)] overflow-y-auto overflow-x-hidden text-xs">
               <!-- Customer & Room Info Cards -->
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80 space-y-1.5">
@@ -447,7 +729,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                   <span class="text-[11px] text-slate-400 font-medium">Đơn vị: VND</span>
                 </div>
 
-                <div class="border border-slate-200 rounded-xl overflow-hidden">
+                <div class="border border-slate-200 rounded-xl overflow-x-auto">
                   <table class="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr class="bg-slate-100/80 border-b border-slate-200 text-slate-600 font-semibold">
@@ -528,15 +810,22 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                       </div>
                     }
                   } @else {
-                    <div class="py-3 px-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500 text-center">
-                      Không thể tải thông tin công nợ. Vui lòng thử lại.
+                    <div class="py-3 px-4 bg-rose-50 rounded-xl border border-rose-200 text-xs text-rose-800 text-center flex items-center justify-between gap-2">
+                      <span>Không thể tải thông tin công nợ Folio.</span>
+                      <button
+                        type="button"
+                        (click)="loadFolio(detail.id, detail.propertyId)"
+                        class="px-2.5 py-1 text-xs font-semibold text-rose-700 bg-white border border-rose-300 hover:bg-rose-100 rounded-lg transition shrink-0 cursor-pointer"
+                      >
+                        Thử lại
+                      </button>
                     </div>
                   }
 
                   <!-- Payment Audit History Table -->
                   @if (folio(); as f) {
                     @if (f.reservationId === detail.id && f.payments?.length) {
-                      <div class="border border-slate-200 rounded-xl overflow-hidden">
+                      <div class="border border-slate-200 rounded-xl overflow-x-auto">
                         <div class="bg-slate-100/70 px-3 py-1.5 font-semibold text-[11px] text-slate-700 border-b border-slate-200">
                           Lịch sử thu tiền & đặt cọc
                         </div>
@@ -689,7 +978,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                       <button
                         type="button"
                         [disabled]="isActionLoading()"
-                        (click)="onCheckIn(detail)"
+                        (click)="openCheckInModal(detail)"
                         class="px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
                       >
                         <i class="pi pi-sign-in" [class.animate-spin]="isActionLoading()"></i>
@@ -699,10 +988,10 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                     @if (detail.status === ReservationStatus.CheckedIn) {
                       <button
                         type="button"
-                        [disabled]="isActionLoading() || (folio()?.reservationId === detail.id && (folio()?.remainingBalance ?? 0) > 0)"
-                        (click)="onCheckOut(detail)"
+                        [disabled]="isActionLoading()"
+                        (click)="openCheckOutModal(detail)"
                         class="px-3.5 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
-                        [title]="(folio()?.reservationId === detail.id && (folio()?.remainingBalance ?? 0) > 0) ? 'Đơn còn dư nợ, vui lòng thu đủ tiền trước khi trả phòng' : 'Trả phòng'"
+                        title="Trả phòng"
                       >
                         <i class="pi pi-sign-out" [class.animate-spin]="isActionLoading()"></i>
                         <span>Trả phòng</span>
@@ -739,18 +1028,23 @@ export function addDaysToDateString(dateStr: string, days: number): string {
               </button>
             </div>
           </div>
-        </div>
+        </dialog>
       }
 
       <!-- MODAL 2: CREATE NEW RESERVATION -->
       @if (isCreateModalOpen()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div class="bg-white w-full max-w-3xl rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <dialog #createDialog (cancel)="closeCreateModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(64rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
+          <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <!-- Modal Header -->
-            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between">
               <div>
-                <h3 class="text-base font-bold text-slate-800">Tạo đặt phòng mới (Nội bộ)</h3>
-                <p class="text-xs text-slate-500 mt-0.5">
+                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <i class="pi pi-calendar-plus text-sm"></i>
+                  </div>
+                  <span>Tạo đặt phòng mới (Nội bộ)</span>
+                </h3>
+                <p class="text-xs text-slate-500 mt-1">
                   Chi nhánh: <b class="text-slate-700">{{ activeProperty()?.name }}</b>.
                   Chọn thời gian, tính giá thật và phân phòng vật lý.
                 </p>
@@ -758,7 +1052,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
               <button
                 type="button"
                 (click)="closeCreateModal()"
-                class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
               >
                 <i class="pi pi-times text-sm"></i>
               </button>
@@ -771,7 +1065,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                 <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">1. Hình thức & Thời gian lưu trú</div>
 
                 <!-- Rental Type Radios -->
-                <div class="flex items-center gap-4">
+                <div class="flex flex-wrap items-center gap-4">
                   <label class="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
@@ -793,22 +1087,38 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                     />
                     <span class="font-semibold text-slate-800">Thuê theo giờ</span>
                   </label>
+
+                  <button
+                    type="button"
+                    (click)="applyDayUsePreset()"
+                    class="px-2.5 py-1 rounded-md text-[11px] font-semibold border transition flex items-center gap-1 cursor-pointer"
+                    [class.bg-amber-100]="isDayUsePresetActive()"
+                    [class.border-amber-300]="isDayUsePresetActive()"
+                    [class.text-amber-900]="isDayUsePresetActive()"
+                    [class.bg-slate-100]="!isDayUsePresetActive()"
+                    [class.border-slate-200]="!isDayUsePresetActive()"
+                    [class.text-slate-600]="!isDayUsePresetActive()"
+                    title="Cài đặt nhanh thuê theo giờ trong ngày (08:00 đến 18:00)"
+                  >
+                    <i class="pi pi-sun text-amber-500"></i>
+                    <span>Trong ngày (Day-use: 08:00 - 18:00)</span>
+                  </button>
                 </div>
 
                 <!-- Overnight date inputs -->
                 @if (createForm.get('rentalType')?.value === RentalType.Overnight) {
                   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div>
-                      <label class="block text-xs font-medium text-slate-700 mb-1">Ngày nhận phòng *</label>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Ngày nhận phòng *</label>
                       <input
                         type="date"
                         formControlName="checkInDate"
                         (change)="onScheduleInputsChanged()"
-                        class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                        class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                       />
                     </div>
                     <div>
-                      <label class="block text-xs font-medium text-slate-700 mb-1">
+                      <label class="block text-xs font-bold text-slate-700 mb-1">
                         Giờ nhận phòng *
                         @if (branchPolicies()?.checkInTime) {
                           <span class="text-[10px] text-emerald-600 font-normal ml-1">(Chuẩn: {{ branchPolicies()?.checkInTime?.slice(0, 5) }})</span>
@@ -820,20 +1130,20 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                         type="time"
                         formControlName="checkInTime"
                         (change)="onScheduleInputsChanged()"
-                        class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                        class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                       />
                     </div>
                     <div>
-                      <label class="block text-xs font-medium text-slate-700 mb-1">Ngày trả phòng *</label>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Ngày trả phòng *</label>
                       <input
                         type="date"
                         formControlName="checkOutDate"
                         (change)="onScheduleInputsChanged()"
-                        class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                        class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                       />
                     </div>
                     <div>
-                      <label class="block text-xs font-medium text-slate-700 mb-1">
+                      <label class="block text-xs font-bold text-slate-700 mb-1">
                         Giờ trả phòng *
                         @if (branchPolicies()?.checkOutTime) {
                           <span class="text-[10px] text-emerald-600 font-normal ml-1">(Chuẩn: {{ branchPolicies()?.checkOutTime?.slice(0, 5) }})</span>
@@ -845,7 +1155,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                         type="time"
                         formControlName="checkOutTime"
                         (change)="onScheduleInputsChanged()"
-                        class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                        class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                       />
                     </div>
                   </div>
@@ -853,30 +1163,30 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                   <!-- Hourly inputs -->
                   <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label class="block text-xs font-medium text-slate-700 mb-1">Ngày thuê *</label>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Ngày thuê *</label>
                       <input
                         type="date"
                         formControlName="hourlyDate"
                         (change)="onScheduleInputsChanged()"
-                        class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                        class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                       />
                     </div>
                     <div>
-                      <label class="block text-xs font-medium text-slate-700 mb-1">Giờ bắt đầu *</label>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Giờ bắt đầu *</label>
                       <input
                         type="time"
                         formControlName="hourlyStartTime"
                         (change)="onScheduleInputsChanged()"
-                        class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                        class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                       />
                     </div>
                     <div>
-                      <label class="block text-xs font-medium text-slate-700 mb-1">Giờ kết thúc *</label>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Giờ kết thúc *</label>
                       <input
                         type="time"
                         formControlName="hourlyEndTime"
                         (change)="onScheduleInputsChanged()"
-                        class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                        class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                       />
                     </div>
                   </div>
@@ -888,11 +1198,11 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                 <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">2. Loại phòng & Kiểm tra phòng trống</div>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                   <div class="sm:col-span-2">
-                    <label class="block text-xs font-medium text-slate-700 mb-1">Loại phòng *</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Loại phòng *</label>
                     <select
                       formControlName="roomTypeId"
                       (change)="onRoomTypeSelected()"
-                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-semibold"
                     >
                       <option value="">-- Chọn loại phòng --</option>
                       @for (rt of roomTypes(); track rt.id) {
@@ -938,44 +1248,76 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                           <span class="font-medium">{{ item.amount | number:'1.0-0' }} đ</span>
                         </div>
                       }
+                      <div class="pt-2 mt-1 flex justify-between items-center text-xs text-amber-900 font-bold border-t border-emerald-200">
+                        <span class="flex items-center gap-1.5">
+                          <i class="pi pi-shield text-amber-600"></i>
+                          <span>Tiền cọc yêu cầu giữ chỗ (50%):</span>
+                        </span>
+                        <span class="text-emerald-700 font-extrabold">{{ estimatedDeposit() | number:'1.0-0' }} đ</span>
+                      </div>
                     </div>
                   </div>
                 }
 
-                <!-- Physical Room Selection -->
+                <!-- Physical Room Selection (Grouped by Floor) -->
                 @if (availableRooms().length > 0) {
-                  <div class="space-y-1.5">
-                    <label class="block text-xs font-medium text-slate-700">
-                      Chọn phòng vật lý cụ thể *
-                      <span class="text-[11px] font-normal text-slate-500">({{ availableCount() }} phòng khả dụng)</span>
-                    </label>
+                  <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                      <label class="block text-xs font-medium text-slate-700">
+                        Chọn phòng vật lý cụ thể *
+                        <span class="text-[11px] font-normal text-slate-500">({{ availableCount() }} phòng khả dụng)</span>
+                      </label>
+                      <span class="text-[10px] text-slate-400">Gom nhóm theo tầng lầu</span>
+                    </div>
 
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      @for (r of availableRooms(); track r.roomId) {
-                        <button
-                          type="button"
-                          [disabled]="!r.isAvailable"
-                          (click)="selectRoom(r)"
-                          class="p-2.5 rounded-lg border text-left transition flex flex-col justify-between cursor-pointer"
-                          [class.border-emerald-600]="selectedRoomId() === r.roomId"
-                          [class.bg-emerald-50]="selectedRoomId() === r.roomId"
-                          [class.border-slate-200]="selectedRoomId() !== r.roomId && r.isAvailable"
-                          [class.bg-white]="selectedRoomId() !== r.roomId && r.isAvailable"
-                          [class.opacity-40]="!r.isAvailable"
-                          [class.cursor-not-allowed]="!r.isAvailable"
-                          [class.bg-slate-100]="!r.isAvailable"
-                          [title]="r.conflictReason || 'Phòng sẵn sàng'"
-                        >
-                          <div class="flex items-center justify-between">
-                            <span class="font-bold text-sm text-slate-800">Phòng {{ r.roomNumber }}</span>
-                            @if (selectedRoomId() === r.roomId) {
-                              <i class="pi pi-check text-xs text-emerald-700"></i>
+                    <div class="space-y-2.5">
+                      @for (fg of availableRoomsByFloor(); track fg.floor) {
+                        <div class="p-2.5 rounded-lg border border-slate-200/80 bg-slate-50/60 space-y-1.5">
+                          <div class="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+                            <span class="flex items-center gap-1.5">
+                              <i class="pi pi-building text-slate-400 text-xs"></i>
+                              Tầng {{ fg.floor }}
+                            </span>
+                            <span
+                              class="text-[10px] px-1.5 py-0.5 rounded font-normal"
+                              [class.bg-emerald-100]="fg.availableCount > 0"
+                              [class.text-emerald-800]="fg.availableCount > 0"
+                              [class.bg-slate-200]="fg.availableCount === 0"
+                              [class.text-slate-600]="fg.availableCount === 0"
+                            >
+                              {{ fg.availableCount }}/{{ fg.totalCount }} phòng trống
+                            </span>
+                          </div>
+
+                          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            @for (r of fg.rooms; track r.roomId) {
+                              <button
+                                type="button"
+                                [disabled]="!r.isAvailable"
+                                (click)="selectRoom(r)"
+                                class="p-2.5 rounded-lg border text-left transition flex flex-col justify-between cursor-pointer"
+                                [class.border-emerald-600]="selectedRoomId() === r.roomId"
+                                [class.bg-emerald-50]="selectedRoomId() === r.roomId"
+                                [class.border-slate-200]="selectedRoomId() !== r.roomId && r.isAvailable"
+                                [class.bg-white]="selectedRoomId() !== r.roomId && r.isAvailable"
+                                [class.opacity-40]="!r.isAvailable"
+                                [class.cursor-not-allowed]="!r.isAvailable"
+                                [class.bg-slate-100]="!r.isAvailable"
+                                [title]="r.conflictReason || 'Phòng sẵn sàng'"
+                              >
+                                <div class="flex items-center justify-between">
+                                  <span class="font-bold text-sm text-slate-800">Phòng {{ r.roomNumber }}</span>
+                                  @if (selectedRoomId() === r.roomId) {
+                                    <i class="pi pi-check text-xs text-emerald-700"></i>
+                                  }
+                                </div>
+                                <div class="text-[10px] text-slate-500 mt-1">
+                                  Tầng {{ r.floor }} • {{ r.isAvailable ? 'Sẵn sàng' : 'Bận' }}
+                                </div>
+                              </button>
                             }
                           </div>
-                          <div class="text-[10px] text-slate-500 mt-1">
-                            Tầng {{ r.floor }} • {{ r.isAvailable ? 'Sẵn sàng' : 'Bận' }}
-                          </div>
-                        </button>
+                        </div>
                       }
                     </div>
                   </div>
@@ -986,56 +1328,126 @@ export function addDaysToDateString(dateStr: string, days: number): string {
               <div class="space-y-3 pt-2 border-t border-slate-100">
                 <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">3. Thông tin khách hàng & Ghi chú</div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                   <div>
-                    <label class="block text-xs font-medium text-slate-700 mb-1">Họ và tên khách hàng *</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">Họ và tên khách hàng *</label>
                     <input
                       type="text"
                       formControlName="guestName"
                       placeholder="Ví dụ: Nguyễn Văn A"
-                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                     />
                   </div>
 
                   <div>
-                    <label class="block text-xs font-medium text-slate-700 mb-1">Email *</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">Email *</label>
                     <input
                       type="email"
                       formControlName="guestEmail"
                       placeholder="khachhang@example.com"
-                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                     />
                   </div>
 
                   <div>
-                    <label class="block text-xs font-medium text-slate-700 mb-1">Số điện thoại</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">Số điện thoại</label>
                     <input
                       type="tel"
                       formControlName="guestPhone"
                       placeholder="0912 345 678"
-                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                     />
                   </div>
 
                   <div>
-                    <label class="block text-xs font-medium text-slate-700 mb-1">Số lượng khách *</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">CCCD / Hộ chiếu</label>
+                    <input
+                      type="text"
+                      formControlName="identityNumber"
+                      placeholder="079... hoặc số Passport"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">Quốc tịch</label>
+                    <input
+                      type="text"
+                      formControlName="nationality"
+                      placeholder="Việt Nam"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">Số lượng khách *</label>
                     <input
                       type="number"
                       min="1"
                       max="10"
                       formControlName="numberOfGuests"
-                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-bold"
+                    />
+                  </div>
+
+                  <!-- 2-level Administrative Hierarchy: Province -> Ward -->
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                      <span>Tỉnh / Thành phố</span>
+                      @if (isLoadingProvinces()) {
+                        <i class="pi pi-spin pi-spinner text-slate-400 text-[10px]"></i>
+                      }
+                    </label>
+                    <select
+                      formControlName="provinceCode"
+                      (change)="onProvinceChange($event)"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
+                    >
+                      <option value="">-- Chọn Tỉnh / Thành phố --</option>
+                      @for (prov of provinces(); track prov.code) {
+                        <option [value]="prov.code">{{ prov.name }}</option>
+                      }
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                      <span>Phường / Xã</span>
+                      @if (isLoadingWards()) {
+                        <i class="pi pi-spin pi-spinner text-slate-400 text-[10px]"></i>
+                      }
+                    </label>
+                    <select
+                      formControlName="wardCode"
+                      (change)="onWardChange($event)"
+                      [disabled]="!createForm.get('provinceCode')?.value || isLoadingWards()"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs disabled:bg-slate-100 disabled:opacity-60 font-medium"
+                    >
+                      <option value="">-- Chọn Phường / Xã --</option>
+                      @for (w of wards(); track w.code) {
+                        <option [value]="w.code">{{ w.name }}</option>
+                      }
+                    </select>
+                  </div>
+
+                  <div class="sm:col-span-2 lg:col-span-1">
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">Địa chỉ chi tiết</label>
+                    <input
+                      type="text"
+                      formControlName="addressDetail"
+                      placeholder="Số nhà, tên đường..."
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label class="block text-xs font-medium text-slate-700 mb-1">Ghi chú đặt phòng</label>
+                  <label class="block text-xs font-bold text-slate-700 mb-1.5">Ghi chú đặt phòng</label>
                   <textarea
                     rows="2"
                     formControlName="customerNotes"
                     placeholder="Yêu cầu riêng của khách (ví dụ: tầng cao, check-in muộn)..."
-                    class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                    class="w-full p-3 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs"
                   ></textarea>
                 </div>
               </div>
@@ -1045,7 +1457,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                 <button
                   type="button"
                   (click)="closeCreateModal()"
-                  class="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition cursor-pointer"
+                  class="px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition cursor-pointer"
                 >
                   Hủy
                 </button>
@@ -1053,7 +1465,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                 <button
                   type="submit"
                   [disabled]="isSubmitting() || !canSubmitCreate()"
-                  class="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition shadow-xs shadow-emerald-600/30 flex items-center gap-1.5 cursor-pointer"
+                  class="px-5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition shadow-sm shadow-emerald-600/30 flex items-center gap-2 cursor-pointer"
                 >
                   <i class="pi pi-check" [class.animate-spin]="isSubmitting()"></i>
                   <span>Xác nhận tạo đặt phòng</span>
@@ -1061,54 +1473,56 @@ export function addDaysToDateString(dateStr: string, days: number): string {
               </div>
             </form>
           </div>
-        </div>
+        </dialog>
       }
 
       <!-- MODAL 3: CANCEL RESERVATION -->
       @if (cancelModalReservation(); as targetRes) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div class="bg-white w-full max-w-md rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div class="px-6 py-4 bg-rose-50 border-b border-rose-200 flex items-center justify-between">
+        <dialog #cancelDialog (cancel)="closeCancelModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(30rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
+          <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div class="px-6 py-4 bg-rose-50/80 border-b border-rose-100 flex items-center justify-between">
               <div class="flex items-center gap-2">
-                <i class="pi pi-exclamation-circle text-rose-600 text-lg"></i>
+                <div class="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <i class="pi pi-exclamation-circle text-base"></i>
+                </div>
                 <h3 class="text-base font-bold text-rose-950">Xác nhận hủy đặt phòng</h3>
               </div>
               <button
                 type="button"
                 (click)="closeCancelModal()"
-                class="text-rose-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-100 transition cursor-pointer"
+                class="w-8 h-8 rounded-xl flex items-center justify-center text-rose-400 hover:text-rose-700 hover:bg-rose-100 transition cursor-pointer"
               >
                 <i class="pi pi-times text-sm"></i>
               </button>
             </div>
 
             <div class="p-6 space-y-4 text-xs">
-              <p class="text-slate-600">
-                Bạn có chắc chắn muốn hủy đơn đặt phòng <span class="font-bold text-slate-800">{{ targetRes.confirmationCode }}</span> của khách <span class="font-bold text-slate-800">{{ targetRes.guestName }}</span>?
+              <p class="text-slate-600 leading-relaxed">
+                Bạn có chắc chắn muốn hủy đơn đặt phòng <span class="font-bold text-slate-900 font-mono">{{ targetRes.confirmationCode }}</span> của khách <span class="font-bold text-slate-900">{{ targetRes.guestName }}</span>?
               </p>
-              <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 space-y-1">
-                <div>Phòng: <span class="font-bold text-slate-800">{{ targetRes.roomNumber }}</span> ({{ targetRes.roomTypeName }})</div>
-                <div>Ngày: {{ targetRes.checkInDate }} @if (targetRes.rentalType === RentalType.Overnight) { ➔ {{ targetRes.checkOutDate }} }</div>
+              <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-slate-700 space-y-1.5">
+                <div>Phòng: <span class="font-bold text-slate-800">Phòng {{ targetRes.roomNumber }}</span> ({{ targetRes.roomTypeName }})</div>
+                <div>Thời gian: <span class="font-medium text-slate-800">{{ targetRes.checkInDate }}</span> @if (targetRes.rentalType === RentalType.Overnight) { ➔ <span class="font-medium text-slate-800">{{ targetRes.checkOutDate }}</span> }</div>
               </div>
 
               <div>
-                <label class="block text-xs font-medium text-slate-700 mb-1">Lý do hủy đặt phòng</label>
+                <label class="block text-xs font-bold text-slate-700 mb-1.5">Lý do hủy đặt phòng</label>
                 <textarea
                   [value]="cancellationReasonInput()"
                   (input)="onCancellationReasonInput($event)"
                   rows="3"
                   placeholder="Nhập lý do khách hủy hoặc ghi chú hủy phòng..."
-                  class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600 bg-white"
+                  class="w-full p-3 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600 bg-white shadow-2xs"
                 ></textarea>
               </div>
             </div>
 
-            <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5">
+            <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
               <button
                 type="button"
                 [disabled]="isActionLoading()"
                 (click)="closeCancelModal()"
-                class="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                class="px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition cursor-pointer"
               >
                 Quay lại
               </button>
@@ -1116,35 +1530,296 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                 type="button"
                 [disabled]="isActionLoading()"
                 (click)="confirmCancelReservation()"
-                class="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-50 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                class="px-5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-50 rounded-xl transition shadow-sm shadow-rose-600/30 flex items-center gap-2 cursor-pointer"
               >
                 <i class="pi pi-times-circle" [class.animate-spin]="isActionLoading()"></i>
                 <span>Xác nhận hủy</span>
               </button>
             </div>
           </div>
-        </div>
+        </dialog>
+      }
+
+      <!-- MODAL: CHECK-IN (XÁC NHẬN NHẬN PHÒNG & ĐỐI CHIẾU CCCD) -->
+      @if (isCheckInModalOpen()) {
+        @if (checkInModalReservation(); as res) {
+          <dialog #checkInDialog (cancel)="closeCheckInModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(42rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
+            <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <i class="pi pi-sign-in text-sm"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-base font-bold text-slate-900">Thủ tục nhận phòng (Check-in)</h3>
+                    <span class="font-mono text-xs font-bold text-emerald-700">Mã: {{ res.confirmationCode }}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  (click)="closeCheckInModal()"
+                  class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  <i class="pi pi-times text-sm"></i>
+                </button>
+              </div>
+
+              <div class="p-6 space-y-4 text-xs">
+                <!-- Room & Guest Info Card -->
+                <div class="grid grid-cols-2 gap-3.5 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <div>
+                    <span class="text-slate-400 text-[11px] block font-medium">Khách hàng</span>
+                    <span class="font-bold text-slate-900 text-sm">{{ res.guestName }}</span>
+                    <span class="text-slate-500 text-[11px] block mt-0.5">{{ res.guestPhone || 'Không có SĐT' }}</span>
+                  </div>
+                  <div>
+                    <span class="text-slate-400 text-[11px] block font-medium">Phòng được giao</span>
+                    <span class="font-bold text-emerald-800 text-sm">Phòng {{ res.roomNumber }}</span>
+                    <span class="text-slate-500 text-[11px] block mt-0.5">{{ res.roomTypeName }}</span>
+                  </div>
+                  <div>
+                    <span class="text-slate-400 text-[11px] block font-medium">Thời gian nhận</span>
+                    <span class="font-semibold text-slate-800">{{ res.checkInDate }} ({{ formatUtcTime(res.startAtUtc) }})</span>
+                  </div>
+                  <div>
+                    <span class="text-slate-400 text-[11px] block font-medium">Thời gian trả</span>
+                    <span class="font-semibold text-slate-800">{{ res.checkOutDate }} ({{ formatUtcTime(res.endAtUtc) }})</span>
+                  </div>
+                </div>
+
+                <!-- Identity Document Verification Step (Desk Verification) -->
+                <div class="space-y-2 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <div class="flex items-center justify-between">
+                    <label class="block font-bold text-slate-800">
+                      <i class="pi pi-id-card text-emerald-600 mr-1"></i>
+                      Xác minh giấy tờ tùy thân (Kiểm tra tại quầy)
+                    </label>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      Đối chiếu trực quan
+                    </span>
+                  </div>
+                  <label class="flex items-start gap-2.5 p-3.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 cursor-pointer hover:bg-slate-50 transition-colors shadow-2xs">
+                    <input
+                      type="checkbox"
+                      [checked]="isIdentityVerified()"
+                      (change)="toggleIdentityVerified()"
+                      class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                    />
+                    <span class="leading-relaxed">
+                      Lễ tân xác nhận đã <b>đối chiếu trực tiếp giấy tờ tùy thân gốc</b> (CCCD / Hộ chiếu) của khách tại quầy. Hệ thống không lưu trữ hoặc truyền tải số giấy tờ qua API để tuân thủ quy định bảo vệ dữ liệu cá nhân (Nghị định 13/2023/NĐ-CP).
+                    </span>
+                  </label>
+                </div>
+
+                <!-- Notes -->
+                <div class="space-y-1.5">
+                  <label class="block font-bold text-slate-700">Ghi chú nhận phòng</label>
+                  <textarea
+                    [value]="checkInNotesInput()"
+                    (input)="onCheckInNotesInput($event)"
+                    rows="2"
+                    placeholder="Ghi chú thêm (vd: khách yêu cầu thẻ phòng phụ, lưu ý chìa khóa)..."
+                    class="w-full p-3 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs"
+                  ></textarea>
+                </div>
+
+                <!-- Operational Notice -->
+                <div class="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-emerald-900 text-xs flex items-start gap-2.5">
+                  <i class="pi pi-info-circle text-emerald-600 mt-0.5 shrink-0"></i>
+                  <div>
+                    Khi xác nhận, trạng thái phòng vật lý <b>Phòng {{ res.roomNumber }}</b> sẽ tự động chuyển sang màu đỏ <b>Occupied (Đang có khách)</b>.
+                  </div>
+                </div>
+              </div>
+
+              <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  (click)="closeCheckInModal()"
+                  class="px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  [disabled]="isActionLoading() || !isIdentityVerified()"
+                  (click)="confirmCheckInModal()"
+                  class="px-5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition shadow-sm shadow-emerald-600/30 flex items-center gap-2 cursor-pointer"
+                >
+                  <i class="pi pi-check" [class.animate-spin]="isActionLoading()"></i>
+                  <span>Xác nhận nhận phòng</span>
+                </button>
+              </div>
+            </div>
+          </dialog>
+        }
+      }
+
+      <!-- MODAL: CHECK-OUT (TRẢ PHÒNG & KIỂM TRA CÔNG NỢ FOLIO) -->
+      @if (isCheckOutModalOpen()) {
+        @if (checkOutModalReservation(); as res) {
+          <dialog #checkOutDialog (cancel)="closeCheckOutModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(42rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
+            <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                    <i class="pi pi-sign-out text-sm"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-base font-bold text-slate-900">Thủ tục trả phòng (Check-out)</h3>
+                    <span class="font-mono text-xs font-bold text-amber-700">Mã: {{ res.confirmationCode }}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  (click)="closeCheckOutModal()"
+                  class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  <i class="pi pi-times text-sm"></i>
+                </button>
+              </div>
+
+              <div class="p-6 space-y-4 text-xs">
+                <!-- Room & Guest Info Card -->
+                <div class="grid grid-cols-2 gap-3.5 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <div>
+                    <span class="text-slate-400 text-[11px] block font-medium">Khách hàng</span>
+                    <span class="font-bold text-slate-900 text-sm">{{ res.guestName }}</span>
+                  </div>
+                  <div>
+                    <span class="text-slate-400 text-[11px] block font-medium">Phòng trả</span>
+                    <span class="font-bold text-amber-800 text-sm">Phòng {{ res.roomNumber }}</span>
+                    <span class="text-slate-500 text-[11px] block mt-0.5">{{ res.roomTypeName }}</span>
+                  </div>
+                </div>
+
+                <!-- Folio Financial Audit Card -->
+                <div class="space-y-2">
+                  <span class="font-bold text-slate-800 flex items-center gap-1.5">
+                    <i class="pi pi-wallet text-amber-600"></i>
+                    Bảng kê công nợ & Quyết toán (Folio)
+                  </span>
+
+                  @if (isLoadingCheckOutFolio()) {
+                    <div class="py-4 flex items-center justify-center gap-2 text-slate-500 text-xs bg-slate-50 rounded-xl border border-slate-200">
+                      <i class="pi pi-spinner animate-spin text-amber-600 text-sm"></i>
+                      <span>Đang tải số liệu công nợ folio...</span>
+                    </div>
+                  } @else if (checkOutFolioError(); as errorMsg) {
+                    <div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between gap-3">
+                      <div class="flex items-center gap-2">
+                        <i class="pi pi-exclamation-triangle text-rose-600 text-sm shrink-0"></i>
+                        <span>{{ errorMsg }}</span>
+                      </div>
+                      <button
+                        type="button"
+                        (click)="retryCheckOutFolio()"
+                        class="px-3 py-1.5 text-xs font-semibold text-rose-700 bg-white border border-rose-300 hover:bg-rose-100 rounded-xl transition shrink-0 cursor-pointer"
+                      >
+                        Thử lại
+                      </button>
+                    </div>
+                  } @else if (checkOutFolio(); as f) {
+                    <div class="grid grid-cols-3 gap-2 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <div>
+                        <span class="text-[10px] text-slate-400 font-medium block">Tổng tiền phòng</span>
+                        <span class="text-xs font-bold text-slate-800 font-mono">{{ f.totalAmount | number:'1.0-0' }} đ</span>
+                      </div>
+                      <div>
+                        <span class="text-[10px] text-emerald-600 font-medium block">Đã thanh toán</span>
+                        <span class="text-xs font-bold text-emerald-700 font-mono">{{ f.paidAmount | number:'1.0-0' }} đ</span>
+                      </div>
+                      <div>
+                        <span class="text-[10px] text-amber-600 font-medium block">Số dư còn nợ</span>
+                        <span class="text-xs font-bold text-amber-800 font-mono">{{ f.remainingBalance | number:'1.0-0' }} đ</span>
+                      </div>
+                    </div>
+
+                    @if (f.remainingBalance > 0) {
+                      <div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs space-y-1">
+                        <div class="flex items-center gap-1.5 font-bold">
+                          <i class="pi pi-exclamation-triangle text-rose-600"></i>
+                          <span>Chưa thể trả phòng: Còn dư nợ {{ f.remainingBalance | number:'1.0-0' }} đ</span>
+                        </div>
+                        <p class="text-[11px] text-rose-700">
+                          Quy định POL-IO03 yêu cầu thanh toán đủ 100% công nợ trước khi hoàn tất trả phòng.
+                        </p>
+                      </div>
+                    } @else {
+                      <div class="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+                        <i class="pi pi-check-circle text-emerald-600 text-base"></i>
+                        <div>
+                          <b>Đã thanh toán đủ (100%)</b>. Hóa đơn hợp lệ, sẵn sàng bàn giao phòng.
+                        </div>
+                      </div>
+                    }
+                  }
+                </div>
+
+                <!-- Housekeeping Notification Info -->
+                <div class="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
+                  <i class="pi pi-sparkles text-amber-600 mt-0.5 shrink-0"></i>
+                  <div>
+                    Khi hoàn tất, phòng <b>Phòng {{ res.roomNumber }}</b> sẽ tự động chuyển sang màu cam <b>Dirty (Cần dọn dẹp)</b> và bắn tín hiệu sang Bảng buồng phòng để nhân viên đi dọn.
+                  </div>
+                </div>
+              </div>
+
+              <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  (click)="closeCheckOutModal()"
+                  class="px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  [disabled]="isActionLoading() || isLoadingCheckOutFolio() || !!checkOutFolioError() || !checkOutFolio() || checkOutFolio()!.remainingBalance > 0"
+                  (click)="confirmCheckOutModal()"
+                  class="px-5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition shadow-sm shadow-amber-600/30 flex items-center gap-2 cursor-pointer"
+                >
+                  <i class="pi pi-check" [class.animate-spin]="isActionLoading()"></i>
+                  <span>Hoàn tất trả phòng</span>
+                </button>
+              </div>
+            </div>
+          </dialog>
+        }
       }
 
       <!-- MODAL 4: CASHIER SUMMARY (BÁO CÁO THU NGÂN) -->
       @if (isSummaryModalOpen()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div class="bg-white w-full max-w-lg rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <i class="pi pi-chart-bar text-emerald-600 text-lg"></i>
+        <dialog #summaryDialog (cancel)="closeSummaryModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(34rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
+          <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <i class="pi pi-chart-bar text-sm"></i>
+                </div>
                 <div>
                   <h3 class="text-base font-bold text-slate-900">Báo cáo thu ngân trong ngày</h3>
-                  <p class="text-xs text-slate-500">Thống kê giao dịch tiền mặt & chuyển khoản hôm nay (UTC+7)</p>
+                  <p class="text-xs text-slate-500 mt-0.5">Thống kê giao dịch tiền mặt & chuyển khoản hôm nay (UTC+7)</p>
                 </div>
               </div>
-              <button
-                type="button"
-                (click)="closeSummaryModal()"
-                class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 transition cursor-pointer"
-              >
-                <i class="pi pi-times text-sm"></i>
-              </button>
+              <div class="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  (click)="loadCashierSummary()"
+                  [disabled]="isLoadingSummary()"
+                  title="Làm mới số liệu"
+                  class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-emerald-700 hover:bg-slate-200 transition cursor-pointer disabled:opacity-50"
+                >
+                  <i class="pi pi-refresh text-xs" [class.animate-spin]="isLoadingSummary()"></i>
+                </button>
+                <button
+                  type="button"
+                  (click)="closeSummaryModal()"
+                  class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+                >
+                  <i class="pi pi-times text-sm"></i>
+                </button>
+              </div>
             </div>
 
             <div class="p-6 space-y-4">
@@ -1153,17 +1828,35 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                   <i class="pi pi-spinner animate-spin text-2xl text-emerald-600"></i>
                   <span>Đang tải số liệu tổng hợp...</span>
                 </div>
+              } @else if (summaryError()) {
+                <div class="py-8 flex flex-col items-center justify-center gap-3 text-center">
+                  <div class="w-10 h-10 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600">
+                    <i class="pi pi-exclamation-circle text-lg"></i>
+                  </div>
+                  <div class="space-y-1">
+                    <p class="text-xs font-semibold text-slate-800">Không thể tải báo cáo thu ngân</p>
+                    <p class="text-[11px] text-slate-500 max-w-xs">{{ summaryError() }}</p>
+                  </div>
+                  <button
+                    type="button"
+                    (click)="retrySummary()"
+                    class="px-3.5 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  >
+                    <i class="pi pi-refresh text-xs"></i>
+                    <span>Thử lại</span>
+                  </button>
+                </div>
               } @else if (paymentSummary(); as summary) {
                 <div class="grid grid-cols-2 gap-3">
                   <div class="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-100">
                     <div class="text-[11px] font-medium text-emerald-700 uppercase tracking-wider">Tổng thực thu</div>
-                    <div class="text-xl font-bold text-emerald-700 mt-1">{{ summary.totalCollected | currency:'VND':'symbol':'1.0-0':'vi-VN' }}</div>
-                    <div class="text-[11px] text-emerald-600 mt-0.5">{{ summary.completedCount }} giao dịch thành công</div>
+                    <div class="text-xl font-bold text-emerald-700 mt-1">{{ (summary.totalCollected ?? 0) | number:'1.0-0' }} đ</div>
+                    <div class="text-[11px] text-emerald-600 mt-0.5">{{ summary.completedCount ?? 0 }} giao dịch thành công</div>
                   </div>
                   <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
                     <div class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Ngày báo cáo</div>
-                    <div class="text-lg font-bold text-slate-800 mt-1">{{ summary.date }}</div>
-                    <div class="text-[11px] text-slate-500 mt-0.5">Múi giờ Asia/Ho_Chi_Minh</div>
+                    <div class="text-lg font-bold text-slate-800 mt-1">{{ formatVnDateDisplay(summary.date) }}</div>
+                    <div class="text-[11px] text-slate-500 mt-0.5">Múi giờ Việt Nam (UTC+7)</div>
                   </div>
                 </div>
 
@@ -1175,7 +1868,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                         <i class="pi pi-money-bill text-emerald-600"></i>
                         <span>Tiền mặt (Cash)</span>
                       </div>
-                      <span class="font-bold text-slate-900">{{ summary.cashCollected | currency:'VND':'symbol':'1.0-0':'vi-VN' }}</span>
+                      <span class="font-bold text-slate-900">{{ (summary.cashCollected ?? 0) | number:'1.0-0' }} đ</span>
                     </div>
 
                     <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs">
@@ -1183,8 +1876,18 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                         <i class="pi pi-credit-card text-blue-600"></i>
                         <span>Chuyển khoản (Bank Transfer)</span>
                       </div>
-                      <span class="font-bold text-slate-900">{{ summary.bankTransferCollected | currency:'VND':'symbol':'1.0-0':'vi-VN' }}</span>
+                      <span class="font-bold text-slate-900">{{ (summary.bankTransferCollected ?? 0) | number:'1.0-0' }} đ</span>
                     </div>
+
+                    @if ((summary.creditCardCollected ?? 0) > 0) {
+                      <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs">
+                        <div class="flex items-center gap-2 text-slate-700">
+                          <i class="pi pi-credit-card text-purple-600"></i>
+                          <span>Thẻ tín dụng / POS (Card)</span>
+                        </div>
+                        <span class="font-bold text-slate-900">{{ summary.creditCardCollected | number:'1.0-0' }} đ</span>
+                      </div>
+                    }
                   </div>
                 </div>
               } @else {
@@ -1204,14 +1907,51 @@ export function addDaysToDateString(dateStr: string, days: number): string {
               </button>
             </div>
           </div>
-        </div>
+        </dialog>
       }
     </div>
   `
 })
 export class ReservationsPage implements OnInit, OnDestroy {
+  @ViewChild('checkInDialog') set checkInDialog(element: ElementRef<HTMLDialogElement> | undefined) {
+    if (element && this.isCheckInModalOpen() && typeof element.nativeElement.showModal === 'function') {
+      element.nativeElement.showModal();
+    }
+  }
+
+  @ViewChild('checkOutDialog') set checkOutDialog(element: ElementRef<HTMLDialogElement> | undefined) {
+    if (element && this.isCheckOutModalOpen() && typeof element.nativeElement.showModal === 'function') {
+      element.nativeElement.showModal();
+    }
+  }
+
+  @ViewChild('cancelDialog') set cancelDialog(element: ElementRef<HTMLDialogElement> | undefined) {
+    if (element && this.cancelModalReservation() && typeof element.nativeElement.showModal === 'function') {
+      element.nativeElement.showModal();
+    }
+  }
+
+  @ViewChild('detailDialog') set detailDialog(element: ElementRef<HTMLDialogElement> | undefined) {
+    if (element && this.selectedReservationDetail() && typeof element.nativeElement.showModal === 'function') {
+      element.nativeElement.showModal();
+    }
+  }
+
+  @ViewChild('summaryDialog') set summaryDialog(element: ElementRef<HTMLDialogElement> | undefined) {
+    if (element && this.isSummaryModalOpen() && typeof element.nativeElement.showModal === 'function') {
+      element.nativeElement.showModal();
+    }
+  }
+
+  @ViewChild('createDialog') set createDialog(element: ElementRef<HTMLDialogElement> | undefined) {
+    if (element && this.isCreateModalOpen() && typeof element.nativeElement.showModal === 'function') {
+      element.nativeElement.showModal();
+    }
+  }
   private readonly reservationService = inject(ReservationService);
   private readonly roomTypeService = inject(RoomTypeService);
+  private readonly roomService = inject(RoomService, { optional: true });
+  private readonly locationService = inject(LocationService, { optional: true });
   private readonly policyService = inject(PolicyService);
   private readonly paymentService = inject(PaymentService);
   private readonly authService = inject(AuthService);
@@ -1223,6 +1963,25 @@ export class ReservationsPage implements OnInit, OnDestroy {
   readonly ReservationStatus = ReservationStatus;
   readonly PaymentMethod = PaymentMethod;
   readonly PaymentStatus = PaymentStatus;
+
+  // View Mode: 'table' (Danh sách) vs 'timeline' (Sơ đồ lịch phòng theo thời gian)
+  readonly viewMode = signal<'table' | 'timeline'>('table');
+
+  // Timeline / Gantt State
+  readonly timelineStartDate = signal<string>(getTodayVnDateString());
+  readonly timelineDaysCount = signal<number>(7);
+  readonly timelineRooms = signal<RoomDto[]>([]);
+  readonly timelineReservations = signal<ReservationDto[]>([]);
+  readonly isTimelineLoading = signal<boolean>(false);
+  readonly timelineFloorFilter = signal<number | null>(null);
+  readonly timelineRoomTypeFilter = signal<string | null>(null);
+
+  // Administrative Divisions (2-level hierarchy: Province -> Ward)
+  readonly provinces = signal<Province[]>([]);
+  readonly wards = signal<Ward[]>([]);
+  readonly isLoadingProvinces = signal<boolean>(false);
+  readonly isLoadingWards = signal<boolean>(false);
+  readonly selectedRentalMode = signal<'overnight' | 'hourly' | 'dayuse'>('overnight');
 
   // Context & Permissions
   readonly activeProperty = computed(() => {
@@ -1240,6 +1999,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
   readonly canCreatePayment = computed(() => this.authService.hasPermission('PAYMENTS', 2)); // PermissionAction.Create = 2 on PAYMENTS
   readonly canReadPayment = computed(() => this.authService.hasPermission('PAYMENTS', 1)); // PermissionAction.Read = 1 on PAYMENTS
   readonly canReadFolio = computed(() => this.authService.hasPermission('RESERVATIONS', 1)); // PermissionAction.Read = 1 on RESERVATIONS (as per SDD-06:100)
+  readonly canReadRoomTypes = computed(() => this.authService.hasPermission('ROOM_TYPES', 1)); // PermissionAction.Read = 1 on ROOM_TYPES
 
   // Page State
   readonly reservations = signal<ReservationDto[]>([]);
@@ -1267,6 +2027,19 @@ export class ReservationsPage implements OnInit, OnDestroy {
   readonly actionReservationId = signal<string | null>(null);
   readonly isActionLoading = signal<boolean>(false);
 
+  // Check-In Modal State
+  readonly isCheckInModalOpen = signal<boolean>(false);
+  readonly checkInModalReservation = signal<ReservationDto | ReservationDetailDto | null>(null);
+  readonly isIdentityVerified = signal<boolean>(false);
+  readonly checkInNotesInput = signal<string>('');
+
+  // Check-Out Modal State
+  readonly isCheckOutModalOpen = signal<boolean>(false);
+  readonly checkOutModalReservation = signal<ReservationDto | ReservationDetailDto | null>(null);
+  readonly checkOutFolio = signal<FolioDto | null>(null);
+  readonly isLoadingCheckOutFolio = signal<boolean>(false);
+  readonly checkOutFolioError = signal<string | null>(null);
+
   // Create Modal State
   readonly roomTypes = signal<RoomTypeDto[]>([]);
   readonly branchPolicies = signal<PropertyPoliciesDto | null>(null);
@@ -1280,6 +2053,93 @@ export class ReservationsPage implements OnInit, OnDestroy {
   readonly modalTargetPropertyId = signal<string | null>(null);
   readonly verifiedScheduleKey = signal<string | null>(null);
 
+  // Grouped rooms by floor for intuitive selection
+  readonly availableRoomsByFloor = computed(() => {
+    const rooms = this.availableRooms();
+    const map = new Map<number, RoomAvailabilityDto[]>();
+    for (const r of rooms) {
+      const floor = r.floor ?? 1;
+      if (!map.has(floor)) {
+        map.set(floor, []);
+      }
+      map.get(floor)!.push(r);
+    }
+    const sortedFloors = Array.from(map.keys()).sort((a, b) => a - b);
+    return sortedFloors.map(floor => {
+      const floorRooms = map.get(floor)!;
+      return {
+        floor,
+        availableCount: floorRooms.filter(r => r.isAvailable).length,
+        totalCount: floorRooms.length,
+        rooms: floorRooms
+      };
+    });
+  });
+
+  // Estimated deposit required (50% rule)
+  readonly estimatedDeposit = computed(() => {
+    const quote = this.calculatedQuote();
+    return quote ? Math.round(quote.totalAmount * 0.5) : 0;
+  });
+
+  // Timeline Computeds
+  readonly timelineDates = computed(() => {
+    const start = this.timelineStartDate();
+    const count = this.timelineDaysCount();
+    const dates: Array<{
+      dateStr: string;
+      dayOfWeek: string;
+      dayNumber: number;
+      month: number;
+      isToday: boolean;
+      isWeekend: boolean;
+    }> = [];
+
+    const todayStr = getTodayVnDateString();
+    const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+    for (let i = 0; i < count; i++) {
+      const dStr = addDaysToDateString(start, i);
+      const parts = dStr.split('-');
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      const dayIdx = d.getDay();
+      dates.push({
+        dateStr: dStr,
+        dayOfWeek: dayNames[dayIdx],
+        dayNumber: d.getDate(),
+        month: d.getMonth() + 1,
+        isToday: dStr === todayStr,
+        isWeekend: dayIdx === 0 || dayIdx === 6
+      });
+    }
+
+    return dates;
+  });
+
+  readonly timelineFloors = computed(() => {
+    const floors = new Set<number>();
+    for (const r of this.timelineRooms()) {
+      if (r.floor !== undefined && r.floor !== null) {
+        floors.add(r.floor);
+      }
+    }
+    return Array.from(floors).sort((a, b) => a - b);
+  });
+
+  readonly filteredTimelineRooms = computed(() => {
+    let list = this.timelineRooms();
+    const floorFilter = this.timelineFloorFilter();
+    const roomTypeFilter = this.timelineRoomTypeFilter();
+
+    if (floorFilter !== null) {
+      list = list.filter(r => r.floor === floorFilter);
+    }
+    if (roomTypeFilter) {
+      list = list.filter(r => r.roomTypeId === roomTypeFilter);
+    }
+    return list;
+  });
+
   createForm!: FormGroup;
 
   // Folio & Cashier State
@@ -1289,6 +2149,8 @@ export class ReservationsPage implements OnInit, OnDestroy {
   readonly isSummaryModalOpen = signal<boolean>(false);
   readonly paymentSummary = signal<PaymentSummaryDto | null>(null);
   readonly isLoadingSummary = signal<boolean>(false);
+  readonly summaryError = signal<string | null>(null);
+  readonly formatVnDateDisplay = formatVnDateDisplay;
 
   paymentForm!: FormGroup;
 
@@ -1304,6 +2166,10 @@ export class ReservationsPage implements OnInit, OnDestroy {
   private folioSub?: Subscription;
   private paymentSub?: Subscription;
   private summarySub?: Subscription;
+  private timelineRoomsSub?: Subscription;
+  private timelineResSub?: Subscription;
+  private provincesSub?: Subscription;
+  private wardsSub?: Subscription;
 
   private listRequestId = 0;
   private detailRequestId = 0;
@@ -1325,7 +2191,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
     try {
       effect(() => {
         const propId = this.authService.activePropertyId();
-        this.handlePropertyContextChange(propId);
+        untracked(() => this.handlePropertyContextChange(propId));
       });
     } catch {
       // Ignored in headless tests
@@ -1356,6 +2222,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.detailReservationId.set(null);
     this.folio.set(null);
     this.paymentSummary.set(null);
+    this.summaryError.set(null);
     this.isSummaryModalOpen.set(false);
     this.isSubmittingPayment.set(false);
     this.currentSubmissionKey = null;
@@ -1371,10 +2238,16 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.actionReservationId.set(null);
     this.isActionLoading.set(false);
 
+    this.timelineRooms.set([]);
+    this.timelineReservations.set([]);
+
     if (newPropertyId) {
       this.loadReservations();
       this.loadRoomTypes();
       this.loadBranchPolicies(newPropertyId);
+      if (this.viewMode() === 'timeline') {
+        this.loadTimelineData();
+      }
     }
   }
 
@@ -1390,6 +2263,10 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.folioSub?.unsubscribe();
     this.paymentSub?.unsubscribe();
     this.summarySub?.unsubscribe();
+    this.timelineRoomsSub?.unsubscribe();
+    this.timelineResSub?.unsubscribe();
+    this.provincesSub?.unsubscribe();
+    this.wardsSub?.unsubscribe();
   }
 
   loadBranchPolicies(propId: string): void {
@@ -1407,6 +2284,10 @@ export class ReservationsPage implements OnInit, OnDestroy {
           const outTime = policies.checkOutTime ? policies.checkOutTime.slice(0, 5) : '';
           if (inTime && !this.createForm.get('checkInTime')?.dirty) {
             this.createForm.patchValue({ checkInTime: inTime });
+            if (!this.createForm.get('checkInDate')?.dirty && !this.createForm.get('checkOutDate')?.dirty) {
+              const dates = this.getDefaultOvernightDates(inTime);
+              this.createForm.patchValue({ checkInDate: dates.checkInDate, checkOutDate: dates.checkOutDate });
+            }
           }
           if (outTime && !this.createForm.get('checkOutTime')?.dirty) {
             this.createForm.patchValue({ checkOutTime: outTime });
@@ -1421,16 +2302,16 @@ export class ReservationsPage implements OnInit, OnDestroy {
 
   private initCreateForm(): void {
     const today = getTodayVnDateString();
-    const tomorrow = addDaysToDateString(today, 1);
     const policies = this.branchPolicies();
     const defaultCheckIn = policies?.checkInTime ? policies.checkInTime.slice(0, 5) : '';
     const defaultCheckOut = policies?.checkOutTime ? policies.checkOutTime.slice(0, 5) : '';
+    const dates = this.getDefaultOvernightDates(defaultCheckIn);
 
     this.createForm = this.fb.group({
       rentalType: [RentalType.Overnight, Validators.required],
-      checkInDate: [today, Validators.required],
+      checkInDate: [dates.checkInDate, Validators.required],
       checkInTime: [defaultCheckIn, [Validators.required, Validators.pattern(/^([01]\d|2[0-3]):[0-5]\d$/)]],
-      checkOutDate: [tomorrow, Validators.required],
+      checkOutDate: [dates.checkOutDate, Validators.required],
       checkOutTime: [defaultCheckOut, [Validators.required, Validators.pattern(/^([01]\d|2[0-3]):[0-5]\d$/)]],
       hourlyDate: [today],
       hourlyStartTime: ['09:00'],
@@ -1439,9 +2320,25 @@ export class ReservationsPage implements OnInit, OnDestroy {
       guestName: ['', [Validators.required, Validators.maxLength(200)]],
       guestEmail: ['', [Validators.required, Validators.email, Validators.maxLength(255)]],
       guestPhone: [''],
+      identityNumber: [''],
+      nationality: ['Việt Nam'],
+      provinceCode: [''],
+      provinceName: [''],
+      wardCode: [''],
+      wardName: [''],
+      addressDetail: [''],
       numberOfGuests: [2, [Validators.required, Validators.min(1), Validators.max(20)]],
       customerNotes: ['']
     });
+  }
+
+  private getDefaultOvernightDates(checkInTime: string): { checkInDate: string; checkOutDate: string } {
+    const today = getTodayVnDateString();
+    const start = checkInTime ? new Date(`${today}T${checkInTime}:00+07:00`) : null;
+    const checkInDate = start && start.getTime() < Date.now() - 30 * 60_000
+      ? addDaysToDateString(today, 1)
+      : today;
+    return { checkInDate, checkOutDate: addDaysToDateString(checkInDate, 1) };
   }
 
   private initPaymentForm(): void {
@@ -1490,7 +2387,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
 
   private loadRoomTypes(): void {
     const propId = this.activeProperty()?.id;
-    if (!propId) {
+    if (!propId || !this.canReadRoomTypes()) {
       this.roomTypes.set([]);
       return;
     }
@@ -1501,7 +2398,9 @@ export class ReservationsPage implements OnInit, OnDestroy {
         if (this.activeProperty()?.id !== propId) return;
         this.roomTypes.set(res.items || []);
       },
-      error: () => {}
+      error: () => {
+        this.roomTypes.set([]);
+      }
     });
   }
 
@@ -1530,6 +2429,18 @@ export class ReservationsPage implements OnInit, OnDestroy {
   onDateToChange(event: Event): void {
     const val = (event.target as HTMLInputElement).value;
     this.dateTo.set(val);
+    this.currentPage.set(1);
+    this.loadReservations();
+  }
+
+  onDateRangeFilterChange(val: DateRangeFilterValue | null): void {
+    if (!val) {
+      this.dateFrom.set('');
+      this.dateTo.set('');
+    } else {
+      this.dateFrom.set(val.fromDate || '');
+      this.dateTo.set(val.toDate || '');
+    }
     this.currentPage.set(1);
     this.loadReservations();
   }
@@ -1610,6 +2521,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
 
     this.initCreateForm();
     this.resetCalculatedQuoteAndAvailability();
+    this.loadProvinces();
     this.modalTargetPropertyId.set(propId);
     this.isCreateModalOpen.set(true);
   }
@@ -1780,7 +2692,9 @@ export class ReservationsPage implements OnInit, OnDestroy {
       error: (err) => {
         if (reqId !== this.quoteRequestId || this.activeProperty()?.id !== propId) return;
         this.isCalculatingQuote.set(false);
-        this.quoteError.set(err?.error?.message || 'Không thể tính giá đặt phòng theo chính sách hiện hành.');
+        const validationErrors = err?.error?.errors as Record<string, string[]> | undefined;
+        const validationMessage = validationErrors && Object.values(validationErrors).flat().find(Boolean);
+        this.quoteError.set(validationMessage || err?.error?.message || 'Không thể tính giá đặt phòng theo chính sách hiện hành.');
       }
     });
   }
@@ -1839,7 +2753,26 @@ export class ReservationsPage implements OnInit, OnDestroy {
       endAtUtc = new Date(`${form.hourlyDate}T${form.hourlyEndTime}:00+07:00`).toISOString();
     }
 
-    const currentFingerprint = `${propId}_${roomId}_${rentalType}_${startAtUtc}_${endAtUtc}_${form.guestName.trim()}_${form.guestEmail.trim()}_${form.guestPhone?.trim() || ''}_${form.numberOfGuests}_${form.customerNotes?.trim() || ''}_${quote.totalAmount}`;
+    let notes = form.customerNotes?.trim() || '';
+    const guestDetails: string[] = [];
+    if (form.identityNumber?.trim()) {
+      guestDetails.push(`CCCD/Passport: ${form.identityNumber.trim()}`);
+    }
+    if (form.nationality?.trim()) {
+      guestDetails.push(`Quốc tịch: ${form.nationality.trim()}`);
+    }
+    if (form.provinceName || form.wardName || form.addressDetail?.trim()) {
+      const addrParts = [form.addressDetail?.trim(), form.wardName, form.provinceName].filter(Boolean);
+      if (addrParts.length > 0) {
+        guestDetails.push(`Địa chỉ: ${addrParts.join(', ')}`);
+      }
+    }
+    if (guestDetails.length > 0) {
+      const guestHeader = `[${guestDetails.join(' | ')}]`;
+      notes = notes ? `${guestHeader} ${notes}` : guestHeader;
+    }
+
+    const currentFingerprint = `${propId}_${roomId}_${rentalType}_${startAtUtc}_${endAtUtc}_${form.guestName.trim()}_${form.guestEmail.trim()}_${form.guestPhone?.trim() || ''}_${form.identityNumber?.trim() || ''}_${form.provinceCode || ''}_${form.wardCode || ''}_${form.numberOfGuests}_${notes}_${quote.totalAmount}`;
     if (!this.currentSubmissionKey || this.lastSubmittedFingerprint !== currentFingerprint) {
       this.currentSubmissionKey = 'IDEMP-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
       this.lastSubmittedFingerprint = currentFingerprint;
@@ -1857,7 +2790,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
       guestEmail: form.guestEmail.trim(),
       guestPhone: form.guestPhone?.trim() || undefined,
       numberOfGuests: form.numberOfGuests,
-      customerNotes: form.customerNotes?.trim() || undefined,
+      customerNotes: notes || undefined,
       expectedTotalAmount: quote.totalAmount,
       idempotencyKey: this.currentSubmissionKey
     };
@@ -1878,6 +2811,9 @@ export class ReservationsPage implements OnInit, OnDestroy {
         this.closeCreateModal();
         this.alertService.toastSuccess(`Tạo đặt phòng thành công! Mã xác nhận: ${created.confirmationCode}`);
         this.loadReservations();
+        if (this.viewMode() === 'timeline') {
+          this.loadTimelineData();
+        }
       },
       error: (err) => {
         if (this.activeProperty()?.id !== propId || !this.isCreateModalOpen()) {
@@ -1918,6 +2854,8 @@ export class ReservationsPage implements OnInit, OnDestroy {
         if (this.selectedReservationDetail()?.id === res.id) {
           this.selectedReservationDetail.set(updated);
         }
+        // Notify Housekeeping Board via real-time signal
+        this.roomService?.notifyRoomStatusChanged?.(res.roomId, RoomStatus.Occupied, res.roomNumber);
         this.loadReservations();
       },
       error: (err) => {
@@ -1964,6 +2902,8 @@ export class ReservationsPage implements OnInit, OnDestroy {
         if (this.selectedReservationDetail()?.id === res.id) {
           this.selectedReservationDetail.set(updated);
         }
+        // Realtime notification to Housekeeping Board: Room transitions to Dirty automatically
+        this.roomService?.notifyRoomStatusChanged?.(res.roomId, RoomStatus.Dirty, res.roomNumber);
         this.loadReservations();
       },
       error: (err) => {
@@ -1978,10 +2918,122 @@ export class ReservationsPage implements OnInit, OnDestroy {
     });
   }
 
+  // Check-In Modal Handlers
+  openCheckInModal(res: ReservationDto | ReservationDetailDto): void {
+    if (!this.canCheckInOut() || this.isActionLoading()) return;
+    if (this.selectedReservationDetail()?.id === res.id) this.closeDetailModal();
+    this.checkInModalReservation.set(res);
+    this.isIdentityVerified.set(false);
+    this.checkInNotesInput.set('');
+    this.isCheckInModalOpen.set(true);
+  }
+
+  closeCheckInModal(): void {
+    this.isCheckInModalOpen.set(false);
+    this.checkInModalReservation.set(null);
+    this.isIdentityVerified.set(false);
+    this.checkInNotesInput.set('');
+  }
+
+  toggleIdentityVerified(): void {
+    this.isIdentityVerified.update((v) => !v);
+  }
+
+  onCheckInNotesInput(event: Event): void {
+    this.checkInNotesInput.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  confirmCheckInModal(): void {
+    const res = this.checkInModalReservation();
+    if (!res || !this.isIdentityVerified()) return;
+    this.closeCheckInModal();
+    this.onCheckIn(res);
+  }
+
+  // Check-Out Modal Handlers
+  openCheckOutModal(res: ReservationDto | ReservationDetailDto): void {
+    if (!this.canCheckInOut() || this.isActionLoading()) return;
+    const propId = this.activeProperty()?.id;
+    if (!propId || res.propertyId !== propId) return;
+    if (this.selectedReservationDetail()?.id === res.id) this.closeDetailModal();
+
+    this.checkOutModalReservation.set(res);
+    this.isCheckOutModalOpen.set(true);
+    this.isLoadingCheckOutFolio.set(true);
+    this.checkOutFolio.set(null);
+    this.checkOutFolioError.set(null);
+
+    this.paymentService.getFolio(res.id, propId).subscribe({
+      next: (folio) => {
+        if (this.checkOutModalReservation()?.id === res.id) {
+          this.checkOutFolio.set(folio);
+          this.checkOutFolioError.set(null);
+          this.isLoadingCheckOutFolio.set(false);
+        }
+      },
+      error: (err) => {
+        if (this.checkOutModalReservation()?.id === res.id) {
+          this.isLoadingCheckOutFolio.set(false);
+          this.checkOutFolioError.set(err?.error?.message || 'Không thể tải bảng kê công nợ Folio. Vui lòng kiểm tra lại kết nối mạng.');
+        }
+      }
+    });
+  }
+
+  retryCheckOutFolio(): void {
+    const res = this.checkOutModalReservation();
+    const propId = this.activeProperty()?.id;
+    if (!res || !propId) return;
+
+    this.isLoadingCheckOutFolio.set(true);
+    this.checkOutFolioError.set(null);
+
+    this.paymentService.getFolio(res.id, propId).subscribe({
+      next: (folio) => {
+        if (this.checkOutModalReservation()?.id === res.id) {
+          this.checkOutFolio.set(folio);
+          this.checkOutFolioError.set(null);
+          this.isLoadingCheckOutFolio.set(false);
+        }
+      },
+      error: (err) => {
+        if (this.checkOutModalReservation()?.id === res.id) {
+          this.isLoadingCheckOutFolio.set(false);
+          this.checkOutFolioError.set(err?.error?.message || 'Không thể tải bảng kê công nợ Folio. Vui lòng kiểm tra lại kết nối mạng.');
+        }
+      }
+    });
+  }
+
+  closeCheckOutModal(): void {
+    this.isCheckOutModalOpen.set(false);
+    this.checkOutModalReservation.set(null);
+    this.checkOutFolio.set(null);
+    this.checkOutFolioError.set(null);
+  }
+
+  confirmCheckOutModal(): void {
+    const res = this.checkOutModalReservation();
+    if (!res) return;
+    if (this.isLoadingCheckOutFolio()) return;
+    const folio = this.checkOutFolio();
+    if (!folio) {
+      this.alertService.toastError('Chưa xác thực được công nợ Folio từ máy chủ. Vui lòng tải lại trước khi hoàn tất.');
+      return;
+    }
+    if (folio.remainingBalance > 0) {
+      this.alertService.toastError(`Đơn đặt phòng còn dư nợ ${folio.remainingBalance.toLocaleString('vi-VN')} đ. Vui lòng thu đủ tiền trước khi trả phòng.`);
+      return;
+    }
+    this.closeCheckOutModal();
+    this.onCheckOut(res);
+  }
+
   openCancelModal(res: ReservationDto | ReservationDetailDto): void {
     if (!this.canCancel() || this.isActionLoading()) return;
     const propId = this.activeProperty()?.id;
     if (!propId || res.propertyId !== propId) return;
+    if (this.selectedReservationDetail()?.id === res.id) this.closeDetailModal();
 
     this.cancelModalReservation.set(res);
     this.cancelModalTargetPropertyId.set(propId);
@@ -2191,6 +3243,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
         if (this.selectedReservationDetail()?.id === detail.id) {
           this.loadFolio(detail.id, propId);
         }
+        this.paymentSummary.set(null);
         this.loadReservations();
         if (detail.status === ReservationStatus.PendingPayment && this.selectedReservationDetail()?.id === detail.id) {
           this.viewDetails({ id: detail.id, propertyId: propId } as ReservationDto);
@@ -2215,6 +3268,33 @@ export class ReservationsPage implements OnInit, OnDestroy {
     });
   }
 
+  loadCashierSummary(): void {
+    const propId = this.activeProperty()?.id;
+    if (!propId) {
+      this.alertService.toastError('Vui lòng chọn chi nhánh để xem báo cáo thu ngân.');
+      return;
+    }
+    this.isLoadingSummary.set(true);
+    this.summaryError.set(null);
+
+    const todayVn = getTodayVnDateString();
+    this.summarySub?.unsubscribe();
+    this.summarySub = this.paymentService.getPaymentSummary(propId, todayVn).subscribe({
+      next: (sum) => {
+        if (this.activeProperty()?.id !== propId) return;
+        this.paymentSummary.set(sum);
+        this.isLoadingSummary.set(false);
+      },
+      error: (err) => {
+        if (this.activeProperty()?.id !== propId) return;
+        this.isLoadingSummary.set(false);
+        const msg = err?.error?.message || 'Không thể tải báo cáo thu ngân.';
+        this.summaryError.set(msg);
+        this.alertService.toastError(msg);
+      }
+    });
+  }
+
   openSummaryModal(): void {
     const propId = this.activeProperty()?.id;
     if (!propId) {
@@ -2222,26 +3302,238 @@ export class ReservationsPage implements OnInit, OnDestroy {
       return;
     }
     this.isSummaryModalOpen.set(true);
-    this.isLoadingSummary.set(true);
     this.paymentSummary.set(null);
+    this.loadCashierSummary();
+  }
 
-    const todayVn = getTodayVnDateString();
-    this.summarySub?.unsubscribe();
-    this.summarySub = this.paymentService.getPaymentSummary(propId, todayVn).subscribe({
-      next: (sum) => {
-        this.paymentSummary.set(sum);
-        this.isLoadingSummary.set(false);
-      },
-      error: (err) => {
-        this.isLoadingSummary.set(false);
-        this.alertService.toastError(err?.error?.message || 'Không thể tải báo cáo thu ngân.');
-      }
-    });
+  retrySummary(): void {
+    this.loadCashierSummary();
   }
 
   closeSummaryModal(): void {
     this.summarySub?.unsubscribe();
     this.isSummaryModalOpen.set(false);
+    this.summaryError.set(null);
+  }
+
+  // ── View Mode & Timeline Methods ──────────────────────────────────────────
+
+  setViewMode(mode: 'table' | 'timeline'): void {
+    this.viewMode.set(mode);
+    if (mode === 'timeline') {
+      this.loadTimelineData();
+    }
+  }
+
+  onRefreshCurrentView(): void {
+    if (this.viewMode() === 'timeline') {
+      this.loadTimelineData();
+    } else {
+      this.loadReservations();
+    }
+  }
+
+  loadTimelineData(): void {
+    const propId = this.activeProperty()?.id;
+    if (!propId) {
+      this.timelineRooms.set([]);
+      this.timelineReservations.set([]);
+      return;
+    }
+
+    this.isTimelineLoading.set(true);
+    const startDate = this.timelineStartDate();
+    const endDate = addDaysToDateString(startDate, this.timelineDaysCount() + 1);
+
+    // 1. Load rooms for property
+    this.timelineRoomsSub?.unsubscribe();
+    if (this.roomService) {
+      this.timelineRoomsSub = this.roomService.getRooms({ pageSize: 100 }).subscribe({
+        next: (res) => {
+          this.timelineRooms.set(res.items || []);
+        },
+        error: () => {
+          this.timelineRooms.set([]);
+        }
+      });
+    }
+
+    // 2. Load reservations in timeline window
+    this.timelineResSub?.unsubscribe();
+    this.timelineResSub = this.reservationService.getTimelineReservations(propId, startDate, endDate).subscribe({
+      next: (items) => {
+        this.timelineReservations.set(items || []);
+        this.isTimelineLoading.set(false);
+      },
+      error: () => {
+        this.timelineReservations.set([]);
+        this.isTimelineLoading.set(false);
+      }
+    });
+  }
+
+  goToToday(): void {
+    this.timelineStartDate.set(getTodayVnDateString());
+    this.loadTimelineData();
+  }
+
+  goToPreviousDays(): void {
+    const current = this.timelineStartDate();
+    const count = this.timelineDaysCount();
+    this.timelineStartDate.set(addDaysToDateString(current, -count));
+    this.loadTimelineData();
+  }
+
+  goToNextDays(): void {
+    const current = this.timelineStartDate();
+    const count = this.timelineDaysCount();
+    this.timelineStartDate.set(addDaysToDateString(current, count));
+    this.loadTimelineData();
+  }
+
+  onTimelineStartDateChange(event: Event): void {
+    const val = (event.target as HTMLInputElement).value;
+    if (val) {
+      this.timelineStartDate.set(val);
+      this.loadTimelineData();
+    }
+  }
+
+  setTimelineDaysCount(days: number): void {
+    this.timelineDaysCount.set(days);
+    this.loadTimelineData();
+  }
+
+  onTimelineFloorChange(event: Event): void {
+    const val = (event.target as HTMLSelectElement).value;
+    this.timelineFloorFilter.set(val ? parseInt(val, 10) : null);
+  }
+
+  onTimelineRoomTypeChange(event: Event): void {
+    const val = (event.target as HTMLSelectElement).value;
+    this.timelineRoomTypeFilter.set(val || null);
+  }
+
+  getRoomBookingsForDate(roomId: string, dateStr: string): ReservationDto[] {
+    return this.timelineReservations().filter(res => {
+      if (res.roomId !== roomId) return false;
+      if (res.status === ReservationStatus.Cancelled) return false;
+
+      if (res.rentalType === RentalType.Hourly) {
+        return res.checkInDate === dateStr;
+      } else {
+        // Overnight: checkInDate <= dateStr < checkOutDate
+        return res.checkInDate <= dateStr && dateStr < res.checkOutDate;
+      }
+    });
+  }
+
+  getTimelineBookingBadgeClass(res: ReservationDto, dateStr: string): string {
+    if (res.rentalType === RentalType.Hourly) {
+      return 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200';
+    }
+    switch (res.status) {
+      case ReservationStatus.Confirmed:
+        return 'bg-emerald-100 text-emerald-900 border border-emerald-300 hover:bg-emerald-200';
+      case ReservationStatus.CheckedIn:
+        return 'bg-blue-100 text-blue-900 border border-blue-300 hover:bg-blue-200';
+      case ReservationStatus.PendingPayment:
+        return 'bg-yellow-100 text-yellow-900 border border-yellow-300 hover:bg-yellow-200';
+      case ReservationStatus.CheckedOut:
+        return 'bg-slate-200 text-slate-800 border border-slate-300 hover:bg-slate-300';
+      default:
+        return 'bg-slate-100 text-slate-700 border border-slate-200';
+    }
+  }
+
+  getBookingTooltip(res: ReservationDto): string {
+    const rentalTypeLabel = res.rentalType === RentalType.Hourly ? 'Theo giờ' : 'Theo đêm';
+    const statusLabel = this.getStatusLabel(res.status);
+    return `${res.confirmationCode} - ${res.guestName}\n${rentalTypeLabel} | ${statusLabel}\nSĐT: ${res.guestPhone || 'Không có'}\nTổng tiền: ${res.totalAmount.toLocaleString('vi-VN')} đ`;
+  }
+
+  openCreateModalWithPrefill(room: RoomDto, dateStr: string): void {
+    this.openCreateModal();
+    const nextDay = addDaysToDateString(dateStr, 1);
+    this.createForm.patchValue({
+      rentalType: RentalType.Overnight,
+      checkInDate: dateStr,
+      checkOutDate: nextDay,
+      roomTypeId: room.roomTypeId
+    });
+    this.onCalculateQuoteAndAvailability();
+    this.selectedRoomId.set(room.id);
+  }
+
+  // ── Day-Use & Location (Administrative Divisions) Methods ──────────────────
+
+  isDayUsePresetActive(): boolean {
+    const val = this.createForm?.value;
+    return (
+      val?.rentalType === RentalType.Hourly &&
+      val?.hourlyStartTime === '08:00' &&
+      val?.hourlyEndTime === '18:00'
+    );
+  }
+
+  applyDayUsePreset(): void {
+    this.createForm.patchValue({
+      rentalType: RentalType.Hourly,
+      hourlyDate: this.createForm.get('checkInDate')?.value || getTodayVnDateString(),
+      hourlyStartTime: '08:00',
+      hourlyEndTime: '18:00'
+    });
+    this.onRentalTypeChanged();
+  }
+
+  loadProvinces(): void {
+    if (this.provinces().length > 0 || this.isLoadingProvinces()) return;
+    this.isLoadingProvinces.set(true);
+    this.provincesSub?.unsubscribe();
+    this.provincesSub = this.locationService?.getProvinces().subscribe({
+      next: (list) => {
+        this.provinces.set(list || []);
+        this.isLoadingProvinces.set(false);
+      },
+      error: () => {
+        this.isLoadingProvinces.set(false);
+      }
+    });
+  }
+
+  onProvinceChange(event: Event): void {
+    const code = (event.target as HTMLSelectElement).value;
+    const selected = this.provinces().find(p => p.code === code);
+    this.createForm.patchValue({
+      provinceCode: code,
+      provinceName: selected?.name || '',
+      wardCode: '',
+      wardName: ''
+    });
+    this.wards.set([]);
+
+    if (!code) return;
+
+    this.isLoadingWards.set(true);
+    this.wardsSub?.unsubscribe();
+    this.wardsSub = this.locationService?.getWards(code).subscribe({
+      next: (list) => {
+        this.wards.set(list || []);
+        this.isLoadingWards.set(false);
+      },
+      error: () => {
+        this.isLoadingWards.set(false);
+      }
+    });
+  }
+
+  onWardChange(event: Event): void {
+    const code = (event.target as HTMLSelectElement).value;
+    const selected = this.wards().find(w => w.code === code);
+    this.createForm.patchValue({
+      wardCode: code,
+      wardName: selected?.name || ''
+    });
   }
 }
 

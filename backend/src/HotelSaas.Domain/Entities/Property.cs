@@ -114,6 +114,36 @@ public class Property : BaseEntity, ITenantScopedEntity
     public double? Longitude { get; set; }
 
     /// <summary>
+    /// Slug identifier of the tourist zone this property belongs to (e.g., "da-lat", "vung-tau").
+    /// </summary>
+    public string? TouristZoneSlug { get; set; }
+
+    /// <summary>
+    /// Display name of the tourist zone (e.g., "Đà Lạt", "Vũng Tàu").
+    /// </summary>
+    public string? TouristZoneName { get; set; }
+
+    /// <summary>
+    /// JSON-serialized list of nearby landmarks with distances (e.g., [{"Name":"Chợ Đêm Đà Lạt","DistanceMeters":400}]).
+    /// </summary>
+    public string? NearbyLandmarksJson { get; set; }
+
+    /// <summary>
+    /// Allows guests to book rooms on an hourly basis. Default: true.
+    /// </summary>
+    public bool AllowHourlyBooking { get; set; } = true;
+
+    /// <summary>
+    /// Allows guests to book rooms for overnight stays. Default: true.
+    /// </summary>
+    public bool AllowOvernightBooking { get; set; } = true;
+
+    /// <summary>
+    /// Allows guests to book rooms on a daily stay basis. Default: true.
+    /// </summary>
+    public bool AllowDailyBooking { get; set; } = true;
+
+    /// <summary>
     /// Indicates whether the branch has been reviewed and published for public bookings.
     /// Default is false (safety guard: no auto-publishing).
     /// </summary>

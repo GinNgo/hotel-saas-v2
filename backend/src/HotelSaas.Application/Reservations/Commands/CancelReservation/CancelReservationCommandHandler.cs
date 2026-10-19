@@ -4,7 +4,9 @@ using System.Threading.Tasks;
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
+using HotelSaas.Application.Loyalty.Services;
 using HotelSaas.Application.Reservations.DTOs;
+using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -22,19 +24,22 @@ public sealed class CancelReservationCommandHandler : IRequestHandler<CancelRese
     private readonly ICurrentUserContext _userContext;
     private readonly IMembershipLookupService _membershipLookupService;
     private readonly ICurrentPropertyService _propertyService;
+    private readonly ILoyaltyLedgerService _loyaltyLedgerService;
 
     public CancelReservationCommandHandler(
         IApplicationDbContext context,
         ICurrentTenantService tenantService,
         ICurrentUserContext userContext,
         IMembershipLookupService membershipLookupService,
-        ICurrentPropertyService propertyService)
+        ICurrentPropertyService propertyService,
+        ILoyaltyLedgerService? loyaltyLedgerService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _tenantService = tenantService ?? throw new ArgumentNullException(nameof(tenantService));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _membershipLookupService = membershipLookupService ?? throw new ArgumentNullException(nameof(membershipLookupService));
         _propertyService = propertyService ?? throw new ArgumentNullException(nameof(propertyService));
+        _loyaltyLedgerService = loyaltyLedgerService ?? new LoyaltyLedgerService(_context);
     }
 
     public async Task<ReservationDetailDto> Handle(CancelReservationCommand request, CancellationToken cancellationToken)
@@ -171,6 +176,14 @@ public sealed class CancelReservationCommandHandler : IRequestHandler<CancelRese
         reservation.Status = ReservationStatus.Cancelled;
         reservation.CancelledAtUtc = DateTime.UtcNow;
         reservation.CancellationReason = reason;
+        reservation.SmartLockStatus = "Revoked";
+
+        // Rule C: Automatic, idempotent points refund on reservation cancellation via LoyaltyLedgerService
+        if (reservation.PointsRedeemed > 0 && reservation.PointsRefunded == 0)
+        {
+            await _loyaltyLedgerService.RefundPointsAsync(reservation.Id, cancellationToken);
+            reservation.PointsRefunded = reservation.PointsRedeemed;
+        }
 
         await _context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

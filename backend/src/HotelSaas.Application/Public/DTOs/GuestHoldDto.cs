@@ -29,5 +29,7 @@ public sealed class GuestHoldDto
     public DateTime HoldExpiresAtUtc { get; set; }
     public int SecondsRemaining { get; set; }
     public string Status { get; set; } = "PendingPayment";
+    public int PointsRedeemed { get; set; }
+    public decimal PointsDiscountAmount { get; set; }
     public IReadOnlyList<QuoteBreakdownItemDto> Breakdown { get; set; } = Array.Empty<QuoteBreakdownItemDto>();
 }

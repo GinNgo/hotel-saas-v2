@@ -111,6 +111,67 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.ToTable("AiUsageLogs");
                 });
 
+            modelBuilder.Entity("HotelSaas.Domain.Entities.GuestLoyaltyMembership", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("CompletedStaysCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EnrolledPropertyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("LifetimePoints")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MemberCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("PointsBalance")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Tier")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EnrolledPropertyId");
+
+                    b.HasIndex("MemberCode")
+                        .IsUnique()
+                        .HasDatabaseName("UX_GuestLoyaltyMemberships_MemberCode");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("TenantId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_GuestLoyaltyMemberships_Tenant_User");
+
+                    b.ToTable("GuestLoyaltyMemberships", (string)null);
+                });
+
             modelBuilder.Entity("HotelSaas.Domain.Entities.GuestReview", b =>
                 {
                     b.Property<Guid>("Id")
@@ -168,54 +229,6 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.ToTable("GuestReviews");
                 });
 
-            modelBuilder.Entity("HotelSaas.Domain.Entities.HousekeepingTask", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("AssignedToId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("AssignedToUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("CompletedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("text");
-
-                    b.Property<int>("Priority")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("RoomId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("StartedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AssignedToId");
-
-                    b.HasIndex("RoomId");
-
-                    b.ToTable("HousekeepingTasks");
-                });
-
             modelBuilder.Entity("HotelSaas.Domain.Entities.Invoice", b =>
                 {
                     b.Property<Guid>("Id")
@@ -224,6 +237,18 @@ namespace HotelSaas.Infrastructure.Migrations
 
                     b.Property<decimal>("Balance")
                         .HasColumnType("numeric");
+
+                    b.Property<string>("BuyerAddress")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BuyerCompanyName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BuyerEmail")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BuyerTaxCode")
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -259,6 +284,18 @@ namespace HotelSaas.Infrastructure.Migrations
 
                     b.Property<decimal>("PaidAmount")
                         .HasColumnType("numeric");
+
+                    b.Property<decimal>("PointsDiscountAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("PointsEarned")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PointsRedeemed")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PointsRefunded")
+                        .HasColumnType("integer");
 
                     b.Property<string>("PropertyAddress")
                         .IsRequired()
@@ -350,6 +387,64 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.ToTable("InvoiceItems");
                 });
 
+            modelBuilder.Entity("HotelSaas.Domain.Entities.LoyaltyPointTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BalanceAfter")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("InvoiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MembershipId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("PointsDelta")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("PropertyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ReservationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("TransactionType")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.HasIndex("PropertyId");
+
+                    b.HasIndex("ReservationId")
+                        .HasDatabaseName("IX_LoyaltyPointTransactions_ReservationId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("MembershipId", "CreatedAtUtc")
+                        .HasDatabaseName("IX_LoyaltyPointTransactions_Membership_CreatedAt");
+
+                    b.ToTable("LoyaltyPointTransactions", (string)null);
+                });
+
             modelBuilder.Entity("HotelSaas.Domain.Entities.Notification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -420,6 +515,7 @@ namespace HotelSaas.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("PropertyId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ReservationId")
@@ -429,6 +525,7 @@ namespace HotelSaas.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uuid");
 
                     b.Property<string>("TransactionRef")
@@ -481,6 +578,79 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("PermissionFunctions");
+                });
+
+            modelBuilder.Entity("HotelSaas.Domain.Entities.PrintTemplateConfig", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BankAccountHolder")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("BankAccountNumber")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("BankName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CheckInPolicyText")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DefaultPaperSize")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("FooterNote")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("HeaderAddress")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("HeaderCompanyName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Hotline")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("LogoUrl")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("PropertyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("ShowVietQrCode")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("TaxNumber")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PropertyId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("PrintTemplateConfigs");
                 });
 
             modelBuilder.Entity("HotelSaas.Domain.Entities.Promotion", b =>
@@ -549,15 +719,25 @@ namespace HotelSaas.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<bool>("AllowDailyBooking")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("AllowHourlyBooking")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("AllowOvernightBooking")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
                     b.Property<int>("BufferMinutes")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
                         .HasDefaultValue(30);
-
-                    b.Property<int>("MaxHourlyHours")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(12);
 
                     b.Property<TimeOnly>("CheckInTime")
                         .ValueGeneratedOnAdd()
@@ -600,10 +780,19 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.Property<double?>("Longitude")
                         .HasColumnType("double precision");
 
+                    b.Property<int>("MaxHourlyHours")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(12);
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<string>("NearbyLandmarksJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
 
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(20)
@@ -644,6 +833,14 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("TouristZoneName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TouristZoneSlug")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -660,7 +857,65 @@ namespace HotelSaas.Infrastructure.Migrations
                         .IsUnique()
                         .HasDatabaseName("UX_Property_TenantId_Code");
 
-                    b.ToTable("Properties", (string)null);
+                    b.ToTable("Properties", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Properties_MaxHourlyHours", "\"MaxHourlyHours\" >= 1 AND \"MaxHourlyHours\" <= 24");
+                        });
+                });
+
+            modelBuilder.Entity("HotelSaas.Domain.Entities.PropertySurchargePolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("CalculationMethod")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("FlatAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<TimeOnly>("FromTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<decimal?>("Percentage")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<Guid>("PropertyId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SurchargeType")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<TimeOnly>("ToTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "PropertyId");
+
+                    b.HasIndex("PropertyId", "SurchargeType", "IsActive")
+                        .HasDatabaseName("IX_PropertySurchargePolicies_Property_Type_Active");
+
+                    b.ToTable("PropertySurchargePolicies", (string)null);
                 });
 
             modelBuilder.Entity("HotelSaas.Domain.Entities.RefreshToken", b =>
@@ -704,6 +959,18 @@ namespace HotelSaas.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("BuyerAddress")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BuyerCompanyName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BuyerEmail")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BuyerTaxCode")
+                        .HasColumnType("text");
+
                     b.Property<string>("CancellationReason")
                         .HasColumnType("text");
 
@@ -743,16 +1010,39 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.Property<int>("NumberOfGuests")
                         .HasColumnType("integer");
 
+                    b.Property<decimal>("PointsDiscountAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("PointsEarned")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PointsRedeemed")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PointsRefunded")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("PropertyId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("RoomId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("SmartLockActivatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SmartLockPin")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SmartLockStatus")
+                        .HasColumnType("text");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("TotalAmount")
@@ -826,6 +1116,7 @@ namespace HotelSaas.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("PropertyId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uuid");
 
                     b.Property<string>("RoomNumber")
@@ -839,6 +1130,7 @@ namespace HotelSaas.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAtUtc")
@@ -895,12 +1187,14 @@ namespace HotelSaas.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("PropertyId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uuid");
 
                     b.Property<decimal?>("SquareMeters")
                         .HasColumnType("numeric");
 
                     b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAtUtc")
@@ -918,9 +1212,209 @@ namespace HotelSaas.Infrastructure.Migrations
                         .IsUnique()
                         .HasDatabaseName("UX_RoomType_PropertyId_Code");
 
-                    b.HasIndex("TenantId", "PropertyId");
-
                     b.ToTable("RoomTypes", (string)null);
+                });
+
+            modelBuilder.Entity("HotelSaas.Domain.Entities.RoomTypeRate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("AdditionalHourPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("ChangeReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("VND");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("EffectiveTo")
+                        .HasColumnType("date");
+
+                    b.Property<int>("FirstHours")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(2);
+
+                    b.Property<decimal>("FirstHoursPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<decimal>("NightlyPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("PropertyId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RoomTypeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RoomTypeId");
+
+                    b.HasIndex("PropertyId", "RoomTypeId", "IsActive")
+                        .HasDatabaseName("IX_RoomTypeRates_Property_RoomType_Active");
+
+                    b.HasIndex("TenantId", "PropertyId", "RoomTypeId");
+
+                    b.ToTable("RoomTypeRates", (string)null);
+                });
+
+            modelBuilder.Entity("HotelSaas.Domain.Entities.RoomTypeRateAudit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ActionType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ChangeReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("ChangedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ChangedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("NewEffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("NewEffectiveTo")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("NewNightlyPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateOnly?>("OldEffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("OldEffectiveTo")
+                        .HasColumnType("date");
+
+                    b.Property<decimal?>("OldNightlyPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("PropertyId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("RateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RoomTypeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RateId");
+
+                    b.HasIndex("RoomTypeId");
+
+                    b.HasIndex("PropertyId", "RoomTypeId", "ChangedAtUtc")
+                        .HasDatabaseName("IX_RoomTypeRateAudits_Property_RoomType_ChangedAt");
+
+                    b.HasIndex("TenantId", "PropertyId", "RoomTypeId");
+
+                    b.ToTable("RoomTypeRateAudits", (string)null);
+                });
+
+            modelBuilder.Entity("HotelSaas.Domain.Entities.SocialIdentity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AvatarUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("LastLoginAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("ProviderEmail")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<string>("ProviderSubject")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Provider", "ProviderSubject")
+                        .IsUnique()
+                        .HasDatabaseName("UX_SocialIdentities_Provider_Subject");
+
+                    b.HasIndex("UserId", "Provider")
+                        .IsUnique()
+                        .HasDatabaseName("UX_SocialIdentities_User_Provider");
+
+                    b.ToTable("SocialIdentities", (string)null);
                 });
 
             modelBuilder.Entity("HotelSaas.Domain.Entities.Subscription", b =>
@@ -1035,6 +1529,12 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FeaturesJson")
+                        .HasColumnType("text");
+
                     b.Property<bool>("HasAdvancedReports")
                         .HasColumnType("boolean");
 
@@ -1043,6 +1543,12 @@ namespace HotelSaas.Infrastructure.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPopular")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("MaxProperties")
+                        .HasColumnType("integer");
 
                     b.Property<int>("MaxRooms")
                         .HasColumnType("integer");
@@ -1057,6 +1563,9 @@ namespace HotelSaas.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -1066,201 +1575,6 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("SubscriptionPlans");
-                });
-
-            modelBuilder.Entity("HotelSaas.Domain.Entities.PropertySurchargePolicy", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("CalculationMethod")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal?>("FlatAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<TimeOnly>("FromTime")
-                        .HasColumnType("time without time zone");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<decimal?>("Percentage")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
-
-                    b.Property<Guid>("PropertyId")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("SurchargeType")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("TenantId")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.Property<TimeOnly>("ToTime")
-                        .HasColumnType("time without time zone");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PropertyId", "SurchargeType", "IsActive")
-                        .HasDatabaseName("IX_PropertySurchargePolicies_Property_Type_Active");
-
-                    b.ToTable("PropertySurchargePolicies");
-                });
-
-            modelBuilder.Entity("HotelSaas.Domain.Entities.RoomTypeRate", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("AdditionalHourPrice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("ChangeReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
-                        .HasDefaultValue("VND");
-
-                    b.Property<DateOnly>("EffectiveFrom")
-                        .HasColumnType("date");
-
-                    b.Property<DateOnly>("EffectiveTo")
-                        .HasColumnType("date");
-
-                    b.Property<int>("FirstHours")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(2);
-
-                    b.Property<decimal>("FirstHoursPrice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<decimal>("NightlyPrice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<Guid>("PropertyId")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("RoomTypeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TenantId")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PropertyId", "RoomTypeId", "IsActive")
-                        .HasDatabaseName("IX_RoomTypeRates_Property_RoomType_Active");
-
-                    b.ToTable("RoomTypeRates");
-                });
-
-            modelBuilder.Entity("HotelSaas.Domain.Entities.RoomTypeRateAudit", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ActionType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("ChangeReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateTime>("ChangedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("ChangedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateOnly>("NewEffectiveFrom")
-                        .HasColumnType("date");
-
-                    b.Property<DateOnly>("NewEffectiveTo")
-                        .HasColumnType("date");
-
-                    b.Property<decimal>("NewNightlyPrice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateOnly?>("OldEffectiveFrom")
-                        .HasColumnType("date");
-
-                    b.Property<DateOnly?>("OldEffectiveTo")
-                        .HasColumnType("date");
-
-                    b.Property<decimal?>("OldNightlyPrice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<Guid>("PropertyId")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("RateId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("RoomTypeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TenantId")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PropertyId", "RoomTypeId", "ChangedAtUtc")
-                        .HasDatabaseName("IX_RoomTypeRateAudits_Property_RoomType_ChangedAt");
-
-                    b.ToTable("RoomTypeRateAudits");
                 });
 
             modelBuilder.Entity("HotelSaas.Domain.Entities.SystemBanner", b =>
@@ -1394,6 +1708,83 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.ToTable("Tenants");
                 });
 
+            modelBuilder.Entity("HotelSaas.Domain.Entities.TenantContract", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BillingCycle")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ContractNumber")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ContractType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("ContractValue")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DigitalSignatureHash")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PlanCode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PlanName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RepresentativeEmail")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RepresentativeName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RepresentativePhone")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("SignedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TermsAndConditions")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("TenantContracts");
+                });
+
             modelBuilder.Entity("HotelSaas.Domain.Entities.TenantStaff", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1454,6 +1845,15 @@ namespace HotelSaas.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("AvatarUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyAddress")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyTaxCode")
                         .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAtUtc")
@@ -1518,6 +1918,36 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("HotelSaas.Domain.Entities.GuestLoyaltyMembership", b =>
+                {
+                    b.HasOne("HotelSaas.Domain.Entities.Property", "EnrolledProperty")
+                        .WithMany()
+                        .HasForeignKey("EnrolledPropertyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_GuestLoyaltyMemberships_Properties_EnrolledPropertyId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_GuestLoyaltyMemberships_Tenants_TenantId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.User", "User")
+                        .WithMany("LoyaltyMemberships")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_GuestLoyaltyMemberships_Users_UserId");
+
+                    b.Navigation("EnrolledProperty");
+
+                    b.Navigation("Tenant");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("HotelSaas.Domain.Entities.GuestReview", b =>
                 {
                     b.HasOne("HotelSaas.Domain.Entities.Reservation", "Reservation")
@@ -1535,23 +1965,6 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.Navigation("Reservation");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("HotelSaas.Domain.Entities.HousekeepingTask", b =>
-                {
-                    b.HasOne("HotelSaas.Domain.Entities.User", "AssignedTo")
-                        .WithMany()
-                        .HasForeignKey("AssignedToId");
-
-                    b.HasOne("HotelSaas.Domain.Entities.Room", "Room")
-                        .WithMany()
-                        .HasForeignKey("RoomId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("AssignedTo");
-
-                    b.Navigation("Room");
                 });
 
             modelBuilder.Entity("HotelSaas.Domain.Entities.Invoice", b =>
@@ -1574,6 +1987,51 @@ namespace HotelSaas.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Invoice");
+                });
+
+            modelBuilder.Entity("HotelSaas.Domain.Entities.LoyaltyPointTransaction", b =>
+                {
+                    b.HasOne("HotelSaas.Domain.Entities.Invoice", "Invoice")
+                        .WithMany()
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("FK_LoyaltyPointTransactions_Invoices_InvoiceId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.GuestLoyaltyMembership", "Membership")
+                        .WithMany("Transactions")
+                        .HasForeignKey("MembershipId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_LoyaltyPointTransactions_Memberships_MembershipId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.Property", "Property")
+                        .WithMany()
+                        .HasForeignKey("PropertyId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("FK_LoyaltyPointTransactions_Properties_PropertyId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.Reservation", "Reservation")
+                        .WithMany()
+                        .HasForeignKey("ReservationId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("FK_LoyaltyPointTransactions_Reservations_ReservationId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_LoyaltyPointTransactions_Tenants_TenantId");
+
+                    b.Navigation("Invoice");
+
+                    b.Navigation("Membership");
+
+                    b.Navigation("Property");
+
+                    b.Navigation("Reservation");
+
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("HotelSaas.Domain.Entities.Notification", b =>
@@ -1631,6 +2089,23 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("HotelSaas.Domain.Entities.PrintTemplateConfig", b =>
+                {
+                    b.HasOne("HotelSaas.Domain.Entities.Property", "Property")
+                        .WithMany()
+                        .HasForeignKey("PropertyId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Property");
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("HotelSaas.Domain.Entities.Property", b =>
                 {
                     b.HasOne("HotelSaas.Domain.Entities.Tenant", "Tenant")
@@ -1639,6 +2114,34 @@ namespace HotelSaas.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_Properties_Tenants_TenantId");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("HotelSaas.Domain.Entities.PropertySurchargePolicy", b =>
+                {
+                    b.HasOne("HotelSaas.Domain.Entities.Property", "Property")
+                        .WithMany("SurchargePolicies")
+                        .HasForeignKey("PropertyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_PropertySurchargePolicies_Properties_PropertyId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HotelSaas.Domain.Entities.Property", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "PropertyId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_PropertySurchargePolicies_Properties_Tenant_Property");
+
+                    b.Navigation("Property");
 
                     b.Navigation("Tenant");
                 });
@@ -1795,6 +2298,100 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("HotelSaas.Domain.Entities.RoomTypeRate", b =>
+                {
+                    b.HasOne("HotelSaas.Domain.Entities.Property", "Property")
+                        .WithMany("RoomTypeRates")
+                        .HasForeignKey("PropertyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_RoomTypeRates_Properties_PropertyId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.RoomType", "RoomType")
+                        .WithMany("Rates")
+                        .HasForeignKey("RoomTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_RoomTypeRates_RoomTypes_RoomTypeId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HotelSaas.Domain.Entities.RoomType", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "PropertyId", "RoomTypeId")
+                        .HasPrincipalKey("TenantId", "PropertyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_RoomTypeRates_RoomTypes_Composite");
+
+                    b.Navigation("Property");
+
+                    b.Navigation("RoomType");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("HotelSaas.Domain.Entities.RoomTypeRateAudit", b =>
+                {
+                    b.HasOne("HotelSaas.Domain.Entities.Property", "Property")
+                        .WithMany()
+                        .HasForeignKey("PropertyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_RoomTypeRateAudits_Properties_PropertyId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.RoomTypeRate", "Rate")
+                        .WithMany("Audits")
+                        .HasForeignKey("RateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_RoomTypeRateAudits_RoomTypeRates_RateId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.RoomType", "RoomType")
+                        .WithMany("RateAudits")
+                        .HasForeignKey("RoomTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_RoomTypeRateAudits_RoomTypes_RoomTypeId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HotelSaas.Domain.Entities.RoomType", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "PropertyId", "RoomTypeId")
+                        .HasPrincipalKey("TenantId", "PropertyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_RoomTypeRateAudits_RoomTypes_Composite");
+
+                    b.Navigation("Property");
+
+                    b.Navigation("Rate");
+
+                    b.Navigation("RoomType");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("HotelSaas.Domain.Entities.SocialIdentity", b =>
+                {
+                    b.HasOne("HotelSaas.Domain.Entities.User", "User")
+                        .WithMany("SocialIdentities")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_SocialIdentities_Users_UserId");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("HotelSaas.Domain.Entities.Subscription", b =>
                 {
                     b.HasOne("HotelSaas.Domain.Entities.Tenant", "Tenant")
@@ -1815,6 +2412,17 @@ namespace HotelSaas.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Subscription");
+                });
+
+            modelBuilder.Entity("HotelSaas.Domain.Entities.TenantContract", b =>
+                {
+                    b.HasOne("HotelSaas.Domain.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("HotelSaas.Domain.Entities.TenantStaff", b =>
@@ -1859,89 +2467,6 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("HotelSaas.Domain.Entities.PropertySurchargePolicy", b =>
-                {
-                    b.HasOne("HotelSaas.Domain.Entities.Property", "Property")
-                        .WithMany("SurchargePolicies")
-                        .HasForeignKey("PropertyId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("FK_PropertySurchargePolicies_Properties_PropertyId");
-
-                    b.HasOne("HotelSaas.Domain.Entities.Property", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "PropertyId")
-                        .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("FK_PropertySurchargePolicies_Properties_Tenant_Property");
-
-                    b.Navigation("Property");
-                });
-
-            modelBuilder.Entity("HotelSaas.Domain.Entities.RoomTypeRate", b =>
-                {
-                    b.HasOne("HotelSaas.Domain.Entities.Property", "Property")
-                        .WithMany("RoomTypeRates")
-                        .HasForeignKey("PropertyId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("FK_RoomTypeRates_Properties_PropertyId");
-
-                    b.HasOne("HotelSaas.Domain.Entities.RoomType", "RoomType")
-                        .WithMany("Rates")
-                        .HasForeignKey("RoomTypeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("FK_RoomTypeRates_RoomTypes_RoomTypeId");
-
-                    b.HasOne("HotelSaas.Domain.Entities.RoomType", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "PropertyId", "RoomTypeId")
-                        .HasPrincipalKey("TenantId", "PropertyId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("FK_RoomTypeRates_RoomTypes_Composite");
-
-                    b.Navigation("Property");
-
-                    b.Navigation("RoomType");
-                });
-
-            modelBuilder.Entity("HotelSaas.Domain.Entities.RoomTypeRateAudit", b =>
-                {
-                    b.HasOne("HotelSaas.Domain.Entities.Property", "Property")
-                        .WithMany()
-                        .HasForeignKey("PropertyId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("FK_RoomTypeRateAudits_Properties_PropertyId");
-
-                    b.HasOne("HotelSaas.Domain.Entities.RoomTypeRate", "Rate")
-                        .WithMany("Audits")
-                        .HasForeignKey("RateId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("FK_RoomTypeRateAudits_RoomTypeRates_RateId");
-
-                    b.HasOne("HotelSaas.Domain.Entities.RoomType", "RoomType")
-                        .WithMany("RateAudits")
-                        .HasForeignKey("RoomTypeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("FK_RoomTypeRateAudits_RoomTypes_RoomTypeId");
-
-                    b.HasOne("HotelSaas.Domain.Entities.RoomType", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "PropertyId", "RoomTypeId")
-                        .HasPrincipalKey("TenantId", "PropertyId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("FK_RoomTypeRateAudits_RoomTypes_Composite");
-
-                    b.Navigation("Property");
-
-                    b.Navigation("Rate");
-
-                    b.Navigation("RoomType");
-                });
-
             modelBuilder.Entity("HotelSaas.Domain.Entities.User", b =>
                 {
                     b.HasOne("HotelSaas.Domain.Entities.Tenant", "Tenant")
@@ -1954,6 +2479,11 @@ namespace HotelSaas.Infrastructure.Migrations
             modelBuilder.Entity("HotelSaas.Domain.Entities.AccessRole", b =>
                 {
                     b.Navigation("Permissions");
+                });
+
+            modelBuilder.Entity("HotelSaas.Domain.Entities.GuestLoyaltyMembership", b =>
+                {
+                    b.Navigation("Transactions");
                 });
 
             modelBuilder.Entity("HotelSaas.Domain.Entities.Invoice", b =>
@@ -1978,9 +2508,9 @@ namespace HotelSaas.Infrastructure.Migrations
 
                     b.Navigation("Rooms");
 
-                    b.Navigation("SurchargePolicies");
-
                     b.Navigation("StaffMembers");
+
+                    b.Navigation("SurchargePolicies");
                 });
 
             modelBuilder.Entity("HotelSaas.Domain.Entities.Reservation", b =>
@@ -2027,7 +2557,11 @@ namespace HotelSaas.Infrastructure.Migrations
 
             modelBuilder.Entity("HotelSaas.Domain.Entities.User", b =>
                 {
+                    b.Navigation("LoyaltyMemberships");
+
                     b.Navigation("RefreshTokens");
+
+                    b.Navigation("SocialIdentities");
 
                     b.Navigation("TenantStaffProfiles");
                 });

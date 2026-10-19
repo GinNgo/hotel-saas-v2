@@ -13,5 +13,10 @@ public enum RentalType
     /// <summary>
     /// Standard overnight stay with property-level check-in and check-out schedule.
     /// </summary>
-    Overnight = 2
+    Overnight = 2,
+
+    /// <summary>
+    /// Standard daily rental with check-in and check-out dates.
+    /// </summary>
+    Daily = 3
 }

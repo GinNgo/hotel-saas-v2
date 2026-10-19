@@ -61,6 +61,20 @@ export class AlertService {
   }
 
   /**
+   * Shorthand gọi toastSuccess
+   */
+  success(message: string, title: string = 'Thành công'): void {
+    this.toastSuccess(message, title);
+  }
+
+  /**
+   * Shorthand gọi toastError
+   */
+  error(message: string, title: string = 'Đã có lỗi xảy ra'): void {
+    this.toastError(message, title);
+  }
+
+  /**
    * Thông báo cảnh báo dạng Toast
    */
   toastWarning(message: string, title: string = 'Cảnh báo'): void {
@@ -82,6 +96,13 @@ export class AlertService {
       text: message,
       animation: !this.isReducedMotion()
     });
+  }
+
+  /**
+   * Shorthand gọi toastInfo
+   */
+  info(message: string, title: string = 'Thông tin'): void {
+    this.toastInfo(message, title);
   }
 
   /**

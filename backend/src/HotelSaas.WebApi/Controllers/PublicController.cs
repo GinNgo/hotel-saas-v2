@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Public.Commands.ConfirmGuestBooking;
 using HotelSaas.Application.Public.Commands.CreateGuestHold;
 using HotelSaas.Application.Public.DTOs;
@@ -31,22 +32,81 @@ namespace HotelSaas.WebApi.Controllers;
 public sealed class PublicController : ControllerBase
 {
     private readonly ISender _mediator;
+    private readonly ILocationLookupService? _locationService;
 
-    public PublicController(ISender mediator)
+    public PublicController(ISender mediator, ILocationLookupService? locationService = null)
     {
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
+        _locationService = locationService;
     }
 
     /// <summary>
-    /// Gets all active hotel properties available for public booking.
+    /// Gets all active properties available for public booking with flexible filtering.
     /// </summary>
     [HttpGet("properties")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(IReadOnlyList<PublicPropertyDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetProperties([FromQuery] string? search, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetProperties(
+        [FromQuery] string? search,
+        [FromQuery] string? destinationKeyword,
+        [FromQuery] string? propertyTypes,
+        [FromQuery] RentalType? rentalType,
+        [FromQuery] string? touristZoneSlug,
+        [FromQuery] string? landmarkSlug,
+        [FromQuery] double? maxDistanceKm,
+        [FromQuery] double? maxDistanceMeters,
+        [FromQuery] double? userLatitude,
+        [FromQuery] double? userLongitude,
+        CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new GetPublicPropertiesQuery(search), cancellationToken);
+        List<PropertyType>? parsedTypes = null;
+        if (!string.IsNullOrWhiteSpace(propertyTypes))
+        {
+            parsedTypes = propertyTypes.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(t => Enum.TryParse<PropertyType>(t.Trim(), true, out var pt) ? pt : (PropertyType?)null)
+                .Where(pt => pt.HasValue)
+                .Select(pt => pt!.Value)
+                .ToList();
+        }
+
+        var query = new GetPublicPropertiesQuery(
+            Search: search,
+            DestinationKeyword: destinationKeyword,
+            PropertyTypes: parsedTypes,
+            RentalType: rentalType,
+            TouristZoneSlug: touristZoneSlug,
+            LandmarkSlug: landmarkSlug,
+            MaxDistanceKm: maxDistanceKm,
+            MaxDistanceMeters: maxDistanceMeters,
+            UserLatitude: userLatitude,
+            UserLongitude: userLongitude);
+
+        var result = await _mediator.Send(query, cancellationToken);
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Gets all recognized tourist destination zones.
+    /// </summary>
+    [HttpGet("tourist-zones")]
+    [AllowAnonymous]
+    public IActionResult GetTouristZones([FromQuery] string? provinceCode)
+    {
+        if (_locationService == null) return Ok(Array.Empty<TouristZoneDto>());
+        var zones = _locationService.GetTouristZones(provinceCode);
+        return Ok(zones);
+    }
+
+    /// <summary>
+    /// Gets prominent landmarks for searching and proximity discovery.
+    /// </summary>
+    [HttpGet("landmarks")]
+    [AllowAnonymous]
+    public IActionResult GetLandmarks([FromQuery] string? provinceCode, [FromQuery] string? touristZoneSlug)
+    {
+        if (_locationService == null) return Ok(Array.Empty<LandmarkDto>());
+        var landmarks = _locationService.GetLandmarks(provinceCode, touristZoneSlug);
+        return Ok(landmarks);
     }
 
     /// <summary>
@@ -102,6 +162,7 @@ public sealed class PublicController : ControllerBase
     /// Calculates authoritative quote using the core pricing engine.
     /// </summary>
     [HttpPost("quotes/calculate")]
+    [HttpPost("quotes")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(QuoteDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -144,6 +205,17 @@ public sealed class PublicController : ControllerBase
             idempotencyKey = headerKey.ToString();
         }
 
+        Guid? guestUserId = request.GuestUserId;
+        if (!guestUserId.HasValue && User?.Identity?.IsAuthenticated == true)
+        {
+            var subClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? User.FindFirst("sub")?.Value;
+            if (Guid.TryParse(subClaim, out var parsedUserId))
+            {
+                guestUserId = parsedUserId;
+            }
+        }
+
         var command = new CreateGuestHoldCommand(
             request.PropertySlug,
             request.RoomTypeId,
@@ -157,7 +229,9 @@ public sealed class PublicController : ControllerBase
             request.CheckInDate,
             request.CheckOutDate,
             request.ExpectedTotalAmount,
-            idempotencyKey);
+            idempotencyKey,
+            request.PointsToRedeem,
+            guestUserId);
 
         var result = await _mediator.Send(command, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, result);
@@ -268,7 +342,9 @@ public sealed record CreateGuestHoldRequest(
     DateOnly? CheckInDate = null,
     DateOnly? CheckOutDate = null,
     decimal? ExpectedTotalAmount = null,
-    string? IdempotencyKey = null
+    string? IdempotencyKey = null,
+    int? PointsToRedeem = null,
+    Guid? GuestUserId = null
 );
 
 public sealed record ConfirmGuestBookingRequest(

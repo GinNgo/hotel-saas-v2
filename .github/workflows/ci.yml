@@ -86,7 +86,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
+        run: npm ci
 
       - name: Lint
         run: npm run lint --if-present
@@ -95,7 +95,7 @@ jobs:
         run: npm run build -- --configuration production
 
       - name: Unit tests
-        run: npm run test:unit:ci --if-present
+        run: npm test -- --watch=false
 
   # ── Stage 3: Security Scan ──
   security:
@@ -121,8 +121,8 @@ jobs:
     steps:
       - name: Check results
         run: |
-          if [[ "${{ needs.backend.result }}" == "failure" ]] || \
-             [[ "${{ needs.frontend.result }}" == "failure" ]]; then
+          if [[ "${{ needs.backend.result }}" != "success" ]] || \
+             [[ "${{ needs.frontend.result }}" != "success" ]]; then
             echo "CI failed!"
             exit 1
           fi

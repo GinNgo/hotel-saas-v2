@@ -45,6 +45,7 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher, PasswordHasherService>();
         services.AddScoped<IJwtService, JwtService>();
         services.AddSingleton<ILocationLookupService, LocationLookupService>();
+        services.AddScoped<IVnpayPaymentService, VnpayPaymentService>();
 
         return services;
     }

@@ -29,5 +29,7 @@ public record ReservationDto
     public ReservationStatus Status { get; init; }
     public string ConfirmationCode { get; init; } = string.Empty;
     public string? Notes { get; init; }
+    public string? SmartLockPin { get; init; }
+    public string? SmartLockStatus { get; init; }
     public DateTime CreatedAtUtc { get; init; }
 }

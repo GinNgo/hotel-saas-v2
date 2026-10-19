@@ -363,9 +363,11 @@ public sealed class GetPublicPropertiesSyntheticTests
         public TestApplicationDbContext(IEnumerable<Property> properties)
         {
             Properties = new TestAsyncDbSet<Property>(properties);
+            RoomTypeRates = new TestAsyncDbSet<RoomTypeRate>(Enumerable.Empty<RoomTypeRate>());
         }
 
         public DbSet<Property> Properties { get; }
+        public DbSet<RoomTypeRate> RoomTypeRates { get; }
 
         public DbSet<User> Users => throw new NotImplementedException();
         public DbSet<RefreshToken> RefreshTokens => throw new NotImplementedException();
@@ -382,8 +384,14 @@ public sealed class GetPublicPropertiesSyntheticTests
         public DbSet<SubscriptionPlan> SubscriptionPlans => throw new NotImplementedException();
         public DbSet<SystemBanner> SystemBanners => throw new NotImplementedException();
         public DbSet<PropertySurchargePolicy> PropertySurchargePolicies => throw new NotImplementedException();
-        public DbSet<RoomTypeRate> RoomTypeRates => throw new NotImplementedException();
         public DbSet<RoomTypeRateAudit> RoomTypeRateAudits => throw new NotImplementedException();
+        public DbSet<Invoice> Invoices => throw new NotImplementedException();
+        public DbSet<InvoiceItem> InvoiceItems => throw new NotImplementedException();
+        public DbSet<GuestLoyaltyMembership> GuestLoyaltyMemberships => throw new NotImplementedException();
+        public DbSet<LoyaltyPointTransaction> LoyaltyPointTransactions => throw new NotImplementedException();
+        public DbSet<TenantContract> TenantContracts => throw new NotImplementedException();
+        public DbSet<PrintTemplateConfig> PrintTemplateConfigs => throw new NotImplementedException();
+        public DbSet<SocialIdentity> SocialIdentities => throw new NotImplementedException();
 
         public Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task LockUserRowAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();

@@ -93,6 +93,7 @@ if (!app.Environment.IsEnvironment("Testing") && !builder.Configuration.GetValue
                 var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
                 await LocalDevDataSeeder.SeedAsync(connStr, new LocalDevSeedOptions(), hasher);
                 Log.Information("LocalDevDataSeeder executed successfully.");
+                await SeedData.SeedPlatformAdminDataAsync(context);
             }
             catch (Exception ex)
             {

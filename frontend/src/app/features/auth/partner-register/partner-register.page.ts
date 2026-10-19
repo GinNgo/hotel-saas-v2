@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -8,6 +8,8 @@ import { AuthService } from '../../../core/services/auth.service';
 import { LocationService } from '../../../core/services/location.service';
 import { Province, Ward } from '../../../core/models/location.model';
 import { HttpErrorResponse } from '@angular/common/http';
+import { SearchableSelectComponent, SearchableSelectItem } from '../../../shared/components/searchable-select/searchable-select.component';
+import { GoogleMapPickerComponent, LocationPickerResult } from '../../../shared/components/google-map-picker/google-map-picker.component';
 
 function passwordMatchValidator(control: AbstractControl): ValidationErrors | null {
   const password = control.get('password')?.value;
@@ -20,10 +22,8 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
 }
 
 /**
- * Trang Đăng ký Đối tác Mở Khách sạn (Partner Hotel Registration & Customer Upgrade).
- * Hỗ trợ 2 luồng:
- * 1. Khách vãng lai (Guest): Tạo tài khoản mới + Cơ sở lưu trú.
- * 2. Khách hàng đã đăng nhập (Customer Upgrade): Tự động nạp profile, bỏ qua mật khẩu, nâng cấp trực tiếp lên Hotel Owner.
+ * Trang Đăng ký Đối tác Mở Khách sạn & Nâng cấp Chủ Khách sạn
+ * Tích hợp Google Maps Places, Bản đồ vị trí tương tác và Bộ chọn 63 Tỉnh/Thành phố thông minh.
  */
 @Component({
   selector: 'app-partner-register',
@@ -32,79 +32,50 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
     CommonModule,
     ReactiveFormsModule,
     RouterLink,
-    InputText,
-    Password
+    Password,
+    SearchableSelectComponent,
+    GoogleMapPickerComponent
   ],
   template: `
-    <div class="w-full max-w-4xl mx-auto py-4">
+    <div class="w-full max-w-4xl mx-auto py-6 px-4">
+      <!-- Header Tinh Gọn -->
       <div class="text-center mb-6">
-        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-semibold uppercase tracking-wider mb-2">
+        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-semibold mb-2">
           <i class="pi pi-building"></i>
-          Dành Cho Chủ Cơ Sở Lưu Trú & Đối Tác
+          <span>Dành Cho Chủ Khách Sạn & Đối Tác</span>
         </div>
-        <h2 class="text-2xl font-bold text-slate-800">
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight">
           {{ isAuthenticated() ? 'Nâng Cấp Tài Khoản Mở Khách Sạn' : 'Đăng Ký Đối Tác Mở Khách Sạn' }}
-        </h2>
-        <p class="text-sm text-slate-500 mt-1 max-w-2xl mx-auto">
+        </h1>
+        <p class="text-xs sm:text-sm text-slate-500 mt-1 max-w-xl mx-auto">
           {{ isAuthenticated()
-              ? 'Tài khoản khách hàng của bạn sẽ được nâng cấp thành Chủ khách sạn (Owner). Dễ dàng quản lý phòng và tiếp cận hàng ngàn lượt đặt.'
-              : 'Gia nhập nền tảng quản trị khách sạn đa cơ sở hiện đại. Thiết lập cơ sở lưu trú đầu tiên của bạn chỉ trong 2 phút.' }}
+              ? 'Tài khoản của bạn sẽ được cấp quyền Quản lý Khách sạn. Hoàn tất vị trí để bắt đầu vận hành.'
+              : 'Gia nhập nền tảng quản trị khách sạn hiện đại. Thiết lập cơ sở lưu trú và định vị trên bản đồ chỉ trong 2 phút.' }}
         </p>
       </div>
 
-      <!-- Value Proposition Bar -->
-      <div class="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-            <i class="pi pi-bolt text-sm"></i>
-          </div>
-          <div>
-            <div class="text-xs font-bold text-slate-800">Khởi tạo tức thì</div>
-            <div class="text-[11px] text-slate-500">Hoạt động trong 2 phút</div>
-          </div>
-        </div>
-        <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
-            <i class="pi pi-sitemap text-sm"></i>
-          </div>
-          <div>
-            <div class="text-xs font-bold text-slate-800">Quản lý đa chi nhánh</div>
-            <div class="text-[11px] text-slate-500">Đổi cơ sở 1 chạm</div>
-          </div>
-        </div>
-        <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-            <i class="pi pi-chart-line text-sm"></i>
-          </div>
-          <div>
-            <div class="text-xs font-bold text-slate-800">Biểu giá thông minh</div>
-            <div class="text-[11px] text-slate-500">Giờ, đêm &amp; phụ thu</div>
-          </div>
-        </div>
-      </div>
-
       @if (isAuthenticated()) {
-        <div class="mb-5 p-4 rounded-2xl bg-indigo-50/80 border border-indigo-200/90 text-indigo-950 text-sm shadow-sm flex items-center justify-between gap-4">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0">
-              <i class="pi pi-user-check text-lg"></i>
+        <div class="mb-5 p-3.5 rounded-xl bg-indigo-50/90 border border-indigo-200/90 text-indigo-950 text-xs sm:text-sm shadow-2xs flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0">
+              <i class="pi pi-user-check text-sm"></i>
             </div>
             <div>
-              <p class="font-bold text-slate-800">Đang nâng cấp từ tài khoản khách hàng</p>
-              <p class="text-xs text-indigo-700">{{ currentEmail() }} ({{ currentFullName() }})</p>
+              <span class="font-bold text-slate-800">Tài khoản khách hàng: </span>
+              <span class="text-indigo-700 font-medium">{{ currentEmail() }}</span>
             </div>
           </div>
-          <span class="px-2.5 py-1 bg-indigo-200 text-indigo-900 text-xs font-bold rounded-lg shrink-0">
+          <span class="px-2 py-0.5 bg-indigo-200 text-indigo-900 text-xs font-bold rounded-md shrink-0">
             Đã đăng nhập
           </span>
         </div>
       }
 
       @if (errorMessage()) {
-        <div class="mb-5 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-start gap-3 shadow-sm">
-          <i class="pi pi-exclamation-triangle text-lg text-rose-500 mt-0.5 shrink-0"></i>
+        <div class="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs sm:text-sm flex items-start gap-2.5 shadow-2xs">
+          <i class="pi pi-exclamation-triangle text-base text-rose-500 mt-0.5 shrink-0"></i>
           <div>
-            <span class="font-medium">Chưa thể hoàn tất đăng ký:</span>
+            <span class="font-bold">Chưa thể hoàn tất đăng ký:</span>
             <p class="mt-0.5">{{ errorMessage() }}</p>
           </div>
         </div>
@@ -113,7 +84,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
       @if (successMessage()) {
         <div class="mb-5 p-6 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm shadow-sm flex flex-col items-center text-center">
           <i class="pi pi-check-circle text-4xl text-emerald-600 mb-2"></i>
-          <h3 class="font-bold text-lg text-emerald-900">Chúc mừng bạn đã hoàn tất đăng ký đối tác!</h3>
+          <h2 class="font-bold text-lg text-emerald-900">Chúc mừng bạn đã hoàn tất đăng ký đối tác!</h2>
           <p class="mt-1 text-emerald-700 max-w-lg">{{ successMessage() }}</p>
           <div class="mt-5 flex gap-3">
             <a routerLink="/login" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm shadow transition-colors flex items-center gap-2">
@@ -124,220 +95,285 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
         </div>
       } @else {
         <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" class="space-y-6">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Cột 1: Thông tin người đại diện / Chủ sở hữu -->
-            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
-              <div class="flex items-center gap-2 pb-2 border-b border-slate-100">
-                <i class="pi pi-user text-indigo-600 font-bold"></i>
-                <h3 class="font-bold text-slate-800 text-sm uppercase tracking-wide">1. Thông tin Chủ sở hữu</h3>
-              </div>
-
-              <!-- Full Name Field -->
+          <!-- Hàng 1: Hai cột cân xứng - Thông tin người đại diện & Thông tin cơ sở -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+            <!-- Cột 1: Thông tin Đại diện Chủ sở hữu -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm space-y-4.5 flex flex-col justify-between">
               <div>
-                <label for="fullName" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Họ và tên người đại diện <span class="text-rose-500">*</span>
-                </label>
-                <input
-                  id="fullName"
-                  pInputText
-                  formControlName="fullName"
-                  placeholder="Ví dụ: Nguyễn Văn Hoàng"
-                  class="w-full text-sm py-2 px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  [class.border-rose-400]="isFieldInvalid('fullName')"
-                />
-                @if (isFieldInvalid('fullName')) {
-                  <p class="text-xs text-rose-500 mt-1">Vui lòng nhập họ và tên của bạn.</p>
-                }
-              </div>
-
-              <!-- Email Field -->
-              <div>
-                <label for="email" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Email liên hệ & đăng nhập <span class="text-rose-500">*</span>
-                </label>
-                <input
-                  id="email"
-                  pInputText
-                  type="email"
-                  formControlName="email"
-                  [readonly]="isAuthenticated()"
-                  placeholder="chu.khachsan@example.com"
-                  class="w-full text-sm py-2 px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  [class.bg-slate-100]="isAuthenticated()"
-                  [class.border-rose-400]="isFieldInvalid('email')"
-                />
-                @if (isFieldInvalid('email')) {
-                  <p class="text-xs text-rose-500 mt-1">Vui lòng nhập địa chỉ email hợp lệ.</p>
-                }
-              </div>
-
-              <!-- Phone Field -->
-              <div>
-                <label for="phoneNumber" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Số điện thoại liên hệ <span class="text-rose-500">*</span>
-                </label>
-                <input
-                  id="phoneNumber"
-                  pInputText
-                  type="tel"
-                  formControlName="phoneNumber"
-                  placeholder="0912345678"
-                  class="w-full text-sm py-2 px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  [class.border-rose-400]="isFieldInvalid('phoneNumber')"
-                />
-                @if (isFieldInvalid('phoneNumber')) {
-                  <p class="text-xs text-rose-500 mt-1">Vui lòng nhập số điện thoại liên hệ.</p>
-                }
-              </div>
-
-              <!-- Password Fields (Chỉ hiển thị với khách vãng lai chưa đăng nhập) -->
-              @if (!isAuthenticated()) {
-                <div>
-                  <label for="password" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Mật khẩu tài khoản <span class="text-rose-500">*</span>
-                  </label>
-                  <p-password
-                    id="password"
-                    formControlName="password"
-                    [feedback]="true"
-                    [toggleMask]="true"
-                    placeholder="Ít nhất 8 ký tự"
-                    promptLabel="Nhập mật khẩu an toàn"
-                    weakLabel="Yếu"
-                    mediumLabel="Trung bình"
-                    strongLabel="Mạnh"
-                    styleClass="w-full"
-                    inputStyleClass="w-full text-sm"
-                  />
-                  @if (isFieldInvalid('password')) {
-                    <p class="text-xs text-rose-500 mt-1">Mật khẩu tối thiểu phải từ 8 ký tự.</p>
-                  }
+                <div class="flex items-center gap-2 pb-3 mb-4 border-b border-slate-100">
+                  <div class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xs">
+                    <i class="pi pi-user"></i>
+                  </div>
+                  <div>
+                    <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wider">1. Thông tin Chủ sở hữu</h3>
+                    <p class="text-[11px] text-slate-400">Người đại diện pháp lý và nhận thông báo vận hành</p>
+                  </div>
                 </div>
 
-                <div>
-                  <label for="confirmPassword" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Xác nhận mật khẩu <span class="text-rose-500">*</span>
-                  </label>
-                  <p-password
-                    id="confirmPassword"
-                    formControlName="confirmPassword"
-                    [feedback]="false"
-                    [toggleMask]="true"
-                    placeholder="Nhập lại chính xác mật khẩu"
-                    styleClass="w-full"
-                    inputStyleClass="w-full text-sm"
-                  />
-                  @if (registerForm.get('confirmPassword')?.touched && registerForm.get('confirmPassword')?.errors?.['passwordMismatch']) {
-                    <p class="text-xs text-rose-500 mt-1">Mật khẩu xác nhận không khớp.</p>
+                <div class="space-y-3.5">
+                  <!-- Full Name Field -->
+                  <div>
+                    <label for="fullName" class="block text-xs font-semibold text-slate-700 mb-1">
+                      Họ và tên người đại diện <span class="text-rose-500">*</span>
+                    </label>
+                    <input
+                      id="fullName"
+                      type="text"
+                      formControlName="fullName"
+                      placeholder="Ví dụ: Nguyễn Văn Hoàng"
+                      class="w-full h-10 sm:h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-slate-300 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-2xs transition-all"
+                      [class.border-rose-400]="isFieldInvalid('fullName')"
+                      [class.ring-2]="isFieldInvalid('fullName')"
+                      [class.ring-rose-100]="isFieldInvalid('fullName')"
+                    />
+                    @if (isFieldInvalid('fullName')) {
+                      <p class="text-[11px] text-rose-500 mt-1 flex items-center gap-1">
+                        <i class="pi pi-exclamation-circle text-[10px]"></i> Vui lòng nhập họ và tên của bạn.
+                      </p>
+                    }
+                  </div>
+
+                  <!-- Email Field -->
+                  <div>
+                    <label for="email" class="block text-xs font-semibold text-slate-700 mb-1">
+                      Email liên hệ &amp; đăng nhập <span class="text-rose-500">*</span>
+                    </label>
+                    <input
+                      id="email"
+                      type="email"
+                      formControlName="email"
+                      [readonly]="isAuthenticated()"
+                      placeholder="chu.khachsan@example.com"
+                      class="w-full h-10 sm:h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-slate-300 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-2xs transition-all"
+                      [class.bg-slate-100]="isAuthenticated()"
+                      [class.border-rose-400]="isFieldInvalid('email')"
+                      [class.ring-2]="isFieldInvalid('email')"
+                      [class.ring-rose-100]="isFieldInvalid('email')"
+                    />
+                    @if (isFieldInvalid('email')) {
+                      <p class="text-[11px] text-rose-500 mt-1 flex items-center gap-1">
+                        <i class="pi pi-exclamation-circle text-[10px]"></i> Vui lòng nhập địa chỉ email hợp lệ.
+                      </p>
+                    }
+                  </div>
+
+                  <!-- Phone Field -->
+                  <div>
+                    <label for="phoneNumber" class="block text-xs font-semibold text-slate-700 mb-1">
+                      Số điện thoại liên hệ <span class="text-rose-500">*</span>
+                    </label>
+                    <input
+                      id="phoneNumber"
+                      type="tel"
+                      formControlName="phoneNumber"
+                      placeholder="0912345678"
+                      class="w-full h-10 sm:h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-slate-300 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-2xs transition-all"
+                      [class.border-rose-400]="isFieldInvalid('phoneNumber')"
+                      [class.ring-2]="isFieldInvalid('phoneNumber')"
+                      [class.ring-rose-100]="isFieldInvalid('phoneNumber')"
+                    />
+                    @if (isFieldInvalid('phoneNumber')) {
+                      <p class="text-[11px] text-rose-500 mt-1 flex items-center gap-1">
+                        <i class="pi pi-exclamation-circle text-[10px]"></i> Vui lòng nhập số điện thoại liên hệ.
+                      </p>
+                    }
+                  </div>
+
+                  <!-- Password Fields (Chỉ hiển thị với khách chưa đăng nhập) -->
+                  @if (!isAuthenticated()) {
+                    <div>
+                      <label for="password" class="block text-xs font-semibold text-slate-700 mb-1">
+                        Mật khẩu tài khoản <span class="text-rose-500">*</span>
+                      </label>
+                      <p-password
+                        id="password"
+                        formControlName="password"
+                        [feedback]="true"
+                        [toggleMask]="true"
+                        placeholder="Tối thiểu 8 ký tự"
+                        promptLabel="Nhập mật khẩu an toàn"
+                        weakLabel="Yếu"
+                        mediumLabel="Trung bình"
+                        strongLabel="Mạnh"
+                        styleClass="w-full"
+                        inputStyleClass="w-full h-10 sm:h-11 text-xs sm:text-sm px-3.5 border border-slate-300 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                      @if (isFieldInvalid('password')) {
+                        <p class="text-[11px] text-rose-500 mt-1 flex items-center gap-1">
+                          <i class="pi pi-exclamation-circle text-[10px]"></i> Mật khẩu tối thiểu phải từ 8 ký tự.
+                        </p>
+                      }
+                    </div>
+
+                    <div>
+                      <label for="confirmPassword" class="block text-xs font-semibold text-slate-700 mb-1">
+                        Xác nhận mật khẩu <span class="text-rose-500">*</span>
+                      </label>
+                      <p-password
+                        id="confirmPassword"
+                        formControlName="confirmPassword"
+                        [feedback]="false"
+                        [toggleMask]="true"
+                        placeholder="Nhập lại chính xác mật khẩu"
+                        styleClass="w-full"
+                        inputStyleClass="w-full h-10 sm:h-11 text-xs sm:text-sm px-3.5 border border-slate-300 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                      @if (registerForm.get('confirmPassword')?.touched && registerForm.get('confirmPassword')?.errors?.['passwordMismatch']) {
+                        <p class="text-[11px] text-rose-500 mt-1 flex items-center gap-1">
+                          <i class="pi pi-exclamation-circle text-[10px]"></i> Mật khẩu xác nhận không khớp.
+                        </p>
+                      }
+                    </div>
                   }
                 </div>
-              }
+              </div>
+
+              <div class="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2 text-slate-400 text-[11px]">
+                <i class="pi pi-shield text-indigo-500"></i>
+                <span>Mọi dữ liệu được bảo mật chuẩn mã hóa đa tầng Multi-Tenant</span>
+              </div>
             </div>
 
-            <!-- Cột 2: Thông tin Cơ sở lưu trú đầu tiên -->
-            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
-              <div class="flex items-center gap-2 pb-2 border-b border-slate-100">
-                <i class="pi pi-map-marker text-indigo-600 font-bold"></i>
-                <h3 class="font-bold text-slate-800 text-sm uppercase tracking-wide">2. Cơ sở lưu trú đầu tiên</h3>
-              </div>
-
-              <!-- Property Name Field -->
+            <!-- Cột 2: Thông tin Cơ sở lưu trú -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm space-y-4.5 flex flex-col justify-between">
               <div>
-                <label for="propertyName" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Tên Khách sạn / Homestay / Resort <span class="text-rose-500">*</span>
-                </label>
-                <input
-                  id="propertyName"
-                  pInputText
-                  formControlName="propertyName"
-                  placeholder="Ví dụ: Khách Sạn Sen Vàng Luxury"
-                  class="w-full text-sm py-2 px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  [class.border-rose-400]="isFieldInvalid('propertyName')"
-                />
-                @if (isFieldInvalid('propertyName')) {
-                  <p class="text-xs text-rose-500 mt-1">Vui lòng nhập tên khách sạn hoặc cơ sở lưu trú.</p>
-                }
-              </div>
-
-              <!-- Tỉnh / Thành phố Dropdown (63 Tỉnh Thành) -->
-              <div>
-                <label for="provinceCode" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Tỉnh / Thành phố <span class="text-rose-500">*</span>
-                </label>
-                <select
-                  id="provinceCode"
-                  formControlName="provinceCode"
-                  (change)="onProvinceChange()"
-                  class="w-full text-sm py-2 px-3 border border-slate-300 bg-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                  [class.border-rose-400]="isFieldInvalid('provinceCode')"
-                >
-                  <option value="">-- Chọn Tỉnh / Thành phố (63 đơn vị) --</option>
-                  @for (prov of provinces(); track prov.code) {
-                    <option [value]="prov.code">{{ prov.name }}</option>
-                  }
-                </select>
-                @if (isFieldInvalid('provinceCode')) {
-                  <p class="text-xs text-rose-500 mt-1">Vui lòng chọn Tỉnh/Thành phố nơi khách sạn tọa lạc.</p>
-                }
-              </div>
-
-              <!-- Phường / Xã Dropdown (2-Level Direct Mapping) -->
-              <div>
-                <div class="flex items-center justify-between mb-1.5">
-                  <label for="wardCode" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                    Phường / Xã / Thị trấn <span class="text-rose-500">*</span>
-                  </label>
-                  @if (wardsLoading()) {
-                    <span class="text-xs text-indigo-600 flex items-center gap-1 font-medium">
-                      <i class="pi pi-spin pi-spinner text-xs"></i> Đang tải...
-                    </span>
-                  }
+                <div class="flex items-center gap-2 pb-3 mb-4 border-b border-slate-100">
+                  <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs">
+                    <i class="pi pi-building"></i>
+                  </div>
+                  <div>
+                    <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wider">2. Thông tin Cơ sở Lưu trú</h3>
+                    <p class="text-[11px] text-slate-400">Tên thương hiệu và địa chỉ hành chính của khách sạn</p>
+                  </div>
                 </div>
-                <select
-                  id="wardCode"
-                  formControlName="wardCode"
-                  class="w-full text-sm py-2 px-3 border border-slate-300 bg-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:bg-slate-50 disabled:text-slate-400"
-                  [disabled]="!selectedProvinceCode || wardsLoading()"
-                >
-                  <option value="">-- Chọn Phường / Xã --</option>
-                  @for (w of wards(); track w.code) {
-                    <option [value]="w.code">{{ w.name }}</option>
-                  }
-                </select>
-                @if (!selectedProvinceCode) {
-                  <p class="text-xs text-slate-400 mt-1">Hãy chọn Tỉnh/Thành phố trước để tải danh sách Phường/Xã.</p>
-                }
-              </div>
 
-              <!-- Street Address Field -->
-              <div>
-                <label for="address" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Địa chỉ số nhà, tên đường <span class="text-rose-500">*</span>
-                </label>
-                <input
-                  id="address"
-                  pInputText
-                  formControlName="address"
-                  placeholder="Ví dụ: 123 Võ Nguyên Giáp"
-                  class="w-full text-sm py-2 px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  [class.border-rose-400]="isFieldInvalid('address')"
-                />
-                @if (isFieldInvalid('address')) {
-                  <p class="text-xs text-rose-500 mt-1">Vui lòng nhập địa chỉ chi tiết số nhà, tên đường.</p>
-                }
-              </div>
+                <div class="space-y-3.5">
+                  <!-- Property Name Field -->
+                  <div>
+                    <label for="propertyName" class="block text-xs font-semibold text-slate-700 mb-1">
+                      Tên Khách sạn / Homestay / Resort <span class="text-rose-500">*</span>
+                    </label>
+                    <input
+                      id="propertyName"
+                      type="text"
+                      formControlName="propertyName"
+                      placeholder="Ví dụ: Khách Sạn Biển Xanh Grand"
+                      class="w-full h-10 sm:h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-slate-300 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-2xs transition-all"
+                      [class.border-rose-400]="isFieldInvalid('propertyName')"
+                      [class.ring-2]="isFieldInvalid('propertyName')"
+                      [class.ring-rose-100]="isFieldInvalid('propertyName')"
+                    />
+                    @if (isFieldInvalid('propertyName')) {
+                      <p class="text-[11px] text-rose-500 mt-1 flex items-center gap-1">
+                        <i class="pi pi-exclamation-circle text-[10px]"></i> Vui lòng nhập tên khách sạn hoặc cơ sở lưu trú.
+                      </p>
+                    }
+                  </div>
 
-              <!-- Policy Preview Info -->
-              <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 space-y-1">
-                <div class="font-semibold text-slate-700 flex items-center gap-1.5">
-                  <i class="pi pi-info-circle text-indigo-500"></i>
-                  Chính sách vận hành ban đầu:
+                  <!-- Tỉnh / Thành phố Searchable Dropdown (Đủ 63 tỉnh thành có tìm kiếm) -->
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <label for="provinceCode" class="block text-xs font-semibold text-slate-700">
+                        Tỉnh / Thành phố (63 đơn vị) <span class="text-rose-500">*</span>
+                      </label>
+                      <span class="text-[10px] text-indigo-600 font-medium">Tìm kiếm nhanh</span>
+                    </div>
+                    <app-searchable-select
+                      [items]="provinceItems()"
+                      placeholder="-- Chọn hoặc gõ tìm Tỉnh / Thành phố --"
+                      searchPlaceholder="Tìm theo tên tỉnh/thành phố..."
+                      formControlName="provinceCode"
+                      [invalid]="isFieldInvalid('provinceCode')"
+                      (selectionChange)="onProvinceChange($event)"
+                    />
+                    @if (isFieldInvalid('provinceCode')) {
+                      <p class="text-[11px] text-rose-500 mt-1 flex items-center gap-1">
+                        <i class="pi pi-exclamation-circle text-[10px]"></i> Vui lòng chọn Tỉnh/Thành phố nơi khách sạn tọa lạc.
+                      </p>
+                    }
+                  </div>
+
+                  <!-- Phường / Xã Searchable Dropdown -->
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <label for="wardCode" class="block text-xs font-semibold text-slate-700">
+                        Phường / Xã / Thị trấn <span class="text-rose-500">*</span>
+                      </label>
+                      @if (wardsLoading()) {
+                        <span class="text-[11px] text-indigo-600 flex items-center gap-1 font-medium">
+                          <i class="pi pi-spin pi-spinner text-xs"></i> Đang tải...
+                        </span>
+                      }
+                    </div>
+                    <app-searchable-select
+                      [items]="wardItems()"
+                      [placeholder]="selectedProvinceCode ? '-- Chọn hoặc gõ tìm Phường / Xã --' : '-- Chọn Tỉnh/Thành trước --'"
+                      searchPlaceholder="Tìm kiếm phường, xã..."
+                      formControlName="wardCode"
+                      [loading]="wardsLoading()"
+                      [invalid]="isFieldInvalid('wardCode')"
+                    />
+                    @if (!selectedProvinceCode) {
+                      <p class="text-[11px] text-slate-400 mt-1">Hãy chọn Tỉnh/Thành phố trước để tải danh sách Phường/Xã.</p>
+                    } @else if (isFieldInvalid('wardCode')) {
+                      <p class="text-[11px] text-rose-500 mt-1 flex items-center gap-1">
+                        <i class="pi pi-exclamation-circle text-[10px]"></i> Vui lòng chọn Phường/Xã.
+                      </p>
+                    }
+                  </div>
+
+                  <!-- Street Address Field -->
+                  <div>
+                    <label for="address" class="block text-xs font-semibold text-slate-700 mb-1">
+                      Địa chỉ số nhà, tên đường chi tiết <span class="text-rose-500">*</span>
+                    </label>
+                    <input
+                      id="address"
+                      type="text"
+                      formControlName="address"
+                      placeholder="Ví dụ: 123 Võ Nguyên Giáp"
+                      class="w-full h-10 sm:h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-slate-300 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-2xs transition-all"
+                      [class.border-rose-400]="isFieldInvalid('address')"
+                      [class.ring-2]="isFieldInvalid('address')"
+                      [class.ring-rose-100]="isFieldInvalid('address')"
+                    />
+                    @if (isFieldInvalid('address')) {
+                      <p class="text-[11px] text-rose-500 mt-1 flex items-center gap-1">
+                        <i class="pi pi-exclamation-circle text-[10px]"></i> Vui lòng nhập địa chỉ chi tiết số nhà, tên đường.
+                      </p>
+                    }
+                  </div>
                 </div>
-                <p>• Nhận phòng (Check-in): <strong>14:00</strong> | Trả phòng (Check-out): <strong>12:00</strong></p>
-                <p>• Thời gian đệm dọn phòng: <strong>30 phút</strong></p>
-                <p class="text-slate-400 text-[11px] italic">Bạn có thể cấu hình thêm phòng và bảng giá sau khi đăng nhập.</p>
+              </div>
+
+              <div class="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2 text-slate-400 text-[11px]">
+                <i class="pi pi-check-circle text-emerald-500"></i>
+                <span>Tự động phân bổ mã phòng và chuỗi hợp đồng sau khi kích hoạt</span>
               </div>
             </div>
+          </div>
+
+          <!-- Phần 3: Định vị Google Maps (Trải rộng toàn màn hình, cân đối, thoáng đãng) -->
+          <div class="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+              <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-xs">
+                  <i class="pi pi-map-marker"></i>
+                </div>
+                <div>
+                  <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wider">3. Định Vị Bản Đồ Google Maps</h3>
+                  <p class="text-[11px] text-slate-500">Tìm kiếm hoặc chọn địa điểm trên bản đồ để tự động điền địa chỉ &amp; lưu tọa độ GPS chính xác</p>
+                </div>
+              </div>
+              <span class="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 shrink-0 inline-flex items-center gap-1">
+                <i class="pi pi-sparkles text-[10px]"></i> Tự động điền biểu mẫu
+              </span>
+            </div>
+
+            <app-google-map-picker
+              [initialAddress]="registerForm.get('address')?.value || ''"
+              (locationSelected)="onGoogleMapLocationSelected($event)"
+            />
           </div>
 
           <!-- Submit Button -->
@@ -345,13 +381,13 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
             <button
               type="submit"
               [disabled]="isLoading() || registerForm.invalid"
-              class="w-full py-3.5 px-6 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 text-base cursor-pointer"
+              class="w-full py-3.5 px-6 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer"
             >
               @if (isLoading()) {
                 <i class="pi pi-spin pi-spinner text-lg"></i>
                 <span>Đang khởi tạo khách sạn của bạn...</span>
               } @else {
-                <i class="pi pi-building-columns text-lg"></i>
+                <i class="pi pi-building text-base"></i>
                 <span>{{ isAuthenticated() ? 'Xác Nhận Nâng Cấp & Mở Khách Sạn' : 'Đăng Ký & Thiết Lập Khách Sạn Ngay' }}</span>
               }
             </button>
@@ -359,7 +395,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
         </form>
       }
 
-      <div class="text-center mt-6 text-xs text-slate-500 space-y-2">
+      <div class="text-center mt-6 text-xs text-slate-500 space-y-1.5">
         <div>
           <span>Đã có tài khoản? </span>
           <a routerLink="/login" class="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">
@@ -367,7 +403,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
           </a>
         </div>
         <div>
-          Bạn muốn quay lại cổng đặt phòng?
+          Quay lại cổng đặt phòng?
           <a routerLink="/booking" class="text-indigo-600 font-semibold hover:underline ml-1">
             Trang chủ đặt phòng
           </a>
@@ -409,7 +445,24 @@ export class PartnerRegisterPage implements OnInit {
     return this.registerForm.get('provinceCode')?.value || '';
   }
 
+  readonly provinceItems = computed<SearchableSelectItem[]>(() => {
+    return this.provinces().map(p => ({
+      value: p.code,
+      label: p.name,
+      badge: p.type === 'thành phố trung ương' ? 'Đô thị TW' : undefined
+    }));
+  });
+
+  readonly wardItems = computed<SearchableSelectItem[]>(() => {
+    return this.wards().map(w => ({
+      value: w.code,
+      label: w.name,
+      subLabel: w.type
+    }));
+  });
+
   ngOnInit(): void {
+    this.registerForm.get('wardCode')?.disable();
     this.checkAuthenticatedStatus();
     this.loadProvinces();
   }
@@ -434,7 +487,7 @@ export class PartnerRegisterPage implements OnInit {
       confirmPwd?.clearValidators();
       pwd?.updateValueAndValidity();
       confirmPwd?.updateValueAndValidity();
-      this.registerForm.clearValidators(); // Clear passwordMatchValidator
+      this.registerForm.clearValidators();
       this.registerForm.updateValueAndValidity();
     }
   }
@@ -450,13 +503,17 @@ export class PartnerRegisterPage implements OnInit {
     });
   }
 
-  onProvinceChange(): void {
-    const provinceCode = this.selectedProvinceCode;
+  onProvinceChange(code?: string): void {
+    const provinceCode = code !== undefined ? code : this.selectedProvinceCode;
     this.registerForm.patchValue({ wardCode: '' });
     this.wards.set([]);
 
-    if (!provinceCode) return;
+    if (!provinceCode) {
+      this.registerForm.get('wardCode')?.disable();
+      return;
+    }
 
+    this.registerForm.get('wardCode')?.enable();
     this.wardsLoading.set(true);
     this.locationService.getWards(provinceCode).subscribe({
       next: (list) => {
@@ -468,6 +525,23 @@ export class PartnerRegisterPage implements OnInit {
         this.errorMessage.set('Không thể tải danh sách Phường/Xã cho tỉnh/thành đã chọn.');
       }
     });
+  }
+
+  onGoogleMapLocationSelected(result: LocationPickerResult): void {
+    if (result.address) {
+      this.registerForm.patchValue({ address: result.address });
+    }
+
+    if (result.provinceCode) {
+      this.registerForm.patchValue({ provinceCode: result.provinceCode });
+      this.onProvinceChange(result.provinceCode);
+    } else if (result.provinceName) {
+      const match = this.locationService.findProvinceByKeyword(result.provinceName, this.provinces());
+      if (match) {
+        this.registerForm.patchValue({ provinceCode: match.code });
+        this.onProvinceChange(match.code);
+      }
+    }
   }
 
   isFieldInvalid(fieldName: string): boolean {

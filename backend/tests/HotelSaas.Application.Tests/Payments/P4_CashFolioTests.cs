@@ -12,6 +12,10 @@ using HotelSaas.Application.Payments.DTOs;
 using HotelSaas.Application.Payments.Queries.GetFolio;
 using HotelSaas.Application.Payments.Queries.GetPayments;
 using HotelSaas.Application.Payments.Queries.GetPaymentSummary;
+using HotelSaas.Application.Payments.Queries.GetShiftReport;
+using HotelSaas.Application.Public.Commands.ConfirmGuestBooking;
+using HotelSaas.Application.Quotes.DTOs;
+using HotelSaas.Application.Reservations.DTOs;
 using HotelSaas.Application.Reservations.Commands.CancelReservation;
 using HotelSaas.Application.Reservations.Commands.CheckOutReservation;
 using HotelSaas.Domain.Entities;
@@ -44,7 +48,8 @@ public sealed class P4_CashFolioTests
         if (!string.IsNullOrWhiteSpace(envConn))
             return envConn;
 
-        return "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
+        var port = Environment.GetEnvironmentVariable("TEST_POSTGRES_PORT") ?? "5435";
+        return $"Host=localhost;Port={port};Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
     }
 
     private static void ValidateTestDatabaseTarget(string connStr)
@@ -275,7 +280,8 @@ public sealed class P4_CashFolioTests
             ReservationStatus status = ReservationStatus.PendingPayment,
             decimal totalAmount = 1_000_000m,
             string customerName = "Nguyen Van A",
-            string customerPhone = "0901234567")
+            string customerPhone = "0901234567",
+            string? notes = null)
         {
             await using var ctx = CreateDbContext();
             var checkIn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1));
@@ -295,6 +301,7 @@ public sealed class P4_CashFolioTests
                 NumberOfGuests = 2,
                 TotalAmount = totalAmount,
                 Status = status,
+                Notes = notes,
                 ConfirmationCode = $"RES-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid():N}"[..18]
             };
 
@@ -529,6 +536,214 @@ public sealed class P4_CashFolioTests
 
         var exRef = await Assert.ThrowsAsync<ConflictException>(() =>
             handler.Handle(diffRefCmd, CancellationToken.None));
+        Assert.Equal("ERR_IDEMPOTENCY_PAYLOAD_MISMATCH", exRef.ErrorCode);
+
+        // 5. Mismatch IsDeposit: same key, different IsDeposit flag -> ERR_IDEMPOTENCY_PAYLOAD_MISMATCH
+        var diffDepositCmd = new CreatePaymentCommand(
+            PropertyId: fixture.PropertyId,
+            ReservationId: res1.Id,
+            Amount: 300_000m,
+            Method: PaymentMethod.Cash,
+            TransactionRef: "CASH-ORIG",
+            IdempotencyKey: sharedKey,
+            IsDeposit: true); // Originally false
+
+        var exDeposit = await Assert.ThrowsAsync<ConflictException>(() =>
+            handler.Handle(diffDepositCmd, CancellationToken.None));
+        Assert.Equal("ERR_IDEMPOTENCY_PAYLOAD_MISMATCH", exDeposit.ErrorCode);
+    }
+
+    [Fact]
+    public async Task CreatePayment_Deposit_IdempotencyReplay_ReturnsExistingPaymentWithoutDuplicate()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this);
+        var reservation = await fixture.SeedReservationAsync(totalAmount: 1_000_000m);
+
+        await using var ctx = fixture.CreateDbContext();
+        var userCtx = new MockUserContext { UserId = fixture.CashierUserId, TenantId = fixture.TenantId, PropertyId = fixture.PropertyId };
+        var tenantSvc = new MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new MockPropertyService { PropertyId = fixture.PropertyId, HeaderPropertyId = fixture.PropertyId, TokenPropertyId = fixture.PropertyId };
+        var membershipSvc = new MockMembershipLookupService();
+        var handler = new CreatePaymentCommandHandler(ctx, tenantSvc, userCtx, membershipSvc, propSvc);
+
+        var idempKey = $"idem-deposit-{Guid.NewGuid():N}";
+        var command = new CreatePaymentCommand(
+            PropertyId: fixture.PropertyId,
+            ReservationId: reservation.Id,
+            Amount: 400_000m,
+            Method: PaymentMethod.Cash,
+            TransactionRef: "DEP-REC-01",
+            IdempotencyKey: idempKey,
+            IsDeposit: true);
+
+        var firstResult = await handler.Handle(command, CancellationToken.None);
+        Assert.NotNull(firstResult);
+        Assert.Contains("[PURPOSE:DEPOSIT]", firstResult.TransactionRef);
+        Assert.Contains($"[IK:{idempKey}]", firstResult.TransactionRef);
+
+        // Replay with exact same IdempotencyKey and exact same payload
+        var replayCommand = new CreatePaymentCommand(
+            PropertyId: fixture.PropertyId,
+            ReservationId: reservation.Id,
+            Amount: 400_000m,
+            Method: PaymentMethod.Cash,
+            TransactionRef: "DEP-REC-01",
+            IdempotencyKey: idempKey,
+            IsDeposit: true);
+
+        var secondResult = await handler.Handle(replayCommand, CancellationToken.None);
+
+        Assert.Equal(firstResult.Id, secondResult.Id);
+        Assert.Equal(firstResult.Amount, secondResult.Amount);
+        Assert.Equal(firstResult.TransactionRef, secondResult.TransactionRef);
+
+        // Verify total payments in database is strictly 1 (no duplicate payment created)
+        var paymentsCount = await ctx.Payments.CountAsync(p => p.ReservationId == reservation.Id);
+        Assert.Equal(1, paymentsCount);
+
+        // Verify folio recognizes depositPaid as 400,000
+        var folioHandler = new GetFolioQueryHandler(ctx, tenantSvc, userCtx, membershipSvc, propSvc);
+        var folio = await folioHandler.Handle(new GetFolioQuery(reservation.Id, fixture.PropertyId), CancellationToken.None);
+        Assert.Equal(400_000m, folio.PaidAmount);
+        Assert.Equal(400_000m, folio.DepositPaid);
+        Assert.Equal(600_000m, folio.RemainingBalance);
+    }
+
+    [Fact]
+    public async Task CreatePayment_Deposit_SameKey_DifferentIsDeposit_ThrowsConflictException()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this);
+        var reservation = await fixture.SeedReservationAsync(totalAmount: 1_000_000m);
+
+        await using var ctx = fixture.CreateDbContext();
+        var userCtx = new MockUserContext { UserId = fixture.CashierUserId, TenantId = fixture.TenantId, PropertyId = fixture.PropertyId };
+        var tenantSvc = new MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new MockPropertyService { PropertyId = fixture.PropertyId, HeaderPropertyId = fixture.PropertyId, TokenPropertyId = fixture.PropertyId };
+        var membershipSvc = new MockMembershipLookupService();
+        var handler = new CreatePaymentCommandHandler(ctx, tenantSvc, userCtx, membershipSvc, propSvc);
+
+        var sharedKey = $"idem-dep-conflict-{Guid.NewGuid():N}";
+
+        // First payment is a deposit (IsDeposit: true)
+        var firstCommand = new CreatePaymentCommand(
+            PropertyId: fixture.PropertyId,
+            ReservationId: reservation.Id,
+            Amount: 300_000m,
+            Method: PaymentMethod.Cash,
+            TransactionRef: "DEP-001",
+            IdempotencyKey: sharedKey,
+            IsDeposit: true);
+
+        var firstResult = await handler.Handle(firstCommand, CancellationToken.None);
+        Assert.NotNull(firstResult);
+
+        // Replay with same key but IsDeposit: false (payload mismatch) -> 409 Conflict
+        var mismatchDepositCmd = new CreatePaymentCommand(
+            PropertyId: fixture.PropertyId,
+            ReservationId: reservation.Id,
+            Amount: 300_000m,
+            Method: PaymentMethod.Cash,
+            TransactionRef: "DEP-001",
+            IdempotencyKey: sharedKey,
+            IsDeposit: false);
+
+        var exDeposit = await Assert.ThrowsAsync<ConflictException>(() =>
+            handler.Handle(mismatchDepositCmd, CancellationToken.None));
+        Assert.Equal("ERR_IDEMPOTENCY_PAYLOAD_MISMATCH", exDeposit.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ConfirmGuestBooking_Deposit_IdempotencyReplay_And_PayloadMismatch()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this);
+
+        var snapshot = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            IsOnlineHold = true,
+            HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(15),
+            DepositRequired = 300_000m,
+            LookupToken = "ONLINE-TOKEN-999",
+            TokenExpiresAtUtc = DateTime.UtcNow.AddHours(24)
+        };
+
+        var reservation = await fixture.SeedReservationAsync(
+            status: ReservationStatus.PendingPayment,
+            totalAmount: 1_000_000m,
+            notes: ReservationSnapshotHelper.Serialize(snapshot));
+
+        await using var ctx = fixture.CreateDbContext();
+        var userCtx = new MockUserContext { UserId = fixture.CashierUserId, TenantId = fixture.TenantId, PropertyId = fixture.PropertyId };
+        var tenantSvc = new MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new MockPropertyService { PropertyId = fixture.PropertyId, HeaderPropertyId = fixture.PropertyId, TokenPropertyId = fixture.PropertyId };
+
+        var handler = new ConfirmGuestBookingCommandHandler(ctx, tenantSvc, propSvc, userCtx);
+
+        var onlineKey = $"online-idemp-{Guid.NewGuid():N}";
+        var command = new ConfirmGuestBookingCommand(
+            LookupToken: "ONLINE-TOKEN-999",
+            ReservationId: reservation.Id,
+            PropertyId: fixture.PropertyId,
+            PaymentAmount: 300_000m,
+            PaymentMethod: PaymentMethod.BankTransfer,
+            TransactionRef: "ONLINE-DEP-001",
+            IdempotencyKey: onlineKey);
+
+        var firstResult = await handler.Handle(command, CancellationToken.None);
+        Assert.NotNull(firstResult);
+        Assert.Equal("Confirmed", firstResult.Status);
+        Assert.Equal(300_000m, firstResult.PaidAmount);
+
+        // Verify payment in database has PURPOSE:DEPOSIT and IK
+        var payment = await ctx.Payments.FirstOrDefaultAsync(p => p.ReservationId == reservation.Id);
+        Assert.NotNull(payment);
+        Assert.Contains("[PURPOSE:DEPOSIT]", payment.TransactionRef);
+        Assert.Contains($"[IK:{onlineKey}]", payment.TransactionRef);
+
+        // Replay with exact same key and payload
+        var replayCommand = new ConfirmGuestBookingCommand(
+            LookupToken: "ONLINE-TOKEN-999",
+            ReservationId: reservation.Id,
+            PropertyId: fixture.PropertyId,
+            PaymentAmount: 300_000m,
+            PaymentMethod: PaymentMethod.BankTransfer,
+            TransactionRef: "ONLINE-DEP-001",
+            IdempotencyKey: onlineKey);
+
+        var secondResult = await handler.Handle(replayCommand, CancellationToken.None);
+        Assert.NotNull(secondResult);
+        Assert.Equal("Confirmed", secondResult.Status);
+
+        // Verify payments count is strictly 1 (no duplicate payment created)
+        var totalPayments = await ctx.Payments.CountAsync(p => p.ReservationId == reservation.Id);
+        Assert.Equal(1, totalPayments);
+
+        // Replay with same key but different Amount -> ERR_IDEMPOTENCY_PAYLOAD_MISMATCH (409)
+        var conflictAmountCmd = new ConfirmGuestBookingCommand(
+            LookupToken: "ONLINE-TOKEN-999",
+            ReservationId: reservation.Id,
+            PropertyId: fixture.PropertyId,
+            PaymentAmount: 400_000m,
+            PaymentMethod: PaymentMethod.BankTransfer,
+            TransactionRef: "ONLINE-DEP-001",
+            IdempotencyKey: onlineKey);
+
+        var exAmount = await Assert.ThrowsAsync<ConflictException>(() =>
+            handler.Handle(conflictAmountCmd, CancellationToken.None));
+        Assert.Equal("ERR_IDEMPOTENCY_PAYLOAD_MISMATCH", exAmount.ErrorCode);
+
+        // Replay with same key but different TransactionRef -> ERR_IDEMPOTENCY_PAYLOAD_MISMATCH (409)
+        var conflictRefCmd = new ConfirmGuestBookingCommand(
+            LookupToken: "ONLINE-TOKEN-999",
+            ReservationId: reservation.Id,
+            PropertyId: fixture.PropertyId,
+            PaymentAmount: 300_000m,
+            PaymentMethod: PaymentMethod.BankTransfer,
+            TransactionRef: "ONLINE-DEP-ALTERED",
+            IdempotencyKey: onlineKey);
+
+        var exRef = await Assert.ThrowsAsync<ConflictException>(() =>
+            handler.Handle(conflictRefCmd, CancellationToken.None));
         Assert.Equal("ERR_IDEMPOTENCY_PAYLOAD_MISMATCH", exRef.ErrorCode);
     }
 
@@ -1201,5 +1416,397 @@ public sealed class P4_CashFolioTests
             .Where(p => p.ReservationId == reservation.Id && p.Status == PaymentStatus.Completed)
             .SumAsync(p => p.Amount);
         Assert.Equal(1_000_000m, totalPaid);
+    }
+
+    [Fact]
+    public async Task GetFolio_WithDetailedReservationSnapshot_CalculatesExactItemizedChargesAndBreakdown()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this);
+
+        // Build snapshot with distinct room rate and early check-in surcharge with explicit Category
+        var snapshot = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            DepositRequired = 400_000m,
+            Breakdown = new List<QuoteBreakdownItemDto>
+            {
+                new()
+                {
+                    Description = "Tiền phòng đêm Deluxe Ocean View",
+                    UnitPrice = 1_000_000m,
+                    Quantity = 1,
+                    Amount = 1_000_000m,
+                    Category = "Room"
+                },
+                new()
+                {
+                    Description = "Phụ thu nhận phòng sớm (Early Check-in)",
+                    UnitPrice = 200_000m,
+                    Quantity = 1,
+                    Amount = 200_000m,
+                    Category = "Surcharge"
+                }
+            }
+        };
+
+        var reservation = await fixture.SeedReservationAsync(
+            totalAmount: 1_200_000m,
+            notes: ReservationSnapshotHelper.Serialize(snapshot));
+
+        await using var ctx = fixture.CreateDbContext();
+        var userCtx = new MockUserContext { UserId = fixture.CashierUserId, TenantId = fixture.TenantId, PropertyId = fixture.PropertyId };
+        var tenantSvc = new MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new MockPropertyService { PropertyId = fixture.PropertyId, HeaderPropertyId = fixture.PropertyId, TokenPropertyId = fixture.PropertyId };
+        var membershipSvc = new MockMembershipLookupService();
+
+        // Record a deposit payment of 400,000m tagged with IsDeposit = true
+        var payHandler = new CreatePaymentCommandHandler(ctx, tenantSvc, userCtx, membershipSvc, propSvc);
+        await payHandler.Handle(new CreatePaymentCommand(
+            PropertyId: fixture.PropertyId,
+            ReservationId: reservation.Id,
+            Amount: 400_000m,
+            Method: PaymentMethod.Cash,
+            TransactionRef: "DEP-01",
+            IdempotencyKey: null,
+            IsDeposit: true), CancellationToken.None);
+
+        // Query Folio
+        var folioHandler = new GetFolioQueryHandler(ctx, tenantSvc, userCtx, membershipSvc, propSvc);
+        var folio = await folioHandler.Handle(new GetFolioQuery(reservation.Id, fixture.PropertyId), CancellationToken.None);
+
+        Assert.NotNull(folio);
+        Assert.Equal(1_200_000m, folio.TotalAmount);
+        Assert.Equal(400_000m, folio.PaidAmount);
+        Assert.Equal(800_000m, folio.RemainingBalance);
+        Assert.False(folio.IsFullyPaid);
+
+        // Check exact structured breakdown calculations
+        Assert.Equal(1_000_000m, folio.BaseRoomAmount);
+        Assert.Equal(200_000m, folio.SurchargesAmount);
+        Assert.Equal(0m, folio.ServicesAmount);
+        Assert.Equal(400_000m, folio.DepositRequired);
+        Assert.Equal(400_000m, folio.DepositPaid);
+        Assert.NotNull(folio.Breakdown);
+        Assert.Equal(2, folio.Breakdown.Count);
+        Assert.Contains(folio.Breakdown, b => b.Description.Contains("Tiền phòng") && b.Amount == 1_000_000m && b.Category == "Room");
+        Assert.Contains(folio.Breakdown, b => b.Description.Contains("Early Check-in") && b.Amount == 200_000m && b.Category == "Surcharge");
+    }
+
+    [Fact]
+    public async Task GetFolio_WithoutStructuredBreakdownOrDepositTag_ReturnsNullForIndeterminateValues()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this);
+
+        // Snapshot without Category and requires deposit
+        var snapshot = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            DepositRequired = 300_000m,
+            Breakdown = new List<QuoteBreakdownItemDto>() // Không có breakdown có cấu trúc
+        };
+
+        var reservation = await fixture.SeedReservationAsync(
+            totalAmount: 1_000_000m,
+            notes: ReservationSnapshotHelper.Serialize(snapshot));
+
+        await using var ctx = fixture.CreateDbContext();
+        var userCtx = new MockUserContext { UserId = fixture.CashierUserId, TenantId = fixture.TenantId, PropertyId = fixture.PropertyId };
+        var tenantSvc = new MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new MockPropertyService { PropertyId = fixture.PropertyId, HeaderPropertyId = fixture.PropertyId, TokenPropertyId = fixture.PropertyId };
+        var membershipSvc = new MockMembershipLookupService();
+
+        var folioHandler = new GetFolioQueryHandler(ctx, tenantSvc, userCtx, membershipSvc, propSvc);
+
+        // When 0 paid: DepositPaid should be 0, breakdown amounts should be null
+        var initialFolio = await folioHandler.Handle(new GetFolioQuery(reservation.Id, fixture.PropertyId), CancellationToken.None);
+        Assert.Equal(0m, initialFolio.DepositPaid);
+        Assert.Null(initialFolio.BaseRoomAmount); // Không suy đoán TotalAmount thành BaseRoomAmount
+        Assert.Null(initialFolio.SurchargesAmount);
+        Assert.Null(initialFolio.ServicesAmount);
+
+        // Customer pays 500,000 without IsDeposit tag (e.g. advance room payment)
+        var payHandler = new CreatePaymentCommandHandler(ctx, tenantSvc, userCtx, membershipSvc, propSvc);
+        await payHandler.Handle(new CreatePaymentCommand(
+            PropertyId: fixture.PropertyId,
+            ReservationId: reservation.Id,
+            Amount: 500_000m,
+            Method: PaymentMethod.Cash,
+            TransactionRef: "ROOM-ADV-01",
+            IdempotencyKey: null,
+            IsDeposit: false), CancellationToken.None);
+
+        // Folio must NOT speculate that any of the 500k was deposit; DepositPaid must be null (Chưa xác định)
+        var paidFolio = await folioHandler.Handle(new GetFolioQuery(reservation.Id, fixture.PropertyId), CancellationToken.None);
+        Assert.Equal(500_000m, paidFolio.PaidAmount);
+        Assert.Equal(500_000m, paidFolio.RemainingBalance);
+        Assert.Null(paidFolio.DepositPaid); // Chưa xác định được khoản nào là cọc
+        Assert.Null(paidFolio.BaseRoomAmount);
+    }
+
+    [Fact]
+    public async Task GetShiftReport_AggregatesMorningShiftAndIsolatesOtherShifts()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this);
+        var res1 = await fixture.SeedReservationAsync(totalAmount: 1_000_000m);
+        var res2 = await fixture.SeedReservationAsync(totalAmount: 1_000_000m);
+
+        await using var ctx = fixture.CreateDbContext();
+        var userCtx = new MockUserContext { UserId = fixture.CashierUserId, TenantId = fixture.TenantId, PropertyId = fixture.PropertyId };
+        var tenantSvc = new MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new MockPropertyService { PropertyId = fixture.PropertyId, HeaderPropertyId = fixture.PropertyId, TokenPropertyId = fixture.PropertyId };
+        var membershipSvc = new MockMembershipLookupService();
+
+        var todayVn = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var shiftBoundaryUtc = DateTime.SpecifyKind(todayVn.ToDateTime(new TimeOnly(7, 0)), DateTimeKind.Utc);
+
+        // Morning Shift: 06:00 to 14:00 VN => 23:00 (prev day) to 07:00 UTC
+        // Insert Payment 1 directly at 02:00 UTC (09:00 VN -> Morning Shift)
+        var morningPayment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            ReservationId = res1.Id,
+            Amount = 300_000m,
+            Method = PaymentMethod.Cash,
+            Status = PaymentStatus.Completed,
+            TransactionRef = "SHIFT-MORNING-01",
+            CreatedAtUtc = shiftBoundaryUtc.AddHours(-5), // 02:00 UTC
+            PaidAtUtc = shiftBoundaryUtc.AddHours(-5)
+        };
+        ctx.Payments.Add(morningPayment);
+
+        // Afternoon Shift: 14:00 to 22:00 VN => 07:00 to 15:00 UTC
+        // Insert Payment 2 directly at 10:00 UTC (17:00 VN -> Afternoon Shift)
+        var afternoonPayment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            ReservationId = res2.Id,
+            Amount = 700_000m,
+            Method = PaymentMethod.BankTransfer,
+            Status = PaymentStatus.Completed,
+            TransactionRef = "SHIFT-AFTERNOON-01",
+            CreatedAtUtc = shiftBoundaryUtc.AddHours(3), // 10:00 UTC
+            PaidAtUtc = shiftBoundaryUtc.AddHours(3)
+        };
+        ctx.Payments.Add(afternoonPayment);
+
+        ctx.Payments.Add(new Payment
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            ReservationId = res1.Id,
+            Amount = 100_000m,
+            Method = PaymentMethod.Cash,
+            Status = PaymentStatus.Completed,
+            TransactionRef = "SHIFT-BEFORE-BOUNDARY",
+            CreatedAtUtc = shiftBoundaryUtc.AddTicks(-5_000),
+            PaidAtUtc = shiftBoundaryUtc.AddTicks(-5_000)
+        });
+        ctx.Payments.Add(new Payment
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            ReservationId = res2.Id,
+            Amount = 50_000m,
+            Method = PaymentMethod.BankTransfer,
+            Status = PaymentStatus.Completed,
+            TransactionRef = "SHIFT-AT-BOUNDARY",
+            CreatedAtUtc = shiftBoundaryUtc,
+            PaidAtUtc = shiftBoundaryUtc
+        });
+        await ctx.SaveChangesAsync();
+
+        // Query Morning Shift
+        var shiftHandler = new GetShiftReportQueryHandler(ctx, tenantSvc, userCtx, membershipSvc, propSvc);
+        var morningReport = await shiftHandler.Handle(new GetShiftReportQuery(
+            PropertyId: fixture.PropertyId,
+            Date: todayVn,
+            ShiftType: ShiftType.Morning), CancellationToken.None);
+
+        Assert.NotNull(morningReport);
+        Assert.Equal(400_000m, morningReport.TotalCollected);
+        Assert.Equal(400_000m, morningReport.CashCollected);
+        Assert.Equal(0m, morningReport.BankTransferCollected);
+        Assert.Equal(2, morningReport.CompletedCount);
+        Assert.Contains(morningReport.Payments, payment => payment.TransactionRef == "SHIFT-BEFORE-BOUNDARY");
+        Assert.DoesNotContain(morningReport.Payments, payment => payment.TransactionRef == "SHIFT-AT-BOUNDARY");
+
+        // Query Afternoon Shift
+        var afternoonReport = await shiftHandler.Handle(new GetShiftReportQuery(
+            PropertyId: fixture.PropertyId,
+            Date: todayVn,
+            ShiftType: ShiftType.Afternoon), CancellationToken.None);
+
+        Assert.NotNull(afternoonReport);
+        Assert.Equal(750_000m, afternoonReport.TotalCollected);
+        Assert.Equal(0m, afternoonReport.CashCollected);
+        Assert.Equal(750_000m, afternoonReport.BankTransferCollected);
+        Assert.Equal(2, afternoonReport.CompletedCount);
+        Assert.Contains(afternoonReport.Payments, payment => payment.TransactionRef == "SHIFT-AT-BOUNDARY");
+        Assert.DoesNotContain(afternoonReport.Payments, payment => payment.TransactionRef == "SHIFT-BEFORE-BOUNDARY");
+    }
+
+    [Fact]
+    public async Task CreatePayment_UserRefWithInjectedIkToken_DoesNotCauseFalseCollision()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this);
+        var resA = await fixture.SeedReservationAsync(totalAmount: 1_000_000m);
+        var resB = await fixture.SeedReservationAsync(totalAmount: 1_000_000m);
+
+        await using var ctx = fixture.CreateDbContext();
+        var userCtx = new MockUserContext { UserId = fixture.CashierUserId, TenantId = fixture.TenantId, PropertyId = fixture.PropertyId };
+        var tenantSvc = new MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new MockPropertyService { PropertyId = fixture.PropertyId, HeaderPropertyId = fixture.PropertyId, TokenPropertyId = fixture.PropertyId };
+        var membershipSvc = new MockMembershipLookupService();
+        var handler = new CreatePaymentCommandHandler(ctx, tenantSvc, userCtx, membershipSvc, propSvc);
+
+        var targetKey = $"target-key-{Guid.NewGuid():N}";
+
+        // Reservation A: payment with user reference containing an injected IK token [IK:targetKey]
+        var cmdA = new CreatePaymentCommand(
+            PropertyId: fixture.PropertyId,
+            ReservationId: resA.Id,
+            Amount: 200_000m,
+            Method: PaymentMethod.BankTransfer,
+            TransactionRef: $"Payment note with [IK:{targetKey}] injected text",
+            IdempotencyKey: null,
+            IsDeposit: false);
+
+        var resultA = await handler.Handle(cmdA, CancellationToken.None);
+        Assert.NotNull(resultA);
+
+        // Reservation B: payment genuinely using targetKey as its Idempotency-Key
+        // Must NOT match Reservation A's payment as a cross-reservation collision
+        var cmdB = new CreatePaymentCommand(
+            PropertyId: fixture.PropertyId,
+            ReservationId: resB.Id,
+            Amount: 300_000m,
+            Method: PaymentMethod.Cash,
+            TransactionRef: "GENUINE-PAY-01",
+            IdempotencyKey: targetKey,
+            IsDeposit: false);
+
+        var resultB = await handler.Handle(cmdB, CancellationToken.None);
+        Assert.NotNull(resultB);
+        Assert.Equal(300_000m, resultB.Amount);
+        Assert.Equal(resB.Id, resultB.ReservationId);
+    }
+
+    [Fact]
+    public async Task CreatePayment_UserRefWithInjectedDepositTag_DoesNotClassifyAsDeposit()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this);
+        var res = await fixture.SeedReservationAsync(totalAmount: 1_000_000m);
+
+        await using var ctx = fixture.CreateDbContext();
+        var userCtx = new MockUserContext { UserId = fixture.CashierUserId, TenantId = fixture.TenantId, PropertyId = fixture.PropertyId };
+        var tenantSvc = new MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new MockPropertyService { PropertyId = fixture.PropertyId, HeaderPropertyId = fixture.PropertyId, TokenPropertyId = fixture.PropertyId };
+        var membershipSvc = new MockMembershipLookupService();
+        var handler = new CreatePaymentCommandHandler(ctx, tenantSvc, userCtx, membershipSvc, propSvc);
+
+        var idempKey = $"idem-norm-{Guid.NewGuid():N}";
+
+        // Normal payment (IsDeposit: false) with user reference containing [PURPOSE:DEPOSIT]
+        var cmd = new CreatePaymentCommand(
+            PropertyId: fixture.PropertyId,
+            ReservationId: res.Id,
+            Amount: 250_000m,
+            Method: PaymentMethod.Cash,
+            TransactionRef: "Normal payment [PURPOSE:DEPOSIT] in notes",
+            IdempotencyKey: idempKey,
+            IsDeposit: false);
+
+        var result = await handler.Handle(cmd, CancellationToken.None);
+        Assert.NotNull(result);
+
+        // Replay with same key and payload must succeed (not mismatch IsDeposit)
+        var replayCmd = new CreatePaymentCommand(
+            PropertyId: fixture.PropertyId,
+            ReservationId: res.Id,
+            Amount: 250_000m,
+            Method: PaymentMethod.Cash,
+            TransactionRef: "Normal payment [PURPOSE:DEPOSIT] in notes",
+            IdempotencyKey: idempKey,
+            IsDeposit: false);
+
+        var replayResult = await handler.Handle(replayCmd, CancellationToken.None);
+        Assert.Equal(result.Id, replayResult.Id);
+
+        // Folio must NOT classify this payment as deposit
+        var folioHandler = new GetFolioQueryHandler(ctx, tenantSvc, userCtx, membershipSvc, propSvc);
+        var folio = await folioHandler.Handle(new GetFolioQuery(res.Id, fixture.PropertyId), CancellationToken.None);
+        Assert.Equal(250_000m, folio.PaidAmount);
+        Assert.Equal(0m, folio.DepositPaid);
+    }
+
+    [Fact]
+    public async Task ConfirmGuestBooking_UserRefWithInjectedTokens_SanitizedAndReplayWorks()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this);
+
+        var snapshot = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            IsOnlineHold = true,
+            HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(15),
+            DepositRequired = 300_000m,
+            LookupToken = "ONLINE-TOKEN-SEC-01",
+            TokenExpiresAtUtc = DateTime.UtcNow.AddHours(24)
+        };
+
+        var reservation = await fixture.SeedReservationAsync(
+            status: ReservationStatus.PendingPayment,
+            totalAmount: 1_000_000m,
+            notes: ReservationSnapshotHelper.Serialize(snapshot));
+
+        await using var ctx = fixture.CreateDbContext();
+        var userCtx = new MockUserContext { UserId = fixture.CashierUserId, TenantId = fixture.TenantId, PropertyId = fixture.PropertyId };
+        var tenantSvc = new MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new MockPropertyService { PropertyId = fixture.PropertyId, HeaderPropertyId = fixture.PropertyId, TokenPropertyId = fixture.PropertyId };
+
+        var handler = new ConfirmGuestBookingCommandHandler(ctx, tenantSvc, propSvc, userCtx);
+
+        var onlineKey = $"online-sec-{Guid.NewGuid():N}";
+        var cmd = new ConfirmGuestBookingCommand(
+            LookupToken: "ONLINE-TOKEN-SEC-01",
+            ReservationId: reservation.Id,
+            PropertyId: fixture.PropertyId,
+            PaymentAmount: 300_000m,
+            PaymentMethod: PaymentMethod.BankTransfer,
+            TransactionRef: "UNC-TRANSFER [PURPOSE:DEPOSIT] [IK:fake-token-999]",
+            IdempotencyKey: onlineKey);
+
+        var firstResult = await handler.Handle(cmd, CancellationToken.None);
+        Assert.NotNull(firstResult);
+        Assert.Equal("Confirmed", firstResult.Status);
+
+        // Verify stored payment ref sanitized brackets in userRef: [ -> ( and ] -> )
+        var payment = await ctx.Payments.FirstOrDefaultAsync(p => p.ReservationId == reservation.Id);
+        Assert.NotNull(payment);
+        Assert.Contains("(PURPOSE:DEPOSIT)", payment.TransactionRef);
+        Assert.Contains("(IK:fake-token-999)", payment.TransactionRef);
+
+        // Replay with exact same payload succeeds idempotently
+        var replayCmd = new ConfirmGuestBookingCommand(
+            LookupToken: "ONLINE-TOKEN-SEC-01",
+            ReservationId: reservation.Id,
+            PropertyId: fixture.PropertyId,
+            PaymentAmount: 300_000m,
+            PaymentMethod: PaymentMethod.BankTransfer,
+            TransactionRef: "UNC-TRANSFER [PURPOSE:DEPOSIT] [IK:fake-token-999]",
+            IdempotencyKey: onlineKey);
+
+        var secondResult = await handler.Handle(replayCmd, CancellationToken.None);
+        Assert.NotNull(secondResult);
+        Assert.Equal("Confirmed", secondResult.Status);
+
+        var count = await ctx.Payments.CountAsync(p => p.ReservationId == reservation.Id);
+        Assert.Equal(1, count);
     }
 }

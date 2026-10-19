@@ -10,8 +10,20 @@ import {
   RoomAvailabilityDto,
   CreateReservationRequest,
   QuoteDto,
-  RentalType
+  RentalType,
+  ReservationStatus
 } from '../models/reservation.model';
+import { FolioDto, AddFolioItemRequest } from '../models/payment.model';
+
+function normalizeReservation<T extends ReservationDto>(reservation: T): T {
+  const status = typeof reservation.status === 'string'
+    ? ReservationStatus[reservation.status as keyof typeof ReservationStatus]
+    : reservation.status;
+  const rentalType = typeof reservation.rentalType === 'string'
+    ? RentalType[reservation.rentalType as keyof typeof RentalType]
+    : reservation.rentalType;
+  return { ...reservation, status, rentalType };
+}
 
 export interface GetReservationsFilter {
   propertyId: string;
@@ -72,7 +84,10 @@ export class ReservationService {
     }
 
     return this.http.get<any>(this.apiUrl, { params }).pipe(
-      map(res => (res.data ? res.data : res) as PagedResult<ReservationDto>)
+      map(res => {
+        const result = (res.data ? res.data : res) as PagedResult<ReservationDto>;
+        return { ...result, items: result.items.map(normalizeReservation) };
+      })
     );
   }
 
@@ -82,7 +97,7 @@ export class ReservationService {
   getReservationById(id: string, propertyId: string): Observable<ReservationDetailDto> {
     const params = new HttpParams().set('propertyId', propertyId);
     return this.http.get<any>(`${this.apiUrl}/${id}`, { params }).pipe(
-      map(res => (res.data ? res.data : res) as ReservationDetailDto)
+      map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto))
     );
   }
 
@@ -95,7 +110,7 @@ export class ReservationService {
       headers['Idempotency-Key'] = request.idempotencyKey;
     }
     return this.http.post<any>(this.apiUrl, request, { headers }).pipe(
-      map(res => (res.data ? res.data : res) as ReservationDetailDto)
+      map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto))
     );
   }
 
@@ -139,7 +154,7 @@ export class ReservationService {
   checkIn(id: string, propertyId: string): Observable<ReservationDetailDto> {
     const params = new HttpParams().set('propertyId', propertyId);
     return this.http.post<any>(`${this.apiUrl}/${id}/check-in`, null, { params }).pipe(
-      map(res => (res.data ? res.data : res) as ReservationDetailDto)
+      map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto))
     );
   }
 
@@ -149,7 +164,7 @@ export class ReservationService {
   checkOut(id: string, propertyId: string): Observable<ReservationDetailDto> {
     const params = new HttpParams().set('propertyId', propertyId);
     return this.http.post<any>(`${this.apiUrl}/${id}/check-out`, null, { params }).pipe(
-      map(res => (res.data ? res.data : res) as ReservationDetailDto)
+      map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto))
     );
   }
 
@@ -160,7 +175,34 @@ export class ReservationService {
     const params = new HttpParams().set('propertyId', propertyId);
     const body = reason ? { reason } : {};
     return this.http.post<any>(`${this.apiUrl}/${id}/cancel`, body, { params }).pipe(
-      map(res => (res.data ? res.data : res) as ReservationDetailDto)
+      map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto))
+    );
+  }
+
+  /**
+   * Retrieves reservations within a specific date window for Room Timeline / Gantt grid.
+   */
+  getTimelineReservations(propertyId: string, fromDate: string, toDate: string): Observable<ReservationDto[]> {
+    return this.getReservations({
+      propertyId,
+      from: fromDate,
+      to: toDate,
+      pageSize: 200
+    }).pipe(
+      map(res => res.items)
+    );
+  }
+
+  /**
+   * Adds an incidental / minibar / service charge to the reservation folio.
+   */
+  addFolioItem(reservationId: string, request: AddFolioItemRequest): Observable<FolioDto> {
+    let params = new HttpParams();
+    if (request.propertyId) {
+      params = params.set('propertyId', request.propertyId);
+    }
+    return this.http.post<any>(`${this.apiUrl}/${reservationId}/folio/items`, request, { params }).pipe(
+      map(res => (res.data ? res.data : res) as FolioDto)
     );
   }
 }

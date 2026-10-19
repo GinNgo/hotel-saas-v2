@@ -28,6 +28,9 @@ public static class DependencyInjection
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
         services.AddScoped<Quotes.Services.IPricingCalculator, Quotes.Services.PricingCalculator>();
+        services.AddScoped<Loyalty.Services.ILoyaltyTierRules, Loyalty.Services.LoyaltyTierRules>();
+        services.AddScoped<Loyalty.Services.ILoyaltyLedgerService, Loyalty.Services.LoyaltyLedgerService>();
+        services.AddScoped<Pricing.Services.IDynamicPricingService, Pricing.Services.DynamicPricingService>();
 
         return services;
     }

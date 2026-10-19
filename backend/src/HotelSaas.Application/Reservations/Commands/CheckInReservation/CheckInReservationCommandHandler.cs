@@ -221,6 +221,13 @@ public sealed class CheckInReservationCommandHandler : IRequestHandler<CheckInRe
 
         // 6. Execute atomic state transitions
         reservation.Status = ReservationStatus.CheckedIn;
+        if (string.IsNullOrWhiteSpace(reservation.SmartLockPin))
+        {
+            reservation.SmartLockPin = System.Security.Cryptography.RandomNumberGenerator.GetInt32(100000, 999999).ToString();
+        }
+        reservation.SmartLockStatus = "Active";
+        reservation.SmartLockActivatedAtUtc = DateTime.UtcNow;
+
         room.Status = RoomStatus.Occupied;
         room.UpdatedAtUtc = DateTime.UtcNow;
 

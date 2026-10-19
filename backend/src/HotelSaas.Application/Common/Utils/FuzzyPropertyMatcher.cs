@@ -291,23 +291,35 @@ public static class FuzzyPropertyMatcher
     }
 
     /// <summary>
-    /// Computes match score and field breakdown for a property across Name, City, Address.
+    /// Computes match score and field breakdown for a property across Name, City, Address, and optional TouristZone / Landmarks.
     /// </summary>
     public static (int Score, string BestField, int NameScore, int CityScore, int AddressScore) ScoreProperty(
-        string? rawQuery, string? name, string? city, string? address)
+        string? rawQuery, string? name, string? city, string? address, string? touristZone = null, string? landmarks = null)
     {
         int scoreName = ScoreField(rawQuery, name);
         int scoreCity = ScoreField(rawQuery, city);
         int scoreAddress = ScoreField(rawQuery, address);
+        int scoreZone = ScoreField(rawQuery, touristZone);
+        int scoreLandmarks = ScoreField(rawQuery, landmarks);
 
-        int maxScore = Math.Max(scoreName, Math.Max(scoreCity, scoreAddress));
+        int maxScore = Math.Max(scoreName, Math.Max(scoreCity, Math.Max(scoreAddress, Math.Max(scoreZone, scoreLandmarks))));
         string bestField = "None";
         if (maxScore == scoreName && maxScore > 0) bestField = "Name";
+        else if (maxScore == scoreZone && maxScore > 0) bestField = "TouristZone";
+        else if (maxScore == scoreLandmarks && maxScore > 0) bestField = "Landmarks";
         else if (maxScore == scoreCity && maxScore > 0) bestField = "City";
         else if (maxScore == scoreAddress && maxScore > 0) bestField = "Address";
 
         return (maxScore, bestField, scoreName, scoreCity, scoreAddress);
     }
+
+    /// <summary>
+    /// Computes match score and field breakdown for a property across Name, City, Address.
+    /// Preserved for backward compatibility.
+    /// </summary>
+    public static (int Score, string BestField, int NameScore, int CityScore, int AddressScore) ScoreProperty(
+        string? rawQuery, string? name, string? city, string? address)
+        => ScoreProperty(rawQuery, name, city, address, null, null);
 
     /// <summary>
     /// Deterministic tie-breaking comparator for properties:
@@ -426,7 +438,10 @@ public static class FuzzyPropertyMatcher
         var results = new List<PublicPropertyMatchResult>();
         foreach (var p in properties)
         {
-            var (score, bestField, sName, sCity, sAddress) = ScoreProperty(query, p.Name, p.City, p.Address);
+            var landmarksText = p.NearbyLandmarks != null && p.NearbyLandmarks.Count > 0
+                ? string.Join(", ", p.NearbyLandmarks.Select(l => l.Name))
+                : null;
+            var (score, bestField, sName, sCity, sAddress) = ScoreProperty(query, p.Name, p.City, p.Address, p.TouristZoneName, landmarksText);
             if (score > 0)
             {
                 results.Add(new PublicPropertyMatchResult(p, score, bestField, sName, sCity, sAddress));

@@ -63,7 +63,27 @@ public class User : BaseEntity
     /// </summary>
     public Tenant? Tenant { get; set; }
 
+    /// <summary>
+    /// Tên công ty lưu sẵn của khách hàng phục vụ xuất hóa đơn VAT.
+    /// </summary>
+    public string? CompanyName { get; set; }
+
+    /// <summary>
+    /// Mã số thuế công ty của khách hàng.
+    /// </summary>
+    public string? CompanyTaxCode { get; set; }
+
+    /// <summary>
+    /// Địa chỉ pháp lý công ty lưu sẵn của khách hàng.
+    /// </summary>
+    public string? CompanyAddress { get; set; }
+
     // ── Navigation Properties ──────────────────────────────────────────
+
+    /// <summary>
+    /// Danh sách thẻ thành viên tích điểm tại các Chuỗi / Cơ sở lưu trú.
+    /// </summary>
+    public ICollection<GuestLoyaltyMembership> LoyaltyMemberships { get; set; } = new List<GuestLoyaltyMembership>();
 
     /// <summary>
     /// Collection of refresh tokens issued to this user.
@@ -74,4 +94,9 @@ public class User : BaseEntity
     /// Collection of tenant staff profiles this user holds across properties.
     /// </summary>
     public ICollection<TenantStaff> TenantStaffProfiles { get; set; } = new List<TenantStaff>();
+
+    /// <summary>
+    /// Liên kết tài khoản mạng xã hội (Google, Facebook).
+    /// </summary>
+    public ICollection<SocialIdentity> SocialIdentities { get; set; } = new List<SocialIdentity>();
 }

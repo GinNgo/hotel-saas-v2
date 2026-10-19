@@ -4,11 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { ReportService } from '../../core/services/report.service';
 import { AlertService } from '../../core/services/alert.service';
 import { RevenueSummaryDto, PmsKpiDto } from '../../core/models/report.model';
+import { DateRangeFilterComponent, DateRangeFilterValue } from '../../shared/components/date-range-filter/date-range-filter.component';
 
 @Component({
   selector: 'app-reports-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, DateRangeFilterComponent],
   template: `
     <div class="space-y-8 max-w-7xl mx-auto pb-12">
       <!-- Header & Action Bar -->
@@ -80,29 +81,13 @@ import { RevenueSummaryDto, PmsKpiDto } from '../../core/models/report.model';
           </button>
         </div>
 
-        <div class="flex items-center gap-2 text-xs text-slate-600">
-          <span>Từ:</span>
-          <input
-            type="date"
-            [(ngModel)]="fromDate"
-            (change)="onDateChange()"
-            class="px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-slate-50 focus:bg-white focus:outline-emerald-500"
+        <div class="w-full lg:w-auto">
+          <app-date-range-filter
+            label="Khoảng ngày"
+            [initialFromDate]="fromDate"
+            [initialToDate]="toDate"
+            (filterChange)="onReportDateFilterChange($event)"
           />
-          <span>Đến:</span>
-          <input
-            type="date"
-            [(ngModel)]="toDate"
-            (change)="onDateChange()"
-            class="px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-slate-50 focus:bg-white focus:outline-emerald-500"
-          />
-          <button
-            type="button"
-            (click)="loadData()"
-            class="p-2 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
-            title="Tải lại dữ liệu"
-          >
-            <i class="pi pi-filter"></i>
-          </button>
         </div>
       </div>
 
@@ -295,6 +280,15 @@ export class ReportsPage implements OnInit {
   onDateChange(): void {
     this.selectedDays.set(0);
     this.loadData();
+  }
+
+  onReportDateFilterChange(val: DateRangeFilterValue | null): void {
+    if (val && val.fromDate && val.toDate) {
+      this.fromDate = val.fromDate;
+      this.toDate = val.toDate;
+      this.selectedDays.set(0);
+      this.loadData();
+    }
   }
 
   loadData(): void {

@@ -137,7 +137,9 @@ public sealed class CreatePaymentCommandHandler : IRequestHandler<CreatePaymentC
         {
             await _context.LockIdempotencyKeyAsync(request.PropertyId, normalizedKey!, cancellationToken);
 
-            var keyPrefix = $"[IK:{normalizedKey}][BY:";
+            var directPrefix = $"[IK:{normalizedKey}]";
+            var depositPrefix = $"[PURPOSE:DEPOSIT][IK:{normalizedKey}]";
+
             var existingReplay = await _context.Payments
                 .AsNoTracking()
                 .FirstOrDefaultAsync(p =>
@@ -145,17 +147,20 @@ public sealed class CreatePaymentCommandHandler : IRequestHandler<CreatePaymentC
                     p.PropertyId == request.PropertyId &&
                     p.Status == PaymentStatus.Completed &&
                     p.TransactionRef != null &&
-                    p.TransactionRef.StartsWith(keyPrefix),
+                    (p.TransactionRef.StartsWith(directPrefix) ||
+                     p.TransactionRef.StartsWith(depositPrefix)),
                     cancellationToken);
 
             if (existingReplay != null)
             {
                 var storedUserRef = ExtractUserRef(existingReplay.TransactionRef);
+                var existingIsDeposit = HasDepositTag(existingReplay.TransactionRef);
 
-                // Strict payload mismatch validation: same key with different payload must fail with 409 Conflict
+                // Strict payload mismatch validation: same key with different payload (including IsDeposit) must fail with 409 Conflict
                 if (existingReplay.ReservationId != request.ReservationId ||
                     existingReplay.Amount != request.Amount ||
                     existingReplay.Method != request.Method ||
+                    existingIsDeposit != request.IsDeposit ||
                     storedUserRef != safeUserRef)
                 {
                     throw new ConflictException("ERR_IDEMPOTENCY_PAYLOAD_MISMATCH",
@@ -217,19 +222,25 @@ public sealed class CreatePaymentCommandHandler : IRequestHandler<CreatePaymentC
         // 6. Double-check idempotency under reservation lock
         if (hasIdempotencyKey)
         {
-            var keyPrefix = $"[IK:{normalizedKey}][BY:";
+            var directPrefix = $"[IK:{normalizedKey}]";
+            var depositPrefix = $"[PURPOSE:DEPOSIT][IK:{normalizedKey}]";
+
             var existingUnderLock = reservation.Payments
                 .FirstOrDefault(p =>
                     p.Status == PaymentStatus.Completed &&
                     p.TransactionRef != null &&
-                    p.TransactionRef.StartsWith(keyPrefix));
+                    (p.TransactionRef.StartsWith(directPrefix, StringComparison.Ordinal) ||
+                     p.TransactionRef.StartsWith(depositPrefix, StringComparison.Ordinal)));
 
             if (existingUnderLock != null)
             {
                 var storedUserRef = ExtractUserRef(existingUnderLock.TransactionRef);
+                var existingIsDeposit = HasDepositTag(existingUnderLock.TransactionRef);
 
-                if (existingUnderLock.Amount != request.Amount ||
+                if (existingUnderLock.ReservationId != request.ReservationId ||
+                    existingUnderLock.Amount != request.Amount ||
                     existingUnderLock.Method != request.Method ||
+                    existingIsDeposit != request.IsDeposit ||
                     storedUserRef != safeUserRef)
                 {
                     throw new ConflictException("ERR_IDEMPOTENCY_PAYLOAD_MISMATCH",
@@ -285,9 +296,10 @@ public sealed class CreatePaymentCommandHandler : IRequestHandler<CreatePaymentC
         }
 
         // Authoritative actor audit and idempotency metadata formatting
+        var depositTag = request.IsDeposit ? "[PURPOSE:DEPOSIT]" : string.Empty;
         var formattedRef = hasIdempotencyKey
-            ? (string.IsNullOrEmpty(safeUserRef) ? $"[IK:{normalizedKey}][BY:{userId}]" : $"[IK:{normalizedKey}][BY:{userId}] {safeUserRef}")
-            : (string.IsNullOrEmpty(safeUserRef) ? $"[BY:{userId}]" : $"[BY:{userId}] {safeUserRef}");
+            ? (string.IsNullOrEmpty(safeUserRef) ? $"{depositTag}[IK:{normalizedKey}][BY:{userId}]" : $"{depositTag}[IK:{normalizedKey}][BY:{userId}] {safeUserRef}")
+            : (string.IsNullOrEmpty(safeUserRef) ? $"{depositTag}[BY:{userId}]" : $"{depositTag}[BY:{userId}] {safeUserRef}");
 
         var payment = new Payment
         {
@@ -319,26 +331,40 @@ public sealed class CreatePaymentCommandHandler : IRequestHandler<CreatePaymentC
         return PaymentDto.FromEntity(payment);
     }
 
+    private static bool HasDepositTag(string? transactionRef)
+    {
+        return !string.IsNullOrEmpty(transactionRef) &&
+               transactionRef.StartsWith("[PURPOSE:DEPOSIT]", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string ExtractUserRef(string? transactionRef)
     {
-        if (string.IsNullOrEmpty(transactionRef)) return string.Empty;
-        var byIndex = transactionRef.IndexOf("][BY:", StringComparison.Ordinal);
-        if (byIndex >= 0)
+        if (string.IsNullOrWhiteSpace(transactionRef)) return string.Empty;
+        var trimmed = transactionRef.Trim();
+
+        if (trimmed.StartsWith("[PURPOSE:DEPOSIT]", StringComparison.OrdinalIgnoreCase))
         {
-            var closingBracket = transactionRef.IndexOf(']', byIndex + 5);
-            if (closingBracket >= 0)
+            trimmed = trimmed["[PURPOSE:DEPOSIT]".Length..].TrimStart();
+        }
+
+        if (trimmed.StartsWith("[IK:", StringComparison.OrdinalIgnoreCase))
+        {
+            var closing = trimmed.IndexOf(']');
+            if (closing >= 0)
             {
-                return transactionRef[(closingBracket + 1)..].TrimStart();
+                trimmed = trimmed[(closing + 1)..].TrimStart();
             }
         }
-        else if (transactionRef.StartsWith("[BY:", StringComparison.Ordinal))
+
+        if (trimmed.StartsWith("[BY:", StringComparison.OrdinalIgnoreCase))
         {
-            var closingBracket = transactionRef.IndexOf(']');
-            if (closingBracket >= 0)
+            var closing = trimmed.IndexOf(']');
+            if (closing >= 0)
             {
-                return transactionRef[(closingBracket + 1)..].TrimStart();
+                trimmed = trimmed[(closing + 1)..].TrimStart();
             }
         }
-        return transactionRef;
+
+        return trimmed;
     }
 }

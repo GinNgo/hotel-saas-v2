@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard } from './core/guards/auth.guard';
+import { authGuard, platformAdminGuard } from './core/guards/auth.guard';
 import { permissionGuard } from './core/guards/permission.guard';
 
 export const routes: Routes = [
@@ -51,22 +51,93 @@ export const routes: Routes = [
     ]
   },
 
-  // 4. Public Booking & Guest Portal (Trang chủ khách sạn)
+  // 4. Public Booking & Guest Portal (Trang chủ khách sạn & Trải nghiệm Khách lưu trú)
   {
     path: 'booking',
-    loadComponent: () => import('./features/public-booking/booking.page').then(m => m.BookingPage)
-  },
-  {
-    path: 'booking/hold/:token',
-    loadComponent: () => import('./features/public-booking/booking-hold.page').then(m => m.BookingHoldPage)
-  },
-  {
-    path: 'booking/lookup',
-    loadComponent: () => import('./features/public-booking/booking-status.page').then(m => m.BookingStatusPage)
-  },
-  {
-    path: 'booking/status/:token',
-    loadComponent: () => import('./features/public-booking/booking-status.page').then(m => m.BookingStatusPage)
+    loadComponent: () =>
+      import('./layouts/guest-layout/guest-layout').then(m => m.GuestLayoutComponent),
+    children: [
+      {
+        path: '',
+        loadComponent: () =>
+          import('./features/public-booking/booking.page').then(m => m.BookingPageComponent)
+      },
+      {
+        path: 'destinations',
+        loadComponent: () =>
+          import('./features/public-booking/destination-explore.page').then(
+            m => m.DestinationExplorePageComponent
+          )
+      },
+      {
+        path: 'destinations/:slug',
+        loadComponent: () =>
+          import('./features/public-booking/destination-explore.page').then(
+            m => m.DestinationExplorePageComponent
+          )
+      },
+      {
+        path: 'brands',
+        loadComponent: () =>
+          import('./features/public-booking/tenant-brand.page').then(
+            m => m.TenantBrandPageComponent
+          )
+      },
+      {
+        path: 'brands/:tenantSlug',
+        loadComponent: () =>
+          import('./features/public-booking/tenant-brand.page').then(
+            m => m.TenantBrandPageComponent
+          )
+      },
+      {
+        path: 'properties/:slug',
+        loadComponent: () =>
+          import('./features/public-booking/property-detail.page').then(
+            m => m.PropertyDetailPageComponent
+          )
+      },
+      {
+        path: 'deals',
+        loadComponent: () =>
+          import('./features/public-booking/promotions.page').then(m => m.PromotionsPageComponent)
+      },
+      {
+        path: 'lookup',
+        loadComponent: () =>
+          import('./features/public-booking/booking-lookup.page').then(
+            m => m.BookingLookupPageComponent
+          )
+      },
+      {
+        path: 'hold',
+        loadComponent: () =>
+          import('./features/public-booking/booking-hold.page').then(
+            m => m.BookingHoldPageComponent
+          )
+      },
+      {
+        path: 'hold/:token',
+        loadComponent: () =>
+          import('./features/public-booking/booking-hold.page').then(
+            m => m.BookingHoldPageComponent
+          )
+      },
+      {
+        path: 'status/:token',
+        loadComponent: () =>
+          import('./features/public-booking/booking-status.page').then(
+            m => m.BookingStatusPageComponent
+          )
+      },
+      {
+        path: 'profile',
+        loadComponent: () =>
+          import('./features/public-booking/member/guest-profile.page').then(
+            m => m.GuestProfilePageComponent
+          )
+      }
+    ]
   },
 
   // 5. Admin Management Routes (Hỗ trợ tiền tố /admin/...)
@@ -80,12 +151,26 @@ export const routes: Routes = [
         path: 'dashboard',
         loadComponent: () => import('./features/dashboard/dashboard.page').then(m => m.DashboardPage)
       },
-      // Phân hệ Room & RoomType do Nguyễn Khởi Nguyên phụ trách (tích hợp qua branch feature/nguyen-rooms)
-      { path: 'rooms', redirectTo: 'dashboard', pathMatch: 'full' },
+      {
+        path: 'properties',
+        canActivate: [permissionGuard],
+        data: { permission: 'PROPERTIES', action: 1 },
+        loadComponent: () => import('./features/properties/properties.page').then(m => m.PropertiesPage)
+      },
+      {
+        path: 'rooms',
+        canActivate: [permissionGuard],
+        data: { permission: 'ROOMS', action: 1 },
+        loadComponent: () => import('./features/rooms/rooms.page').then(m => m.RoomsPage)
+      },
       { path: 'room-types', redirectTo: 'dashboard', pathMatch: 'full' },
 
-      // Phân hệ Housekeeping do Trần Trọng Tân phụ trách (tích hợp qua branch feature/tan-housekeeping)
-      { path: 'housekeeping', redirectTo: 'dashboard', pathMatch: 'full' },
+      {
+        path: 'housekeeping',
+        canActivate: [permissionGuard],
+        data: { permission: 'HOUSEKEEPING', action: 1 },
+        loadComponent: () => import('./features/housekeeping/housekeeping.page').then(m => m.HousekeepingPage)
+      },
       {
         path: 'policies',
         canActivate: [permissionGuard],
@@ -117,6 +202,16 @@ export const routes: Routes = [
       {
         path: 'subscriptions',
         loadComponent: () => import('./features/subscriptions/subscriptions.page').then(m => m.SubscriptionsPage)
+      },
+      {
+        path: 'plans',
+        canActivate: [platformAdminGuard],
+        loadComponent: () => import('./features/admin-plans/admin-plans.page').then(m => m.AdminPlansPage)
+      },
+      {
+        path: 'contracts',
+        canActivate: [platformAdminGuard],
+        loadComponent: () => import('./features/admin-contracts/admin-contracts.page').then(m => m.AdminContractsPage)
       }
     ]
   },
@@ -131,9 +226,25 @@ export const routes: Routes = [
         path: 'dashboard',
         loadComponent: () => import('./features/dashboard/dashboard.page').then(m => m.DashboardPage)
       },
-      { path: 'rooms', redirectTo: 'dashboard', pathMatch: 'full' },
+      {
+        path: 'properties',
+        canActivate: [permissionGuard],
+        data: { permission: 'PROPERTIES', action: 1 },
+        loadComponent: () => import('./features/properties/properties.page').then(m => m.PropertiesPage)
+      },
+      {
+        path: 'rooms',
+        canActivate: [permissionGuard],
+        data: { permission: 'ROOMS', action: 1 },
+        loadComponent: () => import('./features/rooms/rooms.page').then(m => m.RoomsPage)
+      },
       { path: 'room-types', redirectTo: 'dashboard', pathMatch: 'full' },
-      { path: 'housekeeping', redirectTo: 'dashboard', pathMatch: 'full' },
+      {
+        path: 'housekeeping',
+        canActivate: [permissionGuard],
+        data: { permission: 'HOUSEKEEPING', action: 1 },
+        loadComponent: () => import('./features/housekeeping/housekeeping.page').then(m => m.HousekeepingPage)
+      },
       {
         path: 'policies',
         canActivate: [permissionGuard],
@@ -165,11 +276,35 @@ export const routes: Routes = [
       {
         path: 'subscriptions',
         loadComponent: () => import('./features/subscriptions/subscriptions.page').then(m => m.SubscriptionsPage)
+      },
+      {
+        path: 'plans',
+        canActivate: [platformAdminGuard],
+        loadComponent: () => import('./features/admin-plans/admin-plans.page').then(m => m.AdminPlansPage)
+      },
+      {
+        path: 'contracts',
+        canActivate: [platformAdminGuard],
+        loadComponent: () => import('./features/admin-contracts/admin-contracts.page').then(m => m.AdminContractsPage)
       }
     ]
   },
 
-  // 7. Forbidden Route
+  // 7. Printable Documents Routes (Standalone sheets)
+  {
+    path: 'print/invoice/:id',
+    loadComponent: () => import('./features/print/print-invoice.page').then(m => m.PrintInvoicePage)
+  },
+  {
+    path: 'print/voucher/:token',
+    loadComponent: () => import('./features/print/print-voucher.page').then(m => m.PrintVoucherPage)
+  },
+  {
+    path: 'print/contract/:id',
+    loadComponent: () => import('./features/print/print-contract.page').then(m => m.PrintContractPage)
+  },
+
+  // 8. Forbidden Route
   {
     path: 'forbidden',
     loadComponent: () => import('./features/forbidden/forbidden.page').then(m => m.ForbiddenPage)

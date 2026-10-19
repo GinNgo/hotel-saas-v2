@@ -1,7 +1,7 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { PublicBookingService } from '../../core/services/public-booking.service';
 import { AlertService } from '../../core/services/alert.service';
 import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
@@ -9,167 +9,312 @@ import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
 @Component({
   selector: 'app-booking-status',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterLink],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="min-h-screen bg-slate-50 flex flex-col font-sans">
-      <!-- Header -->
-      <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-        <div class="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold text-base shadow-sm">
-              H
-            </div>
-            <span class="text-base font-bold text-slate-900 tracking-tight">Tra cứu & Trạng thái đặt phòng</span>
-          </div>
-          <div class="flex items-center gap-3">
-            <a routerLink="/booking" class="text-sm font-medium text-slate-500 hover:text-slate-800">
-              Đặt phòng mới
-            </a>
-          </div>
-        </div>
-      </header>
+    <div class="min-h-screen bg-slate-50 py-6 sm:py-8 font-sans">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 space-y-6">
 
-      <main class="flex-1 max-w-4xl mx-auto px-4 sm:px-6 py-8 w-full">
-        <!-- Token Lookup Search Box -->
-        <div class="bg-white rounded-2xl border border-slate-200 p-6 mb-8 shadow-sm">
-          <h2 class="text-base font-bold text-slate-900 mb-1">Tra cứu thông tin đặt phòng bảo mật</h2>
-          <p class="text-xs text-slate-500 mb-4">Nhập mã tra cứu bảo mật (Lookup Token) nhận được khi giữ hoặc xác nhận đặt phòng.</p>
-          <div class="flex flex-col sm:flex-row gap-3">
-            <input
-              type="text"
-              [(ngModel)]="searchToken"
-              placeholder="Nhập mã token (ví dụ: a1b2c3d4e5f6...)"
-              class="flex-1 rounded-xl border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-2.5 px-3 font-mono" />
-            <button
-              (click)="onSearch()"
-              [disabled]="!searchToken.trim() || isSearching()"
-              class="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all disabled:opacity-50">
-              <span *ngIf="isSearching()">Đang tìm...</span>
-              <span *ngIf="!isSearching()">Tra cứu</span>
-            </button>
-          </div>
-        </div>
+        <!-- 1. BREADCRUMB -->
+        <nav class="flex items-center gap-2 text-xs text-slate-500">
+          <a routerLink="/booking" class="hover:text-indigo-600 transition-colors">Trang chủ</a>
+          <span>/</span>
+          <a routerLink="/booking/lookup" class="hover:text-indigo-600 transition-colors">Tra cứu</a>
+          <span>/</span>
+          <span class="text-slate-800 font-semibold truncate">Trạng thái đặt phòng</span>
+        </nav>
 
-        <!-- Booking Result Details -->
-        <div *ngIf="booking()" class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-0">
-          <!-- Top Banner & Status -->
-          <div class="p-6 sm:p-8 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <div class="flex items-center gap-2 mb-2">
-                <span [ngClass]="getStatusBadgeClass(booking()?.status || '')" class="px-3 py-1 text-xs font-bold rounded-full border">
-                  {{ getStatusLabel(booking()?.status || '') }}
-                </span>
-                <span class="text-xs text-slate-400 font-mono">Mã xác nhận: {{ booking()?.confirmationCode }}</span>
-              </div>
-              <h1 class="text-2xl font-bold text-slate-900">{{ booking()?.propertyName }}</h1>
-              <p class="text-xs text-slate-500 mt-0.5">{{ booking()?.propertyAddress }}</p>
-            </div>
-
-            <div class="text-right">
-              <span class="text-xs text-slate-400 font-medium">Thời điểm tạo</span>
-              <div class="text-xs font-semibold text-slate-700">{{ booking()?.createdAtUtc | date:'dd/MM/yyyy HH:mm' }}</div>
+        <!-- 2. SEARCH BOX NẾU CHƯA CÓ BOOKING -->
+        @if (!booking() && !isSearching()) {
+          <div class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-4">
+            <h2 class="text-base font-bold text-slate-900">Tra cứu trạng thái đặt phòng bảo mật</h2>
+            <p class="text-xs text-slate-500">Nhập mã Token bảo mật nhận được khi giữ chỗ hoặc nộp cọc.</p>
+            <div class="flex flex-col sm:flex-row gap-3">
+              <input
+                type="text"
+                [(ngModel)]="searchToken"
+                placeholder="Nhập mã token bảo mật..."
+                class="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-mono focus:outline-indigo-500"
+              />
+              <button
+                (click)="onSearch()"
+                [disabled]="!searchToken.trim()"
+                class="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors cursor-pointer shrink-0"
+              >
+                Tra cứu ngay
+              </button>
             </div>
           </div>
+        }
 
-          <!-- Body details -->
-          <div class="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-            <!-- Left Info -->
-            <div class="space-y-4">
-              <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Thông tin lưu trú</h3>
-              <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2 text-sm">
-                <div class="flex justify-between">
-                  <span class="text-slate-500">Loại phòng:</span>
-                  <span class="font-bold text-slate-900">{{ booking()?.roomTypeName }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-slate-500">Hình thức thuê:</span>
-                  <span class="font-semibold text-slate-900">{{ booking()?.rentalType }}</span>
-                </div>
-                <div class="flex justify-between" *ngIf="booking()?.checkInDate">
-                  <span class="text-slate-500">Nhận phòng:</span>
-                  <span class="font-semibold text-slate-900">{{ booking()?.checkInDate }}</span>
-                </div>
-                <div class="flex justify-between" *ngIf="booking()?.checkOutDate">
-                  <span class="text-slate-500">Trả phòng:</span>
-                  <span class="font-semibold text-slate-900">{{ booking()?.checkOutDate }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-slate-500">Số lượng khách:</span>
-                  <span class="font-semibold text-slate-900">{{ booking()?.numberOfGuests }} người</span>
-                </div>
-              </div>
+        <!-- LOADING SPINNER -->
+        @if (isSearching()) {
+          <div class="bg-white rounded-3xl border border-slate-200 p-12 text-center shadow-xs">
+            <div class="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto mb-3"></div>
+            <p class="text-xs font-semibold text-slate-600">Đang kiểm tra trạng thái đơn đặt phòng...</p>
+          </div>
+        }
 
-              <!-- PII Protection Notice -->
-              <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mt-6">Thông tin khách hàng (Đã mã hóa PII)</h3>
-              <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2 text-sm">
-                <div class="flex justify-between">
-                  <span class="text-slate-500">Họ và tên:</span>
-                  <span class="font-semibold text-slate-900 font-mono">{{ booking()?.maskedGuestName }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-slate-500">Email:</span>
-                  <span class="font-semibold text-slate-900 font-mono">{{ booking()?.maskedGuestEmail }}</span>
-                </div>
-                <div class="flex justify-between" *ngIf="booking()?.maskedGuestPhone">
-                  <span class="text-slate-500">Số điện thoại:</span>
-                  <span class="font-semibold text-slate-900 font-mono">{{ booking()?.maskedGuestPhone }}</span>
-                </div>
-              </div>
-            </div>
+        <!-- 3. BOOKING DETAILS & QR CHECK-IN CARD -->
+        @if (booking()) {
+          <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-0 animate-in fade-in duration-200">
 
-            <!-- Right Financial Reconciliation -->
-            <div class="space-y-4">
-              <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Đối soát tài chính</h3>
-              <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
-                <div class="flex justify-between text-sm">
-                  <span class="text-slate-500">Tổng tiền lưu trú:</span>
-                  <span class="font-bold text-slate-900">{{ booking()?.totalAmount | number:'1.0-0' }} đ</span>
-                </div>
-                <div class="flex justify-between text-sm text-emerald-700 bg-emerald-50 rounded-xl p-3 border border-emerald-100">
-                  <span class="font-semibold">Đã thanh toán (Cọc):</span>
-                  <span class="font-bold">{{ booking()?.paidAmount | number:'1.0-0' }} đ</span>
-                </div>
-                <div class="flex justify-between text-sm text-slate-700 bg-slate-50 rounded-xl p-3 border border-slate-200">
-                  <span class="font-semibold">Còn lại cần thu tại quầy:</span>
-                  <span class="font-bold text-indigo-700">{{ booking()?.remainingBalance | number:'1.0-0' }} đ</span>
-                </div>
-
-                <div class="pt-2 border-t border-slate-100">
-                  <span class="text-xs font-semibold" [ngClass]="booking()?.isFullyPaid ? 'text-emerald-600' : 'text-slate-500'">
-                    {{ booking()?.isFullyPaid ? '✓ Đã thanh toán đầy đủ 100%' : 'Chưa tất toán (Thanh toán phần còn lại khi nhận phòng)' }}
+            <!-- Top Header & Status -->
+            <div class="p-6 sm:p-8 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4 bg-slate-50/50">
+              <div class="space-y-1.5">
+                <div class="flex items-center gap-2">
+                  <span [class]="getStatusBadgeClass(booking()?.status || '')" class="px-3 py-1 text-xs font-bold rounded-full border">
+                    {{ getStatusLabel(booking()?.status || '') }}
                   </span>
+                  <span class="text-xs text-slate-500 font-mono font-bold">Mã xác nhận: {{ booking()?.confirmationCode }}</span>
                 </div>
+                <h1 class="text-2xl font-black text-slate-900 tracking-tight">{{ booking()?.propertyName }}</h1>
+                <p class="text-xs text-slate-500 flex items-center gap-1">
+                  <i class="pi pi-map-marker text-indigo-600"></i>
+                  <span>{{ booking()?.propertyAddress }}</span>
+                </p>
               </div>
 
-              <!-- Quote Itemized Breakdown -->
-              <div *ngIf="booking()?.breakdown && (booking()?.breakdown)!.length > 0" class="mt-4">
-                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Bảng phân rã chi phí</h4>
-                <div class="space-y-1.5 text-xs text-slate-600">
-                  <div *ngFor="let item of booking()?.breakdown" class="flex justify-between py-1 border-b border-slate-100">
-                    <span>{{ item.description }} (x{{ item.quantity }})</span>
-                    <span class="font-medium text-slate-800">{{ item.amount | number:'1.0-0' }} đ</span>
+              <!-- Action buttons -->
+              <div class="flex items-center gap-2">
+                <a
+                  [href]="getDirectionsUrl()"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                >
+                  <i class="pi pi-directions text-xs text-indigo-600"></i>
+                  <span>Chỉ đường tới cơ sở</span>
+                </a>
+
+                <button
+                  type="button"
+                  (click)="printConfirmation()"
+                  class="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-xs font-bold text-white flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <i class="pi pi-print text-xs"></i>
+                  <span>In phiếu nhận phòng</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- QR Code Check-in Banner -->
+            <div class="p-6 sm:p-8 bg-indigo-950 text-white flex flex-col sm:flex-row items-center justify-between gap-6">
+              <div class="space-y-2 text-center sm:text-left">
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-amber-400 text-slate-950">
+                  Thủ tục nhận phòng nhanh (Fast Check-in)
+                </span>
+                <h2 class="text-lg font-bold text-white">Xuất trình Mã này cho Lễ tân tại Quầy</h2>
+                <p class="text-xs text-indigo-200 max-w-md">
+                  Lễ tân chỉ cần quét mã hoặc kiểm tra mã xác nhận <b>{{ booking()?.confirmationCode }}</b> để hoàn tất nhận phòng trong 30 giây.
+                </p>
+              </div>
+
+              <!-- Mock QR Code Box -->
+              <div class="bg-white p-3 rounded-2xl shadow-md text-center shrink-0">
+                <div class="w-32 h-32 bg-slate-100 rounded-xl flex flex-col items-center justify-center p-2 border border-slate-200">
+                  <i class="pi pi-qrcode text-5xl text-slate-900 mb-1"></i>
+                  <span class="text-[9px] font-mono font-bold text-slate-700 truncate w-28">{{ booking()?.confirmationCode }}</span>
+                </div>
+                <span class="text-[10px] text-slate-400 font-semibold block mt-1">QR Check-in</span>
+              </div>
+            </div>
+
+            <!-- IoT Smart Lock Card (Khóa phòng điện tử thông minh) -->
+            <div class="p-6 sm:p-8 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white border-y border-slate-800 shadow-inner relative overflow-hidden">
+              <div class="absolute -right-8 -bottom-8 w-44 h-44 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+              <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
+                <div class="space-y-2">
+                  <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase"
+                      [ngClass]="{
+                        'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40': booking()?.smartLockStatus === 'Active',
+                        'bg-amber-500/20 text-amber-300 border border-amber-500/40': booking()?.smartLockStatus === 'Pending' || !booking()?.smartLockStatus,
+                        'bg-slate-500/20 text-slate-300 border border-slate-500/40': booking()?.smartLockStatus === 'Expired',
+                        'bg-rose-500/20 text-rose-300 border border-rose-500/40': booking()?.smartLockStatus === 'Revoked'
+                      }">
+                      <span class="w-1.5 h-1.5 rounded-full"
+                        [ngClass]="{
+                          'bg-emerald-400 animate-pulse': booking()?.smartLockStatus === 'Active',
+                          'bg-amber-400': booking()?.smartLockStatus === 'Pending' || !booking()?.smartLockStatus,
+                          'bg-slate-400': booking()?.smartLockStatus === 'Expired',
+                          'bg-rose-400': booking()?.smartLockStatus === 'Revoked'
+                        }"></span>
+                      {{ getSmartLockStatusLabel(booking()?.smartLockStatus) }}
+                    </span>
+                    <span class="text-[11px] text-slate-400 flex items-center gap-1">
+                      <i class="pi pi-wifi text-xs text-indigo-400"></i>
+                      <span>IoT Keyless Entry</span>
+                    </span>
+                  </div>
+
+                  <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="pi pi-key text-amber-400"></i>
+                    <span>Mã Mở Khóa Cửa Điện Tử (Smart Lock PIN)</span>
+                  </h3>
+                  <p class="text-xs text-slate-300 max-w-md">
+                    Sử dụng mã PIN 6 chữ số này hoặc chạm điện thoại (NFC) tại ổ khóa điện tử trước cửa phòng để mở cửa an toàn suốt thời gian lưu trú.
+                  </p>
+                </div>
+
+                <!-- PIN Code Display Box -->
+                <div class="bg-black/50 border border-white/10 rounded-2xl p-4 text-center shrink-0 min-w-[200px] backdrop-blur-sm shadow-md">
+                  <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1">Mã PIN Mở Cửa</div>
+                  <div class="text-3xl font-black font-mono tracking-widest text-amber-300 py-1 select-all">
+                    {{ booking()?.smartLockPin || '886912' }}
+                  </div>
+                  <div class="mt-2 flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      (click)="copyPin(booking()?.smartLockPin || '886912')"
+                      class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-semibold text-white transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <i class="pi pi-copy text-[10px]"></i>
+                      <span>Sao chép PIN</span>
+                    </button>
+                    <button
+                      type="button"
+                      (click)="simulateNfcTouch()"
+                      class="px-2.5 py-1 rounded-lg bg-indigo-600/80 hover:bg-indigo-600 text-[11px] font-semibold text-white transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <i class="pi pi-bolt text-[10px] text-amber-300"></i>
+                      <span>Chạm NFC</span>
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Bottom Actions -->
-          <div class="p-6 sm:p-8 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
-            <div class="text-xs text-slate-500">
-              Mã bảo mật: <span class="font-mono text-slate-700 select-all">{{ booking()?.lookupToken }}</span>
+            <!-- Body Details -->
+            <div class="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+              <!-- Left Info -->
+              <div class="space-y-4">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Thông tin lưu trú</h3>
+                <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-2.5 text-xs">
+                  <div class="flex justify-between">
+                    <span class="text-slate-500">Hạng phòng:</span>
+                    <span class="font-bold text-slate-900">{{ booking()?.roomTypeName }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-slate-500">Chế độ thuê:</span>
+                    <span class="font-bold text-indigo-700">{{ booking()?.rentalType }}</span>
+                  </div>
+                  @if (booking()?.checkInDate) {
+                    <div class="flex justify-between">
+                      <span class="text-slate-500">Nhận phòng:</span>
+                      <span class="font-bold text-slate-900">{{ booking()?.checkInDate }}</span>
+                    </div>
+                  }
+                  @if (booking()?.checkOutDate) {
+                    <div class="flex justify-between">
+                      <span class="text-slate-500">Trả phòng:</span>
+                      <span class="font-bold text-slate-900">{{ booking()?.checkOutDate }}</span>
+                    </div>
+                  }
+                  <div class="flex justify-between">
+                    <span class="text-slate-500">Số lượng khách:</span>
+                    <span class="font-semibold text-slate-900">{{ booking()?.numberOfGuests }} người</span>
+                  </div>
+                </div>
+
+                <!-- PII protection notice -->
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider pt-2">Khách lưu trú (Bảo mật PII)</h3>
+                <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-2 text-xs font-mono">
+                  <div class="flex justify-between">
+                    <span class="text-slate-500 font-sans">Họ và tên:</span>
+                    <span class="font-bold text-slate-900">{{ booking()?.maskedGuestName }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-slate-500 font-sans">Email:</span>
+                    <span class="font-semibold text-slate-800">{{ booking()?.maskedGuestEmail }}</span>
+                  </div>
+                  @if (booking()?.maskedGuestPhone) {
+                    <div class="flex justify-between">
+                      <span class="text-slate-500 font-sans">Số điện thoại:</span>
+                      <span class="font-semibold text-slate-800">{{ booking()?.maskedGuestPhone }}</span>
+                    </div>
+                  }
+                </div>
+              </div>
+
+              <!-- Right Financial Folio -->
+              <div class="space-y-4">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Hóa đơn &amp; Tài chính</h3>
+                <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3 text-xs">
+                  <div class="flex justify-between text-slate-600">
+                    <span>Tổng chi phí phòng:</span>
+                    <span class="font-bold text-slate-900 font-mono">{{ booking()?.totalAmount | number:'1.0-0' }} ₫</span>
+                  </div>
+                  <div class="flex justify-between text-emerald-700 bg-emerald-50 rounded-xl p-3 border border-emerald-100 font-semibold">
+                    <span>Số tiền đã thanh toán (Cọc):</span>
+                    <span class="font-mono font-bold">{{ booking()?.paidAmount | number:'1.0-0' }} ₫</span>
+                  </div>
+                  <div class="flex justify-between text-slate-800 bg-slate-50 rounded-xl p-3 border border-slate-200 font-semibold">
+                    <span>Còn lại thu tại quầy:</span>
+                    <span class="font-mono font-bold text-indigo-700">{{ booking()?.remainingBalance | number:'1.0-0' }} ₫</span>
+                  </div>
+
+                  <div class="pt-2 border-t border-slate-100">
+                    <span class="text-xs font-bold" [class.text-emerald-600]="booking()?.isFullyPaid" [class.text-slate-500]="!booking()?.isFullyPaid">
+                      {{ booking()?.isFullyPaid ? '✓ Đã tất toán toàn bộ 100%' : 'Chưa tất toán (Thanh toán số tiền còn lại khi làm thủ tục nhận phòng)' }}
+                    </span>
+                  </div>
+
+                  <!-- VNPay Sandbox Payment Button -->
+                  @if (booking()?.status === 'PendingPayment' || (booking()?.remainingBalance || 0) > 0) {
+                    <div class="pt-2">
+                      <button
+                        type="button"
+                        (click)="payWithVnpay()"
+                        [disabled]="isPayingVnpay()"
+                        class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-700 via-indigo-600 to-rose-600 hover:from-blue-800 hover:to-rose-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm hover:shadow transition-all cursor-pointer"
+                      >
+                        <i class="pi pi-credit-card text-xs"></i>
+                        <span>{{ isPayingVnpay() ? 'Đang tạo giao dịch VNPay...' : 'Thanh toán trực tuyến qua VNPay Sandbox' }}</span>
+                      </button>
+                      <p class="text-[10px] text-slate-400 text-center mt-1">
+                        Hỗ trợ Thẻ ATM nội địa, QR Pay, Thẻ Quốc tế Visa/Master bảo mật VNPay
+                      </p>
+                    </div>
+                  }
+                </div>
+
+                @if (booking()?.breakdown && booking()!.breakdown.length > 0) {
+                  <div>
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Bảng phân rã chi phí</h4>
+                    <div class="space-y-1.5 text-xs text-slate-600">
+                      @for (item of booking()!.breakdown; track item.description) {
+                        <div class="flex justify-between py-1 border-b border-slate-100">
+                          <span>{{ item.description }} (x{{ item.quantity }})</span>
+                          <span class="font-medium text-slate-800 font-mono">{{ item.amount | number:'1.0-0' }} ₫</span>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
             </div>
-            <div class="flex items-center gap-3">
-              <button (click)="copyToken()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 transition-colors">
-                Sao chép mã tra cứu
-              </button>
-              <a routerLink="/booking" class="px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
-                Đặt thêm phòng khác
-              </a>
+
+            <!-- Bottom Actions -->
+            <div class="p-6 sm:p-8 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
+              <div class="text-xs text-slate-500">
+                Mã tra cứu bảo mật: <span class="font-mono text-slate-700 select-all">{{ booking()?.lookupToken }}</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <button (click)="copyToken()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer">
+                  Sao chép mã tra cứu
+                </button>
+                <a routerLink="/booking" class="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors cursor-pointer">
+                  Đặt thêm phòng khác
+                </a>
+              </div>
             </div>
+
           </div>
-        </div>
-      </main>
+        }
+
+      </div>
     </div>
   `
 })
@@ -184,67 +329,120 @@ export class BookingStatusPage implements OnInit {
   isSearching = signal<boolean>(false);
 
   ngOnInit(): void {
-    const token = this.route.snapshot.paramMap.get('token');
-    if (token) {
-      this.searchToken = token;
-      this.fetchBooking(token);
-    }
+    this.route.paramMap.subscribe(params => {
+      const token = params.get('token');
+      if (token) {
+        this.searchToken = token;
+        this.fetchBooking(token);
+      }
+    });
   }
 
   onSearch(): void {
     if (!this.searchToken.trim()) return;
-    this.router.navigate(['/booking/status', this.searchToken.trim()]);
     this.fetchBooking(this.searchToken.trim());
   }
 
   fetchBooking(token: string): void {
     this.isSearching.set(true);
     this.publicBookingService.getBookingByToken(token).subscribe({
-      next: detail => {
-        this.booking.set(detail);
+      next: (b) => {
         this.isSearching.set(false);
+        this.booking.set(b);
       },
-      error: err => {
+      error: () => {
         this.isSearching.set(false);
-        this.alertService.toastError(err?.error?.message || 'Không tìm thấy thông tin đặt phòng với mã này.');
+        this.alertService.error('Không tìm thấy thông tin đặt phòng với mã token này.');
       }
     });
   }
 
-  copyToken(): void {
-    if (this.booking()?.lookupToken) {
-      navigator.clipboard?.writeText(this.booking()!.lookupToken);
-      this.alertService.toastSuccess('Đã sao chép mã tra cứu vào bộ nhớ tạm.');
-    }
-  }
-
   getStatusBadgeClass(status: string): string {
     switch (status) {
-      case 'Confirmed':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'PendingPayment':
-        return 'bg-amber-50 text-amber-700 border-amber-200';
-      case 'CheckedIn':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
-      case 'Expired':
-        return 'bg-rose-50 text-rose-700 border-rose-200';
-      default:
-        return 'bg-slate-50 text-slate-700 border-slate-200';
+      case 'Hold': return 'bg-amber-50 text-amber-800 border-amber-200';
+      case 'Confirmed': return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+      case 'CheckedIn': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'CheckedOut': return 'bg-slate-100 text-slate-700 border-slate-200';
+      case 'Cancelled': return 'bg-rose-50 text-rose-700 border-rose-200';
+      default: return 'bg-slate-50 text-slate-700 border-slate-200';
     }
   }
 
   getStatusLabel(status: string): string {
     switch (status) {
-      case 'Confirmed':
-        return 'Đã xác nhận';
-      case 'PendingPayment':
-        return 'Đang giữ phòng (Chờ thanh toán cọc)';
-      case 'CheckedIn':
-        return 'Đã nhận phòng';
-      case 'Expired':
-        return 'Đã hết hạn giữ phòng';
-      default:
-        return status;
+      case 'Hold': return 'Đang giữ phòng (Chờ nộp cọc)';
+      case 'Confirmed': return 'Đã xác nhận đặt phòng';
+      case 'CheckedIn': return 'Đang lưu trú tại cơ sở';
+      case 'CheckedOut': return 'Đã trả phòng (Hoàn tất)';
+      case 'Cancelled': return 'Đã hủy';
+      default: return status || 'Không xác định';
     }
   }
+
+  isPayingVnpay = signal<boolean>(false);
+
+  copyToken(): void {
+    const token = this.booking()?.lookupToken;
+    if (token && navigator.clipboard) {
+      navigator.clipboard.writeText(token);
+      this.alertService.success('Đã sao chép mã tra cứu vào clipboard.');
+    }
+  }
+
+  getSmartLockStatusLabel(status?: string): string {
+    switch (status) {
+      case 'Active': return 'ĐANG HOẠT ĐỘNG (ACTIVE)';
+      case 'Pending': return 'CHỜ KÍCH HOẠT KHI NHẬN PHÒNG';
+      case 'Expired': return 'HẾT HIỆU LỰC (CHECK-OUT)';
+      case 'Revoked': return 'ĐÃ THU HỒI';
+      default: return 'CHỜ KÍCH HOẠT';
+    }
+  }
+
+  copyPin(pin: string): void {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(pin);
+      this.alertService.success(`Đã sao chép mã PIN phòng: ${pin}`);
+    }
+  }
+
+  simulateNfcTouch(): void {
+    const pin = this.booking()?.smartLockPin || '886912';
+    this.alertService.success(`[NFC Smart Lock] Đã xác thực chìa khóa số thành công cho phòng! Mã PIN: ${pin}`);
+  }
+
+  payWithVnpay(): void {
+    const b = this.booking();
+    if (!b?.reservationId) return;
+
+    this.isPayingVnpay.set(true);
+    const returnUrl = `${window.location.origin}/booking/status/${b.lookupToken}`;
+
+    this.publicBookingService.createVnpayPaymentUrl(b.reservationId, returnUrl).subscribe({
+      next: (res) => {
+        this.isPayingVnpay.set(false);
+        if (res?.paymentUrl) {
+          this.alertService.info('Đang chuyển hướng sang Cổng thanh toán VNPay Sandbox...');
+          window.location.href = res.paymentUrl;
+        } else {
+          this.alertService.error('Không thể tạo liên kết thanh toán VNPay.');
+        }
+      },
+      error: () => {
+        this.isPayingVnpay.set(false);
+        this.alertService.error('Lỗi kết nối cổng thanh toán VNPay Sandbox.');
+      }
+    });
+  }
+
+  printConfirmation(): void {
+    window.print();
+  }
+
+  getDirectionsUrl(): string {
+    const addr = this.booking()?.propertyAddress || this.booking()?.propertyName || '';
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
+  }
 }
+
+export { BookingStatusPage as BookingStatusPageComponent };

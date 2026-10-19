@@ -1,9 +1,9 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, Subscription, of } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap, tap, catchError } from 'rxjs/operators';
-import { RoomService, GetRoomsFilter } from '../../core/services/room.service';
+import { RoomService, GetRoomsFilter, RoomSyncStatus } from '../../core/services/room.service';
 import { AlertService } from '../../core/services/alert.service';
 import { AuthService } from '../../core/services/auth.service';
 import { RoomDto } from '../../core/models/room.model';
@@ -38,11 +38,27 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
       <!-- Page Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
         <div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
             <h1 class="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Quản lý Buồng phòng</h1>
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-              Thời gian thực
-            </span>
+            @if (syncStatus() === 'connected') {
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200" title="Đồng bộ thời gian thực từ máy chủ">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Máy chủ: Đang kết nối</span>
+                @if (lastSyncTime()) {
+                  <span class="font-normal text-[10px] text-emerald-600">({{ formatLastSyncTime() }})</span>
+                }
+              </span>
+            } @else if (syncStatus() === 'reconnecting') {
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                <span>Đang kết nối lại...</span>
+              </span>
+            } @else if (syncStatus() === 'offline') {
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-100 text-rose-800 border border-rose-200">
+                <i class="pi pi-wifi-off text-[10px]"></i>
+                <span>Ngoại tuyến (Mất mạng)</span>
+              </span>
+            }
           </div>
           <p class="text-xs sm:text-sm text-slate-500 mt-1">
             Theo dõi, phân luồng dọn dẹp và cập nhật trạng thái phòng vật lý theo State Machine chi nhánh.
@@ -55,8 +71,19 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
         <div class="flex items-center gap-2.5">
           <button
             type="button"
+            (click)="toggleAutoSync()"
+            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium transition-colors shadow-2xs cursor-pointer"
+            [ngClass]="autoSyncEnabled() ? 'border-emerald-200 bg-emerald-50/70 text-emerald-700 hover:bg-emerald-100' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'"
+            [title]="autoSyncEnabled() ? 'Tự động đồng bộ máy chủ đang BẬT (định kỳ 10 giây)' : 'Tự động đồng bộ đang TẮT'"
+          >
+            <i class="pi" [ngClass]="autoSyncEnabled() ? 'pi-sync' : 'pi-pause'"></i>
+            <span class="hidden sm:inline">{{ autoSyncEnabled() ? 'Đồng bộ định kỳ (10s): Bật' : 'Đồng bộ định kỳ (10s): Tắt' }}</span>
+          </button>
+
+          <button
+            type="button"
             (click)="loadRooms()"
-            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-600 text-xs font-medium transition-colors shadow-2xs"
+            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-600 text-xs font-medium transition-colors shadow-2xs cursor-pointer"
             title="Làm mới bảng buồng phòng"
             aria-label="Làm mới bảng buồng phòng"
           >
@@ -469,7 +496,70 @@ export class HousekeepingPage implements OnInit, OnDestroy {
     }));
   });
 
+  // Multi-device Auto-Sync & Network Resilience
+  syncStatus = signal<RoomSyncStatus>('connected');
+  lastSyncTime = signal<Date | null>(null);
+  autoSyncEnabled = signal<boolean>(true);
+  private autoSyncTimer?: any;
+  private syncInFlight = false;
+  private trackedPropertyId: string | null = null;
+  private pollSub?: Subscription;
+  private pollGeneration = 0;
+  private lastMutationTimestamp = 0;
+  private isDestroyed = false;
+
+  private readonly handleOnline = () => {
+    this.syncStatus.set('connected');
+    this.loadRooms();
+  };
+
+  private readonly handleOffline = () => {
+    this.syncStatus.set('offline');
+  };
+
+  private invalidatePolling(): void {
+    if (this.pollSub && !this.pollSub.closed) {
+      this.pollSub.unsubscribe();
+      this.pollSub = undefined;
+    }
+    this.pollGeneration++;
+    this.syncInFlight = false;
+  }
+
+  constructor() {
+    try {
+      effect(() => {
+        const propId = this.authService.activePropertyId();
+        if (this.trackedPropertyId !== propId) {
+          this.trackedPropertyId = propId;
+          this.invalidatePolling();
+          this.currentPage.set(1);
+          this.rooms.set([]);
+          this.totalCount.set(0);
+          this.loadRooms();
+        }
+      });
+
+      effect(() => {
+        const change = this.roomService.roomStatusChanged();
+        if (change) {
+          // Immediately update matching room in local rooms signal if present without full reload
+          this.rooms.update(list =>
+            list.map(r => r.id === change.roomId ? { ...r, status: change.status } : r)
+          );
+        }
+      });
+    } catch {
+      // Ignored in headless tests
+    }
+  }
+
   ngOnInit(): void {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', this.handleOnline);
+      window.addEventListener('offline', this.handleOffline);
+    }
+
     this.searchSub = this.searchSubject$.pipe(
       debounceTime(300),
       distinctUntilChanged()
@@ -480,11 +570,153 @@ export class HousekeepingPage implements OnInit, OnDestroy {
 
     this.setupRoomListStream();
     this.loadRooms();
+    this.startAutoSync();
   }
 
   ngOnDestroy(): void {
+    this.isDestroyed = true;
+    this.invalidatePolling();
+    this.stopAutoSync();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('online', this.handleOnline);
+      window.removeEventListener('offline', this.handleOffline);
+    }
     this.searchSub?.unsubscribe();
     this.listSub?.unsubscribe();
+  }
+
+  startAutoSync(intervalMs = 10000): void {
+    this.stopAutoSync();
+    if (typeof window !== 'undefined') {
+      this.autoSyncTimer = setInterval(() => {
+        this.pollServerSync();
+      }, intervalMs);
+    }
+  }
+
+  stopAutoSync(): void {
+    if (this.autoSyncTimer) {
+      clearInterval(this.autoSyncTimer);
+      this.autoSyncTimer = undefined;
+    }
+  }
+
+  toggleAutoSync(): void {
+    const nextState = !this.autoSyncEnabled();
+    this.autoSyncEnabled.set(nextState);
+    if (nextState) {
+      this.startAutoSync();
+      this.pollServerSync();
+    } else {
+      this.stopAutoSync();
+    }
+  }
+
+  pollServerSync(): void {
+    if (this.isDestroyed || !this.autoSyncEnabled()) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      this.syncStatus.set('offline');
+      return;
+    }
+    if (this.loading() || this.updatingRoomId()) {
+      return;
+    }
+
+    const targetPropId = this.authService.activePropertyId();
+    if (!targetPropId) return;
+
+    const targetPage = this.currentPage();
+    const targetPageSize = this.currentPageSize();
+    const targetStatus = this.activeStatusFilter();
+    const targetFloor = this.selectedFloor();
+    const targetSearch = this.searchRoomNumber().trim();
+    const requestMutationTime = this.lastMutationTimestamp;
+
+    const filter: GetRoomsFilter = {
+      page: targetPage,
+      pageSize: targetPageSize
+    };
+    if (targetStatus !== 'ALL') {
+      filter.status = targetStatus as RoomStatus;
+    }
+    if (targetFloor !== null && targetFloor !== undefined) {
+      filter.floor = targetFloor;
+    }
+    if (targetSearch) {
+      filter.search = targetSearch;
+    }
+
+    this.invalidatePolling();
+    const gen = this.pollGeneration;
+    this.syncInFlight = true;
+
+    const isContextValid = (): boolean => {
+      return (
+        !this.isDestroyed &&
+        gen === this.pollGeneration &&
+        this.authService.activePropertyId() === targetPropId &&
+        this.currentPage() === targetPage &&
+        this.currentPageSize() === targetPageSize &&
+        this.activeStatusFilter() === targetStatus &&
+        this.selectedFloor() === targetFloor &&
+        this.searchRoomNumber().trim() === targetSearch &&
+        this.lastMutationTimestamp === requestMutationTime
+      );
+    };
+
+    this.pollSub = this.roomService.getRooms(filter).pipe(
+      catchError((err: HttpErrorResponse) => {
+        if (!isContextValid()) {
+          return of(null);
+        }
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          this.syncStatus.set('offline');
+        } else {
+          this.syncStatus.set('reconnecting');
+        }
+        return of(null);
+      })
+    ).subscribe({
+      next: (res) => {
+        if (gen === this.pollGeneration) {
+          this.syncInFlight = false;
+        }
+        if (!isContextValid() || !res) {
+          return;
+        }
+
+        this.syncStatus.set('connected');
+        this.lastSyncTime.set(new Date());
+
+        // Detect server-side updates (e.g. checkout transitioning a room to Dirty on another device)
+        const currentList = this.rooms();
+        for (const newRoom of res.items || []) {
+          const oldRoom = currentList.find(r => r.id === newRoom.id);
+          if (oldRoom && oldRoom.status !== newRoom.status) {
+            if (newRoom.status === RoomStatus.Dirty && oldRoom.status === RoomStatus.Occupied) {
+              this.alertService.toastWarning(`Phòng ${newRoom.roomNumber} vừa được trả phòng và chuyển sang Cần dọn (Dirty).`);
+            }
+          }
+        }
+
+        this.rooms.set(res.items || []);
+        this.totalCount.set(res.totalCount ?? (res.items || []).length);
+      },
+      error: () => {
+        if (gen === this.pollGeneration) {
+          this.syncInFlight = false;
+        }
+      }
+    });
+  }
+
+  formatLastSyncTime(): string {
+    const t = this.lastSyncTime();
+    if (!t) return '';
+    const h = String(t.getHours()).padStart(2, '0');
+    const m = String(t.getMinutes()).padStart(2, '0');
+    const s = String(t.getSeconds()).padStart(2, '0');
+    return `${h}:${m}:${s}`;
   }
 
   private setupRoomListStream(): void {
@@ -538,6 +770,7 @@ export class HousekeepingPage implements OnInit, OnDestroy {
   }
 
   loadRooms(): void {
+    this.invalidatePolling();
     this.reloadTrigger$.next();
   }
 
@@ -594,10 +827,13 @@ export class HousekeepingPage implements OnInit, OnDestroy {
     if (targetStatus === currentOldStatus) return;
 
     this.updatingRoomId.set(room.id);
+    this.invalidatePolling();
 
     this.roomService.updateRoomStatus(room.id, targetStatus, currentOldStatus).subscribe({
       next: (updated) => {
         this.updatingRoomId.set(null);
+        this.lastMutationTimestamp = Date.now();
+        this.invalidatePolling();
         // Cập nhật trạng thái trực tiếp trong danh sách signal
         this.rooms.update(list => list.map(r => r.id === room.id ? { ...r, status: targetStatus } : r));
         this.alertService.toastSuccess(

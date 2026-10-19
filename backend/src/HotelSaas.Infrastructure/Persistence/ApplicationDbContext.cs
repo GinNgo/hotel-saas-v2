@@ -1,4 +1,4 @@
-﻿using HotelSaas.Application.Common.Exceptions;
+using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Domain.Common;
 using HotelSaas.Domain.Entities;
@@ -87,6 +87,21 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
 
     /// <summary>Individual line items within an invoice.</summary>
     public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
+
+    /// <summary>Thẻ thành viên tích điểm chuỗi/cơ sở của khách hàng.</summary>
+    public DbSet<GuestLoyaltyMembership> GuestLoyaltyMemberships => Set<GuestLoyaltyMembership>();
+
+    /// <summary>Sổ cái giao dịch điểm thưởng bất biến.</summary>
+    public DbSet<LoyaltyPointTransaction> LoyaltyPointTransactions => Set<LoyaltyPointTransaction>();
+
+    /// <summary>Hợp đồng cung cấp dịch vụ phần mềm SaaS ký kết với đối tác.</summary>
+    public DbSet<TenantContract> TenantContracts => Set<TenantContract>();
+
+    /// <summary>Cấu hình và mẫu in ấn tài liệu pháp lý / hóa đơn / phiếu xác nhận.</summary>
+    public DbSet<PrintTemplateConfig> PrintTemplateConfigs => Set<PrintTemplateConfig>();
+
+    /// <summary>Liên kết tài khoản mạng xã hội (Google, Facebook).</summary>
+    public DbSet<SocialIdentity> SocialIdentities => Set<SocialIdentity>();
 
 
     /// <summary>System and user notifications.</summary>
