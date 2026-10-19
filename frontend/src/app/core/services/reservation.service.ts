@@ -13,6 +13,7 @@ import {
   RentalType,
   ReservationStatus
 } from '../models/reservation.model';
+import { FolioDto, AddFolioItemRequest } from '../models/payment.model';
 
 function normalizeReservation<T extends ReservationDto>(reservation: T): T {
   const status = typeof reservation.status === 'string'
@@ -189,6 +190,19 @@ export class ReservationService {
       pageSize: 200
     }).pipe(
       map(res => res.items)
+    );
+  }
+
+  /**
+   * Adds an incidental / minibar / service charge to the reservation folio.
+   */
+  addFolioItem(reservationId: string, request: AddFolioItemRequest): Observable<FolioDto> {
+    let params = new HttpParams();
+    if (request.propertyId) {
+      params = params.set('propertyId', request.propertyId);
+    }
+    return this.http.post<any>(`${this.apiUrl}/${reservationId}/folio/items`, request, { params }).pipe(
+      map(res => (res.data ? res.data : res) as FolioDto)
     );
   }
 }

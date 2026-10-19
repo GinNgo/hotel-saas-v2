@@ -26,7 +26,6 @@ import { Province, Ward } from '../../core/models/location.model';
 import { PolicyService } from '../../core/services/policy.service';
 import { PropertyPoliciesDto } from '../../core/models/policy.model';
 import { PaymentService } from '../../core/services/payment.service';
-import { RoomService } from '../../core/services/room.service';
 import { RoomStatus } from '../../core/models/enums';
 import {
   PaymentDto,
@@ -39,6 +38,7 @@ import {
   CreatePaymentRequest as CreatePaymentDtoRequest
 } from '../../core/models/payment.model';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { DateRangeFilterComponent, DateRangeFilterValue } from '../../shared/components/date-range-filter/date-range-filter.component';
 
 /** Helper to get today's date formatted as YYYY-MM-DD in Vietnam timezone (UTC+7) */
 export function getTodayVnDateString(): string {
@@ -76,7 +76,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
 @Component({
   selector: 'app-reservations',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, EmptyStateComponent],
+  imports: [CommonModule, ReactiveFormsModule, EmptyStateComponent, DateRangeFilterComponent],
   template: `
     <div class="max-w-7xl mx-auto space-y-6">
       <!-- Header -->
@@ -164,9 +164,9 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
       @if (viewMode() === 'table') {
         <!-- Filters & Search Bar -->
         <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs space-y-3">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
           <!-- Search box -->
-          <div>
+          <div class="lg:col-span-3">
             <label class="block text-xs font-medium text-slate-600 mb-1">Tìm kiếm</label>
             <div class="relative">
               <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
@@ -175,18 +175,18 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 [value]="searchQuery()"
                 (input)="onSearchInput($event)"
                 placeholder="Mã đặt phòng, tên khách, SĐT, số phòng..."
-                class="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                class="w-full pl-8 pr-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
               />
             </div>
           </div>
 
           <!-- Status filter -->
-          <div>
+          <div class="lg:col-span-3">
             <label class="block text-xs font-medium text-slate-600 mb-1">Trạng thái</label>
             <select
               [value]="selectedStatus() ?? ''"
               (change)="onStatusChange($event)"
-              class="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+              class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
             >
               <option value="">Tất cả trạng thái</option>
               <option [value]="ReservationStatus.Confirmed">Đã xác nhận</option>
@@ -198,25 +198,13 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
             </select>
           </div>
 
-          <!-- Date from -->
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Từ ngày</label>
-            <input
-              type="date"
-              [value]="dateFrom()"
-              (change)="onDateFromChange($event)"
-              class="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
-            />
-          </div>
-
-          <!-- Date to -->
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Đến ngày</label>
-            <input
-              type="date"
-              [value]="dateTo()"
-              (change)="onDateToChange($event)"
-              class="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+          <!-- Formatted Date Range Filter Component -->
+          <div class="sm:col-span-2 lg:col-span-6">
+            <app-date-range-filter
+              label="Ngày lưu trú"
+              [initialFromDate]="dateFrom()"
+              [initialToDate]="dateTo()"
+              (filterChange)="onDateRangeFilterChange($event)"
             />
           </div>
         </div>
@@ -674,23 +662,23 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
 
       <!-- MODAL 1: VIEW RESERVATION DETAILS (IMMUTABLE SNAPSHOT) -->
       @if (selectedReservationDetail(); as detail) {
-        <dialog #detailDialog (cancel)="closeDetailModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(52rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-hidden bg-transparent backdrop:bg-slate-900/40 backdrop:backdrop-blur-xs">
-          <div class="bg-white w-full rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <dialog #detailDialog (cancel)="closeDetailModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(54rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-hidden bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
+          <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <!-- Modal Header -->
-            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between">
               <div>
                 <div class="flex items-center gap-2">
-                  <h3 class="text-base font-bold text-slate-800">Chi tiết đơn đặt phòng</h3>
-                  <span class="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  <h3 class="text-base font-bold text-slate-900">Chi tiết đơn đặt phòng</h3>
+                  <span class="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
                     {{ detail.confirmationCode }}
                   </span>
                 </div>
-                <p class="text-xs text-slate-500 mt-0.5">Bản chụp snapshot giá và chính sách bất biến tại thời điểm đặt.</p>
+                <p class="text-xs text-slate-500 mt-1">Bản chụp snapshot giá và chính sách bất biến tại thời điểm đặt.</p>
               </div>
               <button
                 type="button"
                 (click)="closeDetailModal()"
-                class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
               >
                 <i class="pi pi-times text-sm"></i>
               </button>
@@ -1045,13 +1033,18 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
 
       <!-- MODAL 2: CREATE NEW RESERVATION -->
       @if (isCreateModalOpen()) {
-        <dialog #createDialog (cancel)="closeCreateModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(60rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/40 backdrop:backdrop-blur-xs">
-          <div class="bg-white w-full rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <dialog #createDialog (cancel)="closeCreateModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(64rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
+          <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <!-- Modal Header -->
-            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between">
               <div>
-                <h3 class="text-base font-bold text-slate-800">Tạo đặt phòng mới (Nội bộ)</h3>
-                <p class="text-xs text-slate-500 mt-0.5">
+                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <i class="pi pi-calendar-plus text-sm"></i>
+                  </div>
+                  <span>Tạo đặt phòng mới (Nội bộ)</span>
+                </h3>
+                <p class="text-xs text-slate-500 mt-1">
                   Chi nhánh: <b class="text-slate-700">{{ activeProperty()?.name }}</b>.
                   Chọn thời gian, tính giá thật và phân phòng vật lý.
                 </p>
@@ -1059,7 +1052,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               <button
                 type="button"
                 (click)="closeCreateModal()"
-                class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
               >
                 <i class="pi pi-times text-sm"></i>
               </button>
@@ -1116,16 +1109,16 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 @if (createForm.get('rentalType')?.value === RentalType.Overnight) {
                   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div>
-                      <label class="block text-xs font-medium text-slate-700 mb-1">Ngày nhận phòng *</label>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Ngày nhận phòng *</label>
                       <input
                         type="date"
                         formControlName="checkInDate"
                         (change)="onScheduleInputsChanged()"
-                        class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                        class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                       />
                     </div>
                     <div>
-                      <label class="block text-xs font-medium text-slate-700 mb-1">
+                      <label class="block text-xs font-bold text-slate-700 mb-1">
                         Giờ nhận phòng *
                         @if (branchPolicies()?.checkInTime) {
                           <span class="text-[10px] text-emerald-600 font-normal ml-1">(Chuẩn: {{ branchPolicies()?.checkInTime?.slice(0, 5) }})</span>
@@ -1137,20 +1130,20 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                         type="time"
                         formControlName="checkInTime"
                         (change)="onScheduleInputsChanged()"
-                        class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                        class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                       />
                     </div>
                     <div>
-                      <label class="block text-xs font-medium text-slate-700 mb-1">Ngày trả phòng *</label>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Ngày trả phòng *</label>
                       <input
                         type="date"
                         formControlName="checkOutDate"
                         (change)="onScheduleInputsChanged()"
-                        class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                        class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                       />
                     </div>
                     <div>
-                      <label class="block text-xs font-medium text-slate-700 mb-1">
+                      <label class="block text-xs font-bold text-slate-700 mb-1">
                         Giờ trả phòng *
                         @if (branchPolicies()?.checkOutTime) {
                           <span class="text-[10px] text-emerald-600 font-normal ml-1">(Chuẩn: {{ branchPolicies()?.checkOutTime?.slice(0, 5) }})</span>
@@ -1162,7 +1155,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                         type="time"
                         formControlName="checkOutTime"
                         (change)="onScheduleInputsChanged()"
-                        class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                        class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                       />
                     </div>
                   </div>
@@ -1170,30 +1163,30 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   <!-- Hourly inputs -->
                   <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label class="block text-xs font-medium text-slate-700 mb-1">Ngày thuê *</label>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Ngày thuê *</label>
                       <input
                         type="date"
                         formControlName="hourlyDate"
                         (change)="onScheduleInputsChanged()"
-                        class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                        class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                       />
                     </div>
                     <div>
-                      <label class="block text-xs font-medium text-slate-700 mb-1">Giờ bắt đầu *</label>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Giờ bắt đầu *</label>
                       <input
                         type="time"
                         formControlName="hourlyStartTime"
                         (change)="onScheduleInputsChanged()"
-                        class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                        class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                       />
                     </div>
                     <div>
-                      <label class="block text-xs font-medium text-slate-700 mb-1">Giờ kết thúc *</label>
+                      <label class="block text-xs font-bold text-slate-700 mb-1">Giờ kết thúc *</label>
                       <input
                         type="time"
                         formControlName="hourlyEndTime"
                         (change)="onScheduleInputsChanged()"
-                        class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                        class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                       />
                     </div>
                   </div>
@@ -1205,11 +1198,11 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">2. Loại phòng & Kiểm tra phòng trống</div>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                   <div class="sm:col-span-2">
-                    <label class="block text-xs font-medium text-slate-700 mb-1">Loại phòng *</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Loại phòng *</label>
                     <select
                       formControlName="roomTypeId"
                       (change)="onRoomTypeSelected()"
-                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-semibold"
                     >
                       <option value="">-- Chọn loại phòng --</option>
                       @for (rt of roomTypes(); track rt.id) {
@@ -1335,71 +1328,71 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               <div class="space-y-3 pt-2 border-t border-slate-100">
                 <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">3. Thông tin khách hàng & Ghi chú</div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                   <div>
-                    <label class="block text-xs font-medium text-slate-700 mb-1">Họ và tên khách hàng *</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">Họ và tên khách hàng *</label>
                     <input
                       type="text"
                       formControlName="guestName"
                       placeholder="Ví dụ: Nguyễn Văn A"
-                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                     />
                   </div>
 
                   <div>
-                    <label class="block text-xs font-medium text-slate-700 mb-1">Email *</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">Email *</label>
                     <input
                       type="email"
                       formControlName="guestEmail"
                       placeholder="khachhang@example.com"
-                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                     />
                   </div>
 
                   <div>
-                    <label class="block text-xs font-medium text-slate-700 mb-1">Số điện thoại</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">Số điện thoại</label>
                     <input
                       type="tel"
                       formControlName="guestPhone"
                       placeholder="0912 345 678"
-                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                     />
                   </div>
 
                   <div>
-                    <label class="block text-xs font-medium text-slate-700 mb-1">CCCD / Hộ chiếu</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">CCCD / Hộ chiếu</label>
                     <input
                       type="text"
                       formControlName="identityNumber"
                       placeholder="079... hoặc số Passport"
-                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                     />
                   </div>
 
                   <div>
-                    <label class="block text-xs font-medium text-slate-700 mb-1">Quốc tịch</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">Quốc tịch</label>
                     <input
                       type="text"
                       formControlName="nationality"
                       placeholder="Việt Nam"
-                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                     />
                   </div>
 
                   <div>
-                    <label class="block text-xs font-medium text-slate-700 mb-1">Số lượng khách *</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">Số lượng khách *</label>
                     <input
                       type="number"
                       min="1"
                       max="10"
                       formControlName="numberOfGuests"
-                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-bold"
                     />
                   </div>
 
                   <!-- 2-level Administrative Hierarchy: Province -> Ward -->
                   <div>
-                    <label class="block text-xs font-medium text-slate-700 mb-1 flex items-center justify-between">
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
                       <span>Tỉnh / Thành phố</span>
                       @if (isLoadingProvinces()) {
                         <i class="pi pi-spin pi-spinner text-slate-400 text-[10px]"></i>
@@ -1408,7 +1401,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                     <select
                       formControlName="provinceCode"
                       (change)="onProvinceChange($event)"
-                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                     >
                       <option value="">-- Chọn Tỉnh / Thành phố --</option>
                       @for (prov of provinces(); track prov.code) {
@@ -1418,7 +1411,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   </div>
 
                   <div>
-                    <label class="block text-xs font-medium text-slate-700 mb-1 flex items-center justify-between">
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
                       <span>Phường / Xã</span>
                       @if (isLoadingWards()) {
                         <i class="pi pi-spin pi-spinner text-slate-400 text-[10px]"></i>
@@ -1428,7 +1421,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                       formControlName="wardCode"
                       (change)="onWardChange($event)"
                       [disabled]="!createForm.get('provinceCode')?.value || isLoadingWards()"
-                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white disabled:bg-slate-100 disabled:opacity-60"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs disabled:bg-slate-100 disabled:opacity-60 font-medium"
                     >
                       <option value="">-- Chọn Phường / Xã --</option>
                       @for (w of wards(); track w.code) {
@@ -1438,23 +1431,23 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   </div>
 
                   <div class="sm:col-span-2 lg:col-span-1">
-                    <label class="block text-xs font-medium text-slate-700 mb-1">Địa chỉ chi tiết</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">Địa chỉ chi tiết</label>
                     <input
                       type="text"
                       formControlName="addressDetail"
                       placeholder="Số nhà, tên đường..."
-                      class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                      class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label class="block text-xs font-medium text-slate-700 mb-1">Ghi chú đặt phòng</label>
+                  <label class="block text-xs font-bold text-slate-700 mb-1.5">Ghi chú đặt phòng</label>
                   <textarea
                     rows="2"
                     formControlName="customerNotes"
                     placeholder="Yêu cầu riêng của khách (ví dụ: tầng cao, check-in muộn)..."
-                    class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                    class="w-full p-3 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs"
                   ></textarea>
                 </div>
               </div>
@@ -1464,7 +1457,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <button
                   type="button"
                   (click)="closeCreateModal()"
-                  class="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition cursor-pointer"
+                  class="px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition cursor-pointer"
                 >
                   Hủy
                 </button>
@@ -1472,7 +1465,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <button
                   type="submit"
                   [disabled]="isSubmitting() || !canSubmitCreate()"
-                  class="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition shadow-xs shadow-emerald-600/30 flex items-center gap-1.5 cursor-pointer"
+                  class="px-5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition shadow-sm shadow-emerald-600/30 flex items-center gap-2 cursor-pointer"
                 >
                   <i class="pi pi-check" [class.animate-spin]="isSubmitting()"></i>
                   <span>Xác nhận tạo đặt phòng</span>
@@ -1485,49 +1478,51 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
 
       <!-- MODAL 3: CANCEL RESERVATION -->
       @if (cancelModalReservation(); as targetRes) {
-        <dialog #cancelDialog (cancel)="closeCancelModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(28rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/40 backdrop:backdrop-blur-xs">
-          <div class="bg-white w-full rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div class="px-6 py-4 bg-rose-50 border-b border-rose-200 flex items-center justify-between">
+        <dialog #cancelDialog (cancel)="closeCancelModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(30rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
+          <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div class="px-6 py-4 bg-rose-50/80 border-b border-rose-100 flex items-center justify-between">
               <div class="flex items-center gap-2">
-                <i class="pi pi-exclamation-circle text-rose-600 text-lg"></i>
+                <div class="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <i class="pi pi-exclamation-circle text-base"></i>
+                </div>
                 <h3 class="text-base font-bold text-rose-950">Xác nhận hủy đặt phòng</h3>
               </div>
               <button
                 type="button"
                 (click)="closeCancelModal()"
-                class="text-rose-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-100 transition cursor-pointer"
+                class="w-8 h-8 rounded-xl flex items-center justify-center text-rose-400 hover:text-rose-700 hover:bg-rose-100 transition cursor-pointer"
               >
                 <i class="pi pi-times text-sm"></i>
               </button>
             </div>
 
             <div class="p-6 space-y-4 text-xs">
-              <p class="text-slate-600">
-                Bạn có chắc chắn muốn hủy đơn đặt phòng <span class="font-bold text-slate-800">{{ targetRes.confirmationCode }}</span> của khách <span class="font-bold text-slate-800">{{ targetRes.guestName }}</span>?
+              <p class="text-slate-600 leading-relaxed">
+                Bạn có chắc chắn muốn hủy đơn đặt phòng <span class="font-bold text-slate-900 font-mono">{{ targetRes.confirmationCode }}</span> của khách <span class="font-bold text-slate-900">{{ targetRes.guestName }}</span>?
               </p>
-              <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 space-y-1">
-                <div>Phòng: <span class="font-bold text-slate-800">{{ targetRes.roomNumber }}</span> ({{ targetRes.roomTypeName }})</div>
-                <div>Ngày: {{ targetRes.checkInDate }} @if (targetRes.rentalType === RentalType.Overnight) { ➔ {{ targetRes.checkOutDate }} }</div>
+              <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-slate-700 space-y-1.5">
+                <div>Phòng: <span class="font-bold text-slate-800">Phòng {{ targetRes.roomNumber }}</span> ({{ targetRes.roomTypeName }})</div>
+                <div>Thời gian: <span class="font-medium text-slate-800">{{ targetRes.checkInDate }}</span> @if (targetRes.rentalType === RentalType.Overnight) { ➔ <span class="font-medium text-slate-800">{{ targetRes.checkOutDate }}</span> }</div>
               </div>
 
               <div>
-                <label class="block text-xs font-medium text-slate-700 mb-1">Lý do hủy đặt phòng</label>
+                <label class="block text-xs font-bold text-slate-700 mb-1.5">Lý do hủy đặt phòng</label>
                 <textarea
                   [value]="cancellationReasonInput()"
                   (input)="onCancellationReasonInput($event)"
                   rows="3"
                   placeholder="Nhập lý do khách hủy hoặc ghi chú hủy phòng..."
-                  class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600 bg-white"
+                  class="w-full p-3 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600 bg-white shadow-2xs"
                 ></textarea>
               </div>
             </div>
 
-            <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5">
+            <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
               <button
                 type="button"
                 [disabled]="isActionLoading()"
                 (click)="closeCancelModal()"
-                class="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                class="px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition cursor-pointer"
               >
                 Quay lại
               </button>
@@ -1535,7 +1530,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 type="button"
                 [disabled]="isActionLoading()"
                 (click)="confirmCancelReservation()"
-                class="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-50 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                class="px-5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-50 rounded-xl transition shadow-sm shadow-rose-600/30 flex items-center gap-2 cursor-pointer"
               >
                 <i class="pi pi-times-circle" [class.animate-spin]="isActionLoading()"></i>
                 <span>Xác nhận hủy</span>
@@ -1548,22 +1543,22 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
       <!-- MODAL: CHECK-IN (XÁC NHẬN NHẬN PHÒNG & ĐỐI CHIẾU CCCD) -->
       @if (isCheckInModalOpen()) {
         @if (checkInModalReservation(); as res) {
-          <dialog #checkInDialog (cancel)="closeCheckInModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(40rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/40 backdrop:backdrop-blur-xs">
-            <div class="bg-white w-full rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-              <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+          <dialog #checkInDialog (cancel)="closeCheckInModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(42rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
+            <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                     <i class="pi pi-sign-in text-sm"></i>
                   </div>
                   <div>
-                    <h3 class="text-sm font-bold text-slate-800">Thủ tục nhận phòng (Check-in)</h3>
+                    <h3 class="text-base font-bold text-slate-900">Thủ tục nhận phòng (Check-in)</h3>
                     <span class="font-mono text-xs font-bold text-emerald-700">Mã: {{ res.confirmationCode }}</span>
                   </div>
                 </div>
                 <button
                   type="button"
                   (click)="closeCheckInModal()"
-                  class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                  class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                 >
                   <i class="pi pi-times text-sm"></i>
                 </button>
@@ -1571,31 +1566,31 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
 
               <div class="p-6 space-y-4 text-xs">
                 <!-- Room & Guest Info Card -->
-                <div class="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <div class="grid grid-cols-2 gap-3.5 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
                   <div>
-                    <span class="text-slate-400 text-[11px] block">Khách hàng</span>
-                    <span class="font-bold text-slate-800 text-sm">{{ res.guestName }}</span>
-                    <span class="text-slate-500 text-[11px] block">{{ res.guestPhone || 'Không có SĐT' }}</span>
+                    <span class="text-slate-400 text-[11px] block font-medium">Khách hàng</span>
+                    <span class="font-bold text-slate-900 text-sm">{{ res.guestName }}</span>
+                    <span class="text-slate-500 text-[11px] block mt-0.5">{{ res.guestPhone || 'Không có SĐT' }}</span>
                   </div>
                   <div>
-                    <span class="text-slate-400 text-[11px] block">Phòng được giao</span>
+                    <span class="text-slate-400 text-[11px] block font-medium">Phòng được giao</span>
                     <span class="font-bold text-emerald-800 text-sm">Phòng {{ res.roomNumber }}</span>
-                    <span class="text-slate-500 text-[11px] block">{{ res.roomTypeName }}</span>
+                    <span class="text-slate-500 text-[11px] block mt-0.5">{{ res.roomTypeName }}</span>
                   </div>
                   <div>
-                    <span class="text-slate-400 text-[11px] block">Thời gian nhận</span>
-                    <span class="font-medium text-slate-700">{{ res.checkInDate }} ({{ formatUtcTime(res.startAtUtc) }})</span>
+                    <span class="text-slate-400 text-[11px] block font-medium">Thời gian nhận</span>
+                    <span class="font-semibold text-slate-800">{{ res.checkInDate }} ({{ formatUtcTime(res.startAtUtc) }})</span>
                   </div>
                   <div>
-                    <span class="text-slate-400 text-[11px] block">Thời gian trả</span>
-                    <span class="font-medium text-slate-700">{{ res.checkOutDate }} ({{ formatUtcTime(res.endAtUtc) }})</span>
+                    <span class="text-slate-400 text-[11px] block font-medium">Thời gian trả</span>
+                    <span class="font-semibold text-slate-800">{{ res.checkOutDate }} ({{ formatUtcTime(res.endAtUtc) }})</span>
                   </div>
                 </div>
 
                 <!-- Identity Document Verification Step (Desk Verification) -->
-                <div class="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <div class="space-y-2 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
                   <div class="flex items-center justify-between">
-                    <label class="block font-semibold text-slate-700">
+                    <label class="block font-bold text-slate-800">
                       <i class="pi pi-id-card text-emerald-600 mr-1"></i>
                       Xác minh giấy tờ tùy thân (Kiểm tra tại quầy)
                     </label>
@@ -1603,7 +1598,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                       Đối chiếu trực quan
                     </span>
                   </div>
-                  <label class="flex items-start gap-2.5 p-3 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 cursor-pointer hover:bg-slate-50 transition-colors">
+                  <label class="flex items-start gap-2.5 p-3.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 cursor-pointer hover:bg-slate-50 transition-colors shadow-2xs">
                     <input
                       type="checkbox"
                       [checked]="isIdentityVerified()"
@@ -1618,30 +1613,30 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
 
                 <!-- Notes -->
                 <div class="space-y-1.5">
-                  <label class="block font-semibold text-slate-700">Ghi chú nhận phòng</label>
+                  <label class="block font-bold text-slate-700">Ghi chú nhận phòng</label>
                   <textarea
                     [value]="checkInNotesInput()"
                     (input)="onCheckInNotesInput($event)"
                     rows="2"
                     placeholder="Ghi chú thêm (vd: khách yêu cầu thẻ phòng phụ, lưu ý chìa khóa)..."
-                    class="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                    class="w-full p-3 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs"
                   ></textarea>
                 </div>
 
                 <!-- Operational Notice -->
-                <div class="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-emerald-900 text-[11px] flex items-start gap-2">
+                <div class="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-emerald-900 text-xs flex items-start gap-2.5">
                   <i class="pi pi-info-circle text-emerald-600 mt-0.5 shrink-0"></i>
                   <div>
-                    Khi xác nhận, trạng thái phòng vật lý <b>{{ res.roomNumber }}</b> sẽ tự động chuyển sang màu đỏ <b>Occupied (Đang có khách)</b>.
+                    Khi xác nhận, trạng thái phòng vật lý <b>Phòng {{ res.roomNumber }}</b> sẽ tự động chuyển sang màu đỏ <b>Occupied (Đang có khách)</b>.
                   </div>
                 </div>
               </div>
 
-              <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+              <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   (click)="closeCheckInModal()"
-                  class="px-3.5 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition"
+                  class="px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition cursor-pointer"
                 >
                   Hủy bỏ
                 </button>
@@ -1649,7 +1644,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   type="button"
                   [disabled]="isActionLoading() || !isIdentityVerified()"
                   (click)="confirmCheckInModal()"
-                  class="px-4 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  class="px-5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition shadow-sm shadow-emerald-600/30 flex items-center gap-2 cursor-pointer"
                 >
                   <i class="pi pi-check" [class.animate-spin]="isActionLoading()"></i>
                   <span>Xác nhận nhận phòng</span>
@@ -1663,22 +1658,22 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
       <!-- MODAL: CHECK-OUT (TRẢ PHÒNG & KIỂM TRA CÔNG NỢ FOLIO) -->
       @if (isCheckOutModalOpen()) {
         @if (checkOutModalReservation(); as res) {
-          <dialog #checkOutDialog (cancel)="closeCheckOutModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(40rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/40 backdrop:backdrop-blur-xs">
-            <div class="bg-white w-full rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-              <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+          <dialog #checkOutDialog (cancel)="closeCheckOutModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(42rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
+            <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
                     <i class="pi pi-sign-out text-sm"></i>
                   </div>
                   <div>
-                    <h3 class="text-sm font-bold text-slate-800">Thủ tục trả phòng (Check-out)</h3>
+                    <h3 class="text-base font-bold text-slate-900">Thủ tục trả phòng (Check-out)</h3>
                     <span class="font-mono text-xs font-bold text-amber-700">Mã: {{ res.confirmationCode }}</span>
                   </div>
                 </div>
                 <button
                   type="button"
                   (click)="closeCheckOutModal()"
-                  class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                  class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                 >
                   <i class="pi pi-times text-sm"></i>
                 </button>
@@ -1686,15 +1681,15 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
 
               <div class="p-6 space-y-4 text-xs">
                 <!-- Room & Guest Info Card -->
-                <div class="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <div class="grid grid-cols-2 gap-3.5 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
                   <div>
-                    <span class="text-slate-400 text-[11px] block">Khách hàng</span>
-                    <span class="font-bold text-slate-800 text-sm">{{ res.guestName }}</span>
+                    <span class="text-slate-400 text-[11px] block font-medium">Khách hàng</span>
+                    <span class="font-bold text-slate-900 text-sm">{{ res.guestName }}</span>
                   </div>
                   <div>
-                    <span class="text-slate-400 text-[11px] block">Phòng trả</span>
+                    <span class="text-slate-400 text-[11px] block font-medium">Phòng trả</span>
                     <span class="font-bold text-amber-800 text-sm">Phòng {{ res.roomNumber }}</span>
-                    <span class="text-slate-500 text-[11px] block">{{ res.roomTypeName }}</span>
+                    <span class="text-slate-500 text-[11px] block mt-0.5">{{ res.roomTypeName }}</span>
                   </div>
                 </div>
 
@@ -1719,39 +1714,39 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                       <button
                         type="button"
                         (click)="retryCheckOutFolio()"
-                        class="px-2.5 py-1 text-xs font-semibold text-rose-700 bg-white border border-rose-300 hover:bg-rose-100 rounded-lg transition shrink-0 cursor-pointer"
+                        class="px-3 py-1.5 text-xs font-semibold text-rose-700 bg-white border border-rose-300 hover:bg-rose-100 rounded-xl transition shrink-0 cursor-pointer"
                       >
                         Thử lại
                       </button>
                     </div>
                   } @else if (checkOutFolio(); as f) {
-                    <div class="grid grid-cols-3 gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <div class="grid grid-cols-3 gap-2 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                       <div>
                         <span class="text-[10px] text-slate-400 font-medium block">Tổng tiền phòng</span>
-                        <span class="text-xs font-bold text-slate-800">{{ f.totalAmount | number:'1.0-0' }} đ</span>
+                        <span class="text-xs font-bold text-slate-800 font-mono">{{ f.totalAmount | number:'1.0-0' }} đ</span>
                       </div>
                       <div>
                         <span class="text-[10px] text-emerald-600 font-medium block">Đã thanh toán</span>
-                        <span class="text-xs font-bold text-emerald-700">{{ f.paidAmount | number:'1.0-0' }} đ</span>
+                        <span class="text-xs font-bold text-emerald-700 font-mono">{{ f.paidAmount | number:'1.0-0' }} đ</span>
                       </div>
                       <div>
                         <span class="text-[10px] text-amber-600 font-medium block">Số dư còn nợ</span>
-                        <span class="text-xs font-bold text-amber-800">{{ f.remainingBalance | number:'1.0-0' }} đ</span>
+                        <span class="text-xs font-bold text-amber-800 font-mono">{{ f.remainingBalance | number:'1.0-0' }} đ</span>
                       </div>
                     </div>
 
                     @if (f.remainingBalance > 0) {
-                      <div class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[11px] space-y-1">
+                      <div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs space-y-1">
                         <div class="flex items-center gap-1.5 font-bold">
                           <i class="pi pi-exclamation-triangle text-rose-600"></i>
                           <span>Chưa thể trả phòng: Còn dư nợ {{ f.remainingBalance | number:'1.0-0' }} đ</span>
                         </div>
-                        <p class="text-[10px] text-rose-700">
+                        <p class="text-[11px] text-rose-700">
                           Quy định POL-IO03 yêu cầu thanh toán đủ 100% công nợ trước khi hoàn tất trả phòng.
                         </p>
                       </div>
                     } @else {
-                      <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] flex items-center gap-2">
+                      <div class="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
                         <i class="pi pi-check-circle text-emerald-600 text-base"></i>
                         <div>
                           <b>Đã thanh toán đủ (100%)</b>. Hóa đơn hợp lệ, sẵn sàng bàn giao phòng.
@@ -1762,19 +1757,19 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 </div>
 
                 <!-- Housekeeping Notification Info -->
-                <div class="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-900 text-[11px] flex items-start gap-2">
+                <div class="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
                   <i class="pi pi-sparkles text-amber-600 mt-0.5 shrink-0"></i>
                   <div>
-                    Khi hoàn tất, phòng <b>{{ res.roomNumber }}</b> sẽ tự động chuyển sang màu cam <b>Dirty (Cần dọn dẹp)</b> và bắn tín hiệu sang Bảng buồng phòng để nhân viên đi dọn.
+                    Khi hoàn tất, phòng <b>Phòng {{ res.roomNumber }}</b> sẽ tự động chuyển sang màu cam <b>Dirty (Cần dọn dẹp)</b> và bắn tín hiệu sang Bảng buồng phòng để nhân viên đi dọn.
                   </div>
                 </div>
               </div>
 
-              <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+              <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   (click)="closeCheckOutModal()"
-                  class="px-3.5 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition"
+                  class="px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition cursor-pointer"
                 >
                   Hủy bỏ
                 </button>
@@ -1782,7 +1777,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   type="button"
                   [disabled]="isActionLoading() || isLoadingCheckOutFolio() || !!checkOutFolioError() || !checkOutFolio() || checkOutFolio()!.remainingBalance > 0"
                   (click)="confirmCheckOutModal()"
-                  class="px-4 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition shadow-xs flex items-center gap-1.5"
+                  class="px-5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition shadow-sm shadow-amber-600/30 flex items-center gap-2 cursor-pointer"
                 >
                   <i class="pi pi-check" [class.animate-spin]="isActionLoading()"></i>
                   <span>Hoàn tất trả phòng</span>
@@ -1795,30 +1790,32 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
 
       <!-- MODAL 4: CASHIER SUMMARY (BÁO CÁO THU NGÂN) -->
       @if (isSummaryModalOpen()) {
-        <dialog #summaryDialog (cancel)="closeSummaryModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(32rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/40 backdrop:backdrop-blur-xs">
-          <div class="bg-white w-full rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <i class="pi pi-chart-bar text-emerald-600 text-lg"></i>
+        <dialog #summaryDialog (cancel)="closeSummaryModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(34rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
+          <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <i class="pi pi-chart-bar text-sm"></i>
+                </div>
                 <div>
                   <h3 class="text-base font-bold text-slate-900">Báo cáo thu ngân trong ngày</h3>
-                  <p class="text-xs text-slate-500">Thống kê giao dịch tiền mặt & chuyển khoản hôm nay (UTC+7)</p>
+                  <p class="text-xs text-slate-500 mt-0.5">Thống kê giao dịch tiền mặt & chuyển khoản hôm nay (UTC+7)</p>
                 </div>
               </div>
-              <div class="flex items-center gap-1">
+              <div class="flex items-center gap-1.5">
                 <button
                   type="button"
                   (click)="loadCashierSummary()"
                   [disabled]="isLoadingSummary()"
                   title="Làm mới số liệu"
-                  class="text-slate-400 hover:text-emerald-700 p-1.5 rounded-lg hover:bg-slate-200 transition cursor-pointer disabled:opacity-50"
+                  class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-emerald-700 hover:bg-slate-200 transition cursor-pointer disabled:opacity-50"
                 >
-                  <i class="pi pi-refresh text-sm" [class.animate-spin]="isLoadingSummary()"></i>
+                  <i class="pi pi-refresh text-xs" [class.animate-spin]="isLoadingSummary()"></i>
                 </button>
                 <button
                   type="button"
                   (click)="closeSummaryModal()"
-                  class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 transition cursor-pointer"
+                  class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
                 >
                   <i class="pi pi-times text-sm"></i>
                 </button>
@@ -1960,7 +1957,6 @@ export class ReservationsPage implements OnInit, OnDestroy {
   private readonly authService = inject(AuthService);
   private readonly alertService = inject(AlertService);
   private readonly fb = inject(FormBuilder);
-  private readonly roomService = inject(RoomService, { optional: true });
 
   // Constants
   readonly RentalType = RentalType;
@@ -2437,6 +2433,18 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.loadReservations();
   }
 
+  onDateRangeFilterChange(val: DateRangeFilterValue | null): void {
+    if (!val) {
+      this.dateFrom.set('');
+      this.dateTo.set('');
+    } else {
+      this.dateFrom.set(val.fromDate || '');
+      this.dateTo.set(val.toDate || '');
+    }
+    this.currentPage.set(1);
+    this.loadReservations();
+  }
+
   resetFilters(): void {
     this.searchQuery.set('');
     this.selectedStatus.set(null);
@@ -2847,7 +2855,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
           this.selectedReservationDetail.set(updated);
         }
         // Notify Housekeeping Board via real-time signal
-        this.roomService?.notifyRoomStatusChanged(res.roomId, RoomStatus.Occupied, res.roomNumber);
+        this.roomService?.notifyRoomStatusChanged?.(res.roomId, RoomStatus.Occupied, res.roomNumber);
         this.loadReservations();
       },
       error: (err) => {
@@ -2895,7 +2903,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
           this.selectedReservationDetail.set(updated);
         }
         // Realtime notification to Housekeeping Board: Room transitions to Dirty automatically
-        this.roomService?.notifyRoomStatusChanged(res.roomId, RoomStatus.Dirty, res.roomNumber);
+        this.roomService?.notifyRoomStatusChanged?.(res.roomId, RoomStatus.Dirty, res.roomNumber);
         this.loadReservations();
       },
       error: (err) => {

@@ -267,4 +267,53 @@ public sealed class ReservationsController : ControllerBase
         var result = await _mediator.Send(command, cancellationToken);
         return Ok(result);
     }
+
+    /// <summary>
+    /// Posts a minibar, laundry, or extra service charge to the reservation folio.
+    /// </summary>
+    [HttpPost("{id:guid}/folio/items")]
+    [RequirePermission("RESERVATIONS", PermissionAction.Update)]
+    [RequirePermission("PAYMENTS", PermissionAction.Create)]
+    [ProducesResponseType(typeof(FolioDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AddFolioItem(
+        [FromRoute] Guid id,
+        [FromQuery] Guid? propertyId,
+        [FromBody] AddFolioItemRequest request,
+        CancellationToken cancellationToken)
+    {
+        var targetPropertyId = (propertyId.HasValue && propertyId.Value != Guid.Empty)
+            ? propertyId.Value
+            : (request.PropertyId.HasValue && request.PropertyId.Value != Guid.Empty
+                ? request.PropertyId.Value
+                : Guid.Empty);
+
+        if (targetPropertyId == Guid.Empty && Request.Headers.TryGetValue("X-Property-Id", out var headerProp) && Guid.TryParse(headerProp, out var parsedProp))
+        {
+            targetPropertyId = parsedProp;
+        }
+
+        var command = new HotelSaas.Application.Payments.Commands.AddFolioItem.AddFolioItemCommand(
+            id,
+            targetPropertyId,
+            request.ItemCode,
+            request.Description,
+            request.Quantity,
+            request.UnitPrice,
+            request.Category ?? "Service");
+
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
 }
+
+public sealed record AddFolioItemRequest(
+    string ItemCode,
+    string Description,
+    int Quantity,
+    decimal UnitPrice,
+    string? Category = "Service",
+    Guid? PropertyId = null
+);

@@ -74,6 +74,15 @@ public interface IApplicationDbContext
     /// <summary>Sổ cái giao dịch điểm thưởng bất biến.</summary>
     DbSet<LoyaltyPointTransaction> LoyaltyPointTransactions { get; }
 
+    /// <summary>Hợp đồng cung cấp dịch vụ phần mềm SaaS ký kết với đối tác.</summary>
+    DbSet<TenantContract> TenantContracts { get; }
+
+    /// <summary>Cấu hình và mẫu in ấn tài liệu pháp lý / hóa đơn / phiếu xác nhận.</summary>
+    DbSet<PrintTemplateConfig> PrintTemplateConfigs { get; }
+
+    /// <summary>Liên kết tài khoản mạng xã hội (Google, Facebook).</summary>
+    DbSet<SocialIdentity> SocialIdentities { get; }
+
     /// <summary>
     /// Starts a database transaction asynchronously.
     /// </summary>

@@ -92,6 +92,8 @@ public static class ReservationSnapshotHelper
             Status = r.Status,
             ConfirmationCode = r.ConfirmationCode,
             Notes = snapshot?.CustomerNotes ?? r.Notes,
+            SmartLockPin = r.SmartLockPin,
+            SmartLockStatus = r.SmartLockStatus,
             CreatedAtUtc = r.CreatedAtUtc,
             Breakdown = breakdown,
             AppliedPolicies = policies,

@@ -1,167 +1,64 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, ElementRef, HostListener, inject, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { FormsModule } from '@angular/forms';
+import { RouterLink, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../core/services/auth.service';
+import { BrandLogoComponent } from '../../shared/components/brand-logo/brand-logo.component';
 
 @Component({
   selector: 'app-guest-layout',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, FormsModule],
+  imports: [CommonModule, RouterOutlet, RouterLink, BrandLogoComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  styles: [`
+    :host a:focus-visible, :host button:focus-visible {
+      outline: 2px solid var(--color-indigo-600, #4f46e5);
+      outline-offset: 3px;
+    }
+    .skip-link { position: absolute; top: 0; left: 1rem; z-index: 50; padding: 1rem; background: white; transform: translateY(-110%); }
+    .skip-link:focus { transform: translateY(0); }
+  `],
   template: `
     <div class="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans">
-      <!-- 1. TOP SYSTEM BANNER (KHUYẾN MÃI TOÀN SÀN) -->
-      @if (showPromoBanner()) {
-        <div
-          class="bg-indigo-950 text-indigo-100 text-xs py-2 px-4 flex items-center justify-between border-b border-indigo-900"
-        >
-          <div class="max-w-7xl mx-auto flex items-center gap-2 truncate">
-            <span
-              class="px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-extrabold uppercase text-[10px] shrink-0"
-            >
-              Ưu đãi mới
-            </span>
-            <span class="truncate">
-              Đặt phòng Khách sạn, Nhà nghỉ & Motel theo giờ hoặc qua đêm gần các địa danh du lịch
-              — Giữ chỗ miễn phí 10 phút!
-            </span>
-          </div>
-          <button
-            type="button"
-            (click)="showPromoBanner.set(false)"
-            class="text-indigo-300 hover:text-white ml-3 cursor-pointer shrink-0"
-            aria-label="Đóng thông báo"
-          >
-            <i class="pi pi-times text-xs"></i>
-          </button>
-        </div>
-      }
-
-      <!-- 2. HEADER ĐIỀU HƯỚNG GUEST PORTAL -->
-      <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-        <div
-          class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4"
-        >
-          <!-- Logo & Navigation -->
-          <div class="flex items-center gap-8">
-            <a routerLink="/booking" class="flex items-center gap-2.5 group">
-              <div
-                class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-extrabold text-lg shadow-xs group-hover:bg-indigo-700 transition-colors"
-              >
-                H
-              </div>
-              <div>
-                <span class="font-extrabold text-base text-slate-900 tracking-tight block leading-none">
-                  HotelSaaS<span class="text-indigo-600">.vn</span>
-                </span>
-                <span class="text-[10px] text-slate-500 font-medium">
-                  Hotel • Motel • Nhà nghỉ • Homestay
-                </span>
-              </div>
+      <a href="#booking-content" class="skip-link">Đến nội dung chính</a>
+      <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-3">
+          <app-brand-logo size="md" variant="dark" />
+          <nav aria-label="Điều hướng chính" class="flex items-center gap-2 sm:gap-4">
+            <a routerLink="/booking/lookup" class="hidden sm:inline-flex items-center min-h-11 text-sm font-medium text-slate-700 hover:text-indigo-700">Tra cứu đặt phòng</a>
+            <a [routerLink]="isAuthenticated() ? (isCustomer() ? '/booking/profile' : '/dashboard') : '/auth/login'"
+              [queryParams]="isAuthenticated() ? {} : { portal: 'guest' }"
+              class="inline-flex items-center justify-center min-h-11 max-w-36 px-3 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">
+              <span class="truncate">{{ isAuthenticated() ? (isCustomer() ? userFirstName() : 'Quản trị PMS') : 'Đăng nhập' }}</span>
             </a>
-
-            <nav class="hidden md:flex items-center gap-1">
-              <a
-                routerLink="/booking"
-                routerLinkActive="bg-indigo-50 text-indigo-600"
-                [routerLinkActiveOptions]="{ exact: true }"
-                class="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-indigo-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
-              >
-                <i class="pi pi-search text-xs"></i>
-                <span>Tìm & Đặt phòng</span>
-              </a>
-
-              <a
-                routerLink="/booking/destinations"
-                routerLinkActive="bg-indigo-50 text-indigo-600"
-                class="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-indigo-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
-              >
-                <i class="pi pi-compass text-xs"></i>
-                <span>Địa danh & Khu du lịch</span>
-              </a>
-
-              <a
-                routerLink="/booking/brands"
-                routerLinkActive="bg-indigo-50 text-indigo-600"
-                class="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-indigo-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
-              >
-                <i class="pi pi-building text-xs"></i>
-                <span>Chuỗi thương hiệu</span>
-              </a>
-
-              <a
-                routerLink="/booking/deals"
-                routerLinkActive="bg-indigo-50 text-indigo-600"
-                class="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-indigo-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
-              >
-                <i class="pi pi-bolt text-amber-500 text-xs"></i>
-                <span>Ưu đãi & Giờ vàng</span>
-              </a>
-
-              <a
-                routerLink="/booking/profile"
-                routerLinkActive="bg-indigo-50 text-indigo-600"
-                class="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-indigo-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
-              >
-                <i class="pi pi-id-card text-indigo-500 text-xs"></i>
-                <span>Hồ sơ & Ví điểm</span>
-              </a>
-            </nav>
-          </div>
-
-          <!-- Cụm nút chức năng bên phải -->
-          <div class="flex items-center gap-2.5">
-            <!-- Nút Ví điểm & Hóa đơn -->
-            <a
-              routerLink="/booking/profile"
-              class="px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100/50 text-xs font-semibold text-indigo-700 flex items-center gap-1.5 transition-all"
-            >
-              <i class="pi pi-wallet text-indigo-600"></i>
-              <span class="hidden sm:inline">Ví điểm & Hóa đơn</span>
-            </a>
-
-            <!-- Nút Tra cứu Đặt phòng nhanh bằng Token/Mã -->
-            <a
-              routerLink="/booking/lookup"
-              class="px-3 py-2 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40 text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-all"
-            >
-              <i class="pi pi-ticket text-indigo-600"></i>
-              <span class="hidden sm:inline">Tra cứu đặt phòng</span>
-            </a>
-
-            <!-- Nút Đăng ký Đối tác Chuỗi / Cơ sở lưu trú -->
-            <a
-              routerLink="/auth/partner-register"
-              class="hidden lg:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold transition-all"
-            >
-              <i class="pi pi-briefcase text-xs"></i>
-              <span>Đăng ký Cơ sở / Chuỗi</span>
-            </a>
-
-            @if (isAuthenticated()) {
-              <a
-                routerLink="/dashboard"
-                class="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5"
-              >
-                <i class="pi pi-th-large text-xs"></i>
-                <span>Quản trị PMS</span>
-              </a>
-            } @else {
-              <a
-                routerLink="/auth/login"
-                class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs"
-              >
-                <i class="pi pi-user text-xs"></i>
-                <span>Đăng nhập</span>
-              </a>
-            }
-          </div>
+            <div #discoveryGroup class="relative" (keydown.escape)="closeMenu(menuToggle)">
+              <button #menuToggle type="button" (click)="menuOpen.set(!menuOpen())"
+                [attr.aria-expanded]="menuOpen()" aria-controls="guest-navigation"
+                class="inline-flex items-center justify-center gap-2 min-h-11 min-w-11 px-3 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50"
+                aria-label="Khám phá và hỗ trợ">
+                <span class="hidden lg:inline text-sm font-medium">Khám phá</span>
+                <i class="pi pi-bars" aria-hidden="true"></i>
+              </button>
+              @if (menuOpen()) {
+                <nav id="guest-navigation" aria-label="Khám phá và hỗ trợ"
+                  class="absolute right-0 mt-3 w-64 max-w-[calc(100vw-2rem)] max-h-[70dvh] overflow-y-auto rounded-xl bg-white border border-slate-200 shadow-lg p-2"
+                  (click)="menuOpen.set(false)">
+                  @for (link of exploreLinks; track link.path) {
+                    <a [routerLink]="link.path" class="flex items-center min-h-11 px-3 rounded-lg text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-700">{{ link.label }}</a>
+                  }
+                  <div class="border-t border-slate-200 mt-2 pt-2">
+                    <a routerLink="/auth/partner-register" class="flex items-center min-h-11 px-3 text-sm text-slate-700 hover:bg-slate-50 rounded-lg">Đăng ký đối tác</a>
+                    <a routerLink="/auth/login" [queryParams]="{ portal: 'admin' }" class="flex items-center min-h-11 px-3 text-sm text-slate-700 hover:bg-slate-50 rounded-lg">Cổng quản lý khách sạn</a>
+                  </div>
+                </nav>
+              }
+            </div>
+          </nav>
         </div>
       </header>
 
       <!-- 3. NỘI DUNG TRANG CON -->
-      <div class="flex-1">
+      <div id="booking-content" tabindex="-1" class="flex-1">
         <router-outlet />
       </div>
 
@@ -169,11 +66,8 @@ import { AuthService } from '../../core/services/auth.service';
       <footer class="bg-slate-900 text-slate-400 text-xs pt-12 pb-8 border-t border-slate-800">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div>
-            <div class="flex items-center gap-2 text-white font-extrabold text-base mb-3">
-              <span class="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-sm text-white">
-                H
-              </span>
-              <span>HotelSaaS.vn</span>
+            <div class="mb-3">
+              <app-brand-logo size="md" variant="light" [showTagline]="false" />
             </div>
             <p class="leading-relaxed text-slate-400">
               Nền tảng Quản lý & Đặt phòng đa loại hình lưu trú (Khách sạn, Nhà nghỉ, Motel,
@@ -187,7 +81,7 @@ import { AuthService } from '../../core/services/auth.service';
             </h4>
             <ul class="space-y-2">
               <li><a routerLink="/booking" [queryParams]="{ rentalType: 'Hourly' }" class="hover:text-white transition-colors">Thuê phòng theo giờ (Nhà nghỉ / Motel)</a></li>
-              <li><a routerLink="/booking" [queryParams]="{ rentalType: 'Overnight' }" class="hover:text-white transition-colors">Đặt phòng qua đêm (21:00 - 10:00)</a></li>
+              <li><a routerLink="/booking" [queryParams]="{ rentalType: 'Overnight' }" class="hover:text-white transition-colors">Đặt phòng qua đêm theo chính sách cơ sở</a></li>
               <li><a routerLink="/booking" [queryParams]="{ rentalType: 'Daily' }" class="hover:text-white transition-colors">Đặt khách sạn & resort theo ngày</a></li>
               <li><a routerLink="/booking/brands" class="hover:text-white transition-colors">Đặt theo chuỗi thương hiệu</a></li>
             </ul>
@@ -211,16 +105,16 @@ import { AuthService } from '../../core/services/auth.service';
             </h4>
             <ul class="space-y-2">
               <li><a routerLink="/booking/lookup" class="hover:text-white transition-colors">Tra cứu mã giữ chỗ / Đặt phòng</a></li>
-              <li><a routerLink="/booking/profile" class="hover:text-white transition-colors">Hồ sơ khách hàng, Ví điểm & Hóa đơn</a></li>
+              <li><a routerLink="/booking/profile" class="hover:text-white transition-colors">Tài khoản khách hàng</a></li>
               <li><a routerLink="/auth/partner-register" class="hover:text-white transition-colors">Đăng ký mở chuỗi Khách sạn / Nhà nghỉ</a></li>
-              <li><a routerLink="/auth/login" class="hover:text-white transition-colors">Cổng vận hành Lễ tân & Chủ cơ sở</a></li>
+              <li><a routerLink="/auth/login" [queryParams]="{ portal: 'admin' }" class="hover:text-white transition-colors">Cổng vận hành Lễ tân & Chủ cơ sở</a></li>
             </ul>
           </div>
         </div>
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 border-t border-slate-800 flex flex-wrap justify-between items-center gap-4 text-slate-500">
           <span>© 2026 Hotel SaaS Platform v2 (.NET 10 + Angular 22). All rights reserved.</span>
-          <span>Bảo mật đa tầng Multi-Tenant • Tồn kho thời gian thực</span>
+          <span>Xem phòng trống và giá theo lịch lưu trú bạn chọn</span>
         </div>
       </footer>
     </div>
@@ -228,7 +122,40 @@ import { AuthService } from '../../core/services/auth.service';
 })
 export class GuestLayoutComponent {
   private readonly authService = inject(AuthService);
+  @ViewChild('discoveryGroup') private discoveryGroup?: ElementRef<HTMLElement>;
 
-  readonly showPromoBanner = signal<boolean>(true);
-  readonly isAuthenticated = computed<boolean>(() => this.authService.isLoggedIn);
+  @HostListener('document:pointerdown', ['$event'])
+  @HostListener('document:focusin', ['$event'])
+  dismissOutsideMenu(event: Event): void {
+    if (!this.discoveryGroup?.nativeElement.contains(event.target as Node)) {
+      this.menuOpen.set(false);
+    }
+  }
+
+  readonly menuOpen = signal(false);
+  readonly exploreLinks = [
+    { path: '/booking', label: 'Tìm chỗ nghỉ' },
+    { path: '/booking/destinations', label: 'Khám phá điểm đến' },
+    { path: '/booking/brands', label: 'Thương hiệu khách sạn' },
+    { path: '/booking/deals', label: 'Ưu đãi' },
+    { path: '/booking/lookup', label: 'Tra cứu đặt phòng' },
+    { path: '/booking/profile', label: 'Hồ sơ, ví điểm và hóa đơn' },
+  ];
+  readonly currentUser = toSignal(this.authService.currentUser$, { initialValue: this.authService.currentUser });
+  readonly isAuthenticated = computed(() => !!this.currentUser() && this.authService.isLoggedIn);
+
+  closeMenu(toggle: HTMLButtonElement): void {
+    this.menuOpen.set(false);
+    toggle.focus();
+  }
+  readonly isCustomer = computed<boolean>(() => {
+    const role = this.currentUser()?.globalRole;
+    return role === 'Customer' || role === 'Guest';
+  });
+  readonly userFirstName = computed<string>(() => {
+    const name = this.currentUser()?.fullName;
+    if (!name) return 'Khách';
+    const parts = name.trim().split(' ');
+    return parts[parts.length - 1];
+  });
 }

@@ -36,10 +36,11 @@ public sealed class P2B02_BtreeGistLifecycleAndConcurrencyTests
     {
         var envConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION")
                ?? Environment.GetEnvironmentVariable("HOTEL_SAAS_TEST_CONNECTION_STRING");
-        var rawConn = !string.IsNullOrWhiteSpace(envConn) ? envConn : "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
+        var rawConn = !string.IsNullOrWhiteSpace(envConn) ? envConn : "Host=localhost;Port=5435;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
         var builder = new NpgsqlConnectionStringBuilder(rawConn)
         {
-            Pooling = false
+            Pooling = false,
+            PersistSecurityInfo = true
         };
         return builder.ConnectionString;
     }

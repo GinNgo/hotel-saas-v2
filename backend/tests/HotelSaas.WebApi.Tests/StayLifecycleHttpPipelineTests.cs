@@ -34,11 +34,12 @@ public sealed class StayLifecycleHttpPipelineTests
         var envConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION");
         var baseConn = !string.IsNullOrWhiteSpace(envConn)
             ? envConn
-            : "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
+            : "Host=localhost;Port=5435;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
 
         var builder = new NpgsqlConnectionStringBuilder(baseConn)
         {
-            Pooling = false
+            Pooling = false,
+            PersistSecurityInfo = true
         };
         return builder.ConnectionString;
     }

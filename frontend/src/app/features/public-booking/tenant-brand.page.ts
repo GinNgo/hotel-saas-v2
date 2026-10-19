@@ -74,8 +74,12 @@ import { TenantBrandDto, PublicPropertyDto } from '../../core/models/public-book
 
                 <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
                   <div class="flex items-center gap-1.5 text-xs">
+                    @if (brand.ratingAverage > 0 && brand.reviewCount > 0) {
                     <span class="font-extrabold text-slate-900">⭐ {{ brand.ratingAverage }}</span>
                     <span class="text-slate-400">({{ brand.reviewCount }} đánh giá)</span>
+                    } @else {
+                      <span class="text-slate-600">Chưa có đánh giá chuỗi</span>
+                    }
                   </div>
 
                   <a
@@ -104,9 +108,11 @@ import { TenantBrandDto, PublicPropertyDto } from '../../core/models/public-book
                     <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
                       Chuỗi thương hiệu xác thực
                     </span>
+                    @if ((activeBrand()?.ratingAverage ?? 0) > 0 && (activeBrand()?.reviewCount ?? 0) > 0) {
                     <span class="text-xs text-amber-500 font-bold flex items-center gap-1">
                       ★ {{ activeBrand()?.ratingAverage }} ({{ activeBrand()?.reviewCount }} đánh giá)
                     </span>
+                    }
                   </div>
                   <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                     {{ activeBrand()?.name }}

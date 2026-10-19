@@ -99,6 +99,13 @@ export class AlertService {
   }
 
   /**
+   * Shorthand gọi toastInfo
+   */
+  info(message: string, title: string = 'Thông tin'): void {
+    this.toastInfo(message, title);
+  }
+
+  /**
    * Hộp thoại xác nhận hành động nguy hiểm / xóa (Destructive Confirmation)
    * Trả về Promise<boolean>: true nếu người dùng đồng ý, false nếu hủy.
    */

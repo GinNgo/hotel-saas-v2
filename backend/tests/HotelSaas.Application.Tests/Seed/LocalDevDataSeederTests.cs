@@ -33,10 +33,16 @@ public sealed class LocalDevDataSeederTests
     private static string GetConnectionString()
     {
         var envConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION");
-        if (!string.IsNullOrWhiteSpace(envConn))
-            return envConn;
+        var baseConn = !string.IsNullOrWhiteSpace(envConn)
+            ? envConn
+            : "Host=localhost;Port=5435;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
 
-        return "Host=localhost;Port=5435;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
+        var builder = new NpgsqlConnectionStringBuilder(baseConn)
+        {
+            Pooling = false,
+            PersistSecurityInfo = true
+        };
+        return builder.ConnectionString;
     }
 
     private static ApplicationDbContext CreateDbContext(string connString, string testSchema)
@@ -154,10 +160,12 @@ public sealed class LocalDevDataSeederTests
                     Assert.Equal(tenant.Id, p.TenantId);
                 });
 
-                // 3. Users (3 users with BCrypt password hashes)
+                // 3. Users (3 tenant staff users + 1 platform superadmin)
                 var users = await verifyCtx.Users.ToListAsync();
-                Assert.Equal(3, users.Count);
-                foreach (var user in users)
+                Assert.Equal(4, users.Count);
+                var tenantUsers = users.Where(u => u.GlobalRole == GlobalUserRole.TenantStaff).ToList();
+                Assert.Equal(3, tenantUsers.Count);
+                foreach (var user in tenantUsers)
                 {
                     Assert.True(user.IsActive);
                     Assert.True(hasher.Verify("TestPassword@123", user.PasswordHash));
@@ -267,7 +275,7 @@ public sealed class LocalDevDataSeederTests
             {
                 Assert.Equal(1, await verifyCtx.Tenants.CountAsync());
                 Assert.Equal(2, await verifyCtx.Properties.IgnoreQueryFilters().CountAsync());
-                Assert.Equal(3, await verifyCtx.Users.CountAsync());
+                Assert.Equal(4, await verifyCtx.Users.CountAsync());
                 Assert.Equal(4, await verifyCtx.TenantStaffMembers.IgnoreQueryFilters().CountAsync());
                 Assert.Equal(4, await verifyCtx.RoomTypes.IgnoreQueryFilters().CountAsync());
                 Assert.Equal(6, await verifyCtx.Rooms.IgnoreQueryFilters().CountAsync());

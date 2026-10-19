@@ -76,6 +76,15 @@ export interface FolioDto {
   depositPaid?: number | null;
 }
 
+export interface AddFolioItemRequest {
+  propertyId: string;
+  itemCode: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  category?: string;
+}
+
 export interface CreatePaymentRequest {
   reservationId: string;
   propertyId?: string;

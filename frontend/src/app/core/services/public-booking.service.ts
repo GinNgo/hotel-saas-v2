@@ -23,7 +23,6 @@ import {
 } from '../models/public-booking.model';
 import { QuoteDto } from '../models/reservation.model';
 import { of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
 
 @Injectable({ providedIn: 'root' })
 export class PublicBookingService {
@@ -118,7 +117,12 @@ export class PublicBookingService {
    */
   getPropertyBySlug(slug: string): Observable<PublicPropertyDto> {
     return this.http.get<any>(`${this.apiUrl}/properties/${encodeURIComponent(slug)}`).pipe(
-      map(res => (res.data ? res.data : res) as PublicPropertyDto)
+      map(res => {
+        const property = (res.data ?? res) as PublicPropertyDto;
+        return { ...property, propertyId: property.propertyId ?? property.id ?? '',
+          thumbnailUrl: property.thumbnailUrl ?? property.imageUrl ?? '', galleryUrls: property.galleryUrls ?? [],
+          nearbyLandmarks: property.nearbyLandmarks ?? [], reviewCount: property.reviewCount ?? 0, ratingAverage: property.ratingAverage ?? 0 };
+      })
     );
   }
 
@@ -157,7 +161,14 @@ export class PublicBookingService {
     }
 
     return this.http.get<any>(`${this.apiUrl}/properties/${encodeURIComponent(slug)}/availability`, { params }).pipe(
-      map(res => (res.data ? res.data : res) as PublicRoomTypeAvailabilityDto[])
+      map(res => {
+        const rooms = (res.data ?? res) as PublicRoomTypeAvailabilityDto[];
+        return rooms.map(room => ({ ...room, name: room.name ?? room.roomTypeName ?? '',
+          maxGuests: room.maxGuests ?? room.maxOccupancy ?? 0,
+          availableRoomsCount: room.availableRoomsCount ?? room.availableRooms ?? 0,
+          calculatedQuoteTotal: room.calculatedQuoteTotal ?? room.estimatedPrice ?? 0,
+          amenities: room.amenities ?? [], images: room.images ?? [] }));
+      })
     );
   }
 
@@ -166,7 +177,6 @@ export class PublicBookingService {
    */
   calculateQuote(request: CalculatePublicQuoteRequest): Observable<QuoteDto> {
     return this.http.post<any>(`${this.apiUrl}/quotes`, request).pipe(
-      catchError(() => this.http.post<any>(`${this.apiUrl}/quotes/calculate`, request)),
       map(res => (res.data ? res.data : res) as QuoteDto)
     );
   }
@@ -209,6 +219,15 @@ export class PublicBookingService {
   }
 
   /**
+   * Sinh URL thanh toán trực tuyến qua Cổng VNPay Sandbox cho đơn đặt phòng.
+   */
+  createVnpayPaymentUrl(reservationId: string, returnUrl?: string): Observable<{ paymentUrl: string; transactionRef: string }> {
+    return this.http.post<any>(`${environment.apiUrl}/payments/vnpay/create-url`, { reservationId, returnUrl }).pipe(
+      map(res => (res.data ? res.data : res))
+    );
+  }
+
+  /**
    * Retrieves all branches belonging to a tenant brand chain.
    */
   getPropertiesByTenant(tenantId: string): Observable<PublicPropertyDto[]> {
@@ -225,8 +244,9 @@ export class PublicBookingService {
       map(props => {
         const brandMap = new Map<string, TenantBrandDto>();
         for (const p of props) {
-          const tId = p.tenantId || 'default-tenant';
-          const tName = p.tenantBrandName || p.name.split(' - ')[0] || 'Chuỗi Khách Sạn Đối Tác';
+          if (!p.tenantId || !p.tenantBrandName) continue;
+          const tId = p.tenantId;
+          const tName = p.tenantBrandName;
           const tSlug = tName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
           if (!brandMap.has(tId)) {
@@ -235,9 +255,9 @@ export class PublicBookingService {
               name: tName,
               slug: tSlug,
               logoUrl: p.thumbnailUrl || p.imageUrl,
-              description: `Hệ thống chuỗi cơ sở lưu trú uy tín với các chi nhánh tiện nghi, phục vụ linh hoạt theo giờ, qua đêm và theo ngày.`,
+              description: '',
               totalProperties: 0,
-              ratingAverage: 4.8,
+              ratingAverage: 0,
               reviewCount: 0,
               properties: [],
               provinces: []
@@ -247,7 +267,6 @@ export class PublicBookingService {
           const brand = brandMap.get(tId)!;
           brand.properties.push(p);
           brand.totalProperties++;
-          brand.reviewCount += p.reviewCount || 12;
           const prov = p.provinceName || p.city;
           if (prov && !brand.provinces.includes(prov)) {
             brand.provinces.push(prov);
@@ -271,76 +290,21 @@ export class PublicBookingService {
    * Retrieves operational policies for a property.
    */
   getPropertyPolicies(slug: string): Observable<PropertyPolicyDto> {
-    return this.getPropertyBySlug(slug).pipe(
-      map(p => ({
-        propertyId: p.propertyId || p.id || '',
-        propertyName: p.name,
-        checkInTime: p.checkInTime || '14:00',
-        checkOutTime: p.checkOutTime || '12:00',
-        bufferMinutes: p.bufferMinutes || p.cleaningBufferMinutes || 30,
-        maxHourlyHours: p.maxHourlyHours || 12,
-        earlyCheckInFeePerHour: 50000,
-        lateCheckOutFeePerHour: 60000,
-        cancellationPolicy: 'Miễn phí hủy phòng trước 24 giờ. Hủy phòng trong vòng 24 giờ tính phí 30% tiền cọc.',
-        generalRules: [
-          'Vui lòng xuất trình CCCD/Hộ chiếu bản gốc khi làm thủ tục nhận phòng.',
-          'Không mang chất cấm, vũ khí, vật liệu dễ cháy nổ vào khuôn viên phòng.',
-          'Giữ trật tự chung sau 23:00 đêm để đảm bảo sự yên tĩnh cho các phòng xung quanh.',
-          'Trường hợp nhận phòng sớm hoặc trả phòng trễ tùy thuộc vào tình trạng phòng trống tại thời điểm đến.'
-        ]
-      }))
-    );
+    return this.getPropertyBySlug(slug).pipe(map(property => ({
+      propertyId: property.propertyId || property.id || '',
+      propertyName: property.name,
+      checkInTime: property.checkInTime || '',
+      checkOutTime: property.checkOutTime || '',
+      bufferMinutes: property.bufferMinutes ?? property.cleaningBufferMinutes ?? 0,
+      maxHourlyHours: property.maxHourlyHours ?? 0,
+      cancellationPolicy: '',
+      generalRules: [],
+    })));
   }
 
-  /**
-   * Retrieves verified guest reviews for a property.
-   */
-  getPropertyReviews(slug: string): Observable<GuestReviewDto[]> {
-    return this.getPropertyBySlug(slug).pipe(
-      map(p => [
-        {
-          id: 'rev-01',
-          propertyId: p.propertyId || p.id || '',
-          guestName: 'Nguyễn Văn Minh',
-          rating: 5,
-          comment: 'Phòng sạch sẽ, lễ tân thân thiện, vị trí gần các địa danh du lịch đi lại rất tiện lợi.',
-          createdAt: '2 ngày trước',
-          rentalType: 'Daily',
-          roomTypeName: 'Phòng Deluxe Giường Đôi',
-          cleanlinessRating: 5,
-          staffRating: 5
-        },
-        {
-          id: 'rev-02',
-          propertyId: p.propertyId || p.id || '',
-          guestName: 'Trần Thị Thu Hà',
-          rating: 4,
-          comment: 'Thuê theo giờ nghỉ trưa rất nhanh gọn, thủ tục đơn giản, máy lạnh mát rượi.',
-          createdAt: '5 ngày trước',
-          rentalType: 'Hourly',
-          roomTypeName: 'Phòng Standard Giường Đơn',
-          cleanlinessRating: 4,
-          staffRating: 5
-        },
-        {
-          id: 'rev-03',
-          propertyId: p.propertyId || p.id || '',
-          guestName: 'Lê Hoàng Nam',
-          rating: 5,
-          comment: 'Giá tốt so với chất lượng, view đẹp, nước nóng và wifi mạnh.',
-          createdAt: '1 tuần trước',
-          rentalType: 'Overnight',
-          roomTypeName: 'Phòng Suite Gia Đình',
-          cleanlinessRating: 5,
-          staffRating: 4
-        }
-      ])
-    );
+  getPropertyReviews(_slug: string): Observable<GuestReviewDto[]> {
+    return of([]);
   }
-
-  /**
-   * Submits a guest review after checkout.
-   */
   submitReview(request: SubmitGuestReviewRequest): Observable<boolean> {
     return of(true);
   }

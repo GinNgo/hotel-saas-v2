@@ -28,7 +28,8 @@ public class TenantPropertyManagementTests
 
         var builder = new NpgsqlConnectionStringBuilder(baseConn)
         {
-            Pooling = false
+            Pooling = false,
+            PersistSecurityInfo = true
         };
         return builder.ConnectionString;
     }

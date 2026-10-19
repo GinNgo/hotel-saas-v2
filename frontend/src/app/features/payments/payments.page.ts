@@ -1064,18 +1064,20 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
       <!-- MODAL XUẤT PHIẾU THU TIỀN TẠI QUẦY (RECEIPT VOUCHER)                      -->
       <!-- ========================================================================= -->
       @if (receiptVoucher(); as voucher) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-          <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 overflow-y-auto">
+          <div class="bg-white rounded-2xl shadow-2xl border border-slate-200/80 max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-8">
             <!-- Modal Header -->
-            <div class="p-4 bg-emerald-600 text-white flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <i class="pi pi-receipt text-lg"></i>
-                <h3 class="font-bold text-sm tracking-tight">Phiếu Xác Nhận Thu Tiền Nội Bộ</h3>
+            <div class="px-5 py-4 bg-emerald-600 text-white flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                  <i class="pi pi-receipt text-sm"></i>
+                </div>
+                <h3 class="font-bold text-sm sm:text-base tracking-tight">Phiếu Xác Nhận Thu Tiền Nội Bộ</h3>
               </div>
               <button
                 type="button"
                 (click)="closeReceiptModal()"
-                class="text-white/80 hover:text-white p-1 rounded-lg transition-colors"
+                class="w-8 h-8 rounded-xl flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               >
                 <i class="pi pi-times text-sm"></i>
               </button>
@@ -1085,45 +1087,45 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
             <div id="receipt-voucher-content" class="p-6 space-y-4 text-xs">
               <div class="text-center pb-3 border-b border-dashed border-slate-200">
                 <h4 class="font-extrabold text-base text-slate-900 uppercase">{{ activePropertyName() || 'HOTEL SAAS RESORT' }}</h4>
-                <p class="text-[11px] text-slate-500">Chi nhánh: {{ activePropertyName() || 'Trụ sở chính' }}</p>
+                <p class="text-[11px] text-slate-500 mt-0.5">Chi nhánh: {{ activePropertyName() || 'Trụ sở chính' }}</p>
                 <div class="inline-block px-3 py-1 bg-emerald-50 text-emerald-800 font-bold rounded-full text-xs mt-2 border border-emerald-200">
                   GIAO DỊCH THÀNH CÔNG
                 </div>
               </div>
 
-              <div class="space-y-2 text-slate-700">
-                <div class="flex justify-between">
+              <div class="space-y-2.5 text-slate-700">
+                <div class="flex justify-between items-center">
                   <span class="text-slate-500">Mã giao dịch:</span>
-                  <span class="font-mono font-bold">{{ voucher.paymentId }}</span>
+                  <span class="font-mono font-bold text-slate-900">{{ voucher.paymentId }}</span>
                 </div>
-                <div class="flex justify-between">
+                <div class="flex justify-between items-center">
                   <span class="text-slate-500">Mã đơn đặt:</span>
-                  <span class="font-mono">{{ voucher.reservationId }}</span>
+                  <span class="font-mono text-slate-900">{{ voucher.reservationId }}</span>
                 </div>
-                <div class="flex justify-between">
+                <div class="flex justify-between items-center">
                   <span class="text-slate-500">Khách hàng:</span>
-                  <span class="font-semibold">{{ voucher.guestName }}</span>
+                  <span class="font-bold text-slate-900">{{ voucher.guestName }}</span>
                 </div>
-                <div class="flex justify-between">
+                <div class="flex justify-between items-center">
                   <span class="text-slate-500">Phương thức:</span>
-                  <span class="font-semibold">{{ voucher.methodName }}</span>
+                  <span class="font-semibold text-slate-800">{{ voucher.methodName }}</span>
                 </div>
                 @if (voucher.transactionRef) {
-                  <div class="flex justify-between">
+                  <div class="flex justify-between items-center">
                     <span class="text-slate-500">Mã tham chiếu:</span>
-                    <span class="font-mono">{{ voucher.transactionRef }}</span>
+                    <span class="font-mono text-slate-900">{{ voucher.transactionRef }}</span>
                   </div>
                 }
-                <div class="flex justify-between">
+                <div class="flex justify-between items-center">
                   <span class="text-slate-500">Thời gian:</span>
-                  <span class="font-mono">{{ formatUtc(voucher.createdAtUtc) }}</span>
+                  <span class="font-mono text-slate-700">{{ formatUtc(voucher.createdAtUtc) }}</span>
                 </div>
               </div>
 
               <!-- Amount Highlight -->
-              <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                <span class="text-[11px] text-slate-500 uppercase block font-medium">Số tiền đã thu</span>
-                <span class="text-xl font-extrabold text-emerald-700">
+              <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                <span class="text-[11px] text-slate-500 uppercase block font-bold tracking-wider">Số tiền đã thu</span>
+                <span class="text-2xl font-black text-emerald-700 font-mono mt-0.5 block">
                   {{ voucher.amount | number:'1.0-0' }} VNĐ
                 </span>
               </div>
@@ -1139,11 +1141,11 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
             </div>
 
             <!-- Modal Footer Actions -->
-            <div class="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+            <div class="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
               <button
                 type="button"
                 (click)="printReceipt()"
-                class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-medium text-xs transition-colors flex items-center gap-1.5 shadow-2xs"
+                class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-semibold text-xs sm:text-sm transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
               >
                 <i class="pi pi-print text-xs"></i>
                 <span>In phiếu thu</span>
@@ -1151,7 +1153,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               <button
                 type="button"
                 (click)="closeReceiptModal()"
-                class="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium text-xs transition-colors"
+                class="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm transition-colors cursor-pointer"
               >
                 Đóng
               </button>

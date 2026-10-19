@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard } from './core/guards/auth.guard';
+import { authGuard, platformAdminGuard } from './core/guards/auth.guard';
 import { permissionGuard } from './core/guards/permission.guard';
 
 export const routes: Routes = [
@@ -202,6 +202,16 @@ export const routes: Routes = [
       {
         path: 'subscriptions',
         loadComponent: () => import('./features/subscriptions/subscriptions.page').then(m => m.SubscriptionsPage)
+      },
+      {
+        path: 'plans',
+        canActivate: [platformAdminGuard],
+        loadComponent: () => import('./features/admin-plans/admin-plans.page').then(m => m.AdminPlansPage)
+      },
+      {
+        path: 'contracts',
+        canActivate: [platformAdminGuard],
+        loadComponent: () => import('./features/admin-contracts/admin-contracts.page').then(m => m.AdminContractsPage)
       }
     ]
   },
@@ -266,11 +276,35 @@ export const routes: Routes = [
       {
         path: 'subscriptions',
         loadComponent: () => import('./features/subscriptions/subscriptions.page').then(m => m.SubscriptionsPage)
+      },
+      {
+        path: 'plans',
+        canActivate: [platformAdminGuard],
+        loadComponent: () => import('./features/admin-plans/admin-plans.page').then(m => m.AdminPlansPage)
+      },
+      {
+        path: 'contracts',
+        canActivate: [platformAdminGuard],
+        loadComponent: () => import('./features/admin-contracts/admin-contracts.page').then(m => m.AdminContractsPage)
       }
     ]
   },
 
-  // 7. Forbidden Route
+  // 7. Printable Documents Routes (Standalone sheets)
+  {
+    path: 'print/invoice/:id',
+    loadComponent: () => import('./features/print/print-invoice.page').then(m => m.PrintInvoicePage)
+  },
+  {
+    path: 'print/voucher/:token',
+    loadComponent: () => import('./features/print/print-voucher.page').then(m => m.PrintVoucherPage)
+  },
+  {
+    path: 'print/contract/:id',
+    loadComponent: () => import('./features/print/print-contract.page').then(m => m.PrintContractPage)
+  },
+
+  // 8. Forbidden Route
   {
     path: 'forbidden',
     loadComponent: () => import('./features/forbidden/forbidden.page').then(m => m.ForbiddenPage)

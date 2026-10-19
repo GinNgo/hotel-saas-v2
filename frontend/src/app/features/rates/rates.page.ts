@@ -446,17 +446,17 @@ export function addDaysToDateString(dateStr: string, days: number): string {
 
       <!-- Modal: Thiết lập Bảng giá mới (Create / Split Rate) -->
       @if (showCreateModal()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-          <div class="bg-white rounded-2xl border border-slate-200/90 shadow-2xl max-w-xl w-full p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
+          <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xl max-w-xl w-full p-6 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-150">
             <!-- Modal Header -->
-            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center justify-between pb-3.5 border-b border-slate-100">
               <div class="flex items-center gap-2.5">
-                <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-sm">
+                <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-sm shrink-0">
                   <i class="pi pi-calendar-plus"></i>
                 </div>
                 <div>
-                  <h3 class="text-sm font-bold text-slate-800">Thiết lập bảng giá mới</h3>
-                  <p class="text-[11px] text-slate-400">
+                  <h3 class="text-base font-bold text-slate-900">Thiết lập bảng giá mới</h3>
+                  <p class="text-xs text-slate-500 mt-0.5">
                     Áp dụng cho: <strong>{{ modalTargetRoomType()?.name }}</strong> ({{ modalTargetRoomType()?.code }})
                   </p>
                 </div>
@@ -465,15 +465,15 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                 type="button"
                 (click)="closeCreateModal()"
                 [disabled]="isSaving()"
-                class="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
                 aria-label="Đóng hộp thoại"
               >
-                <i class="pi pi-times"></i>
+                <i class="pi pi-times text-sm"></i>
               </button>
             </div>
 
             <!-- Explanatory note on interval splitting -->
-            <div class="p-3 rounded-xl bg-sky-50 border border-sky-200/70 text-sky-900 text-[11px] leading-relaxed">
+            <div class="p-3.5 rounded-xl bg-sky-50/80 border border-sky-200 text-sky-900 text-xs leading-relaxed">
               <div class="font-bold flex items-center gap-1.5 text-sky-800 mb-0.5">
                 <i class="pi pi-info-circle text-sky-600"></i>
                 <span>Cơ chế chia khoảng tự động (Interval Splitting):</span>
@@ -512,30 +512,30 @@ export function addDaysToDateString(dateStr: string, days: number): string {
               <!-- Dates Row -->
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <!-- EffectiveFrom -->
-                <div class="space-y-1">
-                  <label class="block text-xs font-semibold text-slate-700">
+                <div class="space-y-1.5">
+                  <label class="block text-xs font-bold text-slate-700">
                     Từ ngày hiệu lực <span class="text-rose-500">*</span>
                   </label>
                   <input
                     type="date"
                     formControlName="effectiveFrom"
                     [min]="minEffectiveFromDate"
-                    class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                    class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-mono text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs bg-white"
                     aria-label="Ngày bắt đầu hiệu lực"
                   />
                   <p class="text-[10px] text-slate-400">Không được chọn ngày trong quá khứ</p>
                 </div>
 
                 <!-- EffectiveTo -->
-                <div class="space-y-1">
-                  <label class="block text-xs font-semibold text-slate-700">
+                <div class="space-y-1.5">
+                  <label class="block text-xs font-bold text-slate-700">
                     Đến ngày hiệu lực <span class="text-rose-500">*</span>
                   </label>
                   <input
                     type="date"
                     formControlName="effectiveTo"
                     [min]="rateForm.get('effectiveFrom')?.value || minEffectiveFromDate"
-                    class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                    class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-mono text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs bg-white"
                     aria-label="Ngày kết thúc hiệu lực"
                   />
                   <p class="text-[10px] text-slate-400">Phải lớn hơn ngày bắt đầu</p>
@@ -545,23 +545,23 @@ export function addDaysToDateString(dateStr: string, days: number): string {
               <!-- Hourly Prices Row -->
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                 <!-- FirstHours -->
-                <div class="space-y-1">
-                  <label class="block text-xs font-semibold text-slate-700">
+                <div class="space-y-1.5">
+                  <label class="block text-xs font-bold text-slate-700">
                     Số giờ gói đầu <span class="text-rose-500">*</span>
                   </label>
                   <input
                     type="number"
                     min="1"
                     formControlName="firstHours"
-                    class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                    class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs bg-white font-medium"
                     aria-label="Số giờ gói đầu"
                   />
                   <p class="text-[10px] text-slate-400">Mặc định: 2 giờ</p>
                 </div>
 
                 <!-- FirstHoursPrice -->
-                <div class="space-y-1">
-                  <label class="block text-xs font-semibold text-slate-700">
+                <div class="space-y-1.5">
+                  <label class="block text-xs font-bold text-slate-700">
                     Giá gói đầu (VND) <span class="text-rose-500">*</span>
                   </label>
                   <input
@@ -570,14 +570,14 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                     step="5000"
                     formControlName="firstHoursPrice"
                     placeholder="Nhập giá gói đầu..."
-                    class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                    class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs bg-white font-medium"
                     aria-label="Giá gói đầu"
                   />
                 </div>
 
                 <!-- AdditionalHourPrice -->
-                <div class="space-y-1">
-                  <label class="block text-xs font-semibold text-slate-700">
+                <div class="space-y-1.5">
+                  <label class="block text-xs font-bold text-slate-700">
                     Giá mỗi giờ thêm (VND) <span class="text-rose-500">*</span>
                   </label>
                   <input
@@ -586,15 +586,15 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                     step="5000"
                     formControlName="additionalHourPrice"
                     placeholder="Nhập giá mỗi giờ thêm..."
-                    class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                    class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs bg-white font-medium"
                     aria-label="Giá mỗi giờ thêm"
                   />
                 </div>
               </div>
 
               <!-- Nightly Price Row -->
-              <div class="space-y-1">
-                <label class="block text-xs font-semibold text-slate-700">
+              <div class="space-y-1.5">
+                <label class="block text-xs font-bold text-slate-700">
                   Giá thuê qua đêm tiêu chuẩn (VND) <span class="text-rose-500">*</span>
                 </label>
                 <div class="relative">
@@ -604,41 +604,41 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                     step="10000"
                     formControlName="nightlyPrice"
                     placeholder="Nhập giá thuê qua đêm..."
-                    class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-emerald-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                    class="w-full h-10 px-3.5 pr-14 rounded-xl border border-slate-300 text-xs sm:text-sm font-bold text-emerald-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs bg-white"
                     aria-label="Giá thuê qua đêm tiêu chuẩn"
                   />
-                  <span class="absolute right-3 top-2 text-xs text-slate-400 font-semibold">VND</span>
+                  <span class="absolute right-3.5 top-2.5 text-xs text-slate-400 font-semibold">VND</span>
                 </div>
               </div>
 
               <!-- Change Reason -->
-              <div class="space-y-1">
-                <label class="block text-xs font-semibold text-slate-700">
+              <div class="space-y-1.5">
+                <label class="block text-xs font-bold text-slate-700">
                   Lý do thay đổi / Ghi chú kiểm toán
                 </label>
                 <textarea
                   rows="2"
                   formControlName="changeReason"
                   placeholder="Ví dụ: Cập nhật giá mùa du lịch, áp dụng khuyến mãi hè..."
-                  class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                  class="w-full p-3 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs bg-white"
                   aria-label="Lý do thay đổi"
                 ></textarea>
               </div>
 
               <!-- Modal Actions -->
-              <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   (click)="closeCreateModal()"
                   [disabled]="isSaving()"
-                  class="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold transition-colors cursor-pointer"
+                  class="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
                 >
                   Hủy bỏ
                 </button>
                 <button
                   type="submit"
                   [disabled]="isSaving() || !canUpdate()"
-                  class="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs transition-all shadow-xs cursor-pointer disabled:cursor-not-allowed"
+                  class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs sm:text-sm transition-all shadow-sm shadow-emerald-600/30 cursor-pointer disabled:cursor-not-allowed"
                 >
                   @if (isSaving()) {
                     <i class="pi pi-spin pi-spinner text-xs"></i>

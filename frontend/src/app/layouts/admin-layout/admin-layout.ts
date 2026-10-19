@@ -195,6 +195,36 @@ import { UserMembershipDto } from '../../core/models/auth.model';
             </a>
           </div>
 
+          <!-- Platform Administrator Management Group -->
+          <div class="space-y-1 pt-2 border-t border-slate-100">
+            <div class="px-3 pb-2 text-[10px] font-bold text-indigo-500 uppercase tracking-wider flex items-center justify-between">
+              <span>Quản trị Nền tảng (Platform)</span>
+              <i class="pi pi-shield text-[10px] text-indigo-400"></i>
+            </div>
+
+            <a
+              routerLink="/plans"
+              routerLinkActive="bg-indigo-50 text-indigo-800 font-semibold border-l-4 border-indigo-600 shadow-2xs"
+              (click)="onNavItemClick()"
+              class="flex items-center gap-3 px-3.5 py-2 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+            >
+              <i class="pi pi-sliders-v text-base text-indigo-600"></i>
+              <span>Cấu hình gói Tenant</span>
+              <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800">Admin</span>
+            </a>
+
+            <a
+              routerLink="/contracts"
+              routerLinkActive="bg-indigo-50 text-indigo-800 font-semibold border-l-4 border-indigo-600 shadow-2xs"
+              (click)="onNavItemClick()"
+              class="flex items-center gap-3 px-3.5 py-2 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+            >
+              <i class="pi pi-file-edit text-base text-indigo-600"></i>
+              <span>Hợp đồng Đối tác</span>
+              <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800">Admin</span>
+            </a>
+          </div>
+
           <!-- Pending Review & Roadmap Group (Chưa triển khai / Bị Blocker) -->
           <div class="space-y-1 pt-2 border-t border-slate-100">
             <div class="px-3 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">

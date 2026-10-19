@@ -345,6 +345,12 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
         _context.Payments.Add(payment);
 
         reservation.Status = ReservationStatus.Confirmed;
+        if (string.IsNullOrWhiteSpace(reservation.SmartLockPin))
+        {
+            reservation.SmartLockPin = System.Security.Cryptography.RandomNumberGenerator.GetInt32(100000, 999999).ToString();
+        }
+        reservation.SmartLockStatus = "Active";
+        reservation.SmartLockActivatedAtUtc = nowUtc;
         reservation.UpdatedAtUtc = nowUtc;
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -443,6 +449,8 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
             MaskedGuestPhone = PiiMaskingHelper.MaskPhone(reservation.GuestPhone),
             HoldExpiresAtUtc = snapshot.HoldExpiresAtUtc,
             SecondsRemaining = 0,
+            SmartLockPin = reservation.SmartLockPin,
+            SmartLockStatus = reservation.SmartLockStatus,
             CreatedAtUtc = reservation.CreatedAtUtc,
             Breakdown = snapshot.Breakdown ?? Array.Empty<QuoteBreakdownItemDto>()
         };

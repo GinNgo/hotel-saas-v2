@@ -115,6 +115,8 @@ public sealed class GetGuestBookingByTokenQueryHandler : IRequestHandler<GetGues
             MaskedGuestPhone = PiiMaskingHelper.MaskPhone(reservation.GuestPhone),
             HoldExpiresAtUtc = snapshot.HoldExpiresAtUtc,
             SecondsRemaining = secondsRemaining,
+            SmartLockPin = reservation.SmartLockPin,
+            SmartLockStatus = reservation.SmartLockStatus,
             CreatedAtUtc = reservation.CreatedAtUtc,
             Breakdown = snapshot.Breakdown ?? Array.Empty<QuoteBreakdownItemDto>()
         };

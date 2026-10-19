@@ -93,6 +93,20 @@ public sealed class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Authenticates or auto-provisions a guest customer account via Google or Facebook Social Identity.
+    /// </summary>
+    [HttpPost("social-login")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public Task<IActionResult> SocialLogin(
+        [FromBody] HotelSaas.Application.Auth.Commands.SocialLogin.SocialLoginCommand command,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult<IActionResult>(StatusCode(StatusCodes.Status503ServiceUnavailable,
+            new { code = "SOCIAL_LOGIN_DISABLED", message = "Social login is disabled until provider token verification is implemented." }));
+    }
+
+    /// <summary>
     /// Exchanges a valid refresh token for a new access/refresh token pair.
     /// </summary>
     /// <param name="command">The expired access token and current refresh token.</param>

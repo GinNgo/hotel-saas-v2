@@ -6,6 +6,7 @@ import { AuthService } from '../services/auth.service';
 import { TokenStorageService } from '../services/token-storage.service';
 import { NotificationService } from '../services/notification.service';
 import { ApiResponse } from '../models/api-response.model';
+import { environment } from '../../../environments/environment';
 
 /** Xử lý lỗi HTTP: 401→refresh token, 403→redirect, 400→hiện validation errors, 500→toast lỗi */
 export const errorInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, next: HttpHandlerFn) => {
@@ -13,11 +14,17 @@ export const errorInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, n
   const authService = inject(AuthService);
   const tokenStorage = inject(TokenStorageService);
   const notification = inject(NotificationService);
+  const apiPath = new URL(environment.apiUrl, 'http://localhost').pathname.replace(/\/$/, '');
+  const requestPath = new URL(req.url, 'http://localhost').pathname;
+  const publicPath = `${apiPath}/public`;
+  const isPublicBooking = requestPath === publicPath || requestPath.startsWith(`${publicPath}/`);
+  const isPublicAuth = ['login', 'register', 'partner-register', 'social-login', 'refresh-token']
+    .some(endpoint => requestPath === `${apiPath}/auth/${endpoint}`);
 
   return next(req).pipe(
     catchError((error: HttpErrorResponse) => {
       // Không xử lý lỗi từ refresh-token endpoint (tránh loop)
-      if (req.url.includes('/auth/refresh-token') || req.url.includes('/auth/login')) {
+      if (isPublicAuth || (isPublicBooking && (error.status === 401 || error.status === 403))) {
         return throwError(() => error);
       }
 

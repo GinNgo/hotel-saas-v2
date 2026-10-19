@@ -73,7 +73,8 @@ public sealed class TenantPropertyContextMiddleware
         Enum.TryParse<GlobalUserRole>(globalRoleClaim, ignoreCase: true, out var globalRole);
 
         // ── 2. Pipeline Classification: Group 2 - Platform Endpoints ──────────
-        if (path.StartsWith("/api/platform/", StringComparison.OrdinalIgnoreCase))
+        if (path.StartsWith("/api/platform/", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/api/admin/", StringComparison.OrdinalIgnoreCase))
         {
             if (globalRole != GlobalUserRole.SuperAdmin)
             {
@@ -293,6 +294,7 @@ public sealed class TenantPropertyContextMiddleware
         }
 
         if (path.StartsWith("/api/public", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/api/print", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/health", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/auth/login", StringComparison.OrdinalIgnoreCase) ||

@@ -120,6 +120,72 @@ import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
               </div>
             </div>
 
+            <!-- IoT Smart Lock Card (Khóa phòng điện tử thông minh) -->
+            <div class="p-6 sm:p-8 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white border-y border-slate-800 shadow-inner relative overflow-hidden">
+              <div class="absolute -right-8 -bottom-8 w-44 h-44 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+              <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
+                <div class="space-y-2">
+                  <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase"
+                      [ngClass]="{
+                        'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40': booking()?.smartLockStatus === 'Active',
+                        'bg-amber-500/20 text-amber-300 border border-amber-500/40': booking()?.smartLockStatus === 'Pending' || !booking()?.smartLockStatus,
+                        'bg-slate-500/20 text-slate-300 border border-slate-500/40': booking()?.smartLockStatus === 'Expired',
+                        'bg-rose-500/20 text-rose-300 border border-rose-500/40': booking()?.smartLockStatus === 'Revoked'
+                      }">
+                      <span class="w-1.5 h-1.5 rounded-full"
+                        [ngClass]="{
+                          'bg-emerald-400 animate-pulse': booking()?.smartLockStatus === 'Active',
+                          'bg-amber-400': booking()?.smartLockStatus === 'Pending' || !booking()?.smartLockStatus,
+                          'bg-slate-400': booking()?.smartLockStatus === 'Expired',
+                          'bg-rose-400': booking()?.smartLockStatus === 'Revoked'
+                        }"></span>
+                      {{ getSmartLockStatusLabel(booking()?.smartLockStatus) }}
+                    </span>
+                    <span class="text-[11px] text-slate-400 flex items-center gap-1">
+                      <i class="pi pi-wifi text-xs text-indigo-400"></i>
+                      <span>IoT Keyless Entry</span>
+                    </span>
+                  </div>
+
+                  <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="pi pi-key text-amber-400"></i>
+                    <span>Mã Mở Khóa Cửa Điện Tử (Smart Lock PIN)</span>
+                  </h3>
+                  <p class="text-xs text-slate-300 max-w-md">
+                    Sử dụng mã PIN 6 chữ số này hoặc chạm điện thoại (NFC) tại ổ khóa điện tử trước cửa phòng để mở cửa an toàn suốt thời gian lưu trú.
+                  </p>
+                </div>
+
+                <!-- PIN Code Display Box -->
+                <div class="bg-black/50 border border-white/10 rounded-2xl p-4 text-center shrink-0 min-w-[200px] backdrop-blur-sm shadow-md">
+                  <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1">Mã PIN Mở Cửa</div>
+                  <div class="text-3xl font-black font-mono tracking-widest text-amber-300 py-1 select-all">
+                    {{ booking()?.smartLockPin || '886912' }}
+                  </div>
+                  <div class="mt-2 flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      (click)="copyPin(booking()?.smartLockPin || '886912')"
+                      class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-semibold text-white transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <i class="pi pi-copy text-[10px]"></i>
+                      <span>Sao chép PIN</span>
+                    </button>
+                    <button
+                      type="button"
+                      (click)="simulateNfcTouch()"
+                      class="px-2.5 py-1 rounded-lg bg-indigo-600/80 hover:bg-indigo-600 text-[11px] font-semibold text-white transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <i class="pi pi-bolt text-[10px] text-amber-300"></i>
+                      <span>Chạm NFC</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Body Details -->
             <div class="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
               <!-- Left Info -->
@@ -194,6 +260,24 @@ import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
                       {{ booking()?.isFullyPaid ? '✓ Đã tất toán toàn bộ 100%' : 'Chưa tất toán (Thanh toán số tiền còn lại khi làm thủ tục nhận phòng)' }}
                     </span>
                   </div>
+
+                  <!-- VNPay Sandbox Payment Button -->
+                  @if (booking()?.status === 'PendingPayment' || (booking()?.remainingBalance || 0) > 0) {
+                    <div class="pt-2">
+                      <button
+                        type="button"
+                        (click)="payWithVnpay()"
+                        [disabled]="isPayingVnpay()"
+                        class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-700 via-indigo-600 to-rose-600 hover:from-blue-800 hover:to-rose-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm hover:shadow transition-all cursor-pointer"
+                      >
+                        <i class="pi pi-credit-card text-xs"></i>
+                        <span>{{ isPayingVnpay() ? 'Đang tạo giao dịch VNPay...' : 'Thanh toán trực tuyến qua VNPay Sandbox' }}</span>
+                      </button>
+                      <p class="text-[10px] text-slate-400 text-center mt-1">
+                        Hỗ trợ Thẻ ATM nội địa, QR Pay, Thẻ Quốc tế Visa/Master bảo mật VNPay
+                      </p>
+                    </div>
+                  }
                 </div>
 
                 @if (booking()?.breakdown && booking()!.breakdown.length > 0) {
@@ -295,12 +379,60 @@ export class BookingStatusPage implements OnInit {
     }
   }
 
+  isPayingVnpay = signal<boolean>(false);
+
   copyToken(): void {
     const token = this.booking()?.lookupToken;
     if (token && navigator.clipboard) {
       navigator.clipboard.writeText(token);
       this.alertService.success('Đã sao chép mã tra cứu vào clipboard.');
     }
+  }
+
+  getSmartLockStatusLabel(status?: string): string {
+    switch (status) {
+      case 'Active': return 'ĐANG HOẠT ĐỘNG (ACTIVE)';
+      case 'Pending': return 'CHỜ KÍCH HOẠT KHI NHẬN PHÒNG';
+      case 'Expired': return 'HẾT HIỆU LỰC (CHECK-OUT)';
+      case 'Revoked': return 'ĐÃ THU HỒI';
+      default: return 'CHỜ KÍCH HOẠT';
+    }
+  }
+
+  copyPin(pin: string): void {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(pin);
+      this.alertService.success(`Đã sao chép mã PIN phòng: ${pin}`);
+    }
+  }
+
+  simulateNfcTouch(): void {
+    const pin = this.booking()?.smartLockPin || '886912';
+    this.alertService.success(`[NFC Smart Lock] Đã xác thực chìa khóa số thành công cho phòng! Mã PIN: ${pin}`);
+  }
+
+  payWithVnpay(): void {
+    const b = this.booking();
+    if (!b?.reservationId) return;
+
+    this.isPayingVnpay.set(true);
+    const returnUrl = `${window.location.origin}/booking/status/${b.lookupToken}`;
+
+    this.publicBookingService.createVnpayPaymentUrl(b.reservationId, returnUrl).subscribe({
+      next: (res) => {
+        this.isPayingVnpay.set(false);
+        if (res?.paymentUrl) {
+          this.alertService.info('Đang chuyển hướng sang Cổng thanh toán VNPay Sandbox...');
+          window.location.href = res.paymentUrl;
+        } else {
+          this.alertService.error('Không thể tạo liên kết thanh toán VNPay.');
+        }
+      },
+      error: () => {
+        this.isPayingVnpay.set(false);
+        this.alertService.error('Lỗi kết nối cổng thanh toán VNPay Sandbox.');
+      }
+    });
   }
 
   printConfirmation(): void {

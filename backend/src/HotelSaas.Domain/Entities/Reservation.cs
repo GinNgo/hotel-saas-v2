@@ -151,6 +151,23 @@ public class Reservation : BaseEntity, IPropertyScopedEntity
     /// </summary>
     public string? BuyerEmail { get; set; }
 
+    // ── IoT Smart Lock Integration ─────────────────────────────────────
+
+    /// <summary>
+    /// Simulated IoT Smart Lock 6-digit access PIN assigned upon confirmed booking or check-in.
+    /// </summary>
+    public string? SmartLockPin { get; set; }
+
+    /// <summary>
+    /// Current operational status of the smart lock PIN (e.g. Inactive, Active, Expired, Revoked).
+    /// </summary>
+    public string? SmartLockStatus { get; set; }
+
+    /// <summary>
+    /// UTC timestamp when the smart lock PIN was activated.
+    /// </summary>
+    public DateTime? SmartLockActivatedAtUtc { get; set; }
+
     // ── Navigation Properties ──────────────────────────────────────────
 
     /// <summary>

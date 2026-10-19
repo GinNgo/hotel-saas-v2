@@ -113,7 +113,7 @@ export interface PublicRoomTypeAvailabilityDto {
   roomTypeId: string;
   name: string;
   roomTypeName?: string; // for compatibility
-  code: string;
+  code?: string;
   description?: string;
   maxGuests: number;
   maxOccupancy?: number; // for compatibility
@@ -134,6 +134,9 @@ export interface PublicRoomTypeAvailabilityDto {
   hourlyExtraHourPrice?: number; // Phụ thu mỗi giờ tiếp theo
   overnightPrice?: number; // Giá qua đêm
   dailyPrice?: number; // Giá theo ngày/đêm
+  hourlyRate?: number; // for compatibility
+  overnightRate?: number; // for compatibility
+  dailyRate?: number; // for compatibility
   calculatedQuoteTotal: number; // Tổng tiền tạm tính theo bộ lọc hiện tại
   estimatedPrice?: number; // for compatibility
 }
@@ -152,6 +155,7 @@ export interface PublicPropertyDto {
   addressLine: string;
   address?: string; // for compatibility
   wardName: string;
+  districtName?: string; // for compatibility
   city?: string;
   provinceCode: string;
   provinceName: string;
@@ -181,6 +185,9 @@ export interface PublicPropertyDto {
   hourlyStartingPrice?: number;
   overnightStartingPrice?: number;
   dailyStartingPrice?: number;
+  hourlyPriceFrom?: number;
+  overnightPriceFrom?: number;
+  dailyPriceFrom?: number;
   availableRoomTypes: PublicRoomTypeAvailabilityDto[];
   distanceMeters?: number;
   distanceFormatted?: string;
@@ -261,26 +268,33 @@ export interface PublicRoomTypeDto {
 
 export interface GuestHoldDto {
   reservationId: string;
-  confirmationCode: string;
+  confirmationCode?: string;
   lookupToken: string;
-  propertyId: string;
+  propertyId?: string;
   propertyName: string;
-  roomTypeId: string;
+  roomTypeId?: string;
   roomTypeName: string;
-  assignedRoomId: string;
-  assignedRoomNumber: string;
-  rentalType: string;
-  startAtUtc: string;
-  endAtUtc: string;
+  assignedRoomId?: string;
+  assignedRoomNumber?: string;
+  rentalType?: string;
+  startAtUtc?: string;
+  endAtUtc?: string;
   checkInDate?: string;
   checkOutDate?: string;
-  totalAmount: number;
-  depositRequired: number;
-  currency: string;
-  holdExpiresAtUtc: string;
-  secondsRemaining: number;
-  status: string;
-  breakdown: QuoteBreakdownItemDto[];
+  checkInTime?: string;
+  checkOutTime?: string;
+  holdToken?: string;
+  totalEstimatedAmount?: number;
+  depositAmount?: number;
+  expiresAtUtc?: string;
+  remainingSeconds?: number;
+  totalAmount?: number;
+  depositRequired?: number;
+  currency?: string;
+  holdExpiresAtUtc?: string;
+  secondsRemaining?: number;
+  status?: string;
+  breakdown?: QuoteBreakdownItemDto[];
 }
 
 export interface GuestBookingDetailDto {
@@ -290,25 +304,37 @@ export interface GuestBookingDetailDto {
   propertyId: string;
   propertyName: string;
   propertyAddress: string;
+  propertyPhone?: string;
   roomTypeName: string;
+  assignedRoomNumber?: string;
   rentalType: string;
   startAtUtc: string;
   endAtUtc: string;
   checkInDate?: string;
   checkOutDate?: string;
+  checkInTime?: string;
+  checkOutTime?: string;
   numberOfGuests: number;
   totalAmount: number;
   depositRequired: number;
+  depositPaid?: number; // for compatibility
   paidAmount: number;
   remainingBalance: number;
   isFullyPaid: boolean;
   status: string;
+  guestName?: string;
+  guestEmail?: string;
+  guestPhone?: string;
   maskedGuestName: string;
   maskedGuestEmail: string;
   maskedGuestPhone?: string;
   holdExpiresAtUtc?: string;
   secondsRemaining?: number;
+  smartLockPin?: string;
+  smartLockStatus?: string;
+  smartLockActivatedAtUtc?: string;
   createdAtUtc: string;
+  createdAt?: string; // for compatibility
   breakdown: QuoteBreakdownItemDto[];
 }
 

@@ -188,6 +188,7 @@ public sealed class CheckOutReservationCommandHandler : IRequestHandler<CheckOut
 
         // 5. Execute atomic state transitions: Reservation -> CheckedOut, Room -> Dirty
         reservation.Status = ReservationStatus.CheckedOut;
+        reservation.SmartLockStatus = "Expired";
         room.Status = RoomStatus.Dirty;
         room.UpdatedAtUtc = DateTime.UtcNow;
 

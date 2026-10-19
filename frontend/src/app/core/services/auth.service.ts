@@ -67,6 +67,37 @@ export class AuthService {
   }
 
   /**
+   * Đăng nhập thông qua tài khoản mạng xã hội (Google, Facebook).
+   * Tự động liên kết SocialIdentity hoặc tạo mới tài khoản Customer kèm thẻ thành viên Silver.
+   */
+  socialLogin(request: {
+    provider: string;
+    providerSubject: string;
+    providerEmail: string;
+    fullName?: string;
+    avatarUrl?: string;
+  }): Observable<LoginResponse> {
+    return this.http.post<any>(`${this.apiUrl}/social-login`, request).pipe(
+      map(res => {
+        const data: LoginResponse = res.accessToken ? res : (res.data || res);
+        return data;
+      }),
+      tap(data => {
+        if (data?.accessToken) {
+          this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
+          this.currentUserSubject.next(data.user);
+          const memberships = data.memberships || [];
+          this.tokenStorage.setMemberships(memberships);
+          this.membershipsSubject.next(memberships);
+          if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
+            this.clearPropertyContext();
+          }
+        }
+      })
+    );
+  }
+
+  /**
    * Đăng nhập hệ thống:
    * Backend trả trực tiếp LoginResponse ở root: { accessToken, refreshToken, expiresAtUtc, user, memberships }
    * Hỗ trợ đồng thời cả format bọc ApiResponse<{...}> phòng hờ.
@@ -88,6 +119,10 @@ export class AuthService {
           this.membershipsSubject.next(memberships);
 
           // Kiểm tra xem token đã có propertyId chưa (trường hợp user chỉ có 1 branch hoặc token đã gán)
+          if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
+            this.clearPropertyContext();
+            return;
+          }
           const decoded = this.tokenStorage.getDecodedToken();
           const propId = decoded?.propertyId || decoded?.pid;
           if (propId) {
@@ -199,6 +234,13 @@ export class AuthService {
         tenantId: decoded.tenantId || null
       });
 
+      if (decoded.globalRole === 'Customer' || decoded.globalRole === 'Guest') {
+        this.membershipsSubject.next([]);
+        this.tokenStorage.setMemberships([]);
+        this.clearPropertyContext();
+        return;
+      }
+
       const cachedMemberships = this.tokenStorage.getMemberships();
       this.membershipsSubject.next(cachedMemberships);
 
@@ -231,6 +273,14 @@ export class AuthService {
 
   hasPermission(functionCode: string, action: number = 1): boolean {
     return this.tokenStorage.hasPermission(functionCode, action);
+  }
+
+  private clearPropertyContext(): void {
+    this.tokenStorage.clearActiveProperty();
+    this.activePropertyId.set(null);
+    this.activePropertyName.set(null);
+    this.activePropertyCode.set(null);
+    this.activeRoleName.set(null);
   }
 
   setActivePropertyContext(propertyId: string, propertyName?: string | null, propertyCode?: string | null, roleName?: string | null): void {

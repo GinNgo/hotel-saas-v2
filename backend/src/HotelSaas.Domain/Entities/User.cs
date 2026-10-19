@@ -94,4 +94,9 @@ public class User : BaseEntity
     /// Collection of tenant staff profiles this user holds across properties.
     /// </summary>
     public ICollection<TenantStaff> TenantStaffProfiles { get; set; } = new List<TenantStaff>();
+
+    /// <summary>
+    /// Liên kết tài khoản mạng xã hội (Google, Facebook).
+    /// </summary>
+    public ICollection<SocialIdentity> SocialIdentities { get; set; } = new List<SocialIdentity>();
 }

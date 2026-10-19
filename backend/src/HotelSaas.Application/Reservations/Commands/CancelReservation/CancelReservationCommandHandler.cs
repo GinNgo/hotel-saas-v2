@@ -176,6 +176,7 @@ public sealed class CancelReservationCommandHandler : IRequestHandler<CancelRese
         reservation.Status = ReservationStatus.Cancelled;
         reservation.CancelledAtUtc = DateTime.UtcNow;
         reservation.CancellationReason = reason;
+        reservation.SmartLockStatus = "Revoked";
 
         // Rule C: Automatic, idempotent points refund on reservation cancellation via LoyaltyLedgerService
         if (reservation.PointsRedeemed > 0 && reservation.PointsRefunded == 0)

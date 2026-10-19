@@ -1,5 +1,6 @@
-import { Component, Input, Output, EventEmitter, HostListener, signal, computed, effect } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, Output, EventEmitter, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { A11yModule } from '@angular/cdk/a11y';
 
 export interface GalleryPhotoItem {
   readonly url: string;
@@ -10,7 +11,8 @@ export interface GalleryPhotoItem {
 @Component({
   selector: 'app-photo-gallery-modal',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, A11yModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
       *ngIf="isOpen"
@@ -18,11 +20,14 @@ export interface GalleryPhotoItem {
       role="dialog"
       aria-modal="true"
       [attr.aria-label]="title || 'Bộ sưu tập hình ảnh'"
+      cdkTrapFocus
+      [cdkTrapFocusAutoCapture]="true"
+      (keydown)="handleKeyboardEvent($event)"
       (click)="onBackdropClick($event)">
 
       <!-- Modal Container -->
       <div
-        class="relative w-full max-w-5xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[92vh]"
+        class="relative w-full max-w-5xl h-[84vh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[92vh]"
         (click)="$event.stopPropagation()">
 
         <!-- Header Bar -->
@@ -32,7 +37,7 @@ export interface GalleryPhotoItem {
               <span *ngIf="currentPhoto()?.category" class="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                 {{ currentPhoto()?.category }}
               </span>
-              <span class="text-xs text-slate-400 font-medium">
+              <span *ngIf="photos.length" class="text-xs text-slate-300 font-medium" aria-live="polite" aria-atomic="true">
                 Ảnh {{ currentIndex() + 1 }} / {{ photos.length }}
               </span>
             </div>
@@ -45,7 +50,8 @@ export interface GalleryPhotoItem {
           <button
             type="button"
             (click)="closeModal()"
-            class="w-10 h-10 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            cdkFocusInitial
+            class="w-11 h-11 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-400"
             aria-label="Đóng bộ sưu tập ảnh">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
@@ -54,7 +60,7 @@ export interface GalleryPhotoItem {
         </header>
 
         <!-- Main Photo Stage with Navigation Arrows -->
-        <div class="relative flex-1 bg-slate-950 flex items-center justify-center min-h-[300px] sm:min-h-[440px] max-h-[58vh] overflow-hidden select-none">
+        <div class="relative flex-1 min-h-0 h-[48vh] sm:h-[54vh] bg-slate-950 flex items-center justify-center max-h-[58vh] overflow-hidden select-none">
           <!-- Previous Button -->
           <button
             *ngIf="photos.length > 1"
@@ -68,14 +74,16 @@ export interface GalleryPhotoItem {
           </button>
 
           <!-- Active Photo Image Display -->
-          <div class="w-full h-full flex items-center justify-center p-2 sm:p-4">
+          <div class="absolute inset-0 flex items-center justify-center p-2 sm:p-4">
             <img
-              *ngIf="currentPhoto()"
+              *ngIf="currentPhoto() && !currentImageFailed(); else missingImage"
               [src]="currentPhoto()?.url"
               [alt]="currentPhoto()?.title || title"
-              class="max-w-full max-h-[54vh] object-contain rounded-xl shadow-2xl transition-all duration-300 ease-out"
+              class="w-full h-full min-h-0 object-contain rounded-xl shadow-2xl transition-all duration-300 ease-out"
               loading="eager"
+              (error)="onImageError($event)"
             />
+            <ng-template #missingImage><p class="p-6 text-sm text-slate-200" role="status">{{ currentPhoto() ? 'Không tải được ảnh. Bạn có thể xem ảnh khác hoặc đóng thư viện.' : 'Chưa có ảnh' }}</p></ng-template>
           </div>
 
           <!-- Next Button -->
@@ -99,17 +107,19 @@ export interface GalleryPhotoItem {
         </div>
 
         <!-- Thumbnails Strip Bar -->
-        <footer class="p-3 sm:p-4 bg-slate-950/90 border-t border-slate-800 shrink-0">
+        <footer *ngIf="photos.length" class="p-3 sm:p-4 bg-slate-950/90 border-t border-slate-800 shrink-0">
           <div class="flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-700">
             <button
               *ngFor="let photo of photos; let i = index"
               type="button"
               (click)="selectPhoto(i)"
+              [attr.aria-label]="'Xem ảnh ' + (i + 1) + ': ' + (photo.title || title || 'Ảnh cơ sở')"
+              [attr.aria-current]="currentIndex() === i ? 'true' : null"
               [class.ring-2]="currentIndex() === i"
               [class.ring-indigo-500]="currentIndex() === i"
               [class.opacity-100]="currentIndex() === i"
               [class.opacity-45]="currentIndex() !== i"
-              class="relative w-16 h-12 sm:w-20 sm:h-14 rounded-xl overflow-hidden shrink-0 border border-slate-700 hover:opacity-100 transition-all focus:outline-none">
+              class="relative w-16 h-12 sm:w-20 sm:h-14 rounded-xl overflow-hidden shrink-0 border border-slate-700 hover:opacity-100 transition-all focus-visible:outline-2 focus-visible:outline-indigo-300">
               <img
                 [src]="photo.url"
                 [alt]="photo.title"
@@ -131,22 +141,32 @@ export interface GalleryPhotoItem {
     .animate-fadeIn {
       animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
+    @media (prefers-reduced-motion: reduce) {
+      .animate-fadeIn { animation: none; }
+    }
   `]
 })
 export class PhotoGalleryModalComponent {
   @Input() isOpen = false;
   @Input() title = '';
-  @Input() photos: GalleryPhotoItem[] = [];
+  private readonly photoList = signal<GalleryPhotoItem[]>([]);
+  private readonly selectedIndex = signal(0);
+  private readonly failedUrls = signal<string[]>([]);
+
+  @Input() set photos(value: GalleryPhotoItem[]) {
+    this.photoList.set((value ?? []).filter(photo => !!photo.url?.trim()));
+    this.selectedIndex.set(this.currentIndex());
+    this.failedUrls.set([]);
+  }
+  get photos(): GalleryPhotoItem[] { return this.photoList(); }
 
   @Input() set activeIndex(val: number) {
-    if (val >= 0 && val < (this.photos?.length || 1)) {
-      this.currentIndex.set(val);
-    }
+    if (Number.isInteger(val) && val >= 0) this.selectedIndex.set(val);
   }
 
   @Output() close = new EventEmitter<void>();
 
-  currentIndex = signal<number>(0);
+  readonly currentIndex = computed(() => Math.min(this.selectedIndex(), Math.max(0, this.photoList().length - 1)));
 
   currentPhoto = computed(() => {
     const list = this.photos;
@@ -155,9 +175,19 @@ export class PhotoGalleryModalComponent {
     return list[idx] || list[0];
   });
 
-  @HostListener('document:keydown', ['$event'])
+  readonly currentImageFailed = computed(() => this.failedUrls().includes(this.currentPhoto()?.url ?? ''));
+
+  onImageError(event: Event): void {
+    const url = (event.target as HTMLImageElement).getAttribute('src');
+    if (url && !this.failedUrls().includes(url)) this.failedUrls.update(urls => [...urls, url]);
+  }
+
   handleKeyboardEvent(event: KeyboardEvent): void {
     if (!this.isOpen) return;
+
+    if (!['Escape', 'ArrowLeft', 'ArrowRight'].includes(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;
+    event.preventDefault();
+    event.stopPropagation();
 
     if (event.key === 'Escape') {
       this.closeModal();
@@ -175,24 +205,24 @@ export class PhotoGalleryModalComponent {
   }
 
   selectPhoto(index: number): void {
-    this.currentIndex.set(index);
+    if (this.isOpen && Number.isInteger(index) && index >= 0 && index < this.photos.length) this.selectedIndex.set(index);
   }
 
   prevPhoto(): void {
     const total = this.photos.length;
-    if (total <= 1) return;
+    if (!this.isOpen || total <= 1) return;
     const cur = this.currentIndex();
-    this.currentIndex.set(cur === 0 ? total - 1 : cur - 1);
+    this.selectedIndex.set(cur === 0 ? total - 1 : cur - 1);
   }
 
   nextPhoto(): void {
     const total = this.photos.length;
-    if (total <= 1) return;
+    if (!this.isOpen || total <= 1) return;
     const cur = this.currentIndex();
-    this.currentIndex.set(cur === total - 1 ? 0 : cur + 1);
+    this.selectedIndex.set(cur === total - 1 ? 0 : cur + 1);
   }
 
   closeModal(): void {
-    this.close.emit();
+    if (this.isOpen) this.close.emit();
   }
 }

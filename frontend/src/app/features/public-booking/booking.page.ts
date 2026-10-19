@@ -2,15 +2,23 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   inject,
   OnInit,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { of } from 'rxjs';
+import { readPublicStay } from '../../core/models/public-stay-context';
 import { BookingFilterBarComponent } from './components/booking-filter-bar/booking-filter-bar.component';
 import { PopularDestinationsComponent } from './components/popular-destinations/popular-destinations.component';
+import { FlashDealsBannerComponent } from './components/flash-deals-banner/flash-deals-banner.component';
+import { TrustPillarsComponent } from './components/trust-pillars/trust-pillars.component';
+import { CuratedBentoGridComponent } from './components/curated-bento-grid/curated-bento-grid.component';
+import { HotelierCtaBannerComponent } from './components/hotelier-cta-banner/hotelier-cta-banner.component';
 import { AiConciergeWidgetComponent } from './ai-concierge-widget/ai-concierge-widget.component';
 import {
   BookingSortOption,
@@ -23,7 +31,6 @@ import {
   SuggestedFilterChipDto,
 } from '../../core/models/public-booking.model';
 import { PublicBookingService } from '../../core/services/public-booking.service';
-import { AlertService } from '../../core/services/alert.service';
 import {
   EmptyStateComponent,
   LoadingSpinnerComponent,
@@ -46,8 +53,13 @@ interface TenantBrandFacet {
   imports: [
     CommonModule,
     FormsModule,
+    RouterLink,
     BookingFilterBarComponent,
     PopularDestinationsComponent,
+    FlashDealsBannerComponent,
+    TrustPillarsComponent,
+    CuratedBentoGridComponent,
+    HotelierCtaBannerComponent,
     AiConciergeWidgetComponent,
     EmptyStateComponent,
     LoadingSpinnerComponent,
@@ -59,25 +71,66 @@ interface TenantBrandFacet {
     <div class="min-h-screen bg-slate-50 pb-16">
       <!-- HERO BANNER & THANH TÌM KIẾM ĐA NĂNG -->
       <div
-        class="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white pt-8 pb-14 px-4 sm:px-6 lg:px-8"
+        class="bg-gradient-to-b from-indigo-950 via-slate-900 to-indigo-900 text-white pt-12 pb-14 px-4 sm:px-6 lg:px-8 relative overflow-hidden"
       >
-        <div class="max-w-7xl mx-auto">
-          <div class="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
+        <!-- Background decorative ambient circles -->
+        <div class="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-indigo-500/15 blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-rose-500/10 blur-3xl pointer-events-none"></div>
+
+        <div class="max-w-7xl mx-auto relative z-10">
+          <div class="max-w-3xl mb-8">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-indigo-200 text-xs font-semibold mb-3">
+              <i class="pi pi-sparkles text-amber-400"></i>
+              <span>Khám phá nhiều loại hình lưu trú</span>
+            </div>
             <div>
-              <span
-                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 mb-3"
-              >
-                <i class="pi pi-verified"></i>
-                Hệ thống Đặt phòng Đa Chi nhánh • Hotel, Motel, Nhà nghỉ & Homestay
-              </span>
-              <h1 class="text-2xl sm:text-4xl font-extrabold tracking-tight">
-                Đặt phòng theo Địa danh, Khu du lịch & Khung giờ linh hoạt
+              <h1 class="text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
+                Khám Phá Chỗ Nghỉ Hoàn Hảo & Tận Hưởng Kỳ Nghỉ Trong Mơ
               </h1>
             </div>
-            <p class="text-xs sm:text-sm text-indigo-200 max-w-md">
-              Tồn kho thời gian thực đồng bộ trực tiếp với lễ tân từng cơ sở. Hỗ trợ giữ chỗ
-              tức thì theo giờ, qua đêm và dài ngày.
+            <p class="text-sm sm:text-base text-slate-300 max-w-2xl mt-3 leading-relaxed">
+              Tìm khách sạn, homestay và resort phù hợp với chuyến đi. Xem giá, tiện nghi và hình thức lưu trú được từng cơ sở hỗ trợ trước khi đặt phòng.
             </p>
+
+            <!-- Quick Category Tags -->
+            <div class="mt-4 flex flex-wrap items-center gap-2 text-xs">
+              <span class="text-slate-400 text-[11px] font-medium mr-1">Gợi ý điểm đến:</span>
+              <button
+                type="button"
+                (click)="selectCategoryQuickTag('Đà Lạt')"
+                class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] transition-colors border border-white/10 cursor-pointer"
+              >
+                🌸 Đà Lạt Săn Mây
+              </button>
+              <button
+                type="button"
+                (click)="selectCategoryQuickTag('Phú Quốc')"
+                class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] transition-colors border border-white/10 cursor-pointer"
+              >
+                🏝️ Đảo Ngọc Phú Quốc
+              </button>
+              <button
+                type="button"
+                (click)="selectCategoryQuickTag('Đà Nẵng')"
+                class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] transition-colors border border-white/10 cursor-pointer"
+              >
+                🌉 Đà Nẵng Biển Mỹ Khê
+              </button>
+              <button
+                type="button"
+                (click)="selectCategoryQuickTag('Vũng Tàu')"
+                class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] transition-colors border border-white/10 cursor-pointer"
+              >
+                🌊 Vũng Tàu Bãi Sau
+              </button>
+              <button
+                type="button"
+                (click)="selectCategoryQuickTag('Hà Nội')"
+                class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] transition-colors border border-white/10 cursor-pointer"
+              >
+                🏛️ Hà Nội Phố Cổ
+              </button>
+            </div>
           </div>
 
           <!-- Component Thanh Tìm Kiếm -->
@@ -90,13 +143,19 @@ interface TenantBrandFacet {
       </div>
 
       <!-- NỘI DUNG CHÍNH -->
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        <!-- Khối Flash Deals & Voucher độc quyền hôm nay -->
+        <app-flash-deals-banner (applyCode)="onApplyPromoCode($event)" />
+
         <!-- Điểm đến & Khu du lịch nổi bật -->
-        <div class="mb-6">
+        <div class="mb-8">
           <app-popular-destinations
             (selectDestination)="onPopularDestinationClick($event)"
           />
         </div>
+
+        <!-- 4 Trụ Cột Cam Kết Dịch Vụ & An Tâm Đặt Phòng -->
+        <app-trust-pillars />
 
         <!-- SMART AI FILTER CHIPS ROW -->
         @if (smartFilterChips().length > 0) {
@@ -141,7 +200,7 @@ interface TenantBrandFacet {
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <!-- SIDEBAR BỘ LỌC CHUYÊN SÂU (3 CỘT) -->
           <aside
-            class="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-6 sticky top-4"
+            class="lg:col-span-3 bg-white rounded-2xl border border-slate-200 p-5 space-y-6 lg:sticky lg:top-24"
           >
             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
               <h2 class="font-bold text-slate-800 text-sm flex items-center gap-2">
@@ -269,11 +328,12 @@ interface TenantBrandFacet {
               </div>
 
               <div class="flex items-center gap-2">
-                <label class="text-xs text-slate-500 font-medium">Sắp xếp:</label>
+                <label for="booking-sort" class="text-sm text-slate-600 font-medium">Sắp xếp:</label>
                 <select
+                  id="booking-sort"
                   [ngModel]="sortBy()"
                   (ngModelChange)="onSortChange($event)"
-                  class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 bg-white"
+                  class="min-h-11 px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-700 bg-white"
                 >
                   <option value="recommended">Đề xuất tốt nhất</option>
                   <option value="distance_asc">Gần địa danh nhất</option>
@@ -288,6 +348,11 @@ interface TenantBrandFacet {
             @if (isLoading()) {
               <div class="bg-white rounded-2xl p-12 border border-slate-200 flex justify-center">
                 <app-loading-spinner />
+              </div>
+            } @else if (loadError()) {
+              <div class="bg-white rounded-2xl p-8 border border-slate-200" role="alert">
+                <p class="text-slate-800 mb-4">Chưa tải được danh sách chỗ nghỉ. Vui lòng thử lại.</p>
+                <button type="button" (click)="retryProperties()" class="min-h-11 px-4 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700">Thử lại</button>
               </div>
             } @else if (filteredProperties().length === 0) {
               <div class="bg-white rounded-2xl p-8 border border-slate-200">
@@ -305,11 +370,15 @@ interface TenantBrandFacet {
                   <div class="grid grid-cols-1 md:grid-cols-12">
                     <!-- Ảnh đại diện & Thư viện ảnh cơ sở (4 cột) -->
                     <div class="md:col-span-4 relative group bg-slate-100 min-h-56">
+                      @if (property.thumbnailUrl) {
                       <img
                         [src]="property.thumbnailUrl"
                         [alt]="property.name"
                         class="w-full h-full object-cover"
                       />
+                      } @else {
+                        <div class="min-h-56 h-full flex items-center justify-center text-sm text-slate-600 p-6">Cơ sở chưa cập nhật ảnh</div>
+                      }
                       <!-- Badge Loại hình (Hotel / Nhà nghỉ / Motel / Homestay) -->
                       <div class="absolute top-3 left-3 flex flex-wrap gap-1.5">
                         <span
@@ -318,22 +387,26 @@ interface TenantBrandFacet {
                         >
                           {{ getPropertyTypeLabel(property.propertyType) }}
                         </span>
+                        @if (property.tenantBrandName) {
                         <span
                           class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-900/80 text-white backdrop-blur-sm"
                         >
                           {{ property.tenantBrandName }}
                         </span>
+                        }
                       </div>
 
                       <!-- Nút mở Gallery ảnh -->
+                      @if (property.galleryUrls.length) {
                       <button
                         type="button"
                         (click)="openPhotoGallery(property)"
                         class="absolute bottom-3 right-3 px-2.5 py-1.5 rounded-lg bg-slate-900/75 hover:bg-slate-900 text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer"
                       >
                         <i class="pi pi-images"></i>
-                        <span>Xem ảnh ({{ property.galleryUrls.length || 1 }})</span>
+                        <span>Xem ảnh ({{ property.galleryUrls.length }})</span>
                       </button>
+                      }
                     </div>
 
                     <!-- Thông tin Cơ sở, Địa danh & Hạng phòng (8 cột) -->
@@ -344,7 +417,7 @@ interface TenantBrandFacet {
                           <div>
                             <div class="flex items-center gap-2 flex-wrap">
                               <h3 class="text-lg font-bold text-slate-900">
-                                {{ property.name }}
+                                <a [routerLink]="['/booking/properties', property.slug]" [queryParams]="searchFilter()" class="hover:text-indigo-700 hover:underline">{{ property.name }}</a>
                               </h3>
                               @if (property.starRating) {
                                 <span class="text-amber-400 text-xs">
@@ -355,13 +428,13 @@ interface TenantBrandFacet {
                             <p class="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
                               <i class="pi pi-map-marker text-indigo-600"></i>
                               <span>
-                                {{ property.addressLine }}, {{ property.wardName }},
-                                {{ property.provinceName }}
+                                {{ getPropertyAddress(property) }}
                               </span>
                             </p>
                           </div>
 
                           <div class="text-right shrink-0">
+                            @if (property.reviewCount > 0 && property.ratingAverage > 0) {
                             <div
                               class="inline-flex items-center gap-1.5 bg-indigo-600 text-white px-2.5 py-1 rounded-xl text-xs font-bold"
                             >
@@ -371,6 +444,9 @@ interface TenantBrandFacet {
                             <p class="text-[11px] text-slate-400 mt-0.5">
                               {{ property.reviewCount }} đánh giá
                             </p>
+                            } @else {
+                              <span class="text-xs text-slate-600">Chưa có đánh giá</span>
+                            }
                           </div>
                         </div>
 
@@ -436,19 +512,12 @@ interface TenantBrandFacet {
                                   <span class="font-bold text-sm text-slate-800">
                                     {{ roomType.name }}
                                   </span>
-                                  <span
-                                    class="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                                    [class.bg-rose-100]="roomType.availableRoomsCount <= 2"
-                                    [class.text-rose-700]="roomType.availableRoomsCount <= 2"
-                                    [class.bg-emerald-100]="roomType.availableRoomsCount > 2"
-                                    [class.text-emerald-700]="roomType.availableRoomsCount > 2"
-                                  >
-                                    Còn {{ roomType.availableRoomsCount }} phòng trống
+                                  <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                                    Kiểm tra phòng trống tại chi tiết
                                   </span>
                                 </div>
                                 <p class="text-xs text-slate-500 mt-0.5">
-                                  {{ roomType.bedConfiguration }} • {{ roomType.areaSqm }}m² • Tối
-                                  đa {{ roomType.maxGuests }} khách
+                                  {{ getRoomMetadata(roomType) }}
                                 </p>
                                 <button
                                   type="button"
@@ -463,6 +532,7 @@ interface TenantBrandFacet {
                               <!-- Cột Giá theo Chế độ đang chọn & Nút Giữ chỗ -->
                               <div class="sm:text-right flex sm:flex-col items-center sm:items-end justify-between gap-2">
                                 <div>
+                                  @if (getRoomDisplayPrice(roomType) > 0) {
                                   <div class="text-lg font-extrabold text-indigo-600">
                                     {{
                                       getRoomDisplayPrice(roomType)
@@ -472,17 +542,24 @@ interface TenantBrandFacet {
                                   <p class="text-[11px] text-slate-500">
                                     {{ getRoomPriceUnitLabel(roomType) }}
                                   </p>
+                                  } @else {
+                                    <p class="text-sm text-slate-600">Chưa công bố giá</p>
+                                  }
                                 </div>
 
                                 <button
                                   type="button"
+                                  [disabled]="!roomType.roomTypeId"
                                   (click)="createHoldAndProceed(property, roomType)"
-                                  class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer shrink-0"
+                                  class="min-h-11 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold shadow-sm transition-all cursor-pointer shrink-0"
                                 >
-                                  Giữ phòng ngay
+                                  Tiếp tục đặt phòng
                                 </button>
                               </div>
                             </div>
+                          } @empty {
+                            <p class="text-sm text-slate-600">Xem hạng phòng, lịch trống và giá tại chi tiết cơ sở.</p>
+                            <a [routerLink]="['/booking/properties', property.slug]" [queryParams]="searchFilter()" class="inline-flex items-center min-h-11 text-sm font-semibold text-indigo-700 hover:underline">Xem chi tiết cơ sở <i class="pi pi-arrow-right ml-2" aria-hidden="true"></i></a>
                           }
                         </div>
                       </div>
@@ -493,6 +570,13 @@ interface TenantBrandFacet {
             }
           </main>
         </div>
+
+        <!-- Bento Grid Khám Phá Theo Phong Cách Nghỉ Dưỡng -->
+        <app-curated-bento-grid (selectCategory)="onSelectCuratedCategory($event)" />
+
+        <!-- Banner Kêu Gọi Chủ Cơ Sở & Đối Tác Khách Sạn SaaS -->
+        <app-hotelier-cta-banner />
+
       </div>
 
       <!-- TRỢ LÝ AI TÌM PHÒNG TIẾNG VIỆT (KHÔNG BỊA GIÁ) -->
@@ -510,6 +594,7 @@ interface TenantBrandFacet {
       <app-room-detail-modal
         [isOpen]="isRoomDetailOpen()"
         [roomType]="selectedRoomDetail()"
+        [displayPrice]="selectedRoomDetail() ? getRoomDisplayPrice(selectedRoomDetail()!) : 0"
         [propertyName]="selectedRoomPropertyName()"
         (close)="closeRoomDetailModal()"
         (select)="onRoomSelectedFromModal($event)"
@@ -518,8 +603,8 @@ interface TenantBrandFacet {
   `,
 })
 export class BookingPageComponent implements OnInit {
+  readonly stayTypes: readonly PropertyType[] = ['Hotel', 'Resort', 'Homestay', 'Guesthouse'];
   private readonly publicBookingService = inject(PublicBookingService);
-  private readonly alertService = inject(AlertService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
@@ -529,6 +614,7 @@ export class BookingPageComponent implements OnInit {
   readonly destinationSuggestions = signal<DestinationSuggestionDto[]>([]);
   readonly selectedTenantId = signal<string | null>(null);
   readonly maxDistanceMeters = signal<number | null>(null);
+  readonly loadError = signal(false);
   readonly selectedPriceRangeKey = signal<string>('all');
   readonly minPrice = signal<number | null>(null);
   readonly maxPrice = signal<number | null>(null);
@@ -543,6 +629,9 @@ export class BookingPageComponent implements OnInit {
   readonly isRoomDetailOpen = signal<boolean>(false);
   readonly selectedRoomDetail = signal<PublicRoomTypeAvailabilityDto | null>(null);
   readonly selectedRoomPropertyName = signal<string>('');
+  readonly selectedRoomPropertyId = signal<string>('');
+  private readonly destroyRef = inject(DestroyRef);
+  private requestGeneration = 0;
 
   readonly searchFilter = signal<PublicBookingSearchFilter>({
     rentalType: 'Daily',
@@ -591,7 +680,7 @@ export class BookingPageComponent implements OnInit {
   readonly currentRentalModeLabel = computed<string>(() => {
     const mode = this.searchFilter().rentalType;
     if (mode === 'Hourly') return `Theo giờ (${this.searchFilter().durationHours} giờ)`;
-    if (mode === 'Overnight') return 'Qua đêm (21:00 - 10:00)';
+    if (mode === 'Overnight') return 'Qua đêm';
     return 'Theo ngày/đêm';
   });
 
@@ -599,6 +688,7 @@ export class BookingPageComponent implements OnInit {
   readonly tenantBrandFacets = computed<TenantBrandFacet[]>(() => {
     const map = new Map<string, TenantBrandFacet>();
     for (const prop of this.properties()) {
+      if (!prop.tenantId || !prop.tenantBrandName) continue;
       const existing = map.get(prop.tenantId);
       if (existing) {
         existing.branchCount += 1;
@@ -647,10 +737,11 @@ export class BookingPageComponent implements OnInit {
             ...prop.nearbyLandmarks.map((l) => l.distanceMeters)
           );
           if (minLandmarkDist > maxDist) return false;
-        }
+        } else return false;
       }
       // 5. Lọc theo ngân sách
       const price = prop.startingPriceForSelectedMode;
+      if ((minP !== null || maxP !== null) && !(price > 0)) return false;
       if (minP !== null && price < minP) return false;
       if (maxP !== null && price > maxP) return false;
 
@@ -663,9 +754,13 @@ export class BookingPageComponent implements OnInit {
         return a.isExpandedNearbySuggestion ? 1 : -1;
       }
       if (sort === 'price_asc') {
+        if (!(a.startingPriceForSelectedMode > 0)) return b.startingPriceForSelectedMode > 0 ? 1 : 0;
+        if (!(b.startingPriceForSelectedMode > 0)) return -1;
         return a.startingPriceForSelectedMode - b.startingPriceForSelectedMode;
       }
       if (sort === 'price_desc') {
+        if (!(a.startingPriceForSelectedMode > 0)) return b.startingPriceForSelectedMode > 0 ? 1 : 0;
+        if (!(b.startingPriceForSelectedMode > 0)) return -1;
         return b.startingPriceForSelectedMode - a.startingPriceForSelectedMode;
       }
       if (sort === 'rating_desc') {
@@ -682,7 +777,40 @@ export class BookingPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.seedDefaultDestinationSuggestions();
-    this.loadPublicProperties();
+    (this.route.queryParams ?? of(this.route.snapshot.queryParams ?? {})).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+      try {
+        const nonNegative = (value: unknown): number | null => {
+          if (value == null || value === '') return null;
+          const parsed = Number(value);
+          return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+        };
+        this.selectedTenantId.set(typeof params['selectedTenantId'] === 'string' ? params['selectedTenantId'] : null);
+        this.maxDistanceMeters.set(nonNegative(params['maxDistanceMeters']));
+        this.minPrice.set(nonNegative(params['minPrice']));
+        this.maxPrice.set(nonNegative(params['maxPrice']));
+        if (this.minPrice() !== null && this.maxPrice() !== null && this.minPrice()! > this.maxPrice()!) {
+          this.minPrice.set(null);
+          this.maxPrice.set(null);
+        }
+        this.selectedPriceRangeKey.set(this.priceRangeOptions.find(range => range.min === this.minPrice() && range.max === this.maxPrice())?.key ?? 'custom');
+        const sort = params['sortBy'];
+        this.sortBy.set(['recommended', 'price_asc', 'price_desc', 'rating_desc', 'distance_asc'].includes(sort) ? sort : 'recommended');
+        this.searchFilter.update(filter => ({ ...filter, ...readPublicStay(params), destinationKeyword: String(params['destinationKeyword'] ?? ''),
+          maxDistanceMeters: this.maxDistanceMeters(), minPrice: this.minPrice(), maxPrice: this.maxPrice(), sortBy: this.sortBy(),
+          touristZoneSlug: params['touristZoneSlug'] || null, landmarkSlug: params['landmarkSlug'] || null,
+          provinceCode: params['provinceCode'] || null,
+          propertyTypes: String(params['propertyTypes'] ?? '').split(',').filter((type): type is PropertyType => ['Hotel', 'Motel', 'Guesthouse', 'Homestay', 'Resort'].includes(type)),
+          userLatitude: params['userLatitude'] != null && Number.isFinite(Number(params['userLatitude'])) ? Number(params['userLatitude']) : null,
+          userLongitude: params['userLongitude'] != null && Number.isFinite(Number(params['userLongitude'])) ? Number(params['userLongitude']) : null }));
+        this.loadPublicProperties();
+      } catch {
+        ++this.requestGeneration;
+        this.isLoading.set(false);
+        this.loadError.set(true);
+        this.properties.set([]);
+        this.smartFilterChips.set([]);
+      }
+    });
   }
 
   onFilterBarChange(updatedFilter: PublicBookingSearchFilter): void {
@@ -693,33 +821,43 @@ export class BookingPageComponent implements OnInit {
       maxPrice: this.maxPrice(),
       sortBy: this.sortBy(),
     });
-    this.loadPublicProperties();
+    if (!this.route.queryParams) this.loadPublicProperties();
+    this.router.navigate([], { relativeTo: this.route, queryParams: { ...this.searchFilter(), selectedTenantId: this.selectedTenantId(), propertyTypes: this.searchFilter().propertyTypes.join(',') } });
   }
 
   onPopularDestinationClick(destinationKeyword: string): void {
     this.searchFilter.update((prev) => ({
       ...prev,
       destinationKeyword,
+      provinceCode: null,
+      touristZoneSlug: null,
+      landmarkSlug: null,
+      userLatitude: null,
+      userLongitude: null,
     }));
-    this.loadPublicProperties();
+    this.onFilterBarChange(this.searchFilter());
   }
 
   selectTenantBrand(tenantId: string | null): void {
     this.selectedTenantId.set(tenantId);
+    this.onFilterBarChange(this.searchFilter());
   }
 
   setMaxDistance(meters: number | null): void {
     this.maxDistanceMeters.set(meters);
+    this.onFilterBarChange(this.searchFilter());
   }
 
   applyPriceRange(key: string, min: number | null, max: number | null): void {
     this.selectedPriceRangeKey.set(key);
     this.minPrice.set(min);
     this.maxPrice.set(max);
+    this.onFilterBarChange(this.searchFilter());
   }
 
   onSortChange(sort: BookingSortOption): void {
     this.sortBy.set(sort);
+    this.onFilterBarChange(this.searchFilter());
   }
 
   resetSidebarFilters(): void {
@@ -729,6 +867,7 @@ export class BookingPageComponent implements OnInit {
     this.minPrice.set(null);
     this.maxPrice.set(null);
     this.sortBy.set('recommended');
+    this.onFilterBarChange(this.searchFilter());
   }
 
   // --- SMART AI FILTER CHIPS ---
@@ -741,7 +880,6 @@ export class BookingPageComponent implements OnInit {
         ...f,
         destinationKeyword: f.destinationKeyword === chip.filterValue ? '' : chip.filterValue,
       }));
-      this.loadPublicProperties();
     } else if (chip.filterKey === 'maxPrice') {
       const current = this.maxPrice();
       this.maxPrice.set(current === chip.filterValue ? null : chip.filterValue);
@@ -750,8 +888,8 @@ export class BookingPageComponent implements OnInit {
         ...f,
         rentalType: chip.filterValue,
       }));
-      this.loadPublicProperties();
     }
+    this.onFilterBarChange(this.searchFilter());
   }
 
   isChipActive(chip: SuggestedFilterChipDto): boolean {
@@ -872,9 +1010,12 @@ export class BookingPageComponent implements OnInit {
   getRoomDisplayPrice(roomType: PublicRoomTypeAvailabilityDto): number {
     const mode = this.searchFilter().rentalType;
     if (mode === 'Hourly') {
-      const baseHours = roomType.hourlyBaseHours ?? 2;
-      const basePrice = roomType.hourlyBasePrice ?? roomType.calculatedQuoteTotal;
+      if (roomType.calculatedQuoteTotal > 0) return roomType.calculatedQuoteTotal;
+      const baseHours = roomType.hourlyBaseHours;
+      const basePrice = roomType.hourlyBasePrice;
+      if (!baseHours || !basePrice) return 0;
       const extraHours = Math.max(0, this.searchFilter().durationHours - baseHours);
+      if (extraHours > 0 && roomType.hourlyExtraHourPrice == null) return 0;
       const extraPrice = extraHours * (roomType.hourlyExtraHourPrice ?? 0);
       return basePrice + extraPrice;
     }
@@ -887,12 +1028,21 @@ export class BookingPageComponent implements OnInit {
   getRoomPriceUnitLabel(roomType: PublicRoomTypeAvailabilityDto): string {
     const mode = this.searchFilter().rentalType;
     if (mode === 'Hourly') {
-      return `Trọn gói ${this.searchFilter().durationHours} giờ (${roomType.hourlyBaseHours ?? 2}h đầu + phụ thu)`;
+      return `Giá tham khảo ${this.searchFilter().durationHours} giờ; xác nhận khi đặt`;
     }
     if (mode === 'Overnight') {
-      return 'Giá trọn gói qua đêm (21:00 - 10:00)';
+      return 'Giá qua đêm; giờ nhận/trả theo cơ sở';
     }
-    return 'Giá mỗi đêm (đã gồm thuế phí cơ bản)';
+    return 'Giá mỗi đêm; tổng thanh toán xác nhận khi đặt';
+  }
+
+  getPropertyAddress(property: PublicPropertyDto): string {
+    return [property.addressLine, property.wardName, property.provinceName].filter(Boolean).join(', ') || 'Chưa công bố địa chỉ';
+  }
+
+  getRoomMetadata(room: PublicRoomTypeAvailabilityDto): string {
+    return [room.bedConfiguration, room.areaSqm ? `${room.areaSqm}m²` : '',
+      room.maxGuests > 0 ? `Tối đa ${room.maxGuests} khách` : ''].filter(Boolean).join(' • ') || 'Chưa công bố thông tin phòng';
   }
 
   // --- ACTIONS: XEM CHI TIẾT & GIỮ PHÒNG (GUEST HOLD) ---
@@ -917,6 +1067,7 @@ export class BookingPageComponent implements OnInit {
   }
 
   openPhotoGallery(property: PublicPropertyDto): void {
+    if (!property.galleryUrls.length && !property.thumbnailUrl) return;
     const photos: GalleryPhotoItem[] = (property.galleryUrls || []).map((url, i) => ({
       url,
       title: `${property.name} - Ảnh ${i + 1}`,
@@ -938,6 +1089,7 @@ export class BookingPageComponent implements OnInit {
     roomType: PublicRoomTypeAvailabilityDto
   ): void {
     this.selectedRoomPropertyName.set(property.name);
+    this.selectedRoomPropertyId.set(property.propertyId);
     this.selectedRoomDetail.set(roomType);
     this.isRoomDetailOpen.set(true);
   }
@@ -948,7 +1100,7 @@ export class BookingPageComponent implements OnInit {
 
   onRoomSelectedFromModal(roomType: PublicRoomTypeAvailabilityDto): void {
     this.isRoomDetailOpen.set(false);
-    const prop = this.properties().find((p) => p.name === this.selectedRoomPropertyName());
+    const prop = this.properties().find((p) => p.propertyId === this.selectedRoomPropertyId());
     if (prop) {
       this.createHoldAndProceed(prop, roomType);
     }
@@ -1003,8 +1155,14 @@ export class BookingPageComponent implements OnInit {
     return `${(meters / 1000).toFixed(1)}km`;
   }
 
+  retryProperties(): void {
+    this.loadPublicProperties();
+  }
+
   private loadPublicProperties(): void {
+    const generation = ++this.requestGeneration;
     this.isLoading.set(true);
+    this.loadError.set(false);
     const filter = this.searchFilter();
 
     const serviceFilter = {
@@ -1021,32 +1179,32 @@ export class BookingPageComponent implements OnInit {
       pageSize: filter.pageSize,
     };
 
-    this.publicBookingService.getProperties(serviceFilter).subscribe({
+    this.publicBookingService.getProperties(serviceFilter).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (props) => {
+        if (generation !== this.requestGeneration) return;
         if (props && props.length > 0) {
           const mappedList: PublicPropertyDto[] = props.map((p: any) => {
-            const allowedModes: RentalType[] = [
-              ...(p.allowDailyBooking !== false ? ['Daily' as RentalType] : []),
-              ...(p.allowHourlyBooking !== false ? ['Hourly' as RentalType] : []),
-              ...(p.allowOvernightBooking !== false ? ['Overnight' as RentalType] : []),
+            const allowedModes: RentalType[] = p.allowedRentalTypes ?? [
+              ...(p.allowDailyBooking === true ? ['Daily' as RentalType] : []),
+              ...(p.allowHourlyBooking === true ? ['Hourly' as RentalType] : []),
+              ...(p.allowOvernightBooking === true ? ['Overnight' as RentalType] : []),
             ];
 
-            const landmarks = (p.nearbyLandmarks || []).map((l: any, idx: number) => ({
+            const landmarks = (p.nearbyLandmarks || []).filter((landmark: { distanceMeters?: number; distanceKm?: number }) =>
+              Number.isFinite(landmark.distanceMeters ?? (landmark.distanceKm != null ? landmark.distanceKm * 1000 : undefined)))
+              .map((l: any, idx: number) => ({
               landmarkId: l.landmarkId || `lm-${idx}`,
               landmarkName: l.name || l.landmarkName || 'Địa danh',
               landmarkSlug: l.slug || l.landmarkSlug || 'dia-danh',
               category: (l.category || 'Center') as any,
-              distanceMeters: l.distanceMeters ?? Math.round((l.distanceKm ?? 0.5) * 1000),
+              distanceMeters: l.distanceMeters ?? Math.round(l.distanceKm * 1000),
             }));
 
-            let startPrice = p.startingPrice || 350000;
-            if (filter.rentalType === 'Hourly' && p.hourlyStartingPrice) {
-              startPrice = p.hourlyStartingPrice;
-            } else if (filter.rentalType === 'Overnight' && p.overnightStartingPrice) {
-              startPrice = p.overnightStartingPrice;
-            } else if (filter.rentalType === 'Daily' && p.dailyStartingPrice) {
-              startPrice = p.dailyStartingPrice;
-            }
+            const startPrice = (filter.rentalType === 'Hourly'
+              ? p.hourlyStartingPrice ?? p.hourlyPriceFrom
+              : filter.rentalType === 'Overnight'
+                ? p.overnightStartingPrice ?? p.overnightPriceFrom
+                : p.dailyStartingPrice ?? p.dailyPriceFrom) ?? p.startingPriceForSelectedMode ?? p.startingPrice ?? 0;
 
             const pType: PropertyType = (typeof p.propertyType === 'string'
               ? p.propertyType
@@ -1055,38 +1213,35 @@ export class BookingPageComponent implements OnInit {
             return {
               propertyId: p.propertyId || p.id || '',
               id: p.id || p.propertyId,
-              tenantId: p.tenantId || 'tenant-hq-01',
-              tenantBrandName: p.tenantBrandName || p.name || 'Hệ thống Khách sạn & Nhà nghỉ liên kết',
+              tenantId: p.tenantId || '',
+              tenantBrandName: p.tenantBrandName || '',
               name: p.name,
               code: p.code || '',
               slug: p.slug,
               propertyType: pType,
-              starRating: p.starRating ?? 4,
-              addressLine: p.addressLine || p.address || 'Đường Lê Đại Hành',
-              address: p.address || p.addressLine || 'Đường Lê Đại Hành',
-              wardName: p.wardName || 'Phường 1',
-              city: p.city || 'Đà Lạt',
-              provinceCode: p.provinceCode || '68',
-              provinceName: p.provinceName || p.city || 'Lâm Đồng',
-              touristZoneName: p.touristZoneName || 'Trung tâm Đà Lạt',
+              starRating: p.starRating ?? 0,
+              addressLine: p.addressLine || p.address || '',
+              address: p.address || p.addressLine || '',
+              wardName: p.wardName || '',
+              city: p.city || '',
+              provinceCode: p.provinceCode || '',
+              provinceName: p.provinceName || p.city || '',
+              touristZoneName: p.touristZoneName || '',
               touristZoneSlug: p.touristZoneSlug || '',
               latitude: p.latitude,
               longitude: p.longitude,
-              thumbnailUrl: p.thumbnailUrl || p.imageUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80',
+              thumbnailUrl: p.thumbnailUrl || p.imageUrl || '',
               imageUrl: p.imageUrl || p.thumbnailUrl,
-              galleryUrls: p.galleryUrls || [
-                p.thumbnailUrl || p.imageUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80',
-                'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80'
-              ],
-              allowedRentalTypes: allowedModes.length > 0 ? allowedModes : ['Daily', 'Hourly', 'Overnight'],
+              galleryUrls: p.galleryUrls?.length ? p.galleryUrls : (p.thumbnailUrl || p.imageUrl ? [p.thumbnailUrl || p.imageUrl] : []),
+              allowedRentalTypes: allowedModes,
               allowHourlyBooking: p.allowHourlyBooking,
               allowOvernightBooking: p.allowOvernightBooking,
               allowDailyBooking: p.allowDailyBooking,
-              overnightCheckInTime: p.overnightCheckInTime || '21:00',
-              overnightCheckOutTime: p.overnightCheckOutTime || '10:00',
-              cleaningBufferMinutes: p.cleaningBufferMinutes || p.bufferMinutes || 30,
-              ratingAverage: p.ratingAverage ?? 4.8,
-              reviewCount: p.reviewCount ?? 128,
+              overnightCheckInTime: p.overnightCheckInTime || '',
+              overnightCheckOutTime: p.overnightCheckOutTime || '',
+              cleaningBufferMinutes: p.cleaningBufferMinutes ?? p.bufferMinutes ?? 0,
+              ratingAverage: p.ratingAverage ?? 0,
+              reviewCount: p.reviewCount ?? 0,
               nearbyLandmarks: landmarks,
               startingPriceForSelectedMode: startPrice,
               startingPrice: startPrice,
@@ -1095,372 +1250,52 @@ export class BookingPageComponent implements OnInit {
               isExpandedNearbySuggestion: p.isExpandedNearbySuggestion ?? false,
               availableRoomTypes: (p.availableRoomTypes && p.availableRoomTypes.length > 0)
                 ? p.availableRoomTypes.map((rt: any) => ({
-                    roomTypeId: rt.roomTypeId || rt.id || 'rt-1',
-                    name: rt.name || rt.roomTypeName || 'Phòng Tiêu Chuẩn',
-                    roomTypeName: rt.roomTypeName || rt.name || 'Phòng Tiêu Chuẩn',
-                    code: rt.code || 'STD',
-                    maxGuests: rt.maxGuests || rt.maxOccupancy || 2,
-                    maxOccupancy: rt.maxOccupancy || rt.maxGuests || 2,
-                    bedConfiguration: rt.bedConfiguration || rt.bedType || '1 giường đôi Queen',
-                    bedType: rt.bedType || rt.bedConfiguration || '1 giường đôi Queen',
-                    areaSqm: rt.areaSqm || rt.squareMeters || 25,
-                    squareMeters: rt.squareMeters || rt.areaSqm || 25,
-                    availableRoomsCount: rt.availableRoomsCount ?? rt.availableRooms ?? 3,
-                    availableRooms: rt.availableRooms ?? rt.availableRoomsCount ?? 3,
-                    totalRooms: rt.totalRooms || 5,
-                    isAvailable: rt.isAvailable !== false,
-                    amenities: rt.amenities || ['Wifi miễn phí', 'Máy lạnh', 'Nước nóng', 'Smart TV'],
-                    images: rt.images || [rt.imageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80'],
-                    imageUrl: rt.imageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80',
-                    hourlyBasePrice: rt.hourlyBasePrice || 120000,
-                    hourlyBaseHours: rt.hourlyBaseHours || 2,
-                    hourlyExtraHourPrice: rt.hourlyExtraHourPrice || 40000,
-                    overnightPrice: rt.overnightPrice || 350000,
-                    dailyPrice: rt.dailyPrice || 500000,
-                    calculatedQuoteTotal: rt.calculatedQuoteTotal || rt.estimatedPrice || (filter.rentalType === 'Hourly' ? 120000 : filter.rentalType === 'Overnight' ? 350000 : 500000),
-                    estimatedPrice: rt.estimatedPrice || (filter.rentalType === 'Hourly' ? 120000 : filter.rentalType === 'Overnight' ? 350000 : 500000),
+                    roomTypeId: rt.roomTypeId || rt.id || '',
+                    name: rt.name || rt.roomTypeName || 'Hạng phòng chưa công bố tên',
+                    roomTypeName: rt.roomTypeName || rt.name,
+                    code: rt.code,
+                    maxGuests: rt.maxGuests ?? rt.maxOccupancy ?? 0,
+                    maxOccupancy: rt.maxOccupancy ?? rt.maxGuests,
+                    bedConfiguration: rt.bedConfiguration || rt.bedType,
+                    bedType: rt.bedType || rt.bedConfiguration,
+                    areaSqm: rt.areaSqm ?? rt.squareMeters,
+                    squareMeters: rt.squareMeters ?? rt.areaSqm,
+                    availableRoomsCount: rt.availableRoomsCount ?? rt.availableRooms ?? 0,
+                    availableRooms: rt.availableRooms ?? rt.availableRoomsCount ?? 0,
+                    totalRooms: rt.totalRooms,
+                    isAvailable: rt.isAvailable,
+                    amenities: rt.amenities || [],
+                    images: rt.images || (rt.imageUrl ? [rt.imageUrl] : []),
+                    imageUrl: rt.imageUrl,
+                    hourlyBasePrice: rt.hourlyBasePrice ?? rt.hourlyRate,
+                    hourlyBaseHours: rt.hourlyBaseHours,
+                    hourlyExtraHourPrice: rt.hourlyExtraHourPrice,
+                    overnightPrice: rt.overnightPrice ?? rt.overnightRate,
+                    dailyPrice: rt.dailyPrice ?? rt.dailyRate,
+                    calculatedQuoteTotal: rt.calculatedQuoteTotal ?? rt.estimatedPrice ?? 0,
+                    estimatedPrice: rt.estimatedPrice,
                   }))
-                : this.createDefaultRoomTypes(p, filter.rentalType),
+                : [],
             };
           });
           this.properties.set(mappedList);
           this.generateDynamicChips(mappedList);
         } else {
-          this.loadDemoFallbackProperties();
+          this.properties.set([]);
+          this.smartFilterChips.set([]);
         }
         this.isLoading.set(false);
       },
-      error: (err) => {
-        console.warn('Backend public properties fetch error, falling back to demo data:', err);
-        this.loadDemoFallbackProperties();
+      error: () => {
+        if (generation !== this.requestGeneration) return;
+        this.properties.set([]);
+        this.smartFilterChips.set([]);
+        this.loadError.set(true);
         this.isLoading.set(false);
       },
     });
   }
 
-  private createDefaultRoomTypes(property: any, rentalType: RentalType): PublicRoomTypeAvailabilityDto[] {
-    const propId = property.id || property.propertyId || 'prop';
-    return [
-      {
-        roomTypeId: `${propId}-std`,
-        name: 'Phòng Tiêu Chuẩn Giường Đôi',
-        roomTypeName: 'Phòng Tiêu Chuẩn Giường Đôi',
-        code: 'STD-DBL',
-        maxGuests: 2,
-        maxOccupancy: 2,
-        bedConfiguration: '1 giường đôi Queen-size',
-        bedType: '1 giường đôi Queen-size',
-        areaSqm: 24,
-        squareMeters: 24,
-        availableRoomsCount: 4,
-        availableRooms: 4,
-        totalRooms: 6,
-        isAvailable: true,
-        amenities: ['Wifi tốc độ cao', 'Điều hòa 2 chiều', 'Nước suối miễn phí', 'Máy sấy tóc'],
-        images: ['https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80'],
-        imageUrl: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80',
-        hourlyBasePrice: 120000,
-        hourlyBaseHours: 2,
-        hourlyExtraHourPrice: 40000,
-        overnightPrice: 320000,
-        dailyPrice: 480000,
-        calculatedQuoteTotal: rentalType === 'Hourly' ? 120000 : rentalType === 'Overnight' ? 320000 : 480000,
-        estimatedPrice: rentalType === 'Hourly' ? 120000 : rentalType === 'Overnight' ? 320000 : 480000,
-      },
-      {
-        roomTypeId: `${propId}-dlx`,
-        name: 'Phòng Deluxe Hướng Phố / View Đồi',
-        roomTypeName: 'Phòng Deluxe Hướng Phố / View Đồi',
-        code: 'DLX-VIEW',
-        maxGuests: 2,
-        maxOccupancy: 2,
-        bedConfiguration: '1 giường King-size cao cấp',
-        bedType: '1 giường King-size cao cấp',
-        areaSqm: 32,
-        squareMeters: 32,
-        availableRoomsCount: 2,
-        availableRooms: 2,
-        totalRooms: 4,
-        isAvailable: true,
-        amenities: ['Ban công ngắm cảnh', 'Bồn tắm thư giãn', 'Smart TV 55 inch', 'Mini Bar'],
-        images: ['https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80'],
-        imageUrl: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80',
-        hourlyBasePrice: 180000,
-        hourlyBaseHours: 2,
-        hourlyExtraHourPrice: 60000,
-        overnightPrice: 450000,
-        dailyPrice: 750000,
-        calculatedQuoteTotal: rentalType === 'Hourly' ? 180000 : rentalType === 'Overnight' ? 450000 : 750000,
-        estimatedPrice: rentalType === 'Hourly' ? 180000 : rentalType === 'Overnight' ? 450000 : 750000,
-      },
-    ];
-  }
-
-  private loadDemoFallbackProperties(): void {
-    const f = this.searchFilter();
-    this.properties.set([
-      {
-        propertyId: 'p-dalat-palace',
-        id: 'p-dalat-palace',
-        tenantId: 'tenant-heritage',
-        tenantBrandName: 'Heritage Hospitality Group',
-        name: 'Heritage Da Lat Palace & Boutique Resort',
-        code: 'DLP01',
-        slug: 'heritage-da-lat-palace',
-        propertyType: 'Resort',
-        starRating: 5,
-        addressLine: '12 Trần Phú, Phường 3',
-        wardName: 'Phường 3',
-        provinceCode: '68',
-        provinceName: 'Lâm Đồng',
-        touristZoneName: 'Hồ Xuân Hương & Khu Hòa Bình',
-        touristZoneSlug: 'khu-hoa-binh-da-lat',
-        thumbnailUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80',
-        galleryUrls: [
-          'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80',
-          'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80',
-          'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80',
-        ],
-        allowedRentalTypes: ['Daily', 'Overnight'],
-        overnightCheckInTime: '21:00',
-        overnightCheckOutTime: '10:00',
-        cleaningBufferMinutes: 30,
-        ratingAverage: 4.9,
-        reviewCount: 312,
-        nearbyLandmarks: [
-          {
-            landmarkId: 'lm-cho-dem-dl',
-            landmarkName: 'Chợ đêm Đà Lạt',
-            landmarkSlug: 'cho-dem-da-lat',
-            category: 'Market',
-            distanceMeters: 450,
-          },
-          {
-            landmarkId: 'lm-ho-xuan-huong',
-            landmarkName: 'Hồ Xuân Hương',
-            landmarkSlug: 'ho-xuan-huong',
-            category: 'Center',
-            distanceMeters: 200,
-          },
-        ],
-        startingPriceForSelectedMode: f.rentalType === 'Overnight' ? 650000 : 980000,
-        availableRoomTypes: [
-          {
-            roomTypeId: 'rt-dl-palace-deluxe',
-            name: 'Phòng Deluxe Hướng Hồ Xuân Hương',
-            roomTypeName: 'Phòng Deluxe Hướng Hồ Xuân Hương',
-            code: 'DLX-LAKE',
-            maxGuests: 2,
-            bedConfiguration: '1 giường King-size Hoàng Gia',
-            areaSqm: 38,
-            availableRoomsCount: 3,
-            availableRooms: 3,
-            isAvailable: true,
-            amenities: ['View toàn cảnh Hồ Xuân Hương', 'Bồn tắm sục Jacuzzi', 'Bữa sáng Buffet cao cấp', 'Trà chiều'],
-            images: ['https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80'],
-            overnightPrice: 650000,
-            dailyPrice: 980000,
-            calculatedQuoteTotal: f.rentalType === 'Overnight' ? 650000 : 980000,
-          },
-          {
-            roomTypeId: 'rt-dl-palace-suite',
-            name: 'Executive Suite Ban Công Cổ Điển',
-            roomTypeName: 'Executive Suite Ban Công Cổ Điển',
-            code: 'SUI-EXEC',
-            maxGuests: 4,
-            bedConfiguration: '2 giường Queen-size',
-            areaSqm: 56,
-            availableRoomsCount: 2,
-            availableRooms: 2,
-            isAvailable: true,
-            amenities: ['Phòng khách riêng', 'Ban công kiểu Pháp', 'Lò sưởi ấm cúng', 'Rượu vang chào đón'],
-            images: ['https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80'],
-            overnightPrice: 950000,
-            dailyPrice: 1550000,
-            calculatedQuoteTotal: f.rentalType === 'Overnight' ? 950000 : 1550000,
-          },
-        ],
-      },
-      {
-        propertyId: 'p-may-homestay',
-        id: 'p-may-homestay',
-        tenantId: 'tenant-chill-vibes',
-        tenantBrandName: 'Chill & Dream Stays',
-        name: 'Mây Trên Đồi Homestay & Coffee Đà Lạt',
-        code: 'MAY01',
-        slug: 'may-tren-doi-homestay',
-        propertyType: 'Homestay',
-        starRating: 4,
-        addressLine: '89 Hoàng Hoa Thám, Phường 10',
-        wardName: 'Phường 10',
-        provinceCode: '68',
-        provinceName: 'Lâm Đồng',
-        touristZoneName: 'Dốc Trại Mát & Đồi Chè Cầu Đất',
-        touristZoneSlug: 'trai-mat-cau-dat',
-        thumbnailUrl: 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=800&q=80',
-        galleryUrls: [
-          'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=800&q=80',
-          'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80',
-        ],
-        allowedRentalTypes: ['Daily', 'Overnight', 'Hourly'],
-        overnightCheckInTime: '21:00',
-        overnightCheckOutTime: '10:00',
-        cleaningBufferMinutes: 20,
-        ratingAverage: 4.8,
-        reviewCount: 189,
-        nearbyLandmarks: [
-          {
-            landmarkId: 'lm-san-may-cau-dat',
-            landmarkName: 'Điểm săn mây Cầu Đất',
-            landmarkSlug: 'san-may-cau-dat',
-            category: 'Center',
-            distanceMeters: 800,
-          },
-        ],
-        startingPriceForSelectedMode: f.rentalType === 'Hourly' ? 140000 : f.rentalType === 'Overnight' ? 380000 : 520000,
-        availableRoomTypes: [
-          {
-            roomTypeId: 'rt-may-view-doi',
-            name: 'Phòng Gác Mái Săn Mây View Thung Lũng',
-            roomTypeName: 'Phòng Gác Mái Săn Mây View Thung Lũng',
-            code: 'MAY-ATTIC',
-            maxGuests: 2,
-            bedConfiguration: '1 đệm Futon Nhật Bản đôi',
-            areaSqm: 26,
-            availableRoomsCount: 4,
-            availableRooms: 4,
-            isAvailable: true,
-            amenities: ['Cửa kính lớn ngắm thung lũng sương mù', 'Loa Marshall Bluetooth', 'Bình đun siêu tốc', 'Cà phê rang mộc'],
-            images: ['https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=800&q=80'],
-            hourlyBasePrice: 140000,
-            hourlyBaseHours: 2,
-            hourlyExtraHourPrice: 50000,
-            overnightPrice: 380000,
-            dailyPrice: 520000,
-            calculatedQuoteTotal: f.rentalType === 'Hourly' ? 140000 : f.rentalType === 'Overnight' ? 380000 : 520000,
-          },
-        ],
-      },
-      {
-        propertyId: 'p-sunshine-motel',
-        id: 'p-sunshine-motel',
-        tenantId: 'tenant-fast-rest',
-        tenantBrandName: 'Fast & Relax Motel Chain',
-        name: 'Sunshine Express Motel & Smart Rooms',
-        code: 'SUN01',
-        slug: 'sunshine-express-motel',
-        propertyType: 'Motel',
-        starRating: 3,
-        addressLine: '45 Nam Kỳ Khởi Nghĩa, Phường 1',
-        wardName: 'Phường 1',
-        provinceCode: '68',
-        provinceName: 'Lâm Đồng',
-        touristZoneName: 'Khu trung tâm Hòa Bình',
-        touristZoneSlug: 'khu-hoa-binh-da-lat',
-        thumbnailUrl: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80',
-        galleryUrls: [
-          'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80',
-        ],
-        allowedRentalTypes: ['Hourly', 'Overnight', 'Daily'],
-        overnightCheckInTime: '21:00',
-        overnightCheckOutTime: '10:00',
-        cleaningBufferMinutes: 15,
-        ratingAverage: 4.6,
-        reviewCount: 94,
-        nearbyLandmarks: [
-          {
-            landmarkId: 'lm-cho-dem-dl',
-            landmarkName: 'Chợ đêm Đà Lạt',
-            landmarkSlug: 'cho-dem-da-lat',
-            category: 'Market',
-            distanceMeters: 280,
-          },
-        ],
-        startingPriceForSelectedMode: f.rentalType === 'Hourly' ? 100000 : f.rentalType === 'Overnight' ? 260000 : 380000,
-        availableRoomTypes: [
-          {
-            roomTypeId: 'rt-sun-express-std',
-            name: 'Phòng Nghỉ Nhanh Thông Minh (Smart Check-in)',
-            roomTypeName: 'Phòng Nghỉ Nhanh Thông Minh (Smart Check-in)',
-            code: 'SUN-EXP',
-            maxGuests: 2,
-            bedConfiguration: '1 giường đôi 1m6',
-            areaSqm: 20,
-            availableRoomsCount: 6,
-            availableRooms: 6,
-            isAvailable: true,
-            amenities: ['Khóa cửa vân tay / mã số', 'Smart TV kết nối Netflix', 'Phòng tắm vòi sen đứng', 'Nước ngọt miễn phí'],
-            images: ['https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80'],
-            hourlyBasePrice: 100000,
-            hourlyBaseHours: 2,
-            hourlyExtraHourPrice: 35000,
-            overnightPrice: 260000,
-            dailyPrice: 380000,
-            calculatedQuoteTotal: f.rentalType === 'Hourly' ? 100000 : f.rentalType === 'Overnight' ? 260000 : 380000,
-          },
-        ],
-      },
-      {
-        propertyId: 'p-thanh-binh-guesthouse',
-        id: 'p-thanh-binh-guesthouse',
-        tenantId: 'tenant-family-lodging',
-        tenantBrandName: 'Hệ thống Nhà nghỉ Bình Dân Thanh Bình',
-        name: 'Nhà nghỉ Thanh Bình Đà Lạt',
-        code: 'TB01',
-        slug: 'nha-nghi-thanh-binh-da-lat',
-        propertyType: 'Guesthouse',
-        starRating: 2,
-        addressLine: '16 Bùi Thị Xuân, Phường 2',
-        wardName: 'Phường 2',
-        provinceCode: '68',
-        provinceName: 'Lâm Đồng',
-        touristZoneName: 'Khu trung tâm Hòa Bình',
-        touristZoneSlug: 'khu-hoa-binh-da-lat',
-        thumbnailUrl: 'https://images.unsplash.com/photo-1595576508898-0ad5c879a061?auto=format&fit=crop&w=800&q=80',
-        galleryUrls: [
-          'https://images.unsplash.com/photo-1595576508898-0ad5c879a061?auto=format&fit=crop&w=800&q=80',
-        ],
-        allowedRentalTypes: ['Hourly', 'Overnight', 'Daily'],
-        overnightCheckInTime: '21:00',
-        overnightCheckOutTime: '10:00',
-        cleaningBufferMinutes: 15,
-        ratingAverage: 4.5,
-        reviewCount: 62,
-        nearbyLandmarks: [
-          {
-            landmarkId: 'lm-cho-dem-dl',
-            landmarkName: 'Chợ đêm Đà Lạt',
-            landmarkSlug: 'cho-dem-da-lat',
-            category: 'Market',
-            distanceMeters: 350,
-          },
-        ],
-        startingPriceForSelectedMode: f.rentalType === 'Hourly' ? 80000 : f.rentalType === 'Overnight' ? 220000 : 320000,
-        availableRoomTypes: [
-          {
-            roomTypeId: 'rt-tb-cozy-twin',
-            name: 'Phòng Đôi Tiết Kiệm Sạch Sẽ',
-            roomTypeName: 'Phòng Đôi Tiết Kiệm Sạch Sẽ',
-            code: 'TB-TWN',
-            maxGuests: 2,
-            bedConfiguration: '1 giường đôi 1m5',
-            areaSqm: 18,
-            availableRoomsCount: 5,
-            availableRooms: 5,
-            isAvailable: true,
-            amenities: ['Wifi miễn phí', 'Nước nóng năng lượng mặt trời', 'Ấm đun nước', 'Quạt máy làm mát'],
-            images: ['https://images.unsplash.com/photo-1595576508898-0ad5c879a061?auto=format&fit=crop&w=800&q=80'],
-            hourlyBasePrice: 80000,
-            hourlyBaseHours: 2,
-            hourlyExtraHourPrice: 30000,
-            overnightPrice: 220000,
-            dailyPrice: 320000,
-            calculatedQuoteTotal: f.rentalType === 'Hourly' ? 80000 : f.rentalType === 'Overnight' ? 220000 : 320000,
-          },
-        ],
-      },
-    ]);
-  }
 
   private seedDefaultDestinationSuggestions(): void {
     this.destinationSuggestions.set([
@@ -1510,6 +1345,29 @@ export class BookingPageComponent implements OnInit {
         touristZoneName: 'Quận 1 Trung tâm',
       },
     ]);
+  }
+
+  selectCategoryQuickTag(tag: string): void {
+    this.onFilterBarChange({
+      ...this.searchFilter(),
+      destinationKeyword: tag
+    });
+  }
+
+  selectStayTheme(type: PropertyType): void {
+    const current = this.searchFilter();
+    this.onFilterBarChange({
+      ...current,
+      propertyTypes: [type]
+    });
+  }
+
+  onApplyPromoCode(code: string): void {
+    // Promo code applied, ready for checkout
+  }
+
+  onSelectCuratedCategory(type: string): void {
+    this.selectStayTheme(type as PropertyType);
   }
 }
 

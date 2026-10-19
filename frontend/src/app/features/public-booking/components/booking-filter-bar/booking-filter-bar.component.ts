@@ -3,12 +3,16 @@ import {
   Component,
   computed,
   effect,
+  ElementRef,
+  HostListener,
   input,
   output,
   signal,
+  ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { readPublicStay } from '../../../../core/models/public-stay-context';
 import {
   DestinationSuggestionDto,
   PropertyType,
@@ -120,7 +124,7 @@ export interface DestinationSelection {
       <!-- 2. LƯỚI INPUT TÌM KIẾM CHÍNH -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
         <!-- Cột 1: Điểm đến / Địa danh / Khu du lịch / Tên cơ sở (4 cột) -->
-        <div class="lg:col-span-4 relative">
+        <div #destinationGroup class="lg:col-span-4 relative">
           <div class="flex items-center justify-between mb-1.5">
             <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">
               Địa danh, Khu du lịch hoặc Cơ sở
@@ -144,6 +148,13 @@ export interface DestinationSelection {
               [ngModel]="destinationKeyword()"
               (ngModelChange)="onDestinationInput($event)"
               (focus)="showSuggestionsDropdown.set(true)"
+              (keydown)="onDestinationKeydown($event)"
+              role="combobox"
+              aria-label="Điểm đến, địa danh hoặc cơ sở"
+              aria-autocomplete="list"
+              [attr.aria-expanded]="showSuggestionsDropdown() && filteredSuggestions().length > 0"
+              [attr.aria-controls]="showSuggestionsDropdown() && filteredSuggestions().length > 0 ? 'destination-options' : null"
+              [attr.aria-activedescendant]="showSuggestionsDropdown() && activeSuggestion() >= 0 ? 'destination-option-' + activeSuggestion() : null"
               placeholder="VD: Chợ đêm Đà Lạt, Bãi Sau, Quận 1, Nhà nghỉ..."
               class="w-full pl-10 pr-9 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
@@ -177,8 +188,14 @@ export interface DestinationSelection {
                 </button>
               </div>
 
-              @for (item of filteredSuggestions(); track item.id) {
+              <div id="destination-options" role="listbox" aria-label="Gợi ý điểm đến">
+              @for (item of filteredSuggestions(); track item.id; let index = $index) {
                 <button
+                  [id]="'destination-option-' + index"
+                  role="option"
+                  tabindex="-1"
+                  [attr.aria-selected]="activeSuggestion() === index"
+                  [class.bg-indigo-50]="activeSuggestion() === index"
                   type="button"
                   (click)="selectSuggestion(item)"
                   class="w-full px-4 py-2.5 text-left hover:bg-indigo-50/60 flex items-center justify-between gap-3 transition-colors cursor-pointer"
@@ -216,6 +233,7 @@ export interface DestinationSelection {
                   </span>
                 </button>
               }
+              </div>
             </div>
           }
         </div>
@@ -283,7 +301,7 @@ export interface DestinationSelection {
                   <label
                     class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
                   >
-                    Đêm nhận phòng (Từ 21:00)
+                    Đêm nhận phòng (giờ theo cơ sở)
                   </label>
                   <input
                     type="date"
@@ -302,7 +320,7 @@ export interface DestinationSelection {
                   <div
                     class="w-full px-3.5 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 flex items-center justify-between"
                   >
-                    <span>{{ checkOutDate() }} (Trước 10:00)</span>
+                    <span>{{ checkOutDate() }} (giờ theo cơ sở)</span>
                     <span
                       class="text-xs font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md"
                     >
@@ -320,7 +338,7 @@ export interface DestinationSelection {
                   <label
                     class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
                   >
-                    Ngày nhận phòng (14:00)
+                    Ngày nhận phòng (giờ theo cơ sở)
                   </label>
                   <input
                     type="date"
@@ -355,7 +373,7 @@ export interface DestinationSelection {
             <label
               class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
             >
-              Khách & Phòng
+              Số khách · một phòng
             </label>
             <div class="flex items-center border border-slate-300 rounded-xl px-2.5 py-2 bg-white">
               <button
@@ -389,7 +407,8 @@ export interface DestinationSelection {
         </div>
       </div>
 
-      <!-- 3. THANH CHIPS CHỌN NHANH LOẠI HÌNH LƯU TRÚ (HOTEL / NHÀ NGHỈ / MOTEL / HOMESTAY / RESORT) -->
+      @if (searchError()) { <p role="alert" class="mt-3 text-sm text-red-700">{{ searchError() }}</p> }
+      <p class="mt-3 text-xs text-slate-500">Kết quả khám phá cơ sở; phòng trống và báo giá theo lịch được kiểm tra tại trang chi tiết. Mỗi lượt đặt một phòng.</p>
       <div
         class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2"
       >
@@ -449,6 +468,42 @@ export interface DestinationSelection {
   `,
 })
 export class BookingFilterBarComponent {
+  readonly activeSuggestion = signal(-1);
+  readonly searchError = signal('');
+
+  onDestinationKeydown(event: KeyboardEvent): void {
+    const suggestions = this.filteredSuggestions();
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      this.showSuggestionsDropdown.set(true);
+      if (suggestions.length) {
+        const direction = event.key === 'ArrowDown' ? 1 : -1;
+        this.activeSuggestion.set(this.activeSuggestion() < 0
+          ? (direction === 1 ? 0 : suggestions.length - 1)
+          : (this.activeSuggestion() + direction + suggestions.length) % suggestions.length);
+      }
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      const selected = this.showSuggestionsDropdown() ? suggestions[this.activeSuggestion()] : undefined;
+      if (selected) this.selectSuggestion(selected);
+      else this.emitSearch();
+    }
+  }
+  @ViewChild('destinationGroup') private destinationGroup?: ElementRef<HTMLElement>;
+
+  @HostListener('document:pointerdown', ['$event'])
+  @HostListener('document:focusin', ['$event'])
+  dismissOutsideDestination(event: Event): void {
+    if (!this.destinationGroup?.nativeElement.contains(event.target as Node)) {
+      this.showSuggestionsDropdown.set(false);
+    }
+  }
+
+  @HostListener('keydown.escape')
+  dismissDestination(): void {
+    this.showSuggestionsDropdown.set(false);
+  }
+
   /** Input nhận trạng thái bộ lọc ban đầu từ trang cha */
   readonly initialFilter = input<Partial<PublicBookingSearchFilter> | null>(null);
 
@@ -476,7 +531,7 @@ export class BookingFilterBarComponent {
     {
       type: 'Overnight',
       label: 'Qua đêm',
-      subLabel: 'Nhận phòng tối 21:00 - Trả 10:00',
+      subLabel: 'Giờ nhận/trả theo từng cơ sở',
       icon: 'pi pi-moon',
       badgeText: 'Tiết kiệm',
     },
@@ -547,9 +602,9 @@ export class BookingFilterBarComponent {
       return `Nhận phòng ${this.checkInTime()} → Trả phòng ${formattedEnd}${nextDaySuffix} (${this.durationHours()} giờ)`;
     }
     if (mode === 'Overnight') {
-      return `Nhận phòng từ 21:00 (${this.checkInDate()}) → Trả phòng 10:00 (${this.checkOutDate()})`;
+      return `${this.checkInDate()} → ${this.checkOutDate()} • Giờ theo cơ sở`;
     }
-    return `Nhận 14:00 (${this.checkInDate()}) → Trả 12:00 (${this.checkOutDate()}) • ${this.nightCount()} đêm`;
+    return `${this.checkInDate()} → ${this.checkOutDate()} • ${this.nightCount()} đêm • Giờ theo cơ sở`;
   });
 
   readonly filteredSuggestions = computed<DestinationSuggestionDto[]>(() => {
@@ -588,6 +643,8 @@ export class BookingFilterBarComponent {
       if (init.checkInTime) this.checkInTime.set(init.checkInTime);
       if (init.durationHours) this.durationHours.set(init.durationHours);
       if (init.guests) this.guests.set(init.guests);
+      this.userCoords.set(init.userLatitude != null && init.userLongitude != null
+        ? { lat: init.userLatitude, lng: init.userLongitude } : null);
     });
   }
 
@@ -608,6 +665,8 @@ export class BookingFilterBarComponent {
   }
 
   onDestinationInput(value: string): void {
+    this.activeSuggestion.set(-1);
+    this.userCoords.set(null);
     this.destinationKeyword.set(value);
     this.selectedProvinceCode.set(null);
     this.selectedTouristZoneSlug.set(null);
@@ -616,6 +675,8 @@ export class BookingFilterBarComponent {
   }
 
   clearDestination(): void {
+    this.userCoords.set(null);
+    this.activeSuggestion.set(-1);
     this.destinationKeyword.set('');
     this.selectedProvinceCode.set(null);
     this.selectedTouristZoneSlug.set(null);
@@ -624,6 +685,7 @@ export class BookingFilterBarComponent {
   }
 
   selectSuggestion(item: DestinationSuggestionDto): void {
+    this.userCoords.set(null);
     this.destinationKeyword.set(item.name);
     this.selectedProvinceCode.set(item.provinceCode);
     this.selectedTouristZoneSlug.set(
@@ -639,6 +701,7 @@ export class BookingFilterBarComponent {
     slug: string;
     provinceCode: string;
   }): void {
+    this.userCoords.set(null);
     this.destinationKeyword.set(spot.name);
     this.selectedProvinceCode.set(spot.provinceCode);
     this.selectedLandmarkSlug.set(spot.slug);
@@ -720,6 +783,15 @@ export class BookingFilterBarComponent {
   }
 
   emitSearch(): void {
+    try {
+      readPublicStay({ rentalType: this.rentalType(), checkInDate: this.checkInDate(),
+        checkOutDate: this.checkOutDate(), checkInTime: this.checkInTime(),
+        durationHours: this.durationHours(), guests: this.guests(), roomsCount: this.roomsCount() });
+      this.searchError.set('');
+    } catch (error) {
+      this.searchError.set(error instanceof Error ? error.message : 'Thông tin tìm kiếm không hợp lệ.');
+      return;
+    }
     this.showSuggestionsDropdown.set(false);
     this.filterChange.emit({
       rentalType: this.rentalType(),

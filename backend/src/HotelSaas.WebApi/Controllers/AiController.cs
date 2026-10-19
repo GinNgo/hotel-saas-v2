@@ -11,6 +11,7 @@ using HotelSaas.Application.Public.Queries.GetPublicProperties;
 using HotelSaas.Application.Public.Services;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
+using HotelSaas.Application.Pricing.Services;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -32,17 +33,20 @@ public sealed class AiController : ControllerBase
     private readonly ICurrentUserContext _currentUser;
     private readonly ISender _mediator;
     private readonly ILocationLookupService _locationService;
+    private readonly IDynamicPricingService? _dynamicPricingService;
 
     public AiController(
         IApplicationDbContext context,
         ICurrentUserContext currentUser,
         ISender mediator,
-        ILocationLookupService locationService)
+        ILocationLookupService locationService,
+        IDynamicPricingService? dynamicPricingService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _currentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
         _locationService = locationService ?? throw new ArgumentNullException(nameof(locationService));
+        _dynamicPricingService = dynamicPricingService;
     }
 
     /// <summary>
@@ -167,6 +171,42 @@ public sealed class AiController : ControllerBase
             RemainingCount = Math.Max(0, monthlyQuota - usedCount),
             IsLimitReached = usedCount >= monthlyQuota
         });
+    }
+
+    /// <summary>
+    /// Analyzes real-time inventory occupancy and returns AI Dynamic Pricing recommendations for a property.
+    /// </summary>
+    [HttpGet("dynamic-pricing/recommendations")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(DynamicPricingSummaryDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetDynamicPricingRecommendations(
+        [FromQuery] Guid? propertyId,
+        [FromQuery] DateOnly? date,
+        CancellationToken cancellationToken)
+    {
+        if (_dynamicPricingService == null)
+        {
+            return Ok(new { message = "Dịch vụ định giá động AI chưa được kích hoạt." });
+        }
+
+        Guid targetPropertyId;
+        if (propertyId.HasValue)
+        {
+            targetPropertyId = propertyId.Value;
+        }
+        else
+        {
+            var firstProp = await _context.Properties
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Status == PropertyStatus.Active, cancellationToken);
+
+            if (firstProp == null) return NotFound(new { message = "Không tìm thấy cơ sở lưu trú." });
+            targetPropertyId = firstProp.Id;
+        }
+
+        var targetDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var result = await _dynamicPricingService.GetPricingRecommendationsAsync(targetPropertyId, targetDate, cancellationToken);
+        return Ok(result);
     }
 
     private static string DetectIntent(string query)

@@ -34,6 +34,8 @@ public sealed class GuestBookingDetailDto
     public string? MaskedGuestPhone { get; set; }
     public DateTime? HoldExpiresAtUtc { get; set; }
     public int? SecondsRemaining { get; set; }
+    public string? SmartLockPin { get; set; }
+    public string? SmartLockStatus { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public IReadOnlyList<QuoteBreakdownItemDto> Breakdown { get; set; } = Array.Empty<QuoteBreakdownItemDto>();
 }
