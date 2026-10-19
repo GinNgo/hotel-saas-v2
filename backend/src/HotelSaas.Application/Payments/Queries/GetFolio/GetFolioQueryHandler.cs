@@ -173,7 +173,7 @@ public sealed class GetFolioQueryHandler : IRequestHandler<GetFolioQuery, FolioD
         var depositPayments = payments
             .Where(p => p.Status == PaymentStatus.Completed &&
                         !string.IsNullOrEmpty(p.TransactionRef) &&
-                        p.TransactionRef.Contains("[PURPOSE:DEPOSIT]", StringComparison.OrdinalIgnoreCase))
+                        p.TransactionRef.StartsWith("[PURPOSE:DEPOSIT]", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         if (depositPayments.Count > 0)

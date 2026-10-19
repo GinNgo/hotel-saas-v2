@@ -495,4 +495,137 @@ describe('HousekeepingPage Logic, Pagination & Server-Side Filtering', () => {
       comp.ngOnDestroy();
     });
   });
+
+  describe('Housekeeping Polling Stale Response Prevention (TAN-OPS-FIX-01)', () => {
+    it('1. Request A pending, request B success, then A arrives late: A is discarded and B is preserved', () => {
+      const comp = createComponent();
+      comp.ngOnInit();
+      expect(comp.rooms().length).toBe(5);
+
+      const subjectA = new Subject<any>();
+      mockRoomService.getRooms.mockReturnValueOnce(subjectA);
+      comp.pollServerSync(); // Request A
+
+      // Request B fires and succeeds with 1 room
+      mockRoomService.getRooms.mockReturnValueOnce(of({ items: [samplePage1Rooms[0]], totalCount: 1 }));
+      comp.pollServerSync(); // Request B
+      expect(comp.rooms().length).toBe(1);
+      expect(comp.totalCount()).toBe(1);
+
+      // Request A emits late with 1 room from page 2 (totalCount: 999)
+      subjectA.next({ items: samplePage2Rooms, totalCount: 999 });
+      subjectA.complete();
+
+      // Request A must be ignored, B's state remains intact
+      expect(comp.rooms().length).toBe(1);
+      expect(comp.rooms()[0].id).toBe(samplePage1Rooms[0].id);
+      expect(comp.totalCount()).toBe(1);
+      comp.ngOnDestroy();
+    });
+
+    it('2. Request A pending, request B success, then A error arrives late: A error is blocked and syncStatus is preserved', () => {
+      const comp = createComponent();
+      comp.ngOnInit();
+
+      const subjectA = new Subject<any>();
+      mockRoomService.getRooms.mockReturnValueOnce(subjectA);
+      comp.pollServerSync(); // Request A
+
+      // Request B succeeds
+      mockRoomService.getRooms.mockReturnValueOnce(of({ items: samplePage1Rooms, totalCount: 5 }));
+      comp.pollServerSync(); // Request B
+      expect(comp.syncStatus()).toBe('connected');
+
+      // Request A fails late with HTTP 500
+      subjectA.error(new HttpErrorResponse({ status: 500 }));
+
+      // Late error must not degrade syncStatus to reconnecting
+      expect(comp.syncStatus()).toBe('connected');
+      comp.ngOnDestroy();
+    });
+
+    it('3. Discards in-flight poll response if property context changes before response arrives', () => {
+      const comp = createComponent();
+      comp.ngOnInit();
+
+      comp.rooms.set([]);
+      const pendingSubject = new Subject<any>();
+      mockRoomService.getRooms.mockReturnValueOnce(pendingSubject);
+      comp.pollServerSync();
+
+      // Property changes to prop-2
+      mockAuthService.activePropertyId.set('prop-2');
+
+      // Stale response for prop-1 emits
+      pendingSubject.next({ items: samplePage1Rooms, totalCount: 5 });
+      pendingSubject.complete();
+
+      // Old rooms should not be applied under new property
+      expect(comp.rooms().length).toBe(0);
+      comp.ngOnDestroy();
+    });
+
+    it('4. Discards in-flight poll response if filter or pagination changes before response arrives', () => {
+      const comp = createComponent();
+      comp.ngOnInit();
+
+      const pendingSubject = new Subject<any>();
+      mockRoomService.getRooms.mockReturnValueOnce(pendingSubject);
+      comp.pollServerSync();
+
+      // User changes status filter to Dirty
+      mockRoomService.getRooms.mockReturnValueOnce(of({ items: [samplePage1Rooms[1]], totalCount: 1 }));
+      comp.setStatusFilter(RoomStatus.Dirty);
+
+      // Stale unfiltered poll response emits late
+      pendingSubject.next({ items: samplePage1Rooms, totalCount: 150 });
+      pendingSubject.complete();
+
+      // Filtered room list must remain
+      expect(comp.rooms().length).toBe(1);
+      expect(comp.rooms()[0].status).toBe(RoomStatus.Dirty);
+      comp.ngOnDestroy();
+    });
+
+    it('5. Discards poll response safely when component is destroyed before response returns', () => {
+      const comp = createComponent();
+      comp.ngOnInit();
+
+      const pendingSubject = new Subject<any>();
+      mockRoomService.getRooms.mockReturnValueOnce(pendingSubject);
+      comp.pollServerSync();
+
+      comp.rooms.set([]);
+      comp.ngOnDestroy();
+
+      // Emitting after destroy must not resurrect state or throw
+      pendingSubject.next({ items: samplePage1Rooms, totalCount: 150 });
+      pendingSubject.complete();
+
+      expect(comp.rooms().length).toBe(0);
+    });
+
+    it('6. Does not allow stale poll to overwrite room state updated by mutation', () => {
+      const comp = createComponent();
+      comp.ngOnInit();
+
+      const pendingPollSubject = new Subject<any>();
+      mockRoomService.getRooms.mockReturnValueOnce(pendingPollSubject);
+      comp.pollServerSync();
+
+      // Housekeeper updates room-2 from Dirty to Clean
+      mockRoomService.updateRoomStatus.mockReturnValue(of({ ...samplePage1Rooms[1], status: RoomStatus.Clean }));
+      comp.changeRoomStatus(samplePage1Rooms[1], RoomStatus.Clean);
+
+      expect(comp.rooms().find(r => r.id === 'room-2')?.status).toBe(RoomStatus.Clean);
+
+      // Stale poll arrives late containing the old Dirty status
+      pendingPollSubject.next({ items: samplePage1Rooms, totalCount: 150 });
+      pendingPollSubject.complete();
+
+      // Room-2 must stay Clean, not overwritten by stale Dirty status
+      expect(comp.rooms().find(r => r.id === 'room-2')?.status).toBe(RoomStatus.Clean);
+      comp.ngOnDestroy();
+    });
+  });
 });

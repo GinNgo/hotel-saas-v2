@@ -503,6 +503,10 @@ export class HousekeepingPage implements OnInit, OnDestroy {
   private autoSyncTimer?: any;
   private syncInFlight = false;
   private trackedPropertyId: string | null = null;
+  private pollSub?: Subscription;
+  private pollGeneration = 0;
+  private lastMutationTimestamp = 0;
+  private isDestroyed = false;
 
   private readonly handleOnline = () => {
     this.syncStatus.set('connected');
@@ -513,12 +517,22 @@ export class HousekeepingPage implements OnInit, OnDestroy {
     this.syncStatus.set('offline');
   };
 
+  private invalidatePolling(): void {
+    if (this.pollSub && !this.pollSub.closed) {
+      this.pollSub.unsubscribe();
+      this.pollSub = undefined;
+    }
+    this.pollGeneration++;
+    this.syncInFlight = false;
+  }
+
   constructor() {
     try {
       effect(() => {
         const propId = this.authService.activePropertyId();
         if (this.trackedPropertyId !== propId) {
           this.trackedPropertyId = propId;
+          this.invalidatePolling();
           this.currentPage.set(1);
           this.rooms.set([]);
           this.totalCount.set(0);
@@ -560,6 +574,8 @@ export class HousekeepingPage implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.isDestroyed = true;
+    this.invalidatePolling();
     this.stopAutoSync();
     if (typeof window !== 'undefined') {
       window.removeEventListener('online', this.handleOnline);
@@ -597,33 +613,62 @@ export class HousekeepingPage implements OnInit, OnDestroy {
   }
 
   pollServerSync(): void {
-    if (!this.autoSyncEnabled()) return;
+    if (this.isDestroyed || !this.autoSyncEnabled()) return;
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       this.syncStatus.set('offline');
       return;
     }
-    if (this.syncInFlight || this.loading() || this.updatingRoomId()) {
+    if (this.loading() || this.updatingRoomId()) {
       return;
     }
 
+    const targetPropId = this.authService.activePropertyId();
+    if (!targetPropId) return;
+
+    const targetPage = this.currentPage();
+    const targetPageSize = this.currentPageSize();
+    const targetStatus = this.activeStatusFilter();
+    const targetFloor = this.selectedFloor();
+    const targetSearch = this.searchRoomNumber().trim();
+    const requestMutationTime = this.lastMutationTimestamp;
+
     const filter: GetRoomsFilter = {
-      page: this.currentPage(),
-      pageSize: this.currentPageSize()
+      page: targetPage,
+      pageSize: targetPageSize
     };
-    if (this.activeStatusFilter() !== 'ALL') {
-      filter.status = this.activeStatusFilter() as RoomStatus;
+    if (targetStatus !== 'ALL') {
+      filter.status = targetStatus as RoomStatus;
     }
-    if (this.selectedFloor() !== null && this.selectedFloor() !== undefined) {
-      filter.floor = this.selectedFloor()!;
+    if (targetFloor !== null && targetFloor !== undefined) {
+      filter.floor = targetFloor;
     }
-    const search = this.searchRoomNumber().trim();
-    if (search) {
-      filter.search = search;
+    if (targetSearch) {
+      filter.search = targetSearch;
     }
 
+    this.invalidatePolling();
+    const gen = this.pollGeneration;
     this.syncInFlight = true;
-    this.roomService.getRooms(filter).pipe(
+
+    const isContextValid = (): boolean => {
+      return (
+        !this.isDestroyed &&
+        gen === this.pollGeneration &&
+        this.authService.activePropertyId() === targetPropId &&
+        this.currentPage() === targetPage &&
+        this.currentPageSize() === targetPageSize &&
+        this.activeStatusFilter() === targetStatus &&
+        this.selectedFloor() === targetFloor &&
+        this.searchRoomNumber().trim() === targetSearch &&
+        this.lastMutationTimestamp === requestMutationTime
+      );
+    };
+
+    this.pollSub = this.roomService.getRooms(filter).pipe(
       catchError((err: HttpErrorResponse) => {
+        if (!isContextValid()) {
+          return of(null);
+        }
         if (typeof navigator !== 'undefined' && navigator.onLine === false) {
           this.syncStatus.set('offline');
         } else {
@@ -633,28 +678,34 @@ export class HousekeepingPage implements OnInit, OnDestroy {
       })
     ).subscribe({
       next: (res) => {
-        this.syncInFlight = false;
-        if (res) {
-          this.syncStatus.set('connected');
-          this.lastSyncTime.set(new Date());
+        if (gen === this.pollGeneration) {
+          this.syncInFlight = false;
+        }
+        if (!isContextValid() || !res) {
+          return;
+        }
 
-          // Detect server-side updates (e.g. checkout transitioning a room to Dirty on another device)
-          const currentList = this.rooms();
-          for (const newRoom of res.items || []) {
-            const oldRoom = currentList.find(r => r.id === newRoom.id);
-            if (oldRoom && oldRoom.status !== newRoom.status) {
-              if (newRoom.status === RoomStatus.Dirty && oldRoom.status === RoomStatus.Occupied) {
-                this.alertService.toastWarning(`Phòng ${newRoom.roomNumber} vừa được trả phòng và chuyển sang Cần dọn (Dirty).`);
-              }
+        this.syncStatus.set('connected');
+        this.lastSyncTime.set(new Date());
+
+        // Detect server-side updates (e.g. checkout transitioning a room to Dirty on another device)
+        const currentList = this.rooms();
+        for (const newRoom of res.items || []) {
+          const oldRoom = currentList.find(r => r.id === newRoom.id);
+          if (oldRoom && oldRoom.status !== newRoom.status) {
+            if (newRoom.status === RoomStatus.Dirty && oldRoom.status === RoomStatus.Occupied) {
+              this.alertService.toastWarning(`Phòng ${newRoom.roomNumber} vừa được trả phòng và chuyển sang Cần dọn (Dirty).`);
             }
           }
-
-          this.rooms.set(res.items || []);
-          this.totalCount.set(res.totalCount ?? (res.items || []).length);
         }
+
+        this.rooms.set(res.items || []);
+        this.totalCount.set(res.totalCount ?? (res.items || []).length);
       },
       error: () => {
-        this.syncInFlight = false;
+        if (gen === this.pollGeneration) {
+          this.syncInFlight = false;
+        }
       }
     });
   }
@@ -719,6 +770,7 @@ export class HousekeepingPage implements OnInit, OnDestroy {
   }
 
   loadRooms(): void {
+    this.invalidatePolling();
     this.reloadTrigger$.next();
   }
 
@@ -775,10 +827,13 @@ export class HousekeepingPage implements OnInit, OnDestroy {
     if (targetStatus === currentOldStatus) return;
 
     this.updatingRoomId.set(room.id);
+    this.invalidatePolling();
 
     this.roomService.updateRoomStatus(room.id, targetStatus, currentOldStatus).subscribe({
       next: (updated) => {
         this.updatingRoomId.set(null);
+        this.lastMutationTimestamp = Date.now();
+        this.invalidatePolling();
         // Cập nhật trạng thái trực tiếp trong danh sách signal
         this.rooms.update(list => list.map(r => r.id === room.id ? { ...r, status: targetStatus } : r));
         this.alertService.toastSuccess(

@@ -1064,5 +1064,209 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       expect(component.searchReservationId).toBe('res-001-bbbb');
       expect(mockPaymentService.getFolio).toHaveBeenCalledWith('res-001-bbbb', 'prop-1111');
     });
+
+    describe('Payment Retry Idempotency & Shift Report 403 Latch (TAN-OPS-FIX-01)', () => {
+      it('1. should reuse stable Idempotency-Key when retrying same payment intent after network failure', () => {
+        fixture = TestBed.createComponent(PaymentsPage);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+
+        component.loadFolio('res-001-bbbb');
+        fixture.detectChanges();
+
+        component.paymentAmount = 500000;
+        component.paymentMethod.set(PaymentMethod.Cash);
+
+        // First attempt fails with network/timeout error (status: 0)
+        mockPaymentService.createPayment.mockReturnValueOnce(
+          throwError(() => ({ status: 0, error: { message: 'Network Timeout' } }))
+        );
+
+        component.submitPayment('res-001-bbbb');
+        expect(mockPaymentService.createPayment).toHaveBeenCalledTimes(1);
+        const firstKey = mockPaymentService.createPayment.mock.calls[0][0].idempotencyKey;
+        expect(firstKey).toBeTruthy();
+        expect(component.folioError()).toContain('Network Timeout');
+
+        // Retry same payment intent with same payload
+        mockPaymentService.createPayment.mockReturnValueOnce(of({
+          id: 'pay-new-1',
+          reservationId: 'res-001-bbbb',
+          amount: 500000,
+          method: PaymentMethod.Cash,
+          status: PaymentStatus.Completed,
+          createdAtUtc: '2026-10-17T10:00:00Z'
+        }));
+
+        component.submitPayment('res-001-bbbb');
+        expect(mockPaymentService.createPayment).toHaveBeenCalledTimes(2);
+        const retryKey = mockPaymentService.createPayment.mock.calls[1][0].idempotencyKey;
+
+        // Idempotency key MUST be reused to protect against duplicate charging
+        expect(retryKey).toBe(firstKey);
+      });
+
+      it('2. should generate a new Idempotency-Key when payment succeeds and a new transaction is created', () => {
+        fixture = TestBed.createComponent(PaymentsPage);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+
+        component.loadFolio('res-001-bbbb');
+        fixture.detectChanges();
+
+        component.paymentAmount = 500000;
+        component.paymentMethod.set(PaymentMethod.Cash);
+
+        mockPaymentService.createPayment.mockReturnValueOnce(of({
+          id: 'pay-new-1',
+          reservationId: 'res-001-bbbb',
+          amount: 500000,
+          method: PaymentMethod.Cash,
+          status: PaymentStatus.Completed,
+          createdAtUtc: '2026-10-17T10:00:00Z'
+        }));
+
+        component.submitPayment('res-001-bbbb');
+        const firstKey = mockPaymentService.createPayment.mock.calls[0][0].idempotencyKey;
+
+        // Subsequent new payment on refreshed folio
+        component.paymentAmount = 300000;
+        component.paymentMethod.set(PaymentMethod.Cash);
+
+        mockPaymentService.createPayment.mockReturnValueOnce(of({
+          id: 'pay-new-2',
+          reservationId: 'res-001-bbbb',
+          amount: 300000,
+          method: PaymentMethod.Cash,
+          status: PaymentStatus.Completed,
+          createdAtUtc: '2026-10-17T10:05:00Z'
+        }));
+
+        component.submitPayment('res-001-bbbb');
+        const secondKey = mockPaymentService.createPayment.mock.calls[1][0].idempotencyKey;
+
+        expect(secondKey).not.toBe(firstKey);
+      });
+
+      it('3. should generate a new Idempotency-Key if amount or method changes before retry', () => {
+        fixture = TestBed.createComponent(PaymentsPage);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+
+        component.loadFolio('res-001-bbbb');
+        fixture.detectChanges();
+
+        component.paymentAmount = 500000;
+        component.paymentMethod.set(PaymentMethod.Cash);
+
+        mockPaymentService.createPayment.mockReturnValueOnce(
+          throwError(() => ({ status: 0, error: { message: 'Timeout' } }))
+        );
+        component.submitPayment('res-001-bbbb');
+        const key1 = mockPaymentService.createPayment.mock.calls[0][0].idempotencyKey;
+
+        // User edits amount to 700000
+        component.paymentAmount = 700000;
+        mockPaymentService.createPayment.mockReturnValueOnce(of({
+          id: 'pay-new-1',
+          reservationId: 'res-001-bbbb',
+          amount: 700000,
+          method: PaymentMethod.Cash,
+          status: PaymentStatus.Completed,
+          createdAtUtc: '2026-10-17T10:00:00Z'
+        }));
+        component.submitPayment('res-001-bbbb');
+        const key2 = mockPaymentService.createPayment.mock.calls[1][0].idempotencyKey;
+
+        expect(key2).not.toBe(key1);
+      });
+
+      it('4. should guard against double-click/concurrent submissions', () => {
+        fixture = TestBed.createComponent(PaymentsPage);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+
+        component.loadFolio('res-001-bbbb');
+        fixture.detectChanges();
+
+        component.paymentAmount = 500000;
+        component.paymentMethod.set(PaymentMethod.Cash);
+
+        const pendingSubject = new Subject<any>();
+        mockPaymentService.createPayment.mockReturnValueOnce(pendingSubject);
+
+        // First click
+        component.submitPayment('res-001-bbbb');
+        expect(component.isSubmittingPayment()).toBe(true);
+        expect(mockPaymentService.createPayment).toHaveBeenCalledTimes(1);
+
+        // Second click while in flight
+        component.submitPayment('res-001-bbbb');
+        expect(mockPaymentService.createPayment).toHaveBeenCalledTimes(1); // blocked!
+      });
+
+      it('5. should refresh all 4 groups (Folio, Summary, Payments, ShiftReport) and preserve shift date and shift type on payment success', () => {
+        fixture = TestBed.createComponent(PaymentsPage);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+
+        // User selects a specific shift type (e.g. Afternoon) and custom date
+        component.selectShiftType(ShiftType.Afternoon);
+        component.shiftDate = '2026-10-15';
+        mockPaymentService.getShiftReport.mockClear();
+        mockPaymentService.getPaymentSummary.mockClear();
+        mockPaymentService.getPayments.mockClear();
+        mockPaymentService.getFolio.mockClear();
+
+        component.paymentAmount = 500000;
+        component.paymentMethod.set(PaymentMethod.Cash);
+
+        mockPaymentService.createPayment.mockReturnValueOnce(of({
+          id: 'pay-new-1',
+          reservationId: 'res-001-bbbb',
+          amount: 500000,
+          method: PaymentMethod.Cash,
+          status: PaymentStatus.Completed,
+          createdAtUtc: '2026-10-17T10:00:00Z'
+        }));
+
+        component.submitPayment('res-001-bbbb');
+
+        // All 4 groups refreshed independently
+        expect(mockPaymentService.getFolio).toHaveBeenCalledWith('res-001-bbbb', 'prop-1111');
+        expect(mockPaymentService.getPaymentSummary).toHaveBeenCalledWith('prop-1111', expect.any(String));
+        expect(mockPaymentService.getPayments).toHaveBeenCalled();
+        expect(mockPaymentService.getShiftReport).toHaveBeenCalledWith('prop-1111', '2026-10-15', ShiftType.Afternoon);
+      });
+
+      it('6. should latch access-denied, clear all financial data, and block retry when Shift Report returns 403', () => {
+        fixture = TestBed.createComponent(PaymentsPage);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+
+        expect(component.summary()).not.toBeNull();
+        expect(component.payments().length).toBeGreaterThan(0);
+
+        // Shift report returns 403 Forbidden
+        mockPaymentService.getShiftReport.mockReturnValueOnce(
+          throwError(() => ({ status: 403, error: { message: 'Quyền xem ca bị từ chối' } }))
+        );
+
+        component.loadShiftReport();
+        fixture.detectChanges();
+
+        // Latch engaged and all financial data cleared
+        expect(component.isAccessDenied()).toBe(true);
+        expect(component.summary()).toBeNull();
+        expect(component.payments()).toEqual([]);
+        expect(component.shiftReport()).toBeNull();
+        expect(component.folio()).toBeNull();
+
+        // Retry blocked by latch
+        mockPaymentService.getShiftReport.mockClear();
+        component.retryShiftReport();
+        expect(mockPaymentService.getShiftReport).not.toHaveBeenCalled();
+      });
+    });
   });
 });

@@ -46,7 +46,8 @@ public sealed class P5_GuestBookingTests
         if (!string.IsNullOrWhiteSpace(envConn))
             return envConn;
 
-        return "Host=localhost;Port=5435;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
+        var port = Environment.GetEnvironmentVariable("TEST_POSTGRES_PORT") ?? "5435";
+        return $"Host=localhost;Port={port};Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
     }
 
     private static void ValidateTestDatabaseTarget(string connStr)
