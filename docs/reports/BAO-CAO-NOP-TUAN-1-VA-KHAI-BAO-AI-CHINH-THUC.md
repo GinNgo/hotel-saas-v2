@@ -7,7 +7,7 @@
 
 * **Mã đề tài:** 578
 * **Tên đề tài:** Nền tảng Quản lý Khách sạn Đa chi nhánh theo Mô hình SaaS (Hotel SaaS Platform v2)
-* **Giảng viên hướng dẫn:** ThS. Phùng Hữu Xuân (`phunghx@hcmute.edu.vn`)
+* **Giảng viên hướng dẫn:** Huỳnh Xuân Phụng (`phunghx@hcmute.edu.vn`)
 * **Thời gian thực hiện Tuần 01:** 03/10/2026 – 10/10/2026 (Hoàn tất rà soát & tích hợp nhánh: 14/10/2026)
 * **Kho mã nguồn chính thức (GitHub Repository):** [https://github.com/GinNgo/hotel-saas-v2](https://github.com/GinNgo/hotel-saas-v2)
 * **Nhánh tích hợp nghiệm thu:** [https://github.com/GinNgo/hotel-saas-v2/tree/develop](https://github.com/GinNgo/hotel-saas-v2/tree/develop) (đã đồng bộ lên nhánh [main](https://github.com/GinNgo/hotel-saas-v2/tree/main))
