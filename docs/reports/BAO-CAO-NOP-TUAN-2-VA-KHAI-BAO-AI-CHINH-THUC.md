@@ -182,7 +182,7 @@ Căn cứ vào kết quả đã nghiệm thu ở Tuần 02 và sổ tay kế ho�
 
 ### 1. Phân công công việc chi tiết cho từng thành viên trong Tuần 03
 
-#### 👤 Ngô Võ Tuấn An (24TX810001 - Nhóm trưởng):
+#### 1. Ngô Võ Tuấn An (24TX810001 - Nhóm trưởng):
 * **Nhiệm vụ mới 1 — Hạ tầng Cơ sở dữ liệu Cloud & Cấu hình môi trường (Cloud PostgreSQL):**
   * Khởi tạo cơ sở dữ liệu PostgreSQL dùng chung trên Cloud (sử dụng Neon Serverless Postgres hoặc Supabase), thay thế cho database local riêng lẻ để cả 3 thành viên kiểm thử trên cùng một nguồn dữ liệu thật.
   * Cấu hình chuỗi kết nối an toàn qua biến môi trường (Environment Secrets) trên GitHub Actions, tuyệt đối không commit thông tin bảo mật.
@@ -194,7 +194,7 @@ Căn cứ vào kết quả đã nghiệm thu ở Tuần 02 và sổ tay kế ho�
   * **Tái kiểm thử luồng Xác thực & Phân quyền (Tuần 01):** Kiểm tra lại các luồng Đăng nhập, Cấp mới Refresh Token và Chuyển đổi chi nhánh (SwitchContext), đảm bảo các cổng kiểm soát phiên (Safe Auth Gates) không gây xung đột hoặc chặn nhầm luồng truy cập của khách B2C mới.
   * **Chủ trì tích hợp & CI/CD Gatekeeper:** Review toàn bộ Pull Requests của Nguyên và Tân; phát hiện và xử lý ngay các xung đột mã nguồn hoặc lỗi gãy test khi ghép nối phân hệ mới với phân hệ cũ trước khi merge vào nhánh `develop`.
 
-#### 👤 Nguyễn Khôi Nguyên (24TX810011 - Thành viên):
+#### 2. Nguyễn Khôi Nguyên (24TX810011 - Thành viên):
 * **Nhánh phát triển dự kiến:** `feature/nguyen-week3-discovery-detail`
 * **Nhiệm vụ mới 1 — Duy trì ngữ cảnh Tìm kiếm khi quay lại (Search State Round-trip):**
   * Đồng bộ các tham số tìm kiếm (từ khóa điểm đến, khoảng giá, loại hình cơ sở, chế độ thuê theo giờ/đêm) lên URL query parameters.
@@ -207,7 +207,7 @@ Căn cứ vào kết quả đã nghiệm thu ở Tuần 02 và sổ tay kế ho�
   * **Kiểm thử lại sơ đồ Tape Chart & Đặt phòng tại quầy Walk-in (Tuần 02):** Kiểm tra xem việc thêm các API báo giá mới có làm ảnh hưởng đến hiệu năng hoặc cơ chế RxJS `debounceTime(400ms)` của form Walk-in hay không; sửa các lỗi hiển thị lệch cột giờ trên sơ đồ Tape Chart nếu phát hiện khi chạy thực tế trên các màn hình có độ phân giải khác nhau.
   * Viết bổ sung bộ unit test Vitest cho component Detail (`property-detail.page.spec.ts`) và đảm bảo 100% test case cũ của Tuần 01 & Tuần 02 tiếp tục pass.
 
-#### 👤 Trần Trọng Tân (24TX810025 - Thành viên):
+#### 3. Trần Trọng Tân (24TX810025 - Thành viên):
 * **Nhánh phát triển dự kiến:** `feature/tan-week3-hold-lookup`
 * **Nhiệm vụ mới 1 — Hoàn thiện Quy trình Giữ phòng B2C (Booking Hold & Countdown Timer):**
   * Hoàn thiện màn hình [booking-hold.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/booking-hold.page.ts): hiển thị đồng hồ đếm ngược 15 phút giữ phòng; nếu hết thời gian mà khách chưa thanh toán thì tự động chuyển sang trạng thái hết hạn (`Expired`) và giải phóng phòng.
