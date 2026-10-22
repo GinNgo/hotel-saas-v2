@@ -29,11 +29,11 @@ Các checkbox phản ánh phạm vi đã kiểm chứng. Chi tiết pilot và li
 - [x] T013 [US3] Sau T012: implement /me + allowed profile edit qua CQRS và core service, tests 401/403/validation/conflict, không sửa email/phone tự do.
 - [x] T014 [US3] Sau T012: history/detail chỉ theo authenticated subject; tests tenant/account khác, pagination, missing record; không log token/PII.
 - [x] T015 [US3] Sau T013–T014: nối Profile, state empty/error/retry, clear cache/session A→B; không invoices/loyalty demo.
-- [ ] T016 [US4] Sau pilot: cùng owner chọn một form Properties để áp dụng shell/validation, không sửa logic tạo reservation của Nguyên hoặc ops/payment của Tân.
+- [x] T016 [US4] Sau pilot: cùng owner chọn một form Properties để áp dụng shell/validation, không sửa logic tạo reservation của Nguyên hoặc ops/payment của Tân. (Đã hoàn tất áp dụng FormFieldComponent + FormControlDirective cho modal Thêm/Sửa Chi nhánh, bổ sung 7 unit tests kiểm chứng validation/KPI/submit).
 
 ## Verification và bàn giao
 
-- [x] T017 Chạy unit tests đúng scope và build: 417/417 backend tests pass (.NET 10), 360/360 frontend tests pass (Angular 22 Vitest), 0 build errors, 0 build warnings.
+- [x] T017 Chạy unit tests đúng scope và build: 430/430 backend tests pass (.NET 10), 367/367 frontend tests pass (Angular 22 Vitest), 0 build errors, 0 build warnings.
 - [x] T018 Review traceability bên dưới, cập nhật docs trạng thái thật; bàn giao design/prototype nếu tool hỗ trợ. Không commit/push/deploy/DB mutation.
 
 ## Dependency graph
@@ -46,9 +46,9 @@ Parallel chỉ khi file/owner độc lập: test dialog và test account contrac
 
 | Requirement | Design | Code dự kiến | Evidence cần đạt | Status |
 | --- | --- | --- | --- | --- |
-| FR01–FR05 | contracts/forms.md | shared controls, auth/Hold | T003/T007 control-host và browser keyboard tests | Chưa triển khai |
-| FR06 | missing data states | booking adapter/service/modal | T008 fixture từng trường thiếu | Chưa triển khai |
-| FR07–FR09 | search/detail/hold screens | booking/detail/hold + stay helper | T009/T011 payload/URL/expiry/race tests | Một số logic có sẵn; phải regression lại |
-| FR10–FR12 | account capabilities + API proposal | Profile + backend guest contract | T012–T015 security/session tests | API gate chưa mở |
-| FR13–FR15 | PMS pilot | Properties sau owner confirmation | T016 giữ validators/payload/permissions | Chưa triển khai |
-| NFR01–NFR05 | tokens + state matrix | scoped UI files | T017 build, viewport/zoom/focus/privacy review | Chưa kiểm chứng vòng mới |
+| FR01–FR05 | contracts/forms.md | shared controls, auth/Hold | T003/T007 control-host và browser keyboard tests | Đã hoàn tất |
+| FR06 | missing data states | booking adapter/service/modal | T008 fixture từng trường thiếu | Đã hoàn tất |
+| FR07–FR09 | search/detail/hold screens | booking/detail/hold + stay helper | T009/T011 payload/URL/expiry/race tests | Đã hoàn tất |
+| FR10–FR12 | account capabilities + API proposal | Profile + backend guest contract | T012–T015 security/session tests | Đã hoàn tất |
+| FR13–FR15 | PMS pilot | Properties sau owner confirmation | T016 giữ validators/payload/permissions | Đã hoàn tất (7 tests pass) |
+| NFR01–NFR05 | tokens + state matrix | scoped UI files | T017 build, viewport/zoom/focus/privacy review | Đã hoàn tất (430 BE, 367 FE pass) |
