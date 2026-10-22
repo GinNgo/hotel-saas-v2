@@ -2,10 +2,12 @@ import '@angular/compiler';
 import { TestBed } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { provideRouter } from '@angular/router';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
 import { JSDOM } from 'jsdom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthService } from '../../../core/services/auth.service';
+import { GuestAccountService } from '../../../core/services/guest-account.service';
+import { AlertService } from '../../../core/services/alert.service';
 import { UserDto } from '../../../core/models/auth.model';
 import { GuestProfilePageComponent } from './guest-profile.page';
 
@@ -18,9 +20,28 @@ try { TestBed.initTestEnvironment(BrowserTestingModule, platformBrowserTesting()
 describe('Real-session guest account', () => {
   const users = new BehaviorSubject<UserDto | null>(null);
   const logout = vi.fn(() => users.next(null));
+  const mockGuestService = {
+    getMe: vi.fn(() => of({ id: 'u1', fullName: 'Khách Test', email: 'test@example.com', emailVerified: true, capabilities: { canEditName: true, canViewBookings: true } })),
+    updateMe: vi.fn((name: string) => of({ id: 'u1', fullName: name, email: 'test@example.com', emailVerified: true, capabilities: { canEditName: true, canViewBookings: true } })),
+    getBookings: vi.fn(() => of({ items: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 })),
+    getLoyaltyProfile: vi.fn(() => of(null)),
+  };
+  const mockAlertService = {
+    success: vi.fn(),
+    error: vi.fn(),
+  };
+
   beforeEach(() => {
     users.next(null); logout.mockClear();
-    TestBed.configureTestingModule({ imports: [GuestProfilePageComponent], providers: [provideRouter([]), { provide: AuthService, useValue: { currentUser$: users, currentUser: null, logout } }] });
+    TestBed.configureTestingModule({
+      imports: [GuestProfilePageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useValue: { currentUser$: users, currentUser: null, logout } },
+        { provide: GuestAccountService, useValue: mockGuestService },
+        { provide: AlertService, useValue: mockAlertService }
+      ]
+    });
   });
   afterEach(() => TestBed.resetTestingModule());
   it('shows sign-in with returnUrl instead of a demo account', () => {
