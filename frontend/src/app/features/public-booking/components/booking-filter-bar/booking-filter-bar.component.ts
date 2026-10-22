@@ -19,6 +19,7 @@ import {
   PublicBookingSearchFilter,
   RentalType,
 } from '../../../../core/models/public-booking.model';
+import { BookingDatePickerComponent } from '../../../../shared';
 
 interface RentalModeTab {
   type: RentalType;
@@ -56,7 +57,7 @@ export interface DestinationSelection {
 @Component({
   selector: 'app-booking-filter-bar',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, BookingDatePickerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section
@@ -240,131 +241,17 @@ export interface DestinationSelection {
 
         <!-- Cột 2: Bộ chọn Ngày / Giờ linh hoạt theo Chế độ Lưu trú (5 cột) -->
         <div class="lg:col-span-5">
-          @switch (rentalType()) {
-            <!-- CASE A: THUÊ THEO GIỜ (NHÀ NGHỈ / MOTEL / KHÁCH SẠN THEO GIỜ) -->
-            @case ('Hourly') {
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <div>
-                  <label
-                    class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
-                  >
-                    Ngày nhận phòng
-                  </label>
-                  <input
-                    type="date"
-                    [ngModel]="checkInDate()"
-                    (ngModelChange)="onCheckInDateChange($event)"
-                    class="w-full px-3 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
-                  >
-                    Giờ nhận phòng
-                  </label>
-                  <select
-                    [ngModel]="checkInTime()"
-                    (ngModelChange)="checkInTime.set($event)"
-                    class="w-full px-3 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 bg-white focus:ring-2 focus:ring-indigo-500"
-                  >
-                    @for (slot of hourlyTimeSlots; track slot) {
-                      <option [value]="slot">{{ slot }}</option>
-                    }
-                  </select>
-                </div>
-
-                <div>
-                  <label
-                    class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
-                  >
-                    Số giờ sử dụng
-                  </label>
-                  <select
-                    [ngModel]="durationHours()"
-                    (ngModelChange)="durationHours.set(+$event)"
-                    class="w-full px-3 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 bg-white focus:ring-2 focus:ring-indigo-500"
-                  >
-                    @for (hour of hourlyDurationOptions; track hour) {
-                      <option [value]="hour">{{ hour }} giờ</option>
-                    }
-                  </select>
-                </div>
-              </div>
-            }
-
-            <!-- CASE B: THUÊ QUA ĐÊM -->
-            @case ('Overnight') {
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label
-                    class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
-                  >
-                    Đêm nhận phòng (giờ theo cơ sở)
-                  </label>
-                  <input
-                    type="date"
-                    [ngModel]="checkInDate()"
-                    (ngModelChange)="onCheckInDateChange($event)"
-                    class="w-full px-3.5 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
-                  >
-                    Trả phòng sáng hôm sau
-                  </label>
-                  <div
-                    class="w-full px-3.5 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 flex items-center justify-between"
-                  >
-                    <span>{{ checkOutDate() }} (giờ theo cơ sở)</span>
-                    <span
-                      class="text-xs font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md"
-                    >
-                      1 Đêm
-                    </span>
-                  </div>
-                </div>
-              </div>
-            }
-
-            <!-- CASE C: THUÊ THEO NGÀY (CHUẨN HOTEL / RESORT / HOMESTAY) -->
-            @default {
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label
-                    class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
-                  >
-                    Ngày nhận phòng (giờ theo cơ sở)
-                  </label>
-                  <input
-                    type="date"
-                    [ngModel]="checkInDate()"
-                    (ngModelChange)="onCheckInDateChange($event)"
-                    class="w-full px-3.5 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
-                  >
-                    Ngày trả phòng ({{ nightCount() }} đêm)
-                  </label>
-                  <input
-                    type="date"
-                    [ngModel]="checkOutDate()"
-                    [min]="checkInDate()"
-                    (ngModelChange)="onCheckOutDateChange($event)"
-                    class="w-full px-3.5 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-            }
-          }
+          <app-booking-date-picker
+            [rentalType]="rentalType()"
+            [checkInDate]="checkInDate()"
+            [checkOutDate]="checkOutDate()"
+            [checkInTime]="checkInTime()"
+            [durationHours]="durationHours()"
+            (checkInDateChange)="onCheckInDateChange($event)"
+            (checkOutDateChange)="onCheckOutDateChange($event)"
+            (checkInTimeChange)="checkInTime.set($event)"
+            (durationHoursChange)="durationHours.set($event)"
+          />
         </div>
 
         <!-- Cột 3: Số khách & Nút Tìm kiếm (3 cột) -->
@@ -557,12 +444,14 @@ export class BookingFilterBarComponent {
     name: string;
     slug: string;
     provinceCode: string;
+    latitude?: number;
+    longitude?: number;
   }> = [
-    { name: 'Chợ đêm Đà Lạt', slug: 'cho-dem-da-lat', provinceCode: '68' },
-    { name: 'Bãi Sau Vũng Tàu', slug: 'bai-sau-vung-tau', provinceCode: '77' },
-    { name: 'Phố đi bộ Nguyễn Huệ', slug: 'pho-di-bo-nguyen-hue', provinceCode: '79' },
-    { name: 'Cầu Rồng Đà Nẵng', slug: 'cau-rong-da-nang', provinceCode: '48' },
-    { name: 'Phố cổ Hội An', slug: 'pho-co-hoi-an', provinceCode: '49' },
+    { name: 'Chợ Bến Thành (Quận 1)', slug: 'cho-ben-thanh', provinceCode: '79', latitude: 10.7725, longitude: 106.6980 },
+    { name: 'Phố đi bộ Nguyễn Huệ', slug: 'pho-di-bo-nguyen-hue', provinceCode: '79', latitude: 10.7744, longitude: 106.7032 },
+    { name: 'Sân bay Tân Sơn Nhất', slug: 'san-bay-tan-son-nhat', provinceCode: '79', latitude: 10.8185, longitude: 106.6588 },
+    { name: 'Bãi Sau Vũng Tàu', slug: 'bai-sau-vung-tau', provinceCode: '77', latitude: 10.3392, longitude: 107.0877 },
+    { name: 'Chợ đêm Đà Lạt', slug: 'cho-dem-da-lat', provinceCode: '68', latitude: 11.9424, longitude: 108.4373 },
   ];
 
   // --- SIGNALS QUẢN LÝ TRẠNG THÁI FORM ---
@@ -599,28 +488,85 @@ export class BookingFilterBarComponent {
       const endHour = (h + this.durationHours()) % 24;
       const nextDaySuffix = h + this.durationHours() >= 24 ? ' (hôm sau)' : '';
       const formattedEnd = `${String(endHour).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-      return `Nhận phòng ${this.checkInTime()} → Trả phòng ${formattedEnd}${nextDaySuffix} (${this.durationHours()} giờ)`;
+      return `Nhận ${this.formatVnDate(this.checkInDate())} lúc ${this.checkInTime()} → Trả ${formattedEnd}${nextDaySuffix} (${this.durationHours()} giờ)`;
     }
     if (mode === 'Overnight') {
-      return `${this.checkInDate()} → ${this.checkOutDate()} • Giờ theo cơ sở`;
+      return `${this.formatVnDate(this.checkInDate())} → ${this.formatVnDate(this.checkOutDate())} • Qua đêm`;
     }
-    return `${this.checkInDate()} → ${this.checkOutDate()} • ${this.nightCount()} đêm • Giờ theo cơ sở`;
+    return `${this.formatVnDate(this.checkInDate())} → ${this.formatVnDate(this.checkOutDate())} • ${this.nightCount()} đêm`;
   });
 
   readonly filteredSuggestions = computed<DestinationSuggestionDto[]>(() => {
     const rawKeyword = this.normalizeVietnamese(this.destinationKeyword());
+    const isGpsPlaceholder =
+      !rawKeyword ||
+      rawKeyword.includes('gps') ||
+      rawKeyword.includes('vi tri hien tai') ||
+      rawKeyword.includes('gan toi');
+
     const all = this.suggestions();
-    if (!rawKeyword) {
-      return all.slice(0, 8);
-    }
-    return all
-      .filter((item) => {
-        const haystack = this.normalizeVietnamese(
-          `${item.name} ${item.provinceName} ${item.touristZoneName ?? ''}`
+    const coords = this.userCoords();
+
+    // Map all suggestions and compute haversine distance if coords are present
+    const list = all.map((item) => {
+      let dist = item.distanceMeters ?? null;
+      let label = item.distanceLabel;
+
+      if (coords && item.latitude != null && item.longitude != null) {
+        dist = Math.round(
+          this.calcHaversineDistance(
+            coords.lat,
+            coords.lng,
+            item.latitude,
+            item.longitude
+          )
         );
-        return haystack.includes(rawKeyword);
-      })
-      .slice(0, 10);
+        label =
+          dist < 1000
+            ? `Cách ${dist}m`
+            : `Cách ${(dist / 1000).toFixed(1)}km`;
+      }
+
+      return {
+        ...item,
+        distanceMeters: dist ?? undefined,
+        distanceLabel: label,
+      };
+    });
+
+    if (isGpsPlaceholder) {
+      if (coords) {
+        // When GPS mode is on, filter suggestions within 50km and sort closest first
+        const within50Km = list
+          .filter((x) => x.distanceMeters != null && x.distanceMeters <= 50000)
+          .sort((a, b) => (a.distanceMeters ?? 999999) - (b.distanceMeters ?? 999999));
+
+        if (within50Km.length > 0) {
+          return within50Km.slice(0, 8);
+        }
+        // If none within 50km, sort all by distance ascending
+        return list
+          .sort((a, b) => (a.distanceMeters ?? 999999) - (b.distanceMeters ?? 999999))
+          .slice(0, 8);
+      }
+      return list.slice(0, 8);
+    }
+
+    // Keyword filtering
+    const matches = list.filter((item) => {
+      const haystack = this.normalizeVietnamese(
+        `${item.name} ${item.provinceName} ${item.touristZoneName ?? ''}`
+      );
+      return haystack.includes(rawKeyword);
+    });
+
+    if (coords) {
+      matches.sort(
+        (a, b) => (a.distanceMeters ?? 999999) - (b.distanceMeters ?? 999999)
+      );
+    }
+
+    return matches.slice(0, 10);
   });
 
   constructor() {
@@ -685,7 +631,11 @@ export class BookingFilterBarComponent {
   }
 
   selectSuggestion(item: DestinationSuggestionDto): void {
-    this.userCoords.set(null);
+    if (item.latitude != null && item.longitude != null) {
+      this.userCoords.set({ lat: item.latitude, lng: item.longitude });
+    } else {
+      this.userCoords.set(null);
+    }
     this.destinationKeyword.set(item.name);
     this.selectedProvinceCode.set(item.provinceCode);
     this.selectedTouristZoneSlug.set(
@@ -700,8 +650,14 @@ export class BookingFilterBarComponent {
     name: string;
     slug: string;
     provinceCode: string;
+    latitude?: number;
+    longitude?: number;
   }): void {
-    this.userCoords.set(null);
+    if (spot.latitude != null && spot.longitude != null) {
+      this.userCoords.set({ lat: spot.latitude, lng: spot.longitude });
+    } else {
+      this.userCoords.set(null);
+    }
     this.destinationKeyword.set(spot.name);
     this.selectedProvinceCode.set(spot.provinceCode);
     this.selectedLandmarkSlug.set(spot.slug);
@@ -812,7 +768,7 @@ export class BookingFilterBarComponent {
       userLongitude: this.userCoords()?.lng ?? null,
       minPrice: null,
       maxPrice: null,
-      sortBy: 'recommended',
+      sortBy: this.userCoords() ? 'distance_asc' : 'recommended',
       page: 1,
       pageSize: 10,
     });
@@ -892,5 +848,37 @@ export class BookingFilterBarComponent {
     const d = new Date(isoDate);
     d.setDate(d.getDate() + days);
     return d.toISOString().split('T')[0];
+  }
+
+  private formatVnDate(isoDate: string): string {
+    if (!isoDate) return '';
+    const parts = isoDate.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return isoDate;
+  }
+
+  private calcHaversineDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ): number {
+    const R = 6371e3;
+    const phi1 = (lat1 * Math.PI) / 180;
+    const phi2 = (lat2 * Math.PI) / 180;
+    const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+    const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+      Math.cos(phi1) *
+        Math.cos(phi2) *
+        Math.sin(deltaLambda / 2) *
+        Math.sin(deltaLambda / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
   }
 }

@@ -24,7 +24,11 @@ export interface DestinationSuggestionDto {
   distanceLabel?: string;
   propertyCount?: number;
   propertyType?: PropertyType;
+  latitude?: number;
+  longitude?: number;
+  distanceMeters?: number;
 }
+
 
 export interface NearbyLandmarkBadgeDto {
   landmarkId: string;

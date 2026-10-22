@@ -40,7 +40,8 @@ describe('Destination picker dismissal', () => {
   it('closes when focus leaves the destination field group', () => {
     const fixture = setup();
     const element: HTMLElement = fixture.nativeElement;
-    element.querySelector('input[type="date"]')!.dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+    const outsideTarget = element.querySelector('app-booking-date-picker, button, input:not([role="combobox"])') ?? document.body;
+    outsideTarget.dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
     expect(fixture.componentInstance.showSuggestionsDropdown()).toBe(false);
   });
 

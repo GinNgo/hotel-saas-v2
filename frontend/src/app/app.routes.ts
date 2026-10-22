@@ -63,6 +63,13 @@ export const routes: Routes = [
           import('./features/public-booking/booking.page').then(m => m.BookingPageComponent)
       },
       {
+        path: 'explore',
+        loadComponent: () =>
+          import('./features/public-booking/explore-search.page').then(
+            m => m.ExploreSearchPageComponent
+          )
+      },
+      {
         path: 'destinations',
         loadComponent: () =>
           import('./features/public-booking/destination-explore.page').then(
