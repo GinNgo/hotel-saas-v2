@@ -89,6 +89,10 @@ public sealed class GetGuestBookingByTokenQueryHandler : IRequestHandler<GetGues
         var remainingBalance = Math.Max(0m, reservation.TotalAmount - paidAmount);
         var isFullyPaid = paidAmount >= reservation.TotalAmount && reservation.TotalAmount > 0;
 
+        // Security / IoT Policy: Only disclose door PIN when reservation is Confirmed or CheckedIn AND smart lock is Active
+        bool isPinPermitted = (reservation.Status == ReservationStatus.Confirmed || reservation.Status == ReservationStatus.CheckedIn) &&
+                              string.Equals(reservation.SmartLockStatus, "Active", StringComparison.OrdinalIgnoreCase);
+
         return new GuestBookingDetailDto
         {
             ReservationId = reservation.Id,
@@ -115,7 +119,7 @@ public sealed class GetGuestBookingByTokenQueryHandler : IRequestHandler<GetGues
             MaskedGuestPhone = PiiMaskingHelper.MaskPhone(reservation.GuestPhone),
             HoldExpiresAtUtc = snapshot.HoldExpiresAtUtc,
             SecondsRemaining = secondsRemaining,
-            SmartLockPin = reservation.SmartLockPin,
+            SmartLockPin = isPinPermitted ? reservation.SmartLockPin : null,
             SmartLockStatus = reservation.SmartLockStatus,
             CreatedAtUtc = reservation.CreatedAtUtc,
             Breakdown = snapshot.Breakdown ?? Array.Empty<QuoteBreakdownItemDto>()

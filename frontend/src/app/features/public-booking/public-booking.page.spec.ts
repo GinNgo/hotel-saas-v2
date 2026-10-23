@@ -476,7 +476,8 @@ describe('Public Booking Pages Suite — Angular 22 Signals Architecture', () =>
       component.guestPhone = '';
       component.confirmBooking();
 
-      expect(mockAlertService.error).toHaveBeenCalledWith('Vui lòng điền đầy đủ Họ tên và Số điện thoại.');
+      expect(mockAlertService.error).not.toHaveBeenCalled();
+      expect(component.toast()).toBeNull();
       expect(mockBookingService.createHold).not.toHaveBeenCalled();
       expect(component.fieldError('name')).toBe('Vui lòng nhập họ và tên.');
       expect(component.fieldError('phone')).toBe('Vui lòng nhập số điện thoại.');
