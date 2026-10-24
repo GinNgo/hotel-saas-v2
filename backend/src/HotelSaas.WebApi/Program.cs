@@ -63,7 +63,10 @@ builder.Services.AddControllers()
 
 // ── Swagger / OpenAPI ────────────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.CustomSchemaIds(type => type.FullName?.Replace("+", "."));
+});
 
 // ── CORS ─────────────────────────────────────────────────────────────
 builder.Services.AddCors(options =>
