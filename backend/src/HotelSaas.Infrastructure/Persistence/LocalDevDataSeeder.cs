@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -445,6 +445,15 @@ public static class LocalDevDataSeeder
         else
         {
             existingDataPreserved = true;
+            if (!prop1.Latitude.HasValue || string.IsNullOrEmpty(prop1.TouristZoneSlug))
+            {
+                prop1.Latitude = 10.7769;
+                prop1.Longitude = 106.7009;
+                prop1.TouristZoneSlug = "quan-1-tphcm";
+                prop1.TouristZoneName = "TP. Hồ Chí Minh - Trung Tâm Quận 1";
+                prop1.NearbyLandmarksJson = "[{\"Name\":\"Chợ Bến Thành\",\"Category\":\"Chợ & Mua sắm\",\"DistanceKm\":0.3},{\"Name\":\"Phố Đi Bộ Nguyễn Huệ\",\"Category\":\"Quảng trường\",\"DistanceKm\":0.4}]";
+                await context.SaveChangesAsync();
+            }
         }
 
         var prop2 = await context.Properties.IgnoreQueryFilters()
@@ -498,6 +507,15 @@ public static class LocalDevDataSeeder
         else
         {
             existingDataPreserved = true;
+            if (!prop2.Latitude.HasValue || string.IsNullOrEmpty(prop2.TouristZoneSlug))
+            {
+                prop2.Latitude = 10.7992;
+                prop2.Longitude = 106.6881;
+                prop2.TouristZoneSlug = "quan-1-tphcm";
+                prop2.TouristZoneName = "TP. Hồ Chí Minh - Trung Tâm Quận 1";
+                prop2.NearbyLandmarksJson = "[{\"Name\":\"Sân bay Quốc tế Tân Sơn Nhất\",\"Category\":\"Sân bay\",\"DistanceKm\":3.2}]";
+                await context.SaveChangesAsync();
+            }
         }
 
         // ── Step 4: Seed Users (Idempotent: preserve passwords and roles) ──

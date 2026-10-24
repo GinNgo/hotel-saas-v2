@@ -101,8 +101,28 @@ body {
 
 /* Accessible Global Focus Visible */
 *:focus-visible {
-  outline: 2px solid var(--brand-primary-600);
+  outline: 2px solid var(--brand-accent-600);
   outline-offset: 2px;
+}
+
+/* PrimeNG Button Harmonization with Indigo Brand Token */
+.p-button.p-button-primary {
+  background: #4f46e5 !important;
+  border-color: #4f46e5 !important;
+  color: #ffffff !important;
+}
+.p-button.p-button-primary:hover {
+  background: #4338ca !important;
+  border-color: #4338ca !important;
+}
+.p-button.p-button-success {
+  background: #059669 !important;
+  border-color: #059669 !important;
+  color: #ffffff !important;
+}
+.p-button.p-button-success:hover {
+  background: #047857 !important;
+  border-color: #047857 !important;
 }
 
 /* Custom Refined Scrollbar */

@@ -21,39 +21,160 @@ import { BrandLogoComponent } from '../../shared/components/brand-logo/brand-log
   template: `
     <div class="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans">
       <a href="#booking-content" class="skip-link">Đến nội dung chính</a>
-      <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-3">
+      <!-- 2. LIGHT LUXURY ARCHITECTURAL HEADER (CRISP, BRIGHT & PRESTIGIOUS) -->
+      <header class="bg-white/95 text-slate-800 border-b border-slate-200/80 sticky top-0 z-30 shadow-xs backdrop-blur-md">
+        <!-- Top Micro Utility Bar (Breeze Light) -->
+        <div class="border-b border-slate-200/70 bg-slate-50/90">
+          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-8 flex items-center justify-between text-[11px] text-slate-600">
+            <div class="flex items-center gap-4">
+              <span class="inline-flex items-center gap-1.5 hover:text-indigo-600 transition-colors">
+                <i class="pi pi-phone text-[10px] text-amber-600"></i>
+                <span>Hotline 24/7: <strong class="text-slate-900 font-bold">1900 6868</strong></span>
+              </span>
+              <span class="hidden md:inline-flex items-center gap-1.5 text-slate-500">
+                <i class="pi pi-shield text-[10px] text-emerald-600"></i>
+                <span>Bảo đảm 100% Hoàn tiền &amp; Mở khóa Smart Lock</span>
+              </span>
+            </div>
+
+            <div class="flex items-center gap-3.5">
+              <a 
+                routerLink="/auth/partner-register" 
+                class="inline-flex items-center gap-1 text-amber-700 hover:text-amber-800 transition-colors font-bold"
+              >
+                <i class="pi pi-building text-[10px]"></i>
+                <span>Dành cho Chủ khách sạn: Đăng ký cơ sở</span>
+              </a>
+              <span class="text-slate-300">|</span>
+              <span class="inline-flex items-center gap-1 text-slate-600 font-semibold cursor-default">
+                <span>🇻🇳 VN &bull; VND</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Navigation Bar -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+          <!-- Brand Logo (Dark Variant on Crisp White) -->
           <app-brand-logo size="md" variant="dark" />
-          <nav aria-label="Điều hướng chính" class="flex items-center gap-2 sm:gap-4">
-            <a routerLink="/booking/lookup" class="hidden sm:inline-flex items-center min-h-11 text-sm font-medium text-slate-700 hover:text-indigo-700">Tra cứu đặt phòng</a>
-            <a [routerLink]="isAuthenticated() ? (isCustomer() ? '/booking/profile' : '/dashboard') : '/auth/login'"
-              [queryParams]="isAuthenticated() ? {} : { portal: 'guest' }"
-              class="inline-flex items-center justify-center min-h-11 max-w-36 px-3 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">
-              <span class="truncate">{{ isAuthenticated() ? (isCustomer() ? userFirstName() : 'Quản trị PMS') : 'Đăng nhập' }}</span>
+
+          <!-- Center Navigation Links -->
+          <nav class="hidden lg:flex items-center gap-1 text-xs font-semibold tracking-wide text-slate-700">
+            <a 
+              routerLink="/booking/destinations" 
+              class="px-3.5 py-2 rounded-xl hover:text-indigo-600 hover:bg-slate-100/80 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <i class="pi pi-compass text-[11px] text-indigo-500"></i>
+              <span>Khám Phá Địa Danh</span>
             </a>
+            <a 
+              routerLink="/booking/deals" 
+              class="px-3.5 py-2 rounded-xl hover:text-indigo-600 hover:bg-slate-100/80 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <i class="pi pi-tag text-[11px] text-amber-600"></i>
+              <span>Ưu Đãi Đặc Quyền</span>
+            </a>
+            <a 
+              routerLink="/booking/brands" 
+              class="px-3.5 py-2 rounded-xl hover:text-indigo-600 hover:bg-slate-100/80 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <i class="pi pi-star text-[11px] text-amber-500"></i>
+              <span>Chuỗi Thương Hiệu</span>
+            </a>
+            <a 
+              routerLink="/booking/lookup" 
+              class="px-3.5 py-2 rounded-xl hover:text-indigo-600 hover:bg-slate-100/80 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <i class="pi pi-search text-[11px] text-slate-400"></i>
+              <span>Tra Cứu Đặt Phòng</span>
+            </a>
+          </nav>
+
+          <!-- Right Action Buttons -->
+          <div class="flex items-center gap-2.5">
+            <!-- Tra Cứu Quick Button on Mobile -->
+            <a 
+              routerLink="/booking/lookup" 
+              class="inline-flex lg:hidden items-center justify-center w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all text-xs"
+              title="Tra cứu đặt phòng"
+            >
+              <i class="pi pi-search"></i>
+            </a>
+
+            <!-- Partner B2B CTA Button -->
+            <a
+              routerLink="/auth/partner-register"
+              class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300/80 transition-all shadow-2xs"
+            >
+              <i class="pi pi-building text-[10px] text-amber-600"></i>
+              <span>Mở Khách Sạn</span>
+            </a>
+
+            <!-- User Auth / Profile Button -->
+            <a 
+              [routerLink]="isAuthenticated() ? (isCustomer() ? '/booking/profile' : '/dashboard') : '/auth/login'"
+              [queryParams]="isAuthenticated() ? {} : { portal: 'guest' }"
+              class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shadow-xs border"
+              [class]="isAuthenticated() ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100' : 'bg-slate-900 hover:bg-indigo-600 text-white border-transparent shadow-xs'"
+            >
+              <i [class]="isAuthenticated() ? 'pi pi-user-check text-indigo-600' : 'pi pi-user'" class="text-xs"></i>
+              <span class="truncate max-w-28">{{ isAuthenticated() ? (isCustomer() ? userFirstName() : 'Quản trị PMS') : 'Đăng nhập' }}</span>
+            </a>
+
+            <!-- Mobile & Explore Dropdown -->
             <div #discoveryGroup class="relative" (keydown.escape)="closeMenu(menuToggle)">
-              <button #menuToggle type="button" (click)="menuOpen.set(!menuOpen())"
-                [attr.aria-expanded]="menuOpen()" aria-controls="guest-navigation"
-                class="inline-flex items-center justify-center gap-2 min-h-11 min-w-11 px-3 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50"
-                aria-label="Khám phá và hỗ trợ">
-                <span class="hidden lg:inline text-sm font-medium">Khám phá</span>
-                <i class="pi pi-bars" aria-hidden="true"></i>
+              <button 
+                #menuToggle 
+                type="button" 
+                (click)="menuOpen.set(!menuOpen())"
+                [attr.aria-expanded]="menuOpen()" 
+                aria-controls="guest-navigation"
+                class="inline-flex items-center justify-center gap-1.5 h-9 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-semibold transition-all cursor-pointer"
+                aria-label="Khám phá và danh mục"
+              >
+                <i class="pi pi-bars text-sm"></i>
+                <span class="hidden sm:inline">Menu</span>
               </button>
+
               @if (menuOpen()) {
-                <nav id="guest-navigation" aria-label="Khám phá và hỗ trợ"
-                  class="absolute right-0 mt-3 w-64 max-w-[calc(100vw-2rem)] max-h-[70dvh] overflow-y-auto rounded-xl bg-white border border-slate-200 shadow-lg p-2"
-                  (click)="menuOpen.set(false)">
+                <nav 
+                  id="guest-navigation" 
+                  aria-label="Khám phá và hỗ trợ"
+                  class="absolute right-0 mt-3 w-64 max-w-[calc(100vw-2rem)] max-h-[75dvh] overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-2xl p-2.5 text-slate-800 z-50 animate-fade-in"
+                  (click)="menuOpen.set(false)"
+                >
+                  <div class="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-1">
+                    Điều Hướng Nhanh
+                  </div>
                   @for (link of exploreLinks; track link.path) {
-                    <a [routerLink]="link.path" class="flex items-center min-h-11 px-3 rounded-lg text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-700">{{ link.label }}</a>
+                    <a 
+                      [routerLink]="link.path" 
+                      class="flex items-center min-h-10 px-3 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-indigo-600 transition-colors"
+                    >
+                      {{ link.label }}
+                    </a>
                   }
-                  <div class="border-t border-slate-200 mt-2 pt-2">
-                    <a routerLink="/auth/partner-register" class="flex items-center min-h-11 px-3 text-sm text-slate-700 hover:bg-slate-50 rounded-lg">Đăng ký đối tác</a>
-                    <a routerLink="/auth/login" [queryParams]="{ portal: 'admin' }" class="flex items-center min-h-11 px-3 text-sm text-slate-700 hover:bg-slate-50 rounded-lg">Cổng quản lý khách sạn</a>
+                  <div class="border-t border-slate-100 mt-2 pt-2 space-y-1">
+                    <a 
+                      routerLink="/auth/partner-register" 
+                      class="flex items-center gap-2 min-h-10 px-3 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-xl"
+                    >
+                      <i class="pi pi-building text-xs text-amber-600"></i>
+                      <span>Đăng ký đối tác khách sạn</span>
+                    </a>
+                    <a 
+                      routerLink="/auth/login" 
+                      [queryParams]="{ portal: 'admin' }" 
+                      class="flex items-center gap-2 min-h-10 px-3 text-xs text-slate-700 hover:bg-slate-100 hover:text-indigo-600 rounded-xl"
+                    >
+                      <i class="pi pi-lock text-xs"></i>
+                      <span>Cổng quản lý PMS</span>
+                    </a>
                   </div>
                 </nav>
               }
             </div>
-          </nav>
+          </div>
         </div>
       </header>
 

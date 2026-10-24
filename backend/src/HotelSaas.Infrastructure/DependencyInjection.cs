@@ -25,10 +25,13 @@ public static class DependencyInjection
     {
         services.AddScoped<TenantPropertySaveChangesInterceptor>();
 
+        var connectionString = DatabaseConnectionResolver.ResolveConnectionString(configuration);
+        CloudDatabaseGuard.ValidateCloudConnectionSafety(connectionString, configuration);
+
         services.AddDbContext<ApplicationDbContext>((sp, options) =>
         {
             options.UseNpgsql(
-                configuration.GetConnectionString("DefaultConnection"),
+                connectionString,
                 npgsqlOptions => npgsqlOptions.MigrationsAssembly(
                     typeof(ApplicationDbContext).Assembly.FullName));
             options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
