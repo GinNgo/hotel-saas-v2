@@ -162,12 +162,12 @@ import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
                 <div class="bg-black/50 border border-white/10 rounded-2xl p-4 text-center shrink-0 min-w-[200px] backdrop-blur-sm shadow-md">
                   <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1">Mã PIN Mở Cửa</div>
                   <div class="text-3xl font-black font-mono tracking-widest text-amber-300 py-1 select-all">
-                    {{ booking()?.smartLockPin || '886912' }}
+                    {{ booking()?.smartLockPin || '---' }}
                   </div>
                   <div class="mt-2 flex items-center justify-center gap-2">
                     <button
                       type="button"
-                      (click)="copyPin(booking()?.smartLockPin || '886912')"
+                      (click)="copyPin(booking()?.smartLockPin || '')"
                       class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-semibold text-white transition-colors flex items-center gap-1 cursor-pointer"
                     >
                       <i class="pi pi-copy text-[10px]"></i>
@@ -407,8 +407,12 @@ export class BookingStatusPage implements OnInit {
   }
 
   simulateNfcTouch(): void {
-    const pin = this.booking()?.smartLockPin || '886912';
-    this.alertService.success(`[NFC Smart Lock] Đã xác thực chìa khóa số thành công cho phòng! Mã PIN: ${pin}`);
+    const pin = this.booking()?.smartLockPin;
+    if (!pin) {
+      this.alertService.info('Mã PIN chưa được kích hoạt cho đơn này. Vui lòng hoàn tất thanh toán cọc.');
+      return;
+    }
+    this.alertService.success(`[Mô phỏng IoT Smart Lock] Đã gửi tín hiệu mở khóa phòng thành công cho mã PIN: ${pin}`);
   }
 
   payWithVnpay(): void {
