@@ -311,6 +311,8 @@ public sealed class TenantPropertyContextMiddleware
             path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/auth/login", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/auth/register", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/api/auth/partner-register", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/api/auth/social-login", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/auth/refresh-token", StringComparison.OrdinalIgnoreCase))
         {
             return true;
