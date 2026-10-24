@@ -66,10 +66,10 @@ html, body {
 .app-field-hint { margin: 0.25rem 0 0; font-size: 0.75rem; line-height: 1rem; color: #64748b; }
 .app-field-error { margin: 0.25rem 0 0; font-size: 0.75rem; line-height: 1rem; color: var(--control-invalid); font-weight: 500; }
 .app-form-control {
-  width: 100%; min-height: 2.625rem; padding: 0.5rem 0.875rem;
+  width: 100%; height: 2.75rem; min-height: 2.75rem; padding: 0.5rem 0.875rem;
   font: inherit; font-size: 0.875rem; line-height: 1.25rem;
   color: var(--text-main); background: var(--surface-card);
-  border: 1px solid var(--control-border); border-radius: var(--radius-lg);
+  border: 1px solid var(--control-border); border-radius: var(--radius-xl);
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
   transition: all 0.15s ease-in-out;
 }
@@ -84,6 +84,49 @@ html, body {
 }
 .app-form-control:disabled {
   background: #f1f5f9; color: #94a3b8; cursor: not-allowed; border-color: #e2e8f0;
+}
+
+/* Universal Input & PrimeNG Harmonization */
+p-password {
+  display: block !important;
+  width: 100% !important;
+}
+
+.p-password {
+  display: flex !important;
+  width: 100% !important;
+  position: relative !important;
+}
+
+.p-password-input {
+  width: 100% !important;
+  flex: 1 1 auto !important;
+  height: 2.75rem !important;
+  min-height: 2.75rem !important;
+  border-radius: var(--radius-xl) !important;
+}
+
+p-datepicker {
+  display: block !important;
+  width: 100% !important;
+}
+
+.p-datepicker {
+  width: 100% !important;
+}
+
+.p-datepicker-input {
+  width: 100% !important;
+  height: 2.75rem !important;
+  min-height: 2.75rem !important;
+  border-radius: var(--radius-xl) !important;
+}
+
+input.p-inputtext {
+  height: 2.75rem;
+  min-height: 2.75rem;
+  border-radius: var(--radius-xl);
+  font-size: 0.875rem;
 }
 
 body {
@@ -106,6 +149,12 @@ body {
 }
 
 /* PrimeNG Button Harmonization with Indigo Brand Token */
+.p-button {
+  border-radius: var(--radius-xl);
+}
+.p-button:not(.p-button-sm):not(.p-button-lg):not(.p-button-icon-only) {
+  min-height: 2.75rem;
+}
 .p-button.p-button-primary {
   background: #4f46e5 !important;
   border-color: #4f46e5 !important;

@@ -28,14 +28,14 @@ export interface BookingDateRange {
     <div class="booking-date-picker-root font-sans">
       <!-- 1. CHẾ ĐỘ THUÊ THEO NGÀY (DAILY) -->
       @if (normalizedRentalType() === 'Daily') {
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
           <!-- Cột Từ ngày (Check-in) -->
-          <div class="relative">
-            <div class="flex items-center justify-between mb-1.5">
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <div class="relative flex flex-col">
+            <div class="flex items-center justify-between mb-1.5 h-6">
+              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
                 Nhận phòng
               </label>
-              <span class="text-[11px] text-indigo-600 font-medium">Từ 14:00</span>
+              <span class="text-[11px] text-indigo-600 font-medium shrink-0">Từ 14:00</span>
             </div>
             <div class="relative">
               <p-datepicker
@@ -50,22 +50,22 @@ export interface BookingDateRange {
                 placeholder="dd/mm/yyyy"
                 ariaLabel="Ngày nhận phòng"
                 styleClass="w-full"
-                inputStyleClass="w-full pl-9 pr-3 py-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors cursor-pointer shadow-2xs"
+                inputStyleClass="w-full h-11 pl-9 pr-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors cursor-pointer shadow-2xs"
               />
-              <i class="pi pi-calendar absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm"></i>
+              <i class="pi pi-calendar absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm z-10"></i>
             </div>
-            <p class="text-[11px] text-slate-500 mt-1 truncate">
+            <p class="text-[11px] text-slate-500 mt-1 truncate h-4">
               {{ getFormattedDayOfWeek(inDateObject()) }}
             </p>
           </div>
 
           <!-- Cột Đến ngày (Check-out) -->
-          <div class="relative">
-            <div class="flex items-center justify-between mb-1.5">
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <div class="relative flex flex-col">
+            <div class="flex items-center justify-between mb-1.5 h-6">
+              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
                 Trả phòng
               </label>
-              <span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+              <span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
                 {{ computedNights() }} đêm
               </span>
             </div>
@@ -82,11 +82,11 @@ export interface BookingDateRange {
                 placeholder="dd/mm/yyyy"
                 ariaLabel="Ngày trả phòng"
                 styleClass="w-full"
-                inputStyleClass="w-full pl-9 pr-3 py-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors cursor-pointer shadow-2xs"
+                inputStyleClass="w-full h-11 pl-9 pr-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors cursor-pointer shadow-2xs"
               />
-              <i class="pi pi-calendar-times absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm"></i>
+              <i class="pi pi-calendar-times absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm z-10"></i>
             </div>
-            <p class="text-[11px] text-slate-500 mt-1 truncate">
+            <p class="text-[11px] text-slate-500 mt-1 truncate h-4">
               {{ getFormattedDayOfWeek(outDateObject()) }}
             </p>
           </div>
@@ -95,12 +95,14 @@ export interface BookingDateRange {
 
       <!-- 2. CHẾ ĐỘ THUÊ THEO GIỜ (HOURLY) -->
       @else if (normalizedRentalType() === 'Hourly') {
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-start">
           <!-- Ngày sử dụng -->
-          <div>
-            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
-              Ngày sử dụng
-            </label>
+          <div class="flex flex-col">
+            <div class="flex items-center justify-between mb-1.5 h-6">
+              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
+                Ngày sử dụng
+              </label>
+            </div>
             <div class="relative">
               <p-datepicker
                 [(ngModel)]="inDateObject"
@@ -114,64 +116,73 @@ export interface BookingDateRange {
                 placeholder="dd/mm/yyyy"
                 ariaLabel="Ngày nhận phòng theo giờ"
                 styleClass="w-full"
-                inputStyleClass="w-full pl-9 pr-3 py-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-indigo-500"
+                inputStyleClass="w-full h-11 pl-9 pr-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors cursor-pointer shadow-2xs"
               />
-              <i class="pi pi-calendar absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm"></i>
+              <i class="pi pi-calendar absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm z-10"></i>
             </div>
+            <p class="text-[11px] text-slate-500 mt-1 truncate h-4">
+              {{ getFormattedDayOfWeek(inDateObject()) }}
+            </p>
           </div>
 
           <!-- Giờ nhận phòng -->
-          <div>
-            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
-              Giờ nhận
-            </label>
+          <div class="flex flex-col">
+            <div class="flex items-center justify-between mb-1.5 h-6">
+              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
+                Giờ nhận
+              </label>
+            </div>
             <div class="relative">
               <select
                 [ngModel]="checkInTime"
                 (ngModelChange)="onCheckInTimeChange($event)"
-                class="w-full pl-8 pr-3 py-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer appearance-none shadow-2xs"
+                class="w-full h-11 pl-8 pr-7 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer appearance-none shadow-2xs transition-colors"
               >
                 @for (slot of hourlyTimeSlots; track slot) {
                   <option [value]="slot">{{ slot }}</option>
                 }
               </select>
-              <i class="pi pi-clock absolute left-2.5 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm"></i>
-              <i class="pi pi-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs"></i>
+              <i class="pi pi-clock absolute left-2.5 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm z-10"></i>
+              <i class="pi pi-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs z-10"></i>
             </div>
+            <p class="text-[11px] text-slate-400 mt-1 truncate h-4">Khung giờ nhận phòng</p>
           </div>
 
           <!-- Số giờ sử dụng -->
-          <div>
-            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
-              Thời lượng
-            </label>
+          <div class="flex flex-col">
+            <div class="flex items-center justify-between mb-1.5 h-6">
+              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
+                Thời lượng
+              </label>
+            </div>
             <div class="relative">
               <select
                 [ngModel]="durationHours"
                 (ngModelChange)="onDurationHoursChange($event)"
-                class="w-full pl-8 pr-3 py-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer appearance-none shadow-2xs"
+                class="w-full h-11 pl-8 pr-7 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer appearance-none shadow-2xs transition-colors"
               >
                 @for (h of durationOptions; track h) {
                   <option [value]="h">{{ h }} giờ</option>
                 }
               </select>
-              <i class="pi pi-hourglass absolute left-2.5 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm"></i>
-              <i class="pi pi-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs"></i>
+              <i class="pi pi-hourglass absolute left-2.5 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm z-10"></i>
+              <i class="pi pi-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs z-10"></i>
             </div>
+            <p class="text-[11px] text-slate-400 mt-1 truncate h-4">Thời gian lưu trú</p>
           </div>
         </div>
       }
 
       <!-- 3. CHẾ ĐỘ THUÊ QUA ĐÊM (OVERNIGHT) -->
       @else if (normalizedRentalType() === 'Overnight') {
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
           <!-- Đêm nhận phòng -->
-          <div>
-            <div class="flex items-center justify-between mb-1.5">
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <div class="flex flex-col">
+            <div class="flex items-center justify-between mb-1.5 h-6">
+              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
                 Đêm nhận phòng
               </label>
-              <span class="text-[11px] text-indigo-600 font-medium">Nhận 21:00 - 23:00</span>
+              <span class="text-[11px] text-indigo-600 font-medium shrink-0">Nhận 21:00 - 23:00</span>
             </div>
             <div class="relative">
               <p-datepicker
@@ -186,33 +197,33 @@ export interface BookingDateRange {
                 placeholder="dd/mm/yyyy"
                 ariaLabel="Đêm nhận phòng qua đêm"
                 styleClass="w-full"
-                inputStyleClass="w-full pl-9 pr-3 py-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                inputStyleClass="w-full h-11 pl-9 pr-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer shadow-2xs transition-colors"
               />
-              <i class="pi pi-moon absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm"></i>
+              <i class="pi pi-moon absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm z-10"></i>
             </div>
-            <p class="text-[11px] text-slate-500 mt-1 truncate">
+            <p class="text-[11px] text-slate-500 mt-1 truncate h-4">
               {{ getFormattedDayOfWeek(inDateObject()) }}
             </p>
           </div>
 
           <!-- Trả phòng sáng hôm sau -->
-          <div>
-            <div class="flex items-center justify-between mb-1.5">
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <div class="flex flex-col">
+            <div class="flex items-center justify-between mb-1.5 h-6">
+              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
                 Trả phòng sáng hôm sau
               </label>
-              <span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+              <span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
                 1 Đêm
               </span>
             </div>
-            <div class="w-full px-3.5 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700 flex items-center justify-between shadow-2xs">
-              <div class="flex items-center gap-2">
+            <div class="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700 flex items-center justify-between shadow-2xs">
+              <div class="flex items-center gap-2 truncate">
                 <i class="pi pi-sun text-amber-500"></i>
-                <span>{{ overnightCheckOutDateStr() }}</span>
+                <span class="truncate">{{ overnightCheckOutDateStr() }}</span>
               </div>
-              <span class="text-xs text-slate-500">Trước 12:00 trưa</span>
+              <span class="text-xs text-slate-500 shrink-0">Trước 12:00 trưa</span>
             </div>
-            <p class="text-[11px] text-slate-400 mt-1">
+            <p class="text-[11px] text-slate-400 mt-1 truncate h-4">
               Khung giờ trả phòng tiêu chuẩn qua đêm
             </p>
           </div>

@@ -123,17 +123,17 @@ export interface DestinationSelection {
       </div>
 
       <!-- 2. LƯỚI INPUT TÌM KIẾM CHÍNH -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
         <!-- Cột 1: Điểm đến / Địa danh / Khu du lịch / Tên cơ sở (4 cột) -->
-        <div #destinationGroup class="lg:col-span-4 relative">
-          <div class="flex items-center justify-between mb-1.5">
-            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <div #destinationGroup class="lg:col-span-4 relative flex flex-col">
+          <div class="flex items-center justify-between mb-1.5 h-6">
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
               Địa danh, Khu du lịch hoặc Cơ sở
             </label>
             <button
               type="button"
               (click)="useCurrentLocation()"
-              class="text-xs text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
+              class="text-xs text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0"
               title="Tìm cơ sở lưu trú gần vị trí của tôi"
             >
               <i class="pi pi-compass text-xs" [class.pi-spin]="isLocating()"></i>
@@ -142,7 +142,7 @@ export interface DestinationSelection {
           </div>
           <div class="relative">
             <i
-              class="pi pi-map-marker absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-600"
+              class="pi pi-map-marker absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none"
             ></i>
             <input
               type="text"
@@ -157,7 +157,7 @@ export interface DestinationSelection {
               [attr.aria-controls]="showSuggestionsDropdown() && filteredSuggestions().length > 0 ? 'destination-options' : null"
               [attr.aria-activedescendant]="showSuggestionsDropdown() && activeSuggestion() >= 0 ? 'destination-option-' + activeSuggestion() : null"
               placeholder="VD: Chợ đêm Đà Lạt, Bãi Sau, Quận 1, Nhà nghỉ..."
-              class="w-full pl-10 pr-9 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              class="w-full h-11 pl-10 pr-9 rounded-xl border border-slate-300 text-sm font-medium text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-2xs transition-colors"
             />
             @if (destinationKeyword()) {
               <button
@@ -237,6 +237,7 @@ export interface DestinationSelection {
               </div>
             </div>
           }
+          <p class="text-[11px] text-slate-400 mt-1 truncate h-4">Thành phố, địa danh hoặc tên cơ sở</p>
         </div>
 
         <!-- Cột 2: Bộ chọn Ngày / Giờ linh hoạt theo Chế độ Lưu trú (5 cột) -->
@@ -255,42 +256,54 @@ export interface DestinationSelection {
         </div>
 
         <!-- Cột 3: Số khách & Nút Tìm kiếm (3 cột) -->
-        <div class="lg:col-span-3 flex flex-col sm:flex-row lg:flex-row gap-2.5 items-end">
-          <div class="w-full sm:w-1/2 lg:w-5/12">
-            <label
-              class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
-            >
-              Số khách · một phòng
-            </label>
-            <div class="flex items-center border border-slate-300 rounded-xl px-2.5 py-2 bg-white">
+        <div class="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
+          <div class="flex flex-col">
+            <div class="flex items-center justify-between mb-1.5 h-6">
+              <label
+                class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate"
+              >
+                Số khách
+              </label>
+              <span class="text-[11px] text-slate-400 shrink-0">1 phòng</span>
+            </div>
+            <div class="flex items-center border border-slate-300 rounded-xl px-2 h-11 bg-white hover:border-slate-400 shadow-2xs transition-colors">
               <button
                 type="button"
                 (click)="adjustGuests(-1)"
-                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
+                aria-label="Giảm số khách"
+                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer transition-colors"
               >
                 -
               </button>
-              <div class="flex-1 text-center text-xs font-semibold text-slate-800">
+              <div class="flex-1 text-center text-xs font-semibold text-slate-800 truncate">
                 {{ guests() }} khách
               </div>
               <button
                 type="button"
                 (click)="adjustGuests(1)"
-                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
+                aria-label="Tăng số khách"
+                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer transition-colors"
               >
                 +
               </button>
             </div>
+            <p class="text-[11px] text-slate-400 mt-1 truncate h-4">Mỗi lượt một phòng</p>
           </div>
 
-          <button
-            type="button"
-            (click)="emitSearch()"
-            class="w-full sm:w-1/2 lg:w-7/12 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <i class="pi pi-search"></i>
-            <span>Tìm phòng</span>
-          </button>
+          <div class="flex flex-col">
+            <div class="mb-1.5 h-6 invisible" aria-hidden="true">
+              <span class="block text-xs font-semibold uppercase">Tìm kiếm</span>
+            </div>
+            <button
+              type="button"
+              (click)="emitSearch()"
+              class="w-full h-11 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <i class="pi pi-search"></i>
+              <span>Tìm phòng</span>
+            </button>
+            <p class="mt-1 h-4" aria-hidden="true"></p>
+          </div>
         </div>
       </div>
 

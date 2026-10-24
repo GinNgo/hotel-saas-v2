@@ -40,13 +40,13 @@ import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
               [(ngModel)]="searchToken"
               name="lookupToken"
               placeholder="Nhập mã token hoặc mã xác nhận (VD: a1b2c3d4e5f6...)"
-              class="flex-1 px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 font-mono text-xs sm:text-sm focus:bg-white focus:outline-indigo-500"
+              class="flex-1 h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs sm:text-sm focus:bg-white focus:outline-indigo-500 shadow-2xs transition-colors"
               required
             />
             <button
               type="submit"
               [disabled]="isLoading() || !searchToken.trim()"
-              class="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-xs transition-all cursor-pointer shrink-0"
+              class="h-11 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-xs transition-all cursor-pointer shrink-0 flex items-center justify-center"
             >
               @if (isLoading()) {
                 <span class="flex items-center gap-2">
