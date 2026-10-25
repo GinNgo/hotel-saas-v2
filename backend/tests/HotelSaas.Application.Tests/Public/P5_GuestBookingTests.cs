@@ -14,6 +14,7 @@ using HotelSaas.Application.Public.Queries.GetPublicAvailability;
 using HotelSaas.Application.Public.Queries.GetPublicProperties;
 using HotelSaas.Application.Public.Queries.GetPublicPropertyBySlug;
 using HotelSaas.Application.Public.Queries.GetPublicRoomTypes;
+using HotelSaas.Application.Public.Services;
 using HotelSaas.Application.Quotes.Services;
 using HotelSaas.Application.Reservations.DTOs;
 using HotelSaas.Domain.Entities;
@@ -1223,5 +1224,904 @@ public sealed class P5_GuestBookingTests
         Assert.Equal(2, avail[0].TotalRooms);
         Assert.Equal(2, avail[0].AvailableRooms);
         Assert.True(avail[0].IsAvailable);
+    }
+
+    // =========================================================================
+    // T04 REGRESSION TESTS: GUEST BOOKING LOOKUP CAPABILITY & DATA INTEGRITY
+    // =========================================================================
+
+    [Fact]
+    public async Task GetGuestBookingByToken_T04_RejectsInvalidEmptyRevokedOrExpiredTokens()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this, roomCount: 2);
+        await using var ctx = fixture.CreateDbContext();
+        var queryHandler = new GetGuestBookingByTokenQueryHandler(ctx);
+
+        // 1. Empty and whitespace tokens reject with BadRequestException (ERR_INVALID_TOKEN)
+        var exNullOrEmpty = await Assert.ThrowsAsync<BadRequestException>(() =>
+            queryHandler.Handle(new GetGuestBookingByTokenQuery(string.Empty), CancellationToken.None));
+        Assert.Equal("ERR_INVALID_TOKEN", exNullOrEmpty.ErrorCode);
+
+        var exWhitespace = await Assert.ThrowsAsync<BadRequestException>(() =>
+            queryHandler.Handle(new GetGuestBookingByTokenQuery("    "), CancellationToken.None));
+        Assert.Equal("ERR_INVALID_TOKEN", exWhitespace.ErrorCode);
+
+        // 2. Non-existent token rejects with NotFoundException
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            queryHandler.Handle(new GetGuestBookingByTokenQuery("non_existent_token_0123456789abcdef"), CancellationToken.None));
+
+        // 3. Revoked token fails-closed with NotFoundException
+        var revokedToken = "tok_revoked_0123456789abcdef";
+        var snapRevoked = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            StartAtUtc = DateTime.UtcNow,
+            EndAtUtc = DateTime.UtcNow.AddDays(1),
+            RoomTypeId = fixture.RoomTypeId,
+            RoomTypeName = "Deluxe Ocean View",
+            TotalAmount = 1_000_000m,
+            LookupToken = revokedToken,
+            TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7),
+            IsTokenRevoked = true // REVOKED!
+        };
+        var resRevoked = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = fixture.RoomId1,
+            GuestName = "Revoked Guest",
+            GuestEmail = "revoked@example.com",
+            TotalAmount = 1_000_000m,
+            Status = ReservationStatus.Confirmed,
+            Notes = ReservationSnapshotHelper.Serialize(snapRevoked),
+            ConfirmationCode = "RES-T04-REV"
+        };
+        ctx.Reservations.Add(resRevoked);
+
+        // 4. Token with expired TTL fails-closed with NotFoundException
+        var expiredTtlToken = "tok_expired_ttl_0123456789abcdef";
+        var snapExpiredTtl = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            StartAtUtc = DateTime.UtcNow.AddDays(-10),
+            EndAtUtc = DateTime.UtcNow.AddDays(-9),
+            RoomTypeId = fixture.RoomTypeId,
+            RoomTypeName = "Deluxe Ocean View",
+            TotalAmount = 1_000_000m,
+            LookupToken = expiredTtlToken,
+            TokenExpiresAtUtc = DateTime.UtcNow.AddMinutes(-5), // EXPIRED TTL!
+            IsTokenRevoked = false
+        };
+        var resExpiredTtl = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = fixture.RoomId2,
+            GuestName = "Expired TTL Guest",
+            GuestEmail = "expiredttl@example.com",
+            TotalAmount = 1_000_000m,
+            Status = ReservationStatus.Confirmed,
+            Notes = ReservationSnapshotHelper.Serialize(snapExpiredTtl),
+            ConfirmationCode = "RES-T04-EXPTTL"
+        };
+        ctx.Reservations.Add(resExpiredTtl);
+
+        // 5. Token without TTL fails-closed with NotFoundException
+        var missingTtlToken = "tok_missing_ttl_0123456789abcdef";
+        var snapMissingTtl = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            StartAtUtc = DateTime.UtcNow,
+            EndAtUtc = DateTime.UtcNow.AddDays(1),
+            RoomTypeId = fixture.RoomTypeId,
+            RoomTypeName = "Deluxe Ocean View",
+            TotalAmount = 1_000_000m,
+            LookupToken = missingTtlToken,
+            TokenExpiresAtUtc = null, // MISSING TTL!
+            IsTokenRevoked = false
+        };
+        var resMissingTtl = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = fixture.RoomId1,
+            GuestName = "Missing TTL Guest",
+            GuestEmail = "missingttl@example.com",
+            TotalAmount = 1_000_000m,
+            Status = ReservationStatus.Confirmed,
+            Notes = ReservationSnapshotHelper.Serialize(snapMissingTtl),
+            ConfirmationCode = "RES-T04-NOTTL"
+        };
+        ctx.Reservations.Add(resMissingTtl);
+        await ctx.SaveChangesAsync();
+
+        var exRevoked = await Assert.ThrowsAsync<NotFoundException>(() =>
+            queryHandler.Handle(new GetGuestBookingByTokenQuery(revokedToken), CancellationToken.None));
+        Assert.Contains("thu hồi", exRevoked.Message);
+
+        var exExpiredTtl = await Assert.ThrowsAsync<NotFoundException>(() =>
+            queryHandler.Handle(new GetGuestBookingByTokenQuery(expiredTtlToken), CancellationToken.None));
+        Assert.Contains("hết hạn", exExpiredTtl.Message);
+
+        var exMissingTtl = await Assert.ThrowsAsync<NotFoundException>(() =>
+            queryHandler.Handle(new GetGuestBookingByTokenQuery(missingTtlToken), CancellationToken.None));
+        Assert.Contains("hết hạn", exMissingTtl.Message);
+    }
+
+    [Fact]
+    public async Task GetGuestBookingByToken_T04_TokenA_ReturnsOnlyBookingA_DoesNotLeakBookingB()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this, roomCount: 2);
+        await using var ctx = fixture.CreateDbContext();
+
+        var tokenA = "tok_reservation_a_1234567890abcdef";
+        var tokenB = "tok_reservation_b_0987654321fedcba";
+
+        var snapA = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            StartAtUtc = DateTime.UtcNow.AddDays(1),
+            EndAtUtc = DateTime.UtcNow.AddDays(2),
+            RoomTypeId = fixture.RoomTypeId,
+            RoomTypeName = "Deluxe Ocean View",
+            TotalAmount = 1_200_000m,
+            LookupToken = tokenA,
+            TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7),
+            DepositRequired = 360_000m
+        };
+        var resA = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = fixture.RoomId1,
+            GuestName = "Alice Nguyen",
+            GuestEmail = "alice@example.com",
+            GuestPhone = "0901111111",
+            TotalAmount = 1_200_000m,
+            Status = ReservationStatus.PendingPayment,
+            Notes = ReservationSnapshotHelper.Serialize(snapA),
+            ConfirmationCode = "CONF-T04-AAA",
+            CheckInDate = new DateOnly(2026, 11, 1),
+            CheckOutDate = new DateOnly(2026, 11, 2),
+            NumberOfGuests = 1
+        };
+
+        var snapB = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            StartAtUtc = DateTime.UtcNow.AddDays(3),
+            EndAtUtc = DateTime.UtcNow.AddDays(4),
+            RoomTypeId = fixture.RoomTypeId,
+            RoomTypeName = "Deluxe Ocean View",
+            TotalAmount = 2_500_000m,
+            LookupToken = tokenB,
+            TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7),
+            DepositRequired = 750_000m
+        };
+        var resB = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = fixture.RoomId2,
+            GuestName = "Bob Tran",
+            GuestEmail = "bob@example.com",
+            GuestPhone = "0902222222",
+            TotalAmount = 2_500_000m,
+            Status = ReservationStatus.PendingPayment,
+            Notes = ReservationSnapshotHelper.Serialize(snapB),
+            ConfirmationCode = "CONF-T04-BBB",
+            CheckInDate = new DateOnly(2026, 11, 3),
+            CheckOutDate = new DateOnly(2026, 11, 4),
+            NumberOfGuests = 2
+        };
+
+        ctx.Reservations.AddRange(resA, resB);
+        await ctx.SaveChangesAsync();
+
+        var queryHandler = new GetGuestBookingByTokenQueryHandler(ctx);
+
+        // 1. Querying with Token A returns ONLY Booking A
+        var detailA = await queryHandler.Handle(new GetGuestBookingByTokenQuery(tokenA), CancellationToken.None);
+        Assert.NotNull(detailA);
+        Assert.Equal(resA.Id, detailA.ReservationId);
+        Assert.Equal("CONF-T04-AAA", detailA.ConfirmationCode);
+        Assert.Equal(tokenA, detailA.LookupToken);
+        Assert.Equal(1_200_000m, detailA.TotalAmount);
+        Assert.Equal(360_000m, detailA.DepositRequired);
+        Assert.Equal(1, detailA.NumberOfGuests);
+        Assert.NotEqual(resB.Id, detailA.ReservationId);
+        Assert.NotEqual("CONF-T04-BBB", detailA.ConfirmationCode);
+
+        // 2. Querying with Token B returns ONLY Booking B
+        var detailB = await queryHandler.Handle(new GetGuestBookingByTokenQuery(tokenB), CancellationToken.None);
+        Assert.NotNull(detailB);
+        Assert.Equal(resB.Id, detailB.ReservationId);
+        Assert.Equal("CONF-T04-BBB", detailB.ConfirmationCode);
+        Assert.Equal(tokenB, detailB.LookupToken);
+        Assert.Equal(2_500_000m, detailB.TotalAmount);
+        Assert.Equal(750_000m, detailB.DepositRequired);
+        Assert.Equal(2, detailB.NumberOfGuests);
+        Assert.NotEqual(resA.Id, detailB.ReservationId);
+        Assert.NotEqual("CONF-T04-AAA", detailB.ConfirmationCode);
+    }
+
+    [Fact]
+    public async Task GetGuestBookingByToken_T04_RelatedData_StrictlyBelongsToPermittedReservationAndProperty()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this, roomCount: 2);
+        await using var ctxA = fixture.CreateDbContext();
+
+        var tokenA = "tok_prop_a_reservation_123456789";
+        var snapA = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            StartAtUtc = DateTime.UtcNow.AddDays(1),
+            EndAtUtc = DateTime.UtcNow.AddDays(2),
+            RoomTypeId = fixture.RoomTypeId,
+            RoomTypeName = "Deluxe Ocean View",
+            TotalAmount = 1_500_000m,
+            LookupToken = tokenA,
+            TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7),
+            DepositRequired = 450_000m
+        };
+        var resA = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = fixture.RoomId1,
+            GuestName = "Khách A",
+            GuestEmail = "khach.a@example.com",
+            TotalAmount = 1_500_000m,
+            Status = ReservationStatus.Confirmed,
+            Notes = ReservationSnapshotHelper.Serialize(snapA),
+            ConfirmationCode = "CONF-PROP-A"
+        };
+        var payA = new Payment
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            ReservationId = resA.Id,
+            Amount = 450_000m,
+            Method = PaymentMethod.BankTransfer,
+            Status = PaymentStatus.Completed,
+            CreatedAtUtc = DateTime.UtcNow,
+            TransactionRef = "TX-A-001"
+        };
+        ctxA.Reservations.Add(resA);
+        ctxA.Payments.Add(payA);
+        await ctxA.SaveChangesAsync();
+
+        // Seed second property in same test schema using Property B scoped context
+        var propertyB = new Property
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            Name = "Khách Sạn Sơn Trà Luxury",
+            Code = "ST02",
+            Slug = "khach-san-son-tra-luxury",
+            Address = "88 Vo Van Kiet, Da Nang",
+            City = "Da Nang",
+            Status = PropertyStatus.Active,
+            CheckInTime = new TimeOnly(14, 0),
+            CheckOutTime = new TimeOnly(12, 0),
+            BufferMinutes = 30,
+            MaxHourlyHours = 12
+        };
+        var roomTypeB = new RoomType
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = propertyB.Id,
+            Name = "Executive Suite",
+            Code = "EXE",
+            BasePrice = 3_000_000m,
+            MaxOccupancy = 4
+        };
+        var roomB = new Room
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = propertyB.Id,
+            RoomTypeId = roomTypeB.Id,
+            RoomNumber = "201",
+            Floor = 2,
+            Status = RoomStatus.Clean,
+            IsActive = true
+        };
+
+        var propBSvc = new MockPropertyService { PropertyId = propertyB.Id, HeaderPropertyId = propertyB.Id, TokenPropertyId = propertyB.Id, IsTenantWide = true };
+        await using var ctxB = fixture.CreateDbContext(propSvc: propBSvc);
+
+        ctxB.Properties.Add(propertyB);
+        ctxB.RoomTypes.Add(roomTypeB);
+        ctxB.Rooms.Add(roomB);
+
+        var tokenB = "tok_prop_b_reservation_987654321";
+        var snapB = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            StartAtUtc = DateTime.UtcNow.AddDays(5),
+            EndAtUtc = DateTime.UtcNow.AddDays(6),
+            RoomTypeId = roomTypeB.Id,
+            RoomTypeName = "Executive Suite",
+            TotalAmount = 3_000_000m,
+            LookupToken = tokenB,
+            TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7),
+            DepositRequired = 900_000m
+        };
+        var resB = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = propertyB.Id,
+            RoomId = roomB.Id,
+            GuestName = "Khách B",
+            GuestEmail = "khach.b@example.com",
+            TotalAmount = 3_000_000m,
+            Status = ReservationStatus.Confirmed,
+            Notes = ReservationSnapshotHelper.Serialize(snapB),
+            ConfirmationCode = "CONF-PROP-B"
+        };
+        var payB = new Payment
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = propertyB.Id,
+            ReservationId = resB.Id,
+            Amount = 900_000m,
+            Method = PaymentMethod.VNPay,
+            Status = PaymentStatus.Completed,
+            CreatedAtUtc = DateTime.UtcNow,
+            TransactionRef = "TX-B-001"
+        };
+        ctxB.Reservations.Add(resB);
+        ctxB.Payments.Add(payB);
+        await ctxB.SaveChangesAsync();
+
+        // Guest token lookup is public and unauthenticated
+        var publicGuestTenantSvc = new MockTenantService { TenantId = null };
+        var publicGuestPropSvc = new MockPropertyService { PropertyId = null, HeaderPropertyId = null, TokenPropertyId = null };
+        await using var publicCtx = fixture.CreateDbContext(publicGuestTenantSvc, publicGuestPropSvc);
+        var queryHandler = new GetGuestBookingByTokenQueryHandler(publicCtx);
+
+        // Verify A
+        var detailA = await queryHandler.Handle(new GetGuestBookingByTokenQuery(tokenA), CancellationToken.None);
+        Assert.Equal(fixture.PropertyId, detailA.PropertyId);
+        Assert.Equal("Khách Sạn Biển Đông - Chi Nhánh 1", detailA.PropertyName);
+        Assert.Equal("200 Vo Nguyen Giap", detailA.PropertyAddress);
+        Assert.Equal("Deluxe Ocean View", detailA.RoomTypeName);
+        Assert.Equal(450_000m, detailA.PaidAmount); // strictly A's payment!
+        Assert.Equal(1_050_000m, detailA.RemainingBalance);
+        Assert.False(detailA.IsFullyPaid);
+
+        // Verify B
+        var detailB = await queryHandler.Handle(new GetGuestBookingByTokenQuery(tokenB), CancellationToken.None);
+        Assert.Equal(propertyB.Id, detailB.PropertyId);
+        Assert.Equal("Khách Sạn Sơn Trà Luxury", detailB.PropertyName);
+        Assert.Equal("88 Vo Van Kiet, Da Nang", detailB.PropertyAddress);
+        Assert.Equal("Executive Suite", detailB.RoomTypeName);
+        Assert.Equal(900_000m, detailB.PaidAmount); // strictly B's payment!
+        Assert.Equal(2_100_000m, detailB.RemainingBalance);
+        Assert.False(detailB.IsFullyPaid);
+    }
+
+    [Fact]
+    public async Task GetGuestBookingByToken_T04_PIIMasking_DoesNotExposeFullNameEmailOrPhone()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this, roomCount: 2);
+        await using var ctx = fixture.CreateDbContext();
+
+        var token = "tok_pii_masking_verify_123456789";
+        var rawName = "Trần Trọng Tân";
+        var rawEmail = "trongtan.hotel@gmail.com";
+        var rawPhone = "0987654321";
+
+        var snap = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            StartAtUtc = DateTime.UtcNow.AddDays(1),
+            EndAtUtc = DateTime.UtcNow.AddDays(2),
+            RoomTypeId = fixture.RoomTypeId,
+            RoomTypeName = "Deluxe Ocean View",
+            TotalAmount = 1_000_000m,
+            LookupToken = token,
+            TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7),
+            DepositRequired = 300_000m
+        };
+        var res = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = fixture.RoomId1,
+            GuestName = rawName,
+            GuestEmail = rawEmail,
+            GuestPhone = rawPhone,
+            TotalAmount = 1_000_000m,
+            Status = ReservationStatus.PendingPayment,
+            Notes = ReservationSnapshotHelper.Serialize(snap),
+            ConfirmationCode = "CONF-PII-01"
+        };
+        ctx.Reservations.Add(res);
+        await ctx.SaveChangesAsync();
+
+        var queryHandler = new GetGuestBookingByTokenQueryHandler(ctx);
+        var detail = await queryHandler.Handle(new GetGuestBookingByTokenQuery(token), CancellationToken.None);
+
+        // 1. Name masking: Full name and middle name are masked
+        Assert.NotEqual(rawName, detail.MaskedGuestName);
+        Assert.DoesNotContain("Trọng", detail.MaskedGuestName);
+        Assert.Contains("***", detail.MaskedGuestName);
+
+        // 2. Email masking: Username is partially redacted, domain retained
+        Assert.NotEqual(rawEmail, detail.MaskedGuestEmail);
+        Assert.DoesNotContain("trongtan", detail.MaskedGuestEmail);
+        Assert.Contains("***", detail.MaskedGuestEmail);
+        Assert.EndsWith("@gmail.com", detail.MaskedGuestEmail);
+
+        // 3. Phone masking: Middle 4 digits redacted
+        Assert.NotEqual(rawPhone, detail.MaskedGuestPhone);
+        Assert.Contains("****", detail.MaskedGuestPhone);
+        Assert.StartsWith("098", detail.MaskedGuestPhone);
+        Assert.EndsWith("321", detail.MaskedGuestPhone);
+
+        // 4. Contract validation: DTO does not expose raw guest fields
+        var dtoProps = typeof(GuestBookingDetailDto).GetProperties().Select(p => p.Name).ToList();
+        Assert.DoesNotContain("GuestName", dtoProps);
+        Assert.DoesNotContain("GuestEmail", dtoProps);
+        Assert.DoesNotContain("GuestPhone", dtoProps);
+    }
+
+    [Theory]
+    [InlineData(ReservationStatus.Confirmed, "Active", "123456", false, true, "123456", "Active", "Confirmed")]
+    [InlineData(ReservationStatus.CheckedIn, "Active", "654321", false, true, "654321", "Active", "CheckedIn")]
+    [InlineData(ReservationStatus.Cancelled, "Revoked", "999111", false, false, null, "Revoked", "Cancelled")]
+    [InlineData(ReservationStatus.CheckedOut, "Expired", "999222", false, false, null, "Expired", "CheckedOut")]
+    [InlineData(ReservationStatus.PendingPayment, "Inactive", "999333", false, false, null, "Inactive", "PendingPayment")]
+    [InlineData(ReservationStatus.PendingPayment, "Inactive", "999444", true, false, null, "Inactive", "Expired")]
+    [InlineData(ReservationStatus.Confirmed, "Inactive", "999555", false, false, null, "Inactive", "Confirmed")]
+    [InlineData(ReservationStatus.Confirmed, "Revoked", "999666", false, false, null, "Revoked", "Confirmed")]
+    [InlineData(ReservationStatus.CheckedIn, "Expired", "999777", false, false, null, "Expired", "CheckedIn")]
+    [InlineData(ReservationStatus.Confirmed, null, "999888", false, false, null, null, "Confirmed")]
+    [InlineData(ReservationStatus.Confirmed, "Active", null, false, false, null, "Active", "Confirmed")]
+    public async Task GetGuestBookingByToken_T04_SmartLockPin_EnforcesDisclosabilityPolicy(
+        ReservationStatus status,
+        string? lockStatus,
+        string? pinInDb,
+        bool isHoldExpired,
+        bool expectPinReturned,
+        string? expectedPin,
+        string? expectedLockStatus,
+        string expectedStatusDisplay)
+    {
+        await using var fixture = await TestFixture.CreateAsync(this, roomCount: 2);
+        await using var ctx = fixture.CreateDbContext();
+
+        var token = $"tok_pin_{Guid.NewGuid():N}";
+        var holdExpiresAt = isHoldExpired ? DateTime.UtcNow.AddMinutes(-10) : DateTime.UtcNow.AddMinutes(15);
+
+        var snap = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            StartAtUtc = DateTime.UtcNow.AddDays(1),
+            EndAtUtc = DateTime.UtcNow.AddDays(2),
+            RoomTypeId = fixture.RoomTypeId,
+            RoomTypeName = "Deluxe Ocean View",
+            TotalAmount = 1_000_000m,
+            HoldExpiresAtUtc = holdExpiresAt,
+            LookupToken = token,
+            TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7),
+            DepositRequired = 300_000m,
+            IsOnlineHold = true
+        };
+
+        var res = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = fixture.RoomId1,
+            GuestName = "PIN Policy Guest",
+            GuestEmail = "pin.policy@example.com",
+            TotalAmount = 1_000_000m,
+            Status = status,
+            SmartLockPin = pinInDb,
+            SmartLockStatus = lockStatus,
+            SmartLockActivatedAtUtc = lockStatus == "Active" ? DateTime.UtcNow : null,
+            Notes = ReservationSnapshotHelper.Serialize(snap),
+            ConfirmationCode = $"RES-{Guid.NewGuid():N}"[..11].ToUpperInvariant()
+        };
+
+        ctx.Reservations.Add(res);
+        await ctx.SaveChangesAsync();
+
+        var queryHandler = new GetGuestBookingByTokenQueryHandler(ctx);
+        var detail = await queryHandler.Handle(new GetGuestBookingByTokenQuery(token), CancellationToken.None);
+
+        Assert.NotNull(detail);
+        Assert.Equal(expectedStatusDisplay, detail.Status);
+        Assert.Equal(expectedLockStatus, detail.SmartLockStatus);
+        if (expectPinReturned)
+        {
+            Assert.Equal(expectedPin, detail.SmartLockPin);
+        }
+        else
+        {
+            Assert.Null(detail.SmartLockPin);
+        }
+    }
+
+    [Fact]
+    public async Task GetGuestBookingByToken_T04_PendingPayment_ExpiredHold_ReflectedAsExpired_WithoutLosingLookupRights()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this, roomCount: 2);
+        await using var ctx = fixture.CreateDbContext();
+
+        var token = "tok_hold_expired_lookup_preserved_123";
+        var snap = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            StartAtUtc = DateTime.UtcNow.AddDays(2),
+            EndAtUtc = DateTime.UtcNow.AddDays(3),
+            RoomTypeId = fixture.RoomTypeId,
+            RoomTypeName = "Deluxe Ocean View",
+            TotalAmount = 1_500_000m,
+            HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(-15), // Hold expired 15 mins ago!
+            LookupToken = token,
+            TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7),     // Token valid for 7 days!
+            DepositRequired = 450_000m,
+            IsOnlineHold = true
+        };
+        var res = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = fixture.RoomId1,
+            GuestName = "Preserved Lookup Guest",
+            GuestEmail = "preserved@example.com",
+            GuestPhone = "0901234567",
+            TotalAmount = 1_500_000m,
+            Status = ReservationStatus.PendingPayment,
+            Notes = ReservationSnapshotHelper.Serialize(snap),
+            ConfirmationCode = "RES-T04-PRESERVED"
+        };
+        ctx.Reservations.Add(res);
+        await ctx.SaveChangesAsync();
+
+        var queryHandler = new GetGuestBookingByTokenQueryHandler(ctx);
+
+        // The query MUST SUCCEED (token lookup rights are NOT revoked when hold expires)
+        var detail = await queryHandler.Handle(new GetGuestBookingByTokenQuery(token), CancellationToken.None);
+
+        Assert.NotNull(detail);
+        Assert.Equal("Expired", detail.Status); // Reflected as Expired per contract
+        Assert.Equal(0, detail.SecondsRemaining); // Countdown clamped to 0
+        Assert.Equal("RES-T04-PRESERVED", detail.ConfirmationCode);
+        Assert.Equal(1_500_000m, detail.TotalAmount);
+        Assert.Equal(450_000m, detail.DepositRequired);
+
+        // However, if the token's own TTL expired, lookup is revoked
+        snap.TokenExpiresAtUtc = DateTime.UtcNow.AddMinutes(-1);
+        res.Notes = ReservationSnapshotHelper.Serialize(snap);
+        await ctx.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<NotFoundException>(() =>
+            queryHandler.Handle(new GetGuestBookingByTokenQuery(token), CancellationToken.None));
+        Assert.Contains("hết hạn", ex.Message);
+    }
+
+    [Fact]
+    public async Task GetGuestBookingByToken_T04_PaidAmountAndBalance_BasedStrictlyOnCompletedPayments_IgnoresFailedOrPending()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this, roomCount: 2);
+        await using var ctx = fixture.CreateDbContext();
+
+        var token = "tok_payment_ledger_audit_123456";
+        var totalAmount = 2_000_000m;
+
+        var snap = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            StartAtUtc = DateTime.UtcNow.AddDays(2),
+            EndAtUtc = DateTime.UtcNow.AddDays(3),
+            RoomTypeId = fixture.RoomTypeId,
+            RoomTypeName = "Deluxe Ocean View",
+            TotalAmount = totalAmount,
+            LookupToken = token,
+            TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7),
+            DepositRequired = 600_000m
+        };
+        var res = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = fixture.RoomId1,
+            GuestName = "Ledger Audit Guest",
+            GuestEmail = "audit@example.com",
+            TotalAmount = totalAmount,
+            Status = ReservationStatus.Confirmed,
+            Notes = ReservationSnapshotHelper.Serialize(snap),
+            ConfirmationCode = "RES-T04-LEDGER"
+        };
+        ctx.Reservations.Add(res);
+
+        // Seed 4 payments with varying statuses
+        var completedPayment1 = new Payment
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            ReservationId = res.Id,
+            Amount = 500_000m,
+            Method = PaymentMethod.BankTransfer,
+            Status = PaymentStatus.Completed, // VALID!
+            CreatedAtUtc = DateTime.UtcNow,
+            TransactionRef = "TX-COMPLETED-1"
+        };
+        var pendingPayment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            ReservationId = res.Id,
+            Amount = 300_000m,
+            Method = PaymentMethod.VNPay,
+            Status = PaymentStatus.Pending, // IN-FLIGHT - MUST BE IGNORED!
+            CreatedAtUtc = DateTime.UtcNow,
+            TransactionRef = "TX-PENDING"
+        };
+        var failedPayment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            ReservationId = res.Id,
+            Amount = 400_000m,
+            Method = PaymentMethod.VNPay,
+            Status = PaymentStatus.Failed, // FAILED - MUST BE IGNORED!
+            CreatedAtUtc = DateTime.UtcNow,
+            TransactionRef = "TX-FAILED"
+        };
+        var refundedPayment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            ReservationId = res.Id,
+            Amount = 200_000m,
+            Method = PaymentMethod.BankTransfer,
+            Status = PaymentStatus.Refunded, // REFUNDED - MUST BE IGNORED!
+            CreatedAtUtc = DateTime.UtcNow,
+            TransactionRef = "TX-REFUNDED"
+        };
+
+        ctx.Payments.AddRange(completedPayment1, pendingPayment, failedPayment, refundedPayment);
+        await ctx.SaveChangesAsync();
+
+        var queryHandler = new GetGuestBookingByTokenQueryHandler(ctx);
+
+        // 1. Paid amount must only sum Completed payments (500,000 VND)
+        var detail = await queryHandler.Handle(new GetGuestBookingByTokenQuery(token), CancellationToken.None);
+        Assert.Equal(500_000m, detail.PaidAmount);
+        Assert.Equal(1_500_000m, detail.RemainingBalance);
+        Assert.False(detail.IsFullyPaid);
+
+        // 2. Add second completed payment of 1,500,000 VND -> fully settles reservation
+        var completedPayment2 = new Payment
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            ReservationId = res.Id,
+            Amount = 1_500_000m,
+            Method = PaymentMethod.BankTransfer,
+            Status = PaymentStatus.Completed,
+            CreatedAtUtc = DateTime.UtcNow,
+            TransactionRef = "TX-COMPLETED-2"
+        };
+        ctx.Payments.Add(completedPayment2);
+        await ctx.SaveChangesAsync();
+
+        var settledDetail = await queryHandler.Handle(new GetGuestBookingByTokenQuery(token), CancellationToken.None);
+        Assert.Equal(2_000_000m, settledDetail.PaidAmount);
+        Assert.Equal(0m, settledDetail.RemainingBalance);
+        Assert.True(settledDetail.IsFullyPaid);
+    }
+
+    [Fact]
+    public async Task GetGuestBookingByToken_T04_IgnoreQueryFilters_ScopesStrictlyToTokenCapability_NoCrossTenantLeakage()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this, roomCount: 2);
+        await using var ctx1 = fixture.CreateDbContext();
+
+        var token1 = "tok_tenant1_secret_capability_111111";
+        var token2 = "tok_tenant2_secret_capability_222222";
+
+        var snap1 = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            StartAtUtc = DateTime.UtcNow.AddDays(1),
+            EndAtUtc = DateTime.UtcNow.AddDays(2),
+            RoomTypeId = fixture.RoomTypeId,
+            RoomTypeName = "Deluxe Ocean View",
+            TotalAmount = 1_200_000m,
+            LookupToken = token1,
+            TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7),
+            DepositRequired = 360_000m
+        };
+        var res1 = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = fixture.RoomId1,
+            GuestName = "Tenant1 Guest",
+            GuestEmail = "t1@example.com",
+            TotalAmount = 1_200_000m,
+            Status = ReservationStatus.Confirmed,
+            Notes = ReservationSnapshotHelper.Serialize(snap1),
+            ConfirmationCode = "CONF-T1-01"
+        };
+        var pay1 = new Payment
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            ReservationId = res1.Id,
+            Amount = 360_000m,
+            Method = PaymentMethod.BankTransfer,
+            Status = PaymentStatus.Completed,
+            CreatedAtUtc = DateTime.UtcNow,
+            TransactionRef = "TX-T1-PAY"
+        };
+        ctx1.Reservations.Add(res1);
+        ctx1.Payments.Add(pay1);
+        await ctx1.SaveChangesAsync();
+
+        // Seed second tenant and property in the exact same database schema using Tenant 2 scoped context
+        var tenant2Id = Guid.NewGuid();
+        var prop2Id = Guid.NewGuid();
+        var roomType2Id = Guid.NewGuid();
+        var room2Id = Guid.NewGuid();
+
+        var tenant2 = new Tenant
+        {
+            Id = tenant2Id,
+            Name = "Khách Sạn An Hải Bắc",
+            Code = "AHB",
+            Slug = "ahb",
+            Address = "50 Tran Hung Dao",
+            City = "Da Nang",
+            Status = TenantStatus.Active
+        };
+        var prop2 = new Property
+        {
+            Id = prop2Id,
+            TenantId = tenant2Id,
+            Name = "Khách Sạn An Hải Bắc - Chi Nhánh Cảng",
+            Code = "AHB01",
+            Slug = "ahb-cang",
+            Address = "50 Tran Hung Dao, Da Nang",
+            City = "Da Nang",
+            Status = PropertyStatus.Active,
+            CheckInTime = new TimeOnly(14, 0),
+            CheckOutTime = new TimeOnly(12, 0),
+            BufferMinutes = 30,
+            MaxHourlyHours = 12
+        };
+        var rt2 = new RoomType
+        {
+            Id = roomType2Id,
+            TenantId = tenant2Id,
+            PropertyId = prop2Id,
+            Name = "Superior Harbor View",
+            Code = "SHV",
+            BasePrice = 2_500_000m,
+            MaxOccupancy = 2
+        };
+        var r2 = new Room
+        {
+            Id = room2Id,
+            TenantId = tenant2Id,
+            PropertyId = prop2Id,
+            RoomTypeId = roomType2Id,
+            RoomNumber = "301",
+            Floor = 3,
+            Status = RoomStatus.Clean,
+            IsActive = true
+        };
+
+        var tenant2Svc = new MockTenantService { TenantId = tenant2Id };
+        var prop2Svc = new MockPropertyService { PropertyId = prop2Id, HeaderPropertyId = prop2Id, TokenPropertyId = prop2Id, IsTenantWide = true };
+        await using var ctx2 = fixture.CreateDbContext(tenantSvc: tenant2Svc, propSvc: prop2Svc);
+
+        ctx2.Tenants.Add(tenant2);
+        ctx2.Properties.Add(prop2);
+        ctx2.RoomTypes.Add(rt2);
+        ctx2.Rooms.Add(r2);
+
+        var snap2 = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            StartAtUtc = DateTime.UtcNow.AddDays(3),
+            EndAtUtc = DateTime.UtcNow.AddDays(4),
+            RoomTypeId = roomType2Id,
+            RoomTypeName = "Superior Harbor View",
+            TotalAmount = 2_500_000m,
+            LookupToken = token2,
+            TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7),
+            DepositRequired = 750_000m
+        };
+        var res2 = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenant2Id,
+            PropertyId = prop2Id,
+            RoomId = room2Id,
+            GuestName = "Tenant2 Guest",
+            GuestEmail = "t2@example.com",
+            TotalAmount = 2_500_000m,
+            Status = ReservationStatus.Confirmed,
+            Notes = ReservationSnapshotHelper.Serialize(snap2),
+            ConfirmationCode = "CONF-T2-01"
+        };
+        var pay2 = new Payment
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenant2Id,
+            PropertyId = prop2Id,
+            ReservationId = res2.Id,
+            Amount = 750_000m,
+            Method = PaymentMethod.BankTransfer,
+            Status = PaymentStatus.Completed,
+            CreatedAtUtc = DateTime.UtcNow,
+            TransactionRef = "TX-T2-PAY"
+        };
+        ctx2.Reservations.Add(res2);
+        ctx2.Payments.Add(pay2);
+        await ctx2.SaveChangesAsync();
+
+        // Simulate public guest query: unauthenticated context without tenant/property claims
+        var publicGuestTenantSvc = new MockTenantService { TenantId = null };
+        var publicGuestPropSvc = new MockPropertyService { PropertyId = null };
+        await using var publicCtx = fixture.CreateDbContext(publicGuestTenantSvc, publicGuestPropSvc);
+        var queryHandler = new GetGuestBookingByTokenQueryHandler(publicCtx);
+
+        // 1. Querying with Token 1 (Tenant 1) ignores query filters but scopes strictly to Tenant 1
+        var detail1 = await queryHandler.Handle(new GetGuestBookingByTokenQuery(token1), CancellationToken.None);
+        Assert.Equal(res1.Id, detail1.ReservationId);
+        Assert.Equal(fixture.PropertyId, detail1.PropertyId);
+        Assert.Equal("Khách Sạn Biển Đông - Chi Nhánh 1", detail1.PropertyName);
+        Assert.Equal("200 Vo Nguyen Giap", detail1.PropertyAddress);
+        Assert.Equal("Deluxe Ocean View", detail1.RoomTypeName);
+        Assert.Equal(1_200_000m, detail1.TotalAmount);
+        Assert.Equal(360_000m, detail1.PaidAmount);
+        Assert.Equal(840_000m, detail1.RemainingBalance);
+        Assert.NotEqual(res2.Id, detail1.ReservationId);
+        Assert.NotEqual(prop2Id, detail1.PropertyId);
+        Assert.NotEqual("Superior Harbor View", detail1.RoomTypeName);
+
+        // 2. Querying with Token 2 (Tenant 2) ignores query filters but scopes strictly to Tenant 2
+        var detail2 = await queryHandler.Handle(new GetGuestBookingByTokenQuery(token2), CancellationToken.None);
+        Assert.Equal(res2.Id, detail2.ReservationId);
+        Assert.Equal(prop2Id, detail2.PropertyId);
+        Assert.Equal("Khách Sạn An Hải Bắc - Chi Nhánh Cảng", detail2.PropertyName);
+        Assert.Equal("50 Tran Hung Dao, Da Nang", detail2.PropertyAddress);
+        Assert.Equal("Superior Harbor View", detail2.RoomTypeName);
+        Assert.Equal(2_500_000m, detail2.TotalAmount);
+        Assert.Equal(750_000m, detail2.PaidAmount);
+        Assert.Equal(1_750_000m, detail2.RemainingBalance);
+        Assert.NotEqual(res1.Id, detail2.ReservationId);
+        Assert.NotEqual(fixture.PropertyId, detail2.PropertyId);
+        Assert.NotEqual("Deluxe Ocean View", detail2.RoomTypeName);
     }
 }

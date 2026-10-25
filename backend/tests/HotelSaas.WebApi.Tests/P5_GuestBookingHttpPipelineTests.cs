@@ -5,6 +5,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Tasks;
+using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Payments.DTOs;
 using HotelSaas.Application.Public.DTOs;
 using HotelSaas.Application.Quotes.DTOs;
@@ -731,9 +732,9 @@ public sealed class P5_GuestBookingHttpPipelineTests
             });
 
             var respBranchMismatch = await client.SendAsync(reqBranchMismatch);
-            Assert.True(respBranchMismatch.StatusCode == HttpStatusCode.BadRequest || respBranchMismatch.StatusCode == HttpStatusCode.Forbidden);
-            var mismatchBody = await respBranchMismatch.Content.ReadAsStringAsync();
-            Assert.Contains("ERR_BRANCH_MISMATCH", mismatchBody);
+            Assert.Equal(HttpStatusCode.BadRequest, respBranchMismatch.StatusCode);
+            var mismatchJson = await respBranchMismatch.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("ERR_BRANCH_MISMATCH", mismatchJson.GetProperty("errorCode").GetString());
 
             // ── SCENARIO 5: Shared Invariant Enforcement on Writers (Finding 1) ──────────
             var tokenAdmin = await AuthenticateStaffAsync(client, "staff_p5_admin@hotel.com", "P@ssword123!", prop1Id);
@@ -1127,6 +1128,457 @@ public sealed class P5_GuestBookingHttpPipelineTests
 
                 Assert.Single(activeRes);
             }
+        }
+        finally
+        {
+            try
+            {
+                await using var cleanCmd = conn.CreateCommand();
+                cleanCmd.CommandText = $"SET search_path TO public; DROP SCHEMA IF EXISTS \"{testSchema}\" CASCADE;";
+                await cleanCmd.ExecuteNonQueryAsync();
+            }
+            catch { }
+            finally
+            {
+                NpgsqlConnection.ClearAllPools();
+            }
+        }
+    }
+
+    [Fact]
+    public async Task HttpPipeline_T05_Guest_PMS_Reconciliation_And_Cross_Branch_Rbac()
+    {
+        var baseConnStr = GetConnectionString();
+        ValidateTestDatabaseTarget(baseConnStr);
+
+        var testSchema = $"p5_t05_reconcile_{Guid.NewGuid():N}";
+
+        await using var conn = new NpgsqlConnection(baseConnStr);
+        await conn.OpenAsync();
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = $"CREATE SCHEMA IF NOT EXISTS \"{testSchema}\"; SET search_path TO \"{testSchema}\";";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        try
+        {
+            var tenantId = Guid.NewGuid();
+            var prop1Id = Guid.NewGuid();
+            var prop2Id = Guid.NewGuid();
+
+            var userStaff1Id = Guid.NewGuid();
+            var userStaff2Id = Guid.NewGuid();
+
+            var roleAdminId = Guid.NewGuid();
+            var roomType1Id = Guid.NewGuid();
+            var room1Id = Guid.NewGuid();
+
+            var hasher = new PasswordHasherService();
+
+            // 1. Seed Database Schema and Entities
+            var lookupToken = "t05_token_" + Guid.NewGuid().ToString("N");
+            var reservationId = Guid.NewGuid();
+            var checkIn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2));
+            var checkOut = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(3));
+
+            await using (var seedCtx = CreateSeedDbContext(baseConnStr, testSchema, tenantId))
+            {
+                await seedCtx.Database.MigrateAsync();
+
+                var tenant = new Tenant
+                {
+                    Id = tenantId,
+                    Name = "Tập đoàn Khách sạn Tân T05",
+                    Code = "T05TENANT",
+                    Slug = "tan-t05-tenant",
+                    Address = "123 Bien Dong",
+                    City = "Da Nang",
+                    Status = TenantStatus.Active
+                };
+
+                var property1 = new Property
+                {
+                    Id = prop1Id,
+                    TenantId = tenantId,
+                    Name = "Chi nhánh Non Nước T05",
+                    Code = "NN-T05",
+                    Slug = "non-nuoc-t05",
+                    Address = "100 Vo Nguyen Giap",
+                    City = "Da Nang",
+                    Status = PropertyStatus.Active,
+                    CheckInTime = new TimeOnly(14, 0),
+                    CheckOutTime = new TimeOnly(12, 0),
+                    BufferMinutes = 30,
+                    MaxHourlyHours = 12
+                };
+
+                var property2 = new Property
+                {
+                    Id = prop2Id,
+                    TenantId = tenantId,
+                    Name = "Chi nhánh Mỹ Khê T05",
+                    Code = "MK-T05",
+                    Slug = "my-khe-t05",
+                    Address = "200 Vo Nguyen Giap",
+                    City = "Da Nang",
+                    Status = PropertyStatus.Active,
+                    CheckInTime = new TimeOnly(14, 0),
+                    CheckOutTime = new TimeOnly(12, 0),
+                    BufferMinutes = 30,
+                    MaxHourlyHours = 12
+                };
+
+                var staffUser1 = new User
+                {
+                    Id = userStaff1Id,
+                    Username = "staff_branch_a",
+                    Email = "staff_a@hotel.com",
+                    PasswordHash = hasher.Hash("P@ssword123!"),
+                    FullName = "Staff Chi Nhanh A",
+                    IsActive = true,
+                    GlobalRole = GlobalUserRole.Customer
+                };
+
+                var staffUser2 = new User
+                {
+                    Id = userStaff2Id,
+                    Username = "staff_branch_b",
+                    Email = "staff_b@hotel.com",
+                    PasswordHash = hasher.Hash("P@ssword123!"),
+                    FullName = "Staff Chi Nhanh B",
+                    IsActive = true,
+                    GlobalRole = GlobalUserRole.Customer
+                };
+
+                var funcRes = new PermissionFunction
+                {
+                    Id = Guid.NewGuid(),
+                    Code = "RESERVATIONS",
+                    Name = "Reservations Management",
+                    ModuleCode = "RESERVATIONS",
+                    SupportedActionMask = 127,
+                    IsActive = true
+                };
+
+                var funcPay = new PermissionFunction
+                {
+                    Id = Guid.NewGuid(),
+                    Code = "PAYMENTS",
+                    Name = "Payments Management",
+                    ModuleCode = "PAYMENTS",
+                    SupportedActionMask = 127,
+                    IsActive = true
+                };
+
+                var roleAdmin = new AccessRole
+                {
+                    Id = roleAdminId,
+                    TenantId = tenantId,
+                    Name = "AdminRole",
+                    Code = "ADM_ROLE"
+                };
+
+                var rolePermRes = new RolePermission { RoleId = roleAdminId, FunctionId = funcRes.Id, ActionMask = 127 };
+                var rolePermPay = new RolePermission { RoleId = roleAdminId, FunctionId = funcPay.Id, ActionMask = 127 };
+
+                var staffMember1 = new TenantStaff
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenantId,
+                    UserId = userStaff1Id,
+                    RoleId = roleAdminId,
+                    PropertyId = prop1Id,
+                    StaffRole = StaffRole.Manager,
+                    IsActive = true
+                };
+
+                var staffMember2 = new TenantStaff
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenantId,
+                    UserId = userStaff2Id,
+                    RoleId = roleAdminId,
+                    PropertyId = prop2Id,
+                    StaffRole = StaffRole.Manager,
+                    IsActive = true
+                };
+
+                var roomType1 = new RoomType
+                {
+                    Id = roomType1Id,
+                    TenantId = tenantId,
+                    PropertyId = prop1Id,
+                    Name = "Deluxe Ocean View",
+                    Code = "DLX-OCN",
+                    BasePrice = 1_000_000m,
+                    MaxOccupancy = 2
+                };
+
+                var room1 = new Room
+                {
+                    Id = room1Id,
+                    TenantId = tenantId,
+                    PropertyId = prop1Id,
+                    RoomTypeId = roomType1Id,
+                    RoomNumber = "101",
+                    Floor = 1,
+                    Status = RoomStatus.Clean
+                };
+
+                // Itemized breakdown: Base room 1,000,000 + Surcharge 200,000 + Service 100,000 = Total 1,300,000 VND
+                var breakdownItems = new List<QuoteBreakdownItemDto>
+                {
+                    new() { Description = "Tiền phòng Deluxe", UnitPrice = 1_000_000m, Quantity = 1, Amount = 1_000_000m, Category = "Room" },
+                    new() { Description = "Phụ thu thêm khách", UnitPrice = 200_000m, Quantity = 1, Amount = 200_000m, Category = "Surcharge" },
+                    new() { Description = "Dịch vụ đưa đón sân bay", UnitPrice = 100_000m, Quantity = 1, Amount = 100_000m, Category = "Service" }
+                };
+
+                var snap = new ReservationSnapshot
+                {
+                    IsOnlineHold = true,
+                    HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(15),
+                    LookupToken = lookupToken,
+                    DepositRequired = 390_000m, // 30% of 1,300,000 VND
+                    TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7),
+                    IsTokenRevoked = false,
+                    RoomTypeId = roomType1Id,
+                    RoomTypeName = "Deluxe Ocean View",
+                    RentalType = RentalType.Overnight,
+                    StartAtUtc = DateTime.UtcNow.AddDays(2),
+                    EndAtUtc = DateTime.UtcNow.AddDays(3),
+                    TotalAmount = 1_300_000m,
+                    Breakdown = breakdownItems
+                };
+
+                var reservation = new Reservation
+                {
+                    Id = reservationId,
+                    TenantId = tenantId,
+                    PropertyId = prop1Id,
+                    RoomId = room1Id,
+                    ConfirmationCode = "RES-T05-RECONCILE",
+                    GuestName = "Nguyen Van A",
+                    GuestEmail = "nguyenvana@gmail.com",
+                    GuestPhone = "0901234567",
+                    CheckInDate = checkIn,
+                    CheckOutDate = checkOut,
+                    NumberOfGuests = 2,
+                    Status = ReservationStatus.PendingPayment,
+                    TotalAmount = 1_300_000m,
+                    SmartLockPin = "123456",
+                    SmartLockStatus = "Active",
+                    Notes = ReservationSnapshotHelper.Serialize(snap),
+                    CreatedAtUtc = DateTime.UtcNow,
+                    UpdatedAtUtc = DateTime.UtcNow
+                };
+
+                seedCtx.Tenants.Add(tenant);
+                seedCtx.Properties.AddRange(property1, property2);
+                seedCtx.Users.AddRange(staffUser1, staffUser2);
+                seedCtx.PermissionFunctions.AddRange(funcRes, funcPay);
+                seedCtx.AccessRoles.Add(roleAdmin);
+                seedCtx.RolePermissions.AddRange(rolePermRes, rolePermPay);
+                seedCtx.TenantStaffMembers.AddRange(staffMember1, staffMember2);
+                seedCtx.RoomTypes.Add(roomType1);
+                seedCtx.Rooms.Add(room1);
+                seedCtx.Reservations.Add(reservation);
+
+                await seedCtx.SaveChangesAsync();
+            }
+
+            // 2. Start WebApplicationFactory
+            await using var factory = new GuestBookingWebApplicationFactory(baseConnStr, testSchema);
+            var client = factory.CreateClient();
+
+            var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            jsonOpts.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+
+            // ── STEP 1: Guest reads booking via GET /api/public/bookings/{lookupToken} ──
+            var guestResp = await client.GetAsync($"/api/public/bookings/{lookupToken}");
+            Assert.Equal(HttpStatusCode.OK, guestResp.StatusCode);
+            var guestData = await guestResp.Content.ReadFromJsonAsync<GuestBookingDetailDto>(jsonOpts);
+            Assert.NotNull(guestData);
+
+            // Assertions for Guest view:
+            Assert.Equal("RES-T05-RECONCILE", guestData.ConfirmationCode);
+            Assert.Equal(prop1Id, guestData.PropertyId);
+            Assert.Equal("Deluxe Ocean View", guestData.RoomTypeName);
+            Assert.Equal(2, guestData.NumberOfGuests);
+            Assert.Equal(1_300_000m, guestData.TotalAmount);
+            Assert.Equal(390_000m, guestData.DepositRequired);
+            Assert.Equal(0m, guestData.PaidAmount);
+            Assert.Equal(1_300_000m, guestData.RemainingBalance);
+            Assert.Equal("PendingPayment", guestData.Status);
+            // PII protection for guest:
+            Assert.DoesNotContain("nguyenvana@gmail.com", guestData.MaskedGuestEmail);
+            Assert.Contains("***", guestData.MaskedGuestPhone);
+            // SmartLock PIN is hidden when PendingPayment (even if DB has PIN and Active status):
+            Assert.Null(guestData.SmartLockPin);
+            Assert.Equal(3, guestData.Breakdown.Count);
+
+            // ── STEP 2: Staff A reads PMS Reservation Detail GET /api/reservations/{id} ──
+            var tokenStaffA = await AuthenticateStaffAsync(client, "staff_a@hotel.com", "P@ssword123!", prop1Id);
+            using var reqPmsDetail = new HttpRequestMessage(HttpMethod.Get, $"/api/reservations/{reservationId}?propertyId={prop1Id}");
+            reqPmsDetail.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenStaffA);
+            reqPmsDetail.Headers.Add("X-Property-Id", prop1Id.ToString());
+            var pmsDetailResp = await client.SendAsync(reqPmsDetail);
+            Assert.Equal(HttpStatusCode.OK, pmsDetailResp.StatusCode);
+            var pmsData = await pmsDetailResp.Content.ReadFromJsonAsync<ReservationDetailDto>(jsonOpts);
+            Assert.NotNull(pmsData);
+
+            // Reconcile Guest vs PMS Detail:
+            Assert.Equal(guestData.ConfirmationCode, pmsData.ConfirmationCode);
+            Assert.Equal(guestData.PropertyId, pmsData.PropertyId);
+            Assert.Equal(guestData.RoomTypeName, pmsData.RoomTypeName);
+            Assert.Equal(guestData.NumberOfGuests, pmsData.NumberOfGuests);
+            Assert.Equal(guestData.TotalAmount, pmsData.TotalAmount);
+            // PMS has full raw PII:
+            Assert.Equal("Nguyen Van A", pmsData.GuestName);
+            Assert.Equal("nguyenvana@gmail.com", pmsData.GuestEmail);
+            Assert.Equal("0901234567", pmsData.GuestPhone);
+            // PMS status matches:
+            Assert.Equal(ReservationStatus.PendingPayment, pmsData.Status);
+
+            // ── STEP 3: Staff A reads Folio GET /api/reservations/{id}/folio ────────────
+            using var reqPmsFolio = new HttpRequestMessage(HttpMethod.Get, $"/api/reservations/{reservationId}/folio?propertyId={prop1Id}");
+            reqPmsFolio.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenStaffA);
+            reqPmsFolio.Headers.Add("X-Property-Id", prop1Id.ToString());
+            var pmsFolioResp = await client.SendAsync(reqPmsFolio);
+            Assert.Equal(HttpStatusCode.OK, pmsFolioResp.StatusCode);
+            var folioData = await pmsFolioResp.Content.ReadFromJsonAsync<FolioDto>(jsonOpts);
+            Assert.NotNull(folioData);
+
+            // Reconcile Guest vs Folio:
+            Assert.Equal(guestData.ConfirmationCode, folioData.ConfirmationCode);
+            Assert.Equal(guestData.TotalAmount, folioData.TotalAmount);
+            Assert.Equal(guestData.PaidAmount, folioData.PaidAmount);
+            Assert.Equal(guestData.RemainingBalance, folioData.RemainingBalance);
+            Assert.False(folioData.IsFullyPaid);
+            // Verify Surcharge and Service in Folio:
+            Assert.Equal(1_000_000m, folioData.BaseRoomAmount);
+            Assert.Equal(200_000m, folioData.SurchargesAmount);
+            Assert.Equal(100_000m, folioData.ServicesAmount);
+
+            // ── STEP 4: Staff A confirms booking with deposit 390,000 VND ──────────────
+            using var reqConfirm = new HttpRequestMessage(HttpMethod.Post, $"/api/public/bookings/{lookupToken}/confirm");
+            reqConfirm.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenStaffA);
+            reqConfirm.Headers.Add("X-Property-Id", prop1Id.ToString());
+            reqConfirm.Content = JsonContent.Create(new
+            {
+                paymentAmount = 390_000m,
+                paymentMethod = "BankTransfer",
+                transactionRef = "UNC-T05-DEPOSIT",
+                propertyId = prop1Id,
+                idempotencyKey = "t05-confirm-deposit-01"
+            });
+            var confirmResp = await client.SendAsync(reqConfirm);
+            Assert.Equal(HttpStatusCode.OK, confirmResp.StatusCode);
+
+            // Re-read Guest view after confirmation:
+            var guestAfterConfirm = await client.GetFromJsonAsync<GuestBookingDetailDto>($"/api/public/bookings/{lookupToken}", jsonOpts);
+            Assert.NotNull(guestAfterConfirm);
+            Assert.Equal("Confirmed", guestAfterConfirm.Status);
+            Assert.Equal(390_000m, guestAfterConfirm.PaidAmount);
+            Assert.Equal(910_000m, guestAfterConfirm.RemainingBalance); // 1,300,000 - 390,000 = 910,000
+            // Door PIN is now visible because Confirmed + Active:
+            Assert.Equal("123456", guestAfterConfirm.SmartLockPin);
+
+            // Re-read Folio view after confirmation:
+            using var reqFolioAfter = new HttpRequestMessage(HttpMethod.Get, $"/api/reservations/{reservationId}/folio?propertyId={prop1Id}");
+            reqFolioAfter.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenStaffA);
+            reqFolioAfter.Headers.Add("X-Property-Id", prop1Id.ToString());
+            var folioAfterResp = await client.SendAsync(reqFolioAfter);
+            Assert.Equal(HttpStatusCode.OK, folioAfterResp.StatusCode);
+            var folioAfterData = await folioAfterResp.Content.ReadFromJsonAsync<FolioDto>(jsonOpts);
+            Assert.NotNull(folioAfterData);
+            Assert.Equal(ReservationStatus.Confirmed, folioAfterData.Status);
+            Assert.Equal(390_000m, folioAfterData.PaidAmount);
+            Assert.Equal(910_000m, folioAfterData.RemainingBalance);
+            Assert.False(folioAfterData.IsFullyPaid);
+            Assert.Single(folioAfterData.Payments);
+
+            // Reconcile balance between Guest and Folio after payment:
+            Assert.Equal(guestAfterConfirm.TotalAmount, folioAfterData.TotalAmount);
+            Assert.Equal(guestAfterConfirm.PaidAmount, folioAfterData.PaidAmount);
+            Assert.Equal(guestAfterConfirm.RemainingBalance, folioAfterData.RemainingBalance);
+
+            // ── STEP 5: RBAC & Cross-Branch Isolation ──
+            var tokenStaffB = await AuthenticateStaffAsync(client, "staff_b@hotel.com", "P@ssword123!", prop2Id);
+
+            // 5a. Staff B attempts cross-branch header tampering (X-Property-Id: prop1Id with Token B) -> 403 Forbidden (ERR_PROPERTY_FORBIDDEN)
+            using var reqStaffBHeaderTamper = new HttpRequestMessage(HttpMethod.Get, $"/api/reservations?propertyId={prop1Id}");
+            reqStaffBHeaderTamper.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenStaffB);
+            reqStaffBHeaderTamper.Headers.Add("X-Property-Id", prop1Id.ToString());
+            var staffBHeaderResp = await client.SendAsync(reqStaffBHeaderTamper);
+            Assert.Equal(HttpStatusCode.Forbidden, staffBHeaderResp.StatusCode);
+            var headerErrJson = await staffBHeaderResp.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("ERR_PROPERTY_FORBIDDEN", headerErrJson.GetProperty("errorCode").GetString());
+
+            // 5b. Staff B sends valid Header B (X-Property-Id: prop2Id) but query targets Property 1 (?propertyId=prop1Id) -> 400 Bad Request (ERR_CONTEXT_MISMATCH)
+            using var reqStaffBQueryMismatch = new HttpRequestMessage(HttpMethod.Get, $"/api/reservations?propertyId={prop1Id}");
+            reqStaffBQueryMismatch.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenStaffB);
+            reqStaffBQueryMismatch.Headers.Add("X-Property-Id", prop2Id.ToString());
+            var staffBQueryResp = await client.SendAsync(reqStaffBQueryMismatch);
+            Assert.Equal(HttpStatusCode.BadRequest, staffBQueryResp.StatusCode);
+            var queryErrJson = await staffBQueryResp.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("ERR_CONTEXT_MISMATCH", queryErrJson.GetProperty("errorCode").GetString());
+
+            // 5c. Staff B in proper Context B queries reservation list GET /api/reservations?propertyId=prop2Id
+            // -> 200 OK, but Booking A (Property 1) MUST NOT appear in Branch B's reservation list
+            using var reqStaffBList = new HttpRequestMessage(HttpMethod.Get, $"/api/reservations?propertyId={prop2Id}");
+            reqStaffBList.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenStaffB);
+            reqStaffBList.Headers.Add("X-Property-Id", prop2Id.ToString());
+            var staffBListResp = await client.SendAsync(reqStaffBList);
+            Assert.Equal(HttpStatusCode.OK, staffBListResp.StatusCode);
+            var pagedListB = await staffBListResp.Content.ReadFromJsonAsync<PagedResult<ReservationDto>>(jsonOpts);
+            Assert.NotNull(pagedListB);
+            Assert.DoesNotContain(pagedListB.Items, r => r.Id == reservationId || r.ConfirmationCode == "RES-T05-RECONCILE");
+
+            // 5d. Staff B in proper Context B queries Booking A's ID for detail GET /api/reservations/{reservationId}?propertyId=prop2Id
+            // -> 404 NotFound (ERR_NOT_FOUND). Error response must NOT leak Guest A's PII, token, or PIN
+            using var reqStaffBDetail = new HttpRequestMessage(HttpMethod.Get, $"/api/reservations/{reservationId}?propertyId={prop2Id}");
+            reqStaffBDetail.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenStaffB);
+            reqStaffBDetail.Headers.Add("X-Property-Id", prop2Id.ToString());
+            var staffBDetailResp = await client.SendAsync(reqStaffBDetail);
+            Assert.Equal(HttpStatusCode.NotFound, staffBDetailResp.StatusCode);
+            var detailErrJson = await staffBDetailResp.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("ERR_NOT_FOUND", detailErrJson.GetProperty("errorCode").GetString());
+            var detailErrRaw = await staffBDetailResp.Content.ReadAsStringAsync();
+            Assert.DoesNotContain("Nguyen Van A", detailErrRaw);
+            Assert.DoesNotContain("nguyenvana@gmail.com", detailErrRaw);
+            Assert.DoesNotContain("0901234567", detailErrRaw);
+            Assert.DoesNotContain(lookupToken, detailErrRaw);
+            Assert.DoesNotContain("123456", detailErrRaw);
+
+            // 5e. Staff B in proper Context B queries Booking A's Folio GET /api/reservations/{reservationId}/folio?propertyId=prop2Id
+            // -> 404 NotFound (ERR_NOT_FOUND). Error response must NOT leak Guest A's PII, token, or PIN
+            using var reqStaffBFolio = new HttpRequestMessage(HttpMethod.Get, $"/api/reservations/{reservationId}/folio?propertyId={prop2Id}");
+            reqStaffBFolio.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenStaffB);
+            reqStaffBFolio.Headers.Add("X-Property-Id", prop2Id.ToString());
+            var staffBFolioResp = await client.SendAsync(reqStaffBFolio);
+            Assert.Equal(HttpStatusCode.NotFound, staffBFolioResp.StatusCode);
+            var folioErrJson = await staffBFolioResp.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("ERR_NOT_FOUND", folioErrJson.GetProperty("errorCode").GetString());
+            var folioErrRaw = await staffBFolioResp.Content.ReadAsStringAsync();
+            Assert.DoesNotContain("Nguyen Van A", folioErrRaw);
+            Assert.DoesNotContain("nguyenvana@gmail.com", folioErrRaw);
+            Assert.DoesNotContain("0901234567", folioErrRaw);
+            Assert.DoesNotContain(lookupToken, folioErrRaw);
+            Assert.DoesNotContain("123456", folioErrRaw);
+
+            // ── STEP 6: RBAC - Anonymous Guest CANNOT call PMS endpoints ───────────────
+            // 6a. Anonymous GET /api/reservations -> 401 Unauthorized
+            var anonListResp = await client.GetAsync($"/api/reservations?propertyId={prop1Id}");
+            Assert.Equal(HttpStatusCode.Unauthorized, anonListResp.StatusCode);
+
+            // 6b. Anonymous GET /api/reservations/{id} -> 401 Unauthorized
+            var anonDetailResp = await client.GetAsync($"/api/reservations/{reservationId}?propertyId={prop1Id}");
+            Assert.Equal(HttpStatusCode.Unauthorized, anonDetailResp.StatusCode);
+
+            // 6c. Anonymous GET /api/reservations/{id}/folio -> 401 Unauthorized
+            var anonFolioResp = await client.GetAsync($"/api/reservations/{reservationId}/folio?propertyId={prop1Id}");
+            Assert.Equal(HttpStatusCode.Unauthorized, anonFolioResp.StatusCode);
         }
         finally
         {
