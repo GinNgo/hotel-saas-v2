@@ -1185,7 +1185,8 @@ public sealed class P5_GuestBookingTests
     public async Task PublicDiscovery_Queries_ReturnDetailsAndRoomTypesScopedToActiveProperty()
     {
         await using var fixture = await TestFixture.CreateAsync(this, roomCount: 2);
-        await using var ctx = fixture.CreateDbContext();
+        var unconstrainedPropSvc = new MockPropertyService { PropertyId = null, HeaderPropertyId = null, TokenPropertyId = null, IsTenantWide = true };
+        await using var ctx = fixture.CreateDbContext(propSvc: unconstrainedPropSvc);
 
         var secondPropertyId = Guid.NewGuid();
         var secondRoomTypeId = Guid.NewGuid();
