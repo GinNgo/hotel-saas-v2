@@ -97,4 +97,39 @@ describe('Destination picker dismissal', () => {
     expect(fixture.componentInstance.destinationKeyword()).toBe('Đà Lạt');
     expect(fixture.componentInstance.showSuggestionsDropdown()).toBe(false);
   });
+
+  it('saves searches to recent search history and allows clearing', () => {
+    const fixture = setup();
+    const comp = fixture.componentInstance;
+    comp.saveSearchToHistory('Hà Nội', 'Hà Nội', 'Province', 'Hà Nội');
+    expect(comp.recentSearches().length).toBeGreaterThan(0);
+    expect(comp.recentSearches()[0].keyword).toBe('Hà Nội');
+
+    const fakeEvent = new window.Event('click');
+    comp.clearAllRecentSearches(fakeEvent);
+    expect(comp.recentSearches().length).toBe(0);
+  });
+
+  it('supports fuzzy search for condensed names and accents', () => {
+    const fixture = setup();
+    const comp = fixture.componentInstance;
+    fixture.componentRef.setInput('suggestions', [
+      { id: 'sapa', name: 'Sa Pa', slug: 'sa-pa', type: 'TouristZone', provinceCode: '10', provinceName: 'Lào Cai' },
+      { id: 'dalat', name: 'Đà Lạt', slug: 'da-lat', type: 'Province', provinceCode: '68', provinceName: 'Lâm Đồng' },
+      { id: 'phuquoc', name: 'Phú Quốc', slug: 'phu-quoc', type: 'Province', provinceCode: '91', provinceName: 'Kiên Giang' },
+    ]);
+    fixture.detectChanges();
+
+    // Query 'sapa' matches 'Sa Pa'
+    comp.onDestinationInput('sapa');
+    expect(comp.filteredSuggestions().some(s => s.name === 'Sa Pa')).toBe(true);
+
+    // Query 'dalat' matches 'Đà Lạt'
+    comp.onDestinationInput('dalat');
+    expect(comp.filteredSuggestions().some(s => s.name === 'Đà Lạt')).toBe(true);
+
+    // Query 'phuquoc' matches 'Phú Quốc'
+    comp.onDestinationInput('phuquoc');
+    expect(comp.filteredSuggestions().some(s => s.name === 'Phú Quốc')).toBe(true);
+  });
 });

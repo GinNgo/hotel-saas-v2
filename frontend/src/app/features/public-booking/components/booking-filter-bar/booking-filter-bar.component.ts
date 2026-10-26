@@ -54,6 +54,15 @@ export interface DestinationSelection {
   slug?: string;
 }
 
+export interface RecentSearchItem {
+  id: string;
+  keyword: string;
+  label: string;
+  type?: DestinationSuggestionDto['type'] | 'Keyword';
+  provinceName?: string;
+  timestamp: number;
+}
+
 @Component({
   selector: 'app-booking-filter-bar',
   standalone: true,
@@ -171,70 +180,120 @@ export interface DestinationSelection {
             }
           </div>
 
-          <!-- Dropdown Gợi ý Phân nhóm (Thành phố / Khu du lịch / Địa danh / Khách sạn) -->
-          @if (showSuggestionsDropdown() && filteredSuggestions().length > 0) {
+          <!-- Dropdown Gợi ý Phân nhóm & Lịch sử tìm kiếm -->
+          @if (showSuggestionsDropdown() && (filteredSuggestions().length > 0 || recentSearches().length > 0)) {
             <div
-              class="absolute z-40 left-0 right-0 mt-1.5 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-80 overflow-y-auto divide-y divide-slate-100"
+              class="absolute z-40 left-0 right-0 mt-1.5 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-96 overflow-y-auto divide-y divide-slate-100"
             >
-              <div
-                class="px-3.5 py-2 bg-slate-50 flex items-center justify-between text-xs text-slate-500"
-              >
-                <span>Gợi ý theo Địa danh, Khu vực du lịch & Thành phố</span>
-                <button
-                  type="button"
-                  (click)="showSuggestionsDropdown.set(false)"
-                  class="text-indigo-600 font-medium hover:underline"
-                >
-                  Đóng
-                </button>
-              </div>
-
-              <div id="destination-options" role="listbox" aria-label="Gợi ý điểm đến">
-              @for (item of filteredSuggestions(); track item.id; let index = $index) {
-                <button
-                  [id]="'destination-option-' + index"
-                  role="option"
-                  tabindex="-1"
-                  [attr.aria-selected]="activeSuggestion() === index"
-                  [class.bg-indigo-50]="activeSuggestion() === index"
-                  type="button"
-                  (click)="selectSuggestion(item)"
-                  class="w-full px-4 py-2.5 text-left hover:bg-indigo-50/60 flex items-center justify-between gap-3 transition-colors cursor-pointer"
-                >
-                  <div class="flex items-center gap-3 min-w-0">
-                    <span
-                      class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm"
-                      [ngClass]="getSuggestionIconBadgeClass(item.type)"
-                    >
-                      <i [class]="getSuggestionIcon(item.type)"></i>
-                    </span>
-                    <div class="truncate">
-                      <p class="text-sm font-medium text-slate-800 truncate">
-                        {{ item.name }}
-                      </p>
-                      <p class="text-xs text-slate-500 truncate">
-                        {{ item.provinceName }}
-                        @if (item.touristZoneName) {
-                          <span> • {{ item.touristZoneName }}</span>
-                        }
-                        @if (item.distanceLabel) {
-                          <span class="text-indigo-600 font-medium">
-                            • {{ item.distanceLabel }}
-                          </span>
-                        }
-                      </p>
-                    </div>
-                  </div>
-
-                  <span
-                    class="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
-                    [ngClass]="getSuggestionTypePillClass(item.type)"
-                  >
-                    {{ getSuggestionTypeLabel(item.type) }}
+              <!-- 1. LỊCH SỬ TÌM KIẾM GẦN ĐÂY -->
+              @if (!destinationKeyword().trim() && recentSearches().length > 0) {
+                <div class="px-3.5 py-2.5 bg-slate-50 flex items-center justify-between text-xs">
+                  <span class="font-bold flex items-center gap-1.5 text-slate-700">
+                    <i class="pi pi-history text-indigo-600"></i>
+                    <span>Lịch sử tìm kiếm gần đây</span>
                   </span>
-                </button>
+                  <button
+                    type="button"
+                    (click)="clearAllRecentSearches($event)"
+                    class="text-xs text-red-500 hover:text-red-700 hover:underline font-medium cursor-pointer"
+                  >
+                    Xóa tất cả
+                  </button>
+                </div>
+                <div class="divide-y divide-slate-100 max-h-44 overflow-y-auto">
+                  @for (recent of recentSearches(); track recent.id) {
+                    <div
+                      (click)="selectRecentSearch(recent)"
+                      class="w-full px-4 py-2.5 text-left hover:bg-indigo-50/60 flex items-center justify-between gap-3 transition-colors cursor-pointer group"
+                    >
+                      <div class="flex items-center gap-3 min-w-0">
+                        <span class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 text-xs">
+                          <i class="pi pi-clock"></i>
+                        </span>
+                        <div class="truncate">
+                          <p class="text-sm font-medium text-slate-800 truncate group-hover:text-indigo-600">
+                            {{ recent.label || recent.keyword }}
+                          </p>
+                          @if (recent.provinceName) {
+                            <p class="text-xs text-slate-400 truncate">{{ recent.provinceName }}</p>
+                          }
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        (click)="removeRecentSearch(recent, $event)"
+                        class="text-slate-300 hover:text-red-500 p-1.5 rounded-md transition-colors"
+                        title="Xóa mục này"
+                      >
+                        <i class="pi pi-times text-xs"></i>
+                      </button>
+                    </div>
+                  }
+                </div>
               }
-              </div>
+
+              <!-- 2. GỢI Ý ĐỊA DANH / KHU DU LỊCH / THÀNH PHỐ / CƠ SỞ -->
+              @if (filteredSuggestions().length > 0) {
+                <div
+                  class="px-3.5 py-2 bg-slate-50 flex items-center justify-between text-xs text-slate-500"
+                >
+                  <span>{{ destinationKeyword().trim() ? 'Gợi ý tìm kiếm' : 'Điểm đến thịnh hành (34 tỉnh thành)' }}</span>
+                  <button
+                    type="button"
+                    (click)="showSuggestionsDropdown.set(false)"
+                    class="text-indigo-600 font-medium hover:underline"
+                  >
+                    Đóng
+                  </button>
+                </div>
+
+                <div id="destination-options" role="listbox" aria-label="Gợi ý điểm đến">
+                @for (item of filteredSuggestions(); track item.id; let index = $index) {
+                  <button
+                    [id]="'destination-option-' + index"
+                    role="option"
+                    tabindex="-1"
+                    [attr.aria-selected]="activeSuggestion() === index"
+                    [class.bg-indigo-50]="activeSuggestion() === index"
+                    type="button"
+                    (click)="selectSuggestion(item)"
+                    class="w-full px-4 py-2.5 text-left hover:bg-indigo-50/60 flex items-center justify-between gap-3 transition-colors cursor-pointer"
+                  >
+                    <div class="flex items-center gap-3 min-w-0">
+                      <span
+                        class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm"
+                        [ngClass]="getSuggestionIconBadgeClass(item.type)"
+                      >
+                        <i [class]="getSuggestionIcon(item.type)"></i>
+                      </span>
+                      <div class="truncate">
+                        <p class="text-sm font-medium text-slate-800 truncate">
+                          {{ item.name }}
+                        </p>
+                        <p class="text-xs text-slate-500 truncate">
+                          {{ item.provinceName }}
+                          @if (item.touristZoneName) {
+                            <span> • {{ item.touristZoneName }}</span>
+                          }
+                          @if (item.distanceLabel) {
+                            <span class="text-indigo-600 font-medium">
+                              • {{ item.distanceLabel }}
+                            </span>
+                          }
+                        </p>
+                      </div>
+                    </div>
+
+                    <span
+                      class="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+                      [ngClass]="getSuggestionTypePillClass(item.type)"
+                    >
+                      {{ getSuggestionTypeLabel(item.type) }}
+                    </span>
+                  </button>
+                }
+                </div>
+              }
             </div>
           }
           <p class="text-[11px] text-slate-400 mt-1 truncate h-4">Thành phố, địa danh hoặc tên cơ sở</p>
@@ -370,6 +429,7 @@ export interface DestinationSelection {
 export class BookingFilterBarComponent {
   readonly activeSuggestion = signal(-1);
   readonly searchError = signal('');
+  readonly recentSearches = signal<RecentSearchItem[]>([]);
 
   onDestinationKeydown(event: KeyboardEvent): void {
     const suggestions = this.filteredSuggestions();
@@ -557,7 +617,6 @@ export class BookingFilterBarComponent {
         if (within50Km.length > 0) {
           return within50Km.slice(0, 8);
         }
-        // If none within 50km, sort all by distance ascending
         return list
           .sort((a, b) => (a.distanceMeters ?? 999999) - (b.distanceMeters ?? 999999))
           .slice(0, 8);
@@ -565,24 +624,63 @@ export class BookingFilterBarComponent {
       return list.slice(0, 8);
     }
 
-    // Keyword filtering
-    const matches = list.filter((item) => {
-      const haystack = this.normalizeVietnamese(
-        `${item.name} ${item.provinceName} ${item.touristZoneName ?? ''}`
-      );
-      return haystack.includes(rawKeyword);
-    });
+    // Fuzzy typo-tolerant matching
+    const qTokens = rawKeyword.split(/\s+/).filter(Boolean);
+    const qCondensed = rawKeyword.replace(/[^a-z0-9]/g, '');
 
-    if (coords) {
-      matches.sort(
-        (a, b) => (a.distanceMeters ?? 999999) - (b.distanceMeters ?? 999999)
-      );
+    const scoredMatches: Array<{ item: DestinationSuggestionDto; score: number }> = [];
+
+    for (const item of list) {
+      const nameNorm = this.normalizeVietnamese(item.name);
+      const provNorm = this.normalizeVietnamese(item.provinceName || '');
+      const zoneNorm = this.normalizeVietnamese(item.touristZoneName || '');
+      const fullHaystack = `${nameNorm} ${provNorm} ${zoneNorm}`;
+      const fCondensed = fullHaystack.replace(/[^a-z0-9]/g, '');
+
+      let score = 0;
+
+      // 1. Exact or startsWith match
+      if (nameNorm === rawKeyword || provNorm === rawKeyword) score = 100;
+      else if (nameNorm.startsWith(rawKeyword) || provNorm.startsWith(rawKeyword)) score = 90;
+      else if (fullHaystack.includes(rawKeyword)) score = 80;
+      // 2. Condensed match (e.g. "sapa" matches "Sa Pa", "dalat" matches "Đà Lạt", "phuquoc" matches "Phú Quốc")
+      else if (qCondensed.length >= 2 && fCondensed.includes(qCondensed)) score = 75;
+      // 3. Common regional abbreviations
+      else if ((qCondensed === 'hcm' || qCondensed === 'saigon') && (fCondensed.includes('hochiminh') || fCondensed.includes('saigon'))) score = 85;
+      else if (qCondensed === 'hn' && fCondensed.includes('hanoi')) score = 85;
+      else if (qCondensed === 'dn' && fCondensed.includes('danang')) score = 85;
+      else if (qCondensed === 'vt' && fCondensed.includes('vungtau')) score = 85;
+      else if (qCondensed === 'pq' && fCondensed.includes('phuquoc')) score = 85;
+      else if (qCondensed === 'dl' && fCondensed.includes('dalat')) score = 85;
+      // 4. All tokens match
+      else if (qTokens.length > 1 && qTokens.every(tok => fullHaystack.includes(tok))) score = 70;
+      // 5. Subsequence fuzzy match or typo tolerance (Levenshtein distance <= 1 for single token >= 4 chars)
+      else if (qTokens.length === 1 && qCondensed.length >= 4) {
+        const itemTokens = fullHaystack.split(/\s+/).filter(Boolean);
+        for (const it of itemTokens) {
+          if (it.length >= 3 && this.levenshteinDistance(qCondensed, it.replace(/[^a-z0-9]/g, '')) <= 1) {
+            score = 60;
+            break;
+          }
+        }
+      }
+
+      if (score > 0) {
+        scoredMatches.push({ item, score });
+      }
     }
 
-    return matches.slice(0, 10);
+    scoredMatches.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (coords) return (a.item.distanceMeters ?? 999999) - (b.item.distanceMeters ?? 999999);
+      return 0;
+    });
+
+    return scoredMatches.map((m) => m.item).slice(0, 10);
   });
 
   constructor() {
+    this.loadRecentSearches();
     effect(() => {
       const init = this.initialFilter();
       if (!init) return;
@@ -643,6 +741,91 @@ export class BookingFilterBarComponent {
     this.emitSearch();
   }
 
+  private loadRecentSearches(): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      const raw = localStorage.getItem('hotel_saas_recent_searches');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          this.recentSearches.set(parsed);
+        }
+      }
+    } catch (e) {
+      console.warn('Could not read recent searches from localStorage', e);
+    }
+  }
+
+  saveSearchToHistory(keyword: string, label?: string, type?: DestinationSuggestionDto['type'], provinceName?: string): void {
+    const trimmed = keyword.trim();
+    if (!trimmed || trimmed.toLowerCase().includes('gps') || trimmed.toLowerCase().includes('vị trí hiện tại')) return;
+    if (typeof localStorage === 'undefined') return;
+
+    try {
+      const current = this.recentSearches().filter(
+        (s: RecentSearchItem) => s.keyword.toLowerCase() !== trimmed.toLowerCase()
+      );
+      const newItem: RecentSearchItem = {
+        id: `search-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        keyword: trimmed,
+        label: label || trimmed,
+        type: type || 'Keyword',
+        provinceName,
+        timestamp: Date.now(),
+      };
+      const updated = [newItem, ...current].slice(0, 8);
+      this.recentSearches.set(updated);
+      localStorage.setItem('hotel_saas_recent_searches', JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Could not save recent search to localStorage', e);
+    }
+  }
+
+  removeRecentSearch(item: RecentSearchItem, event: Event): void {
+    event.stopPropagation();
+    event.preventDefault();
+    const updated = this.recentSearches().filter((s: RecentSearchItem) => s.id !== item.id);
+    this.recentSearches.set(updated);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('hotel_saas_recent_searches', JSON.stringify(updated));
+    }
+  }
+
+  clearAllRecentSearches(event: Event): void {
+    event.stopPropagation();
+    event.preventDefault();
+    this.recentSearches.set([]);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('hotel_saas_recent_searches');
+    }
+  }
+
+  selectRecentSearch(item: RecentSearchItem): void {
+    this.destinationKeyword.set(item.keyword);
+    this.userCoords.set(null);
+    this.showSuggestionsDropdown.set(false);
+    this.saveSearchToHistory(item.keyword, item.label, item.type as any, item.provinceName);
+    this.emitSearch();
+  }
+
+  private levenshteinDistance(a: string, b: string): number {
+    if (a === b) return 0;
+    if (!a.length) return b.length;
+    if (!b.length) return a.length;
+    const v0 = new Int32Array(b.length + 1);
+    const v1 = new Int32Array(b.length + 1);
+    for (let i = 0; i <= b.length; i++) v0[i] = i;
+    for (let i = 0; i < a.length; i++) {
+      v1[0] = i + 1;
+      for (let j = 0; j < b.length; j++) {
+        const cost = a[i] === b[j] ? 0 : 1;
+        v1[j + 1] = Math.min(v1[j] + 1, v0[j + 1] + 1, v0[j] + cost);
+      }
+      for (let j = 0; j <= b.length; j++) v0[j] = v1[j];
+    }
+    return v0[b.length];
+  }
+
   selectSuggestion(item: DestinationSuggestionDto): void {
     if (item.latitude != null && item.longitude != null) {
       this.userCoords.set({ lat: item.latitude, lng: item.longitude });
@@ -655,6 +838,7 @@ export class BookingFilterBarComponent {
       item.type === 'TouristZone' ? item.slug : null
     );
     this.selectedLandmarkSlug.set(item.type === 'Landmark' ? item.slug : null);
+    this.saveSearchToHistory(item.name, item.name, item.type, item.provinceName);
     this.showSuggestionsDropdown.set(false);
     this.emitSearch();
   }
@@ -675,6 +859,7 @@ export class BookingFilterBarComponent {
     this.selectedProvinceCode.set(spot.provinceCode);
     this.selectedLandmarkSlug.set(spot.slug);
     this.selectedTouristZoneSlug.set(null);
+    this.saveSearchToHistory(spot.name, spot.name, 'Landmark');
     this.showSuggestionsDropdown.set(false);
     this.emitSearch();
   }
@@ -735,7 +920,7 @@ export class BookingFilterBarComponent {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
         });
-        this.destinationKeyword.set('Vị trí hiện tại của tôi (GPS)');
+        this.destinationKeyword.set('📍 Gần vị trí của tôi');
         this.selectedProvinceCode.set(null);
         this.selectedTouristZoneSlug.set(null);
         this.selectedLandmarkSlug.set(null);
@@ -762,9 +947,15 @@ export class BookingFilterBarComponent {
       return;
     }
     this.showSuggestionsDropdown.set(false);
+    const rawKw = this.destinationKeyword().trim();
+    const isGpsText = rawKw.includes('📍 Gần vị trí') || rawKw.includes('GPS') || rawKw.includes('Vị trí hiện tại');
+    const effectiveKw = isGpsText ? '' : rawKw;
+    if (effectiveKw) {
+      this.saveSearchToHistory(effectiveKw);
+    }
     this.filterChange.emit({
       rentalType: this.rentalType(),
-      destinationKeyword: this.destinationKeyword().trim(),
+      destinationKeyword: effectiveKw,
       provinceCode: this.selectedProvinceCode(),
       touristZoneSlug: this.selectedTouristZoneSlug(),
       landmarkSlug: this.selectedLandmarkSlug(),

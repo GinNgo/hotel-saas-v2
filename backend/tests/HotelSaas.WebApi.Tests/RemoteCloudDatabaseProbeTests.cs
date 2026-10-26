@@ -92,4 +92,33 @@ public sealed class RemoteCloudDatabaseProbeTests
         Assert.True(roleCount >= 4, $"Phải có ít nhất 4 roles mặc định (hiện có: {roleCount}).");
         Assert.True(permCount >= 15, $"Phải có ít nhất 15 PermissionFunctions (hiện có: {permCount}).");
     }
+
+    [Fact]
+    public async Task SeedRealData34Provinces_PopulatesAll34ProvincesAndHotels()
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
+        optionsBuilder.UseNpgsql(StagingConnectionString);
+
+        var tenantService = new CurrentTenantService();
+        var propertyService = new CurrentPropertyService();
+
+        await using var context = new ApplicationDbContext(optionsBuilder.Options, tenantService, propertyService);
+
+        await RealData34ProvincesSeeder.SeedAsync(context);
+
+        var properties = await context.Properties.IgnoreQueryFilters().ToListAsync();
+        var roomTypes = await context.RoomTypes.IgnoreQueryFilters().ToListAsync();
+        var rooms = await context.Rooms.IgnoreQueryFilters().ToListAsync();
+        var rates = await context.RoomTypeRates.IgnoreQueryFilters().ToListAsync();
+
+        _output.WriteLine($"[REAL DATA EVIDENCE] Total Properties: {properties.Count}");
+        _output.WriteLine($"[REAL DATA EVIDENCE] Total Room Types: {roomTypes.Count}");
+        _output.WriteLine($"[REAL DATA EVIDENCE] Total Physical Rooms: {rooms.Count}");
+        _output.WriteLine($"[REAL DATA EVIDENCE] Total Active Rates: {rates.Count}");
+
+        Assert.True(properties.Count >= 34, $"Phải có ít nhất 34 cơ sở lưu trú tại 34 tỉnh thành (hiện có: {properties.Count})");
+        Assert.True(roomTypes.Count >= 68, $"Phải có ít nhất 100 hạng phòng (hiện có: {roomTypes.Count})");
+        Assert.True(rooms.Count >= 136, $"Phải có ít nhất 300 phòng vật lý (hiện có: {rooms.Count})");
+        Assert.True(rates.Count >= 68, $"Phải có ít nhất 100 biểu giá đang kích hoạt (hiện có: {rates.Count})");
+    }
 }

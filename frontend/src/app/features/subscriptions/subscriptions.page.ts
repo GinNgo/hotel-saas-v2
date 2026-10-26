@@ -276,28 +276,9 @@ export class SubscriptionsPage implements OnInit {
         this.currentSub.set(res);
         this.isLoading.set(false);
       },
-      error: () => {
-        // Fallback demo mock if backend tenant context is running empty
-        this.currentSub.set({
-          subscriptionId: 'demo-sub',
-          tenantId: 'demo-tenant',
-          tier: 1,
-          tierName: 'Gói Khởi Nghiệp (Starter)',
-          status: 'Active',
-          pricePerCycle: 290000,
-          currency: 'VND',
-          currentPeriodStartUtc: new Date().toISOString(),
-          currentPeriodEndUtc: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
-          autoRenew: true,
-          currentRoomCount: 12,
-          maxRoomsAllowed: 15,
-          currentPropertyCount: 1,
-          maxPropertiesAllowed: 1,
-          roomUsagePercentage: 80.0,
-          features: ['15 phòng', '1 cơ sở'],
-          isNearQuota: true
-        });
+      error: err => {
         this.isLoading.set(false);
+        this.alertService.error('Không thể tải thông tin gói cước: ' + (err?.error?.message || err?.message || 'Lỗi kết nối'));
       }
     });
 
@@ -305,49 +286,8 @@ export class SubscriptionsPage implements OnInit {
       next: res => {
         this.plans.set(res);
       },
-      error: () => {
-        // Fallback plans
-        this.plans.set([
-          {
-            tier: 1,
-            name: 'Gói Khởi Nghiệp (Starter)',
-            description: 'Lý tưởng cho khách sạn nhỏ vừa bắt đầu chuyển đổi số.',
-            monthlyPrice: 290000,
-            annualPrice: 2900000,
-            maxRooms: 15,
-            maxProperties: 1,
-            maxStaff: 3,
-            badge: 'Tiết kiệm',
-            isPopular: false,
-            features: ['Tối đa 15 phòng', '1 cơ sở', '3 nhân viên', 'Đặt phòng Giờ/Đêm', 'Báo cáo thu ngân']
-          },
-          {
-            tier: 2,
-            name: 'Gói Chuyên Nghiệp (Pro)',
-            description: 'Lựa chọn hàng đầu cho khách sạn boutique, chuỗi 2-3 chi nhánh.',
-            monthlyPrice: 690000,
-            annualPrice: 6900000,
-            maxRooms: 50,
-            maxProperties: 3,
-            maxStaff: 10,
-            badge: 'Phổ biến nhất',
-            isPopular: true,
-            features: ['Tối đa 50 phòng', '3 chi nhánh', '10 nhân viên', 'Báo cáo ADR/RevPAR', 'Xuất Excel kế toán', 'Gemini AI Concierge 200 lượt']
-          },
-          {
-            tier: 3,
-            name: 'Gói Doanh Nghiệp (Enterprise)',
-            description: 'Giải pháp toàn diện cho chuỗi khách sạn lớn và tập đoàn lưu trú.',
-            monthlyPrice: 1490000,
-            annualPrice: 14900000,
-            maxRooms: 9999,
-            maxProperties: 999,
-            maxStaff: 999,
-            badge: 'Toàn diện',
-            isPopular: false,
-            features: ['Không giới hạn phòng', 'Không giới hạn chi nhánh', 'Không giới hạn nhân viên', 'Full AI Suite', 'SLA 99.9%']
-          }
-        ]);
+      error: err => {
+        this.alertService.error('Không thể tải danh sách gói cước: ' + (err?.error?.message || err?.message || 'Lỗi kết nối'));
       }
     });
   }

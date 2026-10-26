@@ -13,6 +13,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { of } from 'rxjs';
 import { readPublicStay } from '../../core/models/public-stay-context';
+import { VIETNAM_34_PROVINCES } from '../../core/data/vietnam-provinces.data';
 import { BookingFilterBarComponent } from './components/booking-filter-bar/booking-filter-bar.component';
 import { PopularDestinationsComponent } from './components/popular-destinations/popular-destinations.component';
 import { FlashDealsBannerComponent } from './components/flash-deals-banner/flash-deals-banner.component';
@@ -53,7 +54,6 @@ interface TenantBrandFacet {
   imports: [
     CommonModule,
     FormsModule,
-    RouterLink,
     BookingFilterBarComponent,
     PopularDestinationsComponent,
     FlashDealsBannerComponent,
@@ -61,8 +61,6 @@ interface TenantBrandFacet {
     CuratedBentoGridComponent,
     HotelierCtaBannerComponent,
     AiConciergeWidgetComponent,
-    EmptyStateComponent,
-    LoadingSpinnerComponent,
     PhotoGalleryModalComponent,
     RoomDetailModalComponent,
   ],
@@ -154,422 +152,11 @@ interface TenantBrandFacet {
           />
         </div>
 
+        <!-- Bento Grid Khám Phá Theo Phong Cách Nghỉ Dưỡng -->
+        <app-curated-bento-grid (selectCategory)="onSelectCuratedCategory($event)" />
+
         <!-- 4 Trụ Cột Cam Kết Dịch Vụ & An Tâm Đặt Phòng -->
         <app-trust-pillars />
-
-        <!-- SMART AI FILTER CHIPS ROW -->
-        @if (smartFilterChips().length > 0) {
-          <div
-            class="mb-6 bg-white p-3.5 rounded-2xl border border-indigo-100 shadow-sm flex items-center gap-2 overflow-x-auto"
-            aria-label="Gợi ý bộ lọc thông minh AI"
-          >
-            <div class="flex items-center gap-1.5 text-xs font-bold text-indigo-700 shrink-0 mr-1">
-              <i class="pi pi-sparkles text-amber-500"></i>
-              <span>Gợi ý AI & Gần đó:</span>
-            </div>
-            <div class="flex items-center gap-2 flex-nowrap">
-              @for (chip of smartFilterChips(); track chip.id) {
-                <button
-                  type="button"
-                  (click)="onSmartChipClick(chip)"
-                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border whitespace-nowrap"
-                  [class.bg-indigo-600]="isChipActive(chip)"
-                  [class.text-white]="isChipActive(chip)"
-                  [class.border-indigo-600]="isChipActive(chip)"
-                  [class.bg-indigo-50]="!isChipActive(chip)"
-                  [class.text-indigo-900]="!isChipActive(chip)"
-                  [class.border-indigo-200]="!isChipActive(chip)"
-                  [class.hover:bg-indigo-100]="!isChipActive(chip)"
-                >
-                  <span>{{ chip.label }}</span>
-                  @if (chip.count) {
-                    <span
-                      class="text-[10px] px-1.5 py-0.2 rounded-full"
-                      [class.bg-white/20]="isChipActive(chip)"
-                      [class.bg-indigo-200/80]="!isChipActive(chip)"
-                    >
-                      {{ chip.count }}
-                    </span>
-                  }
-                </button>
-              }
-            </div>
-          </div>
-        }
-
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <!-- SIDEBAR BỘ LỌC CHUYÊN SÂU (3 CỘT) -->
-          <aside
-            class="lg:col-span-3 bg-white rounded-2xl border border-slate-200 p-5 space-y-6 lg:sticky lg:top-24"
-          >
-            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 class="font-bold text-slate-800 text-sm flex items-center gap-2">
-                <i class="pi pi-Sliders-h text-indigo-600"></i>
-                <span>Bộ lọc chuyên sâu</span>
-              </h2>
-              <button
-                type="button"
-                (click)="resetSidebarFilters()"
-                class="text-xs text-indigo-600 hover:underline font-medium cursor-pointer"
-              >
-                Đặt lại
-              </button>
-            </div>
-
-            <!-- 1. Lọc theo Chuỗi Thương hiệu (Parent Tenant) -->
-            @if (tenantBrandFacets().length > 0) {
-              <div>
-                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5">
-                  Chuỗi thương hiệu (Tenant)
-                </h3>
-                <div class="space-y-2 max-h-44 overflow-y-auto pr-1">
-                  <label class="flex items-center justify-between text-xs text-slate-700 cursor-pointer">
-                    <span class="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="tenantBrand"
-                        [checked]="selectedTenantId() === null"
-                        (change)="selectTenantBrand(null)"
-                        class="text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span>Tất cả chuỗi & cơ sở</span>
-                    </span>
-                  </label>
-                  @for (brand of tenantBrandFacets(); track brand.tenantId) {
-                    <label
-                      class="flex items-center justify-between text-xs text-slate-700 cursor-pointer hover:text-indigo-600"
-                    >
-                      <span class="flex items-center gap-2 truncate">
-                        <input
-                          type="radio"
-                          name="tenantBrand"
-                          [checked]="selectedTenantId() === brand.tenantId"
-                          (change)="selectTenantBrand(brand.tenantId)"
-                          class="text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <span class="truncate">{{ brand.tenantBrandName }}</span>
-                      </span>
-                      <span
-                        class="text-[11px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-md font-semibold"
-                      >
-                        {{ brand.branchCount }} cơ sở
-                      </span>
-                    </label>
-                  }
-                </div>
-              </div>
-            }
-
-            <!-- 2. Lọc theo Khoảng cách tới Địa danh / Trung tâm -->
-            <div>
-              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5">
-                Khoảng cách tới Địa danh
-              </h3>
-              <div class="space-y-2">
-                @for (dist of distanceFilterOptions; track dist.label) {
-                  <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="maxDistance"
-                      [checked]="maxDistanceMeters() === dist.value"
-                      (change)="setMaxDistance(dist.value)"
-                      class="text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span>{{ dist.label }}</span>
-                  </label>
-                }
-              </div>
-            </div>
-
-            <!-- 3. Lọc theo Khoảng giá ({{ currentRentalModeLabel() }}) -->
-            <div>
-              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5">
-                Ngân sách ({{ currentRentalModeLabel() }})
-              </h3>
-              <div class="space-y-2">
-                @for (range of priceRangeOptions; track range.label) {
-                  <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="priceRange"
-                      [checked]="selectedPriceRangeKey() === range.key"
-                      (change)="applyPriceRange(range.key, range.min, range.max)"
-                      class="text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span>{{ range.label }}</span>
-                  </label>
-                }
-              </div>
-            </div>
-          </aside>
-
-          <!-- DANH SÁCH CƠ SỞ LƯU TRÚ & HẠNG PHÒNG (9 CỘT) -->
-          <main class="lg:col-span-9 space-y-4">
-            <!-- Thanh trạng thái kết quả & Sắp xếp -->
-            <div
-              class="bg-white rounded-2xl shadow-sm border border-slate-200 px-5 py-3.5 flex flex-wrap items-center justify-between gap-3"
-            >
-              <div>
-                <p class="text-sm font-bold text-slate-800">
-                  Tìm thấy
-                  <span class="text-indigo-600">{{ filteredProperties().length }}</span>
-                  cơ sở lưu trú phù hợp
-                  @if (searchFilter().destinationKeyword) {
-                    <span>tại "{{ searchFilter().destinationKeyword }}"</span>
-                  }
-                </p>
-                <p class="text-xs text-slate-500">
-                  Chế độ đang xem:
-                  <strong class="text-slate-700">{{ currentRentalModeLabel() }}</strong>
-                  @if (selectedTenantId()) {
-                    <span> • Đang lọc theo chuỗi chi nhánh</span>
-                  }
-                </p>
-              </div>
-
-              <div class="flex items-center gap-2">
-                <label for="booking-sort" class="text-sm text-slate-600 font-medium">Sắp xếp:</label>
-                <select
-                  id="booking-sort"
-                  [ngModel]="sortBy()"
-                  (ngModelChange)="onSortChange($event)"
-                  class="min-h-11 px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-700 bg-white"
-                >
-                  <option value="recommended">Đề xuất tốt nhất</option>
-                  <option value="distance_asc">Gần địa danh nhất</option>
-                  <option value="price_asc">Giá thấp đến cao</option>
-                  <option value="price_desc">Giá cao đến thấp</option>
-                  <option value="rating_desc">Đánh giá cao nhất</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- Trạng thái Loading -->
-            @if (isLoading()) {
-              <div class="bg-white rounded-2xl p-12 border border-slate-200 flex justify-center">
-                <app-loading-spinner />
-              </div>
-            } @else if (loadError()) {
-              <div class="bg-white rounded-2xl p-8 border border-slate-200" role="alert">
-                <p class="text-slate-800 mb-4">Chưa tải được danh sách chỗ nghỉ. Vui lòng thử lại.</p>
-                <button type="button" (click)="retryProperties()" class="min-h-11 px-4 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700">Thử lại</button>
-              </div>
-            } @else if (filteredProperties().length === 0) {
-              <div class="bg-white rounded-2xl p-8 border border-slate-200">
-                <app-empty-state
-                  title="Không tìm thấy cơ sở lưu trú phù hợp"
-                  description="Hãy thử mở rộng khoảng cách tới địa danh, chuyển sang chế độ thuê khác hoặc xóa bớt bộ lọc loại hình."
-                />
-              </div>
-            } @else {
-              <!-- Danh sách Thẻ Cơ sở Lưu trú (Property Cards) -->
-              @for (property of filteredProperties(); track property.propertyId) {
-                <article
-                  class="bg-white rounded-2xl shadow-sm hover:shadow-md border border-slate-200 overflow-hidden transition-all"
-                >
-                  <div class="grid grid-cols-1 md:grid-cols-12">
-                    <!-- Ảnh đại diện & Thư viện ảnh cơ sở (4 cột) -->
-                    <div class="md:col-span-4 relative group bg-slate-100 min-h-56">
-                      @if (property.thumbnailUrl) {
-                      <img
-                        [src]="property.thumbnailUrl"
-                        [alt]="property.name"
-                        class="w-full h-full object-cover"
-                      />
-                      } @else {
-                        <div class="min-h-56 h-full flex items-center justify-center text-sm text-slate-600 p-6">Cơ sở chưa cập nhật ảnh</div>
-                      }
-                      <!-- Badge Loại hình (Hotel / Nhà nghỉ / Motel / Homestay) -->
-                      <div class="absolute top-3 left-3 flex flex-wrap gap-1.5">
-                        <span
-                          class="px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm"
-                          [ngClass]="getPropertyTypeBadgeClass(property.propertyType)"
-                        >
-                          {{ getPropertyTypeLabel(property.propertyType) }}
-                        </span>
-                        @if (property.tenantBrandName) {
-                        <span
-                          class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-900/80 text-white backdrop-blur-sm"
-                        >
-                          {{ property.tenantBrandName }}
-                        </span>
-                        }
-                      </div>
-
-                      <!-- Nút mở Gallery ảnh -->
-                      @if (property.galleryUrls.length) {
-                      <button
-                        type="button"
-                        (click)="openPhotoGallery(property)"
-                        class="absolute bottom-3 right-3 px-2.5 py-1.5 rounded-lg bg-slate-900/75 hover:bg-slate-900 text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <i class="pi pi-images"></i>
-                        <span>Xem ảnh ({{ property.galleryUrls.length }})</span>
-                      </button>
-                      }
-                    </div>
-
-                    <!-- Thông tin Cơ sở, Địa danh & Hạng phòng (8 cột) -->
-                    <div class="md:col-span-8 p-5 flex flex-col justify-between">
-                      <div>
-                        <!-- Header Thẻ: Tên Chi nhánh + Điểm đánh giá -->
-                        <div class="flex items-start justify-between gap-3">
-                          <div>
-                            <div class="flex items-center gap-2 flex-wrap">
-                              <h3 class="text-lg font-bold text-slate-900">
-                                <a [routerLink]="['/booking/properties', property.slug]" [queryParams]="searchFilter()" class="hover:text-indigo-700 hover:underline">{{ property.name }}</a>
-                              </h3>
-                              @if (property.starRating) {
-                                <span class="text-amber-400 text-xs">
-                                  {{ '★'.repeat(property.starRating) }}
-                                </span>
-                              }
-                            </div>
-                            <p class="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                              <i class="pi pi-map-marker text-indigo-600"></i>
-                              <span>
-                                {{ getPropertyAddress(property) }}
-                              </span>
-                            </p>
-                          </div>
-
-                          <div class="text-right shrink-0">
-                            @if (property.reviewCount > 0 && property.ratingAverage > 0) {
-                            <div
-                              class="inline-flex items-center gap-1.5 bg-indigo-600 text-white px-2.5 py-1 rounded-xl text-xs font-bold"
-                            >
-                              <span>{{ property.ratingAverage | number: '1.1-1' }}</span>
-                              <i class="pi pi-star-fill text-[10px]"></i>
-                            </div>
-                            <p class="text-[11px] text-slate-400 mt-0.5">
-                              {{ property.reviewCount }} đánh giá
-                            </p>
-                            } @else {
-                              <span class="text-xs text-slate-600">Chưa có đánh giá</span>
-                            }
-                          </div>
-                        </div>
-
-                        <!-- Badges Khu vực Du lịch & Khoảng cách tới Địa danh -->
-                        <div class="flex flex-wrap items-center gap-2 mt-3">
-                          @if (property.isExpandedNearbySuggestion) {
-                            <span
-                              class="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200"
-                            >
-                              <i class="pi pi-sparkles text-[11px] text-indigo-600"></i>
-                              <span>Gợi ý mở rộng gần đó</span>
-                            </span>
-                          }
-
-                          @if (property.distanceFormatted) {
-                            <span
-                              class="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200"
-                            >
-                              <i class="pi pi-map-marker text-[11px] text-blue-600"></i>
-                              <span>{{ property.distanceFormatted }}</span>
-                            </span>
-                          }
-
-                          @if (property.touristZoneName) {
-                            <span
-                              class="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            >
-                              <i class="pi pi-compass text-[11px]"></i>
-                              <span>Khu du lịch: {{ property.touristZoneName }}</span>
-                            </span>
-                          }
-
-                          @for (landmark of property.nearbyLandmarks; track landmark.landmarkId) {
-                            <span
-                              class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200"
-                            >
-                              <i class="pi pi-flag-fill text-[10px] text-amber-600"></i>
-                              <span>
-                                Cách {{ landmark.landmarkName }}
-                                {{ formatDistance(landmark.distanceMeters) }}
-                              </span>
-                            </span>
-                          }
-
-                          <!-- Các chế độ lưu trú cơ sở hỗ trợ -->
-                          @for (mode of property.allowedRentalTypes; track mode) {
-                            <span
-                              class="text-[11px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-600"
-                            >
-                              {{ getRentalModeTag(mode) }}
-                            </span>
-                          }
-                        </div>
-
-                        <!-- Danh sách Hạng phòng trống tại Chi nhánh này -->
-                        <div class="mt-4 pt-3 border-t border-slate-100 space-y-2.5">
-                          @for (roomType of property.availableRoomTypes; track roomType.roomTypeId) {
-                            <div
-                              class="p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                            >
-                              <div>
-                                <div class="flex items-center gap-2">
-                                  <span class="font-bold text-sm text-slate-800">
-                                    {{ roomType.name }}
-                                  </span>
-                                  <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                                    Kiểm tra phòng trống tại chi tiết
-                                  </span>
-                                </div>
-                                <p class="text-xs text-slate-500 mt-0.5">
-                                  {{ getRoomMetadata(roomType) }}
-                                </p>
-                                <button
-                                  type="button"
-                                  (click)="openRoomDetailModal(property, roomType)"
-                                  class="text-xs text-indigo-600 hover:underline font-medium mt-1 inline-flex items-center gap-1 cursor-pointer"
-                                >
-                                  <span>Xem chi tiết & chính sách phụ thu</span>
-                                  <i class="pi pi-angle-right text-[10px]"></i>
-                                </button>
-                              </div>
-
-                              <!-- Cột Giá theo Chế độ đang chọn & Nút Giữ chỗ -->
-                              <div class="sm:text-right flex sm:flex-col items-center sm:items-end justify-between gap-2">
-                                <div>
-                                  @if (getRoomDisplayPrice(roomType) > 0) {
-                                  <div class="text-lg font-extrabold text-indigo-600">
-                                    {{
-                                      getRoomDisplayPrice(roomType)
-                                        | number: '1.0-0'
-                                    }}đ
-                                  </div>
-                                  <p class="text-[11px] text-slate-500">
-                                    {{ getRoomPriceUnitLabel(roomType) }}
-                                  </p>
-                                  } @else {
-                                    <p class="text-sm text-slate-600">Chưa công bố giá</p>
-                                  }
-                                </div>
-
-                                <button
-                                  type="button"
-                                  [disabled]="!roomType.roomTypeId"
-                                  (click)="createHoldAndProceed(property, roomType)"
-                                  class="min-h-11 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold shadow-sm transition-all cursor-pointer shrink-0"
-                                >
-                                  Tiếp tục đặt phòng
-                                </button>
-                              </div>
-                            </div>
-                          } @empty {
-                            <p class="text-sm text-slate-600">Xem hạng phòng, lịch trống và giá tại chi tiết cơ sở.</p>
-                            <a [routerLink]="['/booking/properties', property.slug]" [queryParams]="searchFilter()" class="inline-flex items-center min-h-11 text-sm font-semibold text-indigo-700 hover:underline">Xem chi tiết cơ sở <i class="pi pi-arrow-right ml-2" aria-hidden="true"></i></a>
-                          }
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              }
-            }
-          </main>
-        </div>
 
         <!-- Bento Grid Khám Phá Theo Phong Cách Nghỉ Dưỡng -->
         <app-curated-bento-grid (selectCategory)="onSelectCuratedCategory($event)" />
@@ -822,7 +409,19 @@ export class BookingPageComponent implements OnInit {
       sortBy: this.sortBy(),
     });
     if (!this.route.queryParams) this.loadPublicProperties();
-    this.router.navigate([], { relativeTo: this.route, queryParams: { ...this.searchFilter(), selectedTenantId: this.selectedTenantId(), propertyTypes: this.searchFilter().propertyTypes.join(',') } });
+
+    // When user performs search on the Home page, navigate to dedicated explore search page
+    const isHomePage = typeof this.router.url === 'string' && this.router.url.split('?')[0] === '/booking';
+    const targetCommands = isHomePage ? ['/booking/explore'] : [];
+
+    this.router.navigate(targetCommands, {
+      relativeTo: targetCommands.length === 0 ? this.route : undefined,
+      queryParams: {
+        ...this.searchFilter(),
+        selectedTenantId: this.selectedTenantId(),
+        propertyTypes: this.searchFilter().propertyTypes.join(','),
+      },
+    });
   }
 
   onPopularDestinationClick(destinationKeyword: string): void {
@@ -1298,53 +897,41 @@ export class BookingPageComponent implements OnInit {
 
 
   private seedDefaultDestinationSuggestions(): void {
-    this.destinationSuggestions.set([
-      {
-        id: 'prov-68',
-        name: 'Đà Lạt, Lâm Đồng',
-        slug: 'da-lat',
+    const list: DestinationSuggestionDto[] = [];
+    for (const p of VIETNAM_34_PROVINCES) {
+      list.push({
+        id: `prov-${p.code}`,
+        name: p.name,
+        slug: p.id,
         type: 'Province',
-        provinceCode: '68',
-        provinceName: 'Lâm Đồng',
-        propertyCount: 42,
-      },
-      {
-        id: 'zone-hoa-binh',
-        name: 'Khu trung tâm Hòa Bình',
-        slug: 'khu-hoa-binh-da-lat',
-        type: 'TouristZone',
-        provinceCode: '68',
-        provinceName: 'Lâm Đồng',
-        touristZoneName: 'Trung tâm Đà Lạt',
-      },
-      {
-        id: 'lm-cho-dem-dl',
-        name: 'Chợ đêm Đà Lạt',
-        slug: 'cho-dem-da-lat',
-        type: 'Landmark',
-        provinceCode: '68',
-        provinceName: 'Lâm Đồng',
-        touristZoneName: 'Khu Hòa Bình',
-        distanceLabel: 'Bán kính 500m có 18 khách sạn & nhà nghỉ',
-      },
-      {
-        id: 'zone-bai-sau',
-        name: 'Khu du lịch Bãi Sau Thùy Vân',
-        slug: 'bai-sau-vung-tau',
-        type: 'TouristZone',
-        provinceCode: '77',
-        provinceName: 'Bà Rịa - Vũng Tàu',
-      },
-      {
-        id: 'lm-pho-di-bo-nh',
-        name: 'Phố đi bộ Nguyễn Huệ',
-        slug: 'pho-di-bo-nguyen-hue',
-        type: 'Landmark',
-        provinceCode: '79',
-        provinceName: 'TP. Hồ Chí Minh',
-        touristZoneName: 'Quận 1 Trung tâm',
-      },
-    ]);
+        provinceCode: p.code,
+        provinceName: p.name,
+        propertyCount: p.propertyCount,
+      });
+      if (p.touristZone) {
+        list.push({
+          id: `zone-${p.id}`,
+          name: p.touristZone,
+          slug: p.id,
+          type: 'TouristZone',
+          provinceCode: p.code,
+          provinceName: p.name,
+          touristZoneName: p.touristZone,
+        });
+      }
+      for (const lm of p.hotLandmarks) {
+        list.push({
+          id: `lm-${p.code}-${lm.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+          name: lm,
+          slug: lm.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+          type: 'Landmark',
+          provinceCode: p.code,
+          provinceName: p.name,
+          touristZoneName: p.touristZone,
+        });
+      }
+    }
+    this.destinationSuggestions.set(list);
   }
 
   selectCategoryQuickTag(tag: string): void {

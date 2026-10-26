@@ -12,6 +12,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { readPublicStay } from '../../core/models/public-stay-context';
+import { VIETNAM_34_PROVINCES } from '../../core/data/vietnam-provinces.data';
 import { BookingFilterBarComponent } from './components/booking-filter-bar/booking-filter-bar.component';
 import {
   BookingSortOption,
@@ -640,17 +641,25 @@ export class ExploreSearchPageComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.seedDefaultDestinationSuggestions();
     this.route.queryParams
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((params) => {
         const stay = readPublicStay(params);
+        const rawKw = String(params['destinationKeyword'] ?? params['destination'] ?? params['search'] ?? '');
+        const isGpsText = rawKw.includes('📍') || rawKw.includes('GPS') || rawKw.includes('Vị trí hiện tại');
+        const effectiveKw = isGpsText ? '' : rawKw;
+
         this.searchFilter.update((f) => ({
           ...f,
           ...stay,
-          destinationKeyword: String(params['destinationKeyword'] ?? ''),
-          provinceCode: params['provinceCode'] || null,
-          touristZoneSlug: params['touristZoneSlug'] || null,
-          landmarkSlug: params['landmarkSlug'] || null,
+          destinationKeyword: effectiveKw,
+          provinceCode: params['provinceCode'] || params['province'] || null,
+          touristZoneSlug: params['touristZoneSlug'] || params['zone'] || null,
+          landmarkSlug: params['landmarkSlug'] || params['landmark'] || null,
+          userLatitude: params['userLatitude'] != null && Number.isFinite(Number(params['userLatitude'])) ? Number(params['userLatitude']) : (params['lat'] != null ? Number(params['lat']) : null),
+          userLongitude: params['userLongitude'] != null && Number.isFinite(Number(params['userLongitude'])) ? Number(params['userLongitude']) : (params['lng'] != null ? Number(params['lng']) : null),
+          maxDistanceMeters: params['maxDistanceMeters'] != null && Number.isFinite(Number(params['maxDistanceMeters'])) ? Number(params['maxDistanceMeters']) : (params['maxDistance'] != null ? Number(params['maxDistance']) : null),
           propertyTypes: String(params['propertyTypes'] ?? '')
             .split(',')
             .filter((t): t is PropertyType => ['Hotel', 'Motel', 'Guesthouse', 'Homestay', 'Resort'].includes(t as PropertyType)),
@@ -664,9 +673,13 @@ export class ExploreSearchPageComponent implements OnInit {
     this.loadError.set(false);
 
     const filter = this.searchFilter();
+    const rawKw = filter.destinationKeyword?.trim() || '';
+    const isGpsText = rawKw.includes('📍') || rawKw.includes('GPS') || rawKw.includes('Vị trí hiện tại');
+    const effectiveSearch = isGpsText ? undefined : (rawKw || undefined);
+
     const serviceFilter: PublicPropertiesFilter = {
-      search: filter.destinationKeyword || undefined,
-      destinationKeyword: filter.destinationKeyword || undefined,
+      search: effectiveSearch,
+      destinationKeyword: effectiveSearch,
       rentalType: filter.rentalType === 'Hourly' ? 1 : filter.rentalType === 'Overnight' ? 2 : 3,
       touristZoneSlug: filter.touristZoneSlug || undefined,
       landmarkSlug: filter.landmarkSlug || undefined,
@@ -853,5 +866,43 @@ export class ExploreSearchPageComponent implements OnInit {
     const d = new Date();
     d.setDate(d.getDate() + 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  private seedDefaultDestinationSuggestions(): void {
+    const list: DestinationSuggestionDto[] = [];
+    for (const p of VIETNAM_34_PROVINCES) {
+      list.push({
+        id: `prov-${p.code}`,
+        name: p.name,
+        slug: p.id,
+        type: 'Province',
+        provinceCode: p.code,
+        provinceName: p.name,
+        propertyCount: p.propertyCount,
+      });
+      if (p.touristZone) {
+        list.push({
+          id: `zone-${p.id}`,
+          name: p.touristZone,
+          slug: p.id,
+          type: 'TouristZone',
+          provinceCode: p.code,
+          provinceName: p.name,
+          touristZoneName: p.touristZone,
+        });
+      }
+      for (const lm of p.hotLandmarks) {
+        list.push({
+          id: `lm-${p.code}-${lm.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+          name: lm,
+          slug: lm.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+          type: 'Landmark',
+          provinceCode: p.code,
+          provinceName: p.name,
+          touristZoneName: p.touristZone,
+        });
+      }
+    }
+    this.destinationSuggestions.set(list);
   }
 }

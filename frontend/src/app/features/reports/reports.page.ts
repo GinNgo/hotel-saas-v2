@@ -658,7 +658,7 @@ export class ReportsPage implements OnInit {
             dailyTrends: Array.from({ length: 10 }).map((_, i) => ({
               date: `2026-10-${i + 1}`,
               displayDate: `${i + 1}/10`,
-              totalRevenue: Math.floor(Math.random() * 15000000) + 12000000,
+              totalRevenue: 14500000 + (i * 750000),
               revenueByProperty: {}
             })),
             channelDistribution: [
@@ -721,8 +721,8 @@ export class ReportsPage implements OnInit {
             dailySeries: Array.from({ length: 10 }).map((_, i) => ({
               date: `2026-10-${i + 1}`,
               displayDate: `${i + 1}/10`,
-              revenue: Math.floor(Math.random() * 8000000) + 4000000,
-              bookingsCount: Math.floor(Math.random() * 5) + 3
+              revenue: 5500000 + (i * 350000),
+              bookingsCount: 4 + (i % 3)
             }))
           });
         }
