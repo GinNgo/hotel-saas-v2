@@ -138,7 +138,7 @@ export interface LookupErrorState {
 
         <!-- 3. KẾT QUẢ THEO DÕI ĐẶT PHÒNG -->
         @if (booking(); as detail) {
-          <article class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-0 animate-in fade-in duration-200">
+          <article class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-0 animate-in fade-in duration-200 print:hidden">
 
             <!-- A. HEADER TỔNG QUAN -->
             <div class="p-6 sm:p-8 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/60">
@@ -186,27 +186,6 @@ export interface LookupErrorState {
                   <i class="pi pi-print text-xs text-indigo-600"></i>
                   <span>{{ getPrintButtonLabel(detail.status) }}</span>
                 </button>
-              </div>
-            </div>
-
-            <!-- PRINT-ONLY HEADER CHUẨN A4 -->
-            <div class="hidden print:block p-6 border-b border-slate-300">
-              <div class="flex justify-between items-start">
-                <div>
-                  <h1 class="text-xl font-bold text-slate-900">
-                    {{ isConfirmedStatus(detail.status) ? 'PHIẾU XÁC NHẬN ĐẶT PHÒNG' : 'THÔNG TIN ĐẶT PHÒNG' }}
-                  </h1>
-                  <p class="text-xs text-slate-600 mt-1">Hệ thống LuxeStay Hospitality Platform</p>
-                </div>
-                <div class="text-right">
-                  <div class="text-xs font-mono font-bold text-slate-800">Mã đơn: {{ detail.confirmationCode }}</div>
-                  <div class="text-[11px] font-bold mt-1" [class]="isConfirmedStatus(detail.status) ? 'text-emerald-700' : 'text-amber-700'">
-                    Trạng thái: {{ getStatusLabel(detail.status) }}
-                    @if (!isConfirmedStatus(detail.status)) {
-                      <span> (Chưa xác nhận)</span>
-                    }
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -431,6 +410,192 @@ export interface LookupErrorState {
             </div>
 
           </article>
+
+          <!-- DEDICATED A4 PRINT SHEET (CHỈ HIỂN THỊ KHI IN) -->
+          <div class="hidden print:block bg-white text-slate-900 font-sans print-sheet p-0 m-0">
+            <!-- 1. HEADER CHỨNG TỪ -->
+            <div class="border-b-2 border-slate-900 pb-3 mb-4 flex justify-between items-start">
+              <div>
+                <div class="text-[11px] font-black tracking-widest text-slate-500 uppercase">
+                  LUXESTAY — HOTEL SAAS PLATFORM
+                </div>
+                <h1 class="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight mt-0.5">
+                  {{ getPrintDocumentTitle(detail.status) }}
+                </h1>
+                <p class="text-[11px] text-slate-600 mt-1 italic max-w-lg leading-normal">
+                  {{ getPrintStatusNote(detail.status) }}
+                </p>
+              </div>
+              <div class="text-right shrink-0">
+                <div class="text-[11px] font-semibold text-slate-500">Mã đặt phòng</div>
+                <div class="text-base font-black font-mono tracking-wider text-slate-900">
+                  {{ detail.confirmationCode }}
+                </div>
+                <div class="mt-1 inline-block px-2 py-0.5 border border-slate-800 text-[10px] font-bold uppercase rounded">
+                  {{ getStatusLabel(detail.status) }}
+                </div>
+                <div class="text-[10px] text-slate-500 mt-1">
+                  Ngày in: {{ getCurrentPrintDate() }}
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. THÔNG BÁO QUY ĐỊNH GIỮ PHÒNG (NẾU PENDING PAYMENT) -->
+            @if (detail.status === 'PendingPayment' && detail.holdExpiresAtUtc) {
+              <div class="mb-4 p-2.5 border border-amber-300 bg-amber-50/50 rounded-lg text-xs text-amber-950">
+                <span class="font-bold uppercase tracking-wider text-[10px]">Hạn thanh toán giữ phòng:</span>
+                <span class="font-bold ml-1">{{ formatAbsoluteDeadline(detail.holdExpiresAtUtc) }}</span>
+                <span class="block text-[11px] text-amber-800 mt-0.5">
+                  Vui lòng hoàn tất thanh toán trước thời điểm trên. Sau thời hạn này, phòng sẽ tự động được giải phóng cho khách khác.
+                </span>
+              </div>
+            }
+
+            <!-- 3. HAI CỘT THÔNG TIN: CƠ SỞ LƯU TRÚ & THÔNG TIN LƯU TRÚ -->
+            <div class="grid grid-cols-2 gap-4 mb-4 text-xs">
+              <!-- Cột trái: Thông tin cơ sở lưu trú -->
+              <div class="border border-slate-200 rounded-lg p-3 space-y-2">
+                <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1">
+                  Cơ sở lưu trú & Hạng phòng
+                </div>
+                <div>
+                  <div class="text-[11px] font-semibold text-slate-500">Tên cơ sở:</div>
+                  <div class="text-xs font-bold text-slate-900">{{ detail.propertyName || 'Chưa cập nhật' }}</div>
+                </div>
+                @if (detail.propertyAddress) {
+                  <div>
+                    <div class="text-[11px] font-semibold text-slate-500">Địa chỉ:</div>
+                    <div class="text-[11px] text-slate-700 leading-snug">{{ detail.propertyAddress }}</div>
+                  </div>
+                }
+                <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+                  <div>
+                    <span class="text-slate-500 text-[10px]">Hạng phòng:</span>
+                    <div class="font-bold text-slate-800 text-xs">{{ detail.roomTypeName || 'Tiêu chuẩn' }}</div>
+                  </div>
+                  <div>
+                    <span class="text-slate-500 text-[10px]">Hình thức thuê:</span>
+                    <div class="font-bold text-slate-800 text-xs">{{ getRentalTypeLabel(detail.rentalType) }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Cột phải: Thông tin khách & Lịch lưu trú -->
+              <div class="border border-slate-200 rounded-lg p-3 space-y-2">
+                <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1">
+                  Thông tin khách & Lịch lưu trú
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <div class="text-slate-500 text-[10px]">Khách đại diện:</div>
+                    <div class="font-bold text-slate-900 text-xs">{{ detail.maskedGuestName || 'Khách lưu trú' }}</div>
+                  </div>
+                  <div>
+                    <div class="text-slate-500 text-[10px]">Số lượng khách:</div>
+                    <div class="font-bold text-slate-900 text-xs">{{ detail.numberOfGuests }} khách</div>
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+                  <div>
+                    <span class="text-slate-500 text-[10px]">Nhận phòng (Check-in):</span>
+                    <div class="font-bold text-slate-900 text-xs">
+                      {{ formatStayDate(detail.checkInDate, detail.startAtUtc, detail.rentalType) }}
+                    </div>
+                  </div>
+                  <div>
+                    <span class="text-slate-500 text-[10px]">Trả phòng (Check-out):</span>
+                    <div class="font-bold text-slate-900 text-xs">
+                      {{ formatStayDate(detail.checkOutDate, detail.endAtUtc, detail.rentalType) }}
+                    </div>
+                  </div>
+                </div>
+                @if (detail.maskedGuestPhone || detail.maskedGuestEmail) {
+                  <div class="text-[10px] text-slate-500 pt-1 border-t border-slate-100">
+                    <span>Liên hệ: </span>
+                    @if (detail.maskedGuestPhone) {
+                      <span class="font-medium text-slate-700 mr-2">{{ detail.maskedGuestPhone }}</span>
+                    }
+                    @if (detail.maskedGuestEmail) {
+                      <span class="font-medium text-slate-700">{{ detail.maskedGuestEmail }}</span>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+
+            <!-- 4. BẢNG CHI TIẾT TÀI CHÍNH -->
+            <div class="mb-4 text-xs break-inside-avoid">
+              <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                Chi tiết thanh toán & Quyết toán
+              </div>
+              <table class="w-full border-collapse border border-slate-300 text-left text-xs">
+                <thead>
+                  <tr class="bg-slate-100 border-b border-slate-300">
+                    <th class="py-1.5 px-3 font-bold text-slate-700">Khoản mục</th>
+                    <th class="py-1.5 px-3 font-bold text-right text-slate-700 w-44">Số tiền (VNĐ)</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                  <tr>
+                    <td class="py-1.5 px-3 text-slate-800">Tổng tiền lưu trú (Đã bao gồm thuế & phí)</td>
+                    <td class="py-1.5 px-3 text-right font-medium text-slate-900">{{ detail.totalAmount | number }} đ</td>
+                  </tr>
+                  <tr>
+                    <td class="py-1.5 px-3 text-slate-800">Khoản đặt cọc yêu cầu</td>
+                    <td class="py-1.5 px-3 text-right font-medium text-slate-900">{{ detail.depositRequired | number }} đ</td>
+                  </tr>
+                  <tr>
+                    <td class="py-1.5 px-3 text-slate-800">Số tiền đã thanh toán</td>
+                    <td class="py-1.5 px-3 text-right font-semibold text-emerald-700">{{ detail.paidAmount | number }} đ</td>
+                  </tr>
+                  <tr class="bg-slate-50 font-bold">
+                    <td class="py-2 px-3 text-slate-900 uppercase text-[11px]">Tổng còn phải thanh toán</td>
+                    <td class="py-2 px-3 text-right text-sm text-slate-900 font-mono font-bold">{{ detail.remainingBalance | number }} đ</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 5. PHÂN RÃ CHI PHÍ (NẾU CÓ) -->
+            @if (detail.breakdown && detail.breakdown.length > 0) {
+              <div class="mb-4 text-xs break-inside-avoid">
+                <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Bảng phân rã chi tiết các khoản mục
+                </div>
+                <table class="w-full border-collapse border border-slate-200 text-left text-[11px]">
+                  <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-600">
+                      <th class="py-1 px-2 font-semibold">Mô tả khoản mục</th>
+                      <th class="py-1 px-2 font-semibold text-center w-20">Số lượng</th>
+                      <th class="py-1 px-2 font-semibold text-right w-28">Đơn giá</th>
+                      <th class="py-1 px-2 font-semibold text-right w-28">Thành tiền</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    @for (item of detail.breakdown; track $index) {
+                      <tr>
+                        <td class="py-1 px-2 text-slate-700">{{ item.description }}</td>
+                        <td class="py-1 px-2 text-center text-slate-600">{{ item.quantity }}</td>
+                        <td class="py-1 px-2 text-right text-slate-600">{{ item.unitPrice | number }} đ</td>
+                        <td class="py-1 px-2 text-right font-medium text-slate-800">{{ item.amount | number }} đ</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+
+            <!-- 6. GHI CHÚ CHỨNG TỪ & ĐIỀU KHOẢN -->
+            <div class="border-t border-slate-200 pt-2.5 text-[10px] text-slate-500 space-y-1 break-inside-avoid">
+              <div class="flex justify-between items-center text-slate-400">
+                <span>Hệ thống LuxeStay Hospitality Platform</span>
+                <span>Phiếu chứng từ điện tử</span>
+              </div>
+              <p class="leading-relaxed">
+                * Phiếu thông tin này được trích xuất trực tiếp từ hệ thống quản lý đặt phòng LuxeStay. Quý khách vui lòng xuất trình phiếu này kèm giấy tờ tùy thân hợp lệ khi làm thủ tục nhận phòng tại cơ sở lưu trú.
+              </p>
+            </div>
+          </div>
         }
 
       </div>
@@ -736,6 +901,66 @@ export class BookingLookupPageComponent implements OnInit {
 
   getPrintButtonLabel(status?: string): string {
     return this.isConfirmedStatus(status) ? 'In phiếu xác nhận' : 'In thông tin đặt phòng';
+  }
+
+  getPrintDocumentTitle(status?: string): string {
+    switch (status) {
+      case 'PendingPayment':
+        return 'THÔNG TIN ĐẶT PHÒNG — CHỜ THANH TOÁN';
+      case 'Confirmed':
+        return 'PHIẾU XÁC NHẬN ĐẶT PHÒNG';
+      case 'CheckedIn':
+        return 'THÔNG TIN LƯU TRÚ — ĐÃ NHẬN PHÒNG';
+      case 'CheckedOut':
+        return 'THÔNG TIN LƯU TRÚ — ĐÃ TRẢ PHÒNG';
+      case 'Expired':
+        return 'THÔNG TIN ĐẶT PHÒNG — ĐÃ HẾT HẠN';
+      case 'Cancelled':
+        return 'THÔNG TIN ĐẶT PHÒNG — ĐÃ HỦY';
+      default:
+        return 'THÔNG TIN ĐẶT PHÒNG';
+    }
+  }
+
+  getPrintStatusNote(status?: string): string {
+    switch (status) {
+      case 'PendingPayment':
+        return 'Đơn đang được giữ phòng tạm thời và chưa được xác nhận chính thức. Vui lòng hoàn tất các điều kiện đặt cọc theo quy định trước khi thời hạn giữ chỗ kết thúc.';
+      case 'Confirmed':
+        return 'Đơn đặt phòng đã được xác nhận. Vui lòng chuẩn bị giấy tờ tùy thân khi làm thủ tục nhận phòng.';
+      case 'CheckedIn':
+        return 'Khách đã hoàn tất thủ tục nhận phòng và đang trong kỳ lưu trú.';
+      case 'CheckedOut':
+        return 'Khách đã hoàn tất thủ tục trả phòng tại cơ sở lưu trú.';
+      case 'Expired':
+        return 'Thời gian giữ phòng tạm thời đã kết thúc. Đơn đặt phòng không còn hiệu lực giữ chỗ.';
+      case 'Cancelled':
+        return 'Đơn đặt phòng đã bị hủy theo yêu cầu hoặc chính sách của cơ sở lưu trú.';
+      default:
+        return 'Chưa xác định được trạng thái đặt phòng.';
+    }
+  }
+
+  getCurrentPrintDate(): string {
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = now.getFullYear();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+  }
+
+  formatAbsoluteDeadline(utcStr?: string): string {
+    if (!utcStr) return '';
+    const d = new Date(utcStr);
+    if (isNaN(d.getTime())) return '';
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${min} ngày ${dd}/${mm}/${yyyy}`;
   }
 
   getRentalTypeLabel(type?: string): string {

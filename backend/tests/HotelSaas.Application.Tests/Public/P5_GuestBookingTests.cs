@@ -2124,4 +2124,80 @@ public sealed class P5_GuestBookingTests
         Assert.NotEqual(fixture.PropertyId, detail2.PropertyId);
         Assert.NotEqual("Deluxe Ocean View", detail2.RoomTypeName);
     }
+
+    [Fact]
+    public async Task GetGuestBookingByToken_SupportsConfirmationCodeLookup_AndStopsHoldTimerWhenConfirmed()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this, roomCount: 1);
+        var tenantSvc = new MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new MockPropertyService { PropertyId = fixture.PropertyId };
+        await using var ctx = fixture.CreateDbContext(tenantSvc, propSvc);
+
+        var snap = new ReservationSnapshot
+        {
+            RentalType = RentalType.Daily,
+            StartAtUtc = DateTime.UtcNow.AddDays(1),
+            EndAtUtc = DateTime.UtcNow.AddDays(2),
+            HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(15),
+            LookupToken = "tok-secret-uuid-code",
+            DepositRequired = 300_000m,
+            TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7)
+        };
+
+        var res = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = fixture.RoomId1,
+            CheckInDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            CheckOutDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)),
+            GuestName = "Tran Trong Tan",
+            GuestEmail = "tan@example.com",
+            GuestPhone = "0349994118",
+            TotalAmount = 1_000_000m,
+            Status = ReservationStatus.Confirmed,
+            ConfirmationCode = "RES-FVC9ZK",
+            SmartLockPin = "308077",
+            SmartLockStatus = "Active",
+            Notes = ReservationSnapshotHelper.Serialize(snap)
+        };
+        ctx.Reservations.Add(res);
+
+        // Add completed payment
+        ctx.Payments.Add(new Payment
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            ReservationId = res.Id,
+            Amount = 1_000_000m,
+            Method = PaymentMethod.Cash,
+            Status = PaymentStatus.Completed,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+        await ctx.SaveChangesAsync();
+
+        var queryHandler = new GetGuestBookingByTokenQueryHandler(ctx);
+
+        // 1. Lookup by ConfirmationCode (case-insensitive "res-fvc9zk")
+        var detail = await queryHandler.Handle(new GetGuestBookingByTokenQuery("res-fvc9zk"), CancellationToken.None);
+
+        Assert.NotNull(detail);
+        Assert.Equal(res.Id, detail.ReservationId);
+        Assert.Equal("RES-FVC9ZK", detail.ConfirmationCode);
+        Assert.Equal("tok-secret-uuid-code", detail.LookupToken);
+        Assert.Equal("Confirmed", detail.Status);
+        Assert.True(detail.IsFullyPaid);
+        Assert.Equal(1_000_000m, detail.PaidAmount);
+        Assert.Equal(0m, detail.RemainingBalance);
+
+        // Authoritative hold timer MUST be null for Confirmed reservations (no 14:21 countdown!)
+        Assert.Null(detail.HoldExpiresAtUtc);
+        Assert.Null(detail.SecondsRemaining);
+
+        // Smart lock PIN is accessible because Confirmed + Active
+        Assert.Equal("308077", detail.SmartLockPin);
+        Assert.Equal("Active", detail.SmartLockStatus);
+    }
 }

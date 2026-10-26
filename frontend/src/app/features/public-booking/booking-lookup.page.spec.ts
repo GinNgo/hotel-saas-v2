@@ -799,6 +799,36 @@ describe('BookingLookupPageComponent (T02 — Tra cứu và trạng thái không
       component.printConfirmation();
       expect(printSpy).toHaveBeenCalled();
     });
+
+    // 29. Tiêu đề và ghi chú chứng từ in theo trạng thái
+    it('29. should provide accurate print document titles and notes in lookup page', () => {
+      expect(component.getPrintDocumentTitle('PendingPayment')).toBe('THÔNG TIN ĐẶT PHÒNG — CHỜ THANH TOÁN');
+      expect(component.getPrintDocumentTitle('Confirmed')).toBe('PHIẾU XÁC NHẬN ĐẶT PHÒNG');
+      expect(component.getPrintDocumentTitle('CheckedIn')).toBe('THÔNG TIN LƯU TRÚ — ĐÃ NHẬN PHÒNG');
+      expect(component.getPrintDocumentTitle('CheckedOut')).toBe('THÔNG TIN LƯU TRÚ — ĐÃ TRẢ PHÒNG');
+      expect(component.getPrintDocumentTitle('Expired')).toBe('THÔNG TIN ĐẶT PHÒNG — ĐÃ HẾT HẠN');
+      expect(component.getPrintDocumentTitle('Cancelled')).toBe('THÔNG TIN ĐẶT PHÒNG — ĐÃ HỦY');
+
+      expect(component.getPrintStatusNote('PendingPayment')).toContain('Đơn đang được giữ phòng tạm thời');
+      expect(component.getPrintStatusNote('Confirmed')).toContain('Đơn đặt phòng đã được xác nhận');
+      expect(component.getPrintStatusNote('CheckedIn')).toContain('Khách đã hoàn tất thủ tục nhận phòng');
+    });
+
+    // 30. Cấu trúc bản in A4: Có print-sheet, không chứa PIN hay token trong bản in
+    it('30. should render dedicated A4 print sheet and hide interactive screen UI during print', () => {
+      component.booking.set(sampleBookingB);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const screenArticle = compiled.querySelector('article');
+      expect(screenArticle?.classList.contains('print:hidden')).toBe(true);
+
+      const printSheet = compiled.querySelector('.print-sheet');
+      expect(printSheet).not.toBeNull();
+      expect(printSheet?.textContent).not.toContain('123456');
+      expect(printSheet?.textContent).not.toContain('tok-token-bbb');
+      expect(printSheet?.textContent).toContain('RES-BBB222');
+    });
   });
 });
 

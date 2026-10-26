@@ -428,7 +428,9 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
             LookupToken = lookupToken,
             DepositRequired = depositRequired,
             IsOnlineHold = true,
-            TokenExpiresAtUtc = effectiveEndUtc.AddDays(7),
+            TokenExpiresAtUtc = effectiveEndUtc.AddDays(7) > DateTime.UtcNow.AddDays(7)
+                ? effectiveEndUtc.AddDays(7)
+                : DateTime.UtcNow.AddDays(7),
             IsTokenRevoked = false
         };
 
