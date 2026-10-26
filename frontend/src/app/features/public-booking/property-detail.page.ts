@@ -16,7 +16,7 @@ import { PhotoGalleryModalComponent, GalleryPhotoItem } from '../../shared';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-      <a routerLink="/booking" [queryParams]="stay()" class="inline-flex min-h-11 items-center text-indigo-700">← Quay lại tìm chỗ nghỉ</a>
+      <a routerLink="/booking" [queryParams]="returnQueryParams()" class="inline-flex min-h-11 items-center text-indigo-700">← Quay lại tìm chỗ nghỉ</a>
       @if (error()) { <div role="alert" class="bg-rose-50 text-rose-800 p-4 rounded-xl">{{ error() }} <button type="button" (click)="refresh()" class="min-h-11 px-3 underline">Thử lại</button></div> }
       @if (loading()) { <p role="status">Đang tải thông tin chỗ nghỉ…</p> }
       @if (property(); as hotel) {
@@ -183,17 +183,21 @@ import { PhotoGalleryModalComponent, GalleryPhotoItem } from '../../shared';
                         </span>
                       </div>
                       <p class="text-xs text-slate-500 mt-1">
-                        Sức chứa tối đa {{ room.maxGuests || room.maxOccupancy }} khách • {{ room.areaSqm || room.squareMeters || 25 }}m² • {{ room.bedConfiguration || room.bedType || '1 giường đôi' }}
+                        @if (room.maxGuests || room.maxOccupancy) { <span>Sức chứa tối đa {{ room.maxGuests || room.maxOccupancy }} khách</span> }
+                        @if (room.areaSqm || room.squareMeters) { <span> · {{ room.areaSqm || room.squareMeters }}m²</span> }
+                        @if (room.bedConfiguration || room.bedType) { <span> · {{ room.bedConfiguration || room.bedType }}</span> }
                       </p>
                     </div>
 
-                    @if (room.dailyPrice || room.hourlyBasePrice || room.overnightPrice) {
+                    @if (room.dailyPrice != null || room.dailyRate != null || room.hourlyBasePrice != null || room.hourlyRate != null || room.overnightPrice != null || room.overnightRate != null) {
                       <div class="sm:text-right">
                         <span class="text-[10px] text-slate-400 uppercase font-semibold block">Giá khởi điểm:</span>
                         <span class="text-base font-black text-indigo-600">
-                          {{ (room.dailyPrice || room.hourlyBasePrice || room.overnightPrice) | number:'1.0-0' }} ₫
+                          {{ startingPrice(room) | number:'1.0-0' }} ₫
                         </span>
                       </div>
+                    } @else {
+                      <div class="sm:text-right text-xs text-slate-500">Chưa có giá công khai</div>
                     }
                   </div>
 
@@ -208,7 +212,7 @@ import { PhotoGalleryModalComponent, GalleryPhotoItem } from '../../shared';
                   }
 
                   <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
-                    <span class="text-xs text-slate-400">Cam kết giữ chỗ tức thì</span>
+                    <span class="text-xs text-slate-400">Giá được xác nhận lại khi giữ chỗ</span>
                     <button
                       type="button"
                       (click)="selectRoom(room)"
@@ -353,7 +357,22 @@ export class PropertyDetailPageComponent implements OnInit {
     if (property.allowedRentalTypes?.length) return property.allowedRentalTypes;
     return (['Hourly', 'Overnight', 'Daily'] as RentalType[]).filter(mode => mode === 'Hourly' ? property.allowHourlyBooking : mode === 'Overnight' ? property.allowOvernightBooking : property.allowDailyBooking);
   }
+  startingPrice(room: PublicRoomTypeAvailabilityDto): number | null {
+    const mode = this.stay().rentalType;
+    const price = mode === 'Hourly' ? room.hourlyBasePrice ?? room.hourlyRate
+      : mode === 'Overnight' ? room.overnightPrice ?? room.overnightRate
+        : room.dailyPrice ?? room.dailyRate;
+    return typeof price === 'number' && Number.isFinite(price) && price >= 0 ? price : null;
+  }
   galleryPhotos(): GalleryPhotoItem[] { return (this.property()?.galleryUrls?.length ? this.property()!.galleryUrls : this.property()?.thumbnailUrl ? [this.property()!.thumbnailUrl] : []).map(url => ({ url, title: this.property()!.name })); }
+  returnQueryParams(): Record<string, unknown> {
+    const params = this.route.snapshot.queryParams ?? {};
+    const discoveryKeys = ['destinationKeyword', 'provinceCode', 'touristZoneSlug', 'landmarkSlug', 'propertyTypes',
+      'selectedTenantId', 'maxDistanceMeters', 'minPrice', 'maxPrice', 'sortBy', 'userLatitude', 'userLongitude'] as const;
+    return { ...this.stay(), ...Object.fromEntries(discoveryKeys
+      .filter(key => params[key] !== undefined && params[key] !== null && params[key] !== '')
+      .map(key => [key, params[key]])) };
+  }
   openGallery(): void { this.galleryOpen.set(true); }
   ngOnInit(): void {
     combineLatest([this.route.paramMap, this.route.queryParams ?? of(this.route.snapshot.queryParams)])
@@ -380,8 +399,10 @@ export class PropertyDetailPageComponent implements OnInit {
   checkAvailability(): void {
     const property = this.property(); if (!property) return;
     const generation = ++this.generation; ++this.quoteGeneration; this.quote.set(null); this.selectedRoom.set(null); this.rooms.set([]); this.quoteLoading.set(false); this.error.set('');
+    this.availabilityChecked.set(false); this.availabilityLoading.set(false);
     try {
       const stay = readPublicStay({ ...this.stay() }); this.stay.set(stay);
+      if (!this.supportedModes().includes(stay.rentalType)) throw new Error('Cơ sở không hỗ trợ hình thức thuê đã chọn. Vui lòng chọn hình thức khác.');
       const interval = publicStayInterval(stay, property);
       this.availabilityLoading.set(true); this.availabilityChecked.set(false);
       this.service.getAvailability(property.slug, interval).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -392,6 +413,7 @@ export class PropertyDetailPageComponent implements OnInit {
   }
   selectRoom(room: PublicRoomTypeAvailabilityDto): void {
     const property = this.property(); if (!property || !this.rooms().some(candidate => candidate.roomTypeId === room.roomTypeId)) return;
+    if (!this.supportedModes().includes(this.stay().rentalType)) { this.quote.set(null); this.error.set('Cơ sở không hỗ trợ hình thức thuê đã chọn.'); return; }
     const generation = ++this.quoteGeneration; this.selectedRoom.set(room); this.quote.set(null); this.quoteLoading.set(true); this.error.set('');
     try {
       this.service.calculateQuote({ propertySlug: property.slug, roomTypeId: room.roomTypeId, ...publicStayInterval(this.stay(), property) }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -403,6 +425,7 @@ export class PropertyDetailPageComponent implements OnInit {
   proceedToHold(): void {
     const price = this.quote(), property = this.property(), room = this.selectedRoom();
     if (!price || !property || !room || this.quoteLoading() || this.availabilityLoading()) return;
+    if (!this.supportedModes().includes(this.stay().rentalType) || !this.rooms().some(candidate => candidate.roomTypeId === room.roomTypeId)) { this.quote.set(null); this.selectedRoom.set(null); this.error.set('Lựa chọn phòng không còn hợp lệ. Vui lòng kiểm tra phòng trống lại.'); return; }
     if (!Number.isFinite(new Date(price.expiresAtUtc).getTime()) || new Date(price.expiresAtUtc).getTime() <= Date.now()) { this.quote.set(null); this.error.set('Báo giá đã hết hiệu lực. Vui lòng chọn lại phòng.'); return; }
     this.router.navigate(['/booking/hold'], { queryParams: { propertySlug: property.slug, roomTypeId: room.roomTypeId, ...this.stay() } });
   }

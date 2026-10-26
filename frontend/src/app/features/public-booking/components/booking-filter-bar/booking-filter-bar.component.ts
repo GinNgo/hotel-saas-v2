@@ -136,7 +136,7 @@ export interface RecentSearchItem {
         <!-- Cột 1: Điểm đến / Địa danh / Khu du lịch / Tên cơ sở (4 cột) -->
         <div #destinationGroup class="lg:col-span-4 relative flex flex-col">
           <div class="flex items-center justify-between mb-1.5 h-6">
-            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
+            <label for="booking-destination" class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
               Địa danh, Khu du lịch hoặc Cơ sở
             </label>
             <button
@@ -154,6 +154,7 @@ export interface RecentSearchItem {
               class="pi pi-map-marker absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none"
             ></i>
             <input
+              id="booking-destination"
               type="text"
               [ngModel]="destinationKeyword()"
               (ngModelChange)="onDestinationInput($event)"
@@ -325,23 +326,25 @@ export interface RecentSearchItem {
               </label>
               <span class="text-[11px] text-slate-400 shrink-0">1 phòng</span>
             </div>
-            <div class="flex items-center border border-slate-300 rounded-xl px-2 h-11 bg-white hover:border-slate-400 shadow-2xs transition-colors">
+            <div class="flex items-center border border-slate-300 rounded-xl px-2 h-11 bg-white hover:border-slate-400 shadow-2xs transition-colors" role="group" aria-label="Số khách, một phòng">
               <button
                 type="button"
                 (click)="adjustGuests(-1)"
+                [disabled]="guests() <= 1"
                 aria-label="Giảm số khách"
-                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer transition-colors"
+                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 -
               </button>
-              <div class="flex-1 text-center text-xs font-semibold text-slate-800 truncate">
+              <div class="flex-1 text-center text-xs font-semibold text-slate-800 truncate" aria-live="polite" aria-atomic="true">
                 {{ guests() }} khách
               </div>
               <button
                 type="button"
                 (click)="adjustGuests(1)"
+                [disabled]="guests() >= 20"
                 aria-label="Tăng số khách"
-                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer transition-colors"
+                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 +
               </button>

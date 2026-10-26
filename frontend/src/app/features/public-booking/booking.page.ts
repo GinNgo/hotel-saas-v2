@@ -158,8 +158,6 @@ interface TenantBrandFacet {
         <!-- 4 Trụ Cột Cam Kết Dịch Vụ & An Tâm Đặt Phòng -->
         <app-trust-pillars />
 
-        <!-- Bento Grid Khám Phá Theo Phong Cách Nghỉ Dưỡng -->
-        <app-curated-bento-grid (selectCategory)="onSelectCuratedCategory($event)" />
 
         <!-- Banner Kêu Gọi Chủ Cơ Sở & Đối Tác Khách Sạn SaaS -->
         <app-hotelier-cta-banner />
@@ -422,6 +420,19 @@ export class BookingPageComponent implements OnInit {
         propertyTypes: this.searchFilter().propertyTypes.join(','),
       },
     });
+  }
+
+  detailQueryParams(): Record<string, string | number | null> {
+    const filter = this.searchFilter();
+    return {
+      ...filter,
+      propertyTypes: filter.propertyTypes.join(','),
+      selectedTenantId: this.selectedTenantId(),
+      maxDistanceMeters: this.maxDistanceMeters(),
+      minPrice: this.minPrice(),
+      maxPrice: this.maxPrice(),
+      sortBy: this.sortBy(),
+    };
   }
 
   onPopularDestinationClick(destinationKeyword: string): void {
