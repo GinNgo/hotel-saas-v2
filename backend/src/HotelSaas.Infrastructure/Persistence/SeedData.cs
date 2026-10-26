@@ -337,8 +337,7 @@ public static class SeedData
 
         await context.SaveChangesAsync();
 
-        // 4. Seed 34 Real Hotels across 34 Key Tourist Provinces (GHG, VEH, SCR)
-        await RealData34ProvincesSeeder.SeedAsync(context);
+
     }
 
     private static async Task EnsureRolePermissionsUpToDateAsync(ApplicationDbContext context)

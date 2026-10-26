@@ -14,11 +14,14 @@ namespace HotelSaas.WebApi.Tests;
 /// <summary>
 /// Task C02 & C03: Live Cloud/Remote PostgreSQL Read-Only Probe and Schema Verification.
 /// Connects to the shared team database over TLS/SSL and validates version, schema, and baseline RBAC.
+/// Configured via STAGING_DB_CONNECTION environment variable to ensure zero credentials are committed to Git.
 /// </summary>
 public sealed class RemoteCloudDatabaseProbeTests
 {
-    private const string StagingConnectionString =
-        "Host=103.116.38.74;Port=5435;Database=hotel_saas_staging;Username=hotel_admin;Password=HotelSaas2026_Staging@Secure;SSL Mode=Require;Trust Server Certificate=true;";
+    private static string? GetStagingConnectionString()
+    {
+        return Environment.GetEnvironmentVariable("STAGING_DB_CONNECTION");
+    }
 
     private readonly ITestOutputHelper _output;
 
@@ -30,7 +33,14 @@ public sealed class RemoteCloudDatabaseProbeTests
     [Fact]
     public async Task ProbeSharedCloudDatabase_ValidatesTlsVersionAndBTreeGist()
     {
-        await using var conn = new NpgsqlConnection(StagingConnectionString);
+        var stagingConn = GetStagingConnectionString();
+        if (string.IsNullOrWhiteSpace(stagingConn))
+        {
+            _output.WriteLine("[SKIP] STAGING_DB_CONNECTION is not configured. Skipping remote cloud database probe.");
+            return;
+        }
+
+        await using var conn = new NpgsqlConnection(stagingConn);
         await conn.OpenAsync();
 
         await using var cmd = conn.CreateCommand();
@@ -68,8 +78,15 @@ public sealed class RemoteCloudDatabaseProbeTests
     [Fact]
     public async Task SeedDefaultRolesAndVerifySchema_PopulatesBaselineRbac()
     {
+        var stagingConn = GetStagingConnectionString();
+        if (string.IsNullOrWhiteSpace(stagingConn))
+        {
+            _output.WriteLine("[SKIP] STAGING_DB_CONNECTION is not configured. Skipping remote cloud database probe.");
+            return;
+        }
+
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
-        optionsBuilder.UseNpgsql(StagingConnectionString);
+        optionsBuilder.UseNpgsql(stagingConn);
 
         var tenantService = new CurrentTenantService();
         var propertyService = new CurrentPropertyService();
@@ -96,8 +113,15 @@ public sealed class RemoteCloudDatabaseProbeTests
     [Fact]
     public async Task SeedRealData34Provinces_PopulatesAll34ProvincesAndHotels()
     {
+        var stagingConn = GetStagingConnectionString();
+        if (string.IsNullOrWhiteSpace(stagingConn))
+        {
+            _output.WriteLine("[SKIP] STAGING_DB_CONNECTION is not configured. Skipping remote cloud database probe.");
+            return;
+        }
+
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
-        optionsBuilder.UseNpgsql(StagingConnectionString);
+        optionsBuilder.UseNpgsql(stagingConn);
 
         var tenantService = new CurrentTenantService();
         var propertyService = new CurrentPropertyService();

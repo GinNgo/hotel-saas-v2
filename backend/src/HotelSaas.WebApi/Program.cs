@@ -108,6 +108,7 @@ if (!shouldSkipStartupInit)
                 await LocalDevDataSeeder.SeedAsync(effectiveConnStr, new LocalDevSeedOptions(), hasher);
                 Log.Information("LocalDevDataSeeder executed successfully.");
                 await SeedData.SeedPlatformAdminDataAsync(context);
+                await RealData34ProvincesSeeder.SeedAsync(context);
             }
             catch (Exception ex)
             {
