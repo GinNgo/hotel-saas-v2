@@ -417,7 +417,7 @@ interface TenantBrandFacet {
                           <div>
                             <div class="flex items-center gap-2 flex-wrap">
                               <h3 class="text-lg font-bold text-slate-900">
-                                <a [routerLink]="['/booking/properties', property.slug]" [queryParams]="searchFilter()" class="hover:text-indigo-700 hover:underline">{{ property.name }}</a>
+                                <a [routerLink]="['/booking/properties', property.slug]" [queryParams]="detailQueryParams()" class="hover:text-indigo-700 hover:underline">{{ property.name }}</a>
                               </h3>
                               @if (property.starRating) {
                                 <span class="text-amber-400 text-xs">
@@ -559,7 +559,7 @@ interface TenantBrandFacet {
                             </div>
                           } @empty {
                             <p class="text-sm text-slate-600">Xem hạng phòng, lịch trống và giá tại chi tiết cơ sở.</p>
-                            <a [routerLink]="['/booking/properties', property.slug]" [queryParams]="searchFilter()" class="inline-flex items-center min-h-11 text-sm font-semibold text-indigo-700 hover:underline">Xem chi tiết cơ sở <i class="pi pi-arrow-right ml-2" aria-hidden="true"></i></a>
+                            <a [routerLink]="['/booking/properties', property.slug]" [queryParams]="detailQueryParams()" class="inline-flex items-center min-h-11 text-sm font-semibold text-indigo-700 hover:underline">Xem chi tiết cơ sở <i class="pi pi-arrow-right ml-2" aria-hidden="true"></i></a>
                           }
                         </div>
                       </div>
@@ -823,6 +823,19 @@ export class BookingPageComponent implements OnInit {
     });
     if (!this.route.queryParams) this.loadPublicProperties();
     this.router.navigate([], { relativeTo: this.route, queryParams: { ...this.searchFilter(), selectedTenantId: this.selectedTenantId(), propertyTypes: this.searchFilter().propertyTypes.join(',') } });
+  }
+
+  detailQueryParams(): Record<string, string | number | null> {
+    const filter = this.searchFilter();
+    return {
+      ...filter,
+      propertyTypes: filter.propertyTypes.join(','),
+      selectedTenantId: this.selectedTenantId(),
+      maxDistanceMeters: this.maxDistanceMeters(),
+      minPrice: this.minPrice(),
+      maxPrice: this.maxPrice(),
+      sortBy: this.sortBy(),
+    };
   }
 
   onPopularDestinationClick(destinationKeyword: string): void {

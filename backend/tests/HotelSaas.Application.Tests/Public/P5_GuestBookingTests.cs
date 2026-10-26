@@ -1182,10 +1182,55 @@ public sealed class P5_GuestBookingTests
     }
 
     [Fact]
-    public async Task PublicDiscovery_Queries_ReturnActivePropertiesAndRoomTypes()
+    public async Task PublicDiscovery_Queries_ReturnDetailsAndRoomTypesScopedToActiveProperty()
     {
         await using var fixture = await TestFixture.CreateAsync(this, roomCount: 2);
         await using var ctx = fixture.CreateDbContext();
+
+        var secondPropertyId = Guid.NewGuid();
+        var secondRoomTypeId = Guid.NewGuid();
+        var secondProperty = new Property
+        {
+            Id = secondPropertyId,
+            TenantId = fixture.TenantId,
+            Name = "Khách Sạn Biển Đông - Chi Nhánh 2",
+            Code = "BD02",
+            Slug = "chi-nhanh-bien-dong-2",
+            Address = "12 Trường Sa",
+            City = "Da Nang",
+            Status = PropertyStatus.Active,
+            IsPublished = true,
+            CheckInTime = new TimeOnly(15, 0),
+            CheckOutTime = new TimeOnly(11, 0)
+        };
+        var secondRoomType = new RoomType
+        {
+            Id = secondRoomTypeId,
+            TenantId = fixture.TenantId,
+            PropertyId = secondPropertyId,
+            Name = "Standard Twin - Chi Nhánh 2",
+            Code = "ST02",
+            BasePrice = 700_000m,
+            MaxOccupancy = 3,
+            BedType = null,
+            SquareMeters = null,
+            ImageUrl = null
+        };
+        var inactiveProperty = new Property
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            Name = "Cơ sở tạm ngưng",
+            Code = "INACTIVE",
+            Slug = "co-so-tam-ngung-public-test",
+            Address = "Đà Nẵng",
+            City = "Da Nang",
+            Status = PropertyStatus.Inactive
+        };
+
+        ctx.Properties.AddRange(secondProperty, inactiveProperty);
+        ctx.RoomTypes.Add(secondRoomType);
+        await ctx.SaveChangesAsync();
 
         // 1. Get properties
         var propHandler = new GetPublicPropertiesQueryHandler(ctx);
@@ -1198,12 +1243,34 @@ public sealed class P5_GuestBookingTests
         var property = await slugHandler.Handle(new GetPublicPropertyBySlugQuery(fixture.PropertySlug), CancellationToken.None);
         Assert.NotNull(property);
         Assert.Equal(fixture.PropertySlug, property.Slug);
+        Assert.Equal("Khách Sạn Biển Đông - Chi Nhánh 1", property.Name);
+
+        var propertyB = await slugHandler.Handle(new GetPublicPropertyBySlugQuery(secondProperty.Slug), CancellationToken.None);
+        Assert.Equal(secondProperty.Name, propertyB.Name);
+        await Assert.ThrowsAsync<NotFoundException>(() => slugHandler.Handle(
+            new GetPublicPropertyBySlugQuery(inactiveProperty.Slug), CancellationToken.None));
+        await Assert.ThrowsAsync<NotFoundException>(() => slugHandler.Handle(
+            new GetPublicPropertyBySlugQuery("khong-ton-tai-public-test"), CancellationToken.None));
 
         // 3. Get room types
         var rtHandler = new GetPublicRoomTypesQueryHandler(ctx);
         var roomTypes = await rtHandler.Handle(new GetPublicRoomTypesQuery(fixture.PropertySlug), CancellationToken.None);
         Assert.Single(roomTypes);
         Assert.Equal("Deluxe Ocean View", roomTypes[0].Name);
+        Assert.Equal(fixture.PropertyId, roomTypes[0].PropertyId);
+
+        var roomTypesB = await rtHandler.Handle(new GetPublicRoomTypesQuery(secondProperty.Slug), CancellationToken.None);
+        Assert.Single(roomTypesB);
+        Assert.Equal(secondRoomTypeId, roomTypesB[0].Id);
+        Assert.Equal(secondPropertyId, roomTypesB[0].PropertyId);
+        Assert.Equal("Standard Twin - Chi Nhánh 2", roomTypesB[0].Name);
+        Assert.Null(roomTypesB[0].BedType);
+        Assert.Null(roomTypesB[0].SquareMeters);
+        Assert.Null(roomTypesB[0].ImageUrl);
+        await Assert.ThrowsAsync<NotFoundException>(() => rtHandler.Handle(
+            new GetPublicRoomTypesQuery(inactiveProperty.Slug), CancellationToken.None));
+        await Assert.ThrowsAsync<NotFoundException>(() => rtHandler.Handle(
+            new GetPublicRoomTypesQuery("khong-ton-tai-public-test"), CancellationToken.None));
 
         // 4. Get availability
         var startUtc = new DateTime(2026, 10, 15, 7, 0, 0, DateTimeKind.Utc);
