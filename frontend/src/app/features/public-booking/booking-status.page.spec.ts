@@ -250,17 +250,25 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
     expect(component.getPrintButtonLabel('CheckedOut')).toBe('In phiếu xác nhận');
   });
 
-  // 10. Chỉ hiển thị Smart Lock PIN khi có dữ liệu thật từ Backend (không bịa fake PIN)
-  it('10. should only display Smart Lock PIN when backend provides valid pin, and not render fake PIN', () => {
-    // Đơn A không có Smart Lock PIN
+  // 10. Chỉ hiển thị Smart Lock PIN khi đã CheckedIn và Backend cung cấp PIN hợp lệ, Confirmed không hiển thị
+  it('10. should only display Smart Lock PIN when CheckedIn with valid backend pin, and not display when Confirmed', () => {
+    // Đơn PendingPayment không có Smart Lock PIN
     component.booking.set(sampleBookingA);
     fixture.detectChanges();
     let compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.textContent).not.toContain('886912'); // Không hiển thị mã PIN giả
     expect(compiled.textContent).not.toContain('Chạm NFC'); // Không có nút giả lập NFC
 
-    // Đơn B có Smart Lock PIN
+    // Đơn Confirmed KHÔNG hiển thị PIN (theo V3)
     component.booking.set(sampleBookingB);
+    fixture.detectChanges();
+    compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.textContent).not.toContain('123456');
+    expect(compiled.textContent).not.toContain('Sao chép PIN');
+
+    // Đơn CheckedIn hiển thị Smart Lock PIN
+    const checkedInBooking = { ...sampleBookingB, status: 'CheckedIn' };
+    component.booking.set(checkedInBooking);
     fixture.detectChanges();
     compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.textContent).toContain('123456');
@@ -305,16 +313,16 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
     expect(compiled.textContent).toContain('Vui lòng hoàn tất đặt cọc để xác nhận đặt phòng');
   });
 
-  // 14. FIX 01: Khi Confirmed, hiển thị mã đối chiếu văn bản, KHÔNG tự bịa mã QR Fast Check-in
-  it('14. should display confirmation code as reference text on Confirmed status without fake QR Fast Check-in box', () => {
+  // 14. FIX 01 / V3: Khi Confirmed, hiển thị Confirmation Hero với Mã đặt phòng nổi bật, KHÔNG tự bịa mã QR Fast Check-in
+  it('14. should display confirmation code prominently in Confirmation Hero on Confirmed status without fake QR Fast Check-in box', () => {
     mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
     component.fetchBooking('tok-token-bbb');
     fixture.detectChanges();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.textContent).toContain('Đặt phòng đã xác nhận');
-    expect(compiled.textContent).toContain('Xuất trình Mã đặt phòng tại quầy Lễ tân');
-    expect(compiled.textContent).toContain('Mã đối chiếu nhận phòng');
+    expect(compiled.textContent).toContain('Đặt phòng đã được xác nhận');
+    expect(compiled.textContent).toContain('MÃ ĐẶT PHÒNG');
+    expect(compiled.textContent).toContain('Vui lòng cung cấp mã này tại quầy lễ tân');
     expect(compiled.textContent).toContain('RES-B222');
 
     // Không có hộp Fast Check-in QR
@@ -345,10 +353,12 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
 
   // 16. FIX 02: Không hiển thị trùng lặp thông báo thanh toán trong card tài chính
   it('16. should not render duplicate PendingPayment instructions inside financial card', () => {
+    component.booking.set(sampleBookingA);
     fixture.detectChanges();
 
     const compiled = fixture.nativeElement as HTMLElement;
     const financialCard = compiled.querySelector('.bg-white.rounded-2xl.border.border-slate-200.p-5');
+    expect(financialCard).not.toBeNull();
     expect(financialCard?.textContent).not.toContain('Đơn đang chờ thanh toán. Vui lòng thực hiện bước tiếp theo');
     expect(financialCard?.textContent).not.toContain('Chưa tất toán (Thanh toán số tiền còn lại khi làm thủ tục nhận phòng)');
   });
@@ -397,8 +407,8 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
     expect(component.isConfirmedStatus('CheckedIn')).toBe(true);
     expect(component.isConfirmedStatus('PendingPayment')).toBe(false);
 
-    // Kiểm tra class print:hidden trên smart lock PIN block khi Confirmed có PIN
-    mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+    // Kiểm tra class print:hidden trên smart lock PIN block khi CheckedIn có PIN
+    mockBookingService.getBookingByToken.mockReturnValue(of({ ...sampleBookingB, status: 'CheckedIn' }));
     component.fetchBooking('tok-token-bbb');
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
@@ -948,18 +958,19 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
       expect(compiled.textContent).not.toContain('Mã Mở Khóa Cửa Điện Tử');
     });
 
-    // 32. VNPay: Khóa an toàn khi chưa đủ điều kiện gate, không phát request thanh toán
-    it('32. should display VNPay online payment as unavailable and not emit payment request', () => {
+    // 32. Phương thức thanh toán: Hiển thị thông báo trung tính khi chưa khả dụng, không hiển thị nút CTA giả bị vô hiệu hóa
+    it('32. should display online payment as unavailable without fake disabled CTA button and not emit payment request', () => {
       mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
       component.fetchBooking('tok-token-aaa');
       fixture.detectChanges();
 
       const compiled = fixture.nativeElement as HTMLElement;
-      expect(compiled.textContent).toContain('Thanh toán trực tuyến (VNPay Sandbox)');
-      expect(compiled.textContent).toContain('Chưa khả dụng');
+      expect(compiled.textContent).toContain('Thanh toán trực tuyến hiện chưa khả dụng');
+      expect(compiled.textContent).toContain('Quý khách vui lòng liên hệ trực tiếp quầy Lễ tân');
 
-      const vnpayBtn = compiled.querySelector('button[disabled]') as HTMLButtonElement;
-      expect(vnpayBtn).not.toBeNull();
+      // Không hiển thị nút bấm CTA giả bị vô hiệu hóa chiếm chiều ngang
+      const disabledCta = compiled.querySelector('button[disabled]');
+      expect(disabledCta).toBeNull();
 
       component.payWithVnpay();
       expect(mockAlertService.toastWarning).toHaveBeenCalledWith(
@@ -1003,7 +1014,7 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
 
     // 34. In phiếu xác nhận: Ẩn Smart Lock PIN trên bản in (print:hidden)
     it('34. should have print:hidden on Smart Lock PIN container to prevent PIN leakage on paper', () => {
-      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      mockBookingService.getBookingByToken.mockReturnValue(of({ ...sampleBookingB, status: 'CheckedIn' }));
       component.fetchBooking('tok-token-bbb');
       fixture.detectChanges();
 
@@ -1026,6 +1037,333 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
       component.printConfirmation();
       expect(printSpy).toHaveBeenCalled();
     });
+
+    // 36. Tiêu đề chứng từ in chuẩn A4 theo từng trạng thái
+    it('36. should return accurate print document titles according to booking status', () => {
+      expect(component.getPrintDocumentTitle('PendingPayment')).toBe('THÔNG TIN ĐẶT PHÒNG — CHỜ THANH TOÁN');
+      expect(component.getPrintDocumentTitle('Confirmed')).toBe('PHIẾU XÁC NHẬN ĐẶT PHÒNG');
+      expect(component.getPrintDocumentTitle('CheckedIn')).toBe('THÔNG TIN LƯU TRÚ — ĐÃ NHẬN PHÒNG');
+      expect(component.getPrintDocumentTitle('CheckedOut')).toBe('THÔNG TIN LƯU TRÚ — ĐÃ TRẢ PHÒNG');
+      expect(component.getPrintDocumentTitle('Expired')).toBe('THÔNG TIN ĐẶT PHÒNG — ĐÃ HẾT HẠN');
+      expect(component.getPrintDocumentTitle('Cancelled')).toBe('THÔNG TIN ĐẶT PHÒNG — ĐÃ HỦY');
+      expect(component.getPrintDocumentTitle(undefined)).toBe('THÔNG TIN ĐẶT PHÒNG');
+    });
+
+    // 37. Ghi chú nghiệp vụ chứng từ in theo từng trạng thái
+    it('37. should provide correct print status notes avoiding false validity', () => {
+      expect(component.getPrintStatusNote('PendingPayment')).toContain('Đơn đang được giữ phòng tạm thời');
+      expect(component.getPrintStatusNote('Confirmed')).toContain('Đơn đặt phòng đã được xác nhận');
+      expect(component.getPrintStatusNote('CheckedIn')).toContain('Khách đã hoàn tất thủ tục nhận phòng');
+      expect(component.getPrintStatusNote('CheckedOut')).toContain('Khách đã hoàn tất thủ tục trả phòng');
+      expect(component.getPrintStatusNote('Expired')).toContain('không còn hiệu lực giữ chỗ');
+      expect(component.getPrintStatusNote('Cancelled')).toContain('đã bị hủy');
+    });
+
+    // 38. Cấu trúc DOM bản in A4: Có print-sheet, không rò rỉ PIN, không chứa token, ẩn màn hình chính
+    it('38. should render dedicated A4 print sheet without leaking PIN or token', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      component.fetchBooking('tok-token-bbb');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      // Màn hình chính phải có print:hidden
+      const screenArticle = compiled.querySelector('article');
+      expect(screenArticle?.classList.contains('print:hidden')).toBe(true);
+
+      // Bản in A4 chuyên biệt
+      const printSheet = compiled.querySelector('.print-sheet');
+      expect(printSheet).not.toBeNull();
+      expect(printSheet?.classList.contains('hidden')).toBe(true);
+
+      // Không chứa PIN thô trong bản in
+      expect(printSheet?.textContent).not.toContain('123456');
+      // Không chứa lookup token trong bản in
+      expect(printSheet?.textContent).not.toContain('tok-token-bbb');
+      // Chứa mã đặt phòng và số tiền
+      expect(printSheet?.textContent).toContain('RES-B222');
+      expect(printSheet?.textContent).toContain('600,000');
+    });
+
+    // 39. Định dạng thời hạn giữ phòng tuyệt đối cho PendingPayment trong bản in
+    it('39. should format absolute deadline for PendingPayment without countdown MM:SS', () => {
+      const deadline = component.formatAbsoluteDeadline('2099-10-20T07:15:00Z');
+      expect(deadline).toMatch(/\d{2}:\d{2} ngày \d{2}\/\d{2}\/\d{4}/);
+      expect(deadline).not.toContain(':00:');
+    });
+
+    // 40. Redesign V2: PendingPayment chỉ hiển thị duy nhất MỘT card Hero và MỘT countdown
+    it('40. should render exactly one Booking Status Hero and one countdown timer for PendingPayment', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      component.fetchBooking('tok-token-aaa');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      // Header Hero có tiêu đề chuẩn V2
+      expect(compiled.textContent).toContain('Phòng của bạn đang được giữ tạm thời');
+      expect(compiled.textContent).toContain('Đơn đặt phòng chưa được xác nhận');
+
+      // Chỉ có duy nhất 1 nhãn "Thời gian giữ phòng còn lại"
+      const countdownLabels = Array.from(compiled.querySelectorAll('*'))
+        .filter(el => el.textContent?.trim() === 'Thời gian giữ phòng còn lại');
+      expect(countdownLabels.length).toBe(1);
+
+      // Không còn thanh thông báo "Thời hạn giữ phòng tạm thời" trùng lặp trên cùng
+      expect(compiled.textContent).not.toContain('Thời hạn giữ phòng tạm thời');
+      // Không còn khối "Bước tiếp theo" trùng lặp trên cùng
+      expect(compiled.textContent).not.toContain('Bước tiếp theo');
+    });
+
+    // 41. Redesign V2: Tính toán chính xác cọc còn thiếu để xác nhận (getRemainingDeposit)
+    it('41. should accurately calculate remaining deposit and highlight it when deposit is not yet met', () => {
+      // Đơn A: cọc yêu cầu 450,000, đã trả 0 -> còn thiếu 450,000
+      expect(component.getRemainingDeposit(sampleBookingA)).toBe(450000);
+
+      // Đã trả một phần 200,000 -> còn thiếu 250,000
+      const partialBooking = { ...sampleBookingA, paidAmount: 200000 };
+      expect(component.getRemainingDeposit(partialBooking)).toBe(250000);
+
+      // Đã trả đủ hoặc vượt cọc -> còn thiếu 0
+      const fullDepositBooking = { ...sampleBookingA, paidAmount: 450000 };
+      expect(component.getRemainingDeposit(fullDepositBooking)).toBe(0);
+
+      expect(component.getRemainingDeposit(null)).toBe(0);
+
+      // Kiểm tra hiển thị trên DOM
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      component.fetchBooking('tok-token-aaa');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Cọc còn thiếu để xác nhận:');
+      expect(compiled.textContent).toContain('450,000 ₫');
+    });
+
+    // 42. Redesign V2: Confirmed và CheckedIn KHÔNG hiển thị countdown giữ phòng
+    it('42. should NOT display hold countdown timer when status is Confirmed or CheckedIn', () => {
+      // Confirmed
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      component.fetchBooking('tok-token-bbb');
+      fixture.detectChanges();
+
+      let compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).not.toContain('Thời gian giữ phòng còn lại');
+      expect(compiled.textContent).not.toContain('MM:SS');
+
+      // CheckedIn
+      const checkedInBooking = { ...sampleBookingB, status: 'CheckedIn' };
+      mockBookingService.getBookingByToken.mockReturnValue(of(checkedInBooking));
+      component.fetchBooking('tok-token-bbb');
+      fixture.detectChanges();
+
+      compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).not.toContain('Thời gian giữ phòng còn lại');
+      expect(compiled.textContent).not.toContain('MM:SS');
+    });
+
+    // 43. Redesign V2: Bố cục 2 cột Desktop (lg:grid-cols-2) cho thông tin lưu trú và chi tiết thanh toán
+    it('43. should utilize responsive two-column grid on desktop for stay info and payment details', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      component.fetchBooking('tok-token-aaa');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const gridContainer = compiled.querySelector('.grid.grid-cols-1.lg\\:grid-cols-2');
+      expect(gridContainer).not.toBeNull();
+      expect(compiled.textContent).toContain('Thông tin lưu trú');
+      expect(compiled.textContent).toContain('Chi tiết thanh toán');
+    });
+
+    // 44. Đồng bộ trạng thái: startHoldCountdown dừng ngay khi status không phải PendingPayment
+    it('44. should clear timer and reset remaining seconds when status is not PendingPayment', () => {
+      component.startHoldCountdown('2099-10-20T07:15:00Z', 'Confirmed');
+      expect(component.remainingSeconds()).toBe(0);
+      expect(component.isHoldExpired()).toBe(false);
+
+      component.startHoldCountdown('2099-10-20T07:15:00Z', 'CheckedIn');
+      expect(component.remainingSeconds()).toBe(0);
+      expect(component.isHoldExpired()).toBe(false);
+
+      component.startHoldCountdown('2099-10-20T07:15:00Z', 'Expired');
+      expect(component.remainingSeconds()).toBe(0);
+      expect(component.isHoldExpired()).toBe(true);
+    });
+
+    // 45. Đồng bộ trạng thái: Khi fetchBooking trả về Confirmed, dừng countdown và polling
+    it('45. should clear countdown and not poll when fetched booking is Confirmed', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      component.fetchBooking('RES-FVC9ZK');
+      fixture.detectChanges();
+
+      expect(component.booking()?.status).toBe('Confirmed');
+      expect(component.remainingSeconds()).toBe(0);
+      expect(component.isHoldExpired()).toBe(false);
+      expect((component as any).pollingInterval).toBeUndefined();
+    });
+
+    // 46. V3 Redesign: Confirmed renders modern Confirmation Hero with big checkmark, stay badges, and prominent confirmation code box
+    it('46. should render V3 Confirmation Hero with checkmark, stay info badges, and prominent code box on Confirmed', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      component.fetchBooking('tok-token-bbb');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Đặt phòng đã được xác nhận');
+      expect(compiled.textContent).toContain('Vui lòng xuất trình mã đặt phòng và giấy tờ tùy thân tại quầy lễ tân để làm thủ tục nhận phòng.');
+      expect(compiled.textContent).toContain('MÃ ĐẶT PHÒNG');
+      expect(compiled.textContent).toContain(sampleBookingB.confirmationCode);
+      expect(compiled.textContent).toContain('Vui lòng cung cấp mã này tại quầy lễ tân');
+
+      // Stay summary badges
+      expect(compiled.textContent).toContain('Nhận phòng');
+      expect(compiled.textContent).toContain('Trả phòng');
+      expect(compiled.textContent).toContain('Số lượng khách');
+    });
+
+    // 47. V3 Redesign: Confirmation code is dynamically rendered from backend DTO, not hardcoded
+    it('47. should dynamically render confirmation code from backend DTO without hardcoding', () => {
+      const dynamicBooking = { ...sampleBookingB, confirmationCode: 'RES-CUSTOM-999' };
+      mockBookingService.getBookingByToken.mockReturnValue(of(dynamicBooking));
+      component.fetchBooking('tok-custom');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('RES-CUSTOM-999');
+      expect(compiled.textContent).not.toContain('RES-4M3SQB');
+    });
+
+    // 48. V3 Redesign: copyConfirmationCode copies confirmation code (not lookupToken) and updates isCodeCopied
+    it('48. should copy confirmation code and set isCodeCopied to true when copyConfirmationCode succeeds', async () => {
+      const writeTextMock = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: writeTextMock },
+        configurable: true,
+        writable: true
+      });
+
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      component.fetchBooking('tok-token-bbb');
+      fixture.detectChanges();
+
+      component.copyConfirmationCode(sampleBookingB.confirmationCode);
+      expect(writeTextMock).toHaveBeenCalledWith(sampleBookingB.confirmationCode);
+      expect(writeTextMock).not.toHaveBeenCalledWith(sampleBookingB.lookupToken);
+
+      await Promise.resolve();
+      expect(component.isCodeCopied()).toBe(true);
+      expect(mockAlertService.success).toHaveBeenCalledWith('Mã đặt phòng đã được sao chép.', 'Sao chép thành công');
+    });
+
+    // 49. V3 Redesign: copyConfirmationCode handles clipboard failure safely without leaking sensitive data
+    it('49. should handle clipboard failure safely in copyConfirmationCode', async () => {
+      const writeTextMock = vi.fn().mockRejectedValue(new Error('Permission denied'));
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: writeTextMock },
+        configurable: true,
+        writable: true
+      });
+
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      component.fetchBooking('tok-token-bbb');
+      fixture.detectChanges();
+
+      component.copyConfirmationCode(sampleBookingB.confirmationCode);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(component.isCodeCopied()).toBe(false);
+      expect(mockAlertService.toastWarning).toHaveBeenCalledWith('Không thể tự động sao chép mã đặt phòng. Vui lòng chọn và sao chép thủ công.');
+    });
+
+    // 50. V3 Redesign: Stepper rendering for Confirmed (Step 1 complete, Steps 2 & 3 pending)
+    it('50. should display Stepper with Step 1 complete and Steps 2/3 pending for Confirmed status', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      component.fetchBooking('RES-FVC9ZK');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Đã xác nhận');
+      expect(compiled.textContent).toContain('Đặt phòng thành công');
+      expect(compiled.textContent).toContain('Nhận phòng');
+      expect(compiled.textContent).toContain('Làm thủ tục tại lễ tân');
+      expect(compiled.textContent).toContain('Đang lưu trú');
+      expect(compiled.textContent).toContain('Sử dụng phòng');
+
+      const stepper = compiled.querySelector('section[aria-label="Tiến trình đặt phòng"]');
+      expect(stepper).not.toBeNull();
+    });
+
+    // 51. V3 Redesign: Stepper rendering for CheckedIn (Steps 1 & 2 complete, Step 3 active)
+    it('51. should display Stepper with Step 1 & 2 complete and Step 3 active for CheckedIn status', () => {
+      const checkedInBooking = { ...sampleBookingB, status: 'CheckedIn' };
+      mockBookingService.getBookingByToken.mockReturnValue(of(checkedInBooking));
+      component.fetchBooking('tok-checkedin');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const stepper = compiled.querySelector('section[aria-label="Tiến trình đặt phòng"]');
+      expect(stepper).not.toBeNull();
+      expect(compiled.textContent).toContain('Đã nhận phòng');
+    });
+
+    // 52. V3 Redesign: Stepper rendering for CheckedOut (Step 3 shows Đã trả phòng / Hoàn tất kỳ lưu trú)
+    it('52. should display Stepper with Đã trả phòng / Hoàn tất kỳ lưu trú for CheckedOut status', () => {
+      const checkedOutBooking = { ...sampleBookingB, status: 'CheckedOut' };
+      mockBookingService.getBookingByToken.mockReturnValue(of(checkedOutBooking));
+      component.fetchBooking('tok-checkedout');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const stepper = compiled.querySelector('section[aria-label="Tiến trình đặt phòng"]');
+      expect(stepper).not.toBeNull();
+      expect(compiled.textContent).toContain('Đã trả phòng');
+      expect(compiled.textContent).toContain('Hoàn tất kỳ lưu trú');
+      expect(compiled.textContent).not.toContain('Sử dụng phòng');
+    });
+
+    // 53. V3 Redesign: Stepper is completely hidden for PendingPayment, Expired, and Cancelled
+    it('53. should completely hide Stepper for PendingPayment, Expired, and Cancelled statuses', () => {
+      // PendingPayment
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      component.fetchBooking('tok-pending');
+      fixture.detectChanges();
+      let compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('section[aria-label="Tiến trình đặt phòng"]')).toBeNull();
+
+      // Expired
+      mockBookingService.getBookingByToken.mockReturnValue(of({ ...sampleBookingA, status: 'Expired' }));
+      component.fetchBooking('tok-expired');
+      fixture.detectChanges();
+      compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('section[aria-label="Tiến trình đặt phòng"]')).toBeNull();
+
+      // Cancelled
+      mockBookingService.getBookingByToken.mockReturnValue(of({ ...sampleBookingA, status: 'Cancelled' }));
+      component.fetchBooking('tok-cancelled');
+      fixture.detectChanges();
+      compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('section[aria-label="Tiến trình đặt phòng"]')).toBeNull();
+    });
+
+    // 54. V3 Redesign: Smart Lock PIN is completely hidden on Confirmed (no digits, no copy button, no active label)
+    it('54. should not display any Smart Lock PIN elements or copy button when status is Confirmed', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      component.fetchBooking('tok-confirmed');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).not.toContain('MÃ PIN SMART LOCK');
+      expect(compiled.textContent).not.toContain('123456');
+      expect(compiled.textContent).not.toContain('Sao chép PIN');
+      expect(compiled.textContent).not.toContain('PIN chưa khả dụng');
+    });
+
+    // 55. V3 Redesign: Resetting state resets isCodeCopied
+    it('55. should reset isCodeCopied signal when resetToSearch is called', () => {
+      component.isCodeCopied.set(true);
+      expect(component.isCodeCopied()).toBe(true);
+
+      component.resetToSearch();
+      expect(component.isCodeCopied()).toBe(false);
+    });
   });
 });
-
