@@ -1,4 +1,4 @@
-﻿# AI Agent Development Guidelines & Engineering Standards (AGENTS.md)
+# AI Agent Development Guidelines & Engineering Standards (AGENTS.md)
 ## Hotel SaaS Platform v2 (.NET 10 + Angular 22 + PostgreSQL 17)
 
 This document establishes the technical specifications, coding standards, and architectural constraints for AI coding assistants and software engineers contributing to the **Hotel SaaS Platform** repository.
@@ -99,3 +99,20 @@ npm --prefix frontend run build
 - 0 Build Errors, 0 Build Warnings.
 - 100% of unit tests must pass.
 - No debug scripts, temporary logs, or scratch artifacts committed.
+
+---
+
+## 6. Zero-Secrets Policy & Human-in-the-Loop Confirmation (Security Guardrail)
+
+### Invariant Security Rules for AI Agents & Developers:
+1. **Absolute Ban on Plaintext Secrets in Git:**
+   - NEVER commit plaintext passwords, database connection strings, JWT secret keys, cloud API keys, private tokens, or sensitive credentials into any file tracked by Git.
+   - All sensitive configurations must strictly use environment variables (`STAGING_DB_CONNECTION`, `ConnectionStrings__DefaultConnection`), .NET User-Secrets (`dotnet user-secrets`), or local untracked files (`appsettings.Local.json`, `.env.local`).
+2. **Pre-Commit Secret Scanning:**
+   - Before executing `git commit` or `git push`, the agent must verify via `git diff` that no credentials, passwords, or private connection strings are staged.
+3. **Mandatory Human Confirmation (Ask Before Action):**
+   - The agent MUST ALWAYS ASK AND RECEIVE EXPLICIT USER CONFIRMATION BEFORE executing any action that:
+     * Rotates, modifies, or alters database passwords, API credentials, or secret keys.
+     * Alters database users, permissions, access roles, or drops/resets database structures.
+     * Shares or persists sensitive configuration outside local developer machines.
+
