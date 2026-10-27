@@ -125,14 +125,14 @@ export interface DestinationSelection {
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
         <!-- Cột 1: Điểm đến / Địa danh / Khu du lịch / Tên cơ sở (4 cột) -->
         <div #destinationGroup class="lg:col-span-4 relative">
-          <div class="flex items-center justify-between mb-1.5">
-            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 mb-1.5">
+            <label for="booking-destination" class="block leading-tight text-xs font-semibold uppercase tracking-wider text-slate-500">
               Địa danh, Khu du lịch hoặc Cơ sở
             </label>
             <button
               type="button"
               (click)="useCurrentLocation()"
-              class="text-xs text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
+              class="self-start sm:self-auto shrink-0 text-xs text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
               title="Tìm cơ sở lưu trú gần vị trí của tôi"
             >
               <i class="pi pi-compass text-xs" [class.pi-spin]="isLocating()"></i>
@@ -144,6 +144,7 @@ export interface DestinationSelection {
               class="pi pi-map-marker absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-600"
             ></i>
             <input
+              id="booking-destination"
               type="text"
               [ngModel]="destinationKeyword()"
               (ngModelChange)="onDestinationInput($event)"
@@ -246,11 +247,13 @@ export interface DestinationSelection {
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <div>
                   <label
+                    for="booking-hourly-checkin"
                     class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
                   >
                     Ngày nhận phòng
                   </label>
                   <input
+                    id="booking-hourly-checkin"
                     type="date"
                     [ngModel]="checkInDate()"
                     (ngModelChange)="onCheckInDateChange($event)"
@@ -260,11 +263,13 @@ export interface DestinationSelection {
 
                 <div>
                   <label
+                    for="booking-hourly-time"
                     class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
                   >
                     Giờ nhận phòng
                   </label>
                   <select
+                    id="booking-hourly-time"
                     [ngModel]="checkInTime()"
                     (ngModelChange)="checkInTime.set($event)"
                     class="w-full px-3 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 bg-white focus:ring-2 focus:ring-indigo-500"
@@ -277,11 +282,13 @@ export interface DestinationSelection {
 
                 <div>
                   <label
+                    for="booking-hourly-duration"
                     class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
                   >
                     Số giờ sử dụng
                   </label>
                   <select
+                    id="booking-hourly-duration"
                     [ngModel]="durationHours()"
                     (ngModelChange)="durationHours.set(+$event)"
                     class="w-full px-3 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 bg-white focus:ring-2 focus:ring-indigo-500"
@@ -299,11 +306,13 @@ export interface DestinationSelection {
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
                   <label
+                    for="booking-overnight-checkin"
                     class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
                   >
                     Đêm nhận phòng (giờ theo cơ sở)
                   </label>
                   <input
+                    id="booking-overnight-checkin"
                     type="date"
                     [ngModel]="checkInDate()"
                     (ngModelChange)="onCheckInDateChange($event)"
@@ -336,11 +345,13 @@ export interface DestinationSelection {
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
                   <label
+                    for="booking-daily-checkin"
                     class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
                   >
                     Ngày nhận phòng (giờ theo cơ sở)
                   </label>
                   <input
+                    id="booking-daily-checkin"
                     type="date"
                     [ngModel]="checkInDate()"
                     (ngModelChange)="onCheckInDateChange($event)"
@@ -350,11 +361,13 @@ export interface DestinationSelection {
 
                 <div>
                   <label
+                    for="booking-daily-checkout"
                     class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
                   >
                     Ngày trả phòng ({{ nightCount() }} đêm)
                   </label>
                   <input
+                    id="booking-daily-checkout"
                     type="date"
                     [ngModel]="checkOutDate()"
                     [min]="checkInDate()"
@@ -375,21 +388,25 @@ export interface DestinationSelection {
             >
               Số khách · một phòng
             </label>
-            <div class="flex items-center border border-slate-300 rounded-xl px-2.5 py-2 bg-white">
+            <div class="flex items-center border border-slate-300 rounded-xl px-2.5 py-2 bg-white" role="group" aria-label="Số khách, một phòng">
               <button
                 type="button"
                 (click)="adjustGuests(-1)"
-                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
+                [disabled]="guests() <= 1"
+                aria-label="Giảm số khách"
+                class="w-11 h-11 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold disabled:opacity-50"
               >
                 -
               </button>
-              <div class="flex-1 text-center text-xs font-semibold text-slate-800">
+              <div class="flex-1 text-center text-xs font-semibold text-slate-800" aria-live="polite" aria-atomic="true">
                 {{ guests() }} khách
               </div>
               <button
                 type="button"
                 (click)="adjustGuests(1)"
-                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
+                [disabled]="guests() >= 20"
+                aria-label="Tăng số khách"
+                class="w-11 h-11 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold disabled:opacity-50"
               >
                 +
               </button>
