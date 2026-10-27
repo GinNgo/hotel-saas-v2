@@ -220,6 +220,96 @@ Toàn bộ thành viên trong nhóm nghiêm túc tuân thủ chuẩn mực học
 
 ---
 
+### 3. Chi Tiết Nội Dung Prompt, Mã AI Tạo Ra & Quá Trình Sinh Viên Chỉnh Sửa Hoàn Thiện Thực Tế (Trình Bày Chi Tiết Từng Thành Viên)
+
+#### 1. Ngô Võ Tuấn An (MSSV: 24TX810001 - Nhóm trưởng)
+
+* **Công cụ sử dụng:** Google Antigravity
+* **Mô hình AI thực tế (Model):** `Gemini 3.8 Flash High` (kèm huy hiệu Turbo)
+
+**Prompt sử dụng:**
+* **[Prompt 1 - Bảo vệ CSDL Cloud VPS & Chống Auto-Migrate]:** "Hãy viết cơ chế kết nối CSDL Cloud PostgreSQL trên VPS Staging (Alpine Linux 17.11) bảo đảm kết nối TLS/SSL an toàn. Cần xây dựng CloudDatabaseGuard để ngăn chặn hoàn toàn việc các lệnh khởi động WebApi ở môi trường local tự động chạy EnsureDeleted() hoặc Drop Database làm mất dữ liệu dùng chung của cả nhóm. Thiết kế DatabaseConnectionResolver tự động nhận diện chuỗi kết nối an toàn qua biến môi trường."
+* **[Prompt 2 - Nạp dữ liệu thực tế 34 Tỉnh thành & Xóa bỏ Mock Fake]:** "Hệ thống đang dùng dữ liệu mock giả lập không phản ánh đúng địa lý thực tế. Hãy xây dựng Seeder nạp dữ liệu thật cho 34 tỉnh thành du lịch trọng điểm Việt Nam (Đà Lạt, Sa Pa, Hạ Long, Phú Quốc, Đà Nẵng, Nha Trang, Huế, Ninh Bình, Hà Giang...). Mỗi cơ sở phải có địa chỉ chi tiết đến cấp Phường/Xã, tọa độ GPS thực tế (Latitude/Longitude), các hạng phòng Standard/Deluxe/Suite, phòng vật lý và biểu giá niêm yết VND đang kích hoạt."
+* **[Prompt 3 - Tách trang Khám phá & Tìm kiếm Fuzzy Search]:** "Trang chủ hiện đang nhồi nhét cả danh sách khách sạn khiến giao diện bị rối mắt. Hãy tách biệt trang chủ giới thiệu và trang Khám phá (/explore). Xây dựng thanh công cụ tìm kiếm với ô nhập từ khóa có tính năng Search History (lưu 5 lượt tìm gần nhất vào localStorage), gợi ý danh mục điểm đến phổ biến và thuật toán Fuzzy Search không phân biệt dấu tiếng Việt (ví dụ gõ 'vung tau' hoặc 'vũng tàu' đều tìm thấy chính xác)."
+* **[Prompt 4 - Báo cáo phân tích chuỗi đa cơ sở (Group Analytics)]:** "Là chủ sở hữu chuỗi khách sạn (Tenant Owner), người dùng cần xem báo cáo tổng hợp tình hình kinh doanh của toàn bộ các chi nhánh. Hãy xây dựng API GetGroupAnalyticsQuery và màn hình Angular Dashboard tổng hợp: KPI chuỗi (Tổng số cơ sở, Tổng phòng, Công suất trung bình, Doanh thu ước tính), biểu đồ CSS trực quan phân bổ theo vùng miền và bảng so sánh chi tiết số liệu giữa từng cơ sở."
+
+**AI tạo ra:**
+* Đoạn code khởi tạo DbContext gọi `Migrate()` và `EnsureCreated()` tự động mỗi khi WebApi khởi động, tiềm ẩn nguy cơ xung đột schema hoặc vô tình xóa bảng trên VPS Cloud dùng chung.
+* Dữ liệu Seeder chỉ có vài dòng mẫu với tọa độ giả lập `(0, 0)` hoặc địa chỉ chung chung "123 Main St", thiếu hoàn toàn phân cấp hành chính chuẩn Việt Nam.
+* Component tìm kiếm nhúng chung vào trang chủ, không lưu lịch sử tìm kiếm và cơ chế so khớp chuỗi `String.Contains` thông thường bị lỗi khi người dùng gõ tiếng Việt không dấu hoặc có dấu sai vị trí.
+* Dashboard phân tích chỉ truy vấn đơn lẻ từng `PropertyId`, không có câu lệnh tính toán Group By theo `TenantId` để tổng hợp chỉ số toàn chuỗi.
+
+**SV đã sửa:**
+* **Kiểm tra kết nối CSDL Cloud & Bảo vệ dữ liệu:** Sau khi AI sinh mã, em đưa vào project chạy thử nghiệm. Khi khởi động WebApi với chuỗi kết nối VPS, em phát hiện lệnh Auto-Migrate tự động kích hoạt có thể làm đè dữ liệu đang có của các thành viên khác, chưa đúng ý bảo đảm toàn vẹn CSDL; em viết prompt yêu cầu AI xây dựng bộ bảo vệ `CloudDatabaseGuard` kiểm tra cờ môi trường `AllowCloudStartupDatabaseInit = false`, chặn đứng các hàm Drop/EnsureDeleted. Em thao tác khởi động lại backend, mở pgAdmin đối soát CSDL thấy dữ liệu và bảng được giữ nguyên an toàn 100%, đúng ý đồ thiết kế.
+* **Kiểm tra nạp dữ liệu thật 34 Tỉnh thành:** Em chạy seeder dữ liệu của AI thì thấy các cơ sở có tọa độ sai lệch và địa chỉ ảo; em viết prompt yêu cầu đối chiếu danh mục 34 tỉnh thành với tọa độ GPS thực và địa chỉ chính xác đến từng Phường/Xã. Em đối soát lại tọa độ các cơ sở lớn (Đà Lạt Edensee, Mường Thanh Sa Pa, Vinpearl Discovery Phú Quốc...), nạp vào CSDL Staging và kiểm tra thấy 35 cơ sở với 136 phòng vật lý hiển thị đầy đủ, đúng ý thực tế.
+* **Kiểm tra trang Khám phá & Fuzzy Search:** Thao tác trên giao diện, em thấy trang chủ quá tải thông tin và khi gõ "da lat" không dấu thì bộ lọc không tìm ra kết quả; em yêu cầu AI tách trang `/explore` độc lập, bổ sung `SearchHistoryService` lưu vào localStorage và hàm chuẩn hóa tiếng Việt loại bỏ dấu (`normalizeVietnamese`). Em thao tác gõ thử nghiệm "phu quoc", "nha trang", "sapa" thấy dropdown gợi ý phản hồi tức thì, click chọn vào xem phòng mượt mà và đúng ý trải nghiệm.
+* **Kiểm tra báo cáo chuỗi Group Analytics:** Em đăng nhập với quyền Tenant Owner để xem báo cáo thì thấy chỉ xem được cơ sở hiện tại; em prompt AI viết `GetGroupAnalyticsQueryHandler` sử dụng câu truy vấn Group By TenantId, bổ sung bảng so sánh và biểu đồ thanh tỷ lệ lấp đầy. Em thao tác chuyển đổi qua lại giữa các cơ sở, số liệu tổng doanh thu và công suất phòng nhảy cập nhật chuẩn xác, đúng ý quản trị chuỗi.
+
+**Minh chứng Commit GitHub:**
+* Commit [`07c1b4a`](https://github.com/GinNgo/hotel-saas-v2/commit/07c1b4a4cb402b8daec161c56f8f175489f029b9): `feat(db): establish cloud postgresql staging and enforce safe connection guard`
+* Commit [`bee51ad`](https://github.com/GinNgo/hotel-saas-v2/commit/bee51ad982fe51578a59489fcffb38d38865c3bb): `feat(explore): implement isolated exploration page, active filter bar, and search dropdown with history`
+* Commit [`5bf7134`](https://github.com/GinNgo/hotel-saas-v2/commit/5bf7134f23e362c91d0cc3c86c14df82e95125b3): `feat(discovery): seed 34 real provinces, add search history, fuzzy search, and isolate explore page`
+* Commit [`58670ac`](https://github.com/GinNgo/hotel-saas-v2/commit/58670ac23ae6245fba5e7d5cf2279165d4911d95): `feat(analytics): add multi-property group analytics dashboard and comparison table`
+* Commit [`58f0948`](https://github.com/GinNgo/hotel-saas-v2/commit/58f0948d05e7f8b1e7f0417250080faed8f5d08f): `fix(ci-cd): sanitize vps secret, resolve cross-property context in tests, and fix seed execution`
+
+---
+
+#### 2. Nguyễn Khôi Nguyên (MSSV: 24TX810011 - Thành viên)
+
+* **Công cụ sử dụng:** Google Antigravity
+* **Mô hình AI thực tế (Model):** `Gemini 3.8 Flash High` (kèm huy hiệu Turbo)
+
+**Prompt sử dụng:**
+* **[Prompt 1 - Duy trì ngữ cảnh tìm kiếm khi Quay lại (Back)]:** "Khi khách hàng click từ trang Khám phá vào xem chi tiết một khách sạn rồi bấm nút Quay lại (Back), toàn bộ thông tin ngày nhận/trả phòng, số lượng khách và từ khóa tìm kiếm đang bị xóa trắng về mặc định. Hãy sửa lại router Angular sử dụng NavigationExtras queryParamsHandling: 'merge' và BookingSearchSyncService để đồng bộ hai chiều query parameters lên URL, đảm bảo khi bấm Quay lại trang trước vẫn giữ nguyên trạng thái tìm kiếm ban đầu của khách."
+* **[Prompt 2 - Báo giá theo chế độ lưu trú & Kiểm tra hạn expiresAtUtc]:** "Logic tính giá phòng đang lấy giá niêm yết nhân với số ngày một cách cơ học mà không phân biệt hình thức lưu trú (Thuê theo Giờ, Thuê Qua Đêm, Thuê Theo Ngày). Hãy hoàn thiện CalculateRoomPriceQuery tính giá chi tiết cho từng chế độ, kiểm tra phụ thu nhận sớm/trả trễ. Bổ sung trường expiresAtUtc (thời hạn 15 phút) trong token báo giá để chặn việc khách giữ giá cũ quá hạn khi khách sạn đã điều chỉnh giá."
+* **[Prompt 3 - Backend Contract Testing cách ly chi nhánh (Task N04)]:** "Viết bộ kiểm thử tích hợp hợp đồng Backend (Contract Tests) bằng xUnit và FluentAssertions để kiểm chứng API GetPublicPropertyDetailQuery và GetRoomQuoteQuery. Bộ test phải xác minh tính bất biến đa thuê bao: một khách hàng không thể dùng RoomTypeId của khách sạn A để tạo báo giá hoặc đặt phòng tại khách sạn B (Cross-Property Isolation)."
+
+**AI tạo ra:**
+* Router Angular chỉ chuyển trang đơn thuần `router.navigate(['/booking/property', id])` không truyền tham số tìm kiếm, dẫn đến khi người dùng ấn Back thì mất toàn bộ bộ lọc đã chọn.
+* Logic tính giá chỉ có công thức đơn giản `Price = BasePrice * Days`, bỏ qua hoàn toàn các chính sách giá đặc thù của khách sạn Việt Nam (giá 2 giờ đầu, giá qua đêm từ 22h - 8h sáng) và token báo giá không có hạn sử dụng.
+* Bài test backend xUnit chỉ kiểm tra trường hợp đúng (Happy Path) với dữ liệu cùng chi nhánh, không có kịch bản giả lập tấn công chéo chi nhánh (Cross-Property Data Leakage).
+
+**SV đã sửa:**
+* **Kiểm tra duy trì ngữ cảnh tìm kiếm (Context Retention):** Đưa mã vào chạy thử nghiệm, em thao tác chọn ngày `28/10 - 30/10` tại Đà Lạt rồi click vào xem chi tiết khách sạn. Khi em bấm nút "Quay lại danh sách", form tìm kiếm bị reset về ngày hôm nay làm khách phải chọn lại từ đầu, trải nghiệm chưa đúng ý; em viết prompt yêu cầu AI dùng `queryParamsHandling: 'merge'` và đồng bộ vào query string của URL. Em thao tác bấm Back/Forward nhiều lần trên trình duyệt kiểm tra thấy ngày tháng và bộ lọc khách giữ nguyên vẹn 100%, đúng ý mong muốn.
+* **Kiểm tra báo giá đa chế độ & Thời hạn giữ giá:** Thao tác chọn phòng thuê theo giờ, em thấy giá hiển thị thành giá 1 ngày là sai nghiệp vụ; em prompt AI chia thành 3 công thức tính giá theo `StayMode` (Hourly, Overnight, Daily) và sinh `PriceQuoteToken` có hạn `expiresAtUtc` đúng 15 phút. Em thao tác chọn thử 3 giờ và qua đêm thấy hệ thống tính giá chuẩn xác từng nghìn đồng, đúng ý nghiệp vụ khách sạn.
+* **Kiểm tra bảo mật cách ly chi nhánh (Contract Testing):** Em chạy bộ test backend của AI thì thấy thiếu trường hợp kiểm tra bảo mật; em yêu cầu AI bổ sung test fixture `CrossPropertyRoomQuoteRejectionTests`. Khi chạy test thử nghiệm, hệ thống xác nhận trả về mã lỗi `400 Bad Request` kèm thông báo chặn không cho phép lấy giá phòng của chi nhánh khác, CI pass xanh toàn bộ và đúng ý an toàn đa thuê bao.
+
+**Minh chứng Commit GitHub:**
+* Commit [`ff48e6d`](https://github.com/GinNgo/hotel-saas-v2/commit/ff48e6d87d96a7d5cbdf35a4d95267bca9c1b35e): `feat(booking): retain search params when navigating to detail and booking hold`
+* Commit [`ddef7e4`](https://github.com/GinNgo/hotel-saas-v2/commit/ddef7e47a3272475ebdce87b6e0d14631d817297): `merge(booking): integrate Nguyen's discovery context retention, room quote validation, and backend contract tests`
+* Commit [`cc860c0`](https://github.com/GinNgo/hotel-saas-v2/commit/cc860c0f88e4abc2cf5060668207c4520cc00a90): `fix(booking): extend hold token ttl and resolve property context in test fixture`
+
+---
+
+#### 3. Trần Trọng Tân (MSSV: 24TX810025 - Thành viên)
+
+* **Công cụ sử dụng:** Codex / ChatGPT
+* **Mô hình AI thực tế (Model):** `6 Astra` (Frontier intelligence) / `6.1 Sol`
+
+**Prompt sử dụng:**
+* **[Prompt 1 - Đồng hồ đếm ngược giữ phòng 15 phút & Hủy ngầm khi hết giờ]:** "Trên trang giữ phòng B2C (booking-hold.page.ts), hãy xây dựng đồng hồ đếm ngược 15 phút (900 giây) sử dụng Angular Signals và rxjs interval. Khi đồng hồ về 0, giao diện phải lập tức chuyển sang trạng thái hết hạn (Hold Expired), vô hiệu hóa nút thanh toán và gọi API ReleaseExpiredHoldCommand để giải phóng phòng ngầm trong database, cho phép khách khác vào đặt."
+* **[Prompt 2 - Tra cứu đặt phòng & Che mờ thông tin cá nhân (PII Masking)]:** "Xây dựng trang tra cứu đơn đặt phòng B2C (/booking/lookup) bằng Mã đặt phòng (Booking Code) và Số điện thoại. Để tuân thủ nguyên tắc bảo vệ quyền riêng tư người dùng, API trả về và giao diện tuyệt đối không hiển thị nguyên văn số điện thoại và email của khách mà phải che mờ (masking PII): ví dụ số điện thoại 0901234567 thành 090****567, email nguyenvana@gmail.com thành n***a@gmail.com."
+* **[Prompt 3 - Ràng buộc hiển thị mã PIN phòng thông minh trung thực]:** "Trên trang trạng thái xác nhận đặt phòng (booking-status.page.ts), hệ thống đang hiển thị mã mở cửa thông minh (Smart Door PIN Code) ngay cả khi đơn mới được tạo và chưa thanh toán cọc. Hãy thiết lập điều kiện bảo mật: Mã PIN chỉ được giải mã và hiển thị khi đơn đặt phòng có trạng thái Confirmed (đã thanh toán hoặc xác nhận), và thời gian hiện tại nằm trong khung giờ check-in hợp lệ. Nếu chưa thanh toán, hiển thị hướng dẫn cọc kèm trạng thái 'Chờ kích hoạt mã PIN'."
+
+**AI tạo ra:**
+* Đồng hồ đếm ngược chỉ hiển thị chữ tĩnh trên giao diện, không có timer chạy thực tế và khi người dùng tải lại trang thì số phút bị reset lại từ đầu; không có lệnh gọi giải phóng phòng khi hết giờ.
+* Màn hình tra cứu hiển thị toàn bộ họ tên, số điện thoại, email và giá tiền công khai, tạo lỗ hổng rò rỉ dữ liệu cá nhân nếu ai đó gõ mò trúng mã đặt phòng.
+* Mã PIN khóa cửa phòng thông minh được gán giá trị mặc định cố định `"123456"` hiển thị ngay lập tức trên trang kết quả mà không cần kiểm tra trạng thái thanh toán.
+
+**SV đã sửa:**
+* **Kiểm tra đồng hồ đếm ngược giữ phòng:** Đưa mã vào chạy thử nghiệm, em thao tác đặt giữ phòng thử và quan sát màn hình giữ phòng thì thấy timer đếm ngược không giảm giây, F5 lại trang thì timer nhảy lại 15:00 chưa đúng ý; em viết prompt yêu cầu AI tính toán thời gian còn lại dựa trên hiệu số giữa thời gian hiện tại và `HoldExpiresAtUtc` từ server. Em chờ thử nghiệm hết 15 phút, giao diện tự động vô hiệu hóa nút thanh toán và phòng được trả về trạng thái Available đúng ý nghiệp vụ.
+* **Kiểm tra tra cứu & Che mờ thông tin cá nhân:** Thao tác nhập mã tra cứu đơn phòng trên giao diện, em thấy thông tin cá nhân của khách hiển thị công khai toàn bộ là vi phạm bảo mật PII chưa đúng ý; em prompt AI viết hàm `MaskPhoneNumber` và `MaskEmail` ở tầng Application DTO và component Angular. Em thao tác tra cứu lại thấy số điện thoại đã hiển thị dạng `091****890` và email `a***n@gmail.com`, an toàn và đúng ý bảo vệ khách hàng.
+* **Kiểm tra hiển thị mã PIN khóa thông minh:** Thao tác kiểm tra đơn phòng chưa thanh toán, em thấy màn hình vẫn hiện mã PIN "123456" cho phép vào phòng là sai quy trình khách sạn; em prompt yêu cầu AI ràng buộc chặt chẽ logic `canViewSmartPin = isConfirmed && isWithinCheckInWindow`. Em thao tác với đơn phòng đang ở trạng thái `PendingPayment` thấy mã PIN được che kín kèm thông báo "Mã PIN sẽ kích hoạt sau khi thanh toán", sau khi xác nhận thanh toán thì mã PIN mới hiện lên chuẩn xác, đúng ý.
+
+**Minh chứng Commit GitHub:**
+* Commit [`22bfb78`](https://github.com/GinNgo/hotel-saas-v2/commit/22bfb78f4fe742b7811fe0901b51610e53a2bb61): `feat(booking): harden guest hold, lookup, and status flow`
+* Commit [`6a5b6c4`](https://github.com/GinNgo/hotel-saas-v2/commit/6a5b6c478a87796d1ff8e919ff7ae383021966a4): `feat(booking): add public lookup and status confirmation pages`
+* Commit [`7d43d1a`](https://github.com/GinNgo/hotel-saas-v2/commit/7d43d1a2d7f87252033bc88aa97e2f12fd0248ad): `feat(booking): enhance booking lookup form with tracking code guidance and clean empty state`
+* Commit [`977514b`](https://github.com/GinNgo/hotel-saas-v2/commit/977514b12b147717bea826339d1b548f7c2a20e0): `merge(booking): integrate Tan's hardened guest hold, lookup, and status flows`
+* Commit [`3771339`](https://github.com/GinNgo/hotel-saas-v2/commit/3771339101d6c173504797fa6b5af26d336779a0): `merge(booking): integrate Tan's booking-status confirmation UI and progress flows`
+
+---
+
 ## PHẦN V. KẾ HOẠCH THỰC HIỆN TUẦN 04 (TỪ 26/10/2026 ĐẾN 01/11/2026)
 
 Căn cứ vào kết quả đã nghiệm thu ở Tuần 03, hệ thống đã hoàn thiện luồng trải nghiệm khách hàng B2C và vận hành ổn định trên CSDL Cloud PostgreSQL 17 Staging. Nhóm xác định mục tiêu trọng tâm trong Tuần 04 là: **Tích hợp Cổng thanh toán trực tuyến thực tế (VNPay Sandbox & VietQR Pay), Xử lý Webhook IPN tự động chuyển trạng thái đơn phòng, Hệ thống Thông báo thời gian thực (Realtime Notifications qua SignalR), Xuất báo cáo Kế toán chuẩn Excel/PDF và Kiểm thử tải đồng thời (Concurrency Load Testing) sẵn sàng cho buổi nghiệm thu tổng thể đề tài.**
