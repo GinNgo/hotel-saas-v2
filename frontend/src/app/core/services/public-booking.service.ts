@@ -306,7 +306,8 @@ export class PublicBookingService {
     return of([]);
   }
   submitReview(request: SubmitGuestReviewRequest): Observable<boolean> {
-    return of(true);
+    // Contract FR10: Honest capability. Guest reviews submission endpoint is gated for a future sprint.
+    return of(false);
   }
 
   /**

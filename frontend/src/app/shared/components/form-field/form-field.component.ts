@@ -6,9 +6,12 @@ import { ChangeDetectionStrategy, Component, Directive, computed, input } from '
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'app-form-field' },
   template: `
-    <label [for]="controlId()" [id]="controlId() + '-label'" class="app-field-label">
-      {{ label() }} @if (required()) { <span aria-hidden="true">*</span><span class="sr-only"> (bắt buộc)</span> }
-    </label>
+    <div class="flex items-center justify-between mb-1.5">
+      <label [for]="controlId()" [id]="controlId() + '-label'" class="app-field-label !mb-0">
+        {{ label() }} @if (required()) { <span aria-hidden="true">*</span><span class="sr-only"> (bắt buộc)</span> }
+      </label>
+      <ng-content select="[slot=action], [slot=label-end]" />
+    </div>
     <ng-content />
     @if (hint()) { <p [id]="controlId() + '-hint'" class="app-field-hint">{{ hint() }}</p> }
     @if (error()) { <p [id]="controlId() + '-error'" class="app-field-error" role="alert">{{ error() }}</p> }
@@ -29,11 +32,15 @@ export class FormFieldComponent {
   standalone: true,
   host: {
     class: 'app-form-control',
-    '[id]': 'field().controlId()',
-    '[attr.aria-describedby]': 'field().descriptionIds() || null',
-    '[attr.aria-invalid]': 'field().error() ? "true" : null',
+    '[id]': 'controlId()',
+    '[attr.aria-describedby]': 'descriptionIds()',
+    '[attr.aria-invalid]': 'isInvalid()',
   },
 })
 export class FormControlDirective {
-  readonly field = input.required<FormFieldComponent>({ alias: 'appFormControl' });
+  readonly field = input<FormFieldComponent | null>(null, { alias: 'appFormControl' });
+
+  readonly controlId = computed(() => this.field()?.controlId() || null);
+  readonly descriptionIds = computed(() => this.field()?.descriptionIds() || null);
+  readonly isInvalid = computed(() => (this.field()?.error() ? 'true' : null));
 }

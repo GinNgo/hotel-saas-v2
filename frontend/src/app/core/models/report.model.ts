@@ -37,3 +37,66 @@ export interface PmsKpiDto {
   cancelledBookings: number;
   cancellationRate: number;
 }
+
+export interface GroupAnalyticsDto {
+  tenantId: string;
+  fromDate: string;
+  toDate: string;
+  totalProperties: number;
+  totalRooms: number;
+  totalAvailableNights: number;
+  totalSoldNights: number;
+  totalRevenue: number;
+  averageOccupancyRate: number;
+  portfolioAdr: number;
+  portfolioRevPar: number;
+  totalBookings: number;
+  totalGuests: number;
+  cancelledBookings: number;
+  cancellationRate: number;
+  properties: PropertyPerformanceDto[];
+  dailyTrends: GroupDailyRevenueDto[];
+  channelDistribution: GroupChannelDistributionDto[];
+  paymentDistribution: GroupPaymentDistributionDto[];
+}
+
+export interface PropertyPerformanceDto {
+  propertyId: string;
+  propertyName: string;
+  propertyCode: string;
+  city: string;
+  starRating: number;
+  totalRooms: number;
+  availableRooms: number;
+  occupiedRooms: number;
+  totalSoldNights: number;
+  revenue: number;
+  occupancyRate: number;
+  adr: number;
+  revPar: number;
+  bookingsCount: number;
+  revenueContributionPercent: number;
+  performanceRank: string;
+  performanceBadge: string;
+}
+
+export interface GroupDailyRevenueDto {
+  date: string;
+  displayDate: string;
+  totalRevenue: number;
+  revenueByProperty: Record<string, number>;
+}
+
+export interface GroupChannelDistributionDto {
+  channel: string;
+  bookingsCount: number;
+  revenue: number;
+  percentage: number;
+}
+
+export interface GroupPaymentDistributionDto {
+  method: string;
+  count: number;
+  amount: number;
+  percentage: number;
+}

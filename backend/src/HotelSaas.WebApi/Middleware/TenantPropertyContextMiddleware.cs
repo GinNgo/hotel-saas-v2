@@ -53,7 +53,7 @@ public sealed class TenantPropertyContextMiddleware
             return;
         }
 
-        // ── Authentication Check for Groups 2, 3, 4 ─────────────────────────────
+        // ── Authentication Check for Groups 2, 3, 3b, 4 ─────────────────────────
         if (context.User.Identity?.IsAuthenticated != true)
         {
             await WriteErrorResponseAsync(context, StatusCodes.Status401Unauthorized, "ERR_UNAUTHORIZED", "Yêu cầu xác thực danh tính.");
@@ -91,6 +91,18 @@ public sealed class TenantPropertyContextMiddleware
         // ── 3. Pipeline Classification: Group 3 - Context-Bootstrap & Switching Endpoints ──
         if (path.Equals("/api/auth/switch-context", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/auth/me/memberships", StringComparison.OrdinalIgnoreCase))
+        {
+            userContext.SetUser(userId, string.Empty, globalRole);
+
+            await _next(context);
+            return;
+        }
+
+        // ── 3b. Pipeline Classification: Group 3b - Customer / Guest Portal Endpoints ──────
+        // Authenticated customer/guest end-users accessing their own personal bookings, profile, or loyalty (Gate G3 / US3).
+        // Guests belong to the B2C platform, not a specific tenant staff organization, and do not possess TenantId/PropertyId claims.
+        if (path.StartsWith("/api/guest", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/api/v1/loyalty", StringComparison.OrdinalIgnoreCase))
         {
             userContext.SetUser(userId, string.Empty, globalRole);
 
@@ -299,6 +311,8 @@ public sealed class TenantPropertyContextMiddleware
             path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/auth/login", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/auth/register", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/api/auth/partner-register", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/api/auth/social-login", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/auth/refresh-token", StringComparison.OrdinalIgnoreCase))
         {
             return true;

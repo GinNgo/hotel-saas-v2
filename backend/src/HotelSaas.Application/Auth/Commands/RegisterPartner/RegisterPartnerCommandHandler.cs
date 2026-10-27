@@ -25,6 +25,8 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
     private readonly IPasswordHasher _passwordHasher;
     private readonly ILocationLookupService _locationService;
     private readonly ICurrentUserContext _userContext;
+    private readonly ICurrentTenantService _currentTenantService;
+    private readonly ICurrentPropertyService _currentPropertyService;
 
     /// <summary>
     /// Initializes a new instance of <see cref="RegisterPartnerCommandHandler"/>.
@@ -33,12 +35,16 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
         IApplicationDbContext context,
         IPasswordHasher passwordHasher,
         ILocationLookupService locationService,
-        ICurrentUserContext userContext)
+        ICurrentUserContext userContext,
+        ICurrentTenantService currentTenantService,
+        ICurrentPropertyService currentPropertyService)
     {
         _context = context;
         _passwordHasher = passwordHasher;
         _locationService = locationService;
         _userContext = userContext;
+        _currentTenantService = currentTenantService;
+        _currentPropertyService = currentPropertyService;
     }
 
     /// <inheritdoc />
@@ -117,6 +123,11 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
         // 4. Generate unique identifiers and slugs
         var tenantId = Guid.NewGuid();
         var propertyId = Guid.NewGuid();
+
+        // Establish tenant & property scope for the bootstrapping operation so SaveChangesInterceptor validates cleanly
+        _currentTenantService.TenantId = tenantId;
+        _currentPropertyService.PropertyId = propertyId;
+        _currentPropertyService.IsTenantWide = true;
 
         var baseSlug = GenerateSlug(request.PropertyName);
         var tenantSlug = await EnsureUniqueTenantSlugAsync(baseSlug, cancellationToken);

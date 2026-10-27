@@ -18,7 +18,9 @@ import {
   StatCardComponent,
   StatusBadgeComponent,
   EmptyStateComponent,
-  LoadingSpinnerComponent
+  LoadingSpinnerComponent,
+  FormFieldComponent,
+  FormControlDirective
 } from '../../shared';
 
 @Component({
@@ -33,7 +35,9 @@ import {
     StatCardComponent,
     StatusBadgeComponent,
     EmptyStateComponent,
-    LoadingSpinnerComponent
+    LoadingSpinnerComponent,
+    FormFieldComponent,
+    FormControlDirective
   ],
   template: `
     <div class="max-w-7xl mx-auto space-y-6 pb-12">
@@ -330,102 +334,162 @@ import {
 
           <form [formGroup]="propertyForm" (ngSubmit)="saveProperty()" class="space-y-4">
             <!-- Row 1: Name & Code -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div class="sm:col-span-2 space-y-1.5">
-                <label class="block text-xs font-bold text-slate-700">Tên Chi nhánh / Khách sạn <span class="text-rose-500">*</span></label>
-                <input
-                  type="text"
-                  formControlName="name"
-                  (input)="onNameChanged()"
-                  placeholder="Ví dụ: Khách sạn Sài Gòn Phố Cổ"
-                  class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
-                />
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
+              <div class="sm:col-span-2">
+                <app-form-field
+                  #nameField
+                  controlId="prop-name"
+                  label="Tên Chi nhánh / Khách sạn"
+                  [required]="true"
+                  [error]="getFieldError('name')"
+                >
+                  <input
+                    [appFormControl]="nameField"
+                    type="text"
+                    formControlName="name"
+                    (input)="onNameChanged()"
+                    placeholder="Ví dụ: Khách sạn Sài Gòn Phổ Cổ"
+                    class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
+                  />
+                </app-form-field>
               </div>
 
-              <div class="space-y-1.5">
-                <label class="block text-xs font-bold text-slate-700">Mã chi nhánh <span class="text-rose-500">*</span></label>
-                <input
-                  type="text"
-                  formControlName="code"
-                  placeholder="KS01, NN02..."
-                  class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm uppercase font-mono font-bold focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
-                />
+              <div>
+                <app-form-field
+                  #codeField
+                  controlId="prop-code"
+                  label="Mã chi nhánh"
+                  [required]="true"
+                  [error]="getFieldError('code')"
+                >
+                  <input
+                    [appFormControl]="codeField"
+                    type="text"
+                    formControlName="code"
+                    placeholder="KS01, NN02..."
+                    class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm uppercase font-mono font-bold focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
+                  />
+                </app-form-field>
               </div>
             </div>
 
             <!-- Row 2: Property Type & Slug -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div class="space-y-1.5">
-                <label class="block text-xs font-bold text-slate-700">Loại hình cơ sở <span class="text-rose-500">*</span></label>
-                <select
-                  formControlName="propertyType"
-                  class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+              <div>
+                <app-form-field
+                  #typeField
+                  controlId="prop-type"
+                  label="Loại hình cơ sở"
+                  [required]="true"
+                  [error]="getFieldError('propertyType')"
                 >
-                  <option [ngValue]="1">🏨 Khách sạn (Hotel)</option>
-                  <option [ngValue]="3">🏡 Nhà nghỉ (Guesthouse)</option>
-                  <option [ngValue]="2">⚡ Motel</option>
-                  <option [ngValue]="4">🌿 Homestay</option>
-                  <option [ngValue]="5">🏖️ Resort</option>
-                </select>
+                  <select
+                    [appFormControl]="typeField"
+                    formControlName="propertyType"
+                    class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
+                  >
+                    <option [ngValue]="1">🏨 Khách sạn (Hotel)</option>
+                    <option [ngValue]="3">🏡 Nhà nghỉ (Guesthouse)</option>
+                    <option [ngValue]="2">⚡ Motel</option>
+                    <option [ngValue]="4">🌿 Homestay</option>
+                    <option [ngValue]="5">🏖️ Resort</option>
+                  </select>
+                </app-form-field>
               </div>
 
-              <div class="space-y-1.5">
-                <label class="block text-xs font-bold text-slate-700">Đường dẫn định danh (Slug) <span class="text-rose-500">*</span></label>
-                <input
-                  type="text"
-                  formControlName="slug"
-                  placeholder="khach-san-sai-gon-pho-co"
-                  class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-mono text-slate-700 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
-                />
+              <div>
+                <app-form-field
+                  #slugField
+                  controlId="prop-slug"
+                  label="Đường dẫn định danh (Slug)"
+                  [required]="true"
+                  [error]="getFieldError('slug')"
+                >
+                  <input
+                    [appFormControl]="slugField"
+                    type="text"
+                    formControlName="slug"
+                    placeholder="khach-san-sai-gon-pho-co"
+                    class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-mono text-slate-700 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
+                  />
+                </app-form-field>
               </div>
             </div>
 
             <!-- Row 3: Address & City -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div class="sm:col-span-2 space-y-1.5">
-                <label class="block text-xs font-bold text-slate-700">Địa chỉ cụ thể <span class="text-rose-500">*</span></label>
-                <input
-                  type="text"
-                  formControlName="address"
-                  placeholder="Số 123 Đường Trần Phú..."
-                  class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
-                />
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
+              <div class="sm:col-span-2">
+                <app-form-field
+                  #addressField
+                  controlId="prop-address"
+                  label="Địa chỉ cụ thể"
+                  [required]="true"
+                  [error]="getFieldError('address')"
+                >
+                  <input
+                    [appFormControl]="addressField"
+                    type="text"
+                    formControlName="address"
+                    placeholder="Số 123 Đường Trần Phú..."
+                    class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
+                  />
+                </app-form-field>
               </div>
 
-              <div class="space-y-1.5">
-                <label class="block text-xs font-bold text-slate-700">Tỉnh / Thành phố <span class="text-rose-500">*</span></label>
-                <input
-                  type="text"
-                  formControlName="city"
-                  placeholder="Đà Lạt, Hà Nội..."
-                  class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
-                />
+              <div>
+                <app-form-field
+                  #cityField
+                  controlId="prop-city"
+                  label="Tỉnh / Thành phố"
+                  [required]="true"
+                  [error]="getFieldError('city')"
+                >
+                  <input
+                    [appFormControl]="cityField"
+                    type="text"
+                    formControlName="city"
+                    placeholder="Đà Lạt, Hà Nội..."
+                    class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
+                  />
+                </app-form-field>
               </div>
             </div>
 
             <!-- Row 4: Tourist Zone & Province Code -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div class="space-y-1.5">
-                <label class="block text-xs font-bold text-slate-700">Khu vực du lịch liên kết</label>
-                <select
-                  formControlName="touristZoneSlug"
-                  class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+              <div>
+                <app-form-field
+                  #zoneField
+                  controlId="prop-zone"
+                  label="Khu vực du lịch liên kết"
                 >
-                  <option [ngValue]="null">-- Không thuộc khu du lịch đặc thù --</option>
-                  @for (zone of touristZones(); track zone.slug) {
-                    <option [value]="zone.slug">{{ zone.name }} ({{ zone.provinceName }})</option>
-                  }
-                </select>
+                  <select
+                    [appFormControl]="zoneField"
+                    formControlName="touristZoneSlug"
+                    class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
+                  >
+                    <option [ngValue]="null">-- Không thuộc khu du lịch đặc thù --</option>
+                    @for (zone of touristZones(); track zone.slug) {
+                      <option [value]="zone.slug">{{ zone.name }} ({{ zone.provinceName }})</option>
+                    }
+                  </select>
+                </app-form-field>
               </div>
 
-              <div class="space-y-1.5">
-                <label class="block text-xs font-bold text-slate-700">Mã Tỉnh/Thành hành chính</label>
-                <input
-                  type="text"
-                  formControlName="provinceCode"
-                  placeholder="VN-35, VN-43, VN-SG..."
-                  class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-mono focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
-                />
+              <div>
+                <app-form-field
+                  #provinceField
+                  controlId="prop-province"
+                  label="Mã Tỉnh/Thành hành chính"
+                >
+                  <input
+                    [appFormControl]="provinceField"
+                    type="text"
+                    formControlName="provinceCode"
+                    placeholder="VN-35, VN-43, VN-SG..."
+                    class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-mono focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
+                  />
+                </app-form-field>
               </div>
             </div>
 
@@ -654,8 +718,31 @@ export class PropertiesPage implements OnInit {
       .replace(/\s+/g, '-');
   }
 
+  getFieldError(fieldName: string): string {
+    const ctrl = this.propertyForm.get(fieldName);
+    if (!ctrl || !ctrl.touched || !ctrl.errors) return '';
+
+    if (ctrl.errors['required']) {
+      switch (fieldName) {
+        case 'name': return 'Tên chi nhánh không được để trống.';
+        case 'code': return 'Mã chi nhánh không được để trống.';
+        case 'slug': return 'Đường dẫn định danh (Slug) không được để trống.';
+        case 'address': return 'Địa chỉ cụ thể không được để trống.';
+        case 'city': return 'Tỉnh / Thành phố không được để trống.';
+        case 'propertyType': return 'Vui lòng chọn loại hình cơ sở.';
+        default: return 'Trường này là bắt buộc.';
+      }
+    }
+    if (ctrl.errors['maxlength']) {
+      const max = ctrl.errors['maxlength'].requiredLength;
+      return `Độ dài không được vượt quá ${max} ký tự.`;
+    }
+    return '';
+  }
+
   saveProperty(): void {
     if (this.propertyForm.invalid) {
+      this.propertyForm.markAllAsTouched();
       return;
     }
 

@@ -322,6 +322,12 @@ public sealed class CreatePaymentCommandHandler : IRequestHandler<CreatePaymentC
         if (reservation.Status == ReservationStatus.PendingPayment)
         {
             reservation.Status = ReservationStatus.Confirmed;
+            if (string.IsNullOrWhiteSpace(reservation.SmartLockPin))
+            {
+                reservation.SmartLockPin = System.Security.Cryptography.RandomNumberGenerator.GetInt32(100000, 999999).ToString();
+            }
+            reservation.SmartLockStatus = "Active";
+            reservation.SmartLockActivatedAtUtc = DateTime.UtcNow;
             reservation.UpdatedAtUtc = DateTime.UtcNow;
         }
 

@@ -59,6 +59,7 @@ public sealed class AuthController : ControllerBase
     /// <response code="201">Partner registered successfully.</response>
     /// <response code="400">Validation errors in the request body.</response>
     /// <response code="409">Email already in use.</response>
+    [AllowAnonymous]
     [HttpPost("partner-register")]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

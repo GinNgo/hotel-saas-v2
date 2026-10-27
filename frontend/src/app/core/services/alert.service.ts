@@ -21,17 +21,20 @@ export class AlertService {
   }
 
   /**
-   * Cấu hình Toast chuẩn góc phải trên màn hình.
+   * Cấu hình Toast chuẩn LuxeStay: nhỏ gọn, góc phải trên màn hình, không che nội dung, tự ẩn sau 2.2s
    */
   private readonly Toast = Swal.mixin({
     toast: true,
     position: 'top-end',
     showConfirmButton: false,
-    timer: 3500,
-    timerProgressBar: true,
-    didOpen: (toast) => {
-      toast.addEventListener('mouseenter', Swal.stopTimer);
-      toast.addEventListener('mouseleave', Swal.resumeTimer);
+    timer: 2200,
+    timerProgressBar: false,
+    customClass: {
+      container: 'luxestay-toast-container',
+      popup: 'luxestay-toast-popup',
+      title: 'luxestay-toast-title',
+      htmlContainer: 'luxestay-toast-text',
+      icon: 'luxestay-toast-icon'
     }
   });
 

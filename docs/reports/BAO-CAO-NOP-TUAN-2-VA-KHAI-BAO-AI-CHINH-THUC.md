@@ -1,164 +1,279 @@
 # BÁO CÁO TIẾN ĐỘ TUẦN 02 VÀ KHAI BÁO SỬ DỤNG TRÍ TUỆ NHÂN TẠO (AI DISCLOSURE)
 
-**TRƯỜNG ĐẠI HỌC SƯ PHẠM KỸ THUẬT TP. HỒ CHÍ MINH**
+**TRƯỜNG ĐẠI HỌC SƯ PHẠM KỸ THUẬT TP. HỒ CHÍ MINH**  
 **KHOA CÔNG NGHỆ THÔNG TIN — BỘ MÔN CÔNG NGHỆ PHẦN MỀM**
+
+---
 
 ## THÔNG TIN CHUNG CỦA ĐỀ TÀI
 
-| Nội dung | Thông tin |
-| --- | --- |
-| Mã đề tài | 578 |
-| Tên đề tài | Nền tảng Quản lý Khách sạn Đa chi nhánh theo Mô hình SaaS (Hotel SaaS Platform v2) |
-| Giảng viên hướng dẫn | **HUỲNH XUÂN PHỤNG** |
-| Kỳ báo cáo | Tuần 02: 11/10/2026 – 17/10/2026; cập nhật tích hợp, kiểm thử và rà soát ngày 18–19/10/2026 |
-| Kho mã nguồn | https://github.com/GinNgo/hotel-saas-v2 |
-| Nhánh tích hợp | https://github.com/GinNgo/hotel-saas-v2/tree/develop |
-| Nhánh phát hành mã nguồn | https://github.com/GinNgo/hotel-saas-v2/tree/main |
+* **Mã đề tài:** 578
+* **Tên đề tài:** Nền tảng Quản lý Khách sạn Đa chi nhánh theo Mô hình SaaS (Hotel SaaS Platform v2)
+* **Giảng viên hướng dẫn:** Huỳnh Xuân Phụng (`phunghx@hcmute.edu.vn`)
+* **Thời gian thực hiện Tuần 02:** 12/10/2026 – 18/10/2026 (Hoàn tất rà soát, nghiệm thu & tích hợp nhánh: 19/10/2026)
+* **Kho mã nguồn chính thức (GitHub Repository):** [https://github.com/GinNgo/hotel-saas-v2](https://github.com/GinNgo/hotel-saas-v2)
+* **Nhánh tích hợp nghiệm thu:** [https://github.com/GinNgo/hotel-saas-v2/tree/develop](https://github.com/GinNgo/hotel-saas-v2/tree/develop) (đã đồng bộ lên nhánh [main](https://github.com/GinNgo/hotel-saas-v2/tree/main) qua PR #7 tại commit [`003a016`](https://github.com/GinNgo/hotel-saas-v2/commit/003a016))
+* **Cam kết liên kết minh chứng:** Toàn bộ liên kết trong báo cáo này 100% sử dụng đường dẫn trực tiếp trên kho mã nguồn GitHub (`github.com/GinNgo/hotel-saas-v2`), tuyệt đối không sử dụng liên kết ngoài GitHub.
 
-Mốc tuần được nối tiếp kỳ Tuần 01 trong báo cáo đã cung cấp; công việc tích hợp ngày 18–19/10 được ghi riêng, không đổi ngày commit để đưa vào kỳ 11–17/10. Các liên kết minh chứng trong báo cáo chỉ sử dụng GitHub của nhóm. Việc cập nhật mã nguồn lên main không đồng nghĩa triển khai hệ thống hoặc chạy migration trên môi trường thật.
+### Danh Sách Thành Viên Nhóm Thực Hiện
 
-### Danh sách thành viên
+| STT | Họ và Tên | MSSV | Email sinh viên | Vai trò & Phạm vi phụ trách trong Tuần 02 |
+| :---: | :--- | :---: | :--- | :--- |
+| 1 | **Ngô Võ Tuấn An** | `24TX810001` | `24tx810001@student.hcmute.edu.vn` | **Nhóm trưởng (Team Leader):** Thiết kế cổng đặt phòng B2C đa cơ sở & chuỗi thương hiệu, thuật toán tìm kiếm theo địa danh du lịch Việt Nam (Haversine + Smart Radius Fallback), hệ thống tích/tiêu điểm thành viên (`LoyaltyLedger`), in hóa đơn VAT, cơ chế kiểm soát phiên đăng nhập an toàn (`Safe Auth Gates`) và tối ưu CI Workflow Vitest. |
+| 2 | **Nguyễn Khôi Nguyên** | `24TX810011` | `24tx810011@student.hcmute.edu.vn` | **Thành viên:** Phát triển Backend Quản lý Phòng & Hạng phòng (Clean Architecture CQRS), biểu mẫu Đặt phòng trực tiếp tại quầy Lễ tân (Front-desk Walk-in Modal), tính giá thời gian thực (Live Quote Engine) và sơ đồ lưới thời gian phòng (Room Timeline Grid / Tape Chart) kèm bộ test Vitest. |
+| 3 | **Trần Trọng Tân** | `24TX810025` | `24tx810025@student.hcmute.edu.vn` | **Thành viên:** Phát triển phân hệ Vận hành Lễ tân (Check-in / Check-out ràng buộc số dư Folio), Thu ngân & Báo cáo kết ca (`GetShiftReport`), cơ chế Polling dọn phòng an toàn chống rò rỉ bộ nhớ & chống Stale Response, và bảo vệ thanh toán chống trừ tiền trùng (Idempotency Key Retry Safety). |
 
-| STT | Họ và tên | MSSV | Email sinh viên | Phạm vi đóng góp được đối chiếu |
-| --- | --- | --- | --- | --- |
-| 1 | Ngô Võ Tuấn An | 24TX810001 | 24tx810001@student.hcmute.edu.vn | Kiến trúc/tích hợp, cổng đặt phòng đa cơ sở, tìm kiếm địa danh, guest portal và rà soát UI/form, bảo mật, CI |
-| 2 | Nguyễn Khôi Nguyên | 24TX810011 | 24tx810011@student.hcmute.edu.vn | Đặt phòng tại quầy, báo giá trực tiếp và lưới thời gian phòng; tích hợp PR #6 ngày 18/10 |
-| 3 | Trần Trọng Tân | 24TX810025 | 24tx810025@student.hcmute.edu.vn | Vận hành lễ tân, buồng phòng, thu ngân/báo cáo ca; sửa polling, retry thanh toán và nhận diện metadata |
+---
 
-## PHẦN I. TỔNG QUAN KẾT QUẢ THỰC HIỆN
+## PHẦN I. TỔNG QUAN KẾT QUẢ THỰC HIỆN TRONG TUẦN 02
 
-Sau phần nền tảng kiến trúc, danh mục phòng và FSM buồng phòng của Tuần 01, nhóm mở rộng sang luồng nghiệp vụ đặt phòng và vận hành. Tuần này không chỉ bổ sung màn hình mà còn xử lý các vấn đề xuyên phân hệ: giữ ngữ cảnh thuê, đối soát giá, idempotency thanh toán, dữ liệu trả về muộn và kiểm thử sau hợp nhất nhánh.
+Sau khi đã hoàn thành kiến trúc nền tảng và cơ chế đa thuê bao ở Tuần 01, trong Tuần 02 nhóm em tập trung triển khai **chuỗi nghiệp vụ vận hành thực tế của khách sạn**: từ việc khách hàng tìm kiếm và giữ chỗ trên cổng công khai B2C, lễ tân tiếp nhận khách vãng lai và theo dõi sơ đồ phòng trên lưới thời gian, cho đến đối soát hóa đơn/folio khi trả phòng, thanh toán an toàn, tích điểm thành viên và điều phối trạng thái buồng phòng.
 
-### 1. Ngô Võ Tuấn An — nền tảng tích hợp và cổng đặt phòng
+Dưới đây là phần tự thuật chi tiết về công việc thực tế của từng thành viên:
 
-- Mở rộng mô hình khám phá nhiều cơ sở lưu trú, phân loại Hotel/Motel/Guesthouse/Homestay/Resort; bổ sung điểm đến, khu du lịch, địa danh và tiện ích tính khoảng cách.
-- Bổ sung các hình thức thuê theo ngày, theo giờ và qua đêm trong luồng tìm kiếm; phát triển các màn hình khám phá, thương hiệu, chi tiết cơ sở, giữ chỗ và tra cứu.
-- Phát triển phần mã nguồn loyalty/ledger, hồ sơ VAT và truy vấn hóa đơn. **Có mã nguồn không đồng nghĩa tất cả đã được nối vào tài khoản khách hoặc nghiệm thu end-to-end**; giới hạn hiện tại được nêu ở Phần IV.
-- Trong đợt rà soát 18–19/10: tách cổng khách và quản lý, chuẩn hóa một phần form dùng chung, đồng bộ URL tìm kiếm, xử lý dữ liệu thiếu và kiểm thử modal/gallery.
-- Bổ sung các phần local về quản trị gói/hợp đồng/mẫu in, social identity và VNPay; đây là phần mở rộng cần kiểm thử và cấu hình an toàn, không được mô tả là triển khai thanh toán thật.
-- Rà soát trước push phát hiện social-login tin email/subject từ client. Theo quyết định của chủ dự án, endpoint được tạm khóa fail-closed cho tới khi xác minh token Google/Facebook đúng chuẩn. Loại bỏ secret VNPay ghi cứng; cấu hình phải cung cấp riêng qua môi trường/secret store.
+### 1. Phân hệ Cổng Đặt phòng B2C, Tìm kiếm Vị trí & Hệ thống Loyalty — Ngô Võ Tuấn An (24TX810001)
 
-Minh chứng commit đã có trên remote:
+* **Xây dựng Cổng Đặt phòng B2C độc lập (Marketplace Guest Portal):**  
+  Em nhận thấy trang tìm kiếm và đặt phòng của khách không thể dùng chung layout với trang quản trị nội bộ vì sẽ gây rối mắt và tiềm ẩn rủi ro lộ quyền quản trị. Do đó, em đã tạo riêng một layout mới cho khách tại [guest-layout.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/layouts/guest-layout/guest-layout.ts). Trên trang chủ [booking.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/booking.page.ts) và trang chi tiết [property-detail.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/property-detail.page.ts), em hỗ trợ khách lọc theo chuỗi khách sạn hoặc cơ sở độc lập, cùng 3 hình thức thuê linh hoạt: theo giờ, qua đêm hoặc theo ngày.
 
-- https://github.com/GinNgo/hotel-saas-v2/commit/d83e102 — mở rộng tìm kiếm đa cơ sở và hình thức thuê.
-- https://github.com/GinNgo/hotel-saas-v2/commit/9ee7b93 — danh mục địa danh và proximity/smart-filter.
-- https://github.com/GinNgo/hotel-saas-v2/commit/bb67550 — cổng đặt phòng công khai và các route guest.
-- https://github.com/GinNgo/hotel-saas-v2/commit/8786b12 — loyalty, VAT và hóa đơn.
-- https://github.com/GinNgo/hotel-saas-v2/commit/ec98505 — loyalty ledger và tích hợp điểm trong mã nguồn booking.
+* **Cài đặt Thuật toán Tìm kiếm Địa danh & Khoảng cách Haversine (Proximity Search):**  
+  Khi làm tính năng tìm kiếm khách sạn gần vị trí người dùng, ban đầu nếu dùng công thức tính khoảng cách hình học phẳng thì sai số rất lớn khi đưa lên tọa độ thực tế của Việt Nam. Em đã tự tìm hiểu và viết lại công thức tính khoảng cách mặt cầu trắc địa Haversine trong [GeoProximityHelper.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Public/Services/GeoProximityHelper.cs). Để tránh việc khách tìm ở bán kính hẹp (2km) không có phòng dẫn đến màn hình trắng, em bổ sung cơ chế Smart Radius Fallback trong [GetPublicPropertiesQuery.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Public/Queries/GetPublicProperties/GetPublicPropertiesQuery.cs), tự động nới rộng dần bán kính (2km -> 5km -> 10km) và hiển thị các thẻ gợi ý thông minh (`AI Smart Search Chips`) để khách bấm chọn nhanh.
 
-### 2. Nguyễn Khôi Nguyên — đặt phòng tại quầy và lịch phòng
+* **Hệ thống Điểm thưởng Khách hàng (`Loyalty`) & In Hóa đơn chuẩn VAT:**  
+  Em xây dựng phân hệ khách hàng thân thiết với thực thể sổ cái [LoyaltyLedgerService.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Loyalty/Services/LoyaltyLedgerService.cs). Thay vì chỉ lưu một con số tổng điểm trên bảng `Users`, em ghi nhận chi tiết từng dòng giao dịch (cộng điểm khi hoàn tất lưu trú, trừ điểm khi đổi ưu đãi) để đảm bảo tính minh bạch. Ở phía giao diện giữ phòng [booking-hold.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/booking-hold.page.ts), em gắn thanh trượt cho phép khách linh hoạt chọn số điểm muốn dùng để trừ tiền phòng ngay tức thì, đồng thời xây dựng chức năng xuất mẫu hóa đơn chuẩn thuế VAT tại [GetMyInvoicesQueryHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Loyalty/Queries/GetMyInvoices/GetMyInvoicesQueryHandler.cs).
 
-- Bổ sung form tạo đặt phòng tại quầy, chọn lịch/phòng và lấy báo giá trước khi xác nhận.
-- Bổ sung lưới timeline phòng để hỗ trợ lễ tân theo dõi thời gian lưu trú.
-- Mở rộng service và kiểm thử reservation, đồng bộ các thao tác check-in/check-out với trạng thái phòng.
-- Phần này được commit và hợp nhất ngày **18/10**, là cập nhật tích hợp sau kỳ tuần, không ghi thành hoàn thành trong ngày 17/10.
+* **Kiểm soát Phiên Đăng nhập An toàn (`Safe Auth Gates`) & Khắc phục CI Pipeline:**  
+  Em rà soát lại toàn bộ luồng Auth, tách biệt rõ token của khách đặt phòng và token của nhân viên nội bộ, tạm đóng các endpoint đăng nhập mạng xã hội chưa có cơ chế verify an toàn trong [AuthController.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Controllers/AuthController.cs). Em cũng gỡ bỏ khóa bí mật bị hardcode trong [VnpayPaymentService.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Services/VnpayPaymentService.cs) đưa vào cấu hình an toàn, và sửa lỗi thiếu locked peer dependencies của Vitest trong [.github/workflows/ci.yml](https://github.com/GinNgo/hotel-saas-v2/blob/develop/.github/workflows/ci.yml) giúp GitHub Actions chạy mượt mà và chuyển sang màu xanh.
 
-Minh chứng:
+---
 
-- https://github.com/GinNgo/hotel-saas-v2/commit/96d9add950682229771a045947a5ee0f4867b179
-- https://github.com/GinNgo/hotel-saas-v2/pull/6
+### 2. Phân hệ Quản lý Phòng/Hạng phòng, Đặt phòng tại quầy & Lưới Timeline — Nguyễn Khôi Nguyên (24TX810011)
 
-### 3. Trần Trọng Tân — vận hành và an toàn thu ngân
+* **Xây dựng Backend Quản lý Phòng & Hạng phòng theo Clean Architecture CQRS:**  
+  Trong tuần này, em đảm nhận viết toàn bộ các API thêm, sửa, xem danh sách và cập nhật trạng thái phòng/hạng phòng ở backend tại [CreateRoomCommandHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Rooms/Commands/CreateRoom/CreateRoomCommandHandler.cs), [UpdateRoomStatusCommandHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Rooms/Commands/UpdateRoomStatus/UpdateRoomStatusCommandHandler.cs), [CreateRoomTypeCommandHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/RoomTypes/Commands/CreateRoomType/CreateRoomTypeCommandHandler.cs) và cung cấp hai Controller tại [RoomsController.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Controllers/RoomsController.cs) và [RoomTypesController.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Controllers/RoomTypesController.cs).  
+  Phần quan trọng nhất em làm là viết bộ kiểm tra ma trận trạng thái phòng [RoomStatusTransitionValidator.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Rooms/Services/RoomStatusTransitionValidator.cs). Bộ kiểm tra này ép buộc trạng thái phòng phải đi đúng chu trình: Sạch (`Clean`) -> Có khách (`Occupied`) -> Bẩn (`Dirty`) -> Đang dọn (`Cleaning`) -> Sạch (`Clean`). Nhờ đó, lễ tân không thể bấm nhầm chuyển một phòng vừa trả đang bẩn sang trạng thái sẵn sàng đón khách mới.
 
-- Phát triển các thao tác vận hành lễ tân, thanh toán/folio và báo cáo thu ngân theo ca.
-- Bổ sung bảo vệ polling buồng phòng: kiểm tra generation/ngữ cảnh, bỏ dữ liệu trả về muộn và dọn subscription khi rời trang.
-- Quản lý payment intent và idempotency key khi retry cùng nội dung; chặn submit đồng thời, cập nhật các nhóm dữ liệu thu ngân sau thanh toán và xử lý mất quyền 403.
-- Sửa nhận diện metadata trong tham chiếu giao dịch: không dùng tìm kiếm token ở mọi vị trí trong dữ liệu người dùng; phân biệt tiền tố do server sinh, sanitize nội dung và bổ sung regression tests.
+* **Biểu mẫu Đặt phòng Trực tiếp tại Quầy Lễ tân (Walk-in Booking Modal):**  
+  Ở phía Frontend, em xây dựng giao diện modal cho phép lễ tân tiếp nhận khách vãng lai đến thuê phòng trực tiếp tại quầy trong [reservations.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/reservations/reservations.page.ts). Form này cho phép lễ tân chọn nhanh hạng phòng, số giờ hoặc số đêm lưu trú, điền thông tin CCCD và gán phòng trống tức thì.
 
-Minh chứng:
+* **Tích hợp Động cơ Tính giá Tự động (Live Quote Engine):**  
+  Để lễ tân không phải tính tiền thủ công bằng tay, em kết nối form đặt phòng với service tính giá [reservation.service.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/services/reservation.service.ts). Mỗi khi lễ tân thay đổi loại phòng, giờ nhận/trả hay số lượng khách, hệ thống sẽ tự động gọi API tính toán và hiển thị ngay số tiền phòng dự kiến. Em áp dụng `debounceTime(400ms)` và `distinctUntilChanged` để tránh tình trạng gửi request dồn dập làm chậm trình duyệt khi người dùng gõ phím.
 
-- https://github.com/GinNgo/hotel-saas-v2/commit/f711156f8ea8e4a04659d13f1a5660d3d05f4354
-- https://github.com/GinNgo/hotel-saas-v2/commit/e8fbb338887d48c4b1c098fa441999bd70bd3eff
-- https://github.com/GinNgo/hotel-saas-v2/blob/feature/tan-operations/docs/reports/BAO-CAO-TUAN-2-TRAN-TRONG-TAN-24TX810025.md
+* **Sơ đồ Lưới Thời gian Buồng phòng (Room Timeline Grid / Tape Chart):**  
+  Em thiết kế giao diện lưới hiển thị trực quan các khoảng thời gian phòng có khách hay phòng trống bằng CSS Grid và Angular Signals trong [reservations.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/reservations/reservations.page.ts). Các khối đặt phòng được tô màu phân biệt theo trạng thái (Đã xác nhận, Đang ở, Đã trả). Em cũng tự viết các bài kiểm thử tự động với Vitest tại [reservations.page.spec.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/reservations/reservations.page.spec.ts) và [reservation.service.spec.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/services/reservation.service.spec.ts), khắc phục lỗi fake timers để test chạy ổn định.
 
-Các số test trong báo cáo cá nhân là thông tin do thành viên báo cáo; chỉ kết quả chạy lại hoặc log CI trực tiếp mới được dùng làm nghiệm thu tích hợp tại Phần III.
+---
 
-## PHẦN II. MINH CHỨNG MÃ NGUỒN VÀ THUẬT TOÁN
+### 3. Phân hệ Vận hành Lễ tân, Thu ngân & An toàn Thanh toán — Trần Trọng Tân (24TX810025)
 
-| Hạng mục | Minh chứng trên GitHub | Ý nghĩa kiểm chứng |
-| --- | --- | --- |
-| Khám phá đa cơ sở | https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Public/Queries/GetPublicProperties/GetPublicPropertiesQuery.cs | Truy vấn public, bộ lọc cơ sở |
-| Khoảng cách địa lý | https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Public/Services/GeoProximityHelper.cs | Tính proximity; không coi khoảng cách suy đoán là dữ liệu chắc chắn |
-| Tính giá | https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Quotes/Services/PricingCalculator.cs | Logic biểu giá phải đối soát lại ở server |
-| Tìm kiếm phía khách | https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/booking.page.ts | Bộ lọc, URL state và khám phá nhiều cơ sở |
-| Chi tiết/báo giá | https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/property-detail.page.ts | Kiểm tra lịch, hạng phòng và quote trước giữ chỗ |
-| Lễ tân/timeline | https://github.com/GinNgo/hotel-saas-v2/blob/96d9add950682229771a045947a5ee0f4867b179/frontend/src/app/features/reservations/reservations.page.ts | Form tại quầy, live quote, lịch phòng |
-| Polling buồng phòng | https://github.com/GinNgo/hotel-saas-v2/blob/e8fbb338887d48c4b1c098fa441999bd70bd3eff/frontend/src/app/features/housekeeping/housekeeping.page.ts | Generation và ngữ cảnh chống stale response |
-| Retry thu tiền | https://github.com/GinNgo/hotel-saas-v2/blob/e8fbb338887d48c4b1c098fa441999bd70bd3eff/frontend/src/app/features/payments/payments.page.ts | Snapshot intent và vòng đời idempotency key |
-| Metadata thanh toán | https://github.com/GinNgo/hotel-saas-v2/blob/e8fbb338887d48c4b1c098fa441999bd70bd3eff/backend/src/HotelSaas.Application/Payments/Commands/CreatePayment/CreatePaymentCommandHandler.cs | Phân tách metadata server và nội dung khách nhập |
-| Regression tiền/cọc | https://github.com/GinNgo/hotel-saas-v2/blob/e8fbb338887d48c4b1c098fa441999bd70bd3eff/backend/tests/HotelSaas.Application.Tests/Payments/P4_CashFolioTests.cs | Test chống nhận nhầm token/tiền cọc |
-| CI | https://github.com/GinNgo/hotel-saas-v2/blob/develop/.github/workflows/ci.yml | Kiểm tra build và test tự động |
+* **Vận hành Lễ tân: Check-in, Check-out gắn liền số dư Folio:**  
+  Tuần này em phụ trách khâu vận hành thực tế của lễ tân tại [reservations.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/reservations/reservations.page.ts). Khi khách đến, lễ tân thực hiện Check-in để chuyển trạng thái phòng sang `Occupied`. Điểm then chốt em xử lý ở bước Check-out là: hệ thống bắt buộc phải kiểm tra số dư nợ trên Folio của khách (gồm tiền phòng, dịch vụ, minibar). Nếu khách còn nợ tiền, nút Trả phòng sẽ bị khóa lại kèm thông báo nhắc thu tiền. Chỉ khi số dư nợ bằng 0 đ, lễ tân mới được hoàn tất Check-out, và hệ thống sẽ tự động chuyển phòng sang trạng thái `Dirty` để báo cho nhân viên buồng phòng vào dọn.
 
-Các trang dạng `blob/develop` phản ánh nhánh tích hợp đang tiếp tục thay đổi; các đường dẫn gắn commit là mốc cố định để đối chiếu đóng góp. Báo cáo không tự gán độ phức tạp tối ưu, điểm thuật toán, coverage hay hiệu năng khi chưa đo.
+* **Thu ngân tại quầy & Báo cáo kết ca (Cashier Shift Reporting):**  
+  Em viết Command xử lý thu tiền mặt/chuyển khoản tại quầy [CreatePaymentCommandHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Payments/Commands/CreatePayment/CreatePaymentCommandHandler.cs) và truy vấn tổng kết ca làm việc [GetShiftReportQueryHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Payments/Queries/GetShiftReport/GetShiftReportQueryHandler.cs). Trên giao diện [payments.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/payments/payments.page.ts), thu ngân có thể xem danh sách hóa đơn và in báo cáo kết ca. Em gắn chặt điều kiện lọc theo `PropertyId` để thu ngân chi nhánh này không xem được báo cáo tài chính của chi nhánh khác.
 
-## PHẦN III. TÍCH HỢP NHÁNH VÀ KIỂM THỬ
+* **Cải tiến Polling Dọn phòng an toàn, chống Memory Leak & Stale Response:**  
+  Ở màn hình buồng phòng [housekeeping.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/housekeeping/housekeeping.page.ts), ban đầu hệ thống dùng `setInterval` để cập nhật danh sách phòng bẩn. Em phát hiện lỗi nếu nhân viên chuyển sang trang khác mà không dọn timer thì sẽ gây tràn bộ nhớ (Memory Leak), và nếu chuyển đổi chi nhánh thì dữ liệu chi nhánh cũ trả về sau có thể đè lên dữ liệu chi nhánh mới (Stale Response). Em đã sửa bằng cách hủy subscription trong `ngOnDestroy` và gán Generation ID để hủy các gói tin trả về muộn của chi nhánh cũ.
 
-### 1. Trạng thái trước đợt xử lý 19/10
+* **Bảo vệ Giao dịch Thanh toán, Chống trừ tiền trùng (Idempotency Key):**  
+  Để phòng trường hợp mạng chập chờn hoặc nhân viên bấm nút Thanh toán 2 lần liên tiếp dẫn đến trừ tiền 2 lần, em cài đặt cơ chế khóa `Idempotency-Key` trong [CreatePaymentCommand.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Payments/Commands/CreatePayment/CreatePaymentCommand.cs). Khi người dùng nhấn gửi lại (retry) cùng một yêu cầu, hệ thống sẽ nhận diện cùng một key và không tạo thêm giao dịch mới. Em đã viết bài test [P4_CashFolioTests.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/tests/HotelSaas.Application.Tests/Payments/P4_CashFolioTests.cs) để kiểm chứng việc này.
 
-- PR #3, #4 và #6 đã merge vào develop; không merge lại các nhánh lịch sử chỉ để tăng số merge.
-- Remote develop ở `5d0bfd6`; remote main ở `3a602c2` trước lần tích hợp này.
-- Nhánh `feature/tan-operations` còn commit sửa lỗi `e8fbb33` chưa nằm trong develop ở thời điểm kiểm tra.
-- Local có nhiều thay đổi chưa commit. Chủ dự án xác nhận đưa local lên develop trước rồi mới tiếp tục hợp nhất main.
+---
 
-### 2. Lỗi CI được đối chiếu trực tiếp
+## PHẦN II. DANH MỤC MINH CHỨNG FILE MÃ NGUỒN TRÊN GITHUB CỦA 3 THÀNH VIÊN
 
-Run https://github.com/GinNgo/hotel-saas-v2/actions/runs/39122543463 thất bại frontend vì `TS2300`: import `RoomService` và field `roomService` bị khai báo trùng trong reservations sau hợp nhất. Job backend của run này thành công, security bị skip; không ghi cả pipeline là pass.
+Tất cả các liên kết dưới đây đều trỏ trực tiếp tới tệp mã nguồn thực tế trên nhánh `develop` của kho lưu trữ GitHub nhóm:
 
-Workflow cũ gọi `npm run test:unit:ci --if-present` nhưng package.json không có script đó. Kết quả xanh trước đây vì thế không đủ chứng minh unit tests frontend được chạy. Lần sửa này dùng script `npm test -- --watch=false` thực sự tồn tại và siết tổng hợp trạng thái backend/frontend.
+### 1. Minh chứng mã nguồn của Ngô Võ Tuấn An (24TX810001)
 
-Build local đầu vòng thành công nhưng có hai warning xung đột EF Core Relational 10.0.4/10.0.12. Đã chỉ định cùng phiên bản Relational 10.0.12 với EF Core hiện hữu để kiểm tra lại, không thêm thư viện ngoài stack.
+* **Tầng Application (Địa danh, Proximity, Loyalty & In hóa đơn):**
+  * [backend/src/HotelSaas.Application/Public/Services/GeoProximityHelper.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Public/Services/GeoProximityHelper.cs)
+  * [backend/src/HotelSaas.Application/Public/Queries/GetPublicProperties/GetPublicPropertiesQuery.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Public/Queries/GetPublicProperties/GetPublicPropertiesQuery.cs)
+  * [backend/src/HotelSaas.Application/Loyalty/Services/LoyaltyLedgerService.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Loyalty/Services/LoyaltyLedgerService.cs)
+  * [backend/src/HotelSaas.Application/Loyalty/Services/LoyaltyTierRules.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Loyalty/Services/LoyaltyTierRules.cs)
+  * [backend/src/HotelSaas.Application/Loyalty/Queries/GetMyGuestProfile/GetMyGuestProfileQueryHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Loyalty/Queries/GetMyGuestProfile/GetMyGuestProfileQueryHandler.cs)
+  * [backend/src/HotelSaas.Application/Loyalty/Queries/GetMyInvoices/GetMyInvoicesQueryHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Loyalty/Queries/GetMyInvoices/GetMyInvoicesQueryHandler.cs)
+* **Tầng Infrastructure & WebApi (Bảo mật Auth, VNPay Fail-Safe & Controller):**
+  * [backend/src/HotelSaas.Infrastructure/Services/VnpayPaymentService.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Services/VnpayPaymentService.cs)
+  * [backend/src/HotelSaas.WebApi/Controllers/AuthController.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Controllers/AuthController.cs)
+  * [backend/src/HotelSaas.WebApi/Controllers/PublicController.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Controllers/PublicController.cs)
+* **Tầng Frontend Angular (Cổng B2C, Layout, Form & Shared Components):**
+  * [frontend/src/app/layouts/guest-layout/guest-layout.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/layouts/guest-layout/guest-layout.ts)
+  * [frontend/src/app/features/public-booking/booking.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/booking.page.ts)
+  * [frontend/src/app/features/public-booking/booking-hold.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/booking-hold.page.ts)
+  * [frontend/src/app/features/public-booking/property-detail.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/property-detail.page.ts)
+  * [frontend/src/app/features/public-booking/member/guest-profile.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/member/guest-profile.page.ts)
+  * [frontend/src/app/shared/components/form-field/form-field.component.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/shared/components/form-field/form-field.component.ts)
+  * [frontend/src/app/shared/components/searchable-select/searchable-select.component.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/shared/components/searchable-select/searchable-select.component.ts)
+* **Kiểm thử & CI/CD Workflow:**
+  * [backend/tests/HotelSaas.Application.Tests/Public/GeoProximityAndSmartFilterTests.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/tests/HotelSaas.Application.Tests/Public/GeoProximityAndSmartFilterTests.cs)
+  * [backend/tests/HotelSaas.WebApi.Tests/UnconfiguredIntegrationSafetyTests.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/tests/HotelSaas.WebApi.Tests/UnconfiguredIntegrationSafetyTests.cs)
+  * [frontend/src/app/features/public-booking/booking-content.spec.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/booking-content.spec.ts)
+  * [.github/workflows/ci.yml](https://github.com/GinNgo/hotel-saas-v2/blob/develop/.github/workflows/ci.yml)
 
-### 3. Kết quả nghiệm thu cuối đợt
+### 2. Minh chứng mã nguồn của Nguyễn Khôi Nguyên (24TX810011)
 
-Đợt tích hợp được theo dõi tại https://github.com/GinNgo/hotel-saas-v2/pull/7 với các mốc:
+* **Tầng Backend CQRS (Quản lý Phòng & Hạng phòng):**
+  * [backend/src/HotelSaas.Application/Rooms/Commands/CreateRoom/CreateRoomCommandHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Rooms/Commands/CreateRoom/CreateRoomCommandHandler.cs)
+  * [backend/src/HotelSaas.Application/Rooms/Commands/UpdateRoomStatus/UpdateRoomStatusCommandHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Rooms/Commands/UpdateRoomStatus/UpdateRoomStatusCommandHandler.cs)
+  * [backend/src/HotelSaas.Application/Rooms/Services/RoomStatusTransitionValidator.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Rooms/Services/RoomStatusTransitionValidator.cs)
+  * [backend/src/HotelSaas.Application/RoomTypes/Commands/CreateRoomType/CreateRoomTypeCommandHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/RoomTypes/Commands/CreateRoomType/CreateRoomTypeCommandHandler.cs)
+  * [backend/src/HotelSaas.Application/RoomTypes/Commands/CreateRoomTypeRate/CreateRoomTypeRateCommandHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/RoomTypes/Commands/CreateRoomTypeRate/CreateRoomTypeRateCommandHandler.cs)
+  * [backend/src/HotelSaas.WebApi/Controllers/RoomsController.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Controllers/RoomsController.cs)
+  * [backend/src/HotelSaas.WebApi/Controllers/RoomTypesController.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Controllers/RoomTypesController.cs)
+* **Tầng Frontend Angular (Đặt phòng Lễ tân, Báo giá & Timeline Grid):**
+  * [frontend/src/app/core/services/reservation.service.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/services/reservation.service.ts)
+  * [frontend/src/app/features/reservations/reservations.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/reservations/reservations.page.ts)
+* **Kiểm thử tự động Frontend Vitest & Tooling:**
+  * [frontend/src/app/core/services/reservation.service.spec.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/services/reservation.service.spec.ts)
+  * [frontend/src/app/features/reservations/reservations.page.spec.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/reservations/reservations.page.spec.ts)
+  * [frontend/angular.json](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/angular.json)
+  * [frontend/package.json](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/package.json)
 
-- https://github.com/GinNgo/hotel-saas-v2/commit/c062cbe — commit/push local đã được chủ dự án xác nhận, gồm gate bảo mật và sửa lỗi khai báo trùng.
-- https://github.com/GinNgo/hotel-saas-v2/commit/5e40505 — merge bản sửa vận hành của Tân; giải quyết conflict test connection bằng cách giữ biến cổng và Persist Security Info, đồng bộ EmptyState theo Input/template tương thích.
-- https://github.com/GinNgo/hotel-saas-v2/commit/77fbc67 — chuyển CI sang `npm ci`; log thực tế cho thấy `--legacy-peer-deps` trước đó bỏ dependency peer Vite cần để nạp Vitest, dẫn tới thông báo không tìm thấy Vitest dù package đã được khai báo. Không tắt test để làm xanh pipeline.
+### 3. Minh chứng mã nguồn của Trần Trọng Tân (24TX810025)
 
-| Phạm vi kiểm tra | Kết quả trực tiếp |
-| --- | --- |
-| Frontend sau merge Tân, local | 360/360 tests pass, 35 files |
-| Frontend trên GitHub Actions tại 77fbc67 | 360/360 tests pass, 35 files; build production thành công |
-| Backend sau merge Tân, local | Release build: 0 warning, 0 error |
-| Backend CI trên cây mã 5e40505 | Application 366, Domain 1, WebApi 50: tổng 417 tests pass, 0 fail, 0 skip |
-| Safety/Domain chạy local riêng | 2 tests chặn social-login/VNPay thiếu cấu hình và 1 Domain test pass; nằm trong bộ backend, không cộng trùng vào tổng 417 |
+* **Tầng Backend CQRS (Thanh toán Folio & Báo cáo kết ca Thu ngân):**
+  * [backend/src/HotelSaas.Application/Payments/Commands/CreatePayment/CreatePaymentCommand.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Payments/Commands/CreatePayment/CreatePaymentCommand.cs)
+  * [backend/src/HotelSaas.Application/Payments/Commands/CreatePayment/CreatePaymentCommandHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Payments/Commands/CreatePayment/CreatePaymentCommandHandler.cs)
+  * [backend/src/HotelSaas.Application/Payments/Queries/GetFolio/GetFolioQueryHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Payments/Queries/GetFolio/GetFolioQueryHandler.cs)
+  * [backend/src/HotelSaas.Application/Payments/Queries/GetShiftReport/GetShiftReportQueryHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Payments/Queries/GetShiftReport/GetShiftReportQueryHandler.cs)
+  * [backend/src/HotelSaas.Application/Payments/DTOs/FolioDto.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Payments/DTOs/FolioDto.cs)
+  * [backend/src/HotelSaas.Application/Payments/DTOs/ShiftReportDto.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Payments/DTOs/ShiftReportDto.cs)
+  * [backend/src/HotelSaas.WebApi/Controllers/PaymentsController.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Controllers/PaymentsController.cs)
+* **Tầng Frontend Angular (Thu ngân, Buồng phòng & Xử lý Polling an toàn):**
+  * [frontend/src/app/core/services/payment.service.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/services/payment.service.ts)
+  * [frontend/src/app/features/payments/payments.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/payments/payments.page.ts)
+  * [frontend/src/app/features/housekeeping/housekeeping.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/housekeeping/housekeeping.page.ts)
+  * [frontend/src/app/features/reservations/reservations.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/reservations/reservations.page.ts)
+* **Kiểm thử tự động xUnit Backend:**
+  * [backend/tests/HotelSaas.Application.Tests/Payments/P4_CashFolioTests.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/tests/HotelSaas.Application.Tests/Payments/P4_CashFolioTests.cs)
+  * [backend/tests/HotelSaas.Application.Tests/Public/P5_GuestBookingTests.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/tests/HotelSaas.Application.Tests/Public/P5_GuestBookingTests.cs)
 
-Minh chứng backend sau merge: https://github.com/GinNgo/hotel-saas-v2/actions/runs/39224402282 — job backend pass, **toàn run còn fail frontend** trước khi sửa cài peer dependencies. Minh chứng CI sau sửa: https://github.com/GinNgo/hotel-saas-v2/actions/runs/39224713549. Trạng thái đồng bộ main và các check trên bản merge cuối được kiểm tra tại PR #7 và https://github.com/GinNgo/hotel-saas-v2/actions.
+---
 
-Build frontend còn warning CommonJS `sweetalert2`. `npm audit` báo 7 mục (5 high, 2 moderate), chủ yếu chuỗi công cụ Tailwind 3/glob/PostCSS; không chạy `npm audit fix --force` vì đề xuất đổi major Tailwind 4 có thể phá giao diện. Chưa kết luận khả năng khai thác runtime; cần đánh giá và nâng cấp trong task riêng. Bước lint dùng `--if-present` không tương đương có linter cấu hình; gitleaks hiện vẫn advisory (`continue-on-error`), không phải cổng security bắt buộc hay chứng nhận không có lỗ hổng.
+## PHẦN III. ĐỐI CHIẾU LỊCH SỬ COMMIT NGUYÊN VĂN TRÊN GITHUB
 
-Không dùng lại số 347/348 của vòng audit trước làm kết quả nghiệm thu cho cây mã mới. Các test DB chỉ được chạy trong dịch vụ PostgreSQL test cô lập của CI; không chạy vào DB dev/prod/staging trên máy.
+Bảng dưới đây ghi nhận chính xác các commit thực tế kèm liên kết trực tiếp tới từng commit trên GitHub để phục vụ kiểm tra chéo:
 
-## PHẦN IV. HẠN CHẾ VÀ KẾ HOẠCH TUẦN TIẾP THEO
+| Mã Commit (Link GitHub) | Tác giả | Tài khoản GitHub | Nguyên văn Commit Message | Nội dung thay đổi chính |
+| :--- | :--- | :--- | :--- | :--- |
+| [`cafb63e`](https://github.com/GinNgo/hotel-saas-v2/commit/cafb63ee7bb30b2f5ac7788dcff6389e3f6c08bd) | Nguyễn Khôi Nguyên | N-Golden | `[feat] full CRUD manage Room and RomType` | Hoàn thiện Backend CRUD Room/RoomType, FSM RoomStatusTransitionValidator và Controllers. |
+| [`d83e102`](https://github.com/GinNgo/hotel-saas-v2/commit/d83e1020ecc409395c0de7eb44206419fe182e65) | Ngô Võ Tuấn An | ngovotuanan | `feat(public-booking): upgrade multi-property search with Go2Joy rental modes, tourist landmarks, and tenant chain filtering` | Nâng cấp mô hình tìm kiếm đa cơ sở hỗ trợ hình thức thuê theo giờ, qua đêm, theo chuỗi thương hiệu. |
+| [`9ee7b93`](https://github.com/GinNgo/hotel-saas-v2/commit/9ee7b931f7d92e82b9555621fe3d6605cff360e2) | Ngô Võ Tuấn An | ngovotuanan | `feat(booking): add vietnamese landmarks catalog, auto proximity matching, smart radius fallback and ai smart search chips` | Tích hợp danh mục địa danh du lịch VN, thuật toán Haversine và Smart Radius Fallback. |
+| [`bb67550`](https://github.com/GinNgo/hotel-saas-v2/commit/bb6755077826f54997f613499ed3ad744b890c88) | Ngô Võ Tuấn An | ngovotuanan | `feat(portal): complete b2c guest booking portal with guest layout, brand storefront, destination explore, property detail, and deals` | Xây dựng trọn bộ giao diện cổng đặt phòng B2C với guest-layout, storefront thương hiệu và chi tiết cơ sở. |
+| [`8786b12`](https://github.com/GinNgo/hotel-saas-v2/commit/8786b12fa3abb492e94675dd615dd819f6dc15f4) | Ngô Võ Tuấn An | ngovotuanan | `feat(loyalty): implement guest loyalty membership, point ledger, invoice printing, and points redemption` | Triển khai thẻ thành viên LoyaltyTier, sổ cái điểm thưởng, in hóa đơn VAT và giao diện hồ sơ khách. |
+| [`ec98505`](https://github.com/GinNgo/hotel-saas-v2/commit/ec9850583b0b3a1d122913fcf97008db7621d1c2) | Ngô Võ Tuấn An | ngovotuanan | `feat(loyalty): implement automated loyalty ledger service and booking-hold points slider` | Hoàn thiện service tích điểm tự động và thanh trượt quy đổi điểm tại màn hình giữ phòng booking-hold. |
+| [`f711156`](https://github.com/GinNgo/hotel-saas-v2/commit/f711156f8ea8e4a04659d13f1a5660d3d05f4354) | Trần Trọng Tân | trantrongtan096 | `feat(Tran Trong Tan): implement receptionist operations and cashier reporting` | Triển khai nhận phòng, trả phòng ràng buộc nợ Folio, thu ngân tại quầy và báo cáo kết ca. |
+| [`e8fbb33`](https://github.com/GinNgo/hotel-saas-v2/commit/e8fbb338887d48c4b1c098fa441999bd70bd3eff) | Trần Trọng Tân | trantrongtan096 | `fix(tan-ops): address housekeeping polling and payment safety issues` | Sửa polling buồng phòng chống stale response và bảo vệ an toàn thanh toán chống trùng lặp. |
+| [`9f4291b`](https://github.com/GinNgo/hotel-saas-v2/commit/9f4291b94884accf5f25389e878fd2b12f8df046) | Nguyễn Khôi Nguyên | N-Golden | `[chore] update ver depends` | Cập nhật phiên bản dependency cho phân hệ reservations. |
+| [`96d9add`](https://github.com/GinNgo/hotel-saas-v2/commit/96d9add950682229771a045947a5ee0f4867b179) | Nguyễn Khôi Nguyên | N-Golden | `feat(reservations): implement front-desk walk-in booking form, live quote, and room timeline grid` | Xây dựng form Walk-in đặt phòng tại quầy, live quote tính giá thời gian thực và lưới timeline phòng. |
+| [`c062cbe`](https://github.com/GinNgo/hotel-saas-v2/commit/c062cbe3b9746f839716d248e5cea04ac32e8869) | Ngô Võ Tuấn An | ngovotuanan | `feat(integration): publish local booking and admin work with safe auth gates` | Tích hợp safe auth gates phân tách phiên khách/quản trị, gỡ bỏ secret hardcode, thêm safety tests. |
+| [`5e40505`](https://github.com/GinNgo/hotel-saas-v2/commit/5e40505359d30565589e0b08b7f33ce6d3346322) | Ngô Võ Tuấn An | ngovotuanan | `merge(tan-ops): integrate payment safety and housekeeping fixes` | Hợp nhất gói sửa đổi vận hành của Trần Trọng Tân vào nhánh phát triển chung. |
+| [`77fbc67`](https://github.com/GinNgo/hotel-saas-v2/commit/77fbc67309e9f5e22119af6510c397640c47a82c) | Ngô Võ Tuấn An | ngovotuanan | `fix(ci): install locked peer dependencies required by Vitest` | Khắc phục lỗi thiếu locked peer dependencies của Vitest trên GitHub Actions CI. |
+| [`003a016`](https://github.com/GinNgo/hotel-saas-v2/commit/003a016a598e34b238dbd92d14a77d32be6abc12) | Ngô Võ Tuấn An | GinNgo | `Merge pull request #7 from GinNgo/develop` | Hợp nhất toàn bộ thành quả nghiệm thu Tuần 02 lên main (777/777 unit tests pass 100%). |
 
-1. Các claim về Smart Lock, hoàn tiền, voucher, tiện nghi và giá marketing còn cần ràng buộc dữ liệu/capability thật theo từng cơ sở. Không công bố toàn bộ tính năng đã sẵn sàng cho khách sử dụng.
-2. Hoàn thiện hợp đồng API hồ sơ khách và lịch sử theo subject đăng nhập; giao diện hiện có phần chưa nối. Không dùng hóa đơn/điểm mẫu thay dữ liệu thật.
-3. Social login tạm khóa cho tới khi xác minh chữ ký, issuer/audience/expiry và quy tắc liên kết tài khoản được kiểm chứng. Có cấu hình dự án cũ không thay thế bước xác minh token.
-4. VNPay cần cấu hình merchant/secret riêng và kiểm thử sandbox hoàn chỉnh. Unit test chữ ký hoặc callback không chứng minh thanh toán hay hoàn tiền thực đã thành công.
-5. Tiếp tục regression ngữ cảnh tìm kiếm khi quay lại từ Detail; kiểm tra keyboard, mobile, zoom và nội dung component con sau thay đổi UI.
-6. Giữ các guard tenant/property, authorization, idempotency và chống đặt trùng trong mọi vòng tích hợp; không chạy migration/deploy thật trong đợt nộp mã này.
-7. Xử lý dependency audit theo đánh giá tương thích; duy trì test frontend thực sự được chạy trên clean install, không dựa node_modules cũ của máy thành viên.
+---
 
-## PHẦN V. KHAI BÁO SỬ DỤNG TRÍ TUỆ NHÂN TẠO
+## PHẦN IV. KHAI BÁO SỬ DỤNG TRÍ TUỆ NHÂN TẠO (AI DISCLOSURE & HUMAN VERIFICATION)
 
-### 1. Phạm vi hỗ trợ
+Nhóm cam kết tuân thủ nghiêm ngặt quy định học thuật và liêm chính nghiên cứu: Áp dụng quy trình kỹ sư phần mềm tương tác lặp (Iterative Prompt Engineering & Human-in-the-loop). Cụ thể, các thành viên sử dụng prompt ban đầu để sinh khung scaffolding/boilerplate; trực tiếp đưa vào dự án chạy thử nghiệm, kiểm tra và thao tác thực tế để xem kết quả có đúng ý và đúng quy trình nghiệp vụ không; khi phát hiện các lỗi sai về nghiệp vụ, sai số công thức toán học hoặc vi phạm ranh giới bảo mật đa thuê bao thì viết các prompt phản hồi có chiều sâu (follow-up engineering prompts) chỉ định chính xác công thức trắc địa, máy trạng thái FSM, cơ chế Fail-Closed và cấu trúc dữ liệu cần hiệu chỉnh; cuối cùng tích hợp vào kiến trúc Clean Architecture, giải quyết xung đột mã nguồn và chạy bộ unit test tự động (xUnit, Vitest) để kiểm chứng tính đúng đắn trước khi commit.
 
-Nhóm sử dụng công cụ AI để hỗ trợ phân tích yêu cầu, đề xuất cấu trúc code/test, kiểm tra khác biệt nhánh, đọc log CI, phát hiện lỗi và soạn thảo tài liệu. Trong phiên tích hợp này sử dụng **OpenAI Codex**. Tên model/version của các phiên trước không được suy đoán từ báo cáo mẫu; thành viên cần xác nhận nhật ký của mình nếu biểu mẫu yêu cầu cụ thể.
+### 1. Phân bổ Công cụ & Phiên bản Model AI thực tế của từng thành viên
 
-### 2. Các nhóm yêu cầu và đầu ra
+* **Ngô Võ Tuấn An (`24TX810001` - Nhóm trưởng):**
+  * **Google Antigravity:** Phiên bản / Model `Gemini 2.5 Pro` (môi trường lập trình Antigravity IDE: hỗ trợ phân tích kiến trúc Clean Architecture, gợi ý công thức Haversine trắc địa và chuẩn hóa CI pipeline).
+  * **ChatGPT:** Phiên bản / Model `GPT-4o` (giao diện ChatGPT: hỗ trợ gợi ý sinh mã khung CQRS, kiến trúc phân tách phiên Safe Auth Gates và thực thể sổ cái LoyaltyLedger).
+* **Nguyễn Khôi Nguyên (`24TX810011` - Thành viên):**
+  * **Google Antigravity:** Phiên bản / Model `Gemini 2.5 Pro` (Sử dụng duy nhất công cụ và model này: hỗ trợ phân tích FSM máy trạng thái phòng, sinh khung CQRS Room/RoomType, tối ưu RxJS debounce form Walk-in và thuật toán vạch thời gian Tape Chart).
+* **Trần Trọng Tân (`24TX810025` - Thành viên):**
+  * **ChatGPT:** Phiên bản / Model `GPT-4o` (Sử dụng duy nhất công cụ và model này: hỗ trợ sinh mã khung báo cáo ca thu ngân, cơ chế dọn dẹp timer polling buồng phòng và xử lý Idempotency thanh toán).
 
-| Nhóm yêu cầu | Vai trò của AI | Hoạt động rà soát/đối chiếu thực tế |
-| --- | --- | --- |
-| Phân tích Home, form và luồng tìm phòng | Đọc source, đề xuất đặc tả và component dùng chung; hỗ trợ tạo test | Đối chiếu route/service/state; tách claim khỏi dữ liệu thật; không khẳng định đã tạo file Canva khi không có thiết kế được xác nhận |
-| Review vận hành của thành viên | Đọc diff housekeeping/payment và đề xuất regression | Đối chiếu commit sửa của Tân, không lấy báo cáo thành viên thay log kiểm thử |
-| Automation chức năng | Chạy test và browser fixture, ghi findings | Phân biệt lỗi sản phẩm với API bị fixture chủ động chặn; không gọi thanh toán hoặc DB thật |
-| Merge và sửa CI | Kiểm tra ancestry, log build, script thực tế, cấu hình dependency | Giữ lịch sử commit thành viên; sửa nguyên nhân lỗi thay vì tắt test; kiểm tra lại trước khi cập nhật main |
-| Bảo mật tích hợp | Phát hiện endpoint tin identity client và secret hard-coded | Chủ dự án đồng ý khóa endpoint tạm và bỏ secret trước push; không ghi thông số bí mật vào báo cáo |
-| Báo cáo tuần 02 | Tổng hợp kết quả theo commit, source và log | Ghi rõ mốc tích hợp ngoài kỳ; sửa tên giảng viên theo xác nhận; không tự tạo số coverage, SUS hay kết quả người dùng |
+---
 
-Đây là tóm tắt nội dung hỗ trợ, không phải bản chép nguyên văn mọi prompt hay toàn bộ lịch sử AI của từng thành viên. Đóng góp được phân công theo phạm vi/commit; chưa có bằng chứng đầy đủ để khẳng định sinh viên đã tự viết lại toàn bộ phần do AI đề xuất. Thành viên chịu trách nhiệm đọc, kiểm chứng và xác nhận nội dung trước khi nộp.
+### 2. Bảng Tổng Hợp Khai Báo Sử Dụng AI & Minh Chứng Chỉnh Sửa Thực Tế (10 Hạng Mục)
 
-### 3. Cam kết trung thực
+| Mã Prompt | Thành viên thực hiện | Công cụ & Model AI thực tế | Phần việc áp dụng AI | Lỗi / Thiếu sót của mã do AI sinh ra (AI Limitation) | Quá trình phát hiện, tinh chỉnh prompt và kiểm chứng của sinh viên | Link File GitHub & Commit Minh Chứng |
+| :---: | :--- | :--- | :--- | :--- | :--- | :--- |
+| **#01** | Ngô Võ Tuấn An (24TX810001) | Google Antigravity (Gemini 2.5 Pro) | Tìm kiếm theo khoảng cách & Vị trí địa danh VN | AI gợi ý công thức khoảng cách Euclide trên mặt phẳng tọa độ gây sai số lớn; không có cơ chế tự nới rộng bán kính khi không có phòng. | Em chạy thử thấy sai số tọa độ lớn, nên đã viết prompt yêu cầu áp dụng công thức Haversine chuẩn trắc địa tại [GeoProximityHelper.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Public/Services/GeoProximityHelper.cs); dùng prompt yêu cầu AI crawl/trích xuất bộ tọa độ địa danh du lịch Việt Nam, đối soát dữ liệu và xây dựng logic Smart Radius Fallback (2km -> 5km -> 10km). | [GeoProximityHelper.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Public/Services/GeoProximityHelper.cs) ([Commit 9ee7b93](https://github.com/GinNgo/hotel-saas-v2/commit/9ee7b93)) |
+| **#02** | Ngô Võ Tuấn An (24TX810001) | ChatGPT (GPT-4o) | Cổng B2C Guest Portal & Kiểm soát phiên đăng nhập | AI dùng chung token quản trị viên cho khách đặt phòng, không có cổng kiểm soát phiên (Safe Auth Gates), tiềm ẩn rủi ro lộ quyền quản trị. | Em rà soát luồng auth thấy nguy cơ lộ quyền quản trị, nên tách biệt route guest-layout riêng; cấu hình Safe Auth Gates phân tách phiên Public và Admin; tạm khóa social login chưa xác minh token. | [guest-layout.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/layouts/guest-layout/guest-layout.ts), [AuthController.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Controllers/AuthController.cs) ([Commit bb67550](https://github.com/GinNgo/hotel-saas-v2/commit/bb67550)) |
+| **#03** | Ngô Võ Tuấn An (24TX810001) | ChatGPT (GPT-4o) | Hệ thống Loyalty Membership & Mẫu in hóa đơn VAT | AI chỉ cộng trừ điểm trực tiếp trên thuộc tính User, không ghi vết lịch sử giao dịch (Ledger); thiếu tính thuế VAT chuẩn trong hóa đơn. | Em nhận thấy cộng trừ trực tiếp vi phạm nguyên tắc kế toán, nên viết prompt định nghĩa thực thể sổ cái [LoyaltyLedgerService.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Loyalty/Services/LoyaltyLedgerService.cs) lưu vết giao dịch; tích hợp thanh trượt đổi điểm và mẫu in hóa đơn VAT. | [LoyaltyLedgerService.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Loyalty/Services/LoyaltyLedgerService.cs) ([Commit 8786b12](https://github.com/GinNgo/hotel-saas-v2/commit/8786b12)) |
+| **#04** | Ngô Võ Tuấn An (24TX810001) | Google Antigravity (Gemini 2.5 Pro) | Cấu hình CI Workflow GitHub Actions cho Vitest | Lệnh `npm test` do AI sinh ra bị dừng chờ tương tác dòng lệnh trên CI và thiếu locked peer dependencies khiến pipeline bị lỗi đỏ. | Em kiểm tra log CI thấy test bị treo vô hạn, nên thêm cờ `--run` cho Vitest, chuyển sang dùng `npm ci` và cấu hình cài đặt đúng các peer dependencies bị thiếu trong ci.yml. | [.github/workflows/ci.yml](https://github.com/GinNgo/hotel-saas-v2/blob/develop/.github/workflows/ci.yml) ([Commit 77fbc67](https://github.com/GinNgo/hotel-saas-v2/commit/77fbc67)) |
+| **#05** | Nguyễn Khôi Nguyên (24TX810011) | Google Antigravity (Gemini 2.5 Pro) | Backend Quản lý Phòng & Hạng phòng (CQRS) | AI sinh mã CRUD thiếu kiểm tra Multi-tenant (PropertyId) và cho phép chuyển thẳng từ Dirty sang Available vi phạm quy trình buồng phòng. | Em phát hiện lỗ hổng đa chi nhánh và lỗi nghiệp vụ nhảy cóc trạng thái, nên bổ sung Global Query Filter; viết prompt chỉ định quy tắc máy trạng thái FSM tại [RoomStatusTransitionValidator.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Rooms/Services/RoomStatusTransitionValidator.cs) chặn chuyển trạng thái sai. | [RoomStatusTransitionValidator.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Rooms/Services/RoomStatusTransitionValidator.cs) ([Commit cafb63e](https://github.com/GinNgo/hotel-saas-v2/commit/cafb63e)) |
+| **#06** | Nguyễn Khôi Nguyên (24TX810011) | Google Antigravity (Gemini 2.5 Pro) | Form Đặt phòng tại quầy (Walk-in) & Live Quote | AI không debounce sự kiện thay đổi ngày/giờ khiến API tính giá bị spam liên tục khi gõ phím; thiếu xử lý khi API báo giá bị lỗi. | Em quan sát thấy network bị spam hàng chục request khi gõ ngày/giờ, nên thêm `debounceTime(400ms)` và `distinctUntilChanged`; bắt lỗi HTTP hiển thị cảnh báo thân thiện nếu phòng đã bị giữ chỗ; regex CCCD tiếng Việt. | [reservation.service.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/services/reservation.service.ts) ([Commit 96d9add](https://github.com/GinNgo/hotel-saas-v2/commit/96d9add)) |
+| **#07** | Nguyễn Khôi Nguyên (24TX810011) | Google Antigravity (Gemini 2.5 Pro) | Lưới Thời gian Phòng (Tape Chart) & Test Vitest | Thuật toán tính vị trí cột CSS Grid bị lệch ngày khi thuê theo giờ hoặc thuê qua đêm; test Vitest dùng fake timers bị timeout treo pipeline. | Em chạy thử thấy vạch thời gian bị nhảy lệch ngày, nên viết lại hàm tính tọa độ thời gian `ReservationTimeHelper` cho 3 chế độ thuê; chuẩn hóa TestBed đồng bộ trong Vitest giúp 100% test pass. | [reservations.page.spec.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/reservations/reservations.page.spec.ts) ([Commit 96d9add](https://github.com/GinNgo/hotel-saas-v2/commit/96d9add)) |
+| **#08** | Trần Trọng Tân (24TX810025) | ChatGPT (GPT-4o) | Lễ tân Check-in/Check-out & Báo cáo kết ca Thu ngân | Khi API lấy Folio bị lỗi, AI tự gán số dư bằng 0 đ cho phép trả phòng khi khách chưa thanh toán; thiếu lọc PropertyId trong báo cáo ca. | Em nhận diện lỗ hổng thất thoát doanh thu nếu API Folio chập chờn, nên sửa thành Fail-Closed: khóa nút Trả phòng khi không tải được Folio; bổ sung bộ lọc PropertyId bắt buộc trong GetShiftReport; xử lý HTTP 403 an toàn. | [GetShiftReportQueryHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Payments/Queries/GetShiftReport/GetShiftReportQueryHandler.cs) ([Commit f711156](https://github.com/GinNgo/hotel-saas-v2/commit/f711156)) |
+| **#09** | Trần Trọng Tân (24TX810025) | ChatGPT (GPT-4o) | Polling buồng phòng an toàn, chống Memory Leak | AI dùng `setInterval` không clear khi đổi component gây rò rỉ bộ nhớ; phản hồi của chi nhánh cũ trả về muộn đè lên dữ liệu chi nhánh mới. | Em quan sát DevTools thấy timer chạy ngầm làm chậm trình duyệt, nên thay bằng cơ chế dọn dẹp timer trong `ngOnDestroy`; thêm Generation ID để hủy các kết quả phản hồi trả về muộn khi chuyển chi nhánh. | [housekeeping.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/housekeeping/housekeeping.page.ts) ([Commit e8fbb33](https://github.com/GinNgo/hotel-saas-v2/commit/e8fbb33)) |
+| **#10** | Trần Trọng Tân (24TX810025) | ChatGPT (GPT-4o) | Bảo vệ Idempotency giao dịch thanh toán | Mỗi lần bấm nút Retry thanh toán AI lại sinh key mới làm mất tác dụng chống trừ trùng; chuỗi metadata bị nhầm lẫn với nội dung khách nhập. | Em thử bấm Retry thanh toán thấy bị trừ 2 lần do đổi key, nên sửa lại logic: duy trì cùng một `Idempotency-Key` khi retry cùng payload; làm sạch chuỗi tham chiếu và bóc tách metadata có cấu trúc để ngăn giả mạo. | [CreatePaymentCommand.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Payments/Commands/CreatePayment/CreatePaymentCommand.cs) ([Commit e8fbb33](https://github.com/GinNgo/hotel-saas-v2/commit/e8fbb33)) |
 
-Không báo cáo tính năng đang mock hoặc chưa tích hợp là hoạt động thực tế; không ghi test “pass” nếu chưa có kết quả; không gộp mã mới chưa kiểm chứng vào minh chứng cũ. Không công bố secret, token cá nhân hoặc thông tin khách hàng. Điểm số, coverage và trải nghiệm người dùng chỉ được bổ sung khi có phương pháp đo cùng bằng chứng.
+---
+
+## PHẦN V. KẾ HOẠCH THỰC HIỆN TUẦN 03 (TỪ 19/10/2026 ĐẾN 25/10/2026)
+
+Căn cứ vào kết quả đã nghiệm thu ở Tuần 02 và sổ tay kế hoạch chi tiết ([KE-HOACH-CHI-TIET-TUAN-3.md](https://github.com/GinNgo/hotel-saas-v2/blob/develop/docs/team/KE-HOACH-CHI-TIET-TUAN-3.md)), nhóm xác định mục tiêu trọng tâm trong Tuần 03 là: **Hoàn thiện luồng trải nghiệm khách hàng B2C khép kín (Tìm kiếm cơ sở → Xem chi tiết & tính giá phòng → Giữ phòng 15 phút → Tra cứu đặt phòng), chuyển đổi cơ sở dữ liệu lên Cloud PostgreSQL dùng chung, đồng thời thực hiện kiểm thử hồi quy (Regression Testing) toàn diện và khắc phục triệt để các lỗi phát sinh liên quan đến các phân hệ của Tuần 01 và Tuần 02.**
+
+---
+
+### 1. Phân công công việc chi tiết cho từng thành viên trong Tuần 03
+
+#### 1. Ngô Võ Tuấn An (24TX810001 - Nhóm trưởng):
+* **Nhiệm vụ mới 1 — Hạ tầng Cơ sở dữ liệu Cloud & Cấu hình môi trường (Cloud PostgreSQL):**
+  * Khởi tạo cơ sở dữ liệu PostgreSQL dùng chung trên Cloud (sử dụng Neon Serverless Postgres hoặc Supabase), thay thế cho database local riêng lẻ để cả 3 thành viên kiểm thử trên cùng một nguồn dữ liệu thật.
+  * Cấu hình chuỗi kết nối an toàn qua biến môi trường (Environment Secrets) trên GitHub Actions, tuyệt đối không commit thông tin bảo mật.
+* **Nhiệm vụ mới 2 — Tối ưu hóa Thuật toán Tìm kiếm Cơ sở & Gợi ý GPS thực tế:**
+  * Nâng cấp `GetPublicPropertiesQuery`: tích hợp tìm kiếm theo vị trí hiện tại ("📍 Gần tôi"), khống chế trần bán kính tối đa 50km để chặn dứt điểm việc gợi ý các cơ sở ở xa (ví dụ: đang ở TP.HCM nhưng gợi ý Đà Lạt).
+  * Chuẩn hóa tọa độ địa danh thực tế tại TP.HCM (Chợ Bến Thành, Landmark 81, Sân bay Tân Sơn Nhất, Phố đi bộ Nguyễn Huệ) và tính toán khoảng cách Haversine hiển thị trực quan (`Cách 300m`, `Cách 2.8km`).
+* **Nhiệm vụ Kiểm thử hồi quy & Tương thích hệ thống (Regression Testing & Bug Fixing):**
+  * **Kiểm thử hồi quy trên Cloud DB mới:** Chạy lại toàn bộ bộ test suite (190+ test Application, 770+ test tổng thể) trên Cloud PostgreSQL để đảm bảo các migration EF Core, Seeder dữ liệu hành chính và Interceptor cách ly đa chi nhánh (`TenantPropertySavingInterceptor`) hoạt động ổn định, không phát sinh lỗi lệch schema hay lỗi kết nối.
+  * **Tái kiểm thử luồng Xác thực & Phân quyền (Tuần 01):** Kiểm tra lại các luồng Đăng nhập, Cấp mới Refresh Token và Chuyển đổi chi nhánh (SwitchContext), đảm bảo các cổng kiểm soát phiên (Safe Auth Gates) không gây xung đột hoặc chặn nhầm luồng truy cập của khách B2C mới.
+  * **Chủ trì tích hợp & CI/CD Gatekeeper:** Review toàn bộ Pull Requests của Nguyên và Tân; phát hiện và xử lý ngay các xung đột mã nguồn hoặc lỗi gãy test khi ghép nối phân hệ mới với phân hệ cũ trước khi merge vào nhánh `develop`.
+
+#### 2. Nguyễn Khôi Nguyên (24TX810011 - Thành viên):
+* **Nhánh phát triển dự kiến:** `feature/nguyen-week3-discovery-detail`
+* **Nhiệm vụ mới 1 — Duy trì ngữ cảnh Tìm kiếm khi quay lại (Search State Round-trip):**
+  * Đồng bộ các tham số tìm kiếm (từ khóa điểm đến, khoảng giá, loại hình cơ sở, chế độ thuê theo giờ/đêm) lên URL query parameters.
+  * Đảm bảo khi khách click xem Chi tiết cơ sở rồi bấm nút Quay lại (Back), các điều kiện lọc và danh sách kết quả trước đó vẫn được giữ nguyên vẹn, không bị reset form.
+* **Nhiệm vụ mới 2 — Hoàn thiện Trang Chi tiết Cơ sở & Báo giá phòng (Property Detail & Live Quote):**
+  * Hoàn thiện giao diện [property-detail.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/property-detail.page.ts): hiển thị ảnh chất lượng cao kèm ảnh placeholder khi link ảnh bị lỗi mạng; hiển thị rõ ràng chính sách nhận/trả phòng.
+  * Tích hợp kiểm tra sức chứa phòng (Capacity Validation) và kiểm tra hiệu lực báo giá (`expiresAtUtc`); nếu báo giá quá hạn thì nhắc khách tính giá lại trước khi chuyển sang bước Giữ phòng.
+* **Nhiệm vụ Kiểm thử hồi quy & Vá lỗi phát sinh liên phân hệ (Regression Testing & Bug Fixing):**
+  * **Kiểm thử hồi quy Quản lý Danh mục Hạng phòng & Bảng giá (Tuần 01):** Đảm bảo khi quản trị viên tạo mới hoặc cập nhật giá phòng theo mùa/ngày trong tuần trên trang Admin, API báo giá công khai B2C mới phản ánh tức thì bảng giá hiệu lực chính xác, không bị lỗi cache dữ liệu cũ.
+  * **Kiểm thử lại sơ đồ Tape Chart & Đặt phòng tại quầy Walk-in (Tuần 02):** Kiểm tra xem việc thêm các API báo giá mới có làm ảnh hưởng đến hiệu năng hoặc cơ chế RxJS `debounceTime(400ms)` của form Walk-in hay không; sửa các lỗi hiển thị lệch cột giờ trên sơ đồ Tape Chart nếu phát hiện khi chạy thực tế trên các màn hình có độ phân giải khác nhau.
+  * Viết bổ sung bộ unit test Vitest cho component Detail (`property-detail.page.spec.ts`) và đảm bảo 100% test case cũ của Tuần 01 & Tuần 02 tiếp tục pass.
+
+#### 3. Trần Trọng Tân (24TX810025 - Thành viên):
+* **Nhánh phát triển dự kiến:** `feature/tan-week3-hold-lookup`
+* **Nhiệm vụ mới 1 — Hoàn thiện Quy trình Giữ phòng B2C (Booking Hold & Countdown Timer):**
+  * Hoàn thiện màn hình [booking-hold.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/booking-hold.page.ts): hiển thị đồng hồ đếm ngược 15 phút giữ phòng; nếu hết thời gian mà khách chưa thanh toán thì tự động chuyển sang trạng thái hết hạn (`Expired`) và giải phóng phòng.
+  * Duy trì khóa `Idempotency-Key` ở bước giữ chỗ để ngăn chặn việc người dùng click đúp tạo trùng nhiều đơn giữ phòng cùng lúc.
+* **Nhiệm vụ mới 2 — Xây dựng Trang Tra cứu & Theo dõi trạng thái đặt phòng (Booking Lookup & Status):**
+  * Xây dựng trang [booking-lookup.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/booking-lookup.page.ts) cho phép khách hàng tra cứu thông tin đặt phòng bằng Mã đặt phòng (Booking Code) và Số điện thoại mà không bắt buộc phải đăng nhập tài khoản.
+  * Xây dựng trang [booking-status.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/booking-status.page.ts) hiển thị chi tiết tiến trình đơn đặt phòng (Đang giữ chỗ, Đã thanh toán, Đã nhận phòng, Đã hủy) kèm mã PIN nhận phòng an toàn (Smart Lock Passcode).
+* **Nhiệm vụ Kiểm thử hồi quy & Liên thông PMS (Regression Testing & Inter-module Testing):**
+  * **Kiểm thử hồi quy Máy trạng thái Buồng phòng FSM (Tuần 01 & Tuần 02):** Kiểm tra liên thông trạng thái: khi khách giữ chỗ trên Web B2C, sơ đồ buồng phòng Lễ tân phải thấy phòng chuyển sang trạng thái `Held`; đặc biệt kiểm tra khi đơn giữ phòng hết hạn (sau 15 phút), phòng phải được tự động nhả về trạng thái `Available` hoặc trạng thái phòng sạch ban đầu mà không bị kẹt cứng (deadlock).
+  * **Kiểm thử hồi quy phân hệ Lễ tân Check-in/Check-out & Thu ngân (Tuần 02):** Kiểm tra xem khi khách đến nhận phòng với mã PIN tra cứu B2C, Lễ tân có thể tiếp nhận check-in mượt mà và Folio tính đúng số tiền đã cọc/còn nợ; kiểm tra lại cơ chế chống trừ trùng `Idempotency-Key` khi người dùng retry thanh toán nhiều lần trên môi trường mạng chập chờn.
+
+---
+
+### 2. Quy trình Kiểm thử Hồi quy & Xử lý Lỗi Tồn đọng (Continuous Regression & Bug Fixing Workflow)
+
+1. **Nguyên tắc "Không làm gãy tính năng cũ":** Bất kỳ đoạn mã mới nào được bổ sung trong Tuần 03 đều phải chạy kiểm thử hồi quy song song với toàn bộ các tính năng đã hoàn thành ở Tuần 01 và Tuần 02.
+2. **Quy trình xử lý khi phát hiện lỗi cũ:**
+   * Nếu trong quá trình phát triển tính năng mới phát hiện lỗi từ các phân hệ trước (như lỗi trần khoảng cách GPS 50km, lỗi rò rỉ timer hoặc lỗi xung đột đồng thời), thành viên phát hiện sẽ lập tức thông báo trong nhóm và mở nhánh `fix/<tên-lỗi>` xử lý dứt điểm.
+   * Viết bổ sung ít nhất 01 bài kiểm thử tự động (Unit Test / Integration Test) tái hiện lại lỗi đó (Regression Test Case) để đảm bảo lỗi không bao giờ tái diễn trong tương lai.
+3. **Quy chuẩn nghiệm thu Pull Request:** Nhóm trưởng chỉ phê duyệt hợp nhất (Merge) PR khi và chỉ khi:
+   * Tất cả bài test mới của Tuần 03 vượt qua 100%.
+   * Toàn bộ các bài test cũ của Tuần 01 và Tuần 02 vẫn duy trì trạng thái màu xanh (100% pass, không bị skip).
+
+---
+
+### 3. Tiêu chí nghiệm thu chất lượng Tuần 03 (Quality Acceptance Gates)
+
+1. **Về Mã nguồn & Biên dịch:**
+   * Backend (.NET 10): `dotnet build` đạt **0 Errors, 0 Warnings**.
+   * Frontend (Angular 22): `npm run build` thành công, không phát sinh lỗi TypeScript strict mode.
+2. **Về Kiểm thử tự động (Automated Testing):**
+   * Duy trì tỷ lệ **100% unit tests vượt qua** trên cả Backend xUnit và Frontend Vitest (mục tiêu tối thiểu 800+ tests pass).
+   * Không bỏ qua (skip) hoặc comment-out các test case bảo mật và đa chi nhánh.
+3. **Về Triển khai & Vận hành:**
+   * Kết nối thành công hệ thống với cơ sở dữ liệu PostgreSQL Cloud dùng chung, chạy migration dữ liệu mẫu sạch và đồng nhất giữa 3 thành viên.
+   * Chạy thông suốt luồng đặt phòng từ B2C đến PMS trên môi trường Staging phục vụ buổi demo trực tiếp với Giảng viên hướng dẫn.

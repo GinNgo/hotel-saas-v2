@@ -120,8 +120,8 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
             .ThenBy(p => p.Id)
             .ToListAsync(cancellationToken);
 
-        // If filtering by zone returned empty and we had an effectiveZoneSlug, fallback to all active properties
-        if (rawProperties.Count == 0 && !string.IsNullOrWhiteSpace(effectiveZoneSlug))
+        // If filtering by zone returned empty and we had an effectiveZoneSlug, only fallback if user GPS coordinates are active
+        if (rawProperties.Count == 0 && !string.IsNullOrWhiteSpace(effectiveZoneSlug) && request.UserLatitude.HasValue && request.UserLongitude.HasValue)
         {
             var fallbackQuery = _context.Properties
                 .IgnoreQueryFilters()
@@ -244,7 +244,7 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
                 Latitude = p.Latitude,
                 Longitude = p.Longitude,
                 TouristZoneSlug = p.TouristZoneSlug,
-                TouristZoneName = p.TouristZoneName,
+                TouristZoneName = SanitizeVietnameseText(p.TouristZoneName),
                 AllowHourlyBooking = p.AllowHourlyBooking,
                 AllowOvernightBooking = p.AllowOvernightBooking,
                 AllowDailyBooking = p.AllowDailyBooking,
@@ -278,12 +278,17 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
 
             resultList.AddRange(directMatches);
 
-            // Smart Radius Fallback: If narrow radius returns fewer than 2 properties, include expanded suggestions
+            // Smart Radius Fallback: If narrow radius returns fewer than 2 properties,
+            // only include expanded suggestions within a realistic local radius (max 50km)
+            // or same province/city, NEVER far away cities like Da Lat (300km) when user is in HCM!
             if (directMatches.Count < 2)
             {
+                const double maxFallbackRadiusMeters = 50000.0; // 50km metropolitan limit
                 var fallbackCandidates = allDtos
-                    .Where(d => !directMatches.Any(m => m.Id == d.Id))
-                    .OrderBy(d => d.DistanceMeters ?? 9999999.0)
+                    .Where(d => !directMatches.Any(m => m.Id == d.Id) &&
+                                d.DistanceMeters.HasValue &&
+                                d.DistanceMeters.Value <= maxFallbackRadiusMeters)
+                    .OrderBy(d => d.DistanceMeters!.Value)
                     .Take(4)
                     .ToList();
 
@@ -293,6 +298,16 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
                     resultList.Add(fb);
                 }
             }
+        }
+        else if (refLat.HasValue && refLon.HasValue)
+        {
+            // If GPS or landmark reference point is provided without strict radius limit, order directly by proximity
+            // Restrict to realistic metropolitan radius (max 50km) so distant cities are not returned
+            const double maxRefRadiusMeters = 50000.0;
+            resultList = allDtos
+                .Where(d => d.DistanceMeters.HasValue && d.DistanceMeters.Value <= maxRefRadiusMeters)
+                .OrderBy(d => d.DistanceMeters!.Value)
+                .ToList();
         }
         else
         {
@@ -304,6 +319,20 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
             ? request.DestinationKeyword
             : request.Search;
 
+        // If query is a GPS placeholder (e.g. "Vị trí hiện tại", "GPS", "Gần tôi"), bypass text filtering
+        bool isGpsPlaceholder = !string.IsNullOrWhiteSpace(effectiveQuery) &&
+            (effectiveQuery.Contains("GPS", StringComparison.OrdinalIgnoreCase) ||
+             effectiveQuery.Contains("Vị trí hiện tại", StringComparison.OrdinalIgnoreCase) ||
+             effectiveQuery.Contains("Gần tôi", StringComparison.OrdinalIgnoreCase));
+
+        if (isGpsPlaceholder)
+        {
+            return resultList
+                .OrderBy(d => d.IsExpandedNearbySuggestion ? 1 : 0)
+                .ThenBy(d => d.DistanceMeters ?? 999999.0)
+                .ToList();
+        }
+
         // If the query was purely a landmark name and we already resolved it, avoid over-filtering with text search
         if (targetLandmark != null && !string.IsNullOrWhiteSpace(effectiveQuery) &&
             VietnameseTextNormalizer.Matches(targetLandmark.Name, effectiveQuery.Trim()))
@@ -312,6 +341,7 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
             if (refLat.HasValue && refLon.HasValue)
             {
                 return resultList
+                    .Where(d => d.DistanceMeters.HasValue && d.DistanceMeters.Value <= 50000.0)
                     .OrderBy(d => d.IsExpandedNearbySuggestion ? 1 : 0)
                     .ThenBy(d => d.DistanceMeters ?? 999999.0)
                     .ToList();
@@ -375,6 +405,30 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
         }
 
         return list;
+    }
+
+    public static string? SanitizeVietnameseText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return text;
+        if (!text.Contains('?')) return text;
+
+        return text
+            .Replace("TP. H? Ch? Minh", "TP. Hồ Chí Minh")
+            .Replace("H? Ch? Minh", "Hồ Chí Minh")
+            .Replace("H? Ch Minh", "Hồ Chí Minh")
+            .Replace("Qu?n 1", "Quận 1")
+            .Replace("Trung T?m", "Trung Tâm")
+            .Replace("S?n bay Qu?c t? T?n S?n Nh?t", "Sân bay Quốc tế Tân Sơn Nhất")
+            .Replace("T?n S?n Nh?t", "Tân Sơn Nhất")
+            .Replace("S?n bay", "Sân bay")
+            .Replace("Ch? B?n Thnh", "Chợ Bến Thành")
+            .Replace("Ch? B?n Th?nh", "Chợ Bến Thành")
+            .Replace("Ph? Di B? Nguy?n Hu?", "Phố Đi Bộ Nguyễn Huệ")
+            .Replace("Ph? Di B? Nguy?n Hu?", "Phố Đi Bộ Nguyễn Huệ")
+            .Replace("Khch s?n", "Khách sạn")
+            .Replace("Kh?ch s?n", "Khách sạn")
+            .Replace("Nh ngh?", "Nhà nghỉ")
+            .Replace("Nh? ngh?", "Nhà nghỉ");
     }
 
     private static string GetPropertyTypeName(PropertyType propertyType) => propertyType switch

@@ -27,6 +27,7 @@ public static class SeedData
         var permissionDefs = new (string Code, string Name, string Module)[]
         {
             ("DASHBOARD",     "Dashboard",            "DASHBOARD"),
+            ("PROPERTIES",    "Property Management",  "PROPERTIES"),
             ("ROOMS",         "Room Management",      "ROOMS"),
             ("ROOM_TYPES",    "Room Type Management", "ROOMS"),
             ("RESERVATIONS",  "Reservation Management","RESERVATIONS"),
@@ -99,7 +100,7 @@ public static class SeedData
             IsSystemRole = true
         };
         var superAdminPerms = BuildPermissions(superAdminId, permissions,
-            ("DASHBOARD", All), ("ROOMS", All), ("ROOM_TYPES", All),
+            ("DASHBOARD", All), ("PROPERTIES", All), ("ROOMS", All), ("ROOM_TYPES", All),
             ("RESERVATIONS", All), ("GUESTS", All), ("CHECK_IN_OUT", All),
             ("HOUSEKEEPING", All), ("PAYMENTS", All), ("INVOICES", All),
             ("REPORTS", All), ("STAFF", All), ("ROLES", All),
@@ -117,7 +118,7 @@ public static class SeedData
             IsSystemRole = true
         };
         var ownerPerms = BuildPermissions(ownerId, permissions,
-            ("DASHBOARD", All), ("ROOMS", All), ("ROOM_TYPES", All),
+            ("DASHBOARD", All), ("PROPERTIES", All), ("ROOMS", All), ("ROOM_TYPES", All),
             ("RESERVATIONS", All), ("GUESTS", All), ("CHECK_IN_OUT", All),
             ("HOUSEKEEPING", All), ("PAYMENTS", All), ("INVOICES", All),
             ("REPORTS", All), ("STAFF", All), ("ROLES", All),
@@ -135,7 +136,7 @@ public static class SeedData
             IsSystemRole = true
         };
         var managerPerms = BuildPermissions(managerId, permissions,
-            ("ROOMS", All), ("ROOM_TYPES", All), ("RESERVATIONS", All),
+            ("PROPERTIES", ReadUpdate), ("ROOMS", All), ("ROOM_TYPES", All), ("RESERVATIONS", All),
             ("GUESTS", All), ("CHECK_IN_OUT", All), ("HOUSEKEEPING", All),
             ("PAYMENTS", All), ("INVOICES", All), ("REPORTS", All),
             ("STAFF", ReadCreate), ("ROLES", Read), ("SETTINGS", Read));
@@ -335,10 +336,54 @@ public static class SeedData
         }
 
         await context.SaveChangesAsync();
+
+
     }
 
     private static async Task EnsureRolePermissionsUpToDateAsync(ApplicationDbContext context)
     {
+        // Ensure PROPERTIES permission function exists
+        var propertiesFunc = await context.PermissionFunctions.FirstOrDefaultAsync(f => f.Code == "PROPERTIES");
+        if (propertiesFunc == null)
+        {
+            propertiesFunc = new PermissionFunction
+            {
+                Id = Guid.NewGuid(),
+                Code = "PROPERTIES",
+                Name = "Property Management",
+                ModuleCode = "PROPERTIES",
+                SupportedActionMask = 127,
+                IsActive = true
+            };
+            context.PermissionFunctions.Add(propertiesFunc);
+            await context.SaveChangesAsync();
+        }
+
+        // Ensure OWNER and SUPER_ADMIN have PROPERTIES:127
+        var fullRoles = await context.AccessRoles
+            .Where(r => r.Code == "OWNER" || r.Code == "SUPER_ADMIN")
+            .ToListAsync();
+
+        foreach (var role in fullRoles)
+        {
+            var existing = await context.RolePermissions
+                .FirstOrDefaultAsync(rp => rp.RoleId == role.Id && rp.FunctionId == propertiesFunc.Id);
+            if (existing == null)
+            {
+                context.RolePermissions.Add(new RolePermission
+                {
+                    Id = Guid.NewGuid(),
+                    RoleId = role.Id,
+                    FunctionId = propertiesFunc.Id,
+                    ActionMask = 127
+                });
+            }
+            else if (existing.ActionMask != 127)
+            {
+                existing.ActionMask = 127;
+            }
+        }
+        await context.SaveChangesAsync();
         var receptionistRole = await context.AccessRoles.FirstOrDefaultAsync(r => r.Code == "RECEPTIONIST");
         if (receptionistRole == null) return;
 

@@ -19,6 +19,7 @@ import {
   PublicBookingSearchFilter,
   RentalType,
 } from '../../../../core/models/public-booking.model';
+import { BookingDatePickerComponent } from '../../../../shared';
 
 interface RentalModeTab {
   type: RentalType;
@@ -53,10 +54,19 @@ export interface DestinationSelection {
   slug?: string;
 }
 
+export interface RecentSearchItem {
+  id: string;
+  keyword: string;
+  label: string;
+  type?: DestinationSuggestionDto['type'] | 'Keyword';
+  provinceName?: string;
+  timestamp: number;
+}
+
 @Component({
   selector: 'app-booking-filter-bar',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, BookingDatePickerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section
@@ -122,17 +132,17 @@ export interface DestinationSelection {
       </div>
 
       <!-- 2. LƯỚI INPUT TÌM KIẾM CHÍNH -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
         <!-- Cột 1: Điểm đến / Địa danh / Khu du lịch / Tên cơ sở (4 cột) -->
-        <div #destinationGroup class="lg:col-span-4 relative">
-          <div class="flex items-center justify-between mb-1.5">
-            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <div #destinationGroup class="lg:col-span-4 relative flex flex-col">
+          <div class="flex items-center justify-between mb-1.5 h-6">
+            <label for="booking-destination" class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
               Địa danh, Khu du lịch hoặc Cơ sở
             </label>
             <button
               type="button"
               (click)="useCurrentLocation()"
-              class="text-xs text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
+              class="text-xs text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0"
               title="Tìm cơ sở lưu trú gần vị trí của tôi"
             >
               <i class="pi pi-compass text-xs" [class.pi-spin]="isLocating()"></i>
@@ -141,9 +151,10 @@ export interface DestinationSelection {
           </div>
           <div class="relative">
             <i
-              class="pi pi-map-marker absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-600"
+              class="pi pi-map-marker absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none"
             ></i>
             <input
+              id="booking-destination"
               type="text"
               [ngModel]="destinationKeyword()"
               (ngModelChange)="onDestinationInput($event)"
@@ -156,7 +167,7 @@ export interface DestinationSelection {
               [attr.aria-controls]="showSuggestionsDropdown() && filteredSuggestions().length > 0 ? 'destination-options' : null"
               [attr.aria-activedescendant]="showSuggestionsDropdown() && activeSuggestion() >= 0 ? 'destination-option-' + activeSuggestion() : null"
               placeholder="VD: Chợ đêm Đà Lạt, Bãi Sau, Quận 1, Nhà nghỉ..."
-              class="w-full pl-10 pr-9 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              class="w-full h-11 pl-10 pr-9 rounded-xl border border-slate-300 text-sm font-medium text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-2xs transition-colors"
             />
             @if (destinationKeyword()) {
               <button
@@ -170,240 +181,191 @@ export interface DestinationSelection {
             }
           </div>
 
-          <!-- Dropdown Gợi ý Phân nhóm (Thành phố / Khu du lịch / Địa danh / Khách sạn) -->
-          @if (showSuggestionsDropdown() && filteredSuggestions().length > 0) {
+          <!-- Dropdown Gợi ý Phân nhóm & Lịch sử tìm kiếm -->
+          @if (showSuggestionsDropdown() && (filteredSuggestions().length > 0 || recentSearches().length > 0)) {
             <div
-              class="absolute z-40 left-0 right-0 mt-1.5 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-80 overflow-y-auto divide-y divide-slate-100"
+              class="absolute z-40 left-0 right-0 mt-1.5 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-96 overflow-y-auto divide-y divide-slate-100"
             >
-              <div
-                class="px-3.5 py-2 bg-slate-50 flex items-center justify-between text-xs text-slate-500"
-              >
-                <span>Gợi ý theo Địa danh, Khu vực du lịch & Thành phố</span>
-                <button
-                  type="button"
-                  (click)="showSuggestionsDropdown.set(false)"
-                  class="text-indigo-600 font-medium hover:underline"
-                >
-                  Đóng
-                </button>
-              </div>
-
-              <div id="destination-options" role="listbox" aria-label="Gợi ý điểm đến">
-              @for (item of filteredSuggestions(); track item.id; let index = $index) {
-                <button
-                  [id]="'destination-option-' + index"
-                  role="option"
-                  tabindex="-1"
-                  [attr.aria-selected]="activeSuggestion() === index"
-                  [class.bg-indigo-50]="activeSuggestion() === index"
-                  type="button"
-                  (click)="selectSuggestion(item)"
-                  class="w-full px-4 py-2.5 text-left hover:bg-indigo-50/60 flex items-center justify-between gap-3 transition-colors cursor-pointer"
-                >
-                  <div class="flex items-center gap-3 min-w-0">
-                    <span
-                      class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm"
-                      [ngClass]="getSuggestionIconBadgeClass(item.type)"
-                    >
-                      <i [class]="getSuggestionIcon(item.type)"></i>
-                    </span>
-                    <div class="truncate">
-                      <p class="text-sm font-medium text-slate-800 truncate">
-                        {{ item.name }}
-                      </p>
-                      <p class="text-xs text-slate-500 truncate">
-                        {{ item.provinceName }}
-                        @if (item.touristZoneName) {
-                          <span> • {{ item.touristZoneName }}</span>
-                        }
-                        @if (item.distanceLabel) {
-                          <span class="text-indigo-600 font-medium">
-                            • {{ item.distanceLabel }}
-                          </span>
-                        }
-                      </p>
-                    </div>
-                  </div>
-
-                  <span
-                    class="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
-                    [ngClass]="getSuggestionTypePillClass(item.type)"
-                  >
-                    {{ getSuggestionTypeLabel(item.type) }}
+              <!-- 1. LỊCH SỬ TÌM KIẾM GẦN ĐÂY -->
+              @if (!destinationKeyword().trim() && recentSearches().length > 0) {
+                <div class="px-3.5 py-2.5 bg-slate-50 flex items-center justify-between text-xs">
+                  <span class="font-bold flex items-center gap-1.5 text-slate-700">
+                    <i class="pi pi-history text-indigo-600"></i>
+                    <span>Lịch sử tìm kiếm gần đây</span>
                   </span>
-                </button>
+                  <button
+                    type="button"
+                    (click)="clearAllRecentSearches($event)"
+                    class="text-xs text-red-500 hover:text-red-700 hover:underline font-medium cursor-pointer"
+                  >
+                    Xóa tất cả
+                  </button>
+                </div>
+                <div class="divide-y divide-slate-100 max-h-44 overflow-y-auto">
+                  @for (recent of recentSearches(); track recent.id) {
+                    <div
+                      (click)="selectRecentSearch(recent)"
+                      class="w-full px-4 py-2.5 text-left hover:bg-indigo-50/60 flex items-center justify-between gap-3 transition-colors cursor-pointer group"
+                    >
+                      <div class="flex items-center gap-3 min-w-0">
+                        <span class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 text-xs">
+                          <i class="pi pi-clock"></i>
+                        </span>
+                        <div class="truncate">
+                          <p class="text-sm font-medium text-slate-800 truncate group-hover:text-indigo-600">
+                            {{ recent.label || recent.keyword }}
+                          </p>
+                          @if (recent.provinceName) {
+                            <p class="text-xs text-slate-400 truncate">{{ recent.provinceName }}</p>
+                          }
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        (click)="removeRecentSearch(recent, $event)"
+                        class="text-slate-300 hover:text-red-500 p-1.5 rounded-md transition-colors"
+                        title="Xóa mục này"
+                      >
+                        <i class="pi pi-times text-xs"></i>
+                      </button>
+                    </div>
+                  }
+                </div>
               }
-              </div>
+
+              <!-- 2. GỢI Ý ĐỊA DANH / KHU DU LỊCH / THÀNH PHỐ / CƠ SỞ -->
+              @if (filteredSuggestions().length > 0) {
+                <div
+                  class="px-3.5 py-2 bg-slate-50 flex items-center justify-between text-xs text-slate-500"
+                >
+                  <span>{{ destinationKeyword().trim() ? 'Gợi ý tìm kiếm' : 'Điểm đến thịnh hành (34 tỉnh thành)' }}</span>
+                  <button
+                    type="button"
+                    (click)="showSuggestionsDropdown.set(false)"
+                    class="text-indigo-600 font-medium hover:underline"
+                  >
+                    Đóng
+                  </button>
+                </div>
+
+                <div id="destination-options" role="listbox" aria-label="Gợi ý điểm đến">
+                @for (item of filteredSuggestions(); track item.id; let index = $index) {
+                  <button
+                    [id]="'destination-option-' + index"
+                    role="option"
+                    tabindex="-1"
+                    [attr.aria-selected]="activeSuggestion() === index"
+                    [class.bg-indigo-50]="activeSuggestion() === index"
+                    type="button"
+                    (click)="selectSuggestion(item)"
+                    class="w-full px-4 py-2.5 text-left hover:bg-indigo-50/60 flex items-center justify-between gap-3 transition-colors cursor-pointer"
+                  >
+                    <div class="flex items-center gap-3 min-w-0">
+                      <span
+                        class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm"
+                        [ngClass]="getSuggestionIconBadgeClass(item.type)"
+                      >
+                        <i [class]="getSuggestionIcon(item.type)"></i>
+                      </span>
+                      <div class="truncate">
+                        <p class="text-sm font-medium text-slate-800 truncate">
+                          {{ item.name }}
+                        </p>
+                        <p class="text-xs text-slate-500 truncate">
+                          {{ item.provinceName }}
+                          @if (item.touristZoneName) {
+                            <span> • {{ item.touristZoneName }}</span>
+                          }
+                          @if (item.distanceLabel) {
+                            <span class="text-indigo-600 font-medium">
+                              • {{ item.distanceLabel }}
+                            </span>
+                          }
+                        </p>
+                      </div>
+                    </div>
+
+                    <span
+                      class="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+                      [ngClass]="getSuggestionTypePillClass(item.type)"
+                    >
+                      {{ getSuggestionTypeLabel(item.type) }}
+                    </span>
+                  </button>
+                }
+                </div>
+              }
             </div>
           }
+          <p class="text-[11px] text-slate-400 mt-1 truncate h-4">Thành phố, địa danh hoặc tên cơ sở</p>
         </div>
 
         <!-- Cột 2: Bộ chọn Ngày / Giờ linh hoạt theo Chế độ Lưu trú (5 cột) -->
         <div class="lg:col-span-5">
-          @switch (rentalType()) {
-            <!-- CASE A: THUÊ THEO GIỜ (NHÀ NGHỈ / MOTEL / KHÁCH SẠN THEO GIỜ) -->
-            @case ('Hourly') {
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <div>
-                  <label
-                    class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
-                  >
-                    Ngày nhận phòng
-                  </label>
-                  <input
-                    type="date"
-                    [ngModel]="checkInDate()"
-                    (ngModelChange)="onCheckInDateChange($event)"
-                    class="w-full px-3 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
-                  >
-                    Giờ nhận phòng
-                  </label>
-                  <select
-                    [ngModel]="checkInTime()"
-                    (ngModelChange)="checkInTime.set($event)"
-                    class="w-full px-3 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 bg-white focus:ring-2 focus:ring-indigo-500"
-                  >
-                    @for (slot of hourlyTimeSlots; track slot) {
-                      <option [value]="slot">{{ slot }}</option>
-                    }
-                  </select>
-                </div>
-
-                <div>
-                  <label
-                    class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
-                  >
-                    Số giờ sử dụng
-                  </label>
-                  <select
-                    [ngModel]="durationHours()"
-                    (ngModelChange)="durationHours.set(+$event)"
-                    class="w-full px-3 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 bg-white focus:ring-2 focus:ring-indigo-500"
-                  >
-                    @for (hour of hourlyDurationOptions; track hour) {
-                      <option [value]="hour">{{ hour }} giờ</option>
-                    }
-                  </select>
-                </div>
-              </div>
-            }
-
-            <!-- CASE B: THUÊ QUA ĐÊM -->
-            @case ('Overnight') {
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label
-                    class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
-                  >
-                    Đêm nhận phòng (giờ theo cơ sở)
-                  </label>
-                  <input
-                    type="date"
-                    [ngModel]="checkInDate()"
-                    (ngModelChange)="onCheckInDateChange($event)"
-                    class="w-full px-3.5 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
-                  >
-                    Trả phòng sáng hôm sau
-                  </label>
-                  <div
-                    class="w-full px-3.5 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 flex items-center justify-between"
-                  >
-                    <span>{{ checkOutDate() }} (giờ theo cơ sở)</span>
-                    <span
-                      class="text-xs font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md"
-                    >
-                      1 Đêm
-                    </span>
-                  </div>
-                </div>
-              </div>
-            }
-
-            <!-- CASE C: THUÊ THEO NGÀY (CHUẨN HOTEL / RESORT / HOMESTAY) -->
-            @default {
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label
-                    class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
-                  >
-                    Ngày nhận phòng (giờ theo cơ sở)
-                  </label>
-                  <input
-                    type="date"
-                    [ngModel]="checkInDate()"
-                    (ngModelChange)="onCheckInDateChange($event)"
-                    class="w-full px-3.5 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
-                  >
-                    Ngày trả phòng ({{ nightCount() }} đêm)
-                  </label>
-                  <input
-                    type="date"
-                    [ngModel]="checkOutDate()"
-                    [min]="checkInDate()"
-                    (ngModelChange)="onCheckOutDateChange($event)"
-                    class="w-full px-3.5 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-            }
-          }
+          <app-booking-date-picker
+            [rentalType]="rentalType()"
+            [checkInDate]="checkInDate()"
+            [checkOutDate]="checkOutDate()"
+            [checkInTime]="checkInTime()"
+            [durationHours]="durationHours()"
+            (checkInDateChange)="onCheckInDateChange($event)"
+            (checkOutDateChange)="onCheckOutDateChange($event)"
+            (checkInTimeChange)="checkInTime.set($event)"
+            (durationHoursChange)="durationHours.set($event)"
+          />
         </div>
 
         <!-- Cột 3: Số khách & Nút Tìm kiếm (3 cột) -->
-        <div class="lg:col-span-3 flex flex-col sm:flex-row lg:flex-row gap-2.5 items-end">
-          <div class="w-full sm:w-1/2 lg:w-5/12">
-            <label
-              class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5"
-            >
-              Số khách · một phòng
-            </label>
-            <div class="flex items-center border border-slate-300 rounded-xl px-2.5 py-2 bg-white">
+        <div class="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
+          <div class="flex flex-col">
+            <div class="flex items-center justify-between mb-1.5 h-6">
+              <label
+                class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate"
+              >
+                Số khách
+              </label>
+              <span class="text-[11px] text-slate-400 shrink-0">1 phòng</span>
+            </div>
+            <div class="flex items-center border border-slate-300 rounded-xl px-2 h-11 bg-white hover:border-slate-400 shadow-2xs transition-colors" role="group" aria-label="Số khách, một phòng">
               <button
                 type="button"
                 (click)="adjustGuests(-1)"
-                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
+                [disabled]="guests() <= 1"
+                aria-label="Giảm số khách"
+                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 -
               </button>
-              <div class="flex-1 text-center text-xs font-semibold text-slate-800">
+              <div class="flex-1 text-center text-xs font-semibold text-slate-800 truncate" aria-live="polite" aria-atomic="true">
                 {{ guests() }} khách
               </div>
               <button
                 type="button"
                 (click)="adjustGuests(1)"
-                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
+                [disabled]="guests() >= 20"
+                aria-label="Tăng số khách"
+                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 +
               </button>
             </div>
+            <p class="text-[11px] text-slate-400 mt-1 truncate h-4">Mỗi lượt một phòng</p>
           </div>
 
-          <button
-            type="button"
-            (click)="emitSearch()"
-            class="w-full sm:w-1/2 lg:w-7/12 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <i class="pi pi-search"></i>
-            <span>Tìm phòng</span>
-          </button>
+          <div class="flex flex-col">
+            <div class="mb-1.5 h-6 invisible" aria-hidden="true">
+              <span class="block text-xs font-semibold uppercase">Tìm kiếm</span>
+            </div>
+            <button
+              type="button"
+              (click)="emitSearch()"
+              class="w-full h-11 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <i class="pi pi-search"></i>
+              <span>Tìm phòng</span>
+            </button>
+            <p class="mt-1 h-4" aria-hidden="true"></p>
+          </div>
         </div>
       </div>
 
@@ -470,6 +432,7 @@ export interface DestinationSelection {
 export class BookingFilterBarComponent {
   readonly activeSuggestion = signal(-1);
   readonly searchError = signal('');
+  readonly recentSearches = signal<RecentSearchItem[]>([]);
 
   onDestinationKeydown(event: KeyboardEvent): void {
     const suggestions = this.filteredSuggestions();
@@ -557,12 +520,14 @@ export class BookingFilterBarComponent {
     name: string;
     slug: string;
     provinceCode: string;
+    latitude?: number;
+    longitude?: number;
   }> = [
-    { name: 'Chợ đêm Đà Lạt', slug: 'cho-dem-da-lat', provinceCode: '68' },
-    { name: 'Bãi Sau Vũng Tàu', slug: 'bai-sau-vung-tau', provinceCode: '77' },
-    { name: 'Phố đi bộ Nguyễn Huệ', slug: 'pho-di-bo-nguyen-hue', provinceCode: '79' },
-    { name: 'Cầu Rồng Đà Nẵng', slug: 'cau-rong-da-nang', provinceCode: '48' },
-    { name: 'Phố cổ Hội An', slug: 'pho-co-hoi-an', provinceCode: '49' },
+    { name: 'Chợ Bến Thành (Quận 1)', slug: 'cho-ben-thanh', provinceCode: '79', latitude: 10.7725, longitude: 106.6980 },
+    { name: 'Phố đi bộ Nguyễn Huệ', slug: 'pho-di-bo-nguyen-hue', provinceCode: '79', latitude: 10.7744, longitude: 106.7032 },
+    { name: 'Sân bay Tân Sơn Nhất', slug: 'san-bay-tan-son-nhat', provinceCode: '79', latitude: 10.8185, longitude: 106.6588 },
+    { name: 'Bãi Sau Vũng Tàu', slug: 'bai-sau-vung-tau', provinceCode: '77', latitude: 10.3392, longitude: 107.0877 },
+    { name: 'Chợ đêm Đà Lạt', slug: 'cho-dem-da-lat', provinceCode: '68', latitude: 11.9424, longitude: 108.4373 },
   ];
 
   // --- SIGNALS QUẢN LÝ TRẠNG THÁI FORM ---
@@ -599,31 +564,126 @@ export class BookingFilterBarComponent {
       const endHour = (h + this.durationHours()) % 24;
       const nextDaySuffix = h + this.durationHours() >= 24 ? ' (hôm sau)' : '';
       const formattedEnd = `${String(endHour).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-      return `Nhận phòng ${this.checkInTime()} → Trả phòng ${formattedEnd}${nextDaySuffix} (${this.durationHours()} giờ)`;
+      return `Nhận ${this.formatVnDate(this.checkInDate())} lúc ${this.checkInTime()} → Trả ${formattedEnd}${nextDaySuffix} (${this.durationHours()} giờ)`;
     }
     if (mode === 'Overnight') {
-      return `${this.checkInDate()} → ${this.checkOutDate()} • Giờ theo cơ sở`;
+      return `${this.formatVnDate(this.checkInDate())} → ${this.formatVnDate(this.checkOutDate())} • Qua đêm`;
     }
-    return `${this.checkInDate()} → ${this.checkOutDate()} • ${this.nightCount()} đêm • Giờ theo cơ sở`;
+    return `${this.formatVnDate(this.checkInDate())} → ${this.formatVnDate(this.checkOutDate())} • ${this.nightCount()} đêm`;
   });
 
   readonly filteredSuggestions = computed<DestinationSuggestionDto[]>(() => {
     const rawKeyword = this.normalizeVietnamese(this.destinationKeyword());
+    const isGpsPlaceholder =
+      !rawKeyword ||
+      rawKeyword.includes('gps') ||
+      rawKeyword.includes('vi tri hien tai') ||
+      rawKeyword.includes('gan toi');
+
     const all = this.suggestions();
-    if (!rawKeyword) {
-      return all.slice(0, 8);
-    }
-    return all
-      .filter((item) => {
-        const haystack = this.normalizeVietnamese(
-          `${item.name} ${item.provinceName} ${item.touristZoneName ?? ''}`
+    const coords = this.userCoords();
+
+    // Map all suggestions and compute haversine distance if coords are present
+    const list = all.map((item) => {
+      let dist = item.distanceMeters ?? null;
+      let label = item.distanceLabel;
+
+      if (coords && item.latitude != null && item.longitude != null) {
+        dist = Math.round(
+          this.calcHaversineDistance(
+            coords.lat,
+            coords.lng,
+            item.latitude,
+            item.longitude
+          )
         );
-        return haystack.includes(rawKeyword);
-      })
-      .slice(0, 10);
+        label =
+          dist < 1000
+            ? `Cách ${dist}m`
+            : `Cách ${(dist / 1000).toFixed(1)}km`;
+      }
+
+      return {
+        ...item,
+        distanceMeters: dist ?? undefined,
+        distanceLabel: label,
+      };
+    });
+
+    if (isGpsPlaceholder) {
+      if (coords) {
+        // When GPS mode is on, filter suggestions within 50km and sort closest first
+        const within50Km = list
+          .filter((x) => x.distanceMeters != null && x.distanceMeters <= 50000)
+          .sort((a, b) => (a.distanceMeters ?? 999999) - (b.distanceMeters ?? 999999));
+
+        if (within50Km.length > 0) {
+          return within50Km.slice(0, 8);
+        }
+        return list
+          .sort((a, b) => (a.distanceMeters ?? 999999) - (b.distanceMeters ?? 999999))
+          .slice(0, 8);
+      }
+      return list.slice(0, 8);
+    }
+
+    // Fuzzy typo-tolerant matching
+    const qTokens = rawKeyword.split(/\s+/).filter(Boolean);
+    const qCondensed = rawKeyword.replace(/[^a-z0-9]/g, '');
+
+    const scoredMatches: Array<{ item: DestinationSuggestionDto; score: number }> = [];
+
+    for (const item of list) {
+      const nameNorm = this.normalizeVietnamese(item.name);
+      const provNorm = this.normalizeVietnamese(item.provinceName || '');
+      const zoneNorm = this.normalizeVietnamese(item.touristZoneName || '');
+      const fullHaystack = `${nameNorm} ${provNorm} ${zoneNorm}`;
+      const fCondensed = fullHaystack.replace(/[^a-z0-9]/g, '');
+
+      let score = 0;
+
+      // 1. Exact or startsWith match
+      if (nameNorm === rawKeyword || provNorm === rawKeyword) score = 100;
+      else if (nameNorm.startsWith(rawKeyword) || provNorm.startsWith(rawKeyword)) score = 90;
+      else if (fullHaystack.includes(rawKeyword)) score = 80;
+      // 2. Condensed match (e.g. "sapa" matches "Sa Pa", "dalat" matches "Đà Lạt", "phuquoc" matches "Phú Quốc")
+      else if (qCondensed.length >= 2 && fCondensed.includes(qCondensed)) score = 75;
+      // 3. Common regional abbreviations
+      else if ((qCondensed === 'hcm' || qCondensed === 'saigon') && (fCondensed.includes('hochiminh') || fCondensed.includes('saigon'))) score = 85;
+      else if (qCondensed === 'hn' && fCondensed.includes('hanoi')) score = 85;
+      else if (qCondensed === 'dn' && fCondensed.includes('danang')) score = 85;
+      else if (qCondensed === 'vt' && fCondensed.includes('vungtau')) score = 85;
+      else if (qCondensed === 'pq' && fCondensed.includes('phuquoc')) score = 85;
+      else if (qCondensed === 'dl' && fCondensed.includes('dalat')) score = 85;
+      // 4. All tokens match
+      else if (qTokens.length > 1 && qTokens.every(tok => fullHaystack.includes(tok))) score = 70;
+      // 5. Subsequence fuzzy match or typo tolerance (Levenshtein distance <= 1 for single token >= 4 chars)
+      else if (qTokens.length === 1 && qCondensed.length >= 4) {
+        const itemTokens = fullHaystack.split(/\s+/).filter(Boolean);
+        for (const it of itemTokens) {
+          if (it.length >= 3 && this.levenshteinDistance(qCondensed, it.replace(/[^a-z0-9]/g, '')) <= 1) {
+            score = 60;
+            break;
+          }
+        }
+      }
+
+      if (score > 0) {
+        scoredMatches.push({ item, score });
+      }
+    }
+
+    scoredMatches.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (coords) return (a.item.distanceMeters ?? 999999) - (b.item.distanceMeters ?? 999999);
+      return 0;
+    });
+
+    return scoredMatches.map((m) => m.item).slice(0, 10);
   });
 
   constructor() {
+    this.loadRecentSearches();
     effect(() => {
       const init = this.initialFilter();
       if (!init) return;
@@ -684,14 +744,104 @@ export class BookingFilterBarComponent {
     this.emitSearch();
   }
 
-  selectSuggestion(item: DestinationSuggestionDto): void {
+  private loadRecentSearches(): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      const raw = localStorage.getItem('hotel_saas_recent_searches');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          this.recentSearches.set(parsed);
+        }
+      }
+    } catch (e) {
+      console.warn('Could not read recent searches from localStorage', e);
+    }
+  }
+
+  saveSearchToHistory(keyword: string, label?: string, type?: DestinationSuggestionDto['type'], provinceName?: string): void {
+    const trimmed = keyword.trim();
+    if (!trimmed || trimmed.toLowerCase().includes('gps') || trimmed.toLowerCase().includes('vị trí hiện tại')) return;
+    if (typeof localStorage === 'undefined') return;
+
+    try {
+      const current = this.recentSearches().filter(
+        (s: RecentSearchItem) => s.keyword.toLowerCase() !== trimmed.toLowerCase()
+      );
+      const newItem: RecentSearchItem = {
+        id: `search-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        keyword: trimmed,
+        label: label || trimmed,
+        type: type || 'Keyword',
+        provinceName,
+        timestamp: Date.now(),
+      };
+      const updated = [newItem, ...current].slice(0, 8);
+      this.recentSearches.set(updated);
+      localStorage.setItem('hotel_saas_recent_searches', JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Could not save recent search to localStorage', e);
+    }
+  }
+
+  removeRecentSearch(item: RecentSearchItem, event: Event): void {
+    event.stopPropagation();
+    event.preventDefault();
+    const updated = this.recentSearches().filter((s: RecentSearchItem) => s.id !== item.id);
+    this.recentSearches.set(updated);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('hotel_saas_recent_searches', JSON.stringify(updated));
+    }
+  }
+
+  clearAllRecentSearches(event: Event): void {
+    event.stopPropagation();
+    event.preventDefault();
+    this.recentSearches.set([]);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('hotel_saas_recent_searches');
+    }
+  }
+
+  selectRecentSearch(item: RecentSearchItem): void {
+    this.destinationKeyword.set(item.keyword);
     this.userCoords.set(null);
+    this.showSuggestionsDropdown.set(false);
+    this.saveSearchToHistory(item.keyword, item.label, item.type as any, item.provinceName);
+    this.emitSearch();
+  }
+
+  private levenshteinDistance(a: string, b: string): number {
+    if (a === b) return 0;
+    if (!a.length) return b.length;
+    if (!b.length) return a.length;
+    const v0 = new Int32Array(b.length + 1);
+    const v1 = new Int32Array(b.length + 1);
+    for (let i = 0; i <= b.length; i++) v0[i] = i;
+    for (let i = 0; i < a.length; i++) {
+      v1[0] = i + 1;
+      for (let j = 0; j < b.length; j++) {
+        const cost = a[i] === b[j] ? 0 : 1;
+        v1[j + 1] = Math.min(v1[j] + 1, v0[j + 1] + 1, v0[j] + cost);
+      }
+      for (let j = 0; j <= b.length; j++) v0[j] = v1[j];
+    }
+    return v0[b.length];
+  }
+
+  selectSuggestion(item: DestinationSuggestionDto): void {
+    if (item.latitude != null && item.longitude != null) {
+      this.userCoords.set({ lat: item.latitude, lng: item.longitude });
+    } else {
+      this.userCoords.set(null);
+    }
     this.destinationKeyword.set(item.name);
     this.selectedProvinceCode.set(item.provinceCode);
     this.selectedTouristZoneSlug.set(
       item.type === 'TouristZone' ? item.slug : null
     );
     this.selectedLandmarkSlug.set(item.type === 'Landmark' ? item.slug : null);
+    this.saveSearchToHistory(item.name, item.name, item.type, item.provinceName);
     this.showSuggestionsDropdown.set(false);
     this.emitSearch();
   }
@@ -700,12 +850,19 @@ export class BookingFilterBarComponent {
     name: string;
     slug: string;
     provinceCode: string;
+    latitude?: number;
+    longitude?: number;
   }): void {
-    this.userCoords.set(null);
+    if (spot.latitude != null && spot.longitude != null) {
+      this.userCoords.set({ lat: spot.latitude, lng: spot.longitude });
+    } else {
+      this.userCoords.set(null);
+    }
     this.destinationKeyword.set(spot.name);
     this.selectedProvinceCode.set(spot.provinceCode);
     this.selectedLandmarkSlug.set(spot.slug);
     this.selectedTouristZoneSlug.set(null);
+    this.saveSearchToHistory(spot.name, spot.name, 'Landmark');
     this.showSuggestionsDropdown.set(false);
     this.emitSearch();
   }
@@ -766,7 +923,7 @@ export class BookingFilterBarComponent {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
         });
-        this.destinationKeyword.set('Vị trí hiện tại của tôi (GPS)');
+        this.destinationKeyword.set('📍 Gần vị trí của tôi');
         this.selectedProvinceCode.set(null);
         this.selectedTouristZoneSlug.set(null);
         this.selectedLandmarkSlug.set(null);
@@ -793,9 +950,15 @@ export class BookingFilterBarComponent {
       return;
     }
     this.showSuggestionsDropdown.set(false);
+    const rawKw = this.destinationKeyword().trim();
+    const isGpsText = rawKw.includes('📍 Gần vị trí') || rawKw.includes('GPS') || rawKw.includes('Vị trí hiện tại');
+    const effectiveKw = isGpsText ? '' : rawKw;
+    if (effectiveKw) {
+      this.saveSearchToHistory(effectiveKw);
+    }
     this.filterChange.emit({
       rentalType: this.rentalType(),
-      destinationKeyword: this.destinationKeyword().trim(),
+      destinationKeyword: effectiveKw,
       provinceCode: this.selectedProvinceCode(),
       touristZoneSlug: this.selectedTouristZoneSlug(),
       landmarkSlug: this.selectedLandmarkSlug(),
@@ -812,7 +975,7 @@ export class BookingFilterBarComponent {
       userLongitude: this.userCoords()?.lng ?? null,
       minPrice: null,
       maxPrice: null,
-      sortBy: 'recommended',
+      sortBy: this.userCoords() ? 'distance_asc' : 'recommended',
       page: 1,
       pageSize: 10,
     });
@@ -892,5 +1055,37 @@ export class BookingFilterBarComponent {
     const d = new Date(isoDate);
     d.setDate(d.getDate() + days);
     return d.toISOString().split('T')[0];
+  }
+
+  private formatVnDate(isoDate: string): string {
+    if (!isoDate) return '';
+    const parts = isoDate.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return isoDate;
+  }
+
+  private calcHaversineDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ): number {
+    const R = 6371e3;
+    const phi1 = (lat1 * Math.PI) / 180;
+    const phi2 = (lat2 * Math.PI) / 180;
+    const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+    const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+      Math.cos(phi1) *
+        Math.cos(phi2) *
+        Math.sin(deltaLambda / 2) *
+        Math.sin(deltaLambda / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
   }
 }

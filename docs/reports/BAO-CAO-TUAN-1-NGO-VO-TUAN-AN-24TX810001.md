@@ -8,7 +8,7 @@
 * **Mã số sinh viên:** `24TX810001`
 * **Vai trò trong nhóm:** Nhóm trưởng (Team Leader), Kỹ sư Thiết kế Kiến trúc (Solution Architect)
 * **Đề tài / Topic:** 578 — Nền Tảng Quản Lý Khách Sạn Đa Chi Nhánh Theo Mô Hình SaaS (Hotel SaaS Platform v2)
-* **Giảng viên hướng dẫn:** ThS. Phùng Hữu Xuân (`phunghx@hcmute.edu.vn`)
+* **Giảng viên hướng dẫn:** Huỳnh Xuân Phụng (`phunghx@hcmute.edu.vn`)
 * **Thời gian thực hiện Tuần 1:** 03/10/2026 – 10/10/2026 (Nghiệm thu tích hợp: 14/10/2026)
 * **Email liên hệ:** `ngovotuananh@gmail.com` / `24tx810001@student.hcmute.edu.vn`
 * **Kho lưu trữ GitHub:** [https://github.com/GinNgo/hotel-saas-v2](https://github.com/GinNgo/hotel-saas-v2) (Nhánh làm việc chính: `develop` & `main`)
