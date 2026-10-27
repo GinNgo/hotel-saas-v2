@@ -7,7 +7,10 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Interfaces;
+using HotelSaas.Application.Common.Models;
+using HotelSaas.Application.Reports.Queries.GetGroupAnalytics;
 using HotelSaas.Domain.Enums;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -17,7 +20,7 @@ namespace HotelSaas.WebApi.Controllers;
 
 /// <summary>
 /// Provides PMS financial reporting, hospitality performance KPIs (ADR, RevPAR, Occupancy),
-/// and accounting CSV exports for hotel managers and enterprise accountants.
+/// multi-property group analytics, and accounting CSV exports for hotel managers and enterprise accountants.
 /// </summary>
 [ApiController]
 [Route("api/reports")]
@@ -27,11 +30,32 @@ public sealed class ReportsController : ControllerBase
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserContext _currentUser;
+    private readonly ISender _mediator;
 
-    public ReportsController(IApplicationDbContext context, ICurrentUserContext currentUser)
+    public ReportsController(
+        IApplicationDbContext context,
+        ICurrentUserContext currentUser,
+        ISender mediator)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _currentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
+        _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
+    }
+
+    /// <summary>
+    /// Retrieves consolidated multi-property portfolio KPIs, cross-branch comparison matrix, daily trends, and distribution channels.
+    /// </summary>
+    [HttpGet("group-analytics")]
+    [ProducesResponseType(typeof(ApiResponse<GroupAnalyticsDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetGroupAnalytics(
+        [FromQuery] DateOnly? fromDate,
+        [FromQuery] DateOnly? toDate,
+        CancellationToken cancellationToken)
+    {
+        var query = new GetGroupAnalyticsQuery(fromDate, toDate);
+        var result = await _mediator.Send(query, cancellationToken);
+        return Ok(result);
     }
 
     /// <summary>

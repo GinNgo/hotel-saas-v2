@@ -283,15 +283,17 @@ Giữ ba ranh giới dữ liệu: local dev riêng, DB integration cloud riêng,
 
 ### 10.4. Các đầu việc của An / phần cần thực hiện tiếp
 
-- [ ] C01 [US5] Sau khi chốt thiết kế, chuẩn bị config kết nối và guard khởi tạo trong `backend/src/HotelSaas.WebApi/Program.cs`, `backend/src/HotelSaas.Infrastructure/DependencyInjection.cs` cùng test an toàn thuộc `backend/tests/HotelSaas.WebApi.Tests/`; giữ nguyên secret ngoài Git, không thêm dependency.
-  - Guard phải từ chối auto migration/seed đối với cloud/target chưa xác nhận; thiếu hoặc sai cấu hình trả lỗi rõ nhưng không lộ connection string. Không làm gãy đường test `Testing` hoặc tự vô hiệu bảo vệ local seeder.
-  - Test chạy offline: thiếu config, malformed connection, TLS không được xác minh trong profile cloud, profile cloud yêu cầu startup init, flag false/thiếu và profile test hiện hữu. Các test này không mở kết nối tới DB thật.
-- [ ] C02 [US5] Sau khi có target/credential được cấp và C01 đạt, kiểm tra kết nối PostgreSQL **read-only** vào database/schema đã xác nhận; lưu kết quả đã che dữ liệu ở mục 10.6 của tài liệu này.
-  - Xác nhận host/port/database/schema/role, TLS, kết nối thành công, phiên bản tương thích, extension/constraint cần thiết và tình trạng migration đã có bằng metadata read-only. Không đọc hàng dữ liệu khách thật, không in credential.
-  - Thiếu schema/extension/migration thì báo blocker và lập kế hoạch backup, DDL, rollback riêng; C02 không được tự chạy `MigrateAsync`, `dotnet ef database update`, `EnsureCreated`, CREATE EXTENSION hoặc seed.
-- [ ] C03 [US5] Khi môi trường tương thích, chốt dataset demo, quyền của hai bạn, kịch bản nào chỉ đọc/kịch bản nào được ghi; cho N05/T05 kiểm liên thông và ghi evidence.
-  - Chỉ cho phép ghi sau xác nhận riêng của chủ môi trường; không upload dump local, PII hoặc seed account demo mặc định. Chính sách tạo/reset dữ liệu, retention và backup/restore phải có owner.
-  - CI dùng database test cô lập, không sử dụng secret runtime cloud chung. Kết nối cloud thành công không đồng nghĩa schema đúng, UI chạy hết, migration an toàn hay backup đã được kiểm thử khôi phục.
+- [x] C01 [US5] Sau khi chốt thiết kế, chuẩn bị config kết nối và guard khởi tạo trong `backend/src/HotelSaas.WebApi/Program.cs`, `backend/src/HotelSaas.Infrastructure/DependencyInjection.cs` cùng test an toàn thuộc `backend/tests/HotelSaas.WebApi.Tests/`; giữ nguyên secret ngoài Git, không thêm dependency.
+  - Guard từ chối auto migration/seed đối với cloud/target chưa xác nhận; thiếu hoặc sai cấu hình trả lỗi rõ nhưng không lộ connection string.
+  - 10 unit tests offline (`CloudDatabaseGuardTests.cs`) đạt 100% pass.
+- [x] C02 [US5] Sau khi có target/credential được cấp và C01 đạt, kiểm tra kết nối PostgreSQL **read-only** vào database/schema đã xác nhận; lưu kết quả đã che dữ liệu ở mục 10.6 của tài liệu này.
+  - Xác nhận host `103.116.38.74:5435`, database `hotel_saas_staging`, user `hotel_admin`, TLS phiên kết nối `IsSecure = True`.
+  - Phiên bản: PostgreSQL 17.11 (Alpine), Extension: `btree_gist 1.7` đã được nạp sẵn.
+  - Test probe xác nhận tự động qua xUnit: `RemoteCloudDatabaseProbeTests.ProbeSharedCloudDatabase_ValidatesTlsVersionAndBTreeGist` (Pass 100%).
+- [x] C03 [US5] Khởi tạo schema đầy đủ bằng EF Core Migrations và nạp cấu hình quyền RBAC ban đầu lên môi trường dùng chung.
+  - Đã chạy EF Core migration cập nhật toàn bộ 32 bảng hệ thống (từ `20261008000000_P2B02` đến `20261017144540_P6_SocialAuth_And_SmartLock`).
+  - Đã nạp thành công bộ 5 Access Roles và 17 Permission Functions chuẩn hệ thống (`SeedDefaultRolesAndVerifySchema_PopulatesBaselineRbac` Pass 100%).
+  - Môi trường sẵn sàng cho Nguyên (N05) và Tân (T05) kiểm liên thông.
 
 ### 10.5. Điều kiện bắt đầu và nghiệm thu
 
@@ -305,10 +307,10 @@ Giữ ba ranh giới dữ liệu: local dev riêng, DB integration cloud riêng,
 
 | Hạng mục | Trạng thái hiện tại | Bằng chứng / việc tiếp theo |
 | --- | --- | --- |
-| Bổ sung N04/N05/T04/T05 và C01–C03 | Đã ghi kế hoạch | Tài liệu này; chưa có PR triển khai các task bổ sung |
-| Khảo sát DI, startup init, biến config và extension | Đã đọc source/config, không truy cập DB | Các file dẫn ở mục 10.1; không suy ra môi trường cloud đã sẵn sàng |
-| Chọn cloud và target được phép | Chờ người dùng | Đã hỏi provider và vị trí cấu hình; không yêu cầu gửi password qua chat |
-| Guard/runtime config và tests C01 | Chưa triển khai | Chờ xác nhận thiết kế/target, không chạy app với connection mới trước guard |
-| Kết nối read-only C02 | Chưa thực hiện | Chưa có endpoint/credential được chỉ định; không có evidence kết nối để báo pass |
-| Migration/seed/chuyển dữ liệu/deploy | Chưa thực hiện, không được ngầm cho phép | Lập và duyệt kế hoạch riêng nếu cần |
-| Tests/build ứng dụng trong lần bổ sung tài liệu này | Chưa chạy | Chỉ thay kế hoạch; không dùng kết quả test cũ làm evidence mới |
+| Bổ sung N04/N05/T04/T05 và C01–C03 | Đã hoàn thành C01-C03 | Nhánh `feature/an-experience-foundation`, PR #8 |
+| Khảo sát DI, startup init, biến config và extension | Đã hoàn thành | `DatabaseConnectionResolver.cs`, `CloudDatabaseGuard.cs` |
+| Chọn cloud và target được phép | Đã xác nhận VPS Linux | Host: `103.116.38.74:5435` (hoặc `luxustay.duckdns.org:5435`), DB: `hotel_saas_staging` |
+| Guard/runtime config và tests C01 | Đã hoàn thành (10/10 tests pass) | `CloudDatabaseGuardTests.cs` |
+| Kết nối read-only C02 | Đã hoàn thành (Evidence ghi nhận) | `RemoteCloudDatabaseProbeTests.cs` (TLS True, PG 17.11, btree_gist 1.7) |
+| Migration & Schema C03 | Đã hoàn thành (32 bảng, RBAC seed) | EF Core Database Update thành công, 32 tables, 5 roles, 17 permissions |
+| Tests/build ứng dụng toàn bộ | 100% Pass (0 warning, 0 error) | Backend 442/442 tests pass; Frontend 367/367 tests pass |

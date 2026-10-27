@@ -17,26 +17,26 @@ import { filter } from 'rxjs/operators';
   standalone: true,
   imports: [RouterOutlet],
   template: `
-    <div class="min-h-screen flex flex-col justify-center items-center bg-[#fbfbfa] bg-gradient-to-br from-stone-100/60 via-slate-50 to-emerald-50/40 p-4 sm:p-6 transition-colors">
+    <div class="min-h-screen flex flex-col justify-center items-center bg-[#fbfbfa] bg-gradient-to-br from-slate-100 via-slate-50 to-indigo-50/30 p-4 sm:p-6 transition-colors">
       <div class="w-full" [class.max-w-md]="!wide()" [class.max-w-4xl]="wide()">
         <!-- Logo & Brand Header -->
-        <div class="text-center mb-7">
-          <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20 mb-3.5 transform transition-transform hover:scale-105">
+        <div class="text-center mb-6">
+          <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-700 via-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-600/25 mb-3.5 transform transition-transform hover:scale-105">
             <i class="pi pi-building text-2xl"></i>
           </div>
-          <h1 class="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight">Hotel SaaS</h1>
-          <p class="text-xs sm:text-sm text-slate-500 mt-1 font-medium">Nền tảng Quản trị Khách sạn Đa chi nhánh</p>
+          <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight">Hotel SaaS</h1>
+          <p class="text-xs sm:text-sm text-slate-500 mt-1 font-medium">Nền tảng Quản trị & Đặt phòng Khách sạn Cao cấp</p>
         </div>
 
         <!-- Auth Card Container -->
-        <div class="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-200/80 p-6 sm:p-8 backdrop-blur-xs">
+        <div class="bg-white rounded-3xl shadow-xl shadow-slate-200/70 border border-slate-200/80 p-6 sm:p-8 backdrop-blur-xs">
           <router-outlet></router-outlet>
         </div>
 
         <!-- Footer -->
         <div class="text-center text-xs text-slate-400 mt-6 space-y-1">
           <p>&copy; 2026 Hotel SaaS Platform &bull; Phiên bản 2.0</p>
-          <p class="text-[11px] text-slate-400/80">Thiết kế chuẩn doanh nghiệp &bull; Đa người thuê &bull; RBAC</p>
+          <p class="text-[11px] text-slate-400/80">Kiến trúc Cloud &bull; Bảo mật Đa chi nhánh &bull; Trải nghiệm Khách lưu trú</p>
         </div>
       </div>
     </div>

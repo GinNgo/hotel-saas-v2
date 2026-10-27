@@ -3,7 +3,6 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { Password } from 'primeng/password';
-import { Button } from 'primeng/button';
 import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -27,7 +26,6 @@ export type PortalType = 'guest' | 'admin';
     ReactiveFormsModule,
     RouterLink,
     Password,
-    Button,
     ContextSelectorDialogComponent,
     FormFieldComponent,
     FormControlDirective
@@ -35,12 +33,12 @@ export type PortalType = 'guest' | 'admin';
   template: `
     <div class="w-full">
       <!-- 1. BỘ CHUYỂN ĐỔI PHÂN HỆ CỔNG ĐĂNG NHẬP (DUAL-PORTAL TAB SWITCHER) -->
-      <div class="flex items-center p-1 mb-5 bg-slate-100 rounded-xl border border-slate-200">
+      <div class="flex items-center p-1.5 mb-5 bg-slate-100/90 rounded-2xl border border-slate-200/80 shadow-2xs">
         <button
           type="button"
           (click)="setPortal('guest')"
-          class="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer"
-          [ngClass]="portal() === 'guest' ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/60' : 'text-slate-500 hover:text-slate-800'"
+          class="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
+          [ngClass]="portal() === 'guest' ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/80 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'"
         >
           <i class="pi pi-user text-xs" [ngClass]="portal() === 'guest' ? 'text-indigo-600' : 'text-slate-400'"></i>
           <span>Khách hàng Lưu trú</span>
@@ -49,8 +47,8 @@ export type PortalType = 'guest' | 'admin';
         <button
           type="button"
           (click)="setPortal('admin')"
-          class="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer"
-          [ngClass]="portal() === 'admin' ? 'bg-white text-emerald-800 shadow-xs border border-slate-200/60' : 'text-slate-500 hover:text-slate-800'"
+          class="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
+          [ngClass]="portal() === 'admin' ? 'bg-white text-emerald-800 shadow-sm border border-slate-200/80 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'"
         >
           <i class="pi pi-shield text-xs" [ngClass]="portal() === 'admin' ? 'text-emerald-600' : 'text-slate-400'"></i>
           <span>Quản trị Khách sạn (PMS)</span>
@@ -60,14 +58,14 @@ export type PortalType = 'guest' | 'admin';
       <!-- 2. HEADER TIÊU ĐỀ THEO TỪNG CỔNG -->
       <div class="text-center mb-5">
         @if (portal() === 'guest') {
-          <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 mb-2">
-            <i class="pi pi-sparkles text-[9px]"></i> CỔNG KHÁCH HÀNG & THÀNH VIÊN
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80 mb-2 shadow-2xs">
+            <i class="pi pi-sparkles text-[10px] text-amber-500"></i> CỔNG KHÁCH HÀNG & THÀNH VIÊN
           </span>
           <h2 class="text-xl font-bold text-slate-800 mb-1">Đăng nhập Khách hàng</h2>
           <p class="text-xs text-slate-500">Tra cứu đơn đặt phòng, quản lý thẻ thành viên chuỗi & ví điểm thưởng</p>
         } @else {
-          <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 mb-2">
-            <i class="pi pi-building text-[9px]"></i> CỔNG ĐỐI TÁC & VẬN HÀNH
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/80 mb-2 shadow-2xs">
+            <i class="pi pi-building text-[10px] text-emerald-600"></i> CỔNG ĐỐI TÁC & VẬN HÀNH
           </span>
           <h2 class="text-xl font-bold text-slate-800 mb-1">Quản trị Khách sạn & Nền tảng</h2>
           <p class="text-xs text-slate-500">Bảng điều khiển quản lý phòng, lễ tân, buồng phòng & cấu hình SaaS</p>
@@ -98,11 +96,15 @@ export type PortalType = 'guest' | 'admin';
 
         <!-- Password Field -->
         <app-form-field #passwordField controlId="password" label="Mật khẩu" [required]="true" [error]="passwordError">
-            @if (portal() === 'guest') {
-              <a routerLink="/booking/lookup" class="text-[11px] text-indigo-600 hover:text-indigo-700 hover:underline">
-                Quên mật khẩu?
-              </a>
-            }
+          @if (portal() === 'guest') {
+            <a
+              slot="action"
+              routerLink="/booking/lookup"
+              class="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
+            >
+              Quên mật khẩu?
+            </a>
+          }
           <p-password
             inputId="password"
             formControlName="password"
@@ -118,16 +120,24 @@ export type PortalType = 'guest' | 'admin';
           />
         </app-form-field>
 
-        <!-- Submit Button -->
+        <!-- Submit Button (Consistent brand token colors) -->
         <div class="pt-2">
-          <p-button
+          <button
             type="submit"
-            [label]="portal() === 'guest' ? 'Đăng nhập Khách hàng' : 'Đăng nhập Ban quản lý (PMS)'"
-            [icon]="portal() === 'guest' ? 'pi pi-user' : 'pi pi-sign-in'"
-            [loading]="loading()"
             [disabled]="loading() || loginForm.invalid"
-            [styleClass]="portal() === 'guest' ? 'w-full p-button-primary bg-indigo-600 border-indigo-600' : 'w-full p-button-success'"
-          />
+            class="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold text-white shadow-md transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            [ngClass]="portal() === 'guest'
+              ? 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 shadow-indigo-600/25 hover:shadow-indigo-600/35 ring-1 ring-indigo-500/20'
+              : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-emerald-600/25 hover:shadow-emerald-600/35 ring-1 ring-emerald-500/20'"
+          >
+            @if (loading()) {
+              <i class="pi pi-spin pi-spinner text-base"></i>
+              <span>Đang xử lý đăng nhập...</span>
+            } @else {
+              <i [class]="portal() === 'guest' ? 'pi pi-user text-base' : 'pi pi-sign-in text-base'"></i>
+              <span>{{ portal() === 'guest' ? 'Đăng nhập Khách hàng' : 'Đăng nhập Ban quản lý (PMS)' }}</span>
+            }
+          </button>
         </div>
       </form>
 

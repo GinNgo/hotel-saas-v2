@@ -36,13 +36,18 @@ public sealed class GetGuestBookingByTokenQueryHandler : IRequestHandler<GetGues
         var reservation = await _context.Reservations
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .FirstOrDefaultAsync(r => r.Notes != null && r.Notes.Contains(token), cancellationToken);
+            .FirstOrDefaultAsync(r =>
+                (r.ConfirmationCode != null && r.ConfirmationCode.ToUpper() == token.ToUpper()) ||
+                (r.Notes != null && r.Notes.Contains(token)), cancellationToken);
 
         if (reservation == null)
             throw new NotFoundException("Không tìm thấy thông tin đặt phòng với mã tra cứu này.");
 
         var snapshot = ReservationSnapshotHelper.TryDeserialize(reservation.Notes);
-        if (snapshot == null || !string.Equals(snapshot.LookupToken, token, StringComparison.OrdinalIgnoreCase))
+        bool isTokenMatch = snapshot != null && string.Equals(snapshot.LookupToken, token, StringComparison.OrdinalIgnoreCase);
+        bool isCodeMatch = string.Equals(reservation.ConfirmationCode, token, StringComparison.OrdinalIgnoreCase);
+
+        if (snapshot == null || (!isTokenMatch && !isCodeMatch))
             throw new NotFoundException("Không tìm thấy thông tin đặt phòng với mã tra cứu này.");
 
         // Decision D21: Fail-closed if token is revoked, missing TTL, or expired
@@ -89,11 +94,25 @@ public sealed class GetGuestBookingByTokenQueryHandler : IRequestHandler<GetGues
         var remainingBalance = Math.Max(0m, reservation.TotalAmount - paidAmount);
         var isFullyPaid = paidAmount >= reservation.TotalAmount && reservation.TotalAmount > 0;
 
+        // Security / IoT Policy: Only disclose door PIN when reservation is Confirmed or CheckedIn AND smart lock is Active
+        bool isPinPermitted = (reservation.Status == ReservationStatus.Confirmed || reservation.Status == ReservationStatus.CheckedIn) &&
+                              string.Equals(reservation.SmartLockStatus, "Active", StringComparison.OrdinalIgnoreCase);
+
+        // Authoritative hold state: Once confirmed/checked-in/checked-out/cancelled, temporary hold is fulfilled and not active.
+        // For PendingPayment, preserve hold timestamp and clamp secondsRemaining to 0 if expired (per T04 contract).
+        bool isSettled = reservation.Status == ReservationStatus.Confirmed ||
+                         reservation.Status == ReservationStatus.CheckedIn ||
+                         reservation.Status == ReservationStatus.CheckedOut ||
+                         reservation.Status == ReservationStatus.Cancelled;
+
+        DateTime? effectiveHoldExpiresAtUtc = isSettled ? null : snapshot.HoldExpiresAtUtc;
+        int? effectiveSecondsRemaining = isSettled ? null : (isHoldExpired ? 0 : secondsRemaining);
+
         return new GuestBookingDetailDto
         {
             ReservationId = reservation.Id,
             ConfirmationCode = reservation.ConfirmationCode,
-            LookupToken = token,
+            LookupToken = snapshot.LookupToken ?? string.Empty,
             PropertyId = reservation.PropertyId,
             PropertyName = property?.Name ?? string.Empty,
             PropertyAddress = property?.Address ?? string.Empty,
@@ -113,9 +132,9 @@ public sealed class GetGuestBookingByTokenQueryHandler : IRequestHandler<GetGues
             MaskedGuestName = PiiMaskingHelper.MaskName(reservation.GuestName),
             MaskedGuestEmail = PiiMaskingHelper.MaskEmail(reservation.GuestEmail),
             MaskedGuestPhone = PiiMaskingHelper.MaskPhone(reservation.GuestPhone),
-            HoldExpiresAtUtc = snapshot.HoldExpiresAtUtc,
-            SecondsRemaining = secondsRemaining,
-            SmartLockPin = reservation.SmartLockPin,
+            HoldExpiresAtUtc = effectiveHoldExpiresAtUtc,
+            SecondsRemaining = effectiveSecondsRemaining,
+            SmartLockPin = isPinPermitted ? reservation.SmartLockPin : null,
             SmartLockStatus = reservation.SmartLockStatus,
             CreatedAtUtc = reservation.CreatedAtUtc,
             Breakdown = snapshot.Breakdown ?? Array.Empty<QuoteBreakdownItemDto>()

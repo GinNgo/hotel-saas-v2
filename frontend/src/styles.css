@@ -66,10 +66,10 @@ html, body {
 .app-field-hint { margin: 0.25rem 0 0; font-size: 0.75rem; line-height: 1rem; color: #64748b; }
 .app-field-error { margin: 0.25rem 0 0; font-size: 0.75rem; line-height: 1rem; color: var(--control-invalid); font-weight: 500; }
 .app-form-control {
-  width: 100%; min-height: 2.625rem; padding: 0.5rem 0.875rem;
+  width: 100%; height: 2.75rem; min-height: 2.75rem; padding: 0.5rem 0.875rem;
   font: inherit; font-size: 0.875rem; line-height: 1.25rem;
   color: var(--text-main); background: var(--surface-card);
-  border: 1px solid var(--control-border); border-radius: var(--radius-lg);
+  border: 1px solid var(--control-border); border-radius: var(--radius-xl);
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
   transition: all 0.15s ease-in-out;
 }
@@ -84,6 +84,49 @@ html, body {
 }
 .app-form-control:disabled {
   background: #f1f5f9; color: #94a3b8; cursor: not-allowed; border-color: #e2e8f0;
+}
+
+/* Universal Input & PrimeNG Harmonization */
+p-password {
+  display: block !important;
+  width: 100% !important;
+}
+
+.p-password {
+  display: flex !important;
+  width: 100% !important;
+  position: relative !important;
+}
+
+.p-password-input {
+  width: 100% !important;
+  flex: 1 1 auto !important;
+  height: 2.75rem !important;
+  min-height: 2.75rem !important;
+  border-radius: var(--radius-xl) !important;
+}
+
+p-datepicker {
+  display: block !important;
+  width: 100% !important;
+}
+
+.p-datepicker {
+  width: 100% !important;
+}
+
+.p-datepicker-input {
+  width: 100% !important;
+  height: 2.75rem !important;
+  min-height: 2.75rem !important;
+  border-radius: var(--radius-xl) !important;
+}
+
+input.p-inputtext {
+  height: 2.75rem;
+  min-height: 2.75rem;
+  border-radius: var(--radius-xl);
+  font-size: 0.875rem;
 }
 
 body {
@@ -101,8 +144,34 @@ body {
 
 /* Accessible Global Focus Visible */
 *:focus-visible {
-  outline: 2px solid var(--brand-primary-600);
+  outline: 2px solid var(--brand-accent-600);
   outline-offset: 2px;
+}
+
+/* PrimeNG Button Harmonization with Indigo Brand Token */
+.p-button {
+  border-radius: var(--radius-xl);
+}
+.p-button:not(.p-button-sm):not(.p-button-lg):not(.p-button-icon-only) {
+  min-height: 2.75rem;
+}
+.p-button.p-button-primary {
+  background: #4f46e5 !important;
+  border-color: #4f46e5 !important;
+  color: #ffffff !important;
+}
+.p-button.p-button-primary:hover {
+  background: #4338ca !important;
+  border-color: #4338ca !important;
+}
+.p-button.p-button-success {
+  background: #059669 !important;
+  border-color: #059669 !important;
+  color: #ffffff !important;
+}
+.p-button.p-button-success:hover {
+  background: #047857 !important;
+  border-color: #047857 !important;
 }
 
 /* Custom Refined Scrollbar */
@@ -171,4 +240,217 @@ dialog::backdrop {
 
 #p-license-host {
   display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LUXESTAY TOAST NOTIFICATIONS (LIGHTWEIGHT, REFINED, NON-BLOCKING)
+   ═══════════════════════════════════════════════════════════════ */
+@keyframes luxestaySlideInRight {
+  from {
+    transform: translate3d(100%, 0, 0);
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes luxestayFadeOutRight {
+  from {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(30px, 0, 0);
+    opacity: 0;
+  }
+}
+
+/* 1. Container: non-blocking, transparent, allows clicks to pass through */
+.swal2-container.luxestay-toast-container,
+.swal2-container.swal2-top-end:has(.luxestay-toast-popup) {
+  pointer-events: none !important;
+  background: transparent !important;
+  z-index: 99999 !important;
+  overflow: visible !important;
+  padding: 0 !important;
+}
+
+/* 2. Toast Card: compact, 12px rounded, light emerald border, subtle shadow */
+.swal2-popup.swal2-toast.luxestay-toast-popup {
+  pointer-events: auto !important;
+  margin: 76px 16px 0 0 !important;
+  display: grid !important;
+  grid-template-columns: 24px 1fr !important;
+  grid-template-rows: auto auto !important;
+  column-gap: 10px !important;
+  row-gap: 2px !important;
+  align-items: center !important;
+  width: max-content !important;
+  max-width: min(340px, calc(100vw - 32px)) !important;
+  padding: 10px 14px !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  border: 1px solid #bbf7d0 !important;
+  box-shadow: 0 4px 16px -2px rgba(16, 185, 129, 0.12), 0 2px 6px -1px rgba(0, 0, 0, 0.05) !important;
+  box-sizing: border-box !important;
+}
+
+.swal2-popup.swal2-toast.luxestay-toast-popup.swal2-show {
+  animation: luxestaySlideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.swal2-popup.swal2-toast.luxestay-toast-popup.swal2-hide {
+  animation: luxestayFadeOutRight 0.2s ease-in forwards !important;
+}
+
+/* 3. Small Clean Left Icon */
+.luxestay-toast-popup .swal2-icon {
+  grid-row: 1 / span 2 !important;
+  grid-column: 1 !important;
+  align-self: center !important;
+  border: none !important;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  margin: 0 !important;
+  border-radius: 9999px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+}
+
+.luxestay-toast-popup .swal2-icon * {
+  display: none !important;
+}
+
+/* Success Checkmark: crisp, modern, small check */
+.luxestay-toast-popup .swal2-icon.swal2-success {
+  background-color: #ecfdf5 !important;
+  border: 1px solid #a7f3d0 !important;
+}
+
+.luxestay-toast-popup .swal2-icon.swal2-success::after {
+  content: '';
+  display: block;
+  width: 5px;
+  height: 9px;
+  border: solid #059669;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  margin-bottom: 2px;
+}
+
+/* Warning Exclamation */
+.luxestay-toast-popup .swal2-icon.swal2-warning {
+  background-color: #fffbeb !important;
+  border: 1px solid #fde68a !important;
+}
+
+.luxestay-toast-popup .swal2-icon.swal2-warning::after {
+  content: '!';
+  font-weight: 800;
+  font-size: 13px;
+  color: #d97706;
+  line-height: 1;
+}
+
+/* 4. Title and Text */
+.luxestay-toast-popup .swal2-title,
+.luxestay-toast-popup .luxestay-toast-title {
+  grid-row: 1 !important;
+  grid-column: 2 !important;
+  font-family: inherit !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #065f46 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  text-align: left !important;
+  line-height: 1.25 !important;
+}
+
+.luxestay-toast-popup .swal2-html-container,
+.luxestay-toast-popup .luxestay-toast-text {
+  grid-row: 2 !important;
+  grid-column: 2 !important;
+  font-family: inherit !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  color: #475569 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  text-align: left !important;
+  line-height: 1.35 !important;
+}
+
+/* 5. Mobile responsiveness: ensure compact toast stays fully inside viewport without stretching or clipping */
+@media (max-width: 640px) {
+  .swal2-popup.swal2-toast.luxestay-toast-popup {
+    margin: 68px 12px 0 0 !important;
+    max-width: calc(100vw - 24px) !important;
+    width: max-content !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PRINT MEDIA RULES — LUXESTAY A4 STANDARD PRINT VIEW
+   ═══════════════════════════════════════════════════════════════ */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm;
+  }
+
+  /* 1. Hide website layout navigation, headers, footers, and skip link */
+  header,
+  footer,
+  .skip-link,
+  nav[aria-label="Breadcrumb"],
+  nav[aria-label="Điều hướng chính"] {
+    display: none !important;
+  }
+
+  /* 2. Reset document root and layout containers for clean printing */
+  html,
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    height: auto !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    font-size: 10pt !important;
+  }
+
+  /* 3. Remove background color & padding from page wrapper containers */
+  .min-h-screen,
+  #booking-content {
+    min-height: auto !important;
+    height: auto !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* 4. Prevent page breaks inside cards and tables */
+  .break-inside-avoid,
+  table,
+  tr,
+  td,
+  th {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* 5. Force background and text printing fidelity */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
 }

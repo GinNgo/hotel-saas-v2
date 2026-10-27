@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
-import { RevenueSummaryDto, PmsKpiDto } from '../models/report.model';
+import { RevenueSummaryDto, PmsKpiDto, GroupAnalyticsDto } from '../models/report.model';
 
 @Injectable({ providedIn: 'root' })
 export class ReportService {
@@ -35,6 +35,19 @@ export class ReportService {
 
     return this.http.get<any>(`${this.apiUrl}/pms-kpi`, { params }).pipe(
       map(res => (res.data ? res.data : res) as PmsKpiDto)
+    );
+  }
+
+  /**
+   * Retrieves consolidated multi-property portfolio group analytics.
+   */
+  getGroupAnalytics(fromDate?: string, toDate?: string): Observable<GroupAnalyticsDto> {
+    let params = new HttpParams();
+    if (fromDate) params = params.set('fromDate', fromDate);
+    if (toDate) params = params.set('toDate', toDate);
+
+    return this.http.get<any>(`${this.apiUrl}/group-analytics`, { params }).pipe(
+      map(res => (res.data ? res.data : res) as GroupAnalyticsDto)
     );
   }
 

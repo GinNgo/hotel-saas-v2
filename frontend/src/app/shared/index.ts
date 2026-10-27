@@ -12,6 +12,7 @@ export * from './components/empty-state/empty-state.component';
 export * from './components/loading-spinner/loading-spinner';
 export * from './components/skeleton-table/skeleton-table.component';
 export * from './components/date-range-filter/date-range-filter.component';
+export * from './components/booking-date-picker/booking-date-picker.component';
 export * from './components/photo-gallery-modal/photo-gallery-modal.component';
 export * from './components/room-detail-modal/room-detail-modal.component';
 export * from './components/searchable-select/searchable-select.component';
