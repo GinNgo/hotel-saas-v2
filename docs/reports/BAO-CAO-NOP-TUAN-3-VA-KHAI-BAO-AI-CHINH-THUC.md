@@ -36,10 +36,9 @@ Nhóm xin chân thành cảm ơn Thầy Huỳnh Xuân Phụng đã xét duyệt 
 2. **Đính chính tên tài khoản GitHub của thành viên Nguyễn Khôi Nguyên:**  
    Tài khoản GitHub chính thức đang hoạt động và commit mã nguồn của bạn Nguyễn Khôi Nguyên là **`N-Golden`** (thay vì tên gọi cũ `nguyencd`). Báo cáo từ Tuần 03 trở đi đồng bộ chuẩn xác định danh này trên toàn bộ tài liệu và bảng đối chiếu commit.
 
-3. **Chuẩn hóa danh mục Khai báo AI theo Model thương mại thực tế:**  
-   Tiếp thu nhắc nhở sâu sắc của Thầy về tính trung thực và khả năng kiểm chứng của công cụ AI, nhóm tuyệt đối không sử dụng các định danh phiên bản nội bộ hay tên gọi chưa phát hành. Toàn bộ công cụ và mô hình AI được khai báo trong báo cáo này đều là các **mô hình thương mại chính thức đang hiển thị thực tế trên giao diện làm việc**:
-   * **Google Antigravity IDE:** Sử dụng mô hình **`Gemini 2.5 Pro`**.
-   * **OpenAI ChatGPT:** Sử dụng mô hình **`GPT-4o`**.
+3. **Chuẩn hóa danh mục Khai báo AI theo Model thực tế hiển thị trên giao diện:**  
+   Tiếp thu nhắc nhở sâu sắc của Thầy về tính trung thực và khả năng kiểm chứng của công cụ AI, nhóm khai báo đúng 100% theo nhãn hiển thị thực tế trên thanh công cụ giao diện:  
+   * Toàn bộ 3 thành viên trong nhóm thống nhất sử dụng chung công cụ lập trình AI duy nhất là **Google Antigravity IDE** với mô hình hiển thị nguyên văn trên thanh công cụ giao diện là **`Gemini 3.8 Flash High`** (có đính kèm ảnh chụp màn hình giao diện làm việc thực tế tại Phần IV để Thầy đối chiếu trực quan).
 
 ---
 
