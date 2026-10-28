@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Payments.Commands.CreatePayment;
 using HotelSaas.Application.Payments.DTOs;
@@ -169,6 +170,7 @@ public sealed class PaymentsController : ControllerBase
     /// Creates a signed VNPay sandbox checkout URL for a reservation or booking hold.
     /// </summary>
     [HttpPost("vnpay/create-url")]
+    [HttpPost("/api/public/payments/vnpay/create-url")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(HotelSaas.Application.Common.Interfaces.VnpayCreateUrlResult), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -217,6 +219,36 @@ public sealed class PaymentsController : ControllerBase
         return Ok(new { success = result.RspCode == "00" || result.RspCode == "02", data = result });
     }
 
+    /// <summary>
+    /// Generates dynamic VietQR code for bank transfer with confirmation code in description (Task A02).
+    /// </summary>
+    [HttpPost("vietqr/generate")]
+    [HttpPost("/api/public/payments/vietqr/generate")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<VietQrResult>), StatusCodes.Status200OK)]
+    public IActionResult GenerateVietQr(
+        [FromBody] VietQrApiRequest request,
+        [FromServices] IVietQrService vietQrService)
+    {
+        if (request == null || request.Amount <= 0)
+        {
+            return BadRequest(ApiResponse.Fail("ERR_INVALID_AMOUNT", "Số tiền chuyển khoản không hợp lệ."));
+        }
+
+        var payload = new VietQrPayload(
+            BankBin: request.BankBin ?? "970422",
+            AccountNumber: request.AccountNumber ?? "0345678910",
+            AccountName: request.AccountName ?? "HOTEL SAAS RESORT",
+            Amount: request.Amount,
+            Description: request.Description ?? $"DATPHONG {request.ConfirmationCode ?? "HOTEL"}",
+            ConfirmationCode: request.ConfirmationCode ?? "HOTEL",
+            ReservationId: request.ReservationId
+        );
+
+        var result = vietQrService.GenerateDynamicQr(payload);
+        return Ok(ApiResponse.Ok(result, "Sinh mã VietQR thành công."));
+    }
+
     private Guid? ResolveTargetPropertyId(Guid? queryPropertyId)
     {
         if (Request.Headers.TryGetValue("X-Property-Id", out var headerVal) &&
@@ -238,3 +270,4 @@ public sealed record CreateVnpayUrlApiRequest(
     string? LookupToken = null,
     string? ReturnUrl = null
 );
+public sealed record VietQrApiRequest(decimal Amount, string? ConfirmationCode = null, Guid? ReservationId = null, string? BankBin = null, string? AccountNumber = null, string? AccountName = null, string? Description = null);

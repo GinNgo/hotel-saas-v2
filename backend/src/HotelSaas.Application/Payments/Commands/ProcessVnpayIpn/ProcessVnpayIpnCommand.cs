@@ -25,13 +25,16 @@ public sealed class ProcessVnpayIpnCommandHandler : IRequestHandler<ProcessVnpay
 {
     private readonly IApplicationDbContext _context;
     private readonly IVnpayPaymentService _vnpayService;
+    private readonly INotificationDispatcher? _notificationDispatcher;
 
     public ProcessVnpayIpnCommandHandler(
         IApplicationDbContext context,
-        IVnpayPaymentService vnpayService)
+        IVnpayPaymentService vnpayService,
+        INotificationDispatcher? notificationDispatcher = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _vnpayService = vnpayService ?? throw new ArgumentNullException(nameof(vnpayService));
+        _notificationDispatcher = notificationDispatcher;
     }
 
     public async Task<VnpayIpnResponseDto> Handle(ProcessVnpayIpnCommand request, CancellationToken cancellationToken)
@@ -109,6 +112,27 @@ public sealed class ProcessVnpayIpnCommandHandler : IRequestHandler<ProcessVnpay
             reservation.SmartLockActivatedAtUtc = DateTime.UtcNow;
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            // Realtime SignalR notification to hotel reception (Task A03)
+            if (_notificationDispatcher != null)
+            {
+                try
+                {
+                    await _notificationDispatcher.NotifyNewReservationConfirmedAsync(
+                        reservation.PropertyId.ToString(),
+                        reservation.Id.ToString(),
+                        reservation.ConfirmationCode,
+                        reservation.GuestName,
+                        "Phòng nghỉ dưỡng",
+                        reservation.TotalAmount,
+                        verify.Amount,
+                        cancellationToken);
+                }
+                catch
+                {
+                    // Fail-safe: Notification error does not rollback financial settlement
+                }
+            }
 
             return new VnpayIpnResponseDto("00", "Confirm Success");
         }

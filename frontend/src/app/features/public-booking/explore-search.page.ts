@@ -52,9 +52,9 @@ interface TenantBrandFacet {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="min-h-screen bg-slate-50 font-sans pb-16">
+    <div class="min-h-screen bg-[#FBF9F5] font-sans pb-20">
       <!-- 1. TOP HEADER & SEARCH BAR BANNER -->
-      <div class="bg-slate-900 text-white pt-8 pb-10 px-4 sm:px-6 lg:px-8 border-b border-slate-800">
+      <div class="bg-[#0D2E28] text-white pt-10 pb-12 px-4 sm:px-6 lg:px-8 border-b border-[#1A453D]">
         <div class="max-w-7xl mx-auto space-y-4">
           <!-- Breadcrumb -->
           <nav class="flex items-center gap-2 text-xs text-slate-400">
@@ -65,7 +65,7 @@ interface TenantBrandFacet {
 
           <div class="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              <h1 class="font-serif text-2xl sm:text-4xl font-normal text-[#FBF9F5] tracking-tight">
                 {{ pageTitle() }}
               </h1>
               <p class="text-xs sm:text-sm text-slate-300 mt-1">
@@ -414,10 +414,10 @@ interface TenantBrandFacet {
                         <!-- Chuỗi & Tên khách sạn -->
                         <div class="flex items-start justify-between gap-2">
                           <div>
-                            <span class="text-[11px] font-bold text-indigo-600 uppercase tracking-wider">
+                            <span class="text-[11px] font-bold text-[#0D2E28] uppercase tracking-wider">
                               {{ property.tenantBrandName }}
                             </span>
-                            <h3 class="text-base sm:text-lg font-bold text-slate-900 group-hover:text-indigo-600 transition-colors mt-0.5">
+                            <h3 class="font-serif text-base sm:text-lg font-bold text-slate-900 group-hover:text-[#C05621] transition-colors mt-0.5">
                               <a [routerLink]="['/booking/properties', property.slug]" [queryParams]="searchFilter()">
                                 {{ property.name }}
                               </a>
@@ -466,7 +466,7 @@ interface TenantBrandFacet {
                           </span>
                           <div class="flex items-baseline gap-1">
                             @if (property.startingPriceForSelectedMode > 0) {
-                              <span class="text-lg font-extrabold text-indigo-600">
+                              <span class="text-lg font-mono font-extrabold text-[#C05621]">
                                 {{ property.startingPriceForSelectedMode | number: '1.0-0' }}đ
                               </span>
                               <span class="text-[11px] text-slate-400">/ {{ getPriceUnitShort(searchFilter().rentalType) }}</span>
@@ -480,7 +480,7 @@ interface TenantBrandFacet {
                           <a
                             [routerLink]="['/booking/properties', property.slug]"
                             [queryParams]="searchFilter()"
-                            class="px-5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors cursor-pointer shadow-2xs inline-flex items-center gap-1.5"
+                            class="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#C05621] hover:bg-[#a34315] text-white transition-all cursor-pointer shadow-sm hover:shadow inline-flex items-center gap-1.5"
                           >
                             <span>Xem phòng &amp; Đặt ngay</span>
                             <i class="pi pi-arrow-right text-[10px]"></i>

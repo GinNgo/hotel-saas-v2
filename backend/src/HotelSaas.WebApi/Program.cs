@@ -141,6 +141,7 @@ app.UseAuthentication();
 app.UseMiddleware<TenantPropertyContextMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<HotelSaas.Infrastructure.Hubs.NotificationHub>("/hubs/notifications");
 
 app.Run();
 

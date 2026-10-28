@@ -66,27 +66,27 @@ interface TenantBrandFacet {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="min-h-screen bg-slate-50 pb-16">
+    <div class="min-h-screen bg-[#FBF9F5] pb-20 font-sans">
       <!-- HERO BANNER & THANH TÌM KIẾM ĐA NĂNG -->
       <div
-        class="bg-gradient-to-b from-indigo-950 via-slate-900 to-indigo-900 text-white pt-12 pb-14 px-4 sm:px-6 lg:px-8 relative overflow-hidden"
+        class="bg-[#0D2E28] text-amber-50 pt-16 pb-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden border-b border-[#1A453D]"
       >
         <!-- Background decorative ambient circles -->
-        <div class="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-indigo-500/15 blur-3xl pointer-events-none"></div>
-        <div class="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-rose-500/10 blur-3xl pointer-events-none"></div>
+        <div class="absolute inset-0 bg-[radial-gradient(#1e4d44_1px,transparent_1px)] [background-size:24px_24px] opacity-35 pointer-events-none"></div>
+        <div class="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-amber-600/10 blur-3xl pointer-events-none"></div>
 
         <div class="max-w-7xl mx-auto relative z-10">
           <div class="max-w-3xl mb-8">
-            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-indigo-200 text-xs font-semibold mb-3">
+            <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#1A453D] border border-amber-400/30 text-amber-200 text-xs font-semibold tracking-wide mb-4">
               <i class="pi pi-sparkles text-amber-400"></i>
-              <span>Khám phá nhiều loại hình lưu trú</span>
+              <span>Nghỉ Dưỡng &amp; Khách Sạn Di Sản Việt Nam</span>
             </div>
             <div>
-              <h1 class="text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
-                Khám Phá Chỗ Nghỉ Hoàn Hảo & Tận Hưởng Kỳ Nghỉ Trong Mơ
+              <h1 class="font-serif text-3xl sm:text-5xl lg:text-6xl font-normal text-[#FBF9F5] tracking-tight leading-[1.15]">
+                Khám Phá Chỗ Nghỉ Hoàn Hảo &amp; <span class="italic text-amber-200 font-serif">Kỳ Nghỉ Trong Mơ</span>
               </h1>
             </div>
-            <p class="text-sm sm:text-base text-slate-300 max-w-2xl mt-3 leading-relaxed">
+            <p class="text-sm sm:text-base text-[#F4EFE6]/80 max-w-2xl mt-4 font-sans leading-relaxed">
               Tìm khách sạn, homestay và resort phù hợp với chuyến đi. Xem giá, tiện nghi và hình thức lưu trú được từng cơ sở hỗ trợ trước khi đặt phòng.
             </p>
 

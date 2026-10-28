@@ -221,8 +221,8 @@ export class PublicBookingService {
   /**
    * Sinh URL thanh toán trực tuyến qua Cổng VNPay Sandbox cho đơn đặt phòng.
    */
-  createVnpayPaymentUrl(reservationId: string, returnUrl?: string): Observable<{ paymentUrl: string; transactionRef: string }> {
-    return this.http.post<any>(`${environment.apiUrl}/payments/vnpay/create-url`, { reservationId, returnUrl }).pipe(
+  createVnpayPaymentUrl(reservationId?: string, lookupToken?: string, returnUrl?: string): Observable<{ paymentUrl: string; transactionRef: string }> {
+    return this.http.post<any>(`${environment.apiUrl}/payments/vnpay/create-url`, { reservationId, lookupToken, returnUrl }).pipe(
       map(res => (res.data ? res.data : res))
     );
   }
@@ -230,6 +230,33 @@ export class PublicBookingService {
   /**
    * Retrieves all branches belonging to a tenant brand chain.
    */
+  /**
+   * Sinh mã VietQR động chuẩn NAPAS 24/7 theo đơn đặt phòng hoặc số tiền yêu cầu.
+   */
+  generateVietQr(payload: {
+    amount: number;
+    confirmationCode?: string;
+    reservationId?: string;
+    bankBin?: string;
+    accountNumber?: string;
+    accountName?: string;
+    description?: string;
+  }): Observable<{
+    qrImageUrl: string;
+    bankBin: string;
+    bankName: string;
+    accountNumber: string;
+    accountName: string;
+    amount: number;
+    description: string;
+    confirmationCode: string;
+    quickPayDeepLink: string;
+  }> {
+    return this.http.post<any>(`${environment.apiUrl}/public/payments/vietqr/generate`, payload).pipe(
+      map(res => (res.data ? res.data : res))
+    );
+  }
+
   getPropertiesByTenant(tenantId: string): Observable<PublicPropertyDto[]> {
     return this.getProperties().pipe(
       map(props => props.filter(p => p.tenantId === tenantId))

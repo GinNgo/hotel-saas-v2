@@ -88,7 +88,7 @@ export interface RecentSearchItem {
               [attr.aria-selected]="rentalType() === tab.type"
               (click)="selectRentalType(tab.type)"
               class="flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer"
-              [class.bg-indigo-600]="rentalType() === tab.type"
+              [class.bg-[#0D2E28]]="rentalType() === tab.type"
               [class.text-white]="rentalType() === tab.type"
               [class.shadow-sm]="rentalType() === tab.type"
               [class.text-slate-700]="rentalType() !== tab.type"
@@ -124,9 +124,9 @@ export interface RecentSearchItem {
 
         <!-- Tóm tắt khung giờ nhận - trả phòng tự động -->
         <div
-          class="flex items-center gap-2 text-xs md:text-sm bg-indigo-50/80 text-indigo-900 px-3.5 py-2 rounded-xl border border-indigo-100"
+          class="flex items-center gap-2 text-xs md:text-sm bg-amber-50/80 text-amber-950 px-3.5 py-2 rounded-xl border border-amber-200/80"
         >
-          <i class="pi pi-clock text-indigo-600"></i>
+          <i class="pi pi-clock text-[#C05621]"></i>
           <span>{{ computedStaySummary() }}</span>
         </div>
       </div>
@@ -359,7 +359,7 @@ export interface RecentSearchItem {
             <button
               type="button"
               (click)="emitSearch()"
-              class="w-full h-11 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+              class="w-full h-11 px-4 bg-[#C05621] hover:bg-[#a34315] active:bg-[#823510] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <i class="pi pi-search"></i>
               <span>Tìm phòng</span>
@@ -398,9 +398,9 @@ export interface RecentSearchItem {
               type="button"
               (click)="togglePropertyType(chip.type)"
               class="px-3 py-1.5 rounded-full text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer"
-              [class.bg-indigo-600]="isPropertyTypeSelected(chip.type)"
+              [class.bg-[#0D2E28]]="isPropertyTypeSelected(chip.type)"
               [class.text-white]="isPropertyTypeSelected(chip.type)"
-              [class.border-indigo-600]="isPropertyTypeSelected(chip.type)"
+              [class.border-[#0D2E28]]="isPropertyTypeSelected(chip.type)"
               [class.bg-white]="!isPropertyTypeSelected(chip.type)"
               [class.text-slate-700]="!isPropertyTypeSelected(chip.type)"
               [class.border-slate-300]="!isPropertyTypeSelected(chip.type)"

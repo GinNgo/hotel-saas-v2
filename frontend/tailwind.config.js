@@ -5,7 +5,46 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        serif: ['"Playfair Display"', 'Georgia', 'serif'],
+        sans: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'Consolas', 'monospace'],
+      },
       colors: {
+        indochine: {
+          50: '#f0fdf9',
+          100: '#ccfbf1',
+          200: '#99f6e4',
+          500: '#14b8a6',
+          700: '#0f766e',
+          800: '#0f3d35',
+          900: '#0D2E28',
+          950: '#061b17',
+          DEFAULT: '#0D2E28',
+        },
+        terracotta: {
+          50: '#fff7ed',
+          100: '#ffedd5',
+          200: '#fed7aa',
+          500: '#f97316',
+          600: '#ea580c',
+          700: '#C05621',
+          800: '#9a3412',
+          DEFAULT: '#C05621',
+        },
+        linen: {
+          50: '#fdfcfb',
+          100: '#FBF9F5',
+          200: '#F4EFE6',
+          300: '#e8dfd3',
+          DEFAULT: '#FBF9F5',
+        },
+        'warm-slate': {
+          700: '#374151',
+          800: '#2D3748',
+          900: '#1a202c',
+          DEFAULT: '#2D3748',
+        },
         primary: {
           50: '#ecfdf5',
           100: '#d1fae5',

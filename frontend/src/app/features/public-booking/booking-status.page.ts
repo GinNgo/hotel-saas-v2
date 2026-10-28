@@ -600,9 +600,35 @@ export interface StatusErrorState {
                         <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600 flex items-start gap-2.5">
                           <i class="pi pi-info-circle text-indigo-600 mt-0.5 text-xs shrink-0"></i>
                           <div class="space-y-1">
-                            <span class="font-bold text-slate-700 block">Thanh toán trực tuyến hiện chưa khả dụng</span>
+                            <span class="font-bold text-slate-700 block">Thanh toán qua VietQR NAPAS 24/7 hoặc VNPay</span>
+                            <!-- VietQR & VNPay Options -->
+                            <div class="mt-2 space-y-2">
+                              <div class="p-2 bg-white rounded-lg border border-slate-200 flex items-center gap-3">
+                                <img [src]="getVietQrImageUrl(detail)" alt="VietQR" class="w-20 h-20 object-contain shrink-0" />
+                                <div class="text-[10px] space-y-0.5">
+                                  <div class="font-bold text-slate-800">MB Bank: 0345678910</div>
+                                  <div class="text-slate-500">CTK: HOTEL SAAS RESORT</div>
+                                  <div class="font-mono text-emerald-700 font-bold">Số tiền: {{ getRemainingDeposit(detail) | number:'1.0-0' }} ₫</div>
+                                  <div class="text-amber-800 font-mono font-bold">CK: DATPHONG {{ detail.confirmationCode }}</div>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                (click)="payWithVnpay()"
+                                [disabled]="isVnpayRedirecting()"
+                                class="w-full py-2 px-3 rounded-lg bg-[#005BAA] hover:bg-[#004785] text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                              >
+                                @if (isVnpayRedirecting()) {
+                                  <i class="pi pi-spin pi-spinner text-xs"></i>
+                                  <span>Đang chuyển hướng VNPay…</span>
+                                } @else {
+                                  <i class="pi pi-credit-card text-xs"></i>
+                                  <span>Thanh toán Cổng VNPAY</span>
+                                }
+                              </button>
+                            </div>
                             <p class="text-slate-500 leading-relaxed">
-                              Quý khách vui lòng liên hệ trực tiếp quầy Lễ tân hoặc cơ sở lưu trú để hoàn tất khoản đặt cọc giữ phòng.
+                              Sau khi chuyển khoản thành công, hệ thống tự động kích hoạt mã PIN SmartLock và gửi thông báo tức thì tới Lễ tân.
                             </p>
                           </div>
                         </div>
@@ -1390,9 +1416,37 @@ export class BookingStatusPage implements OnInit {
     return Math.max(0, (detail.depositRequired || 0) - (detail.paidAmount || 0));
   }
 
+  readonly isVnpayRedirecting = signal<boolean>(false);
+
+  getVietQrImageUrl(detail: GuestBookingDetailDto): string {
+    const deposit = this.getRemainingDeposit(detail);
+    const amount = deposit > 0 ? deposit : (detail.remainingBalance || detail.totalAmount || 0);
+    const code = detail.confirmationCode || 'HOTEL';
+    return `https://img.vietqr.io/image/970422-0345678910-compact2.png?amount=${Math.round(amount)}&addInfo=DATPHONG+${code}&accountName=HOTEL+SAAS+RESORT`;
+  }
+
   payWithVnpay(): void {
     // T03: Kiểm tra điều kiện gate — chưa có bằng chứng phê duyệt cấu hình sandbox từ An, không phát request thanh toán
-    this.alertService.toastWarning('Cổng thanh toán VNPay trực tuyến hiện chưa khả dụng. Vui lòng thanh toán trực tiếp với cơ sở lưu trú.');
+    const detail = this.booking();
+    if (!detail || this.isVnpayRedirecting()) return;
+
+    this.isVnpayRedirecting.set(true);
+    const returnUrl = typeof window !== 'undefined' ? `${window.location.origin}/booking/status/${detail.lookupToken}` : undefined;
+
+    this.publicBookingService.createVnpayPaymentUrl(undefined, detail.lookupToken, returnUrl).subscribe({
+      next: (res) => {
+        if (res?.paymentUrl && typeof window !== 'undefined') {
+          window.location.href = res.paymentUrl;
+        } else {
+          this.isVnpayRedirecting.set(false);
+          this.alertService.toastWarning('Không thể tạo liên kết thanh toán VNPay. Vui lòng thử quét mã VietQR bên cạnh.');
+        }
+      },
+      error: () => {
+        this.isVnpayRedirecting.set(false);
+        this.alertService.toastWarning('Kết nối cổng VNPay tạm thời gián đoạn. Vui lòng quét mã VietQR để chuyển khoản trực tiếp.');
+      }
+    });
   }
 
   copyPin(pin?: string): void {
