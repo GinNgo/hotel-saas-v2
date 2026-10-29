@@ -13,6 +13,9 @@ using HotelSaas.Application.Public.Queries.GetPublicProperties;
 using HotelSaas.Application.Public.Queries.GetPublicPropertyBySlug;
 using HotelSaas.Application.Public.Queries.GetPublicRoomTypes;
 using HotelSaas.Application.Quotes.DTOs;
+using HotelSaas.Application.Reviews.Commands.SubmitGuestReview;
+using HotelSaas.Application.Reviews.DTOs;
+using HotelSaas.Application.Reviews.Queries.GetPropertyReviews;
 using HotelSaas.Domain.Enums;
 using HotelSaas.WebApi.Authorization;
 using MediatR;
@@ -317,7 +320,64 @@ public sealed class PublicController : ControllerBase
         var result = await _mediator.Send(command, cancellationToken);
         return Ok(result);
     }
+
+    /// <summary>
+    /// Gets verified reviews and aggregate ratings for an accommodation property.
+    /// </summary>
+    [HttpGet("properties/{slug}/reviews")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(PropertyReviewsSummaryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetPropertyReviews(
+        string slug,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _mediator.Send(new GetPropertyReviewsQuery(slug, page, pageSize), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Submits a verified guest review using the reservation lookup token.
+    /// </summary>
+    [HttpPost("bookings/{lookupToken}/review")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(GuestReviewDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SubmitReview(
+        string lookupToken,
+        [FromBody] SubmitReviewApiRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request == null)
+        {
+            return BadRequest(new { code = "ERR_EMPTY_BODY", message = "Dữ liệu đánh giá không hợp lệ." });
+        }
+
+        var command = new SubmitGuestReviewCommand(
+            LookupToken: lookupToken,
+            Rating: request.Rating,
+            CleanlinessRating: request.CleanlinessRating,
+            LocationRating: request.LocationRating,
+            ServiceRating: request.ServiceRating,
+            ValueRating: request.ValueRating,
+            Comment: request.Comment);
+
+        var result = await _mediator.Send(command, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created, result);
+    }
 }
+
+public sealed record SubmitReviewApiRequest(
+    int Rating,
+    int? CleanlinessRating = null,
+    int? LocationRating = null,
+    int? ServiceRating = null,
+    int? ValueRating = null,
+    string? Comment = null
+);
 
 public sealed record CalculatePublicQuoteRequest(
     string PropertySlug,

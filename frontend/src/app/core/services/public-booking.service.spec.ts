@@ -129,6 +129,25 @@ describe('PublicBookingService', () => {
     });
   });
 
+  it('calls POST /public/bookings/{lookupToken}/review when submitting a review', () => {
+    const reviewReq = {
+      lookupToken: 'token-abc',
+      rating: 5,
+      cleanlinessRating: 5,
+      comment: 'Tuyệt vời!'
+    };
+    mockHttp.post.mockReturnValue(of({ id: 'rev-1', rating: 5 }));
+
+    service.submitReview(reviewReq).subscribe(res => {
+      expect(res).toBeDefined();
+    });
+
+    expect(mockHttp.post).toHaveBeenCalledWith(
+      `${environment.apiUrl}/public/bookings/token-abc/review`,
+      reviewReq
+    );
+  });
+
   it('5. should call POST /public/quotes to calculate authoritative quote', () => {
     const quoteReq = {
       propertySlug: 'danang-beach',

@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import {
   PublicPropertyDto,
@@ -18,11 +18,11 @@ import {
   TenantBrandDto,
   PropertyPolicyDto,
   GuestReviewDto,
+  PropertyReviewsSummaryDto,
   SubmitGuestReviewRequest,
   PromotionDealDto
 } from '../models/public-booking.model';
 import { QuoteDto } from '../models/reservation.model';
-import { of } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class PublicBookingService {
@@ -329,12 +329,28 @@ export class PublicBookingService {
     })));
   }
 
-  getPropertyReviews(_slug: string): Observable<GuestReviewDto[]> {
-    return of([]);
+  getPropertyReviews(slug: string): Observable<GuestReviewDto[]> {
+    return this.http.get<any>(`${this.apiUrl}/properties/${encodeURIComponent(slug)}/reviews`).pipe(
+      map(res => {
+        if (Array.isArray(res)) return res as GuestReviewDto[];
+        if (Array.isArray(res?.data)) return res.data as GuestReviewDto[];
+        if (Array.isArray(res?.reviews)) return res.reviews as GuestReviewDto[];
+        return [];
+      }),
+      catchError(() => of([]))
+    );
   }
-  submitReview(request: SubmitGuestReviewRequest): Observable<boolean> {
-    // Contract FR10: Honest capability. Guest reviews submission endpoint is gated for a future sprint.
-    return of(false);
+
+  getPropertyReviewsSummary(slug: string): Observable<PropertyReviewsSummaryDto> {
+    return this.http.get<any>(`${this.apiUrl}/properties/${encodeURIComponent(slug)}/reviews`).pipe(
+      map(res => (res.data ? res.data : res) as PropertyReviewsSummaryDto)
+    );
+  }
+
+  submitReview(request: SubmitGuestReviewRequest): Observable<GuestReviewDto> {
+    return this.http.post<any>(`${this.apiUrl}/bookings/${encodeURIComponent(request.lookupToken)}/review`, request).pipe(
+      map(res => (res.data ? res.data : res) as GuestReviewDto)
+    );
   }
 
   /**

@@ -83,6 +83,9 @@ public interface IApplicationDbContext
     /// <summary>Liên kết tài khoản mạng xã hội (Google, Facebook).</summary>
     DbSet<SocialIdentity> SocialIdentities { get; }
 
+    /// <summary>Đánh giá và nhận xét của khách lưu trú (Guest Reviews).</summary>
+    DbSet<GuestReview> GuestReviews { get; }
+
     /// <summary>
     /// Starts a database transaction asynchronously.
     /// </summary>

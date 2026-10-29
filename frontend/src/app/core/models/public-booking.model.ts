@@ -414,14 +414,35 @@ export interface GuestReviewDto {
   roomTypeName?: string;
   cleanlinessRating?: number;
   staffRating?: number;
+  locationRating?: number;
+  serviceRating?: number;
+  valueRating?: number;
+  ownerReply?: string;
+  repliedAt?: string;
+}
+
+export interface PropertyReviewsSummaryDto {
+  propertyId: string;
+  propertyName: string;
+  propertySlug: string;
+  averageRating: number;
+  totalReviews: number;
+  cleanlinessAverage: number;
+  locationAverage: number;
+  serviceAverage: number;
+  valueAverage: number;
+  ratingDistribution: { [key: number]: number };
+  reviews: GuestReviewDto[];
 }
 
 export interface SubmitGuestReviewRequest {
   lookupToken: string;
   rating: number;
   cleanlinessRating?: number;
-  staffRating?: number;
-  comment: string;
+  locationRating?: number;
+  serviceRating?: number;
+  valueRating?: number;
+  comment?: string;
 }
 
 export interface PromotionDealDto {
