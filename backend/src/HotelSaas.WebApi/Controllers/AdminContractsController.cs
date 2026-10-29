@@ -19,6 +19,7 @@ namespace HotelSaas.WebApi.Controllers;
 /// Quản lý Hợp đồng Cung cấp Dịch vụ Phần mềm SaaS giữa Nền tảng và các Khách sạn / Doanh nghiệp Đối tác.
 /// Hỗ trợ tạo hợp đồng, phê duyệt, ký kết điện tử và theo dõi trạng thái hiệu lực.
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/admin/contracts")]
 [Produces("application/json")]

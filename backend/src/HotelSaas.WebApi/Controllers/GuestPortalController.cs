@@ -20,6 +20,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HotelSaas.WebApi.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/guest")]
 [Produces("application/json")]

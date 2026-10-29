@@ -45,6 +45,7 @@ public sealed class PrintDocumentsController : ControllerBase
     public async Task<IActionResult> GetPrintableInvoice(Guid reservationId, CancellationToken cancellationToken)
     {
         var reservation = await _context.Reservations
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Include(r => r.Tenant)
             .Include(r => r.Property)
@@ -65,6 +66,7 @@ public sealed class PrintDocumentsController : ControllerBase
 
         // Lấy hóa đơn chính thức nếu đã tạo
         var invoice = await _context.Invoices
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Include(i => i.InvoiceItems)
             .FirstOrDefaultAsync(i => i.ReservationId == reservationId, cancellationToken);
@@ -159,6 +161,7 @@ public sealed class PrintDocumentsController : ControllerBase
     public async Task<IActionResult> GetPrintableVoucher(string confirmationCode, CancellationToken cancellationToken)
     {
         var reservation = await _context.Reservations
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Include(r => r.Property)
             .Include(r => r.Tenant)
