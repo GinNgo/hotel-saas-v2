@@ -31,10 +31,17 @@ public sealed record SubmitGuestReviewCommand(
 public sealed class SubmitGuestReviewCommandHandler : IRequestHandler<SubmitGuestReviewCommand, GuestReviewDto>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICurrentTenantService _tenantService;
+    private readonly ICurrentPropertyService _propertyService;
 
-    public SubmitGuestReviewCommandHandler(IApplicationDbContext context)
+    public SubmitGuestReviewCommandHandler(
+        IApplicationDbContext context,
+        ICurrentTenantService tenantService,
+        ICurrentPropertyService propertyService)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
+        _tenantService = tenantService ?? throw new ArgumentNullException(nameof(tenantService));
+        _propertyService = propertyService ?? throw new ArgumentNullException(nameof(propertyService));
     }
 
     public async Task<GuestReviewDto> Handle(SubmitGuestReviewCommand request, CancellationToken cancellationToken)
@@ -60,6 +67,10 @@ public sealed class SubmitGuestReviewCommandHandler : IRequestHandler<SubmitGues
         {
             throw new NotFoundException("Không tìm thấy thông tin đặt phòng với mã tra cứu này.");
         }
+
+        // Establish tenant & property context for change tracker & interceptors
+        _tenantService.TenantId = reservation.TenantId;
+        _propertyService.PropertyId = reservation.PropertyId;
 
         // 2. Validate token validity via snapshot if present
         var snapshot = ReservationSnapshotHelper.TryDeserialize(reservation.Notes);
