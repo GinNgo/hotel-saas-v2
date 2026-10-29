@@ -141,6 +141,7 @@ app.UseAuthentication();
 app.UseMiddleware<TenantPropertyContextMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 app.MapHub<HotelSaas.Infrastructure.Hubs.NotificationHub>("/hubs/notifications");
 
 app.Run();
