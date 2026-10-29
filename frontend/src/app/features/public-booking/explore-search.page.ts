@@ -10,6 +10,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { readPublicStay } from '../../core/models/public-stay-context';
 import { VIETNAM_34_PROVINCES } from '../../core/data/vietnam-provinces.data';
@@ -304,14 +305,46 @@ interface TenantBrandFacet {
             <div
               class="bg-white rounded-2xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3 shadow-2xs"
             >
-              <div class="flex items-center gap-2">
-                <span class="text-sm font-bold text-slate-800">
-                  {{ filteredProperties().length }} cơ sở lưu trú
-                </span>
-                <span class="text-xs text-slate-400">|</span>
-                <span class="text-xs text-slate-500">
-                  Chế độ: <strong class="text-indigo-600">{{ getRentalModeLabel(searchFilter().rentalType) }}</strong>
-                </span>
+              <div class="flex flex-wrap items-center gap-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-bold text-slate-800">
+                    {{ filteredProperties().length }} cơ sở lưu trú
+                  </span>
+                  <span class="text-xs text-slate-400">|</span>
+                  <span class="text-xs text-slate-500">
+                    Chế độ: <strong class="text-indigo-600">{{ getRentalModeLabel(searchFilter().rentalType) }}</strong>
+                  </span>
+                </div>
+
+                <!-- Google Maps Platform View Switcher -->
+                <div class="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200/80" role="group" aria-label="Chế độ hiển thị">
+                  <button
+                    type="button"
+                    (click)="viewMode.set('list')"
+                    class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
+                    [class.bg-white]="viewMode() === 'list'"
+                    [class.text-[#0D2E28]]="viewMode() === 'list'"
+                    [class.shadow-2xs]="viewMode() === 'list'"
+                    [class.text-slate-500]="viewMode() !== 'list'"
+                    [class.hover:text-slate-800]="viewMode() !== 'list'"
+                  >
+                    <i class="pi pi-list text-xs"></i>
+                    <span>Danh sách</span>
+                  </button>
+                  <button
+                    type="button"
+                    (click)="viewMode.set('map')"
+                    class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
+                    [class.bg-[#0D2E28]]="viewMode() === 'map'"
+                    [class.text-white]="viewMode() === 'map'"
+                    [class.shadow-2xs]="viewMode() === 'map'"
+                    [class.text-slate-500]="viewMode() !== 'map'"
+                    [class.hover:text-slate-800]="viewMode() !== 'map'"
+                  >
+                    <i class="pi pi-map text-xs text-amber-300"></i>
+                    <span>Bản đồ Google Maps</span>
+                  </button>
+                </div>
               </div>
 
               <div class="flex items-center gap-2">
@@ -371,136 +404,298 @@ interface TenantBrandFacet {
                 </button>
               </div>
             } @else {
-              <!-- DANH SÁCH THẺ KHÁCH SẠN (CARDS) -->
-              <div class="space-y-4">
-                @for (property of paginatedProperties(); track property.propertyId) {
-                  <article
-                    class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs hover:shadow-md hover:border-indigo-200 transition-all flex flex-col md:flex-row group"
-                  >
-                    <!-- Ảnh đại diện -->
-                    <div class="relative md:w-72 h-52 md:h-auto shrink-0 overflow-hidden bg-slate-100">
-                      <img
-                        [src]="property.thumbnailUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800'"
-                        [alt]="property.name"
-                        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        loading="lazy"
-                      />
-                      <div class="absolute top-3 left-3 flex flex-wrap gap-1.5">
-                        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white">
-                          {{ sanitizeVn(property.propertyTypeName || property.propertyType) }}
-                        </span>
-                        @if (property.starRating && property.starRating >= 4) {
-                          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950 flex items-center gap-1">
-                            <i class="pi pi-star-fill text-[9px]"></i>
-                            <span>{{ property.starRating }}★</span>
+              @if (viewMode() === 'list') {
+                <!-- DANH SÁCH THẺ KHÁCH SẠN (CARDS) -->
+                <div class="space-y-4">
+                  @for (property of paginatedProperties(); track property.propertyId) {
+                    <article
+                      class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs hover:shadow-md hover:border-indigo-200 transition-all flex flex-col md:flex-row group"
+                    >
+                      <!-- Ảnh đại diện -->
+                      <div class="relative md:w-72 h-52 md:h-auto shrink-0 overflow-hidden bg-slate-100">
+                        <img
+                          [src]="property.thumbnailUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800'"
+                          [alt]="property.name"
+                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          loading="lazy"
+                        />
+                        <div class="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                          <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white">
+                            {{ sanitizeVn(property.propertyTypeName || property.propertyType) }}
                           </span>
-                        }
+                          @if (property.starRating && property.starRating >= 4) {
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950 flex items-center gap-1">
+                              <i class="pi pi-star-fill text-[9px]"></i>
+                              <span>{{ property.starRating }}★</span>
+                            </span>
+                          }
+                        </div>
+
+                        <button
+                          type="button"
+                          (click)="openGalleryModal(property)"
+                          class="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-900 backdrop-blur-xs text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Xem toàn bộ ảnh"
+                        >
+                          <i class="pi pi-images text-xs"></i>
+                          <span>Xem ảnh</span>
+                        </button>
                       </div>
 
-                      <button
-                        type="button"
-                        (click)="openGalleryModal(property)"
-                        class="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-900 backdrop-blur-xs text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-                        title="Xem toàn bộ ảnh"
-                      >
-                        <i class="pi pi-images text-xs"></i>
-                        <span>Xem ảnh</span>
-                      </button>
-                    </div>
+                      <!-- Thông tin chi tiết -->
+                      <div class="p-5 flex-1 flex flex-col justify-between space-y-3">
+                        <div>
+                          <!-- Chuỗi & Tên khách sạn -->
+                          <div class="flex items-start justify-between gap-2">
+                            <div>
+                              <span class="text-[11px] font-bold text-[#0D2E28] uppercase tracking-wider">
+                                {{ property.tenantBrandName }}
+                              </span>
+                              <h3 class="font-serif text-base sm:text-lg font-bold text-slate-900 group-hover:text-[#C05621] transition-colors mt-0.5">
+                                <a [routerLink]="['/booking/properties', property.slug]" [queryParams]="searchFilter()">
+                                  {{ property.name }}
+                                </a>
+                              </h3>
+                              <p class="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                                <i class="pi pi-map-marker text-indigo-600 shrink-0"></i>
+                                <span>{{ getPropertyAddress(property) }}</span>
+                              </p>
+                            </div>
 
-                    <!-- Thông tin chi tiết -->
-                    <div class="p-5 flex-1 flex flex-col justify-between space-y-3">
-                      <div>
-                        <!-- Chuỗi & Tên khách sạn -->
-                        <div class="flex items-start justify-between gap-2">
-                          <div>
-                            <span class="text-[11px] font-bold text-[#0D2E28] uppercase tracking-wider">
-                              {{ property.tenantBrandName }}
-                            </span>
-                            <h3 class="font-serif text-base sm:text-lg font-bold text-slate-900 group-hover:text-[#C05621] transition-colors mt-0.5">
-                              <a [routerLink]="['/booking/properties', property.slug]" [queryParams]="searchFilter()">
-                                {{ property.name }}
-                              </a>
-                            </h3>
-                            <p class="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                              <i class="pi pi-map-marker text-indigo-600 shrink-0"></i>
-                              <span>{{ getPropertyAddress(property) }}</span>
-                            </p>
+                            @if (property.starRating) {
+                              <div class="flex items-center gap-0.5 text-amber-400 text-xs shrink-0">
+                                @for (s of [1, 2, 3, 4, 5]; track s) {
+                                  <i class="pi" [class.pi-star-fill]="s <= property.starRating" [class.pi-star]="s > property.starRating"></i>
+                                }
+                              </div>
+                            }
                           </div>
 
-                          @if (property.starRating) {
-                            <div class="flex items-center gap-0.5 text-amber-400 text-xs shrink-0">
-                              @for (s of [1, 2, 3, 4, 5]; track s) {
-                                <i class="pi" [class.pi-star-fill]="s <= property.starRating" [class.pi-star]="s > property.starRating"></i>
-                              }
-                            </div>
-                          }
-                        </div>
-
-                        <!-- Huy hiệu Địa danh & Cự ly (Chuẩn UTF-8) -->
-                        <div class="flex flex-wrap items-center gap-1.5 mt-2.5">
-                          @if (property.touristZoneName) {
-                            <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <i class="pi pi-compass text-[10px]"></i>
-                              <span>{{ sanitizeVn(property.touristZoneName) }}</span>
-                            </span>
-                          }
-
-                          @for (landmark of property.nearbyLandmarks; track landmark.landmarkId) {
-                            <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
-                              <i class="pi pi-flag-fill text-[9px] text-amber-600"></i>
-                              <span>
-                                Cách {{ sanitizeVn(landmark.landmarkName || landmark.name) }}
-                                {{ formatDistance(landmark.distanceMeters) }}
+                          <!-- Huy hiệu Địa danh & Cự ly (Chuẩn UTF-8) -->
+                          <div class="flex flex-wrap items-center gap-1.5 mt-2.5">
+                            @if (property.touristZoneName) {
+                              <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <i class="pi pi-compass text-[10px]"></i>
+                                <span>{{ sanitizeVn(property.touristZoneName) }}</span>
                               </span>
-                            </span>
-                          }
-                        </div>
-                      </div>
+                            }
 
-                      <!-- Footer card: Giá & Nút Chọn phòng -->
-                      <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <span class="text-[11px] text-slate-500 block">
-                            Giá khởi điểm ({{ getRentalModeLabel(searchFilter().rentalType) }})
-                          </span>
-                          <div class="flex items-baseline gap-1">
-                            @if (property.startingPriceForSelectedMode > 0) {
-                              <span class="text-lg font-mono font-extrabold text-[#C05621]">
-                                {{ property.startingPriceForSelectedMode | number: '1.0-0' }}đ
+                            @for (landmark of property.nearbyLandmarks; track landmark.landmarkId) {
+                              <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                                <i class="pi pi-flag-fill text-[9px] text-amber-600"></i>
+                                <span>
+                                  Cách {{ sanitizeVn(landmark.landmarkName || landmark.name) }}
+                                  {{ formatDistance(landmark.distanceMeters) }}
+                                </span>
                               </span>
-                              <span class="text-[11px] text-slate-400">/ {{ getPriceUnitShort(searchFilter().rentalType) }}</span>
-                            } @else {
-                              <span class="text-sm font-bold text-slate-600">Liên hệ báo giá</span>
                             }
                           </div>
                         </div>
 
-                        <div class="flex items-center gap-2">
-                          <a
-                            [routerLink]="['/booking/properties', property.slug]"
-                            [queryParams]="searchFilter()"
-                            class="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#C05621] hover:bg-[#a34315] text-white transition-all cursor-pointer shadow-sm hover:shadow inline-flex items-center gap-1.5"
-                          >
-                            <span>Xem phòng &amp; Đặt ngay</span>
-                            <i class="pi pi-arrow-right text-[10px]"></i>
-                          </a>
+                        <!-- Footer card: Giá & Nút Chọn phòng -->
+                        <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <span class="text-[11px] text-slate-500 block">
+                              Giá khởi điểm ({{ getRentalModeLabel(searchFilter().rentalType) }})
+                            </span>
+                            <div class="flex items-baseline gap-1">
+                              @if (property.startingPriceForSelectedMode > 0) {
+                                <span class="text-lg font-mono font-extrabold text-[#C05621]">
+                                  {{ property.startingPriceForSelectedMode | number: '1.0-0' }}đ
+                                </span>
+                                <span class="text-[11px] text-slate-400">/ {{ getPriceUnitShort(searchFilter().rentalType) }}</span>
+                              } @else {
+                                <span class="text-sm font-bold text-slate-600">Liên hệ báo giá</span>
+                              }
+                            </div>
+                          </div>
+
+                          <div class="flex items-center gap-2">
+                            <button
+                              type="button"
+                              (click)="selectPropertyForMap(property); viewMode.set('map')"
+                              class="px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-stone-100 hover:bg-stone-200 text-stone-700 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                              title="Định vị trên Google Maps"
+                            >
+                              <i class="pi pi-map text-amber-600 text-xs"></i>
+                              <span>Bản đồ</span>
+                            </button>
+                            <a
+                              [routerLink]="['/booking/properties', property.slug]"
+                              [queryParams]="searchFilter()"
+                              class="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#C05621] hover:bg-[#a34315] text-white transition-all cursor-pointer shadow-sm hover:shadow inline-flex items-center gap-1.5"
+                            >
+                              <span>Xem phòng &amp; Đặt ngay</span>
+                              <i class="pi pi-arrow-right text-[10px]"></i>
+                            </a>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </article>
-                }
-              </div>
+                    </article>
+                  }
+                </div>
 
-              <!-- PHÂN TRANG (PAGINATION) -->
-              @if (totalPages() > 1) {
-                <div class="pt-6">
-                  <app-pagination
-                    [page]="currentPage()"
-                    [pageSize]="pageSize()"
-                    [totalCount]="filteredProperties().length"
-                    (pageChange)="onPageChange($event)"
-                  />
+                <!-- PHÂN TRANG (PAGINATION) -->
+                @if (totalPages() > 1) {
+                  <div class="pt-6">
+                    <app-pagination
+                      [page]="currentPage()"
+                      [pageSize]="pageSize()"
+                      [totalCount]="filteredProperties().length"
+                      (pageChange)="onPageChange($event)"
+                    />
+                  </div>
+                }
+              } @else {
+                <!-- GOOGLE MAPS PLATFORM RESPONSIVE SPLIT VIEW -->
+                <div
+                  class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start"
+                  data-gmp-attribution="gmp_git_agentskills_v1"
+                >
+                  <!-- Cột danh sách cơ sở cuộn (5 cols) -->
+                  <div class="lg:col-span-5 space-y-3 max-h-[700px] overflow-y-auto pr-1">
+                    @for (property of filteredProperties(); track property.propertyId) {
+                      <div
+                        (click)="selectPropertyForMap(property)"
+                        class="p-3 bg-white rounded-2xl border transition-all cursor-pointer space-y-2 hover:shadow-md"
+                        [class.border-[#C05621]]="selectedMapProperty()?.propertyId === property.propertyId"
+                        [class.ring-2]="selectedMapProperty()?.propertyId === property.propertyId"
+                        [class.ring-amber-200]="selectedMapProperty()?.propertyId === property.propertyId"
+                        [class.border-slate-200]="selectedMapProperty()?.propertyId !== property.propertyId"
+                      >
+                        <div class="flex gap-3">
+                          <img
+                            [src]="property.thumbnailUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400'"
+                            [alt]="property.name"
+                            class="w-20 h-20 rounded-xl object-cover shrink-0 bg-slate-100"
+                            loading="lazy"
+                          />
+                          <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-1">
+                              <span class="text-[10px] font-extrabold text-[#C05621] uppercase tracking-wider truncate">
+                                {{ property.tenantBrandName }}
+                              </span>
+                              @if (property.starRating) {
+                                <span class="text-[10px] font-bold text-amber-500 shrink-0">
+                                  ★ {{ property.starRating }}
+                                </span>
+                              }
+                            </div>
+                            <h4 class="font-serif text-sm font-bold text-slate-900 truncate mt-0.5">
+                              {{ property.name }}
+                            </h4>
+                            <p class="text-[11px] text-slate-500 truncate mt-0.5 flex items-center gap-1">
+                              <i class="pi pi-map-marker text-[#C05621] text-[10px]"></i>
+                              <span>{{ property.wardName ? property.wardName + ', ' : '' }}{{ property.city || property.provinceName }}</span>
+                            </p>
+                            <div class="flex items-center justify-between mt-2">
+                              <span class="text-xs font-mono font-bold text-[#C05621]">
+                                {{ property.startingPriceForSelectedMode > 0 ? (property.startingPriceForSelectedMode | number:'1.0-0') + ' ₫' : 'Báo giá' }}
+                              </span>
+                              <span
+                                class="text-[10px] px-2 py-0.5 rounded-md font-semibold border"
+                                [class.bg-[#0D2E28]]="selectedMapProperty()?.propertyId === property.propertyId"
+                                [class.text-white]="selectedMapProperty()?.propertyId === property.propertyId"
+                                [class.border-[#0D2E28]]="selectedMapProperty()?.propertyId === property.propertyId"
+                                [class.bg-emerald-50]="selectedMapProperty()?.propertyId !== property.propertyId"
+                                [class.text-emerald-700]="selectedMapProperty()?.propertyId !== property.propertyId"
+                                [class.border-emerald-100]="selectedMapProperty()?.propertyId !== property.propertyId"
+                              >
+                                {{ selectedMapProperty()?.propertyId === property.propertyId ? 'Đang hiển thị' : 'Định vị' }}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    }
+                  </div>
+
+                  <!-- Cột bản đồ tương tác dính (7 cols) -->
+                  <div
+                    class="lg:col-span-7 lg:sticky lg:top-24 space-y-3"
+                    style="content-visibility: auto; contain-intrinsic-size: auto none auto 580px;"
+                  >
+                    <div class="bg-white rounded-3xl border border-stone-200/90 shadow-sm overflow-hidden flex flex-col">
+                      <!-- Thanh tiêu đề Toolbar bản đồ -->
+                      <div class="p-3.5 bg-stone-50 border-b border-stone-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div class="flex items-center gap-2">
+                          <span class="font-bold text-stone-800 flex items-center gap-1.5">
+                            <i class="pi pi-map text-emerald-700"></i>
+                            <span>Google Maps Tương Tác</span>
+                          </span>
+                          <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100/70 text-emerald-900 border border-emerald-300">
+                            GMP Verified
+                          </span>
+                        </div>
+                        @if (selectedMapProperty(); as selected) {
+                          <div class="flex items-center gap-2">
+                            <a
+                              [href]="getGoogleMapsDirectionsUrl(selected)"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="px-2.5 py-1 rounded-lg bg-[#0D2E28] hover:bg-[#15473e] text-white text-[11px] font-semibold inline-flex items-center gap-1 transition-colors"
+                              title="Chỉ đường Google Maps"
+                            >
+                              <i class="pi pi-directions text-amber-300 text-[10px]"></i>
+                              <span>Chỉ đường</span>
+                            </a>
+                            @if (selected.latitude && selected.longitude) {
+                              <a
+                                [href]="getGoogleMapsStreetViewUrl(selected)"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-[#C05621] border border-amber-200 text-[11px] font-semibold inline-flex items-center gap-1 transition-colors"
+                                title="Xem Street View 360°"
+                              >
+                                <i class="pi pi-eye text-[10px]"></i>
+                                <span>Street View</span>
+                              </a>
+                            }
+                          </div>
+                        }
+                      </div>
+
+                      <!-- Iframe Bản đồ Google Maps -->
+                      <div class="relative w-full h-[440px] lg:h-[500px] bg-stone-100">
+                        @if (googleMapSplitEmbedUrl(); as embedUrl) {
+                          <iframe
+                            [src]="embedUrl"
+                            class="w-full h-full border-0"
+                            loading="lazy"
+                            referrerpolicy="no-referrer-when-downgrade"
+                            allowfullscreen
+                            title="Bản đồ các cơ sở lưu trú"
+                            aria-label="Bản đồ tương tác Google Maps hiển thị vị trí cơ sở lưu trú"
+                          ></iframe>
+                        }
+                      </div>
+
+                      <!-- Chi tiết nhanh cơ sở đang chọn trên bản đồ -->
+                      @if (selectedMapProperty(); as selected) {
+                        <div class="p-4 bg-white border-t border-stone-100 flex flex-wrap items-center justify-between gap-3">
+                          <div class="max-w-[65%]">
+                            <div class="text-[10px] uppercase font-bold text-[#C05621] tracking-wider">{{ selected.tenantBrandName }}</div>
+                            <h4 class="font-serif text-base font-bold text-stone-900 truncate">{{ selected.name }}</h4>
+                            <p class="text-xs text-stone-500 truncate mt-0.5">{{ getPropertyAddress(selected) }}</p>
+                          </div>
+                          <div class="flex items-center gap-2">
+                            <a
+                              [routerLink]="['/booking/properties', selected.slug]"
+                              [queryParams]="searchFilter()"
+                              class="px-4 py-2 rounded-xl bg-[#C05621] hover:bg-[#a34315] text-white text-xs font-bold inline-flex items-center gap-1.5 transition-all shadow-sm"
+                            >
+                              <span>Xem phòng &amp; Đặt</span>
+                              <i class="pi pi-arrow-right text-[10px]"></i>
+                            </a>
+                          </div>
+                        </div>
+                      } @else {
+                        <div class="p-3 bg-stone-50 border-t border-stone-100 text-center text-xs text-stone-500">
+                          Bấm vào một cơ sở ở danh sách bên trái để định vị chính xác và xem chỉ đường Google Maps.
+                        </div>
+                      }
+                    </div>
+                  </div>
                 </div>
               }
             }
@@ -523,12 +718,64 @@ export class ExploreSearchPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly sanitizer = inject(DomSanitizer);
 
   readonly isLoading = signal<boolean>(false);
   readonly loadError = signal<boolean>(false);
   readonly properties = signal<PublicPropertyDto[]>([]);
   readonly destinationSuggestions = signal<DestinationSuggestionDto[]>([]);
   readonly smartFilterChips = signal<SuggestedFilterChipDto[]>([]);
+
+  readonly viewMode = signal<'list' | 'map'>('list');
+  readonly selectedMapProperty = signal<PublicPropertyDto | null>(null);
+
+  readonly googleMapSplitEmbedUrl = computed<SafeResourceUrl | null>(() => {
+    const selected = this.selectedMapProperty();
+    if (selected && selected.latitude && selected.longitude && selected.latitude !== 0 && selected.longitude !== 0) {
+      const url = `https://maps.google.com/maps?q=${selected.latitude},${selected.longitude}+(${encodeURIComponent(selected.name)})&hl=vi&z=16&output=embed`;
+      return this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    }
+
+    const filter = this.searchFilter();
+    if (filter.userLatitude && filter.userLongitude) {
+      const url = `https://maps.google.com/maps?q=${filter.userLatitude},${filter.userLongitude}&hl=vi&z=14&output=embed`;
+      return this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    }
+
+    const list = this.filteredProperties();
+    const firstWithCoord = list.find(p => p.latitude && p.longitude && p.latitude !== 0 && p.longitude !== 0);
+    if (firstWithCoord) {
+      const url = `https://maps.google.com/maps?q=${firstWithCoord.latitude},${firstWithCoord.longitude}+(${encodeURIComponent(firstWithCoord.name)})&hl=vi&z=14&output=embed`;
+      return this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    }
+
+    const kw = filter.destinationKeyword?.trim();
+    if (kw) {
+      const url = `https://maps.google.com/maps?q=${encodeURIComponent(kw + ', Vietnam')}&hl=vi&z=13&output=embed`;
+      return this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    }
+
+    const url = `https://maps.google.com/maps?q=Vietnam&hl=vi&z=6&output=embed`;
+    return this.sanitizer.bypassSecurityTrustResourceUrl(url);
+  });
+
+  getGoogleMapsDirectionsUrl(property?: PublicPropertyDto | null): string {
+    if (!property) return 'https://www.google.com/maps?utm_campaign=gmp_git_agentskills_v1';
+    if (property.latitude && property.longitude && property.latitude !== 0 && property.longitude !== 0) {
+      return `https://www.google.com/maps/dir/?api=1&destination=${property.latitude},${property.longitude}&utm_campaign=gmp_git_agentskills_v1`;
+    }
+    const dest = encodeURIComponent(`${property.name}, ${property.addressLine || property.address || ''}`);
+    return `https://www.google.com/maps/dir/?api=1&destination=${dest}&utm_campaign=gmp_git_agentskills_v1`;
+  }
+
+  getGoogleMapsStreetViewUrl(property?: PublicPropertyDto | null): string {
+    if (!property || !property.latitude || !property.longitude) return 'https://www.google.com/maps?utm_campaign=gmp_git_agentskills_v1';
+    return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${property.latitude},${property.longitude}&utm_campaign=gmp_git_agentskills_v1`;
+  }
+
+  selectPropertyForMap(property: PublicPropertyDto): void {
+    this.selectedMapProperty.set(property);
+  }
 
   readonly selectedTenantId = signal<string | null>(null);
   readonly maxDistanceMeters = signal<number | null>(null);

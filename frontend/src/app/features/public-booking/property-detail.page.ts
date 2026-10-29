@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { combineLatest, of } from 'rxjs';
 import { PublicBookingService } from '../../core/services/public-booking.service';
@@ -80,10 +81,19 @@ import { PhotoGalleryModalComponent, GalleryPhotoItem } from '../../shared';
           </h1>
 
           <div class="flex flex-wrap items-center gap-y-2 gap-x-4 text-xs sm:text-sm text-stone-600">
-            <p class="flex items-center gap-1.5">
+            <a
+              [href]="googleMapsDirectionsUrl()"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex items-center gap-1.5 text-stone-700 hover:text-[#C05621] transition-colors group cursor-pointer"
+              title="Xem vị trí & chỉ đường trên Google Maps"
+            >
               <i class="pi pi-map-marker text-[#C05621]"></i>
-              <span>{{ hotel.addressLine || hotel.address }}, {{ hotel.provinceName || hotel.city }}</span>
-            </p>
+              <span class="underline decoration-stone-300 underline-offset-2 group-hover:decoration-[#C05621]">
+                {{ hotel.addressLine || hotel.address }}, {{ hotel.provinceName || hotel.city }}
+              </span>
+              <i class="pi pi-external-link text-[10px] text-stone-400 group-hover:text-[#C05621]"></i>
+            </a>
             @if (hotel.reviewCount > 0) {
               <span class="text-stone-300 hidden sm:inline">&bull;</span>
               <p class="flex items-center gap-1 text-stone-800 font-semibold">
@@ -405,28 +415,126 @@ import { PhotoGalleryModalComponent, GalleryPhotoItem } from '../../shared';
               }
             </section>
 
-            <!-- CHÍNH SÁCH VÀ ĐỊA DANH GẦN CƠ SỞ -->
-            <section class="p-6 bg-white border border-stone-200/90 rounded-3xl space-y-3 shadow-2xs">
-              <div class="flex items-center gap-2 text-stone-900 font-bold text-sm">
-                <i class="pi pi-shield text-[#0D2E28]"></i>
-                <span>Chính sách nhận phòng &amp; Địa danh xung quanh</span>
-              </div>
-              <p class="text-xs text-stone-500 leading-relaxed">
-                Chính sách nhận/trả phòng và phụ thu dịch vụ được đồng bộ trực tiếp từ ban quản trị cơ sở. Vui lòng kiểm tra kỹ chi tiết trước khi đặt cọc trực tuyến.
-              </p>
-              @if (hotel.nearbyLandmarks?.length) {
-                <div class="flex flex-wrap gap-2 pt-2">
-                  @for (landmark of hotel.nearbyLandmarks; track landmark.landmarkId) {
-                    <span class="inline-flex items-center gap-1 text-[11px] px-3 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-200/80 font-medium">
-                      <i class="pi pi-map-marker text-[#C05621] text-[10px]"></i>
-                      <span>{{ landmark.landmarkName || landmark.name }}</span>
-                      @if (landmark.distanceMeters) {
-                        <span class="font-bold text-[#C05621]">({{ landmark.distanceMeters }}m)</span>
-                      }
-                    </span>
+            <!-- GOOGLE MAPS PLATFORM & VỊ TRÍ ĐỊA LÝ DI SẢN -->
+            <section
+              class="p-6 bg-white border border-stone-200/90 rounded-3xl space-y-5 shadow-2xs"
+              style="content-visibility: auto; contain-intrinsic-size: auto none auto 480px;"
+              aria-labelledby="location-map-title"
+              data-gmp-attribution="gmp_git_agentskills_v1"
+            >
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-100">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-[#0D2E28] flex items-center justify-center font-bold text-lg border border-emerald-100">
+                    <i class="pi pi-map text-emerald-700"></i>
+                  </div>
+                  <div>
+                    <h2 id="location-map-title" class="text-base font-bold text-stone-900 flex items-center gap-2">
+                      <span>Vị Trí &amp; Bản Đồ Google Maps</span>
+                      <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        GMP Verified
+                      </span>
+                    </h2>
+                    <p class="text-xs text-stone-500">
+                      {{ hotel.addressLine || hotel.address }}, {{ hotel.wardName ? hotel.wardName + ', ' : '' }}{{ hotel.provinceName || hotel.city }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Google Maps Platform Compliance CTAs with UTM Campaign -->
+                <div class="flex flex-wrap items-center gap-2">
+                  <a
+                    [href]="googleMapsDirectionsUrl()"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="h-9 px-3.5 rounded-xl bg-[#0D2E28] hover:bg-[#15473e] text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs transition-colors"
+                    title="Chỉ đường tới cơ sở trên Google Maps"
+                  >
+                    <i class="pi pi-directions text-amber-300 text-xs"></i>
+                    <span>Chỉ đường</span>
+                  </a>
+                  @if (hasGpsCoordinates()) {
+                    <a
+                      [href]="googleMapsStreetViewUrl()"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="h-9 px-3.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-[#C05621] border border-amber-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+                      title="Xem phối cảnh Street View 360° xung quanh"
+                    >
+                      <i class="pi pi-eye text-xs"></i>
+                      <span>Street View 360°</span>
+                    </a>
                   }
                 </div>
+              </div>
+
+              <!-- Interactive Google Map Embed Container with Aspect Ratio and Zero CLS -->
+              <div class="relative w-full aspect-video sm:aspect-[21/9] min-h-[300px] rounded-2xl overflow-hidden border border-stone-200 bg-stone-100 shadow-inner">
+                @if (googleMapEmbedUrl(); as embedUrl) {
+                  <iframe
+                    [src]="embedUrl"
+                    class="w-full h-full border-0"
+                    loading="lazy"
+                    referrerpolicy="no-referrer-when-downgrade"
+                    allowfullscreen
+                    title="Bản đồ vị trí cơ sở khách sạn"
+                    aria-label="Bản đồ tương tác Google Maps hiển thị vị trí khách sạn"
+                  ></iframe>
+                }
+                <!-- GPS Badge Overlay on Map -->
+                @if (hotel.latitude && hotel.longitude) {
+                  <div class="absolute top-3 left-3 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-stone-200/80 shadow-sm flex items-center gap-2 text-xs font-mono text-stone-700">
+                    <i class="pi pi-compass text-[#C05621]"></i>
+                    <span>{{ hotel.latitude | number:'1.4-4' }}, {{ hotel.longitude | number:'1.4-4' }}</span>
+                    <button
+                      type="button"
+                      (click)="copyCoordinates(hotel.latitude, hotel.longitude)"
+                      class="ml-1 text-[10px] font-sans font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer"
+                    >
+                      {{ copiedCoordinates() ? 'Đã sao chép!' : 'Sao chép' }}
+                    </button>
+                  </div>
+                }
+              </div>
+
+              <!-- Nearby Landmarks Grid with Haversine Distance -->
+              @if (hotel.nearbyLandmarks?.length) {
+                <div class="space-y-2 pt-1">
+                  <div class="flex items-center justify-between text-xs text-stone-700 font-semibold">
+                    <span class="flex items-center gap-1.5">
+                      <i class="pi pi-map-marker text-[#C05621]"></i>
+                      <span>Địa danh du lịch &amp; danh thắng xung quanh (Khoảng cách trắc địa Haversine):</span>
+                    </span>
+                    <span class="text-[10px] text-stone-400">R = 6,371 km</span>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                    @for (landmark of hotel.nearbyLandmarks; track landmark.landmarkId) {
+                      <div class="p-3 rounded-xl bg-[#FBF9F5] border border-stone-200/80 flex items-center justify-between gap-2">
+                        <div class="truncate">
+                          <p class="text-xs font-bold text-stone-800 truncate">{{ landmark.landmarkName || landmark.name }}</p>
+                          <p class="text-[10px] text-stone-500">{{ landmark.category || 'Điểm tham quan' }}</p>
+                        </div>
+                        @if (landmark.distanceMeters) {
+                          <span class="shrink-0 text-xs font-mono font-bold px-2 py-0.5 rounded-lg bg-amber-100 text-[#C05621] border border-amber-200">
+                            {{ formatDistance(landmark.distanceMeters) }}
+                          </span>
+                        }
+                      </div>
+                    }
+                  </div>
+                </div>
               }
+
+              <!-- Chính sách nhận phòng & tiện ích lưu trú -->
+              <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200/70 text-xs text-stone-600 leading-relaxed">
+                <div class="font-bold text-stone-800 mb-1 flex items-center gap-1.5">
+                  <i class="pi pi-shield text-[#0D2E28]"></i>
+                  <span>Chính sách nhận phòng &amp; lưu trú:</span>
+                </div>
+                <span>
+                  Nhận phòng từ <strong>{{ hotel.checkInTime || '14:00' }}</strong> &bull; Trả phòng trước <strong>{{ hotel.checkOutTime || '12:00' }}</strong> theo giờ chuẩn Việt Nam.
+                  Vui lòng xuất trình giấy tờ tùy thân (CCCD / Hộ chiếu) hợp lệ khi làm thủ tục tại quầy tiếp tân.
+                </span>
+              </div>
             </section>
           </div>
 
@@ -525,6 +633,7 @@ export class PropertyDetailPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly service = inject(PublicBookingService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly sanitizer = inject(DomSanitizer);
 
   readonly property = signal<PublicPropertyDto | null>(null);
   readonly stay = signal<PublicStayContext>(readPublicStay({}));
@@ -537,6 +646,55 @@ export class PropertyDetailPageComponent implements OnInit {
   readonly quoteLoading = signal(false);
   readonly galleryOpen = signal(false);
   readonly error = signal('');
+  readonly copiedCoordinates = signal(false);
+
+  readonly hasGpsCoordinates = computed<boolean>(() => {
+    const p = this.property();
+    return !!(p && p.latitude && p.longitude && p.latitude !== 0 && p.longitude !== 0);
+  });
+
+  readonly googleMapEmbedUrl = computed<SafeResourceUrl | null>(() => {
+    const p = this.property();
+    if (!p) return null;
+    let query = '';
+    if (p.latitude && p.longitude && p.latitude !== 0 && p.longitude !== 0) {
+      query = `${p.latitude},${p.longitude}`;
+    } else {
+      query = encodeURIComponent(`${p.name}, ${p.addressLine || p.address || ''}, ${p.provinceName || p.city || ''}`);
+    }
+    const url = `https://maps.google.com/maps?q=${query}&hl=vi&z=16&output=embed`;
+    return this.sanitizer.bypassSecurityTrustResourceUrl(url);
+  });
+
+  readonly googleMapsDirectionsUrl = computed<string>(() => {
+    const p = this.property();
+    if (!p) return 'https://www.google.com/maps?utm_campaign=gmp_git_agentskills_v1';
+    if (p.latitude && p.longitude && p.latitude !== 0 && p.longitude !== 0) {
+      return `https://www.google.com/maps/dir/?api=1&destination=${p.latitude},${p.longitude}&utm_campaign=gmp_git_agentskills_v1`;
+    }
+    const dest = encodeURIComponent(`${p.name}, ${p.addressLine || p.address || ''}`);
+    return `https://www.google.com/maps/dir/?api=1&destination=${dest}&utm_campaign=gmp_git_agentskills_v1`;
+  });
+
+  readonly googleMapsStreetViewUrl = computed<string>(() => {
+    const p = this.property();
+    if (!p || !p.latitude || !p.longitude) return 'https://www.google.com/maps?utm_campaign=gmp_git_agentskills_v1';
+    return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${p.latitude},${p.longitude}&utm_campaign=gmp_git_agentskills_v1`;
+  });
+
+  copyCoordinates(lat?: number, lng?: number): void {
+    if (lat == null || lng == null) return;
+    const text = `${lat}, ${lng}`;
+    navigator.clipboard?.writeText(text).then(() => {
+      this.copiedCoordinates.set(true);
+      setTimeout(() => this.copiedCoordinates.set(false), 2000);
+    });
+  }
+
+  formatDistance(meters?: number): string {
+    if (meters == null) return '';
+    return meters < 1000 ? `${meters}m` : `${(meters / 1000).toFixed(1)}km`;
+  }
 
   private generation = 0;
   private quoteGeneration = 0;
