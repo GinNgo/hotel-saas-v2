@@ -73,6 +73,24 @@ public sealed class CurrentUserContext : ICurrentUserContext
     public IReadOnlyList<Guid> ExcludedPropertyIds => _currentPropertyService.ExcludedPropertyIds;
 
     /// <inheritdoc />
+    public string? IpAddress { get; private set; }
+
+    /// <inheritdoc />
+    public void SetIpAddress(string? ipAddress)
+    {
+        if (string.IsNullOrWhiteSpace(ipAddress))
+        {
+            IpAddress = null;
+            return;
+        }
+
+        var trimmed = ipAddress.Trim();
+        IpAddress = System.Net.IPAddress.TryParse(trimmed, out var parsed)
+            ? parsed.ToString()
+            : null;
+    }
+
+    /// <inheritdoc />
     public void EnsureTenantContext()
     {
         if (!TenantId.HasValue || TenantId == Guid.Empty)

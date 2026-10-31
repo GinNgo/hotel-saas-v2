@@ -444,9 +444,11 @@ export function addDaysToDateString(dateStr: string, days: number): string {
         }
       }
 
-      <!-- Modal: Thiết lập Bảng giá mới (Create / Split Rate) -->
-      @if (showCreateModal()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
+    </div>
+
+    <!-- Modal: Thiết lập Bảng giá mới (Create / Split Rate) -->
+    @if (showCreateModal()) {
+      <div class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
           <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xl max-w-xl w-full p-6 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-150">
             <!-- Modal Header -->
             <div class="flex items-center justify-between pb-3.5 border-b border-slate-100">
@@ -653,7 +655,6 @@ export function addDaysToDateString(dateStr: string, days: number): string {
           </div>
         </div>
       }
-    </div>
   `
 })
 export class RatesPage implements OnInit, OnDestroy {
@@ -798,7 +799,8 @@ export class RatesPage implements OnInit, OnDestroy {
     this.roomTypesSub = this.roomTypeService.getRoomTypes(undefined, 1, 100).subscribe({
       next: res => {
         this.isLoadingRoomTypes.set(false);
-        const list = res.items || [];
+        const rawItems = res.items || [];
+        const list = rawItems.filter((item, idx, arr) => arr.findIndex(x => x.id === item.id) === idx);
         this.roomTypes.set(list);
 
         // If there is an active selection already, keep it; otherwise pick first if available

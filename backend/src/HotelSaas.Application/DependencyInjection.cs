@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.AddScoped<Loyalty.Services.ILoyaltyTierRules, Loyalty.Services.LoyaltyTierRules>();
         services.AddScoped<Loyalty.Services.ILoyaltyLedgerService, Loyalty.Services.LoyaltyLedgerService>();
         services.AddScoped<Pricing.Services.IDynamicPricingService, Pricing.Services.DynamicPricingService>();
+        services.AddScoped<Reservations.Services.ICancellationPolicyService, Reservations.Services.CancellationPolicyService>();
 
         return services;
     }

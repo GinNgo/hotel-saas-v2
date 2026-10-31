@@ -1061,11 +1061,14 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
             />
           }
         </section>
-      <!-- ========================================================================= -->
-      <!-- MODAL XUẤT PHIẾU THU TIỀN TẠI QUẦY (RECEIPT VOUCHER)                      -->
-      <!-- ========================================================================= -->
-      @if (receiptVoucher(); as voucher) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 overflow-y-auto">
+      }
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- MODAL XUẤT PHIẾU THU TIỀN TẠI QUẦY (RECEIPT VOUCHER)                      -->
+    <!-- ========================================================================= -->
+    @if (receiptVoucher(); as voucher) {
+      <div class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 overflow-y-auto">
           <div class="bg-white rounded-2xl shadow-2xl border border-slate-200/80 max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-8">
             <!-- Modal Header -->
             <div class="px-5 py-4 bg-emerald-600 text-white flex items-center justify-between">
@@ -1162,8 +1165,6 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
           </div>
         </div>
       }
-      }
-    </div>
   `
 })
 export class PaymentsPage implements OnInit, OnDestroy {

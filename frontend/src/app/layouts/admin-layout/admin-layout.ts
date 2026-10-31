@@ -1,9 +1,11 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/router';
 import { CommonModule, AsyncPipe } from '@angular/common';
 import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
+import { NotificationService } from '../../core/services/notification.service';
 import { ContextSelectorDialogComponent } from '../../features/auth/context-selector/context-selector.dialog';
+import { NotificationBellComponent } from '../../shared/components/notification-bell/notification-bell.component';
 import { UserMembershipDto } from '../../core/models/auth.model';
 
 /**
@@ -23,10 +25,11 @@ import { UserMembershipDto } from '../../core/models/auth.model';
     RouterLink,
     RouterLinkActive,
     AsyncPipe,
-    ContextSelectorDialogComponent
+    ContextSelectorDialogComponent,
+    NotificationBellComponent
   ],
   template: `
-    <div class="flex h-screen w-screen overflow-hidden bg-[#fbfbfa]">
+    <div class="flex h-screen w-full overflow-hidden bg-[#fbfbfa]">
       <!-- Mobile Sidebar Backdrop -->
       @if (isMobileSidebarOpen()) {
         <div
@@ -193,6 +196,19 @@ import { UserMembershipDto } from '../../core/models/auth.model';
               <span>Gói cước SaaS</span>
               <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">Mới</span>
             </a>
+
+            @if (isOwnerOrManager()) {
+              <a
+                routerLink="/audit-logs"
+                routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                (click)="onNavItemClick()"
+                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+              >
+                <i class="pi pi-history text-base text-emerald-700"></i>
+                <span>Nhật ký kiểm toán</span>
+                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">Audit</span>
+              </a>
+            }
           </div>
 
           <!-- Platform Administrator Management Group -->
@@ -319,6 +335,20 @@ import { UserMembershipDto } from '../../core/models/auth.model';
           <!-- Right: User Avatar & Logout -->
           @if (authService.currentUser$ | async; as user) {
             <div class="flex items-center gap-2 sm:gap-4 shrink-0">
+              <!-- Trung tâm thông báo (Notification Bell T01-A) -->
+              <app-notification-bell
+                [notifications]="notificationService.notifications()"
+                [activeTenantId]="user.tenantId || activeTenantId"
+                [activePropertyId]="authService.activePropertyId()"
+                [loading]="notificationService.loading()"
+                [errorMessage]="notificationService.errorMessage()"
+                [canMarkAsRead]="notificationService.canMarkAsRead()"
+                (markAsReadRequest)="notificationService.markAsRead($event)"
+                (markAllAsReadRequest)="notificationService.markAllAsRead()"
+              />
+
+              <div class="h-4 sm:h-5 w-px bg-slate-200 hidden sm:block"></div>
+
               <!-- User Info Pill -->
               <div class="flex items-center gap-1.5 sm:gap-2 pl-1 sm:pl-2 py-1">
                 <div class="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-300 shrink-0">
@@ -367,6 +397,16 @@ import { UserMembershipDto } from '../../core/models/auth.model';
 export class AdminLayoutComponent {
   readonly authService = inject(AuthService);
   readonly alertService = inject(AlertService);
+  readonly notificationService = inject(NotificationService);
+
+  constructor() {
+    this.notificationService.enableRealtimeNotifications();
+    effect(() => {
+      const propId = this.authService.activePropertyId();
+      const tenantId = this.activeTenantId;
+      void this.notificationService.syncContext(tenantId, propId);
+    });
+  }
   private readonly router = inject(Router);
 
   isMobileSidebarOpen = signal(false);
@@ -374,6 +414,10 @@ export class AdminLayoutComponent {
   get tenantBrandName(): string {
     const membership = this.authService.memberships[0];
     return membership?.tenantName || 'HQ Chuỗi';
+  }
+
+  get activeTenantId(): string | null {
+    return this.authService.currentUser?.tenantId || this.authService.memberships[0]?.tenantId || null;
   }
 
   hasPropertiesPermission(): boolean {
@@ -406,6 +450,15 @@ export class AdminLayoutComponent {
 
   hasPaymentsPermission(): boolean {
     return this.authService.hasPermission('PAYMENTS', 1);
+  }
+
+  isOwnerOrManager(): boolean {
+    const user = this.authService.currentUser;
+    if (!user) return false;
+    if (user.globalRole === 'Owner' || user.globalRole === 'PlatformAdmin') return true;
+    const activeRole = this.authService.activeRoleName();
+    if (activeRole === 'Owner' || activeRole === 'Manager') return true;
+    return this.authService.memberships.some(m => m.staffRole === 'Owner' || m.staffRole === 'Manager');
   }
 
   showUnimplementedNotice(key: string): void {
@@ -461,6 +514,7 @@ export class AdminLayoutComponent {
 
   onBranchChanged(membership: UserMembershipDto): void {
     this.showBranchDialog = false;
+    void this.notificationService.syncContext(membership.tenantId, membership.propertyId);
     // Tải lại router view để các component lấy dữ liệu theo context mới
     const currentUrl = this.router.url;
     this.router.navigateByUrl('/', { skipLocationChange: true }).then(() => {
@@ -469,6 +523,7 @@ export class AdminLayoutComponent {
   }
 
   logout(): void {
+    void this.notificationService.cleanupOnLogout();
     this.authService.logout();
   }
 }

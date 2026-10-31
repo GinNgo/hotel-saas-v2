@@ -1044,9 +1044,12 @@ public sealed class P4_CashFolioTests
         }
         else
         {
-            // Payment won first (confirmed), then Cancel cancelled it
-            var paymentsCount = await verifyCtx.Payments.CountAsync(p => p.ReservationId == reservation.Id);
-            Assert.Equal(1, paymentsCount);
+            // Payment won first (confirmed), then Cancel cancelled it and registered D23 pending refund
+            var completedCount = await verifyCtx.Payments.CountAsync(p => p.ReservationId == reservation.Id && p.Status == PaymentStatus.Completed);
+            Assert.Equal(1, completedCount);
+
+            var pendingRefundCount = await verifyCtx.Payments.CountAsync(p => p.ReservationId == reservation.Id && p.Status == PaymentStatus.Pending);
+            Assert.Equal(1, pendingRefundCount);
         }
     }
 
@@ -1808,5 +1811,128 @@ public sealed class P4_CashFolioTests
 
         var count = await ctx.Payments.CountAsync(p => p.ReservationId == reservation.Id);
         Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public async Task GetFolio_CancelledUnpaidHold_ZeroBalanceAndNoDebtSettlementStatus()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this);
+
+        var snapshot = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            IsOnlineHold = true,
+            HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(15),
+            DepositRequired = 600_000m,
+            LookupToken = "ONLINE-HOLD-CANCEL-01",
+            TokenExpiresAtUtc = DateTime.UtcNow.AddHours(24)
+        };
+
+        var reservation = await fixture.SeedReservationAsync(
+            status: ReservationStatus.Cancelled,
+            totalAmount: 2_000_000m,
+            notes: ReservationSnapshotHelper.Serialize(snapshot));
+
+        await using var ctx = fixture.CreateDbContext();
+        var userCtx = new MockUserContext { UserId = fixture.CashierUserId, TenantId = fixture.TenantId, PropertyId = fixture.PropertyId };
+        var tenantSvc = new MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new MockPropertyService { PropertyId = fixture.PropertyId, HeaderPropertyId = fixture.PropertyId, TokenPropertyId = fixture.PropertyId };
+        var membershipSvc = new MockMembershipLookupService();
+
+        var folioHandler = new GetFolioQueryHandler(ctx, tenantSvc, userCtx, membershipSvc, propSvc);
+        var folio = await folioHandler.Handle(new GetFolioQuery(reservation.Id, fixture.PropertyId), CancellationToken.None);
+
+        Assert.NotNull(folio);
+        Assert.Equal(2_000_000m, folio.TotalAmount); // Original contract amount preserved!
+        Assert.Equal(0m, folio.PaidAmount);
+        Assert.Equal(0m, folio.RemainingBalance); // Collectible balance is 0, not 2,000,000!
+        Assert.False(folio.IsFullyPaid); // Not falsely marked as fully paid!
+        Assert.Equal(0m, folio.CancellationFee);
+        Assert.Equal(0m, folio.RefundableAmount);
+        Assert.Equal("None", folio.RefundStatus);
+        Assert.Equal(0m, folio.NetCollectibleAmount);
+        Assert.Equal("CancelledNoDebt", folio.FinancialSettlementStatus);
+    }
+
+    [Fact]
+    public async Task GetFolio_CancelledPaidBooking_WithPendingRefund()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this);
+
+        var snapshot = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            DepositRequired = 600_000m,
+            TotalAmount = 2_000_000m
+        };
+
+        var reservation = await fixture.SeedReservationAsync(
+            status: ReservationStatus.Cancelled,
+            totalAmount: 2_000_000m,
+            notes: ReservationSnapshotHelper.Serialize(snapshot));
+
+        await using var ctx = fixture.CreateDbContext();
+        // Add a completed payment
+        var payment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            ReservationId = reservation.Id,
+            Amount = 1_000_000m,
+            Method = PaymentMethod.BankTransfer,
+            Status = PaymentStatus.Completed,
+            TransactionRef = "UNC-DEPOSIT-01",
+            CreatedAtUtc = DateTime.UtcNow.AddHours(-2)
+        };
+        // Add a pending refund payment
+        var refundPayment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            ReservationId = reservation.Id,
+            Amount = 700_000m,
+            Method = PaymentMethod.BankTransfer,
+            Status = PaymentStatus.Pending,
+            TransactionRef = $"REFUND-PENDING-{reservation.ConfirmationCode}",
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        ctx.Payments.AddRange(payment, refundPayment);
+        await ctx.SaveChangesAsync();
+
+        var userCtx = new MockUserContext { UserId = fixture.CashierUserId, TenantId = fixture.TenantId, PropertyId = fixture.PropertyId };
+        var tenantSvc = new MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new MockPropertyService { PropertyId = fixture.PropertyId, HeaderPropertyId = fixture.PropertyId, TokenPropertyId = fixture.PropertyId };
+        var membershipSvc = new MockMembershipLookupService();
+
+        var folioHandler = new GetFolioQueryHandler(ctx, tenantSvc, userCtx, membershipSvc, propSvc);
+        var folio = await folioHandler.Handle(new GetFolioQuery(reservation.Id, fixture.PropertyId), CancellationToken.None);
+
+        Assert.NotNull(folio);
+        Assert.Equal(2_000_000m, folio.TotalAmount);
+        Assert.Equal(1_000_000m, folio.PaidAmount);
+        Assert.Equal(0m, folio.RemainingBalance);
+        Assert.False(folio.IsFullyPaid);
+        Assert.Equal("PendingApproval", folio.RefundStatus);
+        Assert.Equal("CancelledPendingRefund", folio.FinancialSettlementStatus);
+        Assert.Equal(0m, folio.NetCollectibleAmount);
+    }
+
+    [Fact]
+    public void ReservationSnapshotHelper_CleanCustomerNotes_SanitizesSystemNotes()
+    {
+        var snapshotWithHold = new ReservationSnapshot
+        {
+            CustomerNotes = "Guest online reservation (15-min hold)"
+        };
+        Assert.Null(ReservationSnapshotHelper.CleanCustomerNotes(null, snapshotWithHold));
+        Assert.Null(ReservationSnapshotHelper.CleanCustomerNotes("{\"LookupToken\":\"xyz\"}", null));
+
+        var snapshotWithRealNote = new ReservationSnapshot
+        {
+            CustomerNotes = "Khách yêu cầu tầng cao view đẹp"
+        };
+        Assert.Equal("Khách yêu cầu tầng cao view đẹp", ReservationSnapshotHelper.CleanCustomerNotes(null, snapshotWithRealNote));
     }
 }

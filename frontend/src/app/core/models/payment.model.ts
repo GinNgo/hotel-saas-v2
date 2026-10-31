@@ -74,6 +74,11 @@ export interface FolioDto {
   servicesAmount?: number | null;
   depositRequired?: number | null;
   depositPaid?: number | null;
+  cancellationFee?: number | null;
+  refundableAmount?: number | null;
+  refundStatus?: string | null;
+  netCollectibleAmount?: number | null;
+  financialSettlementStatus?: string | null;
 }
 
 export interface AddFolioItemRequest {
@@ -131,3 +136,4 @@ export interface ShiftReportDto {
   completedCount: number;
   payments: PaymentDto[];
 }
+

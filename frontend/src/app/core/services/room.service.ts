@@ -53,6 +53,7 @@ export class RoomService {
       roomNumber,
       timestamp: Date.now()
     });
+    this.broadcastLiveRoomPing(roomId, status);
   }
 
   getRooms(filter: GetRoomsFilter = {}): Observable<PagedResult<RoomDto>> {
@@ -102,7 +103,21 @@ export class RoomService {
       status: newStatus,
       expectedOldStatus: expectedOldStatus
     };
-    return this.http.patch<RoomDto>(`${this.apiUrl}/${id}/status`, payload);
+    return this.http.patch<RoomDto>(`${this.apiUrl}/${id}/status`, payload).pipe(
+      tap(() => this.broadcastLiveRoomPing(id, newStatus))
+    );
+  }
+
+  private broadcastLiveRoomPing(roomId: string, status: RoomStatus): void {
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        const channel = new BroadcastChannel('hotelsaas-live-notifications');
+        channel.postMessage({ action: 'room-status', roomId, status, timestamp: Date.now() });
+        channel.close();
+      }
+    } catch {
+      // Bỏ qua nếu môi trường không hỗ trợ BroadcastChannel
+    }
   }
 
   deleteRoom(id: string): Observable<void> {

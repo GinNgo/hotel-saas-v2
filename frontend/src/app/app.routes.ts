@@ -211,6 +211,10 @@ export const routes: Routes = [
         loadComponent: () => import('./features/subscriptions/subscriptions.page').then(m => m.SubscriptionsPage)
       },
       {
+        path: 'audit-logs',
+        loadComponent: () => import('./features/audit-logs/audit-logs.page').then(m => m.AuditLogsPage)
+      },
+      {
         path: 'plans',
         canActivate: [platformAdminGuard],
         loadComponent: () => import('./features/admin-plans/admin-plans.page').then(m => m.AdminPlansPage)
@@ -283,6 +287,10 @@ export const routes: Routes = [
       {
         path: 'subscriptions',
         loadComponent: () => import('./features/subscriptions/subscriptions.page').then(m => m.SubscriptionsPage)
+      },
+      {
+        path: 'audit-logs',
+        loadComponent: () => import('./features/audit-logs/audit-logs.page').then(m => m.AuditLogsPage)
       },
       {
         path: 'plans',

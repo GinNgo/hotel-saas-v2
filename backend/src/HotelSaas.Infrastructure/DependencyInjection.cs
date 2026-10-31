@@ -24,6 +24,7 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         services.AddScoped<TenantPropertySaveChangesInterceptor>();
+        services.AddScoped<AuditSaveChangesInterceptor>();
 
         var connectionString = DatabaseConnectionResolver.ResolveConnectionString(configuration);
         CloudDatabaseGuard.ValidateCloudConnectionSafety(connectionString, configuration);
@@ -35,7 +36,9 @@ public static class DependencyInjection
                 npgsqlOptions => npgsqlOptions.MigrationsAssembly(
                     typeof(ApplicationDbContext).Assembly.FullName));
             options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
-            options.AddInterceptors(sp.GetRequiredService<TenantPropertySaveChangesInterceptor>());
+            options.AddInterceptors(
+                sp.GetRequiredService<TenantPropertySaveChangesInterceptor>(),
+                sp.GetRequiredService<AuditSaveChangesInterceptor>());
         });
 
         services.AddScoped<IApplicationDbContext>(sp =>
@@ -49,6 +52,8 @@ public static class DependencyInjection
         services.AddScoped<IJwtService, JwtService>();
         services.AddSingleton<ILocationLookupService, LocationLookupService>();
         services.AddScoped<IVnpayPaymentService, VnpayPaymentService>();
+        services.AddSignalR();
+        services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
 
         return services;
     }

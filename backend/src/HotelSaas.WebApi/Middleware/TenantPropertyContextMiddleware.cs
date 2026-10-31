@@ -46,6 +46,9 @@ public sealed class TenantPropertyContextMiddleware
     {
         var path = context.Request.Path.Value ?? string.Empty;
 
+        // Capture verified socket IP address only from trusted connection metadata (never raw client proxy headers)
+        userContext.SetIpAddress(context.Connection.RemoteIpAddress?.ToString());
+
         // ── 1. Pipeline Classification: Group 1 - Anonymous / Public Endpoints ──
         if (IsPublicEndpoint(context, path))
         {
@@ -306,6 +309,7 @@ public sealed class TenantPropertyContextMiddleware
         }
 
         if (path.StartsWith("/api/public", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/hubs", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/api/print", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/health", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase) ||
