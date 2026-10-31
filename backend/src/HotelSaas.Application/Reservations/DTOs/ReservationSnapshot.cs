@@ -27,6 +27,8 @@ public sealed class ReservationSnapshot
     public string? LookupToken { get; set; }
     public decimal? DepositRequired { get; set; }
     public bool IsOnlineHold { get; set; }
+    public int HoldExtensionCount { get; set; }
+    public DateTime? HoldExtendedAtUtc { get; set; }
     public DateTime? TokenExpiresAtUtc { get; set; }
     public bool IsTokenRevoked { get; set; }
 }

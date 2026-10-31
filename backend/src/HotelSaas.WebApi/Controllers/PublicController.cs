@@ -1,13 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Interfaces;
+using HotelSaas.Application.Public.Commands.CancelGuestBooking;
 using HotelSaas.Application.Public.Commands.ConfirmGuestBooking;
 using HotelSaas.Application.Public.Commands.CreateGuestHold;
+using HotelSaas.Application.Public.Commands.ExtendGuestHold;
 using HotelSaas.Application.Public.DTOs;
 using HotelSaas.Application.Public.Queries.CalculatePublicQuote;
 using HotelSaas.Application.Public.Queries.GetGuestBookingByToken;
+using HotelSaas.Application.Public.Queries.GetGuestCancellationPreview;
 using HotelSaas.Application.Public.Queries.GetPublicAvailability;
 using HotelSaas.Application.Public.Queries.GetPublicProperties;
 using HotelSaas.Application.Public.Queries.GetPublicPropertyBySlug;
@@ -15,6 +19,7 @@ using HotelSaas.Application.Public.Queries.GetPublicRoomTypes;
 using HotelSaas.Application.Quotes.DTOs;
 using HotelSaas.Domain.Enums;
 using HotelSaas.WebApi.Authorization;
+using HotelSaas.WebApi.Models;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -248,6 +253,70 @@ public sealed class PublicController : ControllerBase
     public async Task<IActionResult> GetBookingByToken(string lookupToken, CancellationToken cancellationToken)
     {
         var result = await _mediator.Send(new GetGuestBookingByTokenQuery(lookupToken), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Extends an active guest room hold by 5 minutes (maximum 1 extension per hold, allowed when &lt;= 3 minutes remain).
+    /// </summary>
+    [HttpPost("bookings/{lookupToken}/extend")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(GuestBookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ExtendHold(string lookupToken, CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(new ExtendGuestHoldCommand(lookupToken), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Previews the financial and policy impact of cancelling a booking via lookup token.
+    /// Completely read-only.
+    /// </summary>
+    [HttpGet("bookings/{lookupToken}/cancel-preview")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(GuestCancellationPreviewDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetCancelPreview(string lookupToken, CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(new GetGuestCancellationPreviewQuery(lookupToken), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Cancels a guest online reservation using their secure lookup token and optional identity verification.
+    /// Unblocks physical room inventory immediately.
+    /// </summary>
+    [HttpPost("bookings/{lookupToken}/cancel")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(GuestBookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CancelBooking(
+        string lookupToken,
+        [FromBody] CancelGuestBookingRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var idempotencyKey = request?.IdempotencyKey;
+        if (string.IsNullOrWhiteSpace(idempotencyKey) &&
+            Request.Headers.TryGetValue("Idempotency-Key", out var headerKey) &&
+            !string.IsNullOrWhiteSpace(headerKey))
+        {
+            idempotencyKey = headerKey.ToString();
+        }
+
+        var command = new CancelGuestBookingCommand(
+            LookupToken: lookupToken,
+            VerificationEmailOrPhone: request?.VerificationEmailOrPhone,
+            Reason: request?.Reason,
+            IdempotencyKey: idempotencyKey);
+
+        var result = await _mediator.Send(command, cancellationToken);
         return Ok(result);
     }
 

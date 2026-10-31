@@ -14,4 +14,7 @@ public sealed record ReservationDetailDto : ReservationDto
     public AppliedPoliciesDto AppliedPolicies { get; init; } = null!;
     public DateTime? CancelledAtUtc { get; init; }
     public string? CancellationReason { get; init; }
+    public decimal? CancellationFee { get; init; }
+    public decimal? RefundableAmount { get; init; }
+    public int? PointsRefunded { get; init; }
 }

@@ -23,19 +23,22 @@ public sealed class CheckInReservationCommandHandler : IRequestHandler<CheckInRe
     private readonly ICurrentUserContext _userContext;
     private readonly IMembershipLookupService _membershipLookupService;
     private readonly ICurrentPropertyService _propertyService;
+    private readonly INotificationDispatcher? _notificationDispatcher;
 
     public CheckInReservationCommandHandler(
         IApplicationDbContext context,
         ICurrentTenantService tenantService,
         ICurrentUserContext userContext,
         IMembershipLookupService membershipLookupService,
-        ICurrentPropertyService propertyService)
+        ICurrentPropertyService propertyService,
+        INotificationDispatcher? notificationDispatcher = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _tenantService = tenantService ?? throw new ArgumentNullException(nameof(tenantService));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _membershipLookupService = membershipLookupService ?? throw new ArgumentNullException(nameof(membershipLookupService));
         _propertyService = propertyService ?? throw new ArgumentNullException(nameof(propertyService));
+        _notificationDispatcher = notificationDispatcher;
     }
 
     public async Task<ReservationDetailDto> Handle(CheckInReservationCommand request, CancellationToken cancellationToken)
@@ -233,6 +236,24 @@ public sealed class CheckInReservationCommandHandler : IRequestHandler<CheckInRe
 
         await _context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        if (_notificationDispatcher != null)
+        {
+            try
+            {
+                await _notificationDispatcher.NotifyReservationStatusChangedAsync(
+                    reservation.PropertyId.ToString(),
+                    reservation.Id.ToString(),
+                    reservation.ConfirmationCode,
+                    ReservationStatus.Confirmed.ToString(),
+                    ReservationStatus.CheckedIn.ToString(),
+                    cancellationToken);
+            }
+            catch
+            {
+                // Dispatch failure should never fail an already committed transaction
+            }
+        }
 
         return ReservationSnapshotHelper.MapToDetailDto(reservation, property);
     }

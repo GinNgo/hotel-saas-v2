@@ -93,7 +93,10 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
 
   beforeEach(async () => {
     mockBookingService = {
-      getBookingByToken: vi.fn().mockReturnValue(of(sampleBookingA))
+      getBookingByToken: vi.fn().mockReturnValue(of(sampleBookingA)),
+      extendHold: vi.fn(),
+      getCancellationPreview: vi.fn(),
+      cancelBooking: vi.fn()
     };
 
     mockAlertService = {
@@ -101,6 +104,7 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
       success: vi.fn(),
       warning: vi.fn(),
       toastWarning: vi.fn(),
+      toastSuccess: vi.fn(),
       info: vi.fn()
     };
 
@@ -1358,6 +1362,82 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
     });
 
     // 55. V3 Redesign: Resetting state resets isCodeCopied
+    it('56. should show 3-minute warning and extend hold by +5 minutes once on BookingStatusPage when <= 3 minutes remain', () => {
+      const under3MinMs = Date.now() + 120000;
+      const under3MinIso = new Date(under3MinMs).toISOString();
+      const extendedIso = new Date(under3MinMs + 300000).toISOString();
+
+      mockBookingService.getBookingByToken.mockReturnValue(of({
+        ...sampleBookingA,
+        holdExpiresAtUtc: under3MinIso,
+        secondsRemaining: 120,
+        holdExtensionCount: 0,
+        status: 'PendingPayment'
+      }));
+      component.fetchBooking('tok-token-aaa');
+      fixture.detectChanges();
+
+      expect(component.isExpiringSoon()).toBe(true);
+      expect(component.canExtendHold()).toBe(true);
+      let compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Thời gian giữ phòng sắp hết. Vui lòng hoàn tất đặt phòng để tránh mất phòng.');
+      expect(compiled.textContent).toContain('Gia hạn thêm 5 phút');
+
+      mockBookingService.extendHold.mockReturnValue(of({
+        ...sampleBookingA,
+        holdExpiresAtUtc: extendedIso,
+        secondsRemaining: 420,
+        holdExtensionCount: 1,
+        canExtendHold: false,
+        status: 'PendingPayment'
+      }));
+
+      component.extendHold();
+      fixture.detectChanges();
+
+      expect(mockBookingService.extendHold).toHaveBeenCalledWith('tok-token-aaa');
+      expect(component.booking()?.holdExtensionCount).toBe(1);
+      expect(component.isHoldExtended()).toBe(true);
+      expect(component.canExtendHold()).toBe(false);
+      expect(component.remainingSeconds()).toBeGreaterThan(400);
+
+      compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Đã gia hạn (+5 phút)');
+      expect(compiled.textContent).not.toContain('Gia hạn thêm 5 phút');
+    });
+
+    it('57. should verify status with backend when countdown reaches 00:00 on BookingStatusPage', () => {
+      vi.useFakeTimers();
+      const baseNow = new Date('2099-10-20T07:14:58Z').getTime();
+      vi.setSystemTime(baseNow);
+
+      const expireIso = '2099-10-20T07:15:00Z';
+      component.booking.set({
+        ...sampleBookingA,
+        holdExpiresAtUtc: expireIso,
+        status: 'PendingPayment'
+      });
+      mockBookingService.getBookingByToken.mockReturnValue(of({
+        ...sampleBookingA,
+        holdExpiresAtUtc: expireIso,
+        status: 'Expired',
+        secondsRemaining: 0
+      }));
+
+      component.startHoldCountdown(expireIso, 'PendingPayment');
+      expect(component.remainingSeconds()).toBe(2);
+
+      vi.advanceTimersByTime(2500);
+      fixture.detectChanges();
+
+      expect(component.remainingSeconds()).toBe(0);
+      expect(component.isHoldExpired()).toBe(true);
+      expect(mockBookingService.getBookingByToken).toHaveBeenCalledWith('tok-token-aaa');
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Thời gian giữ phòng đã hết. Vui lòng tìm và chọn phòng lại.');
+      vi.useRealTimers();
+    });
+
     it('55. should reset isCodeCopied signal when resetToSearch is called', () => {
       component.isCodeCopied.set(true);
       expect(component.isCodeCopied()).toBe(true);
@@ -1365,5 +1445,488 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
       component.resetToSearch();
       expect(component.isCodeCopied()).toBe(false);
     });
+
+  describe('T04-B — Guest Booking Cancellation Workflow & Preview UI', () => {
+    const samplePreviewFree: any = {
+      reservationId: 'res-111-aaa',
+      confirmationCode: 'RES-A111',
+      status: 'PendingPayment',
+      rentalType: 'Daily',
+      startAtUtc: '2099-10-20T07:00:00Z',
+      endAtUtc: '2099-10-22T05:00:00Z',
+      totalAmount: 1500000,
+      paidAmount: 450000,
+      depositRequired: 450000,
+      cancellationFee: 0,
+      refundableAmount: 450000,
+      pointsRedeemed: 100,
+      pointsRefundable: 100,
+      isFreeCancellation: true,
+      hoursUntilCheckIn: 72,
+      freeCancellationThresholdHours: 24,
+      policyDescription: 'Miễn phí hủy trước 24h nhận phòng. Hoàn 100% tiền cọc.',
+      canCancel: true
+    };
+
+    const samplePreviewWithFee: any = {
+      reservationId: 'res-222-bbb',
+      confirmationCode: 'RES-B222',
+      status: 'Confirmed',
+      rentalType: 'Daily',
+      startAtUtc: '2099-11-01T07:00:00Z',
+      endAtUtc: '2099-11-02T05:00:00Z',
+      totalAmount: 2000000,
+      paidAmount: 2000000,
+      depositRequired: 0,
+      cancellationFee: 500000,
+      refundableAmount: 1500000,
+      pointsRedeemed: 0,
+      pointsRefundable: 0,
+      isFreeCancellation: false,
+      hoursUntilCheckIn: 12,
+      freeCancellationThresholdHours: 24,
+      policyDescription: 'Hủy phòng muộn (trong vòng 24h). Áp dụng phí hủy 500.000 ₫.',
+      canCancel: true
+    };
+
+    const samplePreviewIneligible: any = {
+      reservationId: 'res-333-ccc',
+      confirmationCode: 'RES-C333',
+      status: 'Confirmed',
+      rentalType: 'Daily',
+      startAtUtc: '2099-11-01T07:00:00Z',
+      endAtUtc: '2099-11-02T05:00:00Z',
+      totalAmount: 1000000,
+      paidAmount: 1000000,
+      depositRequired: 0,
+      cancellationFee: 1000000,
+      refundableAmount: 0,
+      pointsRedeemed: 0,
+      pointsRefundable: 0,
+      isFreeCancellation: false,
+      hoursUntilCheckIn: 1,
+      freeCancellationThresholdHours: 24,
+      policyDescription: 'Không hoàn tiền khi hủy quá sát giờ nhận phòng.',
+      canCancel: false,
+      ineligibilityReason: 'Đã quá thời hạn cho phép hủy trực tuyến theo chính sách của khách sạn.'
+    };
+
+    // 1. Nút hủy hiển thị tương ứng theo trạng thái: PendingPayment unpaid là "Hủy giữ phòng", Confirmed là "Yêu cầu hủy đặt phòng"
+    it('1. should show cancellation button when booking is PendingPayment (not expired) and Confirmed', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      component.fetchBooking('tok-token-aaa');
+      component.isHoldExpired.set(false);
+      fixture.detectChanges();
+
+      expect(component.canRequestCancellation(sampleBookingA)).toBe(true);
+      expect(component.isUnpaidHold(sampleBookingA)).toBe(true);
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Hủy giữ phòng');
+
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      component.fetchBooking('tok-token-bbb');
+      fixture.detectChanges();
+      expect(component.canRequestCancellation(sampleBookingB)).toBe(true);
+      expect(component.isUnpaidHold(sampleBookingB)).toBe(false);
+      expect(compiled.textContent).toContain('Yêu cầu hủy đặt phòng');
+    });
+
+    // 2. Nút "Yêu cầu hủy đặt phòng" ẩn hoàn toàn khi CheckedIn, CheckedOut, Cancelled, Expired hoặc hold hết hạn
+    it('2. should hide cancellation button when booking is CheckedIn, CheckedOut, Cancelled, Expired, or hold expired', () => {
+      const nonCancellableStatuses = ['CheckedIn', 'CheckedOut', 'Cancelled', 'Expired'];
+      for (const st of nonCancellableStatuses) {
+        const b = { ...sampleBookingA, status: st };
+        expect(component.canRequestCancellation(b)).toBe(false);
+      }
+
+      // Trường hợp PendingPayment nhưng hold đã hết hạn
+      const expiredHold = { ...sampleBookingA, status: 'PendingPayment' };
+      component.booking.set(expiredHold);
+      component.isHoldExpired.set(true);
+      expect(component.canRequestCancellation(expiredHold)).toBe(false);
+    });
+
+    // 3. Bấm nút hủy mở modal và gọi getCancellationPreview
+    it('3. should open cancel modal and fetch cancellation preview when clicked', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      component.fetchBooking('tok-token-aaa');
+      mockBookingService.getCancellationPreview.mockReturnValue(of(samplePreviewFree));
+
+      component.openCancelModal();
+      expect(component.isCancelModalOpen()).toBe(true);
+      expect(mockBookingService.getCancellationPreview).toHaveBeenCalledWith('tok-token-aaa');
+      expect(component.cancelPreview()).toEqual(samplePreviewFree);
+    });
+
+    // 4. Hiển thị thông tin xem trước tài chính minh bạch (total, paid, fee, refundable, points)
+    it('4. should render financial breakdown in preview modal', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      component.fetchBooking('tok-token-aaa');
+      component.isCancelModalOpen.set(true);
+      component.cancelPreview.set(samplePreviewFree);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Đối soát tài chính & Hoàn trả');
+      expect(compiled.textContent).toContain('Miễn phí hủy phòng');
+      expect(compiled.textContent).toContain('1,500,000'); // Tổng tiền
+      expect(compiled.textContent).toContain('450,000'); // Đã trả & Tiền hoàn
+      expect(compiled.textContent).toContain('100'); // Điểm loyalty
+    });
+
+    // 5. Trường hợp có phí hủy: hiển thị đúng phí hủy và khoản hoàn dự kiến
+    it('5. should display cancellation fee and adjusted refundable amount when not free cancellation', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      component.fetchBooking('tok-token-bbb');
+      component.isCancelModalOpen.set(true);
+      component.cancelPreview.set(samplePreviewWithFee);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('500,000'); // Phí hủy
+      expect(compiled.textContent).toContain('1,500,000'); // Tiền hoàn
+      expect(compiled.textContent).toContain('Hủy phòng muộn (trong vòng 24h)');
+    });
+
+    // 6. Trường hợp không đủ điều kiện hủy: hiển thị cảnh báo ineligibility và vô hiệu hóa nút xác nhận
+    it('6. should display warning and disable confirm button when canCancel is false', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      component.fetchBooking('tok-token-bbb');
+      component.isCancelModalOpen.set(true);
+      component.cancelPreview.set(samplePreviewIneligible);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Không thể thực hiện hủy phòng trực tuyến');
+      expect(compiled.textContent).toContain('Đã quá thời hạn cho phép hủy trực tuyến');
+
+      const confirmBtn = compiled.querySelector('button.bg-rose-600') as HTMLButtonElement;
+      expect(confirmBtn?.disabled).toBe(true);
+    });
+
+    // 7. Cho phép nhập lý do hủy và thông tin xác thực
+    it('7. should capture cancel reason and verification email/phone', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      component.fetchBooking('tok-token-aaa');
+      component.isCancelModalOpen.set(true);
+      component.cancelPreview.set(samplePreviewFree);
+
+      component.cancelReason = 'Chuyến bay bị hoãn';
+      component.cancelVerification = '0901234567';
+
+      expect(component.cancelReason).toBe('Chuyến bay bị hoãn');
+      expect(component.cancelVerification).toBe('0901234567');
+    });
+
+    // 8. Đóng modal khi bấm "Giữ lại đặt phòng" và không gọi API hủy
+    it('8. should close modal when dismissed without calling cancelBooking', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      component.fetchBooking('tok-token-aaa');
+      component.isCancelModalOpen.set(true);
+      component.cancelPreview.set(samplePreviewFree);
+
+      component.closeCancelModal();
+      expect(component.isCancelModalOpen()).toBe(false);
+      expect(mockBookingService.cancelBooking).not.toHaveBeenCalled();
+    });
+
+    // 9. Xác nhận hủy thành công cho đơn Confirmed: gọi API, cập nhật booking sang Cancelled, hiển thị thông báo phân biệt hoàn tiền (Section 7)
+    it('9. should confirm cancellation successfully and notify pending refund per Decision D23', () => {
+      const confirmedBooking: GuestBookingDetailDto = {
+        ...sampleBookingA,
+        status: 'Confirmed',
+        paidAmount: 450000
+      };
+      mockBookingService.getBookingByToken.mockReturnValue(of(confirmedBooking));
+      component.fetchBooking('tok-token-aaa');
+      component.isCancelModalOpen.set(true);
+      component.cancelPreview.set(samplePreviewFree);
+      component.cancelReason = 'Thay đổi lịch';
+      component.cancelVerification = 'h***@example.com';
+
+      const cancelledResult: GuestBookingDetailDto = {
+        ...confirmedBooking,
+        status: 'Cancelled',
+        cancelledAtUtc: '2099-10-18T10:00:00Z',
+        cancellationReason: 'Thay đổi lịch',
+        cancellationFee: 0,
+        refundableAmount: 450000
+      };
+      mockBookingService.cancelBooking.mockReturnValue(of(cancelledResult));
+
+      component.confirmCancellation();
+
+      expect(mockBookingService.cancelBooking).toHaveBeenCalledWith(
+        'tok-token-aaa',
+        expect.objectContaining({
+          reason: 'Thay đổi lịch',
+          verificationEmailOrPhone: 'h***@example.com'
+        })
+      );
+      expect(component.booking()?.status).toBe('Cancelled');
+      expect(component.isCancelModalOpen()).toBe(false);
+      expect(mockAlertService.toastSuccess).toHaveBeenCalledWith(
+        expect.stringContaining('Khoản tiền hoàn dự kiến 450.000 ₫ đã được ghi nhận và đang chờ khách sạn đối soát, xử lý theo phương thức hoàn tiền được xác nhận')
+      );
+    });
+
+    // 9b. Trường hợp không có tiền hoàn (refundableAmount = 0) cho đơn Confirmed: thông báo đơn giản, không nói chờ chuyển khoản
+    it('9b. should notify simple success message when refundableAmount is 0 for Confirmed booking', () => {
+      const confirmedBooking: GuestBookingDetailDto = {
+        ...sampleBookingA,
+        status: 'Confirmed',
+        paidAmount: 450000
+      };
+      mockBookingService.getBookingByToken.mockReturnValue(of(confirmedBooking));
+      component.fetchBooking('tok-token-aaa');
+      component.isCancelModalOpen.set(true);
+      component.cancelPreview.set({ ...samplePreviewFree, refundableAmount: 0 });
+
+      const cancelledNoRefund: GuestBookingDetailDto = {
+        ...confirmedBooking,
+        status: 'Cancelled',
+        cancelledAtUtc: '2099-10-18T10:00:00Z',
+        cancellationFee: 450000,
+        refundableAmount: 0
+      };
+      mockBookingService.cancelBooking.mockReturnValue(of(cancelledNoRefund));
+
+      component.confirmCancellation();
+
+      expect(component.booking()?.status).toBe('Cancelled');
+      expect(mockAlertService.toastSuccess).toHaveBeenCalledWith('Đặt phòng đã được hủy thành công.');
+    });
+
+    // 9c. Trường hợp hủy lượt giữ phòng PendingPayment chưa thanh toán: thông báo hủy giữ phòng
+    it('9c. should notify "Lượt giữ phòng đã được hủy thành công." when cancelling unpaid PendingPayment hold', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      component.fetchBooking('tok-token-aaa');
+      component.isCancelModalOpen.set(true);
+      component.cancelPreview.set({
+        ...samplePreviewFree,
+        paidAmount: 0,
+        cancellationFee: 0,
+        refundableAmount: 0,
+        isHold: true
+      });
+
+      const cancelledHold: GuestBookingDetailDto = {
+        ...sampleBookingA,
+        status: 'Cancelled',
+        cancelledAtUtc: '2099-10-18T10:00:00Z',
+        cancellationFee: 0,
+        refundableAmount: 0
+      };
+      mockBookingService.cancelBooking.mockReturnValue(of(cancelledHold));
+
+      component.confirmCancellation();
+
+      expect(component.booking()?.status).toBe('Cancelled');
+      expect(mockAlertService.toastSuccess).toHaveBeenCalledWith('Lượt giữ phòng đã được hủy thành công.');
+    });
+
+    // 9d. Modal hiển thị tiêu đề và nội dung phân biệt giữa PendingPayment unpaid và Confirmed
+    it('9d. should render modal title and banner distinguishing unpaid hold vs confirmed booking', () => {
+      // PendingPayment unpaid
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      component.fetchBooking('tok-token-aaa');
+      component.isCancelModalOpen.set(true);
+      component.cancelPreview.set(samplePreviewFree);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('#modal-cancel-title')?.textContent).toContain('Xác nhận hủy giữ phòng');
+      expect(compiled.textContent).toContain('Đơn của bạn chưa được xác nhận và chưa phát sinh thanh toán. Bạn có thể hủy lượt giữ phòng này.');
+
+      // Confirmed
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      component.fetchBooking('tok-token-bbb');
+      fixture.detectChanges();
+      expect(compiled.querySelector('#modal-cancel-title')?.textContent).toContain('Xác nhận yêu cầu hủy đặt phòng');
+    });
+
+    // 9e. Vô hiệu hóa và chặn hủy khi lượt giữ phòng hết hạn trong lúc modal đang mở
+    it('9e. should guard against cancelling when hold expires while modal is open', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      component.fetchBooking('tok-token-aaa');
+      component.clearTimer();
+      component.isCancelModalOpen.set(true);
+      component.cancelPreview.set(samplePreviewFree);
+      component.isHoldExpired.set(true);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Thời gian giữ phòng đã hết hạn. Lượt giữ phòng đã tự động được giải phóng.');
+
+      const confirmBtn = compiled.querySelector('button.bg-rose-600') as HTMLButtonElement;
+      expect(confirmBtn?.disabled).toBe(true);
+
+      component.confirmCancellation();
+      expect(component.cancelError()).toBe('Thời gian giữ phòng đã hết hạn. Lượt giữ phòng đã tự động được giải phóng.');
+      expect(mockBookingService.cancelBooking).not.toHaveBeenCalled();
+    });
+
+    // 10. Xử lý lỗi khi hủy thất bại (400, 401/403, 409)
+    it('10. should handle cancel errors gracefully and show informative Vietnamese messages', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      component.fetchBooking('tok-token-aaa');
+      component.isCancelModalOpen.set(true);
+      component.cancelPreview.set(samplePreviewFree);
+
+      // 400 Bad Request
+      mockBookingService.cancelBooking.mockReturnValue(throwError(() => ({
+        status: 400,
+        error: { message: 'Đơn đặt phòng không hợp lệ để hủy.' }
+      })));
+      component.confirmCancellation();
+      expect(component.isCancelling()).toBe(false);
+      expect(component.cancelError()).toBe('Đơn đặt phòng không hợp lệ để hủy.');
+
+      // 403 Forbidden
+      mockBookingService.cancelBooking.mockReturnValue(throwError(() => ({ status: 403 })));
+      component.confirmCancellation();
+      expect(component.cancelError()).toContain('Thông tin xác nhận email hoặc số điện thoại không trùng khớp');
+
+      // 409 Conflict
+      mockBookingService.cancelBooking.mockReturnValue(throwError(() => ({ status: 409 })));
+      component.confirmCancellation();
+      expect(component.cancelError()).toContain('Trạng thái đơn đặt phòng đã thay đổi');
+    });
+
+    // 11. Trạng thái Cancelled hiển thị chi tiết thời điểm hủy, lý do, phí hủy và khoản hoàn dự kiến
+    it('11. should display cancellation metadata (date, reason, fee, refund) in Cancelled Hero Card', () => {
+      const cancelledBooking: GuestBookingDetailDto = {
+        ...sampleBookingA,
+        status: 'Cancelled',
+        cancelledAtUtc: '2099-10-18T10:00:00Z',
+        cancellationReason: 'Đổi lịch công tác sang tuần sau',
+        cancellationFee: 100000,
+        refundableAmount: 350000
+      };
+
+      mockBookingService.getBookingByToken.mockReturnValue(of(cancelledBooking));
+      component.fetchBooking('tok-token-cancelled');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Đơn đặt phòng đã được hủy trên hệ thống');
+      expect(compiled.textContent).toContain('Đổi lịch công tác sang tuần sau');
+      expect(compiled.textContent).toContain('100,000 ₫');
+      expect(compiled.textContent).toContain('350,000 ₫');
+      expect(compiled.textContent).toContain('Chờ đối soát & duyệt hoàn tiền');
+      expect(component.canRequestCancellation(cancelledBooking)).toBe(false);
+      expect(compiled.querySelector('button[title*="hủy đặt phòng"]')).toBeNull();
+      expect(compiled.textContent).toContain('Tìm và đặt phòng khác');
+    });
+
+    // 12. Reset trạng thái cancel modal khi resetToSearch
+    it('12. should reset cancel modal state when resetToSearch is called', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      component.fetchBooking('tok-token-aaa');
+      component.isCancelModalOpen.set(true);
+      component.cancelPreview.set(samplePreviewFree);
+      component.cancelReason = 'Some reason';
+
+      component.resetToSearch();
+
+      expect(component.isCancelModalOpen()).toBe(false);
+      expect(component.cancelPreview()).toBeNull();
+      expect(component.cancelReason).toBe('');
+      expect(component.cancelError()).toBe('');
+    });
+
+    // 13. Tải preview lỗi: hiển thị nút thử lại và không cho xác nhận
+    it('13. should handle preview load failure with retry button', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      component.fetchBooking('tok-token-aaa');
+      mockBookingService.getCancellationPreview.mockReturnValue(throwError(() => ({
+        error: { message: 'Không thể kết nối đến máy chủ.' }
+      })));
+
+      component.openCancelModal();
+      fixture.detectChanges();
+
+      expect(component.isLoadingCancelPreview()).toBe(false);
+      expect(component.cancelPreviewError()).toBe('Không thể kết nối đến máy chủ.');
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Không thể tải chính sách hủy');
+    });
+
+    // 14. [Ba điểm kiểm tra - Điểm 1]: Hiển thị thời điểm nhận phòng, thời điểm yêu cầu hủy và mốc đối chiếu
+    it('14. should format timeline date/time and display check-in, request time and remaining hours in cancel modal', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      component.fetchBooking('tok-token-bbb');
+      component.isCancelModalOpen.set(true);
+      component.cancelPreview.set(samplePreviewWithFee);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Mốc thời gian đối soát');
+      expect(compiled.textContent).toContain('Nhận phòng:');
+      expect(compiled.textContent).toContain('Yêu cầu hủy:');
+      expect(compiled.textContent).toContain('Còn 12 giờ trước nhận phòng — Áp dụng phí hủy 25%.');
+
+      // Helper check
+      expect(component.formatTimelineDateTime('2026-10-31T07:00:00Z')).toBe('31/10/2026 — 14:00');
+      expect(component.formatTimelineDateTime(null)).toBe('');
+    });
+
+    // 15. [Ba điểm kiểm tra - Điểm 2]: Thông báo rõ ràng hủy phòng và hoàn tiền là hai bước riêng biệt
+    it('15. should display notice stating cancellation and refund are two separate steps', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      component.fetchBooking('tok-token-bbb');
+      component.isCancelModalOpen.set(true);
+      component.cancelPreview.set(samplePreviewWithFee);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Quy trình hủy phòng & hoàn tiền:');
+      expect(compiled.textContent).toContain('Đặt phòng sẽ được hủy sau khi bạn xác nhận.');
+      expect(compiled.textContent).toContain('Khoản hoàn dự kiến 1,500,000 ₫ sẽ được khách sạn kiểm tra và xử lý theo quy trình hoàn tiền. Đây chưa phải khoản tiền đã được hoàn.');
+    });
+
+    // 16. [Ba điểm kiểm tra - Điểm 3]: Không mặc định hoàn tiền bằng chuyển khoản
+    it('16. should state refund processed by confirmed refund method and not default to bank transfer', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      component.fetchBooking('tok-token-bbb');
+      component.isCancelModalOpen.set(true);
+      component.cancelPreview.set(samplePreviewWithFee);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Khoản hoàn dự kiến sẽ được khách sạn đối soát và xử lý theo phương thức hoàn tiền được xác nhận.');
+      expect(compiled.textContent).not.toContain('xử lý chuyển khoản');
+    });
+
+    // 17. In đậm các cụm thời hạn hủy miễn phí, thời điểm bị tính phí và mức phí phạt
+    it('17. should bold free cancellation threshold, fee-incurring time window, and penalty percentage', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      component.fetchBooking('tok-token-bbb');
+      component.isCancelModalOpen.set(true);
+      component.cancelPreview.set(samplePreviewWithFee);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+
+      // 1. Kiểm tra formatPolicyDescription in đậm các cụm từ
+      const policyHtml = component.formatPolicyDescription(
+        'Miễn phí hủy phòng trước ngày nhận phòng ít nhất 24 giờ. Hủy phòng trong vòng 24 giờ trước giờ nhận phòng áp dụng phí phạt 30% tổng giá trị đơn đặt phòng.'
+      );
+      expect(policyHtml).toContain('<strong class="font-bold text-slate-900 underline decoration-blue-400 underline-offset-2">trước ngày nhận phòng ít nhất 24 giờ</strong>');
+      expect(policyHtml).toContain('<strong class="font-bold text-slate-900 underline decoration-amber-400 underline-offset-2">trong vòng 24 giờ trước giờ nhận phòng</strong>');
+      expect(policyHtml).toContain('phí phạt 30% tổng giá trị đơn đặt phòng</strong>');
+
+      // 2. Kiểm tra timeline HTML in đậm thời điểm và phí phạt
+      const timelineHtml = component.getCancellationTimelineFormattedHtml(samplePreviewWithFee);
+      expect(timelineHtml).toContain('<strong class="font-bold text-rose-950 underline decoration-rose-300 underline-offset-2">12 giờ trước nhận phòng</strong>');
+      expect(timelineHtml).toContain('phí hủy 25%</strong>');
+
+      // 3. Kiểm tra DOM thực tế trong modal chứa thẻ strong cho các thông tin quan trọng này
+      const strongs = Array.from(compiled.querySelectorAll('strong')).map(s => s.textContent);
+      expect(strongs.some(t => t?.includes('12 giờ trước nhận phòng'))).toBe(true);
+      expect(strongs.some(t => t?.includes('phí hủy 25%'))).toBe(true);
+      expect(strongs.some(t => t?.includes('1,500,000 ₫'))).toBe(true);
+    });
   });
+});
 });

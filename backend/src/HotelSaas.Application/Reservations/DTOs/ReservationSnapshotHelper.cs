@@ -44,6 +44,23 @@ public static class ReservationSnapshotHelper
         }
     }
 
+    public static string? CleanCustomerNotes(string? notes, ReservationSnapshot? snapshot)
+    {
+        var rawNotes = snapshot?.CustomerNotes ?? notes;
+        if (string.IsNullOrWhiteSpace(rawNotes))
+            return null;
+
+        var trimmed = rawNotes.Trim();
+        if ((trimmed.StartsWith('{') && trimmed.EndsWith('}')) ||
+            trimmed.Contains("15-min hold", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains("Guest online reservation", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return trimmed;
+    }
+
     public static ReservationDetailDto MapToDetailDto(Reservation r, Property property)
     {
         var snapshot = TryDeserialize(r.Notes);
@@ -91,9 +108,12 @@ public static class ReservationSnapshotHelper
             Currency = snapshot?.Currency ?? "VND",
             Status = r.Status,
             ConfirmationCode = r.ConfirmationCode,
-            Notes = snapshot?.CustomerNotes ?? r.Notes,
+            Notes = CleanCustomerNotes(r.Notes, snapshot),
             SmartLockPin = r.SmartLockPin,
             SmartLockStatus = r.SmartLockStatus,
+            HoldExpiresAtUtc = snapshot?.IsOnlineHold == true ? snapshot.HoldExpiresAtUtc : null,
+            HoldExtensionCount = snapshot?.HoldExtensionCount ?? 0,
+            IsHoldExpired = r.Status == ReservationStatus.PendingPayment && snapshot?.IsOnlineHold == true && snapshot.HoldExpiresAtUtc.HasValue && snapshot.HoldExpiresAtUtc.Value <= DateTime.UtcNow,
             CreatedAtUtc = r.CreatedAtUtc,
             Breakdown = breakdown,
             AppliedPolicies = policies,

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -6,7 +6,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { of, take } from 'rxjs';
 import { PublicBookingService } from '../../core/services/public-booking.service';
 import { AlertService } from '../../core/services/alert.service';
-import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
+import { GuestBookingDetailDto, GuestCancellationPreviewDto, CancelGuestBookingRequest } from '../../core/models/public-booking.model';
 
 export interface StatusErrorState {
   title: string;
@@ -186,58 +186,160 @@ export interface StatusErrorState {
             <!-- B. BOOKING STATUS HERO (DUY NHẤT 1 CARD CHÍNH THEO TRẠNG THÁI NGHIỆP VỤ) -->
             @if (detail.status === 'PendingPayment') {
               <!-- GIỮ PHÒNG TẠM THỜI — DUY NHẤT 1 HERO CARD VÀ 1 ĐỒNG HỒ COUNTDOWN -->
-              <div class="mx-6 sm:mx-8 my-6 p-5 sm:p-6 bg-gradient-to-r from-amber-50/90 via-amber-50/70 to-orange-50/40 border border-amber-200/90 rounded-2xl sm:rounded-3xl text-amber-950 flex flex-col md:flex-row md:items-center justify-between gap-5 shadow-xs">
-                <div class="space-y-2 max-w-2xl">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-200">
-                      <i class="pi pi-clock text-[11px] text-amber-700"></i>
-                      <span>Chờ thanh toán</span>
-                    </span>
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-200/70 text-amber-900 border border-amber-300/60">
-                      <i class="pi pi-info-circle text-[11px]"></i>
-                      <span>Đơn giữ phòng tạm thời — Chưa xác nhận</span>
-                    </span>
+              <div class="mx-6 sm:mx-8 my-6 p-6 sm:p-7 bg-gradient-to-br from-amber-50/90 via-orange-50/40 to-amber-100/30 border border-amber-200/90 rounded-3xl text-amber-950 shadow-sm space-y-5">
+                <!-- Hàng trên: Thông tin giữ phòng & Countdown Timer -->
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                  <!-- Cột trái: Badges, Title, Mô tả, Tiền cọc -->
+                  <div class="space-y-2.5 max-w-2xl flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-100/90 text-amber-900 border border-amber-300/70">
+                        <i class="pi pi-clock text-[11px] text-amber-700"></i>
+                        <span>Chờ thanh toán</span>
+                      </span>
+                      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/80 text-amber-900 border border-amber-200 shadow-2xs">
+                        <i class="pi pi-info-circle text-[11px] text-amber-600"></i>
+                        <span>Đơn giữ phòng tạm thời — Chưa xác nhận</span>
+                      </span>
+                      @if (isExpiringSoon()) {
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200 animate-pulse">
+                          <i class="pi pi-exclamation-triangle text-[11px]"></i>
+                          <span>Sắp hết hạn</span>
+                        </span>
+                      }
+                      @if (isHoldExtended() && !isHoldExpired()) {
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                          <i class="pi pi-history text-[11px]"></i>
+                          <span>Đã gia hạn (+5 phút)</span>
+                        </span>
+                      }
+                    </div>
+
+                    <h2 class="text-xl sm:text-2xl font-black text-amber-950 tracking-tight">
+                      Phòng của bạn đang được giữ tạm thời
+                    </h2>
+
+                    <p class="text-xs sm:text-sm text-amber-900/90 font-medium leading-relaxed">
+                      Vui lòng hoàn tất đặt cọc để xác nhận đặt phòng. Đơn đặt phòng chưa được xác nhận, vui lòng hoàn tất khoản đặt cọc theo quy định trước khi thời hạn giữ phòng kết thúc để phòng được bảo đảm.
+                    </p>
+
+                    @if (detail.depositRequired > 0) {
+                      <div class="pt-1 flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+                        <span class="text-amber-800 font-semibold">Khoản đặt cọc yêu cầu:</span>
+                        <span class="font-mono font-bold text-amber-950 text-sm sm:text-base bg-white/95 px-3 py-1 rounded-xl border border-amber-300/80 shadow-2xs">
+                          {{ detail.depositRequired | number:'1.0-0' }} ₫
+                        </span>
+                        @if (getRemainingDeposit(detail) > 0 && detail.paidAmount > 0) {
+                          <span class="text-amber-700 font-medium text-xs">
+                            (Còn thiếu: <strong class="font-mono font-bold text-amber-900">{{ getRemainingDeposit(detail) | number:'1.0-0' }} ₫</strong>)
+                          </span>
+                        }
+                      </div>
+                    }
                   </div>
 
-                  <h2 class="text-lg sm:text-xl font-black text-amber-950 tracking-tight">
-                    Phòng của bạn đang được giữ tạm thời
-                  </h2>
-
-                  <p class="text-xs sm:text-sm text-amber-900/90 font-medium leading-relaxed">
-                    Vui lòng hoàn tất đặt cọc để xác nhận đặt phòng. Đơn đặt phòng chưa được xác nhận, vui lòng hoàn tất khoản đặt cọc theo quy định trước khi thời hạn giữ phòng kết thúc để phòng được bảo đảm.
-                  </p>
-
-                  @if (detail.depositRequired > 0) {
-                    <div class="pt-1 flex flex-wrap items-center gap-2 text-xs">
-                      <span class="text-amber-800 font-semibold">Khoản đặt cọc yêu cầu:</span>
-                      <span class="font-mono font-bold text-amber-950 text-sm bg-white/90 px-2.5 py-0.5 rounded-lg border border-amber-200 shadow-2xs">
-                        {{ detail.depositRequired | number:'1.0-0' }} ₫
-                      </span>
-                      @if (getRemainingDeposit(detail) > 0 && detail.paidAmount > 0) {
-                        <span class="text-amber-700 font-medium text-xs">
-                          (Còn thiếu: <strong class="font-mono font-bold text-amber-900">{{ getRemainingDeposit(detail) | number:'1.0-0' }} ₫</strong>)
-                        </span>
+                  <!-- Cột phải: Countdown Box cố định kích thước, không bị chèn ép -->
+                  @if (detail.holdExpiresAtUtc) {
+                    <div class="shrink-0 self-start lg:self-center">
+                      @if (isHoldExpired()) {
+                        <div class="px-6 py-4 rounded-2xl bg-rose-100 text-rose-800 text-xs font-extrabold border border-rose-200 text-center shadow-2xs min-w-[200px]">
+                          <i class="pi pi-exclamation-triangle text-lg block mb-1"></i>
+                          <span>Đã hết hạn giữ phòng</span>
+                        </div>
+                      } @else {
+                        <div
+                          class="px-6 py-4 rounded-2xl border text-center shadow-xs flex flex-col items-center justify-center min-w-[200px] transition-all"
+                          [ngClass]="isExpiringSoon() ? 'bg-rose-50/95 border-rose-300 ring-2 ring-rose-500/20' : 'bg-white/95 border-amber-200/90'"
+                        >
+                          <span
+                            class="text-[10px] uppercase font-bold tracking-wider block"
+                            [ngClass]="isExpiringSoon() ? 'text-rose-800' : 'text-amber-800'"
+                          >
+                            Thời gian giữ phòng còn lại
+                          </span>
+                          <span
+                            class="font-mono text-3xl font-black block mt-1 tracking-wider tabular-nums"
+                            [ngClass]="isExpiringSoon() ? 'text-rose-700' : 'text-amber-900'"
+                          >
+                            {{ formatCountdown(remainingSeconds()) }}
+                          </span>
+                          <span
+                            class="text-[10px] font-semibold mt-0.5"
+                            [ngClass]="isExpiringSoon() ? 'text-rose-600/80' : 'text-amber-700/80'"
+                          >
+                            MM:SS
+                          </span>
+                        </div>
                       }
                     </div>
                   }
                 </div>
 
-                @if (detail.holdExpiresAtUtc) {
-                  <div class="shrink-0 self-stretch md:self-auto flex flex-col justify-center">
-                    @if (isHoldExpired()) {
-                      <div class="px-5 py-3.5 rounded-2xl bg-rose-100 text-rose-800 text-xs font-extrabold border border-rose-200 text-center shadow-2xs">
-                        <i class="pi pi-exclamation-triangle text-base block mb-1"></i>
-                        <span>Đã hết hạn giữ phòng</span>
+                <!-- Hàng dưới: Cảnh báo sắp hết hạn (Full width, phân tách rõ ràng) -->
+                @if (detail.holdExpiresAtUtc && !isHoldExpired()) {
+                  @if (isExpiringSoon()) {
+                    <div
+                      role="alert"
+                      class="w-full p-4 rounded-2xl bg-rose-50/95 border border-rose-300/80 text-rose-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs"
+                    >
+                      <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                          <i class="pi pi-exclamation-triangle text-base"></i>
+                        </div>
+                        <div>
+                          <div class="text-xs font-bold uppercase tracking-wider text-rose-800">Cảnh báo sắp hết hạn</div>
+                          <p class="text-xs sm:text-sm font-semibold text-rose-900 mt-0.5 leading-snug">
+                            Thời gian giữ phòng sắp hết. Vui lòng hoàn tất đặt phòng để tránh mất phòng.
+                          </p>
+                        </div>
                       </div>
-                    } @else {
-                      <div class="bg-white/95 px-5 py-3.5 rounded-2xl border border-amber-200/90 text-center shadow-xs flex flex-col items-center">
-                        <span class="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">Thời gian giữ phòng còn lại</span>
-                        <span class="font-mono text-2xl font-black text-amber-900 block mt-0.5 tracking-wider">
-                          {{ formatCountdown(remainingSeconds()) }}
-                        </span>
-                        <span class="text-[10px] text-amber-700/80 font-medium mt-0.5">MM:SS</span>
+
+                      <div class="shrink-0 flex items-center gap-2 self-start sm:self-center">
+                        @if (canExtendHold()) {
+                          <button
+                            type="button"
+                            (click)="extendHold()"
+                            [disabled]="isExtendingHold()"
+                            class="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-all inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+                          >
+                            @if (isExtendingHold()) {
+                              <i class="pi pi-spin pi-spinner text-xs"></i>
+                              <span>Đang gia hạn...</span>
+                            } @else {
+                              <i class="pi pi-plus-circle text-xs"></i>
+                              <span>Gia hạn thêm 5 phút</span>
+                            }
+                          </button>
+                        } @else if (isHoldExtended()) {
+                          <span class="text-xs font-bold text-indigo-700 bg-white px-3 py-1.5 rounded-xl border border-indigo-200">
+                            <i class="pi pi-check text-[11px] mr-1"></i>Đã sử dụng 1/1 lượt gia hạn
+                          </span>
+                        }
                       </div>
-                    }
+                    </div>
+                  }
+
+                  @if (extendHoldError()) {
+                    <div role="alert" class="w-full p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center justify-between gap-2">
+                      <div class="flex items-center gap-2">
+                        <i class="pi pi-exclamation-circle text-rose-600 shrink-0"></i>
+                        <span>{{ extendHoldError() }}</span>
+                      </div>
+                      <button type="button" (click)="extendHoldError.set('')" class="text-rose-400 hover:text-rose-600 p-1 rounded cursor-pointer" aria-label="Đóng thông báo lỗi gia hạn">
+                        <i class="pi pi-times text-xs"></i>
+                      </button>
+                    </div>
+                  }
+                }
+
+                @if (isHoldExpired()) {
+                  <div role="alert" class="w-full p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="flex items-center gap-2.5">
+                      <i class="pi pi-clock text-rose-600 text-base"></i>
+                      <span>Thời gian giữ phòng đã hết. Vui lòng tìm và chọn phòng lại để thực hiện đặt chỗ mới.</span>
+                    </div>
+                    <a routerLink="/booking" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold text-center shrink-0 transition-colors">
+                      Tìm phòng lại
+                    </a>
                   </div>
                 }
               </div>
@@ -341,24 +443,95 @@ export interface StatusErrorState {
                   </span>
                   <h2 class="text-sm sm:text-base font-bold text-rose-950">Thời gian giữ phòng đã hết hạn</h2>
                   <p class="text-xs text-rose-800 leading-relaxed">
-                    Yêu cầu giữ chỗ này đã hết hiệu lực và không còn khả dụng để làm thủ tục nhận phòng. Quý khách vui lòng kiểm tra phòng trống và đặt lại đơn mới nếu vẫn có nhu cầu lưu trú.
+                    Thời gian giữ phòng đã hết. Vui lòng tìm và chọn phòng lại. Yêu cầu giữ chỗ này đã hết hiệu lực và không còn khả dụng để làm thủ tục nhận phòng. Quý khách vui lòng kiểm tra phòng trống và đặt lại đơn mới nếu vẫn có nhu cầu lưu trú.
                   </p>
                 </div>
               </div>
             } @else if (detail.status === 'Cancelled') {
-              <!-- ĐÃ HỦY -->
-              <div class="mx-6 sm:mx-8 my-6 p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-slate-100 border border-slate-200 text-slate-800 flex items-start gap-4 shadow-xs">
-                <div class="w-10 h-10 rounded-2xl bg-slate-200 text-slate-700 flex items-center justify-center shrink-0 mt-0.5">
-                  <i class="pi pi-ban text-lg"></i>
+              <!-- ĐÃ HỦY (T04-B GUEST CANCELLATION STATE) -->
+              <div class="mx-6 sm:mx-8 my-6 p-6 sm:p-7 rounded-2xl sm:rounded-3xl bg-slate-100/90 border border-slate-200 text-slate-800 space-y-4 shadow-xs">
+                <div class="flex items-start gap-4">
+                  <div class="w-12 h-12 rounded-2xl bg-slate-200 text-rose-700 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                    <i class="pi pi-ban text-xl font-bold"></i>
+                  </div>
+                  <div class="space-y-1.5 flex-1 min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-bold uppercase bg-slate-200 text-slate-800 border border-slate-300/80">
+                        Đơn đặt phòng đã hủy
+                      </span>
+                      @if (detail.cancelledAtUtc) {
+                        <span class="text-xs text-slate-500 font-medium">
+                          Thời điểm hủy: <strong class="text-slate-800 font-mono">{{ formatVietnamFullDateTime(detail.cancelledAtUtc) }}</strong>
+                        </span>
+                      }
+                    </div>
+                    <h2 class="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                      Đơn đặt phòng đã được hủy trên hệ thống
+                    </h2>
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                      Yêu cầu hủy đặt phòng đã được ghi nhận. Mã đơn này đã ngừng hiệu lực và không còn khả dụng để làm thủ tục nhận phòng.
+                    </p>
+                  </div>
                 </div>
-                <div class="space-y-1">
-                  <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-200 text-slate-700">
-                    Đơn đặt phòng đã hủy
-                  </span>
-                  <h2 class="text-sm sm:text-base font-bold text-slate-900">Đơn đặt phòng đã bị hủy</h2>
-                  <p class="text-xs text-slate-600 leading-relaxed">
-                    Đơn đặt phòng này đã được hủy trên hệ thống. Quý khách không thể thực hiện thủ tục nhận phòng với mã đơn này.
-                  </p>
+
+                @if (detail.cancellationReason) {
+                  <div class="p-3.5 rounded-xl bg-white/80 border border-slate-200 text-xs text-slate-700 space-y-1">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Lý do hủy đặt phòng:</span>
+                    <p class="font-medium text-slate-800">{{ detail.cancellationReason }}</p>
+                  </div>
+                }
+
+                @if (detail.cancellationFee !== undefined && detail.cancellationFee !== null) {
+                  <div class="p-4 rounded-xl bg-white border border-slate-200/90 text-xs space-y-2">
+                    <div class="flex justify-between items-center text-slate-600">
+                      <span>Phí hủy phòng áp dụng:</span>
+                      <span class="font-mono font-bold text-slate-800">{{ detail.cancellationFee | number:'1.0-0' }} ₫</span>
+                    </div>
+
+                    @if (detail.refundableAmount && detail.refundableAmount > 0) {
+                      <div class="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <span class="font-bold text-emerald-800 flex items-center gap-1.5">
+                          <i class="pi pi-wallet text-emerald-600"></i>
+                          <span>Khoản tiền hoàn dự kiến:</span>
+                        </span>
+                        <div class="flex items-center gap-2">
+                          <span class="font-mono font-black text-sm text-emerald-700">{{ detail.refundableAmount | number:'1.0-0' }} ₫</span>
+                          @if (detail.refundStatus === 'Refunded') {
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              <i class="pi pi-check text-[10px]"></i>
+                              Đã hoàn tiền (Đã chi trả)
+                            </span>
+                          } @else {
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                              Chờ đối soát & duyệt hoàn tiền
+                            </span>
+                          }
+                        </div>
+                      </div>
+                      <p class="text-[11px] text-slate-500 italic">
+                        @if (detail.refundStatus === 'Refunded') {
+                          * Khách sạn đã xác nhận chi trả khoản hoàn tiền cho quý khách theo phương thức hoàn tiền được xác nhận.
+                        } @else {
+                          * Lưu ý: Khoản hoàn tiền đang ở trạng thái chờ duyệt (Pending) theo quy trình D23 và chưa được chuyển trả thực tế. Quản lý khách sạn sẽ đối soát và thực hiện chi trả theo quy định.
+                        }
+                      </p>
+                    } @else {
+                      <div class="pt-2 border-t border-slate-100 text-[11px] text-slate-500">
+                        Đơn đặt phòng không có khoản tiền hoàn dư theo chính sách hủy đã áp dụng.
+                      </div>
+                    }
+                  </div>
+                }
+
+                <div class="pt-2 flex flex-wrap items-center gap-3">
+                  <a
+                    routerLink="/booking"
+                    class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-2xs"
+                  >
+                    <i class="pi pi-search text-xs"></i>
+                    <span>Tìm và đặt phòng khác</span>
+                  </a>
                 </div>
               </div>
             }
@@ -645,7 +818,19 @@ export interface StatusErrorState {
                 </button>
               </div>
 
-              <div class="flex items-center gap-3">
+              <div class="flex flex-wrap items-center gap-3">
+                @if (canRequestCancellation(detail)) {
+                  <button
+                    type="button"
+                    (click)="openCancelModal()"
+                    class="px-4 py-2.5 rounded-xl text-xs font-semibold border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 transition-colors cursor-pointer shadow-2xs flex items-center gap-1.5"
+                    [title]="isUnpaidHold(detail) ? 'Hủy lượt giữ phòng này' : 'Yêu cầu hủy đặt phòng và xem trước chính sách hoàn tiền'"
+                  >
+                    <i class="pi pi-times text-xs"></i>
+                    <span>{{ isUnpaidHold(detail) ? 'Hủy giữ phòng' : 'Yêu cầu hủy đặt phòng' }}</span>
+                  </button>
+                }
+
                 <button
                   type="button"
                   (click)="resetToSearch()"
@@ -861,6 +1046,288 @@ export interface StatusErrorState {
           </div>
         }
 
+
+    <!-- MODAL YÊU CẦU HỦY ĐẶT PHÒNG & XEM TRƯỚC PHÍ HỦY/HOÀN TIỀN (T04-B) -->
+    @if (isCancelModalOpen()) {
+      <div
+        class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-cancel-title"
+        (click)="closeCancelModal()"
+      >
+        <div
+          (click)="$event.stopPropagation()"
+          class="bg-white rounded-3xl border border-slate-200 max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-200"
+        >
+          <!-- Modal Header -->
+          <div class="p-5 sm:p-6 border-b border-slate-100 flex items-start justify-between gap-4 bg-rose-50/40 shrink-0">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-10 h-10 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 shadow-2xs">
+                <i class="pi pi-exclamation-circle text-lg"></i>
+              </div>
+              <div>
+                <h2 id="modal-cancel-title" class="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                  {{ isUnpaidHold() ? 'Xác nhận hủy giữ phòng' : 'Xác nhận yêu cầu hủy đặt phòng' }}
+                </h2>
+                <p class="text-xs text-slate-500 mt-0.5">
+                  Mã đơn: <strong class="font-mono text-slate-800">{{ booking()?.confirmationCode }}</strong> • {{ booking()?.propertyName }}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              (click)="closeCancelModal()"
+              [disabled]="isCancelling()"
+              class="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+              aria-label="Đóng cửa sổ"
+            >
+              <i class="pi pi-times text-base"></i>
+            </button>
+          </div>
+
+          <!-- Modal Body (Scrollable) -->
+          <div class="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1 min-h-0 text-xs">
+            @if (isLoadingCancelPreview()) {
+              <div class="p-10 text-center space-y-3">
+                <div class="animate-spin w-8 h-8 border-4 border-rose-600 border-t-transparent rounded-full mx-auto"></div>
+                <p class="font-semibold text-slate-600">Đang đối soát chính sách hủy và tính toán số tiền hoàn dự kiến...</p>
+              </div>
+            } @else if (cancelPreviewError()) {
+              <div class="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-2">
+                <div class="flex items-center gap-2 font-bold">
+                  <i class="pi pi-exclamation-triangle text-rose-600"></i>
+                  <span>Không thể tải chính sách hủy</span>
+                </div>
+                <p>{{ cancelPreviewError() }}</p>
+                <button
+                  type="button"
+                  (click)="loadCancelPreview()"
+                  class="mt-2 px-3 py-1.5 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700 transition-colors cursor-pointer"
+                >
+                  Thử lại
+                </button>
+              </div>
+            } @else if (cancelPreview(); as prev) {
+              <!-- A. Hold expired notice while modal is open -->
+              @if (booking()?.status === 'PendingPayment' && isHoldExpired()) {
+                <div class="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 space-y-1.5">
+                  <div class="flex items-center gap-2 font-bold text-amber-950">
+                    <i class="pi pi-clock text-amber-700"></i>
+                    <span>Thời gian giữ phòng đã hết hạn</span>
+                  </div>
+                  <p class="text-amber-800 leading-relaxed">
+                    Thời gian giữ phòng đã hết hạn. Lượt giữ phòng đã tự động được giải phóng.
+                  </p>
+                </div>
+              } @else if (!prev.canCancel) {
+                <div class="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 space-y-1.5">
+                  <div class="flex items-center gap-2 font-bold text-amber-950">
+                    <i class="pi pi-lock text-amber-700"></i>
+                    <span>Không thể thực hiện hủy phòng trực tuyến</span>
+                  </div>
+                  <p class="text-amber-800 leading-relaxed">
+                    {{ prev.ineligibilityReason || 'Đơn đặt phòng này hiện không đủ điều kiện hủy trực tuyến theo chính sách của khách sạn. Vui lòng liên hệ trực tiếp quầy Lễ tân để được hỗ trợ.' }}
+                  </p>
+                </div>
+              }
+
+              <!-- A2. Notice for unpaid hold -->
+              @if (isUnpaidHold()) {
+                <div class="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5">
+                  <i class="pi pi-info-circle text-amber-700 text-sm mt-0.5 shrink-0"></i>
+                  <div class="leading-relaxed">
+                    Đơn của bạn chưa được xác nhận và chưa phát sinh thanh toán. Bạn có thể hủy lượt giữ phòng này.
+                  </div>
+                </div>
+              }
+
+              <!-- 1. Mốc thời gian đối soát hủy phòng & nhận phòng (Item 1) -->
+              <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-2.5">
+                <div class="flex items-center justify-between pb-1.5 border-b border-slate-200/70 text-slate-700">
+                  <span class="font-bold uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                    <i class="pi pi-calendar-clock text-slate-500"></i>
+                    Mốc thời gian đối soát
+                  </span>
+                  <span class="text-[10px] font-medium text-slate-500">Múi giờ Việt Nam (GMT+7)</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700">
+                  <div class="flex items-center gap-2.5 p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
+                    <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                      <i class="pi pi-sign-in text-sm"></i>
+                    </div>
+                    <div class="min-w-0">
+                      <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Nhận phòng:</div>
+                      <div class="font-bold text-slate-900 truncate font-mono text-xs">
+                        {{ formatTimelineDateTime(prev.startAtUtc || booking()?.startAtUtc) }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2.5 p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
+                    <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                      <i class="pi pi-clock text-sm"></i>
+                    </div>
+                    <div class="min-w-0">
+                      <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Yêu cầu hủy:</div>
+                      <div class="font-bold text-slate-900 truncate font-mono text-xs">
+                        {{ formatTimelineDateTime(cancelRequestTime()) }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Phân tích quy định thời gian áp dụng phí -->
+                <div
+                  class="p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2"
+                  [ngClass]="prev.isFreeCancellation ? 'bg-emerald-50 text-emerald-900 border border-emerald-200' : 'bg-rose-50 text-rose-900 border border-rose-200'"
+                >
+                  <i class="pi text-sm shrink-0" [ngClass]="prev.isFreeCancellation ? 'pi-check-circle text-emerald-600' : 'pi-info-circle text-rose-600'"></i>
+                  <span class="leading-relaxed" [innerHTML]="getCancellationTimelineFormattedHtml(prev)"></span>
+                </div>
+              </div>
+
+              <!-- B. Financial breakdown card -->
+              <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-3">
+                <div class="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                  <span class="font-bold text-slate-700 uppercase tracking-wider text-[11px]">Đối soát tài chính & Hoàn trả</span>
+                  @if (prev.isFreeCancellation) {
+                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      Miễn phí hủy phòng
+                    </span>
+                  }
+                </div>
+
+                <div class="space-y-2 text-slate-700">
+                  <div class="flex justify-between items-center">
+                    <span>Tổng tiền phòng:</span>
+                    <span class="font-mono font-semibold text-slate-900">{{ prev.totalAmount | number:'1.0-0' }} ₫</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span>Số tiền khách đã thanh toán:</span>
+                    <span class="font-mono font-semibold text-slate-900">{{ prev.paidAmount | number:'1.0-0' }} ₫</span>
+                  </div>
+                  <div class="flex justify-between items-center text-rose-700">
+                    <span class="font-semibold text-rose-900">
+                      Phí hủy áp dụng
+                      @if (prev.cancellationFee > 0 && prev.totalAmount > 0) {
+                        <strong class="font-bold text-rose-700">({{ getCancellationFeePercent(prev) }}%)</strong>
+                      }:
+                    </span>
+                    <span class="font-mono font-bold text-rose-700">{{ prev.cancellationFee | number:'1.0-0' }} ₫</span>
+                  </div>
+                  @if (prev.pointsRefundable > 0) {
+                    <div class="flex justify-between items-center text-indigo-700">
+                      <span>Điểm Loyalty hoàn lại:</span>
+                      <span class="font-mono font-bold">+{{ prev.pointsRefundable | number:'1.0-0' }} điểm</span>
+                    </div>
+                  }
+                </div>
+
+                <!-- Highlight Refundable Amount -->
+                <div class="pt-3 border-t border-slate-200 flex items-center justify-between font-black text-sm text-emerald-800 bg-emerald-50/80 -mx-4 -mb-4 p-4 rounded-b-2xl">
+                  <span>Khoản tiền dự kiến hoàn trả:</span>
+                  <span class="font-mono text-base text-emerald-700">{{ prev.refundableAmount | number:'1.0-0' }} ₫</span>
+                </div>
+              </div>
+
+              <!-- 2. Lưu ý phân tách rõ: Hủy phòng và Hoàn tiền là 2 bước riêng biệt (Item 2) -->
+              @if (prev.refundableAmount > 0) {
+                <div class="p-3.5 rounded-xl bg-amber-50/90 border border-amber-300 text-amber-950 text-xs space-y-1.5 shadow-2xs">
+                  <div class="font-bold flex items-center gap-1.5 text-amber-900">
+                    <i class="pi pi-exclamation-triangle text-amber-700"></i>
+                    <span>Quy trình hủy phòng & hoàn tiền:</span>
+                  </div>
+                  <p class="leading-relaxed text-[11px] text-amber-950 font-medium">
+                    Đặt phòng sẽ được hủy sau khi bạn xác nhận. Khoản hoàn dự kiến <strong class="font-bold font-mono text-amber-950">{{ prev.refundableAmount | number:'1.0-0' }} ₫</strong> sẽ được khách sạn kiểm tra và xử lý theo quy trình hoàn tiền. Đây chưa phải khoản tiền đã được hoàn.
+                  </p>
+                </div>
+              }
+
+              <!-- C. Policy explanation note (Item 3 updated) -->
+              <div class="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200/80 text-blue-900 text-xs space-y-1">
+                <div class="font-bold flex items-center gap-1.5 text-blue-800">
+                  <i class="pi pi-info-circle text-blue-600"></i>
+                  <span>Chính sách hủy áp dụng:</span>
+                </div>
+                <p class="leading-relaxed text-[11px] text-blue-950" [innerHTML]="formatPolicyDescription(prev.policyDescription)"></p>
+                @if (prev.refundableAmount > 0) {
+                  <p class="text-[11px] font-semibold text-blue-950 pt-1 border-t border-blue-200/50">
+                    * Lưu ý: Khoản hoàn dự kiến sẽ được khách sạn đối soát và xử lý theo phương thức hoàn tiền được xác nhận.
+                  </p>
+                }
+              </div>
+
+              <!-- D. Cancellation Reason (Optional) -->
+              <div class="space-y-1.5">
+                <label for="cancel-reason-input" class="block font-bold text-slate-700 text-xs">
+                  Lý do hủy phòng (Tùy chọn):
+                </label>
+                <textarea
+                  id="cancel-reason-input"
+                  [(ngModel)]="cancelReason"
+                  rows="2"
+                  placeholder="Ví dụ: Thay đổi lịch trình chuyến đi, bận việc đột xuất..."
+                  class="w-full p-3 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 bg-white"
+                ></textarea>
+              </div>
+
+              <!-- E. Verification Email / Phone (Optional) -->
+              <div class="space-y-1.5">
+                <label for="cancel-verification-input" class="block font-bold text-slate-700 text-xs">
+                  Email hoặc Số điện thoại đối chiếu (Tùy chọn):
+                </label>
+                <input
+                  id="cancel-verification-input"
+                  type="text"
+                  [(ngModel)]="cancelVerification"
+                  placeholder="Nhập email hoặc số điện thoại đã dùng để đặt phòng"
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 bg-white"
+                />
+                <p class="text-[11px] text-slate-500">
+                  Dùng để đối chiếu thông tin người đặt nếu bạn muốn kiểm tra chéo.
+                </p>
+              </div>
+
+              <!-- Error message on submit -->
+              @if (cancelError()) {
+                <div role="alert" class="p-3.5 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs flex items-start gap-2">
+                  <i class="pi pi-exclamation-triangle text-rose-600 mt-0.5 shrink-0"></i>
+                  <span>{{ cancelError() }}</span>
+                </div>
+              }
+            }
+          </div>
+
+          <!-- Modal Footer Actions -->
+          <div class="p-4 sm:p-5 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
+            <button
+              type="button"
+              (click)="closeCancelModal()"
+              [disabled]="isCancelling()"
+              class="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Giữ lại đặt phòng
+            </button>
+            <button
+              type="button"
+              (click)="confirmCancellation()"
+              [disabled]="isCancelling() || isLoadingCancelPreview() || !cancelPreview()?.canCancel || (booking()?.status === 'PendingPayment' && isHoldExpired())"
+              class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-50 text-white font-bold text-xs transition-all shadow-sm shadow-rose-600/30 cursor-pointer disabled:cursor-not-allowed"
+            >
+              @if (isCancelling()) {
+                <i class="pi pi-spin pi-spinner text-xs"></i>
+                <span>{{ isUnpaidHold() ? 'Đang hủy giữ phòng...' : 'Đang hủy đặt phòng...' }}</span>
+              } @else {
+                <i class="pi pi-check text-xs"></i>
+                <span>{{ isUnpaidHold() ? 'Xác nhận hủy giữ phòng' : 'Xác nhận hủy đặt phòng' }}</span>
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+    }
       </div>
     </div>
   `
@@ -881,6 +1348,28 @@ export class BookingStatusPage implements OnInit {
   readonly isHoldExpired = signal<boolean>(false);
   readonly isCopied = signal<boolean>(false);
   readonly isCodeCopied = signal<boolean>(false);
+  readonly isExtendingHold = signal<boolean>(false);
+    readonly extendHoldError = signal<string>('');
+
+  // T04-B: Cancellation signals
+  readonly isCancelModalOpen = signal<boolean>(false);
+  readonly isLoadingCancelPreview = signal<boolean>(false);
+  readonly cancelPreview = signal<GuestCancellationPreviewDto | null>(null);
+  readonly cancelPreviewError = signal<string>('');
+  readonly cancelRequestTime = signal<Date>(new Date());
+  cancelReason: string = '';
+  cancelVerification: string = '';
+  readonly isCancelling = signal<boolean>(false);
+  readonly cancelError = signal<string>('');
+
+  readonly isExpiringSoon = computed(() => {
+    const b = this.booking();
+    return !this.isHoldExpired() && b?.status === 'PendingPayment' && this.remainingSeconds() > 0 && this.remainingSeconds() <= 180;
+  });
+  readonly isHoldExtended = computed(() => (this.booking()?.holdExtensionCount ?? 0) >= 1);
+  readonly canExtendHold = computed(() => this.isExpiringSoon() && !this.isHoldExtended());
+
+  private broadcastChannel?: BroadcastChannel;
 
   private fetchGeneration = 0;
   private timerInterval?: ReturnType<typeof setInterval>;
@@ -912,7 +1401,9 @@ export class BookingStatusPage implements OnInit {
             } else {
               this.clearTimer();
               this.remainingSeconds.set(0);
-              this.isHoldExpired.set(fresh.status === 'Expired');
+              if (fresh.status !== 'PendingPayment') {
+                this.isHoldExpired.set(fresh.status === 'Expired');
+              }
               this.stopPolling();
             }
           },
@@ -929,6 +1420,9 @@ export class BookingStatusPage implements OnInit {
   ngOnInit(): void {
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibilityChange);
+    }
+    this.initBroadcastSync();
+    if (false) {
     }
 
     const paramMap$ = this.route.paramMap ?? of(this.route.snapshot?.paramMap ?? { get: () => null });
@@ -984,6 +1478,13 @@ export class BookingStatusPage implements OnInit {
     this.isSearching.set(false);
     this.searchToken = '';
     this.lastFetchedToken = '';
+    this.isCancelModalOpen.set(false);
+    this.cancelPreview.set(null);
+    this.cancelPreviewError.set('');
+    this.cancelError.set('');
+    this.cancelReason = '';
+    this.cancelVerification = '';
+    this.isCancelling.set(false);
   }
 
   onSearch(): void {
@@ -1035,7 +1536,9 @@ export class BookingStatusPage implements OnInit {
         } else {
           this.clearTimer();
           this.remainingSeconds.set(0);
-          this.isHoldExpired.set(b.status === 'Expired');
+          if (b.status !== 'PendingPayment') {
+            this.isHoldExpired.set(b.status === 'Expired');
+          }
           this.stopPolling();
         }
       },
@@ -1107,6 +1610,7 @@ export class BookingStatusPage implements OnInit {
       return;
     }
 
+    let hadPositiveTime = false;
     const tick = () => {
       // Authoritative state check: nếu đơn đã được xác nhận (Confirmed/CheckedIn) thì dừng countdown ngay
       const current = this.booking();
@@ -1120,6 +1624,20 @@ export class BookingStatusPage implements OnInit {
 
       const diff = Math.max(0, Math.floor((expireTime - Date.now()) / 1000));
       this.remainingSeconds.set(diff);
+      if (diff <= 0) {
+        this.isHoldExpired.set(true);
+        this.clearTimer();
+        this.stopPolling();
+        if (hadPositiveTime) {
+          this.verifyHoldStatusOnZero();
+        }
+      } else {
+        hadPositiveTime = true;
+        this.isHoldExpired.set(false);
+      }
+    };
+    const unusedTick = () => {
+      const diff = 0;
       if (diff <= 0) {
         this.isHoldExpired.set(true);
         this.clearTimer();
@@ -1159,7 +1677,16 @@ export class BookingStatusPage implements OnInit {
             this.isHoldExpired.set(updated.status === 'Expired');
           } else if (
             updated.paidAmount !== b.paidAmount ||
-            updated.remainingBalance !== b.remainingBalance
+            updated.paidAmount !== b.paidAmount ||
+            updated.remainingBalance !== b.remainingBalance ||
+            updated.holdExpiresAtUtc !== b.holdExpiresAtUtc ||
+            updated.holdExtensionCount !== b.holdExtensionCount
+          ) {
+            this.booking.set(updated);
+            if (updated.holdExpiresAtUtc && updated.holdExpiresAtUtc !== b.holdExpiresAtUtc) {
+              this.startHoldCountdown(updated.holdExpiresAtUtc, updated.status);
+            }
+          } else if (false
           ) {
             this.booking.set(updated);
           }
@@ -1531,7 +2058,359 @@ export class BookingStatusPage implements OnInit {
     }
   }
 
+  extendHold(): void {
+    const detail = this.booking();
+    if (!detail?.lookupToken || this.isExtendingHold() || this.isHoldExpired() || !this.canExtendHold()) {
+      return;
+    }
+
+    const token = detail.lookupToken;
+    const gen = this.fetchGeneration;
+    this.isExtendingHold.set(true);
+    this.extendHoldError.set('');
+
+    this.publicBookingService.extendHold(token).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: updated => {
+        if (this.isDestroyed || gen !== this.fetchGeneration || this.booking()?.lookupToken !== token) return;
+        this.isExtendingHold.set(false);
+        this.extendHoldError.set('');
+        this.booking.set({
+          ...updated,
+          holdExtensionCount: updated.holdExtensionCount ?? 1,
+          canExtendHold: false
+        });
+        this.startHoldCountdown(updated.holdExpiresAtUtc, updated.status);
+        this.alertService.success('Đã gia hạn thêm 5 phút giữ phòng.', 'Gia hạn thành công');
+      },
+      error: err => {
+        if (this.isDestroyed || gen !== this.fetchGeneration || this.booking()?.lookupToken !== token) return;
+        this.isExtendingHold.set(false);
+        const serverMsg = typeof err?.error?.message === 'string' && !/failed|exception|stacktrace/i.test(err.error.message)
+          ? err.error.message
+          : 'Không thể gia hạn thời gian giữ phòng lúc này. Vui lòng hoàn tất đặt phòng hoặc thử lại.';
+        this.extendHoldError.set(serverMsg);
+        if (err?.status === 409) {
+          this.syncHoldStateFromServer(token);
+        }
+      }
+    });
+  }
+
+  verifyHoldStatusOnZero(): void {
+    const current = this.booking();
+    if (!current?.lookupToken || this.isDestroyed || typeof this.publicBookingService.getBookingByToken !== 'function') return;
+    const token = current.lookupToken;
+    const gen = this.fetchGeneration;
+
+    this.publicBookingService.getBookingByToken(token).pipe(
+      take(1)
+    ).subscribe({
+      next: fresh => {
+        if (this.isDestroyed || gen !== this.fetchGeneration || this.booking()?.lookupToken !== token) return;
+        if (fresh.status !== 'PendingPayment') {
+          this.booking.set(fresh);
+          this.clearTimer();
+          this.stopPolling();
+          this.remainingSeconds.set(0);
+          this.isHoldExpired.set(fresh.status === 'Expired');
+          return;
+        }
+        const freshExpireMs = fresh.holdExpiresAtUtc ? new Date(fresh.holdExpiresAtUtc).getTime() : NaN;
+        if (Number.isFinite(freshExpireMs) && freshExpireMs > Date.now()) {
+          this.booking.set(fresh);
+          this.startHoldCountdown(fresh.holdExpiresAtUtc, fresh.status);
+          this.startPolling(token);
+        } else {
+          this.booking.set({ ...fresh, status: 'Expired' });
+          this.remainingSeconds.set(0);
+          this.isHoldExpired.set(true);
+        }
+      },
+      error: () => {
+        // Giữ nguyên trạng thái hết hạn cục bộ
+      }
+    });
+  }
+
+  syncHoldStateFromServer(token: string): void {
+    if (!token || this.isDestroyed || typeof this.publicBookingService.getBookingByToken !== 'function') return;
+    const gen = this.fetchGeneration;
+    this.publicBookingService.getBookingByToken(token).pipe(
+      take(1)
+    ).subscribe({
+      next: fresh => {
+        if (this.isDestroyed || gen !== this.fetchGeneration || this.booking()?.lookupToken !== token) return;
+        this.booking.set(fresh);
+        if (fresh.status === 'PendingPayment' && fresh.holdExpiresAtUtc) {
+          this.startHoldCountdown(fresh.holdExpiresAtUtc, fresh.status);
+          this.startPolling(token);
+        } else {
+          this.clearTimer();
+          this.stopPolling();
+          this.remainingSeconds.set(0);
+          this.isHoldExpired.set(fresh.status === 'Expired');
+        }
+      },
+      error: () => {
+        // Bỏ qua lỗi đồng bộ nền
+      }
+    });
+  }
+
+  private initBroadcastSync(): void {
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        this.broadcastChannel = new BroadcastChannel('hotelsaas-live-notifications');
+        this.broadcastChannel.onmessage = (event: MessageEvent) => {
+          if (this.isDestroyed) return;
+          const data = event?.data;
+          const current = this.booking();
+          if (!data || !current?.lookupToken) return;
+          if (
+            (data.action === 'extend-hold' || data.action === 'confirm') &&
+            (data.lookupToken === current.lookupToken || (data.reservationId && data.reservationId === current.reservationId))
+          ) {
+            this.syncHoldStateFromServer(current.lookupToken);
+          }
+        };
+      }
+    } catch {
+      // Bỏ qua nếu không hỗ trợ BroadcastChannel
+    }
+  }
+
+  
+  isUnpaidHold(detail?: GuestBookingDetailDto | null): boolean {
+    const d = detail !== undefined ? detail : this.booking();
+    return d?.status === 'PendingPayment' && (d?.paidAmount ?? 0) === 0;
+  }
+
+  canRequestCancellation(detail?: GuestBookingDetailDto | null): boolean {
+    if (!detail) return false;
+    if (detail.status !== 'PendingPayment' && detail.status !== 'Confirmed') return false;
+    if (detail.status === 'PendingPayment' && this.isHoldExpired()) return false;
+    return true;
+  }
+
+  openCancelModal(): void {
+    const b = this.booking();
+    if (!b || !this.canRequestCancellation(b)) return;
+    this.cancelRequestTime.set(new Date());
+    this.isCancelModalOpen.set(true);
+    this.cancelError.set('');
+    this.cancelReason = '';
+    this.cancelVerification = '';
+    this.loadCancelPreview();
+  }
+
+  closeCancelModal(): void {
+    if (this.isCancelling()) return;
+    this.isCancelModalOpen.set(false);
+  }
+
+  loadCancelPreview(): void {
+    const b = this.booking();
+    if (!b?.lookupToken) return;
+
+    this.isLoadingCancelPreview.set(true);
+    this.cancelPreviewError.set('');
+    this.cancelPreview.set(null);
+
+    this.publicBookingService.getCancellationPreview(b.lookupToken).pipe(
+      take(1)
+    ).subscribe({
+      next: preview => {
+        this.isLoadingCancelPreview.set(false);
+        this.cancelPreview.set(preview);
+      },
+      error: err => {
+        this.isLoadingCancelPreview.set(false);
+        const serverMsg = typeof err?.error?.message === 'string' && !/failed|exception|stacktrace/i.test(err.error.message)
+          ? err.error.message
+          : 'Không thể tải chính sách hủy đặt phòng vào lúc này. Vui lòng thử lại.';
+        this.cancelPreviewError.set(serverMsg);
+      }
+    });
+  }
+
+  confirmCancellation(): void {
+    const b = this.booking();
+    const prev = this.cancelPreview();
+    if (!b?.lookupToken || !prev?.canCancel || this.isCancelling()) return;
+
+    if (b.status === 'PendingPayment' && this.isHoldExpired()) {
+      this.cancelError.set('Thời gian giữ phòng đã hết hạn. Lượt giữ phòng đã tự động được giải phóng.');
+      return;
+    }
+
+    this.isCancelling.set(true);
+    this.cancelError.set('');
+
+    const isHold = this.isUnpaidHold(b);
+
+    const request: CancelGuestBookingRequest = {
+      reason: this.cancelReason.trim() || undefined,
+      verificationEmailOrPhone: this.cancelVerification.trim() || undefined,
+      idempotencyKey: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : ('cancel-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9))
+    };
+
+    this.publicBookingService.cancelBooking(b.lookupToken, request).pipe(
+      take(1)
+    ).subscribe({
+      next: updated => {
+        this.isCancelling.set(false);
+        this.isCancelModalOpen.set(false);
+        this.booking.set(updated);
+        this.clearTimer();
+        this.stopPolling();
+
+        if (isHold) {
+          this.alertService.toastSuccess('Lượt giữ phòng đã được hủy thành công.');
+        } else {
+          const refAmount = updated.refundableAmount ?? prev.refundableAmount ?? 0;
+          if (refAmount > 0) {
+            const formattedAmount = refAmount.toLocaleString('vi-VN') + ' ₫';
+            this.alertService.toastSuccess(
+              `Đặt phòng đã được hủy thành công. Khoản tiền hoàn dự kiến ${formattedAmount} đã được ghi nhận và đang chờ khách sạn đối soát, xử lý theo phương thức hoàn tiền được xác nhận (chưa chi trả thực tế).`
+            );
+          } else {
+            this.alertService.toastSuccess('Đặt phòng đã được hủy thành công.');
+          }
+        }
+      },
+      error: err => {
+        this.isCancelling.set(false);
+        let errorMsg = 'Không thể hủy đặt phòng lúc này. Vui lòng liên hệ trực tiếp khách sạn.';
+        if (err?.status === 400 && typeof err?.error?.message === 'string') {
+          errorMsg = err.error.message;
+        } else if (err?.status === 401 || err?.status === 403) {
+          errorMsg = 'Thông tin xác nhận email hoặc số điện thoại không trùng khớp với hồ sơ đặt phòng.';
+        } else if (err?.status === 409) {
+          errorMsg = 'Trạng thái đơn đặt phòng đã thay đổi trên hệ thống. Vui lòng kiểm tra lại.';
+          this.syncHoldStateFromServer(b.lookupToken);
+        } else if (typeof err?.error?.message === 'string' && !/failed|exception|stacktrace/i.test(err.error.message)) {
+          errorMsg = err.error.message;
+        }
+        this.cancelError.set(errorMsg);
+      }
+    });
+  }
+
+  formatVietnamFullDateTime(utcStr?: string): string {
+    if (!utcStr) return '';
+    const d = new Date(utcStr);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString('vi-VN', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  }
+
+  formatTimelineDateTime(dateOrUtcStr?: string | Date | null): string {
+    if (!dateOrUtcStr) return '';
+    const d = typeof dateOrUtcStr === 'string' ? new Date(dateOrUtcStr) : dateOrUtcStr;
+    if (isNaN(d.getTime())) return '';
+    try {
+      const formatter = new Intl.DateTimeFormat('vi-VN', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      const parts = formatter.formatToParts(d);
+      const day = parts.find(p => p.type === 'day')?.value ?? '';
+      const month = parts.find(p => p.type === 'month')?.value ?? '';
+      const year = parts.find(p => p.type === 'year')?.value ?? '';
+      const hour = parts.find(p => p.type === 'hour')?.value ?? '00';
+      const minute = parts.find(p => p.type === 'minute')?.value ?? '00';
+      return `${day}/${month}/${year} — ${hour}:${minute}`;
+    } catch {
+      const pad = (n: number) => String(n).padStart(2, '0');
+      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} — ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+  }
+
+  getCancellationFeePercent(prev?: GuestCancellationPreviewDto | null): number {
+    if (!prev || !prev.totalAmount || prev.totalAmount <= 0) return 30;
+    return Math.round((prev.cancellationFee / prev.totalAmount) * 100);
+  }
+
+  getCancellationTimelineMessage(prev: GuestCancellationPreviewDto): string {
+    if (this.isUnpaidHold()) {
+      return 'Lượt giữ phòng chưa phát sinh thanh toán — Miễn phí hủy 100%.';
+    }
+
+    const hours = prev.hoursUntilCheckIn;
+    const penaltyPercent = this.getCancellationFeePercent(prev);
+
+    if (hours > 0) {
+      if (prev.isFreeCancellation) {
+        return `Còn ${hours} giờ trước nhận phòng — Miễn phí hủy 100%.`;
+      }
+      return `Còn ${hours} giờ trước nhận phòng — Áp dụng phí hủy ${penaltyPercent}%.`;
+    } else {
+      return `Đã đến hoặc qua thời điểm nhận phòng — Áp dụng phí hủy ${penaltyPercent}%.`;
+    }
+  }
+
+  getCancellationTimelineFormattedHtml(prev: GuestCancellationPreviewDto): string {
+    if (this.isUnpaidHold()) {
+      return 'Lượt giữ phòng chưa phát sinh thanh toán — <strong class="font-bold text-emerald-800">Miễn phí hủy 100%</strong>.';
+    }
+
+    const hours = prev.hoursUntilCheckIn;
+    const penaltyPercent = this.getCancellationFeePercent(prev);
+
+    if (hours > 0) {
+      if (prev.isFreeCancellation) {
+        return `Còn <strong class="font-bold underline decoration-emerald-400 underline-offset-2">${hours} giờ trước nhận phòng</strong> — Áp dụng <strong class="font-bold text-emerald-800">Miễn phí hủy 100%</strong>.`;
+      }
+      return `Còn <strong class="font-bold text-rose-950 underline decoration-rose-300 underline-offset-2">${hours} giờ trước nhận phòng</strong> — Áp dụng <strong class="font-bold text-rose-700 bg-rose-100/80 px-1.5 py-0.5 rounded border border-rose-200">phí hủy ${penaltyPercent}%</strong>.`;
+    } else {
+      return `<strong class="font-bold text-rose-950">Đã qua thời điểm nhận phòng</strong> — Áp dụng <strong class="font-bold text-rose-700 bg-rose-100/80 px-1.5 py-0.5 rounded border border-rose-200">phí hủy ${penaltyPercent}%</strong>.`;
+    }
+  }
+
+  formatPolicyDescription(text?: string | null): string {
+    if (!text) return '';
+    let res = text;
+    // 1. Mức phí phạt (in đậm có nền nhẹ và viền)
+    res = res.replace(
+      /(phí phạt 30% tổng giá trị đơn đặt phòng|phí phạt \d+%|phí hủy \d+%|phí hủy [\d.,]+\s*₫?)/gi,
+      '<strong class="font-bold text-rose-700 bg-rose-100/80 px-1.5 py-0.5 rounded border border-rose-200/80">$1</strong>'
+    );
+    // 2. Thời điểm bị tính phí (in đậm và gạch chân màu amber)
+    res = res.replace(
+      /(trong vòng \d+\s*(?:giờ|h)(?:\s*trước giờ nhận phòng)?)/gi,
+      '<strong class="font-bold text-slate-900 underline decoration-amber-400 underline-offset-2">$1</strong>'
+    );
+    // 3. Thời hạn hủy miễn phí (in đậm và gạch chân màu xanh)
+    res = res.replace(
+      /(trước (?:ngày|giờ) nhận phòng ít nhất \d+\s*(?:giờ|h)|trước \d+\s*(?:giờ|h) nhận phòng)/gi,
+      '<strong class="font-bold text-slate-900 underline decoration-blue-400 underline-offset-2">$1</strong>'
+    );
+    return res;
+  }
+
   ngOnDestroy(): void {
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.close();
+      } catch {
+        // ignore
+      }
+      this.broadcastChannel = undefined;
+    }
     this.isDestroyed = true;
     this.copyTokenSessionId++;
     this.copyCodeSessionId++;

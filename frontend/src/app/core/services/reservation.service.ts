@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { map, tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { PagedResult, ApiResponse } from '../models/api-response.model';
 import {
@@ -110,7 +110,8 @@ export class ReservationService {
       headers['Idempotency-Key'] = request.idempotencyKey;
     }
     return this.http.post<any>(this.apiUrl, request, { headers }).pipe(
-      map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto))
+      map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto)),
+      tap(detail => this.broadcastLiveReservationPing('create', detail?.id, request.propertyId))
     );
   }
 
@@ -164,7 +165,8 @@ export class ReservationService {
   checkOut(id: string, propertyId: string): Observable<ReservationDetailDto> {
     const params = new HttpParams().set('propertyId', propertyId);
     return this.http.post<any>(`${this.apiUrl}/${id}/check-out`, null, { params }).pipe(
-      map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto))
+      map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto)),
+      tap(() => this.broadcastLiveReservationPing('check-out', id, propertyId))
     );
   }
 
@@ -175,7 +177,8 @@ export class ReservationService {
     const params = new HttpParams().set('propertyId', propertyId);
     const body = reason ? { reason } : {};
     return this.http.post<any>(`${this.apiUrl}/${id}/cancel`, body, { params }).pipe(
-      map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto))
+      map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto)),
+      tap(() => this.broadcastLiveReservationPing('cancel', id, propertyId))
     );
   }
 
@@ -204,5 +207,17 @@ export class ReservationService {
     return this.http.post<any>(`${this.apiUrl}/${reservationId}/folio/items`, request, { params }).pipe(
       map(res => (res.data ? res.data : res) as FolioDto)
     );
+  }
+
+  private broadcastLiveReservationPing(action: string, reservationId?: string, propertyId?: string): void {
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        const channel = new BroadcastChannel('hotelsaas-live-notifications');
+        channel.postMessage({ action, reservationId, propertyId, timestamp: Date.now() });
+        channel.close();
+      }
+    } catch {
+      // Bỏ qua nếu môi trường không hỗ trợ BroadcastChannel
+    }
   }
 }

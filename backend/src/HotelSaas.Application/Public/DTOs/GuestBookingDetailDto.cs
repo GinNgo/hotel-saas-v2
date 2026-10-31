@@ -34,8 +34,16 @@ public sealed class GuestBookingDetailDto
     public string? MaskedGuestPhone { get; set; }
     public DateTime? HoldExpiresAtUtc { get; set; }
     public int? SecondsRemaining { get; set; }
+    public int HoldExtensionCount { get; set; }
+    public DateTime? HoldExtendedAtUtc { get; set; }
+    public bool CanExtendHold { get; set; }
     public string? SmartLockPin { get; set; }
     public string? SmartLockStatus { get; set; }
     public DateTime CreatedAtUtc { get; set; }
+    public DateTime? CancelledAtUtc { get; set; }
+    public string? CancellationReason { get; set; }
+    public decimal? CancellationFee { get; set; }
+    public decimal? RefundableAmount { get; set; }
+    public string? RefundStatus { get; set; }
     public IReadOnlyList<QuoteBreakdownItemDto> Breakdown { get; set; } = Array.Empty<QuoteBreakdownItemDto>();
 }

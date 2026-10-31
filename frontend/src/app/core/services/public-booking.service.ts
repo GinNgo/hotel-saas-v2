@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { map, tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import {
   PublicPropertyDto,
@@ -19,7 +19,9 @@ import {
   PropertyPolicyDto,
   GuestReviewDto,
   SubmitGuestReviewRequest,
-  PromotionDealDto
+  PromotionDealDto,
+  GuestCancellationPreviewDto,
+  CancelGuestBookingRequest
 } from '../models/public-booking.model';
 import { QuoteDto } from '../models/reservation.model';
 import { of } from 'rxjs';
@@ -191,7 +193,8 @@ export class PublicBookingService {
     }
 
     return this.http.post<any>(`${this.apiUrl}/bookings/hold`, request, { headers }).pipe(
-      map(res => (res.data ? res.data : res) as GuestHoldDto)
+      map(res => (res.data ? res.data : res) as GuestHoldDto),
+      tap(hold => this.broadcastLiveBookingPing('hold', hold?.reservationId))
     );
   }
 
@@ -200,7 +203,8 @@ export class PublicBookingService {
    */
   getBookingByToken(lookupToken: string): Observable<GuestBookingDetailDto> {
     return this.http.get<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}`).pipe(
-      map(res => (res.data ? res.data : res) as GuestBookingDetailDto)
+      map(res => (res.data ? res.data : res) as GuestBookingDetailDto),
+      tap(detail => this.broadcastLiveBookingPing('confirm', detail?.reservationId, detail?.propertyId, lookupToken))
     );
   }
 
@@ -214,13 +218,46 @@ export class PublicBookingService {
     }
 
     return this.http.post<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/confirm`, request ?? {}, { headers }).pipe(
-      map(res => (res.data ? res.data : res) as GuestBookingDetailDto)
+      map(res => (res.data ? res.data : res) as GuestBookingDetailDto),
+      tap(detail => this.broadcastLiveBookingPing('confirm', detail?.reservationId, detail?.propertyId, lookupToken))
     );
   }
 
   /**
    * Sinh URL thanh toán trực tuyến qua Cổng VNPay Sandbox cho đơn đặt phòng.
    */
+
+  /**
+   * Retrieves an authoritative pre-cancellation preview with breakdown of fees, refundable amounts, and loyalty points.
+   */
+  getCancellationPreview(lookupToken: string): Observable<GuestCancellationPreviewDto> {
+    return this.http.get<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/cancel-preview`).pipe(
+      map(res => (res.data ? res.data : res) as GuestCancellationPreviewDto)
+    );
+  }
+
+  /**
+   * Submits a guest cancellation request under authoritative policy calculations and records pending refund.
+   */
+  cancelBooking(lookupToken: string, request?: CancelGuestBookingRequest): Observable<GuestBookingDetailDto> {
+    const headers: Record<string, string> = {};
+    if (request?.idempotencyKey) {
+      headers['Idempotency-Key'] = request.idempotencyKey;
+    }
+
+    return this.http.post<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/cancel`, request ?? {}, { headers }).pipe(
+      map(res => (res.data ? res.data : res) as GuestBookingDetailDto),
+      tap(detail => this.broadcastLiveBookingPing('cancel', detail?.reservationId, detail?.propertyId, lookupToken))
+    );
+  }
+
+  extendHold(lookupToken: string): Observable<GuestBookingDetailDto> {
+    return this.http.post<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/extend`, {}).pipe(
+      map(res => (res.data ? res.data : res) as GuestBookingDetailDto),
+      tap(detail => this.broadcastLiveBookingPing('extend-hold', detail?.reservationId, detail?.propertyId, lookupToken))
+    );
+  }
+
   createVnpayPaymentUrl(reservationId: string, returnUrl?: string): Observable<{ paymentUrl: string; transactionRef: string }> {
     return this.http.post<any>(`${environment.apiUrl}/payments/vnpay/create-url`, { reservationId, returnUrl }).pipe(
       map(res => (res.data ? res.data : res))
@@ -365,5 +402,17 @@ export class PublicBookingService {
         bannerImageUrl: 'https://images.unsplash.com/photo-1590523741831-ab7e8b8f9c7f?w=800'
       }
     ]);
+  }
+
+  private broadcastLiveBookingPing(action: string, reservationId?: string, propertyId?: string, lookupToken?: string): void {
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        const channel = new BroadcastChannel('hotelsaas-live-notifications');
+        channel.postMessage({ action, reservationId, propertyId, lookupToken, timestamp: Date.now() });
+        channel.close();
+      }
+    } catch {
+      // Bỏ qua nếu môi trường không hỗ trợ BroadcastChannel
+    }
   }
 }

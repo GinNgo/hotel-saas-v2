@@ -297,6 +297,9 @@ export interface GuestHoldDto {
   currency?: string;
   holdExpiresAtUtc?: string;
   secondsRemaining?: number;
+  holdExtensionCount?: number;
+  holdExtendedAtUtc?: string;
+  canExtendHold?: boolean;
   status?: string;
   breakdown?: QuoteBreakdownItemDto[];
 }
@@ -334,11 +337,19 @@ export interface GuestBookingDetailDto {
   maskedGuestPhone?: string;
   holdExpiresAtUtc?: string;
   secondsRemaining?: number;
+  holdExtensionCount?: number;
+  holdExtendedAtUtc?: string;
+  canExtendHold?: boolean;
   smartLockPin?: string;
   smartLockStatus?: string;
   smartLockActivatedAtUtc?: string;
   createdAtUtc: string;
   createdAt?: string; // for compatibility
+  cancelledAtUtc?: string;
+  cancellationReason?: string;
+  cancellationFee?: number;
+  refundableAmount?: number;
+  refundStatus?: string;
   breakdown: QuoteBreakdownItemDto[];
 }
 
@@ -439,3 +450,37 @@ export interface PromotionDealDto {
   bannerImageUrl?: string;
 }
 
+
+
+export interface GuestCancellationPreviewDto {
+  reservationId: string;
+  confirmationCode: string;
+  status: string;
+  rentalType: string;
+  startAtUtc: string;
+  endAtUtc: string;
+  checkInDate?: string;
+  checkOutDate?: string;
+  totalAmount: number;
+  paidAmount: number;
+  depositRequired: number;
+  cancellationFee: number;
+  refundableAmount: number;
+  pointsRedeemed: number;
+  pointsRefundable: number;
+  isFreeCancellation: boolean;
+  hoursUntilCheckIn: number;
+  freeCancellationThresholdHours: number;
+  policyDescription: string;
+  canCancel: boolean;
+  ineligibilityReason?: string;
+  isHold?: boolean;
+  hasPendingPayment?: boolean;
+  pendingPaymentAmount?: number;
+}
+
+export interface CancelGuestBookingRequest {
+  verificationEmailOrPhone?: string;
+  reason?: string;
+  idempotencyKey?: string;
+}
