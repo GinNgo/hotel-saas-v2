@@ -24,7 +24,6 @@
 
 ## PHẦN I. TỔNG QUAN KẾT QUẢ THỰC HIỆN TUẦN 04
 
-Trong Tuần 04 — tuần làm việc kỹ thuật cuối cùng để đóng gói nghiệm thu đề tài, tiếp nối kết quả đã được Thầy nghiệm thu ở Tuần 03, em được phân công phụ trách 4 phân hệ tính năng nòng cốt (Tasks T01–T04):
 1. **T01 — Giao diện Trung tâm Thông báo (Notification Center & SignalR Client):** Xây dựng component chuông thông báo, âm thanh nhẹ nhàng Web Audio API, Toast nổi 5 giây và kết nối SignalR thời gian thực.
 2. **T02 — Nhắc nhở Hết hạn Giữ phòng (Hold Expiration Alert & Extension):** Cảnh báo khi thời gian giữ phòng còn dưới 3 phút kèm cơ chế gia hạn thêm 5 phút tối đa 1 lần duy nhất.
 3. **T03 — Hệ thống Nhật ký Kiểm toán (Audit Logging System):** Xây dựng thực thể `AuditLog`, bộ đánh chặn EF Core `AuditSaveChangesInterceptor` tự động ghi vết thay đổi bảng giá/hóa đơn, API và giao diện quản trị viên độc quyền cho `Owner`/`GeneralManager`.
@@ -34,7 +33,7 @@ Trong Tuần 04 — tuần làm việc kỹ thuật cuối cùng để đóng g�
 
 | Mã Task | Phân Hệ Tính Năng | Mục Tiêu & Yêu Cầu Kỹ Thuật | Kết Quả Triển Khai Thực Tế | Kiểm Thử Tự Động | Đánh Giá Tiến Độ |
 | :---: | :--- | :--- | :--- | :---: | :---: |
-| **T01** | **Trung tâm Thông báo Lễ tân (Notification Center & Realtime SignalR)** | Component `<app-notification-bell>`, Badge unread, âm thanh 2 âm sắc dịu dàng, Toast 5s, kết nối SignalR Hub. | Hoàn thành 100% UI/UX & SignalR client. Đã khảo sát nguyên nhân F5 và xuất Hợp đồng API Contract gửi An (A03). | **21 / 21 PASS** *(Frontend)* | **95%** *(Chờ API từ An)* |
+| **T01** | **Trung tâm Thông báo Lễ tân (Notification Center & Realtime SignalR)** | Component `<app-notification-bell>`, Badge unread, âm thanh 2 âm sắc dịu dàng, Toast 5s, kết nối SignalR Hub. | Hoàn thành 100% UI/UX & SignalR client. Đã khảo sát nguyên nhân F5 và xuất Hợp đồng API Contract gửi cho bạn Tuấn An (A03). | **21 / 21 PASS** *(Frontend)* | **95%** *(Chờ API từ An)* |
 | **T02** | **Nhắc nhở Hết hạn Giữ phòng & Gia hạn 5 phút** | Đồng hồ $\le$ 3 phút hiện cảnh báo màu hổ phách, nút gia hạn +5 phút (tối đa 1 lần). | Hoàn thành trên `booking-hold.page.ts`, tự động cập nhật timer và vô hiệu hóa lượt gia hạn thứ 2. | **39 / 39 PASS** *(Frontend)* | **100% (ĐẠT)** |
 | **T03** | **Hệ thống Nhật ký Kiểm toán (Audit Logging System)** | Entity `AuditLog`, Interceptor tự động ghi vết bảng giá/hóa đơn, Controller phân quyền & UI Admin. | Hoàn thành từ Domain, Interceptor, Migration P7, WebApi Controller đến giao diện `audit-logs.page.ts`. | **29 / 29 PASS** *(13 BE + 16 FE)* | **100% (ĐẠT)** |
 | **T04** | **Nghiệp vụ Hủy phòng & Chính sách Hoàn tiền** | Nút hủy phòng, xem trước phí phạt 24h, hoàn điểm/cọc, bóc tách Hủy vs Hoàn tiền D23, giải phóng phòng tức thì. | Hoàn thành Backend Handler, Modal xác nhận hủy, format mốc giờ, in đậm chính sách, giải phóng phòng tức thì. | **111 / 111 PASS** *(26 BE + 85 FE)* | **100% (ĐẠT)** |
@@ -47,31 +46,25 @@ Trong Tuần 04 — tuần làm việc kỹ thuật cuối cùng để đóng g�
 ### 1. Task T01 — Trung tâm Thông báo (Notification Center & SignalR Hub Client)
 
 * **Thiết kế Giao diện Standalone OnPush Signals:**
-  * Component `<app-notification-bell>` được tích hợp trực tiếp trên Header PMS Quản trị với phong cách thiết kế White / Slate / Emerald sang trọng, độ tương phản cao, hỗ trợ thao tác chuột và bàn phím chuẩn ARIA (`Escape`, `ArrowDown`, `ArrowUp`, `Home`, `End`).
+  * Component `<app-notification-bell>` được em tích hợp trực tiếp trên Header PMS Quản trị với phong cách thiết kế White / Slate / Emerald, độ tương phản cao, hỗ trợ thao tác chuột và bàn phím chuẩn WAI-ARIA (`Escape`, `ArrowDown`, `ArrowUp`, `Home`, `End`).
   * Badge thông báo chưa đọc được tối ưu vị trí hiển thị: vừa ở góc nút chuông, vừa ở dạng số đếm gọn gàng cạnh tiêu đề dropdown (`Trung tâm thông báo [5]`), loại bỏ hiện tượng tràn viền.
   * Tích hợp Tab lọc thông minh: *Tất cả* (tổng số thông báo hiển thị tối đa 10) và *Chưa đọc* (kèm bộ đếm unread).
 * **Âm thanh Thông báo Nhẹ nhàng (Web Audio API):**
-  * Không phụ thuộc vào tệp tin âm thanh tĩnh `.mp3` bên ngoài (tránh lỗi 404 hoặc bị trình duyệt chặn CORS/Autoplay), em sử dụng trực tiếp **Web Audio API** tạo ra chuông ngân 2 âm sắc thanh lịch chuẩn khách sạn cao cấp (D5 587.33Hz $\rightarrow$ A5 880Hz, suy hao mượt mà sau 650ms).
+  * Em sử dụng trực tiếp **Web Audio API** tạo ra tiếng thông báo, không phụ thuộc vào tệp tin âm thanh tĩnh `.mp3` bên ngoài (tránh lỗi 404 hoặc bị trình duyệt chặn CORS/Autoplay).
   * Hỗ trợ nút bật/tắt âm thanh trực tiếp trên giao diện chuông và ghi nhớ trạng thái.
-* **Hệ thống Toast Message Thống nhất (5 giây):**
-  * Tích hợp đồng bộ qua `AlertService` (SweetAlert2 Toast) với thời gian hiển thị 5.000ms (`REALTIME_TOAST_DURATION_MS = 5000`) đối với thông báo thời gian thực và 2.200ms đối với thao tác thông thường.
+* **Hệ thống Toast Message (5 giây):**
+  * Tích hợp đồng bộ qua `AlertService` (SweetAlert2 Toast) với thời gian hiển thị 5 giây (`REALTIME_TOAST_DURATION_MS = 5000`) đối với thông báo thời gian thực và 2.2 giây  đối với thao tác thông thường.
 * **Tích hợp SignalR Client & Cơ chế Auto-Reconnect:**
   * Xây dựng [`SignalRNotificationTransport`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/services/signalr-notification.transport.ts) kết nối tới Hub `/hubs/notifications`, tự động bắt token xác thực Bearer và gọi `JoinProperty(propertyId)` theo chi nhánh đang đăng nhập.
-  * Tự động nối lại kết nối khi mạng chập chờn theo các mốc lũy tiến (1s, 2s, 5s, 10s) và hiển thị chỉ báo trạng thái trực quan: *Trực tiếp* (xanh lá nhấp nháy), *Nối lại* (màu hổ phách), hoặc *Ngoại tuyến*.
-* **Khảo sát & Báo cáo Kỹ thuật Vấn đề F5 Mất Thông báo (`BLOCKED_BY_A03`):**
-  * *Hiện tượng:* Người dùng nhận thông báo realtime, chuông hiện số unread; khi nhấn F5 tải lại trang thì thông báo biến mất.
-  * *Nguyên nhân gốc:* Frontend lưu trữ thông báo trên Angular Signal trong bộ nhớ RAM, khi F5 trình duyệt sẽ dọn sạch RAM về mảng rỗng `[]`. Khảo sát phía Backend (do An / A03 phụ trách) cho thấy: Backend hiện tại chỉ phát sự kiện SignalR trực tiếp từ `NotificationDispatcher` ra Hub mà **chưa lưu vào bảng `Notifications` trong CSDL** và **chưa có `NotificationsController`** để cung cấp API tải lại lịch sử.
-  * *Tác phong kỹ thuật:* Em không tự ý sửa đổi file backend của An, không tạo API giả và không dùng `localStorage` để ngụy tạo CSDL. Em đã lập biên bản kỹ thuật xác định trạng thái **`BLOCKED_BY_A03`** kèm đề xuất Hợp đồng API chuẩn gửi An bổ sung (`GET /api/notifications`, `GET /api/notifications/unread-count`, `PUT /api/notifications/{id}/read`).
-
 ---
 
 ### 2. Task T02 — Thông báo Nhắc nhở Hết hạn Giữ phòng cho Khách hàng
 
 * **Cảnh báo Thông minh khi sắp Hết hạn Giữ phòng:**
-  * Trên trang giữ phòng công khai [`booking-hold.page.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/booking-hold.page.ts), em cài đặt bộ đếm ngược thời gian thực tế dựa trên hiệu số giữa `HoldExpiresAtUtc` từ server và `Date.now()`.
-  * Khi thời gian đếm ngược còn $\le$ **3 phút** (180 giây), hệ thống tự động kích hoạt cờ `isExpiringSoon` hiển thị thanh cảnh báo nổi bật màu hổ phách với thông điệp nhắc nhở khách hoàn tất thanh toán.
+  * Trên trang giữ phòng công khai [`booking-hold.page.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/booking-hold.page.ts), em đã cài đặt bộ đếm ngược thời gian thực tế dựa trên hiệu số giữa `HoldExpiresAtUtc` từ server và `Date.now()`.
+  * Khi thời gian đếm ngược còn $\le$ **3 phút** (180 giây), hệ thống tự động kích hoạt cờ `isExpiringSoon` hiển thị thanh cảnh báo với thông điệp nhắc nhở khách hoàn tất thanh toán.
 * **Cơ chế Gia hạn Giữ phòng Thêm 5 phút (+300s):**
-  * Bổ sung nút bấm trực quan: *"Tôi đang chuyển khoản, vui lòng giữ phòng thêm 5 phút"*.
+  * Em đã bổ sung nút bấm trực quan: *"Tôi đang chuyển khoản, vui lòng giữ phòng thêm 5 phút"*.
   * Khi khách nhấn nút, frontend gọi API `POST /api/public/bookings/{token}/extend-hold` qua `publicBookingService.extendHold(token)`.
   * **Ràng buộc bảo vệ nghiêm ngặt (Anti-Spam / Anti-Hoarding):** Hệ thống chỉ cho phép khách gia hạn tối đa **1 lần duy nhất** (`holdExtensionCount >= 1`). Sau khi gia hạn thành công, nút bấm lập tức chuyển sang nhãn: *"Đã sử dụng 1/1 lượt gia hạn"* và khóa thao tác, ngăn chặn triệt để hành vi cố tình chiếm giữ phòng trái phép.
 
@@ -110,11 +103,10 @@ Trong Tuần 04 — tuần làm việc kỹ thuật cuối cùng để đóng g�
     1. **Giờ nhận phòng dự kiến:** Ví dụ `31/10/2026 — 14:00`.
     2. **Giờ gửi yêu cầu hủy:** Ví dụ `31/10/2026 — 09:00`.
     3. **Thời gian còn lại:** *"Còn 5 giờ trước giờ nhận phòng — Áp dụng mức phí phạt hủy 30%"*.
-  * Toàn bộ các cụm từ quan trọng được **in đậm** rõ ràng để khách hàng dễ dàng nắm bắt.
 * **Bóc tách Triệt để giữa Hủy phòng & Duyệt Hoàn tiền (Quyết định D23):**
-  * Khách xác nhận hủy $\rightarrow$ Đơn chuyển sang trạng thái `Cancelled` ngay lập tức, và **phòng vật lý được giải phóng tức thì** về trạng thái sẵn sàng để khách khác có thể tìm kiếm trên cổng B2C.
+  * Khi khách xác nhận hủy $\rightarrow$ Đơn chuyển sang trạng thái `Cancelled` ngay lập tức, và **phòng vật lý được giải phóng tức thì** về trạng thái sẵn sàng để khách khác có thể tìm kiếm trên cổng B2C.
   * Khoản tiền cọc/thanh toán chuyển sang trạng thái chờ kế toán đối soát theo quy trình hoàn tiền, không cam kết hoàn ngay lập tức.
-  * Hiển thị thông báo trung thực: *"Khoản hoàn dự kiến sẽ được khách sạn đối soát và xử lý theo phương thức hoàn tiền được xác nhận"*, loại bỏ câu chữ mặc định "chuyển khoản" gây hiểu nhầm nếu khách thanh toán bằng VNPay hay tiền mặt.
+  * Hiển thị thông báo: *"Khoản hoàn dự kiến sẽ được khách sạn đối soát và xử lý theo phương thức hoàn tiền được xác nhận"*.
 
 ---
 
@@ -169,7 +161,77 @@ Toàn bộ mã nguồn đã được đẩy lên nhánh [`feature/tan-week4-noti
 
 ---
 
-## PHẦN IV. KẾT QUẢ KIỂM THỬ VÀ CỔNG CHẤT LƯỢNG (QUALITY GATES)
+## PHẦN IV. KHAI BÁO SỬ DỤNG TRÍ TUỆ NHÂN TẠO (AI DISCLOSURE & HUMAN VERIFICATION)
+
+Toàn bộ các nội dung triển khai trong tuần được em nghiêm túc tuân thủ chuẩn mực học thuật và đạo đức nghiên cứu: **Chỉ sử dụng AI hỗ trợ sinh khung scaffolding hoặc gợi ý cú pháp ban đầu; sinh viên là người trực tiếp chạy thử nghiệm, phát hiện lỗi nghiệp vụ, lỗi bảo mật, lỗi hiển thị giao diện hoặc sai lệch dữ liệu, sau đó viết prompt tinh chỉnh và trực tiếp kiểm thử đối chiếu bằng code/test thực tế trước khi đưa vào hệ thống.**
+
+---
+
+### 1. Phân bổ Công cụ & Phiên bản Model AI thực tế đang hiển thị trên giao diện
+
+> [!NOTE] Minh chứng tên Model thực tế hiển thị trên giao diện công cụ của từng thành viên
+> Nhóm minh bạch 100% bằng cách đính kèm ảnh chụp màn hình trực tiếp từ giao diện công cụ làm việc thực tế của sinh viên để Thầy đối chiếu trực quan, đúng tinh thần chỉ dẫn của Thầy: *"khai đúng tên công cụ và model thực tế đang dùng, ghi chính xác như tên hiển thị trong giao diện"*:  
+> 
+> **1. Giao diện Google Antigravity IDE (Tuấn An & Khôi Nguyên):**  
+> Thanh công cụ hiển thị rõ thư mục dự án `He-thong-quan-ly-khach-san` và mô hình **`Gemini 3.8 Flash High`** (kèm huy hiệu `Turbo`):  
+> ![Giao diện Google Antigravity hiển thị Gemini 3.8 Flash High](https://github.com/GinNgo/hotel-saas-v2/raw/develop/docs/reports/images/antigravity-gemini-3.8-flash-high-ui.png)  
+> 
+> **2. Giao diện Codex / ChatGPT Codex (Trần Trọng Tân):**  
+> Giao diện hiển thị rõ dự án `hotel-saas-v2` trên nhánh `develop` và menu chọn model hiển thị nguyên văn các mô hình **`6 Astra`** (Frontier intelligence for your most demanding tasks) và **`6.1 Sol`**:  
+> ![Giao diện Codex hiển thị model 6 Astra và 6.1 Sol](https://github.com/GinNgo/hotel-saas-v2/raw/develop/docs/reports/images/codex-chatgpt-model-ui.png)
+
+* **Trần Trọng Tân (`24TX810025` - Thành viên phụ trách Tasks T01–T04):**
+  * **Codex / ChatGPT Codex (Model: `6 Astra` & `6.1 Sol`) & Google Antigravity IDE (Model: `Gemini 3.8 Flash High`):** Hỗ trợ sinh khung scaffolding cho component Notification Bell OnPush Signals, cấu hình SignalR Notification Transport, thiết kế thực thể kiểm toán `AuditLog` và Interceptor, thuật toán tính phí phạt hủy phòng 24h và đối chiếu chính sách hoàn tiền D23.
+
+---
+
+### 2. Bảng Tổng Hợp Khai Báo Sử Dụng AI & Minh Chứng Chỉnh Sửa Thực Tế Tuần 04 (4 Hạng Mục)
+
+| Mã Prompt | Thành viên thực hiện | Công cụ & Model AI thực tế | Phần việc áp dụng AI | Lỗi / Thiếu sót của mã do AI sinh ra (AI Limitation) | Quá trình phát hiện, tinh chỉnh prompt và kiểm chứng của sinh viên | Link File GitHub & Commit Minh Chứng |
+| :---: | :--- | :--- | :--- | :--- | :--- | :--- |
+| **#01** | Trần Trọng Tân (24TX810025) | Codex / ChatGPT (Model: 6 Astra / 6.1 Sol) | Giao diện Chuông thông báo (Notification Bell) & SignalR Client (T01) | AI gom 6 thành phần vào header 400px cố định khiến tiêu đề bị cắt cụt ("Trung tâm thông..."), badge "Trực tiếp" vỡ làm 2 dòng, và khi F5 thì dữ liệu bị xóa sạch do backend chưa lưu database. | Em phát hiện lỗi hiển thị khi chạy thực tế; bổ sung `whitespace-nowrap shrink-0`, tinh gọn badge số lượng cạnh tiêu đề, mở rộng panel `w-[min(26rem,calc(100vw-1.5rem))]`. Khảo sát backend phát hiện thiếu API persistence, lập báo cáo BLOCKED_BY_A03 đề xuất Contract cho An. | [notification-bell.component.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/shared/components/notification-bell/notification-bell.component.ts) ([Commit ce6dfe9](https://github.com/GinNgo/hotel-saas-v2/commit/ce6dfe9)) |
+| **#02** | Trần Trọng Tân (24TX810025) | Codex / ChatGPT (Model: 6 Astra / 6.1 Sol) | Cảnh báo hết hạn giữ phòng 3 phút & Gia hạn 5 phút (T02) | Hàm gia hạn của AI chỉ tăng biến đếm cục bộ trên client `remainingSeconds += 300` mà không đồng bộ server, không kiểm soát số lần bấm, cho phép khách click liên tục giữ phòng vô hạn. | Em phát hiện nguy cơ chiếm giữ phòng ảo, nên ràng buộc trường `holdExtensionCount` từ backend; khóa nút hiển thị "Đã sử dụng 1/1 lượt gia hạn", và đồng bộ bộ đếm ngược theo `HoldExpiresAtUtc` thực tế từ server. | [booking-hold.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/booking-hold.page.ts) ([Commit 3f43393](https://github.com/GinNgo/hotel-saas-v2/commit/3f43393)) |
+| **#03** | Trần Trọng Tân (24TX810025) | Codex / ChatGPT (Model: 6 Astra / 6.1 Sol) | Hệ thống Nhật ký kiểm toán (Audit Logging System — T03) | AI đề xuất ghi log thủ công ở từng Controller hoặc Command Handler, dễ bỏ sót thao tác sửa đổi bảng giá hoặc xóa hóa đơn, đồng thời lưu cả mật khẩu/secret thô vào JSON. | Em chuyển cơ chế sang `AuditSaveChangesInterceptor` của EF Core để tự động ghi vết 100% thay đổi trên ChangeTracker; viết bộ lọc `AuditPayloadSanitizer` che mờ các trường nhạy cảm và phân quyền nghiêm ngặt cho Owner/GM. | [AuditSaveChangesInterceptor.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Persistence/Interceptors/AuditSaveChangesInterceptor.cs) ([Commit 96e0acc](https://github.com/GinNgo/hotel-saas-v2/commit/96e0acc)) |
+| **#04** | Trần Trọng Tân (24TX810025) | Codex / ChatGPT (Model: 6 Astra / 6.1 Sol) | Quy trình Hủy phòng & Chính sách phí phạt 24h (T04) | AI chỉ hiển thị thông báo phạt 30% chung chung, không có mốc giờ nhận phòng/hủy phòng đối chiếu, mặc định sai phương thức "chuyển khoản", và gây hiểu nhầm tiền đã được hoàn ngay về tài khoản. | Em bổ sung 3 mốc thời gian thực tế (Giờ nhận phòng, Giờ hủy, Số giờ còn lại), in đậm điều khoản phạt, sửa câu chữ trung thực theo phương thức xác nhận và bóc tách rõ thao tác Hủy phòng với quy trình Duyệt hoàn tiền D23. | [booking-status.page.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/public-booking/booking-status.page.ts) ([Commit 3f43393](https://github.com/GinNgo/hotel-saas-v2/commit/3f43393)) |
+
+---
+
+### 3. Chi Tiết Nội Dung Prompt, Mã AI Tạo Ra & Quá Trình Sinh Viên Chỉnh Sửa Hoàn Thiện Thực Tế
+
+#### Trần Trọng Tân (MSSV: 24TX810025 - Thành viên phụ trách Tasks T01–T04)
+
+* **Công cụ sử dụng:** Codex / ChatGPT & Google Antigravity
+* **Mô hình AI thực tế (Model):** `6 Astra` (Frontier intelligence) / `6.1 Sol` & `Gemini 3.8 Flash High`
+
+**Prompt sử dụng:**
+* **[Prompt 1 - Giao diện Chuông thông báo & Tích hợp SignalR Hub Client (T01)]:** "Trên thanh điều hướng Header PMS, hãy xây dựng component Notification Bell (<app-notification-bell>) bằng Angular 22 Signals và OnPush Change Detection. Dropdown hiển thị 10 thông báo gần nhất, phân loại tab Tất cả / Chưa đọc kèm badge số lượng chưa đọc. Tích hợp âm thanh Web Audio nhẹ nhàng và Toast thông báo 5 giây. Kết nối SignalR Client tới /hubs/notifications với cơ chế tự động kết nối lại khi mất mạng và lắng nghe các sự kiện đơn đặt phòng mới."
+* **[Prompt 2 - Cảnh báo sắp hết hạn giữ phòng & Gia hạn 5 phút (T02)]:** "Trên trang giữ phòng B2C (booking-hold.page.ts), khi đồng hồ đếm ngược còn 3 phút cuối cùng (<= 180 giây), hãy hiển thị thanh cảnh báo nổi bật màu hổ phách kèm nút 'Tôi đang chuyển khoản, vui lòng giữ phòng thêm 5 phút'. Khi khách bấm, gọi API ExtendGuestHoldCommand để cộng thêm 300 giây vào thời hạn giữ phòng. Cần đảm bảo khách chỉ được gia hạn tối đa 1 lần duy nhất để tránh chiếm giữ phòng."
+* **[Prompt 3 - Phân hệ Nhật ký Kiểm toán Audit Logging & Interceptor (T03)]:** "Hãy thiết kế hệ thống Audit Logging ghi vết mọi thao tác thay đổi dữ liệu bảng giá phòng (RoomRate, RatePlan), hóa đơn thanh toán (Payment) và đơn đặt phòng (Reservation). Tạo thực thể AuditLog trong Domain, cài đặt AuditSaveChangesInterceptor trong EF Core để tự động bắt các thay đổi trong ChangeTracker và lưu OldValues / NewValues dạng JSON. Xây dựng API và màn hình quản trị viên tra cứu nhật ký kiểm toán dành riêng cho vai trò Owner và GeneralManager."
+* **[Prompt 4 - Quy trình Hủy phòng B2C & Tính phí phạt 24h (T04)]:** "Trên trang tra cứu trạng thái đơn (booking-status.page.ts), xây dựng nút 'Yêu cầu hủy đặt phòng' và modal xác nhận đối soát tài chính. Kiểm tra điều kiện: Nếu hủy trước giờ nhận phòng từ 24 giờ trở lên thì miễn phí hủy phòng và hoàn 100% tiền cọc/điểm; nếu hủy trong vòng 24 giờ trước nhận phòng thì áp dụng phí phạt 30% tổng tiền đơn. Giải phóng phòng vật lý tức thì về trạng thái sẵn sàng đón khách mới."
+
+**AI tạo ra:**
+* Component chuông thông báo nhồi nhét 6 phần tử vào Header 400px cố định khiến tiêu đề bị tràn cắt cụt, badge trạng thái bị vỡ dòng; sử dụng file mp3 tĩnh dễ bị lỗi 404; đồng thời khi F5 thì toàn bộ thông báo biến mất do không có cơ chế tải lại lịch sử.
+* Chức năng gia hạn chỉ viết hàm tăng biến cục bộ `remainingSeconds += 300` trên client mỗi khi click, không kiểm soát số lần bấm, cho phép khách liên tục bấm để giữ phòng vĩnh viễn mà không gọi API backend.
+* Cơ chế ghi log kiểm toán được AI gợi ý viết rải rác thủ công ở từng controller, dễ bị sót khi có thao tác ngầm; lưu toàn bộ dữ liệu thô bao gồm cả các trường nhạy cảm vào database.
+* Modal hủy phòng hiển thị thông báo chung chung *"Bạn bị phạt 30% và khách sạn sẽ chuyển khoản hoàn tiền"*, không cho biết giờ nhận phòng và giờ hủy, mặc định sai phương thức chuyển khoản và gây hiểu nhầm là tiền đã được hoàn ngay lập tức về tài khoản của khách.
+
+**SV đã sửa:**
+* **Kiểm tra Chuông thông báo & Khảo sát sự cố F5:** Đưa mã vào chạy thử nghiệm, em thao tác mở dropdown chuông thì thấy tiêu đề bị cắt cụt thành *"Trung tâm thông..."* và badge *"Trực tiếp"* bị nhảy 2 dòng rất xấu; em tự tay chỉnh lại CSS `whitespace-nowrap shrink-0`, dời badge số lượng gọn gàng cạnh tiêu đề và mở rộng khung hiển thị linh hoạt `w-[min(26rem,calc(100vw-1.5rem))]`. Đặc biệt, khi thử F5 trang web thấy thông báo biến mất, em đã tự mình khảo sát toàn bộ codebase từ Frontend đến Backend: phát hiện Backend của bạn Tuấn An (A03) chỉ phát sự kiện SignalR trực tiếp mà chưa lưu `DbSet<Notification>` và chưa có REST API `GET /api/notifications`. Em tuân thủ quy tắc không tự ý sửa code của bạn, không làm API giả, mà lập báo cáo kỹ thuật xác định trạng thái `BLOCKED_BY_A03` kèm đề xuất Hợp đồng API Contract chi tiết gửi An bổ sung, đúng ý đồ kỹ thuật chuẩn mực.
+* **Kiểm tra cảnh báo giữ phòng & Khóa gia hạn 1 lần:** Đưa tính năng gia hạn vào thử nghiệm, em quan sát thấy đồng hồ đếm ngược đến 03:00 đã hiển thị thanh cảnh báo màu hổ phách đúng ý; tuy nhiên khi click nút gia hạn nhiều lần thì thời gian cứ tăng mãi mà không bị chặn, chưa đúng ý kiểm soát quỹ phòng; em viết prompt yêu cầu ràng buộc chặt chẽ trường `holdExtensionCount` từ backend DTO. Em thao tác bấm gia hạn thử nghiệm 1 lần thấy cộng đúng 5 phút, nút bấm chuyển ngay sang nhãn *"Đã sử dụng 1/1 lượt gia hạn"* và bị vô hiệu hóa hoàn toàn, đúng ý bảo vệ cơ sở.
+* **Kiểm tra Nhật ký kiểm toán & Che mờ dữ liệu:** Thao tác chỉnh sửa giá phòng trong PMS, em thấy AI đề xuất gọi hàm log thủ công rất dễ sót; em yêu cầu chuyển sang `AuditSaveChangesInterceptor` tự động ghi vết trong `SaveChangesAsync()`. Em vào database kiểm tra thì thấy dữ liệu JSON lưu cả token và thông tin mật, chưa đúng ý bảo mật; em viết thêm lớp `AuditPayloadSanitizer` để loại bỏ các trường nhạy cảm trước khi lưu. Em đăng nhập tài khoản lễ tân thường thử truy cập `/admin/audit-logs` thì bị chặn 403 Forbidden, đăng nhập tài khoản Owner/GM thì xem được đầy đủ lịch sử thay đổi và bảng so sánh Diff trực quan, đúng ý quản trị.
+* **Kiểm tra Hủy phòng & Bóc tách hoàn tiền D23:** Em thử nghiệm hủy một đơn phòng trong vòng 24 giờ trước giờ check-in, thấy modal chỉ báo phạt 30% mà không ghi rõ giờ giấc khiến khách khó hiểu; em viết prompt yêu cầu bổ sung 3 mốc thời gian thực tế: giờ nhận phòng, giờ gửi yêu cầu hủy và số giờ còn lại, đồng thời in đậm các điều khoản phạt để khách dễ nắm bắt. Đặc biệt, em phát hiện dòng chữ mặc định "khách sạn sẽ chuyển khoản" là sai thực tế nếu khách trả bằng VNPay hoặc tiền mặt, và đơn hủy chỉ chuyển trạng thái `Cancelled` còn tiền hoàn phải chờ quản lý duyệt theo Quyết định D23; em đã sửa câu chữ thông báo minh bạch: *"Đặt phòng sẽ được hủy sau khi bạn xác nhận. Khoản hoàn dự kiến sẽ được khách sạn đối soát và xử lý theo phương thức hoàn tiền được xác nhận. Đây chưa phải khoản tiền đã được hoàn"*, đúng ý nghiệp vụ khách sạn.
+
+**Minh chứng Commit GitHub:**
+* Commit [`96e0acc`](https://github.com/GinNgo/hotel-saas-v2/commit/96e0acc): `feat(audit): implement audit logging entity, interceptor, controller and admin UI (T03)`
+* Commit [`3f43393`](https://github.com/GinNgo/hotel-saas-v2/commit/3f43393): `feat(booking): add 3-min hold expiration alert and guest cancellation workflow (T02, T04)`
+* Commit [`ce6dfe9`](https://github.com/GinNgo/hotel-saas-v2/commit/ce6dfe9): `feat(notifications): add notification bell, realtime toast and SignalR client (T01)`
+* Commit [`7a4d43c`](https://github.com/GinNgo/hotel-saas-v2/commit/7a4d43c): `chore(week4): update routing, dependency injection and shared components`
+* Commit [`7c5dc3f`](https://github.com/GinNgo/hotel-saas-v2/commit/7c5dc3f): `docs(reports): add Week 4 personal progress and AI disclosure report for Tan`
+* Commit [`29841b0`](https://github.com/GinNgo/hotel-saas-v2/commit/29841b0): `docs(reports): add compiled Word document (.docx) for Tan's Week 4 report`
+
+---
+
+## PHẦN V. KẾT QUẢ KIỂM THỬ VÀ CỔNG CHẤT LƯỢNG (QUALITY GATES)
 
 Trước khi thực hiện commit và đẩy mã nguồn lên kho Git chung, em đã chạy kiểm thử tự động toàn diện và thẩm định vượt qua 100% các cổng chất lượng theo tiêu chuẩn tại `AGENTS.md`:
 
@@ -203,51 +265,6 @@ Trước khi thực hiện commit và đẩy mã nguồn lên kho Git chung, em 
 
 ---
 
-## PHẦN V. KHAI BÁO SỬ DỤNG TRÍ TUỆ NHÂN TẠO (AI DISCLOSURE)
-
-Tiếp thu sự chỉ dẫn sâu sát của Thầy Huỳnh Xuân Phụng ở các tuần trước về tính trung thực khoa học, tinh thần làm chủ mã nguồn và năng lực phản biện kỹ thuật của sinh viên khi sử dụng công cụ AI, em xin khai báo chi tiết như sau:
-
-### 1. Công cụ & Mô hình AI Sử Dụng
-* **Công cụ sử dụng:** **OpenAI Codex / ChatGPT Codex** trên môi trường phát triển mã nguồn dự án.
-* **Mô hình hiển thị chính thức trong menu chọn model:** **`6 Astra`** (Frontier intelligence) và **`6.1 Sol`** (đồng bộ chuẩn xác 100% với danh mục đã khai báo và được Thầy phê duyệt ở Báo cáo Tuần 03).
-
----
-
-### 2. Ba Tình Huống Thực Nghiệm: Prompt AI, Phát Hiện Lỗi & Sinh Viên Trực Tiếp Hiệu Chỉnh
-
-#### 📌 Tình huống 1: Phát hiện và xử lý lỗi vỡ layout trên Header Notification Bell
-* **Bối cảnh & Yêu cầu:** Thiết kế dropdown cho `<app-notification-bell>` hiển thị tiêu đề, trạng thái kết nối SignalR, số thông báo chưa đọc, nút toggle âm thanh và nút đóng dropdown.
-* **Kết quả AI sinh mã ban đầu:** AI sinh template gom chung 6 phần tử vào header với chiều rộng cố định 400px.
-* **Phát hiện lỗi của sinh viên:** Khi đưa mã vào chạy thực tế trên trình duyệt, em phát hiện tiêu đề bị cắt cụt thành *"Trung tâm thông..."*, badge kết nối trực tiếp bị ép hẹp khiến chữ bị nhảy thành 2 dòng (*"Trực \n tiếp"*), và badge số lượng chưa đọc chiếm diện tích quá lớn gây mất thẩm mỹ.
-* **Sinh viên phản biện & xử lý:** Em tự tay can thiệp tái cấu trúc giao diện:
-  1. Thêm lớp `whitespace-nowrap shrink-0` cho khối tiêu đề và badge trực tiếp.
-  2. Di chuyển số lượng chưa đọc vào một badge tròn nhỏ gọn ngay cạnh chữ *"Trung tâm thông báo [5]"* thay vì dùng pill to cồng kềnh.
-  3. Mở rộng chiều rộng panel linh hoạt `w-[min(26rem,calc(100vw-1.5rem))]`.
-  4. Loại bỏ pill trạng thái rỗng thừa thãi *"• Sẵn sàng nhận thông báo trực tiếp"* theo đúng góp ý trải nghiệm người dùng.
-
-#### 📌 Tình huống 2: Phản biện chính sách hủy phòng: Hiển thị mốc giờ, in đậm điều khoản và bóc tách duyệt hoàn tiền (D23)
-* **Bối cảnh & Yêu cầu:** Xây dựng modal xác nhận hủy đặt phòng trên trang `booking-status.page.ts`.
-* **Kết quả AI sinh mã ban đầu:** AI sinh modal chỉ hiển thị chung chung: *"Bạn bị áp dụng phí hủy 30% và khách sạn sẽ xử lý chuyển khoản"*.
-* **Phát hiện lỗi của sinh viên:**
-  1. Thiếu căn cứ thời gian: Khách không biết giờ nhận phòng và giờ yêu cầu hủy là khi nào, dẫn đến khiếu nại tại sao bị tính phí phạt.
-  2. Mặc định sai phương thức: Nói khách sạn "chuyển khoản" là sai nếu khách thanh toán bằng VNPay, thẻ tín dụng hoặc tiền mặt.
-  3. Gây hiểu nhầm tiền đã về ví: Khi nhấn hủy phòng, đơn chuyển sang `Cancelled` ngay nhưng số tiền hoàn trả còn phải chờ quản lý/kế toán đối soát theo Quyết định D23, không phải tiền hoàn tức thì.
-* **Sinh viên phản biện & xử lý:** Em trực tiếp hiệu chỉnh lại logic frontend:
-  1. Bổ sung 3 mốc thời gian thực tế: Giờ nhận phòng, Giờ yêu cầu hủy, và Số giờ còn lại trước check-in.
-  2. Viết hàm format in đậm các cụm từ quan trọng: thời hạn hủy miễn phí, thời điểm tính phí và tỷ lệ phạt.
-  3. Hiển thị thông báo minh bạch: *"Đặt phòng sẽ được hủy sau khi bạn xác nhận. Khoản hoàn dự kiến sẽ được khách sạn đối soát và xử lý theo phương thức hoàn tiền được xác nhận. Đây chưa phải khoản tiền đã được hoàn"*.
-
-#### 📌 Tình huống 3: Ràng buộc gia hạn giữ phòng 5 phút: Chặn tuyệt đối lạm dụng gia hạn nhiều lần
-* **Bối cảnh & Yêu cầu:** Cài đặt tính năng cho phép khách gia hạn giữ phòng thêm 5 phút khi đồng hồ sắp hết hạn.
-* **Kết quả AI sinh mã ban đầu:** AI sinh hàm `extendHold()` chỉ tăng biến cục bộ trên client `remainingSeconds += 300` mỗi lần click, không kiểm soát số lần gọi API lên server.
-* **Phát hiện lỗi của sinh viên:** Khách hàng có thể liên tục click nút để giữ phòng vô tận, làm tê liệt quỹ phòng của khách sạn. Đồng thời, nếu người dùng F5 thì số giây gia hạn bị mất hoặc bị tính sai lệch so với server.
-* **Sinh viên phản biện & xử lý:** Em đã lập tức hiệu chỉnh:
-  1. Ràng buộc trường `holdExtensionCount` từ backend DTO; kiểm tra điều kiện `canExtendHold = isExpiringSoon && !isHoldExtended()`.
-  2. Khóa nút ngay sau 1 lần bấm duy nhất, hiển thị nhãn: *"Đã sử dụng 1/1 lượt gia hạn"*.
-  3. Khi server trả về `holdExpiresAtUtc` mới, đồng bộ lại timer đếm ngược dựa trên mốc thời gian máy chủ thay vì cộng thủ công ở client.
-
----
-
 ## PHẦN VI. TỔNG KẾT VÀ BÀN GIAO ĐÓNG GÓI ĐỀ TÀI
 
 1. **Hoàn thành trách nhiệm Tuần 04:**
@@ -266,4 +283,6 @@ Tiếp thu sự chỉ dẫn sâu sát của Thầy Huỳnh Xuân Phụng ở cá
 *(Đã ký)*  
 **Trần Trọng Tân**  
 MSSV: `24TX810025`
+
+
 
