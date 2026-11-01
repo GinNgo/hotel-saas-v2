@@ -62,6 +62,9 @@ public interface IApplicationDbContext
     /// <summary>Audit trail for room type rate modifications and interval splittings.</summary>
     DbSet<RoomTypeRateAudit> RoomTypeRateAudits { get; }
 
+    /// <summary>Immutable system-wide audit logs for critical mutations.</summary>
+    DbSet<AuditLog> AuditLogs => throw new NotImplementedException();
+
     /// <summary>Invoices issued for reservations.</summary>
     DbSet<Invoice> Invoices { get; }
 

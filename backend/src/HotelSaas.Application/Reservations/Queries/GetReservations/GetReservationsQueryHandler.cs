@@ -174,6 +174,9 @@ public sealed class GetReservationsQueryHandler : IRequestHandler<GetReservation
                 Status = r.Status,
                 ConfirmationCode = r.ConfirmationCode,
                 Notes = snapshot?.CustomerNotes ?? r.Notes,
+                HoldExpiresAtUtc = snapshot?.IsOnlineHold == true ? snapshot.HoldExpiresAtUtc : null,
+                HoldExtensionCount = snapshot?.HoldExtensionCount ?? 0,
+                IsHoldExpired = r.Status == ReservationStatus.PendingPayment && snapshot?.IsOnlineHold == true && snapshot.HoldExpiresAtUtc.HasValue && snapshot.HoldExpiresAtUtc.Value <= DateTime.UtcNow,
                 CreatedAtUtc = r.CreatedAtUtc
             };
         }).ToList();

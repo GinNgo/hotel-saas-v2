@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 namespace HotelSaas.Infrastructure.Services;
 
 /// <summary>
-/// Dispatches strongly-typed SignalR notifications to property-scoped groups (Task A03).
+/// Dispatches strongly-typed SignalR notifications to property-scoped groups (Task A03 / T01).
 /// </summary>
 public sealed class NotificationDispatcher : INotificationDispatcher
 {
@@ -112,6 +112,7 @@ public sealed class NotificationDispatcher : INotificationDispatcher
         try
         {
             await _hubContext.Clients.Group(groupName).ReceiveHousekeepingAlert(payload);
+            _logger.LogInformation("SignalR dispatched ReceiveHousekeepingAlert to group {Group} for room {Room}", groupName, roomNumber);
         }
         catch (Exception ex)
         {

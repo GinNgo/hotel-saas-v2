@@ -240,6 +240,8 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
                             Currency = snap.Currency,
                             HoldExpiresAtUtc = snap.HoldExpiresAtUtc ?? DateTime.UtcNow,
                             SecondsRemaining = remainingSeconds,
+                            HoldExtensionCount = snap.HoldExtensionCount,
+                            CanExtendHold = ex.Status == ReservationStatus.PendingPayment && snap.HoldExtensionCount < 1 && remainingSeconds > 0 && remainingSeconds <= 180,
                             Status = ex.Status.ToString(),
                             Breakdown = snap.Breakdown
                         };
@@ -422,7 +424,7 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
             Currency = quote.Currency,
             Breakdown = quote.Breakdown,
             AppliedPolicies = quote.AppliedPolicies,
-            CustomerNotes = "Guest online reservation (15-min hold)",
+            CustomerNotes = null,
             IdempotencyKey = request.IdempotencyKey?.Trim(),
             HoldExpiresAtUtc = holdExpiresAtUtc,
             LookupToken = lookupToken,
@@ -499,6 +501,8 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
             Currency = quote.Currency,
             HoldExpiresAtUtc = holdExpiresAtUtc,
             SecondsRemaining = 900, // 15 minutes = 900 seconds
+            HoldExtensionCount = 0,
+            CanExtendHold = false,
             Status = ReservationStatus.PendingPayment.ToString(),
             PointsRedeemed = pointsToRedeem,
             PointsDiscountAmount = pointsDiscount,

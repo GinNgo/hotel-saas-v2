@@ -67,6 +67,9 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     /// <summary>Audit trail for room type rate modifications and interval splittings.</summary>
     public DbSet<RoomTypeRateAudit> RoomTypeRateAudits => Set<RoomTypeRateAudit>();
 
+    /// <summary>Immutable system-wide audit logs for critical mutations.</summary>
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
     /// <summary>Physical rooms within a property.</summary>
     public DbSet<Room> Rooms => Set<Room>();
 
@@ -202,27 +205,16 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     }
 
     /// <inheritdoc />
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        ApplyBaseEntityTimestamps();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    /// <inheritdoc />
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        var utcNow = DateTime.UtcNow;
-
-        foreach (var entry in ChangeTracker.Entries<BaseEntity>())
-        {
-            switch (entry.State)
-            {
-                case EntityState.Added:
-                    if (entry.Entity.CreatedAtUtc == default)
-                    {
-                        entry.Entity.CreatedAtUtc = utcNow;
-                    }
-                    entry.Entity.UpdatedAtUtc = utcNow;
-                    break;
-
-                case EntityState.Modified:
-                    entry.Entity.UpdatedAtUtc = utcNow;
-                    break;
-            }
-        }
+        ApplyBaseEntityTimestamps();
 
         try
         {
@@ -253,6 +245,29 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
             }
 
             throw;
+        }
+    }
+
+    private void ApplyBaseEntityTimestamps()
+    {
+        var utcNow = DateTime.UtcNow;
+
+        foreach (var entry in ChangeTracker.Entries<BaseEntity>())
+        {
+            switch (entry.State)
+            {
+                case EntityState.Added:
+                    if (entry.Entity.CreatedAtUtc == default)
+                    {
+                        entry.Entity.CreatedAtUtc = utcNow;
+                    }
+                    entry.Entity.UpdatedAtUtc = utcNow;
+                    break;
+
+                case EntityState.Modified:
+                    entry.Entity.UpdatedAtUtc = utcNow;
+                    break;
+            }
         }
     }
 

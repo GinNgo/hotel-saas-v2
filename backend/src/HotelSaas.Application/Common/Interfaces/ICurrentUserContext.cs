@@ -44,6 +44,12 @@ public interface ICurrentUserContext
     /// <summary>List of property IDs explicitly excluded for the current caller (e.g., inactive exact memberships).</summary>
     IReadOnlyList<Guid> ExcludedPropertyIds { get; }
 
+    /// <summary>Verified client IP address from the trusted connection context, if available.</summary>
+    string? IpAddress => null;
+
+    /// <summary>Sets the verified client IP address for the current request lifecycle.</summary>
+    void SetIpAddress(string? ipAddress) { }
+
     /// <summary>
     /// Enforces that a valid tenant context is established, throwing an exception if missing (Fail-Closed).
     /// </summary>

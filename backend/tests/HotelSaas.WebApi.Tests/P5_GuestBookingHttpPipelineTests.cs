@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Payments.DTOs;
@@ -1392,6 +1393,7 @@ public sealed class P5_GuestBookingHttpPipelineTests
             var client = factory.CreateClient();
 
             var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            jsonOpts.Converters.Add(new JsonStringEnumConverter());
             jsonOpts.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
 
             // ── STEP 1: Guest reads booking via GET /api/public/bookings/{lookupToken} ──
@@ -1579,6 +1581,213 @@ public sealed class P5_GuestBookingHttpPipelineTests
             // 6c. Anonymous GET /api/reservations/{id}/folio -> 401 Unauthorized
             var anonFolioResp = await client.GetAsync($"/api/reservations/{reservationId}/folio?propertyId={prop1Id}");
             Assert.Equal(HttpStatusCode.Unauthorized, anonFolioResp.StatusCode);
+        }
+        finally
+        {
+            try
+            {
+                await using var cleanCmd = conn.CreateCommand();
+                cleanCmd.CommandText = $"SET search_path TO public; DROP SCHEMA IF EXISTS \"{testSchema}\" CASCADE;";
+                await cleanCmd.ExecuteNonQueryAsync();
+            }
+            catch { }
+            finally
+            {
+                NpgsqlConnection.ClearAllPools();
+            }
+        }
+    }
+
+    [Fact]
+    public async Task HttpPipeline_T04A_GuestCancellation_Preview_And_Execute_Flow()
+    {
+        var baseConnStr = GetConnectionString();
+        ValidateTestDatabaseTarget(baseConnStr);
+
+        var testSchema = $"p5_t04a_cancel_{Guid.NewGuid():N}";
+        await using var conn = new NpgsqlConnection(baseConnStr);
+        await conn.OpenAsync();
+
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = $"CREATE SCHEMA IF NOT EXISTS \"{testSchema}\"; SET search_path TO \"{testSchema}\";";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        try
+        {
+            var tenantId = Guid.NewGuid();
+            var propId = Guid.NewGuid();
+            var roomTypeId = Guid.NewGuid();
+            var roomId = Guid.NewGuid();
+            var slug = $"slug-cancel-{Guid.NewGuid():N}"[..18];
+
+            var tenantSvc = new MockTenantService { TenantId = tenantId };
+            var propSvc = new MockPropertyService { PropertyId = propId };
+
+            await using (var seedCtx = CreateSeedDbContext(baseConnStr, testSchema, tenantId))
+            {
+                await seedCtx.Database.MigrateAsync();
+
+                var tenant = new Tenant
+                {
+                    Id = tenantId,
+                    Name = "Tenant T04A",
+                    Code = "TT04A",
+                    Slug = "tt04a",
+                    Address = "Da Nang",
+                    City = "Da Nang",
+                    Status = TenantStatus.Active
+                };
+
+                var property = new Property
+                {
+                    Id = propId,
+                    TenantId = tenantId,
+                    Name = "Property T04A",
+                    Code = "P04A",
+                    Slug = slug,
+                    Address = "Da Nang Beach",
+                    City = "Da Nang",
+                    CheckInTime = new TimeOnly(14, 0),
+                    CheckOutTime = new TimeOnly(12, 0),
+                    BufferMinutes = 30,
+                    MaxHourlyHours = 12,
+                    Status = PropertyStatus.Active
+                };
+
+                var roomType = new RoomType
+                {
+                    Id = roomTypeId,
+                    TenantId = tenantId,
+                    PropertyId = propId,
+                    Name = "Standard Room",
+                    Code = "STD",
+                    BasePrice = 500000m,
+                    MaxOccupancy = 2
+                };
+
+                var room = new Room
+                {
+                    Id = roomId,
+                    TenantId = tenantId,
+                    PropertyId = propId,
+                    RoomTypeId = roomTypeId,
+                    RoomNumber = "101",
+                    Floor = 1,
+                    Status = RoomStatus.Clean,
+                    IsActive = true
+                };
+
+                var rate = new RoomTypeRate
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenantId,
+                    PropertyId = propId,
+                    RoomTypeId = roomTypeId,
+                    FirstHours = 2,
+                    FirstHoursPrice = 200000m,
+                    AdditionalHourPrice = 50000m,
+                    NightlyPrice = 500000m,
+                    Currency = "VND",
+                    EffectiveFrom = new DateOnly(2026, 1, 1),
+                    EffectiveTo = new DateOnly(2026, 12, 31),
+                    CreatedByUserId = Guid.NewGuid(),
+                    IsActive = true
+                };
+
+                seedCtx.Tenants.Add(tenant);
+                seedCtx.Properties.Add(property);
+                seedCtx.RoomTypes.Add(roomType);
+                seedCtx.Rooms.Add(room);
+                seedCtx.RoomTypeRates.Add(rate);
+                await seedCtx.SaveChangesAsync();
+            }
+
+            await using var factory = new GuestBookingWebApplicationFactory(baseConnStr, testSchema);
+            var client = factory.CreateClient();
+            var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            jsonOpts.Converters.Add(new JsonStringEnumConverter());
+
+            // 1. Create Hold
+            var holdPayload = new
+            {
+                propertySlug = slug,
+                roomTypeId = roomTypeId,
+                rentalType = 2, // Overnight
+                startAtUtc = "2026-11-25T07:00:00Z",
+                endAtUtc = "2026-11-26T05:00:00Z",
+                checkInDate = "2026-11-25",
+                checkOutDate = "2026-11-26",
+                guestName = "Nguyen Van A",
+                guestEmail = "nguyenvana@gmail.com",
+                guestPhone = "0911222333",
+                numberOfGuests = 2,
+                expectedTotalAmount = 500000m,
+                idempotencyKey = "hold-t04a-" + Guid.NewGuid().ToString("N").Substring(0, 12)
+            };
+
+            var holdResp = await client.PostAsJsonAsync("/api/public/bookings/hold", holdPayload);
+            Assert.Equal(HttpStatusCode.Created, holdResp.StatusCode);
+            var hold = await holdResp.Content.ReadFromJsonAsync<GuestHoldDto>(jsonOpts);
+            Assert.NotNull(hold);
+            var token = hold.LookupToken;
+            var confCode = hold.ConfirmationCode;
+
+            // 2. Cancellation Preview (GET /api/public/bookings/{token}/cancel-preview)
+            var previewResp = await client.GetAsync($"/api/public/bookings/{token}/cancel-preview");
+            Assert.Equal(HttpStatusCode.OK, previewResp.StatusCode);
+            var preview = await previewResp.Content.ReadFromJsonAsync<GuestCancellationPreviewDto>(jsonOpts);
+            Assert.NotNull(preview);
+            Assert.True(preview.CanCancel);
+            Assert.True(preview.IsFreeCancellation);
+            Assert.Equal(0m, preview.CancellationFee);
+            Assert.Equal(0m, preview.RefundableAmount);
+
+            // 3. Security Guardrail: Public ConfirmationCode alone CANNOT cancel (POST /api/public/bookings/{confCode}/cancel)
+            var failCodeResp = await client.PostAsJsonAsync($"/api/public/bookings/{confCode}/cancel", new
+            {
+                verificationEmailOrPhone = "nguyenvana@gmail.com"
+            });
+            Assert.Equal(HttpStatusCode.Forbidden, failCodeResp.StatusCode);
+
+            // 4. Security Guardrail: Mismatched verification credentials CANNOT cancel
+            var failVerifyResp = await client.PostAsJsonAsync($"/api/public/bookings/{token}/cancel", new
+            {
+                verificationEmailOrPhone = "wrong_email@gmail.com"
+            });
+            Assert.Equal(HttpStatusCode.Forbidden, failVerifyResp.StatusCode);
+
+            // 5. Successful Cancellation (POST /api/public/bookings/{token}/cancel)
+            var cancelResp = await client.PostAsJsonAsync($"/api/public/bookings/{token}/cancel", new
+            {
+                verificationEmailOrPhone = "nguyenvana@gmail.com",
+                reason = "Thay đổi lịch trình gia đình"
+            });
+            Assert.Equal(HttpStatusCode.OK, cancelResp.StatusCode);
+            var cancelled = await cancelResp.Content.ReadFromJsonAsync<GuestBookingDetailDto>(jsonOpts);
+            Assert.NotNull(cancelled);
+            Assert.Equal("Cancelled", cancelled.Status);
+            Assert.Equal("Revoked", cancelled.SmartLockStatus);
+            Assert.Null(cancelled.SmartLockPin);
+            Assert.Equal("Thay đổi lịch trình gia đình", cancelled.CancellationReason);
+
+            // 6. Idempotent Retry: Calling cancel again succeeds cleanly without error
+            var retryCancelResp = await client.PostAsJsonAsync($"/api/public/bookings/{token}/cancel", new
+            {
+                verificationEmailOrPhone = "nguyenvana@gmail.com"
+            });
+            Assert.Equal(HttpStatusCode.OK, retryCancelResp.StatusCode);
+
+            // 7. Physical room inventory is released: Availability check for same window shows room available
+            var availResp = await client.GetAsync($"/api/public/properties/{slug}/availability?rentalType=Overnight&startAtUtc=2026-11-25T07:00:00Z&endAtUtc=2026-11-26T05:00:00Z&checkInDate=2026-11-25&checkOutDate=2026-11-26");
+            Assert.Equal(HttpStatusCode.OK, availResp.StatusCode);
+            var availList = await availResp.Content.ReadFromJsonAsync<List<PublicRoomTypeAvailabilityDto>>(jsonOpts);
+            Assert.NotNull(availList);
+            var roomTypeAvail = availList.FirstOrDefault(a => a.RoomTypeId == roomTypeId);
+            Assert.NotNull(roomTypeAvail);
+            Assert.True(roomTypeAvail.IsAvailable);
+            Assert.Equal(1, roomTypeAvail.AvailableRooms);
         }
         finally
         {

@@ -662,10 +662,18 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
 
       <!-- MODAL 1: VIEW RESERVATION DETAILS (IMMUTABLE SNAPSHOT) -->
       @if (selectedReservationDetail(); as detail) {
-        <dialog #detailDialog (cancel)="closeDetailModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(54rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-hidden bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
-          <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div
+          class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          (click)="closeDetailModal()"
+        >
+          <div
+            (click)="$event.stopPropagation()"
+            class="bg-white rounded-2xl border border-slate-200/80 w-[min(54rem,calc(100vw-2rem))] max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-150"
+          >
             <!-- Modal Header -->
-            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between">
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between shrink-0">
               <div>
                 <div class="flex items-center gap-2">
                   <h3 class="text-base font-bold text-slate-900">Chi tiết đơn đặt phòng</h3>
@@ -685,7 +693,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
             </div>
 
             <!-- Modal Body -->
-            <div class="p-6 space-y-5 max-h-[calc(100dvh-10rem)] overflow-y-auto overflow-x-hidden text-xs">
+            <div class="p-6 space-y-5 overflow-y-auto overflow-x-hidden text-xs flex-1 min-h-0">
               <!-- Customer & Room Info Cards -->
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80 space-y-1.5">
@@ -762,17 +770,18 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <div class="space-y-3 pt-3 border-t border-slate-200">
                   <div class="flex items-center justify-between">
                     <span class="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                      <i class="pi pi-credit-card text-emerald-600"></i>
-                      Bảng kê công nợ & Thanh toán (Folio)
+                      <i class="pi" [ngClass]="detail.status === ReservationStatus.Cancelled ? 'pi-file-check text-indigo-600' : 'pi-credit-card text-emerald-600'"></i>
+                      {{ detail.status === ReservationStatus.Cancelled ? 'Đối soát tài chính sau hủy' : 'Bảng kê công nợ & Thanh toán (Folio)' }}
                     </span>
                     @if (folio(); as f) {
                       @if (f.reservationId === detail.id) {
+                        @let badge = getFolioSettlementBadge(f, detail);
                         <span
                           class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border"
-                          [ngClass]="f.isFullyPaid ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'"
+                          [ngClass]="badge.badgeClass"
                         >
-                          <i class="pi mr-1 text-[9px]" [ngClass]="f.isFullyPaid ? 'pi-check-circle' : 'pi-clock'"></i>
-                          {{ f.isFullyPaid ? 'Đã thanh toán đủ' : 'Còn dư nợ' }}
+                          <i class="pi mr-1 text-[9px]" [ngClass]="badge.iconClass"></i>
+                          {{ badge.label }}
                         </span>
                       }
                     }
@@ -786,28 +795,84 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                     </div>
                   } @else if (folio(); as f) {
                     @if (f.reservationId === detail.id) {
-                      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                          <div class="text-[10px] text-slate-500 font-medium">Tổng tiền phòng</div>
-                          <div class="text-sm font-bold text-slate-800 mt-0.5">
-                            {{ f.totalAmount | number:'1.0-0' }} đ
+                      @if (detail.status === ReservationStatus.Cancelled) {
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                            <div class="text-[10px] text-slate-500 font-medium">Tổng giá trị ban đầu</div>
+                            <div class="text-sm font-bold text-slate-800 mt-0.5">
+                              {{ f.totalAmount | number:'1.0-0' }} đ
+                            </div>
                           </div>
-                        </div>
 
-                        <div class="bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-200/60">
-                          <div class="text-[10px] text-emerald-700 font-medium">Đã thanh toán</div>
-                          <div class="text-sm font-bold text-emerald-700 mt-0.5">
-                            {{ f.paidAmount | number:'1.0-0' }} đ
+                          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                            <div class="text-[10px] text-slate-500 font-medium">Đã thanh toán thực tế</div>
+                            <div class="text-sm font-bold text-slate-800 mt-0.5">
+                              {{ f.paidAmount | number:'1.0-0' }} đ
+                            </div>
                           </div>
-                        </div>
 
-                        <div class="bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/60">
-                          <div class="text-[10px] text-amber-700 font-medium">Dư nợ còn lại</div>
-                          <div class="text-sm font-bold text-amber-800 mt-0.5">
-                            {{ f.remainingBalance | number:'1.0-0' }} đ
+                          <div class="bg-rose-50/50 p-2.5 rounded-xl border border-rose-200/60">
+                            <div class="text-[10px] text-rose-700 font-medium">Phí hủy áp dụng</div>
+                            <div class="text-sm font-bold text-rose-800 mt-0.5">
+                              {{ (f.cancellationFee ?? detail.cancellationFee ?? 0) | number:'1.0-0' }} đ
+                            </div>
+                            @if ((f.cancellationFee ?? detail.cancellationFee ?? 0) === 0) {
+                              <div class="text-[10px] text-emerald-600 font-medium mt-0.5">Miễn phí hủy</div>
+                            }
+                          </div>
+
+                          @if ((f.refundableAmount ?? detail.refundableAmount ?? 0) > 0) {
+                            <div class="bg-amber-50/60 p-2.5 rounded-xl border border-amber-200/70">
+                              <div class="text-[10px] text-amber-700 font-medium">Khoản hoàn dự kiến</div>
+                              <div class="text-sm font-bold text-amber-800 mt-0.5">
+                                {{ (f.refundableAmount ?? detail.refundableAmount ?? 0) | number:'1.0-0' }} đ
+                              </div>
+                              <div class="text-[10px] font-medium mt-0.5" [ngClass]="f.refundStatus === 'Refunded' ? 'text-emerald-700' : 'text-amber-700'">
+                                {{ f.refundStatus === 'Refunded' ? '(Đã chi trả)' : '(Chờ duyệt chuyển khoản)' }}
+                              </div>
+                            </div>
+                          } @else if ((f.netCollectibleAmount ?? 0) > 0) {
+                            <div class="bg-rose-50/70 p-2.5 rounded-xl border border-rose-200">
+                              <div class="text-[10px] text-rose-700 font-medium">Số tiền còn phải thu</div>
+                              <div class="text-sm font-bold text-rose-800 mt-0.5">
+                                {{ f.netCollectibleAmount | number:'1.0-0' }} đ
+                              </div>
+                              <div class="text-[10px] text-rose-600 font-medium mt-0.5">Thu bổ sung phí hủy</div>
+                            </div>
+                          } @else {
+                            <div class="bg-slate-50/80 p-2.5 rounded-xl border border-slate-200">
+                              <div class="text-[10px] text-slate-500 font-medium">Dư nợ sau hủy</div>
+                              <div class="text-sm font-bold text-slate-700 mt-0.5">
+                                0 đ
+                              </div>
+                              <div class="text-[10px] text-slate-500 font-medium mt-0.5">Không phát sinh nợ</div>
+                            </div>
+                          }
+                        </div>
+                      } @else {
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                            <div class="text-[10px] text-slate-500 font-medium">Tổng tiền phòng</div>
+                            <div class="text-sm font-bold text-slate-800 mt-0.5">
+                              {{ f.totalAmount | number:'1.0-0' }} đ
+                            </div>
+                          </div>
+
+                          <div class="bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-200/60">
+                            <div class="text-[10px] text-emerald-700 font-medium">Đã thanh toán</div>
+                            <div class="text-sm font-bold text-emerald-700 mt-0.5">
+                              {{ f.paidAmount | number:'1.0-0' }} đ
+                            </div>
+                          </div>
+
+                          <div class="bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/60">
+                            <div class="text-[10px] text-amber-700 font-medium">Dư nợ còn lại</div>
+                            <div class="text-sm font-bold text-amber-800 mt-0.5">
+                              {{ f.remainingBalance | number:'1.0-0' }} đ
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      }
                     }
                   } @else {
                     <div class="py-3 px-4 bg-rose-50 rounded-xl border border-rose-200 text-xs text-rose-800 text-center flex items-center justify-between gap-2">
@@ -954,23 +1019,30 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   <div class="font-bold text-rose-900 flex items-center gap-1.5">
                     <i class="pi pi-ban text-rose-600"></i> Thông tin hủy đặt phòng
                   </div>
-                  <div class="text-rose-800">Thời gian hủy: <b>{{ formatUtcTime(detail.cancelledAtUtc) }}</b></div>
+                  <div class="text-rose-800">Thời gian hủy: <b>{{ formatVietnamFullDateTime(detail.cancelledAtUtc) }}</b></div>
                   @if (detail.cancellationReason) {
                     <div class="text-rose-800">Lý do hủy: <b>{{ detail.cancellationReason }}</b></div>
                   }
                 </div>
               }
 
-              @if (detail.notes) {
+              @if (detail.notes && !isSystemNote(detail.notes)) {
                 <div class="bg-amber-50/70 p-3 rounded-xl border border-amber-200 text-xs">
                   <span class="font-semibold text-amber-900">Ghi chú của khách:</span>
                   <p class="text-amber-800 mt-0.5">{{ detail.notes }}</p>
+                </div>
+              } @else if (detail.notes && isSystemNote(detail.notes)) {
+                <div class="bg-slate-100/80 p-3 rounded-xl border border-slate-200 text-xs">
+                  <span class="font-semibold text-slate-700 flex items-center gap-1.5">
+                    <i class="pi pi-info-circle text-slate-500"></i> Ghi chú hệ thống:
+                  </span>
+                  <p class="text-slate-600 mt-0.5">{{ detail.notes }}</p>
                 </div>
               }
             </div>
 
             <!-- Modal Footer -->
-            <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+            <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
               <div>
                 <div class="flex items-center gap-2">
                   @if (canCheckInOut()) {
@@ -1028,15 +1100,23 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               </button>
             </div>
           </div>
-        </dialog>
+        </div>
       }
 
       <!-- MODAL 2: CREATE NEW RESERVATION -->
       @if (isCreateModalOpen()) {
-        <dialog #createDialog (cancel)="closeCreateModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(64rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
-          <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div
+          class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          (click)="closeCreateModal()"
+        >
+          <div
+            (click)="$event.stopPropagation()"
+            class="bg-white rounded-2xl border border-slate-200/80 w-[min(64rem,calc(100vw-2rem))] max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-150"
+          >
             <!-- Modal Header -->
-            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between">
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between shrink-0">
               <div>
                 <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
                   <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
@@ -1059,7 +1139,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
             </div>
 
             <!-- Modal Form -->
-            <form [formGroup]="createForm" (ngSubmit)="onSubmitCreate()" class="p-6 space-y-5 max-h-[75vh] overflow-y-auto text-xs">
+            <form [formGroup]="createForm" (ngSubmit)="onSubmitCreate()" class="p-6 space-y-5 flex-1 min-h-0 overflow-y-auto text-xs">
               <!-- Section 1: Rental Type & Schedule -->
               <div class="space-y-3">
                 <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">1. Hình thức & Thời gian lưu trú</div>
@@ -1453,7 +1533,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               </div>
 
               <!-- Modal Actions -->
-              <div class="pt-4 border-t border-slate-200 flex items-center justify-between">
+              <div class="pt-4 border-t border-slate-200 flex items-center justify-between shrink-0">
                 <button
                   type="button"
                   (click)="closeCreateModal()"
@@ -1473,14 +1553,22 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               </div>
             </form>
           </div>
-        </dialog>
+        </div>
       }
 
       <!-- MODAL 3: CANCEL RESERVATION -->
       @if (cancelModalReservation(); as targetRes) {
-        <dialog #cancelDialog (cancel)="closeCancelModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(30rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
-          <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div class="px-6 py-4 bg-rose-50/80 border-b border-rose-100 flex items-center justify-between">
+        <div
+          class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          (click)="closeCancelModal()"
+        >
+          <div
+            (click)="$event.stopPropagation()"
+            class="bg-white rounded-2xl border border-slate-200/80 w-[min(30rem,calc(100vw-2rem))] max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-150"
+          >
+            <div class="px-6 py-4 bg-rose-50/80 border-b border-rose-100 flex items-center justify-between shrink-0">
               <div class="flex items-center gap-2">
                 <div class="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
                   <i class="pi pi-exclamation-circle text-base"></i>
@@ -1496,7 +1584,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               </button>
             </div>
 
-            <div class="p-6 space-y-4 text-xs">
+            <div class="p-6 space-y-4 text-xs overflow-y-auto flex-1 min-h-0">
               <p class="text-slate-600 leading-relaxed">
                 Bạn có chắc chắn muốn hủy đơn đặt phòng <span class="font-bold text-slate-900 font-mono">{{ targetRes.confirmationCode }}</span> của khách <span class="font-bold text-slate-900">{{ targetRes.guestName }}</span>?
               </p>
@@ -1517,7 +1605,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               </div>
             </div>
 
-            <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+            <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
               <button
                 type="button"
                 [disabled]="isActionLoading()"
@@ -1537,15 +1625,23 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               </button>
             </div>
           </div>
-        </dialog>
+        </div>
       }
 
       <!-- MODAL: CHECK-IN (XÁC NHẬN NHẬN PHÒNG & ĐỐI CHIẾU CCCD) -->
       @if (isCheckInModalOpen()) {
         @if (checkInModalReservation(); as res) {
-          <dialog #checkInDialog (cancel)="closeCheckInModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(42rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
-            <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-              <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+          <div
+            class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            (click)="closeCheckInModal()"
+          >
+            <div
+              (click)="$event.stopPropagation()"
+              class="bg-white rounded-2xl border border-slate-200/80 w-[min(42rem,calc(100vw-2rem))] max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-150"
+            >
+              <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
                 <div class="flex items-center gap-2.5">
                   <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                     <i class="pi pi-sign-in text-sm"></i>
@@ -1564,7 +1660,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 </button>
               </div>
 
-              <div class="p-6 space-y-4 text-xs">
+              <div class="p-6 space-y-4 text-xs overflow-y-auto flex-1 min-h-0">
                 <!-- Room & Guest Info Card -->
                 <div class="grid grid-cols-2 gap-3.5 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
                   <div>
@@ -1632,7 +1728,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 </div>
               </div>
 
-              <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+              <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   (click)="closeCheckInModal()"
@@ -1651,16 +1747,24 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 </button>
               </div>
             </div>
-          </dialog>
+          </div>
         }
       }
 
       <!-- MODAL: CHECK-OUT (TRẢ PHÒNG & KIỂM TRA CÔNG NỢ FOLIO) -->
       @if (isCheckOutModalOpen()) {
         @if (checkOutModalReservation(); as res) {
-          <dialog #checkOutDialog (cancel)="closeCheckOutModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(42rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
-            <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-              <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+          <div
+            class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            (click)="closeCheckOutModal()"
+          >
+            <div
+              (click)="$event.stopPropagation()"
+              class="bg-white rounded-2xl border border-slate-200/80 w-[min(42rem,calc(100vw-2rem))] max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-150"
+            >
+              <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
                 <div class="flex items-center gap-2.5">
                   <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
                     <i class="pi pi-sign-out text-sm"></i>
@@ -1679,7 +1783,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 </button>
               </div>
 
-              <div class="p-6 space-y-4 text-xs">
+              <div class="p-6 space-y-4 text-xs overflow-y-auto flex-1 min-h-0">
                 <!-- Room & Guest Info Card -->
                 <div class="grid grid-cols-2 gap-3.5 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
                   <div>
@@ -1765,7 +1869,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 </div>
               </div>
 
-              <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+              <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   (click)="closeCheckOutModal()"
@@ -1784,15 +1888,23 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 </button>
               </div>
             </div>
-          </dialog>
+          </div>
         }
       }
 
       <!-- MODAL 4: CASHIER SUMMARY (BÁO CÁO THU NGÂN) -->
       @if (isSummaryModalOpen()) {
-        <dialog #summaryDialog (cancel)="closeSummaryModal()" class="fixed inset-auto left-1/2 top-1/2 m-0 -translate-x-1/2 -translate-y-1/2 w-[min(34rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] p-0 border-0 rounded-2xl overflow-y-auto bg-transparent backdrop:bg-slate-900/60 backdrop:backdrop-blur-md">
-          <div class="bg-white w-full rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+        <div
+          class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          (click)="closeSummaryModal()"
+        >
+          <div
+            (click)="$event.stopPropagation()"
+            class="bg-white rounded-2xl border border-slate-200/80 w-[min(34rem,calc(100vw-2rem))] max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-150"
+          >
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
               <div class="flex items-center gap-2.5">
                 <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                   <i class="pi pi-chart-bar text-sm"></i>
@@ -1822,7 +1934,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               </div>
             </div>
 
-            <div class="p-6 space-y-4">
+            <div class="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
               @if (isLoadingSummary()) {
                 <div class="py-12 flex flex-col items-center justify-center gap-2 text-slate-500 text-xs">
                   <i class="pi pi-spinner animate-spin text-2xl text-emerald-600"></i>
@@ -1897,7 +2009,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               }
             </div>
 
-            <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end">
+            <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end shrink-0">
               <button
                 type="button"
                 (click)="closeSummaryModal()"
@@ -1907,47 +2019,13 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               </button>
             </div>
           </div>
-        </dialog>
+        </div>
       }
     </div>
   `
 })
 export class ReservationsPage implements OnInit, OnDestroy {
-  @ViewChild('checkInDialog') set checkInDialog(element: ElementRef<HTMLDialogElement> | undefined) {
-    if (element && this.isCheckInModalOpen() && typeof element.nativeElement.showModal === 'function') {
-      element.nativeElement.showModal();
-    }
-  }
-
-  @ViewChild('checkOutDialog') set checkOutDialog(element: ElementRef<HTMLDialogElement> | undefined) {
-    if (element && this.isCheckOutModalOpen() && typeof element.nativeElement.showModal === 'function') {
-      element.nativeElement.showModal();
-    }
-  }
-
-  @ViewChild('cancelDialog') set cancelDialog(element: ElementRef<HTMLDialogElement> | undefined) {
-    if (element && this.cancelModalReservation() && typeof element.nativeElement.showModal === 'function') {
-      element.nativeElement.showModal();
-    }
-  }
-
-  @ViewChild('detailDialog') set detailDialog(element: ElementRef<HTMLDialogElement> | undefined) {
-    if (element && this.selectedReservationDetail() && typeof element.nativeElement.showModal === 'function') {
-      element.nativeElement.showModal();
-    }
-  }
-
-  @ViewChild('summaryDialog') set summaryDialog(element: ElementRef<HTMLDialogElement> | undefined) {
-    if (element && this.isSummaryModalOpen() && typeof element.nativeElement.showModal === 'function') {
-      element.nativeElement.showModal();
-    }
-  }
-
-  @ViewChild('createDialog') set createDialog(element: ElementRef<HTMLDialogElement> | undefined) {
-    if (element && this.isCreateModalOpen() && typeof element.nativeElement.showModal === 'function') {
-      element.nativeElement.showModal();
-    }
-  }
+  // Dialogs are controlled via Angular @if state signals with fixed backdrop overlays.
   private readonly reservationService = inject(ReservationService);
   private readonly roomTypeService = inject(RoomTypeService);
   private readonly roomService = inject(RoomService, { optional: true });
@@ -3098,6 +3176,51 @@ export class ReservationsPage implements OnInit, OnDestroy {
 
   getStatusBadgeClass(status: ReservationStatus): string {
     return RESERVATION_STATUS_BADGE_CLASSES[status] || 'bg-slate-100 text-slate-600 border-slate-200';
+  }
+
+  formatVietnamFullDateTime(utcDateStr?: string | null): string {
+    if (!utcDateStr) return '';
+    try {
+      const d = new Date(utcDateStr);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleString('vi-VN', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    } catch {
+      return '';
+    }
+  }
+
+  isSystemNote(note?: string | null): boolean {
+    if (!note) return false;
+    const n = note.toLowerCase();
+    return n.includes('15-min hold') || n.includes('guest online reservation') || n.startsWith('{');
+  }
+
+  getFolioSettlementBadge(f: FolioDto, detail: ReservationDetailDto): { label: string; badgeClass: string; iconClass: string } {
+    if (detail.status === ReservationStatus.Cancelled) {
+      if (f.refundStatus === 'Refunded') {
+        return { label: 'Đã hoàn tiền', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200', iconClass: 'pi-check-circle' };
+      }
+      if (f.refundStatus === 'PendingApproval' || (f.refundableAmount ?? detail.refundableAmount ?? 0) > 0) {
+        return { label: 'Chờ duyệt hoàn tiền', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200', iconClass: 'pi-clock' };
+      }
+      if ((f.netCollectibleAmount ?? 0) > 0) {
+        return { label: 'Còn phải thu phí hủy', badgeClass: 'bg-rose-50 text-rose-700 border-rose-200', iconClass: 'pi-exclamation-triangle' };
+      }
+      return { label: 'Đã hủy — Không phát sinh nợ', badgeClass: 'bg-slate-100 text-slate-700 border-slate-300', iconClass: 'pi-check' };
+    }
+
+    if (f.isFullyPaid) {
+      return { label: 'Đã thanh toán đủ', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200', iconClass: 'pi-check-circle' };
+    }
+    return { label: 'Còn dư nợ', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200', iconClass: 'pi-clock' };
   }
 
   formatUtcTime(utcDateStr: string): string {

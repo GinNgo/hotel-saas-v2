@@ -28,6 +28,7 @@ public sealed class CreateReservationCommandHandler : IRequestHandler<CreateRese
     private readonly IMembershipLookupService _membershipLookupService;
     private readonly ICurrentPropertyService? _propertyService;
     private readonly ISender _mediator;
+    private readonly INotificationDispatcher? _notificationDispatcher;
 
     public CreateReservationCommandHandler(
         IApplicationDbContext context,
@@ -35,7 +36,8 @@ public sealed class CreateReservationCommandHandler : IRequestHandler<CreateRese
         ICurrentUserContext userContext,
         IMembershipLookupService membershipLookupService,
         ISender mediator,
-        ICurrentPropertyService? propertyService = null)
+        ICurrentPropertyService? propertyService = null,
+        INotificationDispatcher? notificationDispatcher = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _tenantService = tenantService ?? throw new ArgumentNullException(nameof(tenantService));
@@ -43,6 +45,7 @@ public sealed class CreateReservationCommandHandler : IRequestHandler<CreateRese
         _membershipLookupService = membershipLookupService ?? throw new ArgumentNullException(nameof(membershipLookupService));
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
         _propertyService = propertyService;
+        _notificationDispatcher = notificationDispatcher;
     }
 
     public async Task<ReservationDetailDto> Handle(CreateReservationCommand request, CancellationToken cancellationToken)
@@ -331,6 +334,26 @@ public sealed class CreateReservationCommandHandler : IRequestHandler<CreateRese
         _context.Reservations.Add(reservation);
         await _context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        if (_notificationDispatcher != null)
+        {
+            try
+            {
+                await _notificationDispatcher.NotifyNewReservationConfirmedAsync(
+                    reservation.PropertyId.ToString(),
+                    reservation.Id.ToString(),
+                    reservation.ConfirmationCode,
+                    reservation.GuestName,
+                    snapshot.RoomTypeName,
+                    reservation.TotalAmount,
+                    depositPaid: 0m,
+                    cancellationToken);
+            }
+            catch
+            {
+                // Dispatch failure should never fail an already committed transaction
+            }
+        }
 
         return new ReservationDetailDto
         {

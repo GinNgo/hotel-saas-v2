@@ -41,11 +41,12 @@ export class AlertService {
   /**
    * Thông báo thành công dạng Toast
    */
-  toastSuccess(message: string, title: string = 'Thành công'): void {
+  toastSuccess(message: string, title: string = 'Thành công', timer?: number): void {
     this.Toast.fire({
       icon: 'success',
       title,
       text: message,
+      ...(typeof timer === 'number' && timer > 0 ? { timer } : {}),
       animation: !this.isReducedMotion()
     });
   }
@@ -80,11 +81,12 @@ export class AlertService {
   /**
    * Thông báo cảnh báo dạng Toast
    */
-  toastWarning(message: string, title: string = 'Cảnh báo'): void {
+  toastWarning(message: string, title: string = 'Cảnh báo', timer?: number): void {
     this.Toast.fire({
       icon: 'warning',
       title,
       text: message,
+      ...(typeof timer === 'number' && timer > 0 ? { timer } : {}),
       animation: !this.isReducedMotion()
     });
   }
@@ -92,11 +94,12 @@ export class AlertService {
   /**
    * Thông báo thông tin dạng Toast
    */
-  toastInfo(message: string, title: string = 'Thông tin'): void {
+  toastInfo(message: string, title: string = 'Thông tin', timer?: number): void {
     this.Toast.fire({
       icon: 'info',
       title,
       text: message,
+      ...(typeof timer === 'number' && timer > 0 ? { timer } : {}),
       animation: !this.isReducedMotion()
     });
   }

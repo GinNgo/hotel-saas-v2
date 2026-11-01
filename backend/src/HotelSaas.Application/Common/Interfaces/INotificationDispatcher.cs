@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 namespace HotelSaas.Application.Common.Interfaces;
 
 /// <summary>
-/// Dispatches real-time events to active receptionist terminals and PMS staff via SignalR (Task A03).
+/// Dispatches real-time events to active receptionist terminals and PMS staff via SignalR (Task A03 / T01).
 /// </summary>
 public interface INotificationDispatcher
 {

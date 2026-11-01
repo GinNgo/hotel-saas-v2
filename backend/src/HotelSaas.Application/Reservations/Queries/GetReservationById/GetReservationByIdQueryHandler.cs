@@ -21,19 +21,22 @@ public sealed class GetReservationByIdQueryHandler : IRequestHandler<GetReservat
     private readonly ICurrentUserContext _userContext;
     private readonly IMembershipLookupService _membershipLookupService;
     private readonly ICurrentPropertyService? _propertyService;
+    private readonly ICancellationPolicyService _cancellationPolicyService;
 
     public GetReservationByIdQueryHandler(
         IApplicationDbContext context,
         ICurrentTenantService tenantService,
         ICurrentUserContext userContext,
         IMembershipLookupService membershipLookupService,
-        ICurrentPropertyService? propertyService = null)
+        ICurrentPropertyService? propertyService = null,
+        ICancellationPolicyService? cancellationPolicyService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _tenantService = tenantService ?? throw new ArgumentNullException(nameof(tenantService));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _membershipLookupService = membershipLookupService ?? throw new ArgumentNullException(nameof(membershipLookupService));
         _propertyService = propertyService;
+        _cancellationPolicyService = cancellationPolicyService ?? new CancellationPolicyService();
     }
 
     public async Task<ReservationDetailDto> Handle(GetReservationByIdQuery request, CancellationToken cancellationToken)
@@ -141,6 +144,38 @@ public sealed class GetReservationByIdQueryHandler : IRequestHandler<GetReservat
             CheckOutTime = property.CheckOutTime != default ? property.CheckOutTime : new TimeOnly(12, 0)
         };
 
+        decimal? cancellationFee = null;
+        decimal? refundableAmount = null;
+
+        if (r.Status == ReservationStatus.Cancelled)
+        {
+            var paidAmount = await _context.Payments
+                .AsNoTracking()
+                .Where(p => p.ReservationId == r.Id && p.Status == PaymentStatus.Completed)
+                .SumAsync(p => (decimal?)p.Amount, cancellationToken) ?? 0m;
+
+            var cancelEstimate = _cancellationPolicyService.CalculateEstimate(
+                r,
+                property,
+                r.CancelledAtUtc ?? DateTime.UtcNow,
+                paidAmount);
+
+            cancellationFee = cancelEstimate.CancellationFee;
+            refundableAmount = cancelEstimate.RefundableAmount;
+        }
+
+        string? customerNotes = snapshot?.CustomerNotes ?? r.Notes;
+        if (!string.IsNullOrWhiteSpace(customerNotes))
+        {
+            var trimmedNotes = customerNotes.Trim();
+            if ((trimmedNotes.StartsWith('{') && trimmedNotes.EndsWith('}')) ||
+                trimmedNotes.Contains("15-min hold", StringComparison.OrdinalIgnoreCase) ||
+                trimmedNotes.Contains("Guest online reservation", StringComparison.OrdinalIgnoreCase))
+            {
+                customerNotes = null;
+            }
+        }
+
         return new ReservationDetailDto
         {
             Id = r.Id,
@@ -163,12 +198,18 @@ public sealed class GetReservationByIdQueryHandler : IRequestHandler<GetReservat
             Currency = snapshot?.Currency ?? "VND",
             Status = r.Status,
             ConfirmationCode = r.ConfirmationCode,
-            Notes = snapshot?.CustomerNotes ?? r.Notes,
+            Notes = customerNotes,
+            HoldExpiresAtUtc = snapshot?.IsOnlineHold == true ? snapshot.HoldExpiresAtUtc : null,
+            HoldExtensionCount = snapshot?.HoldExtensionCount ?? 0,
+            IsHoldExpired = r.Status == ReservationStatus.PendingPayment && snapshot?.IsOnlineHold == true && snapshot.HoldExpiresAtUtc.HasValue && snapshot.HoldExpiresAtUtc.Value <= DateTime.UtcNow,
             CreatedAtUtc = r.CreatedAtUtc,
             Breakdown = breakdown,
             AppliedPolicies = policies,
             CancelledAtUtc = r.CancelledAtUtc,
-            CancellationReason = r.CancellationReason
+            CancellationReason = r.CancellationReason,
+            CancellationFee = cancellationFee,
+            RefundableAmount = refundableAmount,
+            PointsRefunded = r.PointsRefunded
         };
     }
 }

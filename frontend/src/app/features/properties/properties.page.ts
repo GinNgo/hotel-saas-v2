@@ -309,7 +309,7 @@ import {
 
     <!-- Create / Edit Property Modal Dialog -->
     @if (isModalOpen()) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
+      <div class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
         <div class="bg-white rounded-2xl shadow-2xl border border-slate-200/80 max-w-2xl w-full p-6 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-150">
           <div class="flex items-center justify-between pb-3.5 border-b border-slate-100">
             <div>

@@ -277,7 +277,7 @@ dialog::backdrop {
   padding: 0 !important;
 }
 
-/* 2. Toast Card: compact, 12px rounded, light emerald border, subtle shadow */
+/* 2. Toast Card: compact, 12px rounded, subtle shadow, themed border by type */
 .swal2-popup.swal2-toast.luxestay-toast-popup {
   pointer-events: auto !important;
   margin: 76px 16px 0 0 !important;
@@ -295,6 +295,21 @@ dialog::backdrop {
   border: 1px solid #bbf7d0 !important;
   box-shadow: 0 4px 16px -2px rgba(16, 185, 129, 0.12), 0 2px 6px -1px rgba(0, 0, 0, 0.05) !important;
   box-sizing: border-box !important;
+}
+
+.swal2-popup.swal2-toast.luxestay-toast-popup:has(.swal2-info) {
+  border-color: #bfdbfe !important;
+  box-shadow: 0 4px 16px -2px rgba(59, 130, 246, 0.12), 0 2px 6px -1px rgba(0, 0, 0, 0.05) !important;
+}
+
+.swal2-popup.swal2-toast.luxestay-toast-popup:has(.swal2-warning) {
+  border-color: #fde68a !important;
+  box-shadow: 0 4px 16px -2px rgba(245, 158, 11, 0.12), 0 2px 6px -1px rgba(0, 0, 0, 0.05) !important;
+}
+
+.swal2-popup.swal2-toast.luxestay-toast-popup:has(.swal2-error) {
+  border-color: #fecaca !important;
+  box-shadow: 0 4px 16px -2px rgba(239, 68, 68, 0.12), 0 2px 6px -1px rgba(0, 0, 0, 0.05) !important;
 }
 
 .swal2-popup.swal2-toast.luxestay-toast-popup.swal2-show {
@@ -343,6 +358,22 @@ dialog::backdrop {
   margin-bottom: 2px;
 }
 
+/* Info Icon: crisp circular 'i' */
+.luxestay-toast-popup .swal2-icon.swal2-info {
+  background-color: #eff6ff !important;
+  border: 1px solid #bfdbfe !important;
+}
+
+.luxestay-toast-popup .swal2-icon.swal2-info::after {
+  content: 'i';
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 13px;
+  color: #2563eb;
+  line-height: 1;
+  font-style: italic;
+}
+
 /* Warning Exclamation */
 .luxestay-toast-popup .swal2-icon.swal2-warning {
   background-color: #fffbeb !important;
@@ -354,6 +385,20 @@ dialog::backdrop {
   font-weight: 800;
   font-size: 13px;
   color: #d97706;
+  line-height: 1;
+}
+
+/* Error Exclamation / Cross */
+.luxestay-toast-popup .swal2-icon.swal2-error {
+  background-color: #fef2f2 !important;
+  border: 1px solid #fecaca !important;
+}
+
+.luxestay-toast-popup .swal2-icon.swal2-error::after {
+  content: '✕';
+  font-weight: 700;
+  font-size: 11px;
+  color: #dc2626;
   line-height: 1;
 }
 
@@ -370,6 +415,21 @@ dialog::backdrop {
   padding: 0 !important;
   text-align: left !important;
   line-height: 1.25 !important;
+}
+
+.luxestay-toast-popup:has(.swal2-info) .swal2-title,
+.luxestay-toast-popup:has(.swal2-info) .luxestay-toast-title {
+  color: #1e40af !important;
+}
+
+.luxestay-toast-popup:has(.swal2-warning) .swal2-title,
+.luxestay-toast-popup:has(.swal2-warning) .luxestay-toast-title {
+  color: #92400e !important;
+}
+
+.luxestay-toast-popup:has(.swal2-error) .swal2-title,
+.luxestay-toast-popup:has(.swal2-error) .luxestay-toast-title {
+  color: #991b1b !important;
 }
 
 .luxestay-toast-popup .swal2-html-container,
@@ -453,4 +513,36 @@ dialog::backdrop {
     box-shadow: none !important;
     text-shadow: none !important;
   }
+}
+
+
+/* ===============================================================
+   FULLSCREEN MODAL OVERLAYS & BACKDROPS SAFEGUARD
+   Prevents parent space-y-* / margin rules from shifting fixed
+   modal overlays and leaving an exposed gap at the top of the page.
+   Ensures fullscreen overlays cover 100% of the viewport and sit above headers & sidebars.
+   Only applies to actual fullscreen overlays (.fixed.inset-0), not anchored dropdowns or popovers.
+   =============================================================== */
+.fixed.inset-0,
+div[role="dialog"].fixed.inset-0,
+[class*="space-y-"] > .fixed.inset-0,
+[class*="space-y-"] > div.fixed.inset-0 {
+  margin: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+}
+
+/* Ensure modal overlays always stay strictly above sidebars (z-50) and topbars (z-10) */
+.fixed.inset-0.z-50,
+.fixed.inset-0.z-\[100\],
+div[role="dialog"].fixed.inset-0 {
+  z-index: 100 !important;
 }

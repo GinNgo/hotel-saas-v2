@@ -25,6 +25,7 @@ public sealed class CheckOutReservationCommandHandler : IRequestHandler<CheckOut
     private readonly IMembershipLookupService _membershipLookupService;
     private readonly ICurrentPropertyService _propertyService;
     private readonly ILoyaltyLedgerService _loyaltyLedgerService;
+    private readonly INotificationDispatcher? _notificationDispatcher;
 
     public CheckOutReservationCommandHandler(
         IApplicationDbContext context,
@@ -32,7 +33,8 @@ public sealed class CheckOutReservationCommandHandler : IRequestHandler<CheckOut
         ICurrentUserContext userContext,
         IMembershipLookupService membershipLookupService,
         ICurrentPropertyService propertyService,
-        ILoyaltyLedgerService? loyaltyLedgerService = null)
+        ILoyaltyLedgerService? loyaltyLedgerService = null,
+        INotificationDispatcher? notificationDispatcher = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _tenantService = tenantService ?? throw new ArgumentNullException(nameof(tenantService));
@@ -40,6 +42,7 @@ public sealed class CheckOutReservationCommandHandler : IRequestHandler<CheckOut
         _membershipLookupService = membershipLookupService ?? throw new ArgumentNullException(nameof(membershipLookupService));
         _propertyService = propertyService ?? throw new ArgumentNullException(nameof(propertyService));
         _loyaltyLedgerService = loyaltyLedgerService ?? new LoyaltyLedgerService(_context);
+        _notificationDispatcher = notificationDispatcher;
     }
 
     public async Task<ReservationDetailDto> Handle(CheckOutReservationCommand request, CancellationToken cancellationToken)
@@ -227,6 +230,31 @@ public sealed class CheckOutReservationCommandHandler : IRequestHandler<CheckOut
 
         await _context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        if (_notificationDispatcher != null)
+        {
+            try
+            {
+                await _notificationDispatcher.NotifyReservationStatusChangedAsync(
+                    reservation.PropertyId.ToString(),
+                    reservation.Id.ToString(),
+                    reservation.ConfirmationCode,
+                    ReservationStatus.CheckedIn.ToString(),
+                    ReservationStatus.CheckedOut.ToString(),
+                    cancellationToken);
+
+                await _notificationDispatcher.NotifyHousekeepingAlertAsync(
+                    reservation.PropertyId.ToString(),
+                    room.RoomNumber,
+                    RoomStatus.Dirty.ToString(),
+                    $"Phòng {room.RoomNumber} đã hoàn tất trả phòng, cần dọn dẹp.",
+                    cancellationToken);
+            }
+            catch
+            {
+                // Dispatch failure should never fail an already committed transaction
+            }
+        }
 
         return ReservationSnapshotHelper.MapToDetailDto(reservation, property);
     }

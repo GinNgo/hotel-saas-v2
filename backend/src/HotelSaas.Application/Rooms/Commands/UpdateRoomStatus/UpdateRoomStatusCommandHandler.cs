@@ -18,6 +18,7 @@ public sealed class UpdateRoomStatusCommandHandler : IRequestHandler<UpdateRoomS
     private readonly ICurrentPropertyService _propertyService;
     private readonly ICurrentUserContext _userContext;
     private readonly IMembershipLookupService _membershipLookupService;
+    private readonly INotificationDispatcher? _notificationDispatcher;
 
     /// <summary>
     /// Initializes a new instance of <see cref="UpdateRoomStatusCommandHandler"/>.
@@ -27,13 +28,15 @@ public sealed class UpdateRoomStatusCommandHandler : IRequestHandler<UpdateRoomS
         ICurrentTenantService tenantService,
         ICurrentPropertyService propertyService,
         ICurrentUserContext userContext,
-        IMembershipLookupService membershipLookupService)
+        IMembershipLookupService membershipLookupService,
+        INotificationDispatcher? notificationDispatcher = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _tenantService = tenantService ?? throw new ArgumentNullException(nameof(tenantService));
         _propertyService = propertyService ?? throw new ArgumentNullException(nameof(propertyService));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _membershipLookupService = membershipLookupService ?? throw new ArgumentNullException(nameof(membershipLookupService));
+        _notificationDispatcher = notificationDispatcher;
     }
 
     /// <inheritdoc />
@@ -165,6 +168,23 @@ public sealed class UpdateRoomStatusCommandHandler : IRequestHandler<UpdateRoomS
 
             throw new ConflictException("ERR_STALE_STATE",
                 "Trạng thái phòng đã thay đổi trước đó bởi người dùng khác. Vui lòng làm mới trang.");
+        }
+
+        if (_notificationDispatcher != null)
+        {
+            try
+            {
+                await _notificationDispatcher.NotifyHousekeepingAlertAsync(
+                    targetPropertyId.ToString(),
+                    room.RoomNumber,
+                    request.Status.ToString(),
+                    $"Phòng {room.RoomNumber} đã cập nhật trạng thái sang {request.Status}.",
+                    cancellationToken);
+            }
+            catch
+            {
+                // Dispatch failure should never fail an already completed status update
+            }
         }
 
         return new RoomDto(
