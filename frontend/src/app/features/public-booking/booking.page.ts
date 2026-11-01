@@ -67,68 +67,176 @@ interface TenantBrandFacet {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="min-h-screen bg-[#FBF9F5] pb-20 font-sans">
-      <!-- HERO BANNER & THANH TÌM KIẾM ĐA NĂNG -->
+      <!-- HERO BANNER & THANH TÌM KIẾM ĐA NĂNG (MODERN EDITORIAL HOSPITALITY) -->
       <div
-        class="bg-[#0D2E28] text-amber-50 pt-16 pb-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden border-b border-[#1A453D]"
+        class="bg-gradient-to-br from-[#061C18] via-[#0A2923] to-[#0E352C] text-amber-50 pt-14 pb-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden border-b border-[#1A453D]/80"
       >
-        <!-- Background decorative ambient circles -->
-        <div class="absolute inset-0 bg-[radial-gradient(#1e4d44_1px,transparent_1px)] [background-size:24px_24px] opacity-35 pointer-events-none"></div>
-        <div class="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-amber-600/10 blur-3xl pointer-events-none"></div>
+        <!-- Background subtle photographic overlay with low opacity -->
+        <div class="absolute inset-0 bg-[url('/images/danang-ocean-suites.png')] bg-cover bg-center opacity-10 mix-blend-luminosity pointer-events-none"></div>
+        <div class="absolute inset-0 bg-gradient-to-r from-[#061C18] via-[#061C18]/90 to-[#061C18]/70 pointer-events-none"></div>
+
+        <!-- Ambient lighting glows -->
+        <div class="absolute top-0 right-1/4 w-[480px] h-[320px] bg-amber-500/10 blur-[130px] rounded-full pointer-events-none"></div>
+        <div class="absolute bottom-0 left-10 w-[320px] h-[220px] bg-emerald-500/10 blur-[110px] rounded-full pointer-events-none"></div>
 
         <div class="max-w-7xl mx-auto relative z-10">
-          <div class="max-w-3xl mb-8">
-            <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#1A453D] border border-amber-400/30 text-amber-200 text-xs font-semibold tracking-wide mb-4">
-              <i class="pi pi-sparkles text-amber-400"></i>
-              <span>Nghỉ Dưỡng &amp; Khách Sạn Di Sản Việt Nam</span>
-            </div>
-            <div>
-              <h1 class="font-serif text-3xl sm:text-5xl lg:text-6xl font-normal text-[#FBF9F5] tracking-tight leading-[1.15]">
-                Khám Phá Chỗ Nghỉ Hoàn Hảo &amp; <span class="italic text-amber-200 font-serif">Kỳ Nghỉ Trong Mơ</span>
-              </h1>
-            </div>
-            <p class="text-sm sm:text-base text-[#F4EFE6]/80 max-w-2xl mt-4 font-sans leading-relaxed">
-              Tìm khách sạn, homestay và resort phù hợp với chuyến đi. Xem giá, tiện nghi và hình thức lưu trú được từng cơ sở hỗ trợ trước khi đặt phòng.
-            </p>
+          <!-- 2-COLUMN HERO HEADER & VISUAL SHOWCASE -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center mb-10">
+            
+            <!-- LEFT COLUMN: EDITORIAL HEADLINE & DESTINATION PILLS -->
+            <div class="lg:col-span-7 space-y-4">
+              <div class="inline-flex items-center gap-2.5 px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-amber-200 text-xs font-semibold tracking-wide shadow-xs">
+                <span class="flex h-2 w-2 relative">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                </span>
+                <span>Hệ Thống Đặt Phòng &amp; Nghỉ Dưỡng Di Sản Việt Nam</span>
+              </div>
 
-            <!-- Quick Category Tags -->
-            <div class="mt-4 flex flex-wrap items-center gap-2 text-xs">
-              <span class="text-slate-400 text-[11px] font-medium mr-1">Gợi ý điểm đến:</span>
-              <button
-                type="button"
-                (click)="selectCategoryQuickTag('Đà Lạt')"
-                class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] transition-colors border border-white/10 cursor-pointer"
-              >
-                🌸 Đà Lạt Săn Mây
-              </button>
-              <button
-                type="button"
-                (click)="selectCategoryQuickTag('Phú Quốc')"
-                class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] transition-colors border border-white/10 cursor-pointer"
-              >
-                🏝️ Đảo Ngọc Phú Quốc
-              </button>
-              <button
-                type="button"
-                (click)="selectCategoryQuickTag('Đà Nẵng')"
-                class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] transition-colors border border-white/10 cursor-pointer"
-              >
-                🌉 Đà Nẵng Biển Mỹ Khê
-              </button>
-              <button
-                type="button"
-                (click)="selectCategoryQuickTag('Vũng Tàu')"
-                class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] transition-colors border border-white/10 cursor-pointer"
-              >
-                🌊 Vũng Tàu Bãi Sau
-              </button>
-              <button
-                type="button"
-                (click)="selectCategoryQuickTag('Hà Nội')"
-                class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] transition-colors border border-white/10 cursor-pointer"
-              >
-                🏛️ Hà Nội Phố Cổ
-              </button>
+              <div>
+                <h1 class="font-serif text-3xl sm:text-5xl lg:text-[52px] font-normal text-[#FBF9F5] tracking-tight leading-[1.12]">
+                  Khám Phá Kỳ Nghỉ Tinh Hoa Giữa Lòng <span class="italic text-amber-200 font-serif">Di Sản Việt Nam</span>
+                </h1>
+              </div>
+
+              <p class="text-sm sm:text-base text-stone-200/90 max-w-xl font-sans leading-relaxed">
+                Trải nghiệm 34+ khách sạn boutique, villa săn mây và resort ven biển cao cấp từ Sa Pa, Hạ Long đến Đà Lạt &amp; Phú Quốc. Minh bạch phòng trống thực tế và hỗ trợ giữ phòng tức thì.
+              </p>
+
+              <!-- Quick Category Tags -->
+              <div class="pt-1 flex flex-wrap items-center gap-2 text-xs">
+                <span class="text-stone-300 text-[11px] font-medium mr-1">Gợi ý điểm đến:</span>
+                <button
+                  type="button"
+                  (click)="selectCategoryQuickTag('Đà Lạt')"
+                  class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xs font-medium transition-all border border-white/15 cursor-pointer flex items-center gap-1.5 backdrop-blur-sm"
+                >
+                  <span>🌸 Đà Lạt Săn Mây</span>
+                </button>
+                <button
+                  type="button"
+                  (click)="selectCategoryQuickTag('Phú Quốc')"
+                  class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xs font-medium transition-all border border-white/15 cursor-pointer flex items-center gap-1.5 backdrop-blur-sm"
+                >
+                  <span>🏝️ Đảo Ngọc Phú Quốc</span>
+                </button>
+                <button
+                  type="button"
+                  (click)="selectCategoryQuickTag('Đà Nẵng')"
+                  class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xs font-medium transition-all border border-white/15 cursor-pointer flex items-center gap-1.5 backdrop-blur-sm"
+                >
+                  <span>🌉 Đà Nẵng Biển Mỹ Khê</span>
+                </button>
+                <button
+                  type="button"
+                  (click)="selectCategoryQuickTag('Vũng Tàu')"
+                  class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xs font-medium transition-all border border-white/15 cursor-pointer flex items-center gap-1.5 backdrop-blur-sm"
+                >
+                  <span>🌊 Vũng Tàu Bãi Sau</span>
+                </button>
+                <button
+                  type="button"
+                  (click)="selectCategoryQuickTag('Hà Nội')"
+                  class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xs font-medium transition-all border border-white/15 cursor-pointer flex items-center gap-1.5 backdrop-blur-sm"
+                >
+                  <span>🏛️ Hà Nội Phố Cổ</span>
+                </button>
+              </div>
+
+              <!-- Quick Trust Indicators Strip -->
+              <div class="pt-3 flex flex-wrap items-center gap-4 sm:gap-6 text-xs text-stone-300 font-medium border-t border-white/10">
+                <span class="flex items-center gap-1.5">
+                  <i class="pi pi-clock text-amber-400 text-xs"></i>
+                  <span>Giữ phòng 15 phút không cần thẻ</span>
+                </span>
+                <span class="flex items-center gap-1.5">
+                  <i class="pi pi-key text-emerald-400 text-xs"></i>
+                  <span>Mã PIN khóa phòng bảo mật</span>
+                </span>
+                <span class="flex items-center gap-1.5">
+                  <i class="pi pi-shield text-amber-300 text-xs"></i>
+                  <span>Hoàn cọc 24h minh bạch</span>
+                </span>
+              </div>
             </div>
+
+            <!-- RIGHT COLUMN: CURATED HERO VISUAL SHOWCASE CARD -->
+            <div class="lg:col-span-5 hidden lg:block">
+              <div class="relative group">
+                <!-- Ambient glow halo -->
+                <div class="absolute -inset-1 bg-gradient-to-r from-amber-500/25 via-emerald-500/20 to-amber-600/25 rounded-3xl blur-xl opacity-70 group-hover:opacity-100 transition duration-700 pointer-events-none"></div>
+
+                <!-- Glass showcase container -->
+                <div class="relative bg-white/10 backdrop-blur-md rounded-3xl border border-white/20 p-3.5 shadow-2xl overflow-hidden transition-all duration-500 group-hover:-translate-y-1">
+                  <!-- Main Resort Image -->
+                  <div class="relative h-[270px] rounded-2xl overflow-hidden">
+                    <img
+                      src="/images/danang-ocean-suites.png"
+                      alt="Da Nang Ocean Suites &amp; Villas"
+                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                    />
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent"></div>
+
+                    <!-- Top Badges -->
+                    <div class="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+                      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/55 backdrop-blur-md border border-white/25 text-white text-[11px] font-bold shadow-xs">
+                        <i class="pi pi-star-fill text-amber-400 text-[10px]"></i>
+                        <span>Bộ Sưu Tập Tiêu Biểu 2026</span>
+                      </span>
+                      <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-600/90 backdrop-blur-md text-white text-[11px] font-bold shadow-xs">
+                        <i class="pi pi-verified text-[10px]"></i>
+                        <span>Đã Kiểm Định</span>
+                      </span>
+                    </div>
+
+                    <!-- Bottom Info Overlay -->
+                    <div class="absolute bottom-3 left-3 right-3 text-white space-y-1">
+                      <div class="text-[11px] font-semibold text-amber-200 tracking-wider flex items-center gap-1">
+                        <i class="pi pi-map-marker text-[10px]"></i>
+                        <span>Đà Nẵng • Bãi biển Mỹ Khê</span>
+                      </div>
+                      <h3 class="font-serif text-lg font-bold text-white tracking-tight leading-snug">
+                        Da Nang Ocean Suites &amp; Spa Resort
+                      </h3>
+                      <div class="flex items-center justify-between pt-1">
+                        <div class="text-xs text-stone-200">
+                          <span>Giá từ: </span>
+                          <span class="font-mono font-bold text-amber-300 text-sm">1.250.000 ₫</span>
+                          <span class="text-[10px] text-stone-300"> / đêm</span>
+                        </div>
+                        <button
+                          type="button"
+                          (click)="selectCategoryQuickTag('Đà Nẵng')"
+                          class="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-stone-950 font-bold text-xs transition-colors cursor-pointer shadow-sm flex items-center gap-1"
+                        >
+                          <span>Khám phá</span>
+                          <i class="pi pi-arrow-right text-[10px]"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Micro-Stats Footer -->
+                  <div class="px-2 pt-3 pb-1 flex items-center justify-between text-xs text-stone-200">
+                    <div class="flex items-center gap-2">
+                      <div class="flex items-center text-amber-400 text-xs">
+                        <i class="pi pi-star-fill"></i>
+                        <i class="pi pi-star-fill"></i>
+                        <i class="pi pi-star-fill"></i>
+                        <i class="pi pi-star-fill"></i>
+                        <i class="pi pi-star-fill"></i>
+                      </div>
+                      <span class="font-bold text-white">4.9/5</span>
+                      <span class="text-stone-300 text-[11px]">(480+ đánh giá thực tế)</span>
+                    </div>
+                    <span class="text-amber-200/95 text-[11px] font-semibold flex items-center gap-1">
+                      <i class="pi pi-shield text-[10px]"></i> An tâm 100%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
 
           <!-- Component Thanh Tìm Kiếm -->
