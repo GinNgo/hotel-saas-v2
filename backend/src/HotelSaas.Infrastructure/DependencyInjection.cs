@@ -49,6 +49,9 @@ public static class DependencyInjection
         services.AddScoped<IJwtService, JwtService>();
         services.AddSingleton<ILocationLookupService, LocationLookupService>();
         services.AddScoped<IVnpayPaymentService, VnpayPaymentService>();
+        services.AddScoped<IVietQrService, VietQrService>();
+        services.AddSignalR();
+        services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
 
         return services;
     }

@@ -24,7 +24,7 @@ export interface TravelLifestyle {
           <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold uppercase tracking-wider mb-2">
             <i class="pi pi-compass"></i> Trải Nghiệm Tuyển Chọn
           </span>
-          <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+          <h2 class="font-serif text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Khám Phá Theo Phong Cách Nghỉ Dưỡng
           </h2>
           <p class="text-xs sm:text-sm text-slate-500 mt-1">
@@ -60,7 +60,7 @@ export interface TravelLifestyle {
               >
                 {{ item.badge }}
               </span>
-              <span class="text-[11px] font-bold text-amber-300 bg-black/40 backdrop-blur-md px-2 py-0.5 rounded-md">
+              <span class="text-[11px] font-mono font-bold text-amber-300 bg-black/40 backdrop-blur-md px-2 py-0.5 rounded-md">
                 Từ {{ item.startPrice }}
               </span>
             </div>

@@ -29,7 +29,7 @@ export interface DealPromo {
             </span>
             <span class="text-xs text-slate-400 font-medium">Áp dụng trực tiếp tại bước thanh toán</span>
           </div>
-          <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+          <h2 class="font-serif text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
             Voucher Độc Quyền &amp; Ưu Đãi Thành Viên
           </h2>
           <p class="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">

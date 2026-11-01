@@ -20,6 +20,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HotelSaas.WebApi.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/guest")]
 [Produces("application/json")]
@@ -44,9 +45,24 @@ public class GuestPortalController : BaseApiController
     /// Cập nhật họ tên của tài khoản khách đang đăng nhập (Contract Gate G3 / US3).
     /// </summary>
     [HttpPatch("me")]
-    public async Task<ActionResult<ApiResponse<GuestMeDto>>> UpdateMe([FromBody] UpdateGuestProfileRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<GuestMeDto>>> UpdateMe([FromBody] UpdateGuestProfileRequest? request, CancellationToken cancellationToken)
     {
-        var result = await Mediator.Send(new UpdateGuestProfileCommand(request.FullName), cancellationToken);
+        if (request is null)
+        {
+            return BadRequest(ApiResponse.Fail("ERR_INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ."));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.FullName))
+        {
+            return BadRequest(ApiResponse.Fail("ERR_FULLNAME_REQUIRED", "Họ và tên không được để trống."));
+        }
+
+        if (request.FullName.Trim().Length < 2 || request.FullName.Trim().Length > 100)
+        {
+            return BadRequest(ApiResponse.Fail("ERR_FULLNAME_LENGTH", "Họ và tên phải từ 2 đến 100 ký tự."));
+        }
+
+        var result = await Mediator.Send(new UpdateGuestProfileCommand(request.FullName.Trim()), cancellationToken);
         return OkResponse(result, "Cập nhật hồ sơ tài khoản thành công.");
     }
 

@@ -22,7 +22,9 @@ public sealed record VnpayVerificationResult(
     string? TransactionNo,
     string? TxnRef,
     decimal Amount,
-    string? Message
+    string? Message,
+    bool IsSignatureValid = false,
+    bool IsSuccess = false
 );
 
 /// <summary>

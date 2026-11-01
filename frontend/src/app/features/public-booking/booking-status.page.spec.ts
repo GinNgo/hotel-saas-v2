@@ -958,24 +958,20 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
       expect(compiled.textContent).not.toContain('Mã Mở Khóa Cửa Điện Tử');
     });
 
-    // 32. Phương thức thanh toán: Hiển thị thông báo trung tính khi chưa khả dụng, không hiển thị nút CTA giả bị vô hiệu hóa
-    it('32. should display online payment as unavailable without fake disabled CTA button and not emit payment request', () => {
+    // 32. Phương thức thanh toán: Hiển thị VietQR NAPAS 24/7 và cổng VNPay khi Chờ thanh toán
+    it('32. should display VietQR NAPAS 24/7 and VNPay options when status is PendingPayment', () => {
       mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
       component.fetchBooking('tok-token-aaa');
       fixture.detectChanges();
 
       const compiled = fixture.nativeElement as HTMLElement;
-      expect(compiled.textContent).toContain('Thanh toán trực tuyến hiện chưa khả dụng');
-      expect(compiled.textContent).toContain('Quý khách vui lòng liên hệ trực tiếp quầy Lễ tân');
+      expect(compiled.textContent).toContain('Thanh toán qua VietQR NAPAS 24/7 hoặc VNPay');
+      expect(compiled.textContent).toContain('MB Bank: 0345678910');
+      expect(compiled.textContent).toContain('Thanh toán Cổng VNPAY');
 
-      // Không hiển thị nút bấm CTA giả bị vô hiệu hóa chiếm chiều ngang
-      const disabledCta = compiled.querySelector('button[disabled]');
-      expect(disabledCta).toBeNull();
-
+      mockBookingService.createVnpayPaymentUrl = vi.fn().mockReturnValue(of({ paymentUrl: 'https://sandbox.vnpayment.vn/test' }));
       component.payWithVnpay();
-      expect(mockAlertService.toastWarning).toHaveBeenCalledWith(
-        expect.stringContaining('Cổng thanh toán VNPay trực tuyến hiện chưa khả dụng')
-      );
+      expect(mockBookingService.createVnpayPaymentUrl).toHaveBeenCalled();
     });
 
     // 33. Query string VNPay không tự ý thay đổi trạng thái booking thành đã thanh toán
@@ -1364,6 +1360,39 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
 
       component.resetToSearch();
       expect(component.isCodeCopied()).toBe(false);
+    });
+
+    // 56. Guest Reviews: Hiển thị form đánh giá xác thực khi status là CheckedOut
+    it('56. should render guest review submission form when status is CheckedOut and handle submission', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of({ ...sampleBookingB, status: 'CheckedOut' }));
+      component.fetchBooking('tok-token-bbb');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Đánh giá kỳ nghỉ của bạn');
+      expect(compiled.textContent).toContain('Đánh giá xác thực 100%');
+      expect(compiled.textContent).toContain('Gửi đánh giá xác thực');
+
+      // Test submit review
+      mockBookingService.submitReview = vi.fn().mockReturnValue(of({
+        id: 'rev-1',
+        guestName: 'Nguyễn Văn A',
+        rating: 5,
+        comment: 'Phòng rất đẹp và sạch sẽ!',
+        createdAt: new Date().toISOString(),
+        rentalType: 'Daily'
+      }));
+
+      component.reviewComment.set('Phòng rất đẹp và sạch sẽ!');
+      component.submitGuestReview();
+      fixture.detectChanges();
+
+      expect(component.reviewSubmitted()).toBe(true);
+      expect(mockAlertService.success).toHaveBeenCalledWith(
+        expect.stringContaining('Đánh giá của bạn đã được ghi nhận'),
+        expect.any(String)
+      );
+      expect(compiled.textContent).toContain('Cảm ơn bạn đã gửi đánh giá!');
     });
   });
 });

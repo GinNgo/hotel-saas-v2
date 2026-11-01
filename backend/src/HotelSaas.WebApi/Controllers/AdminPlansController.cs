@@ -17,6 +17,7 @@ namespace HotelSaas.WebApi.Controllers;
 /// Quản trị gói cước SaaS dành cho Quản trị viên hệ thống (SuperAdmin / PlatformAdmin).
 /// Hỗ trợ CRUD cấu hình gói, định mức tài nguyên (Phòng, Cơ sở, Nhân viên), tính năng và trạng thái kích hoạt.
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/admin/plans")]
 [Produces("application/json")]

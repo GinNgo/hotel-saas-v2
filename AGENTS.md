@@ -9,7 +9,7 @@ This document establishes the technical specifications, coding standards, and ar
 
 The system adheres strictly to **Clean Architecture** and **Domain-Driven Design (DDD)** principles across four isolated layers:
 
-`
+```
 [ Domain Layer ]  <-- Core entities, enums, domain exceptions, domain events (Zero dependencies)
        ^
 [ Application Layer ] <-- CQRS Commands/Queries, MediatR Handlers, FluentValidation, Interfaces
@@ -17,7 +17,7 @@ The system adheres strictly to **Clean Architecture** and **Domain-Driven Design
 [ Infrastructure Layer ] <-- EF Core, DbContext, Migrations, External Integrations, Background Jobs
        ^
 [ WebApi / Presentation Layer ] <-- ASP.NET Core Minimal APIs / Controllers, Middlewares, Auth
-`
+```
 
 ### Invariant Architectural Rules:
 1. **Dependency Inversion:** Outer layers depend on inner layers; inner layers never depend on outer layers.
@@ -59,7 +59,7 @@ The platform is an enterprise-grade multi-tenant PMS & booking engine. Cross-ten
 3. **Service Layer Isolation:**
    - Never inject HttpClient directly into components.
    - All network operations must be encapsulated in dedicated services in src/app/core/services/.
-4. **Type Safety:** Maintain strict TypeScript typing. Do not use ny.
+4. **Type Safety:** Maintain strict TypeScript typing. Do not use any.
 
 ---
 
@@ -67,18 +67,39 @@ The platform is an enterprise-grade multi-tenant PMS & booking engine. Cross-ten
 
 Contributions follow a standard **Trunk-based Development Workflow**:
 
-`
+```
 feature/<feature-name>  ──>  Pull Request  ──>  Code Review  ──>  develop  ──>  main
-`
+```
+
+### Invariant Git Rule: Git-First Synchronization (Check & Pull Before Action)
+Mọi AI Agent và kỹ sư phần mềm **BẮT BUỘC** phải tuân thủ quy trình kiểm tra và đồng bộ Git trước khi bắt đầu bất kỳ hành động phân tích sâu, viết code, sửa lỗi, refactor hay tạo mới tính năng nào:
+1. **Kiểm tra trạng thái (Status Check):**
+   - Luôn chạy `git status` và `git branch -vv` đầu tiên để xác định rõ nhánh đang đứng và tình trạng working tree.
+2. **Kéo dữ liệu mới nhất (Pull Latest Changes):**
+   - Luôn kiểm tra remote và kéo mã nguồn mới nhất:
+     ```bash
+     git fetch origin
+     git pull origin <current-branch>
+     ```
+   - Nếu chuẩn bị bắt đầu một tính năng mới từ nhánh cơ sở (`develop`), phải checkout sang `develop` và pull mới nhất trước khi rẽ nhánh:
+     ```bash
+     git checkout develop
+     git pull origin develop
+     git checkout -b feature/<feature-name>
+     ```
+3. **Bảo toàn thay đổi dở dang (Stash / Commit Safely):**
+   - Tuyệt đối không để xảy ra xung đột hoặc mất mát mã nguồn do kéo đè khi working tree có thay đổi chưa lưu. Nếu có uncommitted changes, phải `git stash` hoặc commit tạm trước khi pull, sau đó apply lại và giải quyết xung đột (nếu có) trước khi bắt đầu tác vụ mới.
+4. **Cấm làm việc trên mã nguồn lỗi thời (Fail-Closed on Stale Code):**
+   - Tuyệt đối không can thiệp, chỉnh sửa hay phân tích trên bản sao mã nguồn cũ khi chưa chắc chắn local đã đồng bộ 100% với remote trên GitHub.
 
 ### Commit Message Convention:
 Follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
-* eat(<scope>): <description> — New feature implementation.
-* ix(<scope>): <description> — Bug fix.
-* efactor(<scope>): <description> — Code reorganization without functional changes.
-* 	est(<scope>): <description> — Adding or updating test suites.
-* docs(<scope>): <description> — Documentation updates.
-* chore(<scope>): <description> — Tooling, dependencies, or configuration changes.
+* `feat(<scope>): <description>` — New feature implementation.
+* `fix(<scope>): <description>` — Bug fix.
+* `refactor(<scope>): <description>` — Code reorganization without functional changes.
+* `test(<scope>): <description>` — Adding or updating test suites.
+* `docs(<scope>): <description>` — Documentation updates.
+* `chore(<scope>): <description>` — Tooling, dependencies, or configuration changes.
 
 ---
 
@@ -86,14 +107,14 @@ Follow the [Conventional Commits](https://www.conventionalcommits.org/) specific
 
 Before committing any changes, verify that the solution passes all automated quality gates:
 
-`ash
+```bash
 # 1. Backend Verification (.NET 10)
 dotnet build backend/HotelSaas.slnx --verbosity minimal
 dotnet test backend/HotelSaas.slnx --no-build
 
 # 2. Frontend Verification (Angular 22)
 npm --prefix frontend run build
-`
+```
 
 **Quality Acceptance Criteria:**
 - 0 Build Errors, 0 Build Warnings.
@@ -115,4 +136,3 @@ npm --prefix frontend run build
      * Rotates, modifies, or alters database passwords, API credentials, or secret keys.
      * Alters database users, permissions, access roles, or drops/resets database structures.
      * Shares or persists sensitive configuration outside local developer machines.
-
