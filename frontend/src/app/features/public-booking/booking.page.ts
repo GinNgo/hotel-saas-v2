@@ -54,6 +54,7 @@ interface TenantBrandFacet {
   imports: [
     CommonModule,
     FormsModule,
+    RouterLink,
     BookingFilterBarComponent,
     PopularDestinationsComponent,
     FlashDealsBannerComponent,
@@ -66,18 +67,14 @@ interface TenantBrandFacet {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="min-h-screen bg-[#FBF9F5] pb-20 font-sans">
-      <!-- HERO BANNER & THANH TÌM KIẾM ĐA NĂNG (MODERN EDITORIAL HOSPITALITY) -->
-      <div
-        class="bg-gradient-to-br from-[#061C18] via-[#0A2923] to-[#0E352C] text-amber-50 pt-14 pb-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden border-b border-[#1A453D]/80"
+    <div class="min-h-screen bg-[#FBF9F5] pb-24 font-sans text-slate-800">
+      <!-- 1. HERO BANNER & THANH TÌM KIẾM ĐA NĂNG (SEAMLESS LIGHT CONTEMPORARY LUXURY) -->
+      <section
+        class="bg-gradient-to-b from-white via-slate-50/90 to-stone-100/60 text-slate-900 pt-8 sm:pt-12 pb-12 sm:pb-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden border-b border-slate-200/80"
       >
-        <!-- Background subtle photographic overlay with low opacity -->
-        <div class="absolute inset-0 bg-[url('/images/danang-ocean-suites.png')] bg-cover bg-center opacity-10 mix-blend-luminosity pointer-events-none"></div>
-        <div class="absolute inset-0 bg-gradient-to-r from-[#061C18] via-[#061C18]/90 to-[#061C18]/70 pointer-events-none"></div>
-
-        <!-- Ambient lighting glows -->
-        <div class="absolute top-0 right-1/4 w-[480px] h-[320px] bg-amber-500/10 blur-[130px] rounded-full pointer-events-none"></div>
-        <div class="absolute bottom-0 left-10 w-[320px] h-[220px] bg-emerald-500/10 blur-[110px] rounded-full pointer-events-none"></div>
+        <!-- Subtle ambient radial warm glow -->
+        <div class="absolute top-0 right-1/4 w-[500px] h-[350px] bg-amber-500/5 blur-[120px] rounded-full pointer-events-none"></div>
+        <div class="absolute bottom-0 left-10 w-[350px] h-[250px] bg-indigo-500/5 blur-[100px] rounded-full pointer-events-none"></div>
 
         <div class="max-w-7xl mx-auto relative z-10">
           <!-- 2-COLUMN HERO HEADER & VISUAL SHOWCASE -->
@@ -85,76 +82,76 @@ interface TenantBrandFacet {
             
             <!-- LEFT COLUMN: EDITORIAL HEADLINE & DESTINATION PILLS -->
             <div class="lg:col-span-7 space-y-4">
-              <div class="inline-flex items-center gap-2.5 px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-amber-200 text-xs font-semibold tracking-wide shadow-xs">
+              <div class="inline-flex items-center gap-2.5 px-3.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-800 text-xs font-bold tracking-wide shadow-2xs">
                 <span class="flex h-2 w-2 relative">
-                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
                 </span>
-                <span>Hệ Thống Đặt Phòng &amp; Nghỉ Dưỡng Di Sản Việt Nam</span>
+                <span>Nền Tảng Đặt Phòng &amp; Nghỉ Dưỡng Di Sản Việt Nam</span>
               </div>
 
               <div>
-                <h1 class="font-serif text-3xl sm:text-5xl lg:text-[52px] font-normal text-[#FBF9F5] tracking-tight leading-[1.12]">
-                  Khám Phá Kỳ Nghỉ Tinh Hoa Giữa Lòng <span class="italic text-amber-200 font-serif">Di Sản Việt Nam</span>
+                <h1 class="font-serif text-3xl sm:text-5xl lg:text-[52px] font-black text-slate-950 tracking-tight leading-[1.12]">
+                  Khám Phá Kỳ Nghỉ Tinh Hoa Giữa Lòng <span class="italic text-amber-600 font-serif">Di Sản Việt Nam</span>
                 </h1>
               </div>
 
-              <p class="text-sm sm:text-base text-stone-200/90 max-w-xl font-sans leading-relaxed">
+              <p class="text-sm sm:text-base text-slate-600 max-w-xl font-sans leading-relaxed">
                 Trải nghiệm 34+ khách sạn boutique, villa săn mây và resort ven biển cao cấp từ Sa Pa, Hạ Long đến Đà Lạt &amp; Phú Quốc. Minh bạch phòng trống thực tế và hỗ trợ giữ phòng tức thì.
               </p>
 
               <!-- Quick Category Tags -->
               <div class="pt-1 flex flex-wrap items-center gap-2 text-xs">
-                <span class="text-stone-300 text-[11px] font-medium mr-1">Gợi ý điểm đến:</span>
+                <span class="text-slate-500 text-xs font-semibold mr-1">Gợi ý điểm đến:</span>
                 <button
                   type="button"
                   (click)="selectCategoryQuickTag('Đà Lạt')"
-                  class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xs font-medium transition-all border border-white/15 cursor-pointer flex items-center gap-1.5 backdrop-blur-sm"
+                  class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
                 >
                   <span>🌸 Đà Lạt Săn Mây</span>
                 </button>
                 <button
                   type="button"
                   (click)="selectCategoryQuickTag('Phú Quốc')"
-                  class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xs font-medium transition-all border border-white/15 cursor-pointer flex items-center gap-1.5 backdrop-blur-sm"
+                  class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
                 >
                   <span>🏝️ Đảo Ngọc Phú Quốc</span>
                 </button>
                 <button
                   type="button"
                   (click)="selectCategoryQuickTag('Đà Nẵng')"
-                  class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xs font-medium transition-all border border-white/15 cursor-pointer flex items-center gap-1.5 backdrop-blur-sm"
+                  class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
                 >
                   <span>🌉 Đà Nẵng Biển Mỹ Khê</span>
                 </button>
                 <button
                   type="button"
                   (click)="selectCategoryQuickTag('Vũng Tàu')"
-                  class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xs font-medium transition-all border border-white/15 cursor-pointer flex items-center gap-1.5 backdrop-blur-sm"
+                  class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
                 >
                   <span>🌊 Vũng Tàu Bãi Sau</span>
                 </button>
                 <button
                   type="button"
                   (click)="selectCategoryQuickTag('Hà Nội')"
-                  class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xs font-medium transition-all border border-white/15 cursor-pointer flex items-center gap-1.5 backdrop-blur-sm"
+                  class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
                 >
                   <span>🏛️ Hà Nội Phố Cổ</span>
                 </button>
               </div>
 
               <!-- Quick Trust Indicators Strip -->
-              <div class="pt-3 flex flex-wrap items-center gap-4 sm:gap-6 text-xs text-stone-300 font-medium border-t border-white/10">
-                <span class="flex items-center gap-1.5">
-                  <i class="pi pi-clock text-amber-400 text-xs"></i>
+              <div class="pt-3 flex flex-wrap items-center gap-4 sm:gap-6 text-xs text-slate-500 font-medium border-t border-slate-200/80">
+                <span class="flex items-center gap-1.5 text-slate-700">
+                  <i class="pi pi-clock text-amber-600 text-xs"></i>
                   <span>Giữ phòng 15 phút không cần thẻ</span>
                 </span>
-                <span class="flex items-center gap-1.5">
-                  <i class="pi pi-key text-emerald-400 text-xs"></i>
+                <span class="flex items-center gap-1.5 text-slate-700">
+                  <i class="pi pi-key text-emerald-600 text-xs"></i>
                   <span>Mã PIN khóa phòng bảo mật</span>
                 </span>
-                <span class="flex items-center gap-1.5">
-                  <i class="pi pi-shield text-amber-300 text-xs"></i>
+                <span class="flex items-center gap-1.5 text-slate-700">
+                  <i class="pi pi-shield text-indigo-600 text-xs"></i>
                   <span>Hoàn cọc 24h minh bạch</span>
                 </span>
               </div>
@@ -163,27 +160,27 @@ interface TenantBrandFacet {
             <!-- RIGHT COLUMN: CURATED HERO VISUAL SHOWCASE CARD -->
             <div class="lg:col-span-5 hidden lg:block">
               <div class="relative group">
-                <!-- Ambient glow halo -->
-                <div class="absolute -inset-1 bg-gradient-to-r from-amber-500/25 via-emerald-500/20 to-amber-600/25 rounded-3xl blur-xl opacity-70 group-hover:opacity-100 transition duration-700 pointer-events-none"></div>
+                <!-- Soft glow halo -->
+                <div class="absolute -inset-1 bg-gradient-to-r from-amber-500/15 via-slate-400/10 to-indigo-500/15 rounded-3xl blur-xl opacity-70 group-hover:opacity-100 transition duration-500 pointer-events-none"></div>
 
-                <!-- Glass showcase container -->
-                <div class="relative bg-white/10 backdrop-blur-md rounded-3xl border border-white/20 p-3.5 shadow-2xl overflow-hidden transition-all duration-500 group-hover:-translate-y-1">
+                <!-- Showcase container -->
+                <div class="relative bg-white rounded-3xl border border-slate-200/90 p-3.5 shadow-xl overflow-hidden transition-all duration-500 group-hover:-translate-y-1 group-hover:shadow-2xl">
                   <!-- Main Resort Image -->
-                  <div class="relative h-[270px] rounded-2xl overflow-hidden">
+                  <div class="relative h-[270px] rounded-2xl overflow-hidden bg-slate-100">
                     <img
                       src="/images/danang-ocean-suites.png"
                       alt="Da Nang Ocean Suites &amp; Villas"
                       class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                     />
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent"></div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent"></div>
 
                     <!-- Top Badges -->
                     <div class="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
-                      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/55 backdrop-blur-md border border-white/25 text-white text-[11px] font-bold shadow-xs">
+                      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-xs text-white text-[11px] font-bold shadow-xs">
                         <i class="pi pi-star-fill text-amber-400 text-[10px]"></i>
                         <span>Bộ Sưu Tập Tiêu Biểu 2026</span>
                       </span>
-                      <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-600/90 backdrop-blur-md text-white text-[11px] font-bold shadow-xs">
+                      <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-600 text-white text-[11px] font-bold shadow-xs">
                         <i class="pi pi-verified text-[10px]"></i>
                         <span>Đã Kiểm Định</span>
                       </span>
@@ -207,7 +204,7 @@ interface TenantBrandFacet {
                         <button
                           type="button"
                           (click)="selectCategoryQuickTag('Đà Nẵng')"
-                          class="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-stone-950 font-bold text-xs transition-colors cursor-pointer shadow-sm flex items-center gap-1"
+                          class="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-bold text-xs transition-colors cursor-pointer shadow-xs flex items-center gap-1"
                         >
                           <span>Khám phá</span>
                           <i class="pi pi-arrow-right text-[10px]"></i>
@@ -217,19 +214,19 @@ interface TenantBrandFacet {
                   </div>
 
                   <!-- Micro-Stats Footer -->
-                  <div class="px-2 pt-3 pb-1 flex items-center justify-between text-xs text-stone-200">
+                  <div class="px-2 pt-3 pb-1 flex items-center justify-between text-xs text-slate-600">
                     <div class="flex items-center gap-2">
-                      <div class="flex items-center text-amber-400 text-xs">
+                      <div class="flex items-center text-amber-500 text-xs">
                         <i class="pi pi-star-fill"></i>
                         <i class="pi pi-star-fill"></i>
                         <i class="pi pi-star-fill"></i>
                         <i class="pi pi-star-fill"></i>
                         <i class="pi pi-star-fill"></i>
                       </div>
-                      <span class="font-bold text-white">4.9/5</span>
-                      <span class="text-stone-300 text-[11px]">(480+ đánh giá thực tế)</span>
+                      <span class="font-bold text-slate-900">4.9/5</span>
+                      <span class="text-slate-500 text-[11px]">(480+ đánh giá thực tế)</span>
                     </div>
-                    <span class="text-amber-200/95 text-[11px] font-semibold flex items-center gap-1">
+                    <span class="text-emerald-700 text-[11px] font-bold flex items-center gap-1">
                       <i class="pi pi-shield text-[10px]"></i> An tâm 100%
                     </span>
                   </div>
@@ -246,28 +243,192 @@ interface TenantBrandFacet {
             (filterChange)="onFilterBarChange($event)"
           />
         </div>
-      </div>
+      </section>
 
-      <!-- NỘI DUNG CHÍNH -->
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        <!-- Khối Flash Deals & Voucher độc quyền hôm nay -->
-        <app-flash-deals-banner (applyCode)="onApplyPromoCode($event)" />
+      <!-- 2. NỘI DUNG CHÍNH (STREAMLINED & CUSTOMER FOCUS) -->
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 space-y-14">
 
-        <!-- Điểm đến & Khu du lịch nổi bật -->
-        <div class="mb-8">
-          <app-popular-destinations
-            (selectDestination)="onPopularDestinationClick($event)"
-          />
-        </div>
+        <!-- SECTION 1: BỘ SƯU TẬP CƠ SỞ NGHỈ DƯỠNG NỔI BẬT (FOCUS CHÍNH CỦA KHÁCH HÀNG) -->
+        <section id="featuredAccommodationsSection" aria-label="Khách sạn và khu nghỉ dưỡng nổi bật">
+          <div class="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4 border-b border-slate-200/80 pb-4">
+            <div>
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-widest uppercase bg-amber-500/10 text-amber-700 border border-amber-500/20">
+                  <i class="pi pi-crown text-[10px] text-amber-600"></i>
+                  Lựa Chọn Hàng Đầu
+                </span>
+                <span class="text-xs text-slate-500 font-medium">34+ cơ sở lưu trú đã kiểm định phòng trống</span>
+              </div>
+              <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-serif">
+                Khu Nghỉ Dưỡng &amp; Khách Sạn Nổi Bật
+              </h2>
+              <p class="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">
+                Các điểm lưu trú được du khách đánh giá cao nhất, phòng ốc tiện nghi và chính sách giữ phòng tức thì 15 phút.
+              </p>
+            </div>
 
-        <!-- Bento Grid Khám Phá Theo Phong Cách Nghỉ Dưỡng -->
+            <div class="flex items-center gap-3">
+              <a
+                routerLink="/booking/explore"
+                [queryParams]="searchFilter()"
+                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+              >
+                <span>Xem tất cả cơ sở</span>
+                <i class="pi pi-arrow-right text-[10px]"></i>
+              </a>
+            </div>
+          </div>
+
+          <!-- Grid các thẻ khách sạn nổi bật -->
+          @if (isLoading()) {
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              @for (item of [1, 2, 3, 4, 5, 6]; track item) {
+                <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs animate-pulse">
+                  <div class="h-48 bg-slate-200"></div>
+                  <div class="p-5 space-y-3">
+                    <div class="h-4 bg-slate-200 rounded w-1/3"></div>
+                    <div class="h-6 bg-slate-200 rounded w-3/4"></div>
+                    <div class="h-4 bg-slate-200 rounded w-1/2"></div>
+                    <div class="pt-3 border-t border-slate-100 flex justify-between items-center">
+                      <div class="h-5 bg-slate-200 rounded w-1/3"></div>
+                      <div class="h-8 bg-slate-200 rounded w-1/4"></div>
+                    </div>
+                  </div>
+                </div>
+              }
+            </div>
+          } @else if (filteredProperties().length > 0) {
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              @for (property of filteredProperties().slice(0, 6); track property.propertyId) {
+                <article
+                  class="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-xs hover:shadow-xl hover:border-amber-300 transition-all duration-300 flex flex-col group"
+                >
+                  <!-- Ảnh Thumbnail & Huy hiệu -->
+                  <div class="relative h-52 w-full overflow-hidden bg-slate-100">
+                    <img
+                      [src]="property.thumbnailUrl || '/images/danang-ocean-suites.png'"
+                      [alt]="property.name"
+                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+                      loading="lazy"
+                    />
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none"></div>
+
+                    <!-- Top Badges -->
+                    <div class="absolute top-3 left-3 right-3 flex items-center justify-between">
+                      <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white">
+                        {{ property.propertyTypeName || property.propertyType }}
+                      </span>
+                      @if (property.starRating && property.starRating >= 4) {
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950 flex items-center gap-1 shadow-2xs">
+                          <i class="pi pi-star-fill text-[9px]"></i>
+                          <span>{{ property.starRating }}★</span>
+                        </span>
+                      }
+                    </div>
+
+                    <!-- Nút mở album ảnh -->
+                    @if (property.galleryUrls.length > 0 || property.thumbnailUrl) {
+                      <button
+                        type="button"
+                        (click)="openPhotoGallery(property)"
+                        class="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-black/60 hover:bg-black/80 backdrop-blur-xs text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                        title="Xem toàn bộ album ảnh"
+                      >
+                        <i class="pi pi-images text-xs"></i>
+                        <span>Xem ảnh</span>
+                      </button>
+                    }
+                  </div>
+
+                  <!-- Nội dung Thẻ Khách Sạn -->
+                  <div class="p-5 flex-1 flex flex-col justify-between space-y-4">
+                    <div class="space-y-1.5">
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="text-[11px] font-bold text-amber-800 uppercase tracking-wider truncate">
+                          {{ property.tenantBrandName }}
+                        </span>
+                        @if (property.ratingAverage > 0) {
+                          <span class="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                            <i class="pi pi-star-fill text-amber-500 text-[10px]"></i>
+                            <span>{{ property.ratingAverage }}</span>
+                            @if (property.reviewCount > 0) {
+                              <span class="text-[10px] text-slate-500">({{ property.reviewCount }})</span>
+                            }
+                          </span>
+                        }
+                      </div>
+
+                      <h3 class="font-serif text-lg font-bold text-slate-900 group-hover:text-amber-800 transition-colors line-clamp-1">
+                        <a [routerLink]="['/booking/properties', property.slug]" [queryParams]="searchFilter()">
+                          {{ property.name }}
+                        </a>
+                      </h3>
+
+                      <p class="text-xs text-slate-500 flex items-center gap-1.5 line-clamp-1">
+                        <i class="pi pi-map-marker text-amber-600 text-xs shrink-0"></i>
+                        <span>{{ getPropertyAddress(property) }}</span>
+                      </p>
+                    </div>
+
+                    <!-- Chân thẻ: Giá & Nút Đặt Phòng -->
+                    <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+                      <div>
+                        <span class="text-[10px] text-slate-500 block uppercase font-medium">Giá chỉ từ</span>
+                        @if (property.startingPriceForSelectedMode > 0) {
+                          <div class="flex items-baseline gap-1">
+                            <span class="font-mono text-base sm:text-lg font-extrabold text-slate-900">
+                              {{ property.startingPriceForSelectedMode | number:'1.0-0' }} ₫
+                            </span>
+                            <span class="text-[11px] text-slate-500">
+                              / {{ searchFilter().rentalType === 'Hourly' ? 'giờ' : (searchFilter().rentalType === 'Overnight' ? 'đêm' : 'ngày') }}
+                            </span>
+                          </div>
+                        } @else {
+                          <span class="text-xs text-slate-500 italic">Liên hệ xem phòng</span>
+                        }
+                      </div>
+
+                      <a
+                        [routerLink]="['/booking/properties', property.slug]"
+                        [queryParams]="searchFilter()"
+                        class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-bold transition-colors cursor-pointer shadow-2xs shrink-0 flex items-center gap-1"
+                      >
+                        <span>Xem phòng</span>
+                        <i class="pi pi-chevron-right text-[10px]"></i>
+                      </a>
+                    </div>
+                  </div>
+                </article>
+              }
+            </div>
+          } @else {
+            <div class="text-center py-12 bg-white rounded-2xl border border-slate-200 p-8 shadow-2xs">
+              <i class="pi pi-search text-3xl text-slate-300 mb-2"></i>
+              <p class="text-sm font-semibold text-slate-700">Chưa tìm thấy cơ sở lưu trú phù hợp với bộ lọc hiện tại.</p>
+              <button
+                type="button"
+                (click)="resetSidebarFilters()"
+                class="mt-3 px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Đặt lại bộ lọc tìm kiếm
+              </button>
+            </div>
+          }
+        </section>
+
+        <!-- SECTION 2: ĐIỂM ĐẾN & KHU DU LỊCH NỔI BẬT (34 TỈNH THÀNH) -->
+        <app-popular-destinations (selectDestination)="onPopularDestinationClick($event)" />
+
+        <!-- SECTION 3: BENTO GRID KHÁM PHÁ THEO PHONG CÁCH NGHỈ DƯỠNG -->
         <app-curated-bento-grid (selectCategory)="onSelectCuratedCategory($event)" />
 
-        <!-- 4 Trụ Cột Cam Kết Dịch Vụ & An Tâm Đặt Phòng -->
+        <!-- SECTION 4: ƯU ĐÃI FLASH DEALS & VOUCHER MÙA NGHỈ DƯỠNG -->
+        <app-flash-deals-banner (applyCode)="onApplyPromoCode($event)" />
+
+        <!-- SECTION 5: TRỤ CỘT CAM KẾT DỊCH VỤ & AN TÂM LƯU TRÚ -->
         <app-trust-pillars />
 
-
-        <!-- Banner Kêu Gọi Chủ Cơ Sở & Đối Tác Khách Sạn SaaS -->
+        <!-- SECTION 6: KÊU GỌI ĐỐI TÁC KHÁCH SẠN SAAS -->
         <app-hotelier-cta-banner />
 
       </div>
