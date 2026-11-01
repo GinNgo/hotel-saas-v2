@@ -119,7 +119,6 @@ import { UserMembershipDto } from '../../core/models/auth.model';
               >
                 <i class="pi pi-sparkles text-base text-amber-600"></i>
                 <span>Buồng phòng</span>
-                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">Mới</span>
               </a>
             }
 
@@ -132,7 +131,6 @@ import { UserMembershipDto } from '../../core/models/auth.model';
               >
                 <i class="pi pi-sliders-h text-base text-emerald-700"></i>
                 <span>Chính sách chi nhánh</span>
-                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">Mới</span>
               </a>
             }
 
@@ -145,7 +143,6 @@ import { UserMembershipDto } from '../../core/models/auth.model';
               >
                 <i class="pi pi-dollar text-base text-emerald-700"></i>
                 <span>Bảng giá phòng</span>
-                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">Mới</span>
               </a>
             }
 
@@ -158,7 +155,6 @@ import { UserMembershipDto } from '../../core/models/auth.model';
               >
                 <i class="pi pi-calendar text-base text-emerald-700"></i>
                 <span>Đặt phòng</span>
-                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">Mới</span>
               </a>
             }
 
@@ -171,7 +167,6 @@ import { UserMembershipDto } from '../../core/models/auth.model';
               >
                 <i class="pi pi-wallet text-base text-emerald-700"></i>
                 <span>Thu ngân & Giao dịch</span>
-                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">Mới</span>
               </a>
             }
 
@@ -183,7 +178,6 @@ import { UserMembershipDto } from '../../core/models/auth.model';
             >
               <i class="pi pi-chart-bar text-base text-emerald-700"></i>
               <span>Báo cáo & Thống kê</span>
-              <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">Mới</span>
             </a>
 
             <a
@@ -194,7 +188,6 @@ import { UserMembershipDto } from '../../core/models/auth.model';
             >
               <i class="pi pi-box text-base text-emerald-700"></i>
               <span>Gói cước SaaS</span>
-              <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">Mới</span>
             </a>
 
             @if (isOwnerOrManager()) {
