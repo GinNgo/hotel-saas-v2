@@ -86,6 +86,9 @@ public interface IApplicationDbContext
     /// <summary>Đánh giá và nhận xét của khách lưu trú (Guest Reviews).</summary>
     DbSet<GuestReview> GuestReviews { get; }
 
+    /// <summary>Nhật ký sử dụng các tính năng AI (AI Usage Logs).</summary>
+    DbSet<AiUsageLog> AiUsageLogs { get; }
+
     /// <summary>
     /// Starts a database transaction asynchronously.
     /// </summary>

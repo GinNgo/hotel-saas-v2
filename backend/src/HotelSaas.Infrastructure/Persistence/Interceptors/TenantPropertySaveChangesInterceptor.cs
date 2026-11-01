@@ -69,6 +69,8 @@ public sealed class TenantPropertySaveChangesInterceptor : SaveChangesIntercepto
         var excludedProperties = _currentPropertyService.ExcludedPropertyIds ?? Array.Empty<Guid>();
 
         var entries = context.ChangeTracker.Entries().ToList();
+        var modifiedOrDeletedTenantEntries = new List<EntityEntry>();
+
         foreach (var entry in entries)
         {
             if (entry.Entity is not ITenantScopedEntity tenantEntity)
@@ -97,12 +99,10 @@ public sealed class TenantPropertySaveChangesInterceptor : SaveChangesIntercepto
                     throw new ForbiddenException("ERR_IMMUTABLE_SCOPE_FIELDS", "Không được phép thay đổi TenantId của bản ghi.");
                 }
 
-                // Kiểm tra scope persisted từ DB nếu entity có ID
+                // Thu thập entity để kiểm tra scope persisted theo lô (batch) nhằm tránh N+1 queries
                 if (entry.Entity is BaseEntity baseEntity && baseEntity.Id != Guid.Empty)
                 {
-                    await VerifyPersistedScopeAsync(
-                        context, entry, baseEntity.Id, currentTenantId.Value,
-                        currentPropertyId, isTenantWide, excludedProperties, cancellationToken);
+                    modifiedOrDeletedTenantEntries.Add(entry);
                 }
             }
 
@@ -167,6 +167,19 @@ public sealed class TenantPropertySaveChangesInterceptor : SaveChangesIntercepto
                 }
             }
         }
+
+        // Tối ưu hóa: Thực hiện kiểm tra scope persisted theo lô (batch) theo từng bảng, loại bỏ hoàn toàn N+1 queries
+        if (modifiedOrDeletedTenantEntries.Count > 0 && currentTenantId.HasValue)
+        {
+            await VerifyPersistedScopesBatchAsync(
+                context,
+                modifiedOrDeletedTenantEntries,
+                currentTenantId.Value,
+                currentPropertyId,
+                isTenantWide,
+                excludedProperties,
+                cancellationToken);
+        }
     }
 
     private async Task VerifyPersistedScopeAsync(
@@ -179,75 +192,127 @@ public sealed class TenantPropertySaveChangesInterceptor : SaveChangesIntercepto
         IReadOnlyList<Guid> excludedProperties,
         CancellationToken cancellationToken)
     {
-        var tableName = entry.Metadata.GetTableName();
-        if (string.IsNullOrEmpty(tableName)) return;
+        await VerifyPersistedScopesBatchAsync(
+            context,
+            new[] { entry },
+            currentTenantId,
+            currentPropertyId,
+            isTenantWide,
+            excludedProperties,
+            cancellationToken);
+    }
 
-        var isPropertyScoped = entry.Entity is IPropertyScopedEntity;
+    private async Task VerifyPersistedScopesBatchAsync(
+        DbContext context,
+        IReadOnlyList<EntityEntry> entries,
+        Guid currentTenantId,
+        Guid? currentPropertyId,
+        bool isTenantWide,
+        IReadOnlyList<Guid> excludedProperties,
+        CancellationToken cancellationToken)
+    {
+        if (entries == null || entries.Count == 0) return;
+
+        // Group entries by table name to execute exactly 1 query per table
+        var entriesByTable = entries
+            .Where(e => e.Entity is BaseEntity b && b.Id != Guid.Empty)
+            .GroupBy(e => e.Metadata.GetTableName())
+            .Where(g => !string.IsNullOrEmpty(g.Key));
+
         var connection = context.Database.GetDbConnection();
         if (connection.State != ConnectionState.Open)
         {
             await connection.OpenAsync(cancellationToken);
         }
 
-        await using var command = connection.CreateCommand();
-        command.Transaction = context.Database.CurrentTransaction?.GetDbTransaction();
-        command.CommandText = isPropertyScoped
-            ? $"SELECT \"TenantId\", \"PropertyId\" FROM \"{tableName}\" WHERE \"Id\" = @id"
-            : $"SELECT \"TenantId\" FROM \"{tableName}\" WHERE \"Id\" = @id";
-
-        var param = command.CreateParameter();
-        param.ParameterName = "@id";
-        param.Value = entityId;
-        command.Parameters.Add(param);
-
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (await reader.ReadAsync(cancellationToken))
+        foreach (var tableGroup in entriesByTable)
         {
-            var dbTenantId = reader.GetGuid(0);
-            var tenantProp = entry.Property(nameof(ITenantScopedEntity.TenantId));
-
-            // Chặn đứng mọi nỗ lực thay đổi hoặc làm sai lệch TenantId persisted
-            if (!Equals(tenantProp.CurrentValue, dbTenantId))
+            var tableName = tableGroup.Key!;
+            var tableEntries = tableGroup.ToList();
+            var entriesById = new Dictionary<Guid, EntityEntry>();
+            foreach (var entry in tableEntries)
             {
-                throw new ForbiddenException("ERR_IMMUTABLE_SCOPE_FIELDS", "Không được phép thay đổi TenantId của bản ghi.");
+                var id = ((BaseEntity)entry.Entity).Id;
+                entriesById[id] = entry;
             }
 
-            if (dbTenantId != currentTenantId)
+            var idList = entriesById.Keys.ToList();
+            if (idList.Count == 0) continue;
+
+            bool isPropertyScoped = tableEntries.Any(e => e.Entity is IPropertyScopedEntity);
+
+            await using var command = connection.CreateCommand();
+            command.Transaction = context.Database.CurrentTransaction?.GetDbTransaction();
+
+            var paramNames = new List<string>(idList.Count);
+            for (int i = 0; i < idList.Count; i++)
             {
-                throw new ForbiddenException("ERR_CROSS_TENANT_MUTATION", "Không được phép sửa/xóa thực thể thuộc Tenant khác.");
+                var paramName = $"@p{i}";
+                paramNames.Add(paramName);
+                var param = command.CreateParameter();
+                param.ParameterName = paramName;
+                param.Value = idList[i];
+                command.Parameters.Add(param);
             }
 
-            if (isPropertyScoped)
-            {
-                var dbPropertyId = reader.GetGuid(1);
-                var propProperty = entry.Property(nameof(IPropertyScopedEntity.PropertyId));
+            command.CommandText = isPropertyScoped
+                ? $"SELECT \"Id\", \"TenantId\", \"PropertyId\" FROM \"{tableName}\" WHERE \"Id\" IN ({string.Join(", ", paramNames)})"
+                : $"SELECT \"Id\", \"TenantId\" FROM \"{tableName}\" WHERE \"Id\" IN ({string.Join(", ", paramNames)})";
 
-                // Chặn đứng mọi nỗ lực thay đổi hoặc làm sai lệch PropertyId persisted
-                if (!Equals(propProperty.CurrentValue, dbPropertyId))
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var entityId = reader.GetGuid(0);
+                var dbTenantId = reader.GetGuid(1);
+
+                if (!entriesById.TryGetValue(entityId, out var entry))
+                    continue;
+
+                var tenantProp = entry.Property(nameof(ITenantScopedEntity.TenantId));
+
+                // Chặn đứng mọi nỗ lực thay đổi hoặc làm sai lệch TenantId persisted
+                if (!Equals(tenantProp.CurrentValue, dbTenantId))
                 {
-                    throw new ForbiddenException("ERR_IMMUTABLE_SCOPE_FIELDS", "Không được phép thay đổi PropertyId của bản ghi.");
+                    throw new ForbiddenException("ERR_IMMUTABLE_SCOPE_FIELDS", "Không được phép thay đổi TenantId của bản ghi.");
                 }
 
-                if (!isTenantWide)
+                if (dbTenantId != currentTenantId)
                 {
-                    if (!currentPropertyId.HasValue || dbPropertyId != currentPropertyId.Value)
+                    throw new ForbiddenException("ERR_CROSS_TENANT_MUTATION", "Không được phép sửa/xóa thực thể thuộc Tenant khác.");
+                }
+
+                if (entry.Entity is IPropertyScopedEntity)
+                {
+                    var dbPropertyId = reader.GetGuid(2);
+                    var propProperty = entry.Property(nameof(IPropertyScopedEntity.PropertyId));
+
+                    // Chặn đứng mọi nỗ lực thay đổi hoặc làm sai lệch PropertyId persisted
+                    if (!Equals(propProperty.CurrentValue, dbPropertyId))
                     {
-                        throw new ForbiddenException("ERR_CROSS_PROPERTY_MUTATION", "Không được phép sửa/xóa thực thể thuộc chi nhánh khác.");
+                        throw new ForbiddenException("ERR_IMMUTABLE_SCOPE_FIELDS", "Không được phép thay đổi PropertyId của bản ghi.");
                     }
-                }
-                else
-                {
-                    if (excludedProperties.Contains(dbPropertyId))
+
+                    if (!isTenantWide)
                     {
-                        throw new ForbiddenException("ERR_MEMBERSHIP_REVOKED", "Quyền nhân sự của bạn tại chi nhánh đích của bản ghi này đã bị thu hồi.");
+                        if (!currentPropertyId.HasValue || dbPropertyId != currentPropertyId.Value)
+                        {
+                            throw new ForbiddenException("ERR_CROSS_PROPERTY_MUTATION", "Không được phép sửa/xóa thực thể thuộc chi nhánh khác.");
+                        }
                     }
+                    else
+                    {
+                        if (excludedProperties.Contains(dbPropertyId))
+                        {
+                            throw new ForbiddenException("ERR_MEMBERSHIP_REVOKED", "Quyền nhân sự của bạn tại chi nhánh đích của bản ghi này đã bị thu hồi.");
+                        }
+                    }
+
+                    // Đồng bộ OriginalValue để Concurrency Token kiểm tra đối chiếu chính xác
+                    propProperty.OriginalValue = dbPropertyId;
                 }
 
-                // Đồng bộ OriginalValue để Concurrency Token kiểm tra đối chiếu chính xác
-                propProperty.OriginalValue = dbPropertyId;
+                tenantProp.OriginalValue = dbTenantId;
             }
-
-            tenantProp.OriginalValue = dbTenantId;
         }
     }
 }

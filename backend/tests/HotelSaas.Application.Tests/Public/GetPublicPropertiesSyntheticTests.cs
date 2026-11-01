@@ -393,6 +393,7 @@ public sealed class GetPublicPropertiesSyntheticTests
         public DbSet<PrintTemplateConfig> PrintTemplateConfigs => throw new NotImplementedException();
         public DbSet<SocialIdentity> SocialIdentities => throw new NotImplementedException();
         public DbSet<GuestReview> GuestReviews => throw new NotImplementedException();
+        public DbSet<AiUsageLog> AiUsageLogs => throw new NotImplementedException();
 
         public Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task LockUserRowAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();

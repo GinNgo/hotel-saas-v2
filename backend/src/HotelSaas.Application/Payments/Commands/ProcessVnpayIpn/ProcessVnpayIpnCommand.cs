@@ -41,7 +41,7 @@ public sealed class ProcessVnpayIpnCommandHandler : IRequestHandler<ProcessVnpay
     {
         // 1. Verify digital signature (HMAC-SHA512)
         var verify = _vnpayService.VerifyCallback(request.QueryParams);
-        if (verify.ResponseCode == "97" || !verify.IsValid && string.IsNullOrEmpty(verify.TxnRef))
+        if (!verify.IsSignatureValid || verify.ResponseCode == "97")
         {
             return new VnpayIpnResponseDto("97", "Invalid Checksum");
         }
@@ -85,7 +85,7 @@ public sealed class ProcessVnpayIpnCommandHandler : IRequestHandler<ProcessVnpay
         }
 
         // 6. Process successful transaction
-        if (verify.IsValid)
+        if (verify.IsSuccess)
         {
             var payment = new Payment
             {
