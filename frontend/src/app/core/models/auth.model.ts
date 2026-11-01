@@ -3,6 +3,8 @@ export interface UserDto {
   id: string;
   email: string;
   fullName: string;
+  phoneNumber?: string | null;
+  avatarUrl?: string | null;
   globalRole: string;
   tenantId: string | null;
 }
@@ -47,6 +49,8 @@ export interface RegisterRequest {
   email: string;
   password: string;
   fullName: string;
+  phoneNumber?: string;
+  avatarUrl?: string;
 }
 
 /** Partner Register request */

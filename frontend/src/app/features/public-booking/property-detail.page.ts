@@ -10,6 +10,7 @@ import { PublicPropertyDto, PublicRoomTypeAvailabilityDto, RentalType, PropertyR
 import { QuoteDto } from '../../core/models/reservation.model';
 import { PublicStayContext, publicStayInterval, readPublicStay } from '../../core/models/public-stay-context';
 import { PhotoGalleryModalComponent, GalleryPhotoItem } from '../../shared';
+import { resolvePropertyGallery, resolveRoomThumbnail } from '../../core/utils';
 
 @Component({
   selector: 'app-property-detail',
@@ -336,7 +337,16 @@ import { PhotoGalleryModalComponent, GalleryPhotoItem } from '../../shared';
                   [class.ring-amber-200]="selectedRoom()?.roomTypeId === room.roomTypeId"
                   [class.border-stone-200]="selectedRoom()?.roomTypeId !== room.roomTypeId"
                 >
-                  <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                  <div class="flex flex-col sm:flex-row items-start gap-4">
+                    <div class="w-full sm:w-44 h-32 rounded-2xl overflow-hidden shrink-0 bg-stone-100 shadow-inner border border-stone-200/80">
+                      <img
+                        [src]="getRoomPhoto(room, $index)"
+                        [alt]="room.name || room.roomTypeName"
+                        class="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div class="flex-1 flex flex-col sm:flex-row sm:items-start justify-between gap-3 w-full">
                     <div class="space-y-1">
                       <div class="flex items-center gap-2 flex-wrap">
                         <h3 class="font-serif text-lg sm:text-xl font-normal text-stone-900">
@@ -374,6 +384,7 @@ import { PhotoGalleryModalComponent, GalleryPhotoItem } from '../../shared';
                     } @else {
                       <div class="sm:text-right text-xs text-stone-500 font-medium">Báo giá theo lịch</div>
                     }
+                  </div>
                   </div>
 
                   <!-- Tiện nghi phòng -->
@@ -782,6 +793,9 @@ import { PhotoGalleryModalComponent, GalleryPhotoItem } from '../../shared';
   `,
 })
 export class PropertyDetailPageComponent implements OnInit {
+  getRoomPhoto(room: PublicRoomTypeAvailabilityDto, index: number = 0): string {
+    return resolveRoomThumbnail(room.name || room.roomTypeName, index, room.imageUrl);
+  }
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly service = inject(PublicBookingService);
@@ -876,15 +890,12 @@ export class PropertyDetailPageComponent implements OnInit {
   galleryPhotos(): GalleryPhotoItem[] {
     const hotel = this.property();
     if (!hotel) return [];
-    const urls = hotel.galleryUrls?.length ? hotel.galleryUrls : (hotel.thumbnailUrl ? [hotel.thumbnailUrl] : []);
+    const urls = resolvePropertyGallery(hotel.name, hotel.thumbnailUrl, hotel.galleryUrls);
     return urls.map(url => ({ url, title: hotel.name }));
   }
 
   getPhotoUrl(hotel: PublicPropertyDto, index: number): string {
-    const urls = hotel.galleryUrls?.length ? hotel.galleryUrls : (hotel.thumbnailUrl ? [hotel.thumbnailUrl] : []);
-    if (urls.length === 0) {
-      return 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200';
-    }
+    const urls = resolvePropertyGallery(hotel.name, hotel.thumbnailUrl, hotel.galleryUrls);
     return urls[index % urls.length];
   }
 

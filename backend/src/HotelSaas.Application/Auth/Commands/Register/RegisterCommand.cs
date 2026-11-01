@@ -9,5 +9,12 @@ namespace HotelSaas.Application.Auth.Commands.Register;
 /// <param name="Email">The email address for the new account.</param>
 /// <param name="Password">The plain-text password (will be hashed).</param>
 /// <param name="FullName">The user's display name.</param>
-public sealed record RegisterCommand(string Email, string Password, string FullName)
+/// <param name="PhoneNumber">Optional contact phone number.</param>
+/// <param name="AvatarUrl">Optional URL to the user's avatar image.</param>
+public sealed record RegisterCommand(
+    string Email,
+    string Password,
+    string FullName,
+    string? PhoneNumber = null,
+    string? AvatarUrl = null)
     : IRequest<RegisterResponse>;

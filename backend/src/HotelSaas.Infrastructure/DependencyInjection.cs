@@ -53,6 +53,7 @@ public static class DependencyInjection
         services.AddSingleton<ILocationLookupService, LocationLookupService>();
         services.AddScoped<IVnpayPaymentService, VnpayPaymentService>();
         services.AddScoped<IVietQrService, VietQrService>();
+        services.AddScoped<IEmailService, GmailSmtpEmailService>();
         services.AddSignalR();
         services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
 
