@@ -18,18 +18,19 @@ import { resolvePropertyGallery, resolveRoomThumbnail } from '../../core/utils';
   imports: [CommonModule, FormsModule, RouterLink, PhotoGalleryModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 lg:py-8 space-y-6 sm:space-y-8 font-sans">
+    <div class="min-h-screen bg-[#F6F7F9] py-6 sm:py-8 font-sans text-stone-800">
+      <main class="max-w-7xl mx-auto px-4 sm:px-6 space-y-6 sm:space-y-8">
       <!-- 1. TOP NAV: BREADCRUMB & RETURN LINK -->
-      <nav class="flex items-center justify-between text-xs text-stone-500 pb-2 border-b border-stone-200/60" aria-label="Điều hướng">
+      <nav class="flex items-center justify-between text-xs text-stone-600 pb-3 border-b border-stone-200" aria-label="Điều hướng">
         <a
           routerLink="/booking"
           [queryParams]="returnQueryParams()"
-          class="inline-flex min-h-11 items-center gap-2 text-stone-700 hover:text-[#C05621] font-semibold transition-colors cursor-pointer"
+          class="inline-flex min-h-11 items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white border border-stone-200/90 shadow-2xs text-stone-700 hover:text-[#C05621] font-semibold transition-all cursor-pointer"
         >
           <i class="pi pi-arrow-left text-[11px] text-[#C05621]"></i>
           <span>Quay lại tìm kiếm cơ sở</span>
         </a>
-        <div class="hidden sm:flex items-center gap-2 text-stone-400">
+        <div class="hidden sm:flex items-center gap-2 text-stone-400 bg-white px-3.5 py-1.5 rounded-xl border border-stone-200/80 shadow-2xs">
           <span>Khách sạn &amp; Resort</span>
           <span>&bull;</span>
           <span class="text-[#0D2E28] font-bold">{{ property()?.name || 'Chi tiết' }}</span>
@@ -703,7 +704,7 @@ import { resolvePropertyGallery, resolveRoomThumbnail } from '../../core/utils';
           </div>
 
           <!-- CỘT PHẢI: STICKY LIVE QUOTE SUMMARY (ASIDE) (1 CỘT) -->
-          <aside class="bg-white border border-stone-200/90 rounded-3xl p-6 space-y-5 shadow-sm lg:sticky lg:top-24" aria-label="Báo giá">
+          <aside class="bg-[#FAF7F2] border border-[#E7E2D8] rounded-3xl p-6 space-y-5 shadow-sm lg:sticky lg:top-24 ring-1 ring-amber-900/5" aria-label="Báo giá">
             <div class="flex items-center gap-2.5 pb-3 border-b border-stone-100">
               <div class="w-9 h-9 rounded-xl bg-amber-50 text-[#C05621] flex items-center justify-center font-bold text-sm">
                 <i class="pi pi-receipt"></i>

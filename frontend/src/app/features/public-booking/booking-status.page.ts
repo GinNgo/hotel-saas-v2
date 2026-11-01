@@ -20,7 +20,7 @@ export interface StatusErrorState {
   imports: [CommonModule, FormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="min-h-screen bg-slate-50 py-6 sm:py-8 font-sans">
+    <div class="min-h-screen bg-[#F4F5F8] py-6 sm:py-8 font-sans text-slate-800">
       <div class="max-w-4xl mx-auto px-4 sm:px-6 space-y-6">
 
         <!-- 1. BREADCRUMB -->
@@ -135,23 +135,23 @@ export interface StatusErrorState {
           <article class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-0 animate-in fade-in duration-200 print:hidden">
 
             <!-- A. HEADER & TRẠNG THÁI TỔNG QUAN -->
-            <div class="p-6 sm:p-8 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/60">
-              <div class="space-y-1.5">
+            <div class="p-6 sm:p-8 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-[#0D2E28] via-[#103A32] to-[#15463D] text-white rounded-t-3xl shadow-xs">
+              <div class="space-y-2">
                 <div class="flex flex-wrap items-center gap-2">
-                  <span [class]="getStatusBadgeClass(detail.status)" class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full border">
+                  <span [class]="getStatusBadgeClass(detail.status)" class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full border shadow-2xs">
                     <i class="pi text-[11px]" [class]="getStatusIcon(detail.status)"></i>
                     <span>{{ getStatusLabel(detail.status) }}</span>
                   </span>
                   @if (detail.status !== 'Confirmed') {
-                    <span class="text-xs text-slate-600 font-mono font-bold bg-white px-2.5 py-1 rounded-lg border border-slate-200/80 shadow-2xs">
+                    <span class="text-xs text-amber-200 font-mono font-bold bg-white/10 px-3 py-1 rounded-lg border border-amber-400/30 backdrop-blur-xs">
                       Mã đơn: {{ detail.confirmationCode }}
                     </span>
                   }
                 </div>
-                <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{{ detail.propertyName }}</h1>
+                <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight">{{ detail.propertyName }}</h1>
                 @if (detail.propertyAddress) {
-                  <p class="text-xs text-slate-500 flex items-center gap-1.5">
-                    <i class="pi pi-map-marker text-indigo-600 text-xs"></i>
+                  <p class="text-xs text-emerald-200/90 flex items-center gap-1.5 font-medium">
+                    <i class="pi pi-map-marker text-amber-400 text-xs"></i>
                     <span>{{ detail.propertyAddress }}</span>
                   </p>
                 }
@@ -955,42 +955,88 @@ export interface StatusErrorState {
                       </div>
                     }
 
-                    <!-- PHƯƠNG THỨC THANH TOÁN (GỌN GÀNG, TRUNG TÍNH, KHÔNG NÚT GIẢ TO CỒNG) -->
+                    <!-- PHƯƠNG THỨC THANH TOÁN (DEDICATED PAYMENT GATEWAY HUB - HIGH CONTRAST & INTUITIVE) -->
                     @if (detail.status === 'PendingPayment') {
-                      <div class="pt-3 border-t border-slate-100">
-                        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600 flex items-start gap-2.5">
-                          <i class="pi pi-info-circle text-indigo-600 mt-0.5 text-xs shrink-0"></i>
-                          <div class="space-y-1">
-                            <span class="font-bold text-slate-700 block">Thanh toán qua VietQR NAPAS 24/7 hoặc VNPay</span>
-                            <!-- VietQR & VNPay Options -->
-                            <div class="mt-2 space-y-2">
-                              <div class="p-2 bg-white rounded-lg border border-slate-200 flex items-center gap-3">
-                                <img [src]="getVietQrImageUrl(detail)" alt="VietQR" class="w-20 h-20 object-contain shrink-0" />
-                                <div class="text-[10px] space-y-0.5">
-                                  <div class="font-bold text-slate-800">MB Bank: 0345678910</div>
-                                  <div class="text-slate-500">CTK: HOTEL SAAS RESORT</div>
-                                  <div class="font-mono text-emerald-700 font-bold">Số tiền: {{ getRemainingDeposit(detail) | number:'1.0-0' }} ₫</div>
-                                  <div class="text-amber-800 font-mono font-bold">CK: DATPHONG {{ detail.confirmationCode }}</div>
-                                </div>
+                      <div class="pt-4 border-t border-stone-200">
+                        <div class="p-4 sm:p-5 rounded-2xl bg-white border border-slate-300 shadow-sm space-y-4">
+                          <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+                            <div class="flex items-center gap-2.5">
+                              <div class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-sm">
+                                <i class="pi pi-credit-card"></i>
+                              </div>
+                              <div>
+                                <h4 class="text-xs sm:text-sm font-bold text-slate-900">
+                                  Thanh toán qua VietQR NAPAS 24/7 hoặc VNPay
+                                </h4>
+                                <p class="text-[10px] text-slate-500">Đối soát tức thì &amp; xác nhận tự động qua Webhook IPN</p>
+                              </div>
+                            </div>
+                            <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <i class="pi pi-shield text-[9px]"></i> An Toàn 100%
+                            </span>
+                          </div>
+
+                          <!-- 2-Option Cards Grid -->
+                          <div class="grid grid-cols-1 gap-3.5">
+                            
+                            <!-- Option 1: Cổng VNPAY Sandbox -->
+                            <div class="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200 hover:border-[#005BAA] transition-all space-y-2.5">
+                              <div class="flex items-center justify-between">
+                                <span class="px-2 py-0.5 rounded-md bg-[#005BAA] text-white text-[10px] font-black uppercase tracking-wider">
+                                  VNPAY SANDBOX
+                                </span>
+                                <span class="text-[11px] font-semibold text-blue-900">Cổng Quốc Gia</span>
+                              </div>
+                              <p class="text-[11px] text-slate-600 leading-relaxed">
+                                Thẻ ATM nội địa (NCB, Vietcombank...), Thẻ quốc tế Visa/Mastercard hoặc VNPAY-QR.
+                              </p>
+                              <div class="p-2 rounded-lg bg-white border border-blue-100 text-[10px] text-slate-600 space-y-0.5">
+                                <div>Thẻ test: <strong class="text-slate-800">NCB</strong> &bull; Số: <strong class="font-mono text-slate-900">9704198526191432198</strong></div>
+                                <div>Tên: <strong class="text-slate-800">NGUYEN VAN A</strong> &bull; OTP: <strong class="font-mono text-slate-900">123456</strong></div>
                               </div>
                               <button
                                 type="button"
                                 (click)="payWithVnpay()"
                                 [disabled]="isVnpayRedirecting()"
-                                class="w-full py-2 px-3 rounded-lg bg-[#005BAA] hover:bg-[#004785] text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                class="w-full py-2.5 px-3.5 rounded-xl bg-[#005BAA] hover:bg-[#004785] active:bg-[#003868] text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-colors disabled:opacity-50"
                               >
                                 @if (isVnpayRedirecting()) {
                                   <i class="pi pi-spin pi-spinner text-xs"></i>
                                   <span>Đang chuyển hướng VNPay…</span>
                                 } @else {
-                                  <i class="pi pi-credit-card text-xs"></i>
+                                  <i class="pi pi-external-link text-xs"></i>
                                   <span>Thanh toán Cổng VNPAY</span>
                                 }
                               </button>
                             </div>
-                            <p class="text-slate-500 leading-relaxed">
-                              Sau khi chuyển khoản thành công, hệ thống tự động kích hoạt mã PIN SmartLock và gửi thông báo tức thì tới Lễ tân.
-                            </p>
+
+                            <!-- Option 2: VietQR NAPAS 24/7 -->
+                            <div class="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200 hover:border-amber-400 transition-all space-y-2.5">
+                              <div class="flex items-center justify-between">
+                                <span class="px-2 py-0.5 rounded-md bg-amber-600 text-white text-[10px] font-black uppercase tracking-wider">
+                                  VIETQR 24/7
+                                </span>
+                                <span class="text-[11px] font-semibold text-amber-900">Quét Mã Nhanh</span>
+                              </div>
+
+                              <div class="p-2.5 bg-white rounded-xl border border-amber-200 flex items-center gap-3 shadow-2xs">
+                                <img [src]="getVietQrImageUrl(detail)" alt="VietQR" class="w-20 h-20 object-contain shrink-0 rounded-lg border border-slate-100" />
+                                <div class="text-[10px] space-y-0.5 min-w-0 flex-1">
+                                  <div class="font-bold text-slate-900 truncate">MB Bank: 0345678910</div>
+                                  <div class="text-slate-500 text-[10px]">CTK: HOTEL SAAS RESORT</div>
+                                  <div class="font-mono text-emerald-700 font-bold text-[11px]">
+                                    Số tiền: {{ getRemainingDeposit(detail) | number:'1.0-0' }} ₫
+                                  </div>
+                                  <div class="text-amber-800 font-mono font-bold text-[10px] bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 truncate">
+                                    CK: DATPHONG {{ detail.confirmationCode }}
+                                  </div>
+                                </div>
+                              </div>
+                              <p class="text-[10px] text-slate-500 leading-snug">
+                                Sau khi chuyển khoản thành công, hệ thống tự động kiểm tra và xác nhận phòng cho Quý khách.
+                              </p>
+                            </div>
+
                           </div>
                         </div>
                       </div>

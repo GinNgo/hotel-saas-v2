@@ -25,7 +25,7 @@ export interface HoldErrorState {
   imports: [CommonModule, FormsModule, RouterLink, FormFieldComponent, FormControlDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="bg-slate-50 min-h-screen py-8 px-4 sm:px-6 lg:px-8 relative">
+    <div class="bg-[#F4F5F8] min-h-screen py-8 px-4 sm:px-6 lg:px-8 relative">
       <!-- TOAST THÔNG BÁO HỆ THỐNG (LUXESTAY TOAST — VỊ TRÍ GÓC DƯỚI KHÔNG CHE HEADER/NAV) -->
       @if (toast(); as t) {
         <aside
@@ -369,7 +369,7 @@ export interface HoldErrorState {
             <form
               (ngSubmit)="confirmBooking()"
               [attr.aria-busy]="isSubmitting()"
-              class="lg:col-span-7 bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/90 shadow-sm space-y-5"
+              class="lg:col-span-7 bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm ring-1 ring-slate-900/5 space-y-6"
             >
               <div class="flex items-center gap-2.5 pb-3 border-b border-slate-100">
                 <div class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">
@@ -449,7 +449,7 @@ export interface HoldErrorState {
               <button
                 type="submit"
                 [disabled]="loading() || isSubmitting() || !quote() || isQuoteExpired()"
-                class="w-full h-12 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-sm sm:text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                class="w-full h-13 px-6 rounded-xl bg-[#0D2E28] hover:bg-[#14473D] active:bg-[#08201B] text-white font-bold text-sm sm:text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 @if (isSubmitting()) {
                   <i class="pi pi-spin pi-spinner text-base"></i>
@@ -506,7 +506,7 @@ export interface HoldErrorState {
             </form>
 
             <!-- Cột Phải: Báo giá & Chi tiết chỗ nghỉ (5 cột) -->
-            <section class="lg:col-span-5 bg-white rounded-3xl p-6 border border-slate-200/90 shadow-sm space-y-5 lg:sticky lg:top-24">
+            <section class="lg:col-span-5 bg-[#FAF7F2] rounded-3xl p-6 sm:p-7 border border-[#E7E2D8] shadow-sm ring-1 ring-amber-900/5 space-y-5 lg:sticky lg:top-24">
               <div class="flex items-center gap-2.5 pb-3 border-b border-slate-100">
                 <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm">
                   <i class="pi pi-receipt"></i>
