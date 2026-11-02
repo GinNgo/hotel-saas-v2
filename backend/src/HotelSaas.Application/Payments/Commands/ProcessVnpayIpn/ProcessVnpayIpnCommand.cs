@@ -25,15 +25,21 @@ public sealed class ProcessVnpayIpnCommandHandler : IRequestHandler<ProcessVnpay
 {
     private readonly IApplicationDbContext _context;
     private readonly IVnpayPaymentService _vnpayService;
+    private readonly ICurrentTenantService? _tenantService;
+    private readonly ICurrentPropertyService? _propertyService;
     private readonly INotificationDispatcher? _notificationDispatcher;
 
     public ProcessVnpayIpnCommandHandler(
         IApplicationDbContext context,
         IVnpayPaymentService vnpayService,
+        ICurrentTenantService? tenantService = null,
+        ICurrentPropertyService? propertyService = null,
         INotificationDispatcher? notificationDispatcher = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _vnpayService = vnpayService ?? throw new ArgumentNullException(nameof(vnpayService));
+        _tenantService = tenantService;
+        _propertyService = propertyService;
         _notificationDispatcher = notificationDispatcher;
     }
 
@@ -60,6 +66,10 @@ public sealed class ProcessVnpayIpnCommandHandler : IRequestHandler<ProcessVnpay
         {
             return new VnpayIpnResponseDto("01", "Order not found");
         }
+
+        // Establish tenant & property context for change tracker & interceptors
+        if (_tenantService != null) _tenantService.TenantId = reservation.TenantId;
+        if (_propertyService != null) _propertyService.PropertyId = reservation.PropertyId;
 
         // 3. Row lock on reservation to prevent concurrent IPN races
         await _context.LockReservationRowAsync(reservation.Id, reservation.TenantId, reservation.PropertyId, cancellationToken);
