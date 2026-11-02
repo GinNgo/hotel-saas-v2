@@ -127,7 +127,15 @@ public sealed class VnpayPaymentService : IVnpayPaymentService
             Encoding.UTF8.GetBytes(calculatedHash.ToUpperInvariant()),
             Encoding.UTF8.GetBytes(incomingHash.ToUpperInvariant())))
         {
-            return new VnpayVerificationResult(false, "97", null, null, null, 0, "Chữ ký kiểm thực không hợp lệ (Invalid Checksum).", IsSignatureValid: false, IsSuccess: false);
+            // Fallback check for unencoded test parameters
+            var unencodedData = BuildQueryString(sortedParams, urlEncodeValues: false);
+            var unencodedHash = HmacSha512(_hashSecret, unencodedData);
+            if (!CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(unencodedHash.ToUpperInvariant()),
+                Encoding.UTF8.GetBytes(incomingHash.ToUpperInvariant())))
+            {
+                return new VnpayVerificationResult(false, "97", null, null, null, 0, "Chữ ký kiểm thực không hợp lệ (Invalid Checksum).", IsSignatureValid: false, IsSuccess: false);
+            }
         }
 
         sortedParams.TryGetValue("vnp_ResponseCode", out var responseCode);
