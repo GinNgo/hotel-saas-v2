@@ -286,12 +286,13 @@ export class RegisterPage {
       email: email!.trim().toLowerCase(),
       phoneNumber: phoneNumber?.trim() || undefined,
       avatarUrl: avatarUrl?.trim() || undefined,
-      password: password!
+      password: password!,
+      appUrl: typeof window !== 'undefined' ? window.location.origin : undefined
     }).subscribe({
       next: (response) => {
         this.loading.set(false);
         if (response.success || (response as any).userId || (response as any).data) {
-          this.notification.success('Đăng ký tài khoản thành công! Thư chào mừng và xác thực đã được gửi tới email của bạn.');
+          this.notification.success('Đăng ký tài khoản thành công! Thư xác thực tài khoản đã được gửi đến email của bạn. Vui lòng mở hộp thư để bấm liên kết kích hoạt.');
           this.router.navigate(['/login']);
         }
       },

@@ -25,6 +25,10 @@ export const routes: Routes = [
         loadComponent: () => import('./features/auth/register/register.page').then(m => m.RegisterPage)
       },
       {
+        path: 'confirm-email',
+        loadComponent: () => import('./features/auth/confirm-email/confirm-email.page').then(m => m.ConfirmEmailPage)
+      },
+      {
         path: 'partner-register',
         loadComponent: () => import('./features/auth/partner-register/partner-register.page').then(m => m.PartnerRegisterPage)
       }
@@ -43,6 +47,10 @@ export const routes: Routes = [
       {
         path: 'register',
         loadComponent: () => import('./features/auth/register/register.page').then(m => m.RegisterPage)
+      },
+      {
+        path: 'confirm-email',
+        loadComponent: () => import('./features/auth/confirm-email/confirm-email.page').then(m => m.ConfirmEmailPage)
       },
       {
         path: 'partner-register',

@@ -35,4 +35,14 @@ public interface IJwtService
     /// Validates an expired JWT access token and returns its claims principal.
     /// </summary>
     ClaimsPrincipal GetPrincipalFromExpiredToken(string token);
+
+    /// <summary>
+    /// Generates a signed verification token for email confirmation.
+    /// </summary>
+    string GenerateEmailVerificationToken(Guid userId, string email, TimeSpan validity);
+
+    /// <summary>
+    /// Validates an email verification token and extracts the userId and email.
+    /// </summary>
+    (bool isValid, Guid userId, string email) ValidateEmailVerificationToken(string token);
 }

@@ -1,3 +1,4 @@
+using HotelSaas.Application.Auth.Commands.ConfirmEmail;
 using HotelSaas.Application.Auth.Commands.Login;
 using HotelSaas.Application.Auth.Commands.RefreshToken;
 using HotelSaas.Application.Auth.Commands.Register;
@@ -10,7 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace HotelSaas.WebApi.Controllers;
 
 /// <summary>
-/// Handles user authentication operations including registration, login,
+/// Handles user authentication operations including registration, email confirmation, login,
 /// token refresh, and token revocation.
 /// </summary>
 [ApiController]
@@ -34,7 +35,7 @@ public sealed class AuthController : ControllerBase
     /// </summary>
     /// <param name="command">Registration details including email, password, and full name.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The newly created user's authentication tokens.</returns>
+    /// <returns>The newly created user's confirmation notice.</returns>
     /// <response code="201">User registered successfully.</response>
     /// <response code="400">Validation errors in the request body.</response>
     /// <response code="409">A user with the given email already exists.</response>
@@ -48,6 +49,44 @@ public sealed class AuthController : ControllerBase
     {
         var result = await _mediator.Send(command, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, result);
+    }
+
+    /// <summary>
+    /// Confirms and activates a user's account using an email verification token.
+    /// </summary>
+    /// <param name="command">Verification token payload.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Confirmation result message.</returns>
+    /// <response code="200">Email confirmed successfully.</response>
+    /// <response code="400">Token is invalid or expired.</response>
+    /// <response code="404">User not found.</response>
+    [HttpPost("confirm-email")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ConfirmEmail(
+        [FromBody] ConfirmEmailCommand command,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(new { success = true, data = result });
+    }
+
+    /// <summary>
+    /// Direct URL confirmation fallback for link clicks.
+    /// </summary>
+    [HttpGet("confirm-email")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ConfirmEmailGet(
+        [FromQuery] string token,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(new ConfirmEmailCommand(token), cancellationToken);
+        return Ok(new { success = true, data = result });
     }
 
     /// <summary>

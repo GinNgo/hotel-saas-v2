@@ -10,12 +10,14 @@ using Microsoft.Extensions.Logging;
 namespace HotelSaas.Application.Auth.Commands.Register;
 
 /// <summary>
-/// Handles user registration: validates email uniqueness, hashes password, saves user with phone/avatar, and dispatches welcome/verification email.
+/// Handles user registration: validates email uniqueness, hashes password, saves user with phone/avatar,
+/// generates secure verification token, and dispatches email verification.
 /// </summary>
 public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, RegisterResponse>
 {
     private readonly IApplicationDbContext _context;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly IJwtService _jwtService;
     private readonly IEmailService _emailService;
     private readonly ILogger<RegisterCommandHandler> _logger;
 
@@ -25,11 +27,13 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Re
     public RegisterCommandHandler(
         IApplicationDbContext context,
         IPasswordHasher passwordHasher,
+        IJwtService jwtService,
         IEmailService emailService,
         ILogger<RegisterCommandHandler> logger)
     {
         _context = context;
         _passwordHasher = passwordHasher;
+        _jwtService = jwtService;
         _emailService = emailService;
         _logger = logger;
     }
@@ -60,17 +64,24 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Re
         _context.Users.Add(user);
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Dispatch Welcome / Verification Email asynchronously without blocking client registration response
+        // Generate secure 30-minute verification token
+        var verificationToken = _jwtService.GenerateEmailVerificationToken(user.Id, user.Email, TimeSpan.FromMinutes(30));
+        var appUrl = !string.IsNullOrWhiteSpace(request.AppUrl)
+            ? request.AppUrl.Trim().TrimEnd('/')
+            : "https://saigonlex.duckdns.org";
+        var verificationUrl = $"{appUrl}/confirm-email?token={Uri.EscapeDataString(verificationToken)}";
+
+        // Dispatch Verification Email asynchronously without blocking client registration response
         try
         {
-            await _emailService.SendWelcomeEmailAsync(user.Email, user.FullName, cancellationToken);
-            _logger.LogInformation("Dispatched welcome email to newly registered user {Email}", user.Email);
+            await _emailService.SendVerificationEmailAsync(user.Email, user.FullName, verificationUrl, 30, cancellationToken);
+            _logger.LogInformation("Dispatched verification email to newly registered user {Email} with URL {Url}", user.Email, verificationUrl);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Could not send welcome email to {Email}", user.Email);
+            _logger.LogWarning(ex, "Could not send verification email to {Email}", user.Email);
         }
 
-        return new RegisterResponse(user.Id, "Đăng ký thành công.");
+        return new RegisterResponse(user.Id, "Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản.");
     }
 }

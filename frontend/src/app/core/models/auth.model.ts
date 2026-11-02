@@ -38,6 +38,13 @@ export interface RegisterResponse {
   message: string;
 }
 
+/** Confirm email response */
+export interface ConfirmEmailResponse {
+  success: boolean;
+  message: string;
+  email?: string | null;
+}
+
 /** Login request */
 export interface LoginRequest {
   email: string;
@@ -51,6 +58,7 @@ export interface RegisterRequest {
   fullName: string;
   phoneNumber?: string;
   avatarUrl?: string;
+  appUrl?: string;
 }
 
 /** Partner Register request */
