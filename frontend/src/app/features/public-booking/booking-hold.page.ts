@@ -25,7 +25,7 @@ export interface HoldErrorState {
   imports: [CommonModule, FormsModule, RouterLink, FormFieldComponent, FormControlDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="bg-[#F4F5F8] min-h-screen py-8 px-4 sm:px-6 lg:px-8 relative">
+    <div class="bg-[#EFECE6] min-h-screen py-8 px-4 sm:px-6 lg:px-8 relative text-stone-800">
       <!-- TOAST THÔNG BÁO HỆ THỐNG (LUXESTAY TOAST — VỊ TRÍ GÓC DƯỚI KHÔNG CHE HEADER/NAV) -->
       @if (toast(); as t) {
         <aside
@@ -147,7 +147,7 @@ export interface HoldErrorState {
 
         @if (booking(); as detail) {
           <!-- VOUCHER THÀNH CÔNG SAU KHI TẠO GIỮ PHÒNG -->
-          <section class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-md space-y-6">
+          <section class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-stone-300 shadow-md space-y-6">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3">
               <div class="flex items-center gap-3">
                 <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl shrink-0">
@@ -269,7 +269,7 @@ export interface HoldErrorState {
             }
 
             <!-- Mã tra cứu & Hướng dẫn sao chép an toàn -->
-            <div class="p-4 sm:p-5 rounded-2xl bg-indigo-50/50 border border-indigo-100 space-y-2.5">
+            <div class="p-4 sm:p-5 rounded-2xl bg-[#F5F2EB] border-2 border-stone-300 space-y-2.5">
               <div class="flex items-center justify-between flex-wrap gap-2">
                 <div class="flex items-center gap-2">
                   <i class="pi pi-key text-indigo-600 text-xs"></i>
@@ -306,7 +306,7 @@ export interface HoldErrorState {
             </div>
 
             <!-- Lưới chi tiết đặt phòng -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-5 rounded-2xl bg-[#F5F2EB] border-2 border-stone-300">
               <div>
                 <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Hạng phòng</span>
                 <span class="text-sm font-bold text-slate-800">{{ detail.roomTypeName }}</span>
@@ -324,7 +324,7 @@ export interface HoldErrorState {
             </div>
 
             <!-- Tổng tiền & Cọc yêu cầu -->
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-2xl bg-indigo-50/70 border border-indigo-100 gap-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-2xl bg-[#FAF7F2] border-2 border-stone-300 gap-4">
               <div>
                 <div class="text-xs text-indigo-900 font-medium">Tổng tiền lưu trú dự tính</div>
                 <div class="text-2xl sm:text-3xl font-black text-indigo-700">{{ detail.totalAmount | number:'1.0-0' }} ₫</div>
@@ -369,7 +369,7 @@ export interface HoldErrorState {
             <form
               (ngSubmit)="confirmBooking()"
               [attr.aria-busy]="isSubmitting()"
-              class="lg:col-span-7 bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm ring-1 ring-slate-900/5 space-y-6"
+              class="lg:col-span-7 bg-white rounded-3xl p-6 sm:p-8 border-2 border-stone-300 shadow-md space-y-6"
             >
               <div class="flex items-center gap-2.5 pb-3 border-b border-slate-100">
                 <div class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">
@@ -506,7 +506,7 @@ export interface HoldErrorState {
             </form>
 
             <!-- Cột Phải: Báo giá & Chi tiết chỗ nghỉ (5 cột) -->
-            <section class="lg:col-span-5 bg-[#FAF7F2] rounded-3xl p-6 sm:p-7 border border-[#E7E2D8] shadow-sm ring-1 ring-amber-900/5 space-y-5 lg:sticky lg:top-24">
+            <section class="lg:col-span-5 bg-[#FAF7F2] rounded-3xl p-6 sm:p-7 border-2 border-stone-300 shadow-md space-y-5 lg:sticky lg:top-24">
               <div class="flex items-center gap-2.5 pb-3 border-b border-slate-100">
                 <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm">
                   <i class="pi pi-receipt"></i>

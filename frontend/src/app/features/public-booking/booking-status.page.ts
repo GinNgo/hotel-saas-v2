@@ -20,7 +20,7 @@ export interface StatusErrorState {
   imports: [CommonModule, FormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="min-h-screen bg-[#F4F5F8] py-6 sm:py-8 font-sans text-slate-800">
+    <div class="min-h-screen bg-[#EFECE6] py-6 sm:py-8 font-sans text-stone-900">
       <div class="max-w-4xl mx-auto px-4 sm:px-6 space-y-6">
 
         <!-- 1. BREADCRUMB -->
@@ -34,7 +34,7 @@ export interface StatusErrorState {
 
         <!-- 2. KHU VỰC NHẬP MÃ TRA CỨU (KHI CHƯA CÓ KẾT QUẢ HOẶC MUỐN TRA CỨU MÃ KHÁC) -->
         @if (!booking() && !isSearching()) {
-          <section class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-4 print:hidden">
+          <section class="bg-white rounded-3xl border-2 border-stone-300 p-6 sm:p-8 shadow-md space-y-4 print:hidden">
             <div class="space-y-1">
               <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
                 <i class="pi pi-ticket text-indigo-600"></i>
@@ -132,7 +132,7 @@ export interface StatusErrorState {
 
         <!-- 3. KẾT QUẢ THEO DÕI ĐẶT PHÒNG -->
         @if (booking(); as detail) {
-          <article class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-0 animate-in fade-in duration-200 print:hidden">
+          <article class="bg-white rounded-3xl border-2 border-stone-300 shadow-md overflow-hidden space-y-0 animate-in fade-in duration-200 print:hidden">
 
             <!-- A. HEADER & TRẠNG THÁI TỔNG QUAN -->
             <div class="p-6 sm:p-8 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-[#0D2E28] via-[#103A32] to-[#15463D] text-white rounded-t-3xl shadow-xs">
@@ -958,7 +958,7 @@ export interface StatusErrorState {
                     <!-- PHƯƠNG THỨC THANH TOÁN (DEDICATED PAYMENT GATEWAY HUB - HIGH CONTRAST & INTUITIVE) -->
                     @if (detail.status === 'PendingPayment') {
                       <div class="pt-4 border-t border-stone-200">
-                        <div class="p-4 sm:p-5 rounded-2xl bg-white border border-slate-300 shadow-sm space-y-4">
+                        <div class="p-5 sm:p-6 rounded-3xl bg-[#FAF7F2] border-2 border-stone-300 shadow-md space-y-5">
                           <div class="flex items-center justify-between pb-3 border-b border-slate-200">
                             <div class="flex items-center gap-2.5">
                               <div class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-sm">
@@ -980,7 +980,7 @@ export interface StatusErrorState {
                           <div class="grid grid-cols-1 gap-3.5">
                             
                             <!-- Option 1: Cổng VNPAY Sandbox -->
-                            <div class="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200 hover:border-[#005BAA] transition-all space-y-2.5">
+                            <div class="p-4 sm:p-5 rounded-2xl bg-blue-50/90 border-2 border-blue-300 hover:border-[#005BAA] transition-all space-y-3">
                               <div class="flex items-center justify-between">
                                 <span class="px-2 py-0.5 rounded-md bg-[#005BAA] text-white text-[10px] font-black uppercase tracking-wider">
                                   VNPAY SANDBOX
@@ -1011,7 +1011,7 @@ export interface StatusErrorState {
                             </div>
 
                             <!-- Option 2: VietQR NAPAS 24/7 -->
-                            <div class="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200 hover:border-amber-400 transition-all space-y-2.5">
+                            <div class="p-4 sm:p-5 rounded-2xl bg-amber-50/90 border-2 border-amber-300 hover:border-amber-500 transition-all space-y-3">
                               <div class="flex items-center justify-between">
                                 <span class="px-2 py-0.5 rounded-md bg-amber-600 text-white text-[10px] font-black uppercase tracking-wider">
                                   VIETQR 24/7

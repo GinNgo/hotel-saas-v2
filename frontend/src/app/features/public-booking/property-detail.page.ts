@@ -18,7 +18,7 @@ import { resolvePropertyGallery, resolveRoomThumbnail } from '../../core/utils';
   imports: [CommonModule, FormsModule, RouterLink, PhotoGalleryModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="min-h-screen bg-[#F6F7F9] py-6 sm:py-8 font-sans text-stone-800">
+    <div class="min-h-screen bg-[#EFECE6] py-6 sm:py-8 font-sans text-stone-900">
       <main class="max-w-7xl mx-auto px-4 sm:px-6 space-y-6 sm:space-y-8">
       <!-- 1. TOP NAV: BREADCRUMB & RETURN LINK -->
       <nav class="flex items-center justify-between text-xs text-stone-600 pb-3 border-b border-stone-200" aria-label="Điều hướng">
@@ -169,7 +169,7 @@ import { resolvePropertyGallery, resolveRoomThumbnail } from '../../core/utils';
           <!-- CỘT TRÁI: CONCIERGE BAR & ROOM LIST (2 CỘT) -->
           <div class="lg:col-span-2 space-y-6">
             <!-- CONCIERGE BOOKING SELECTOR -->
-            <section class="bg-white rounded-3xl border border-stone-200/90 shadow-sm p-6 space-y-5" aria-labelledby="stay-title">
+            <section class="bg-white rounded-3xl border-2 border-stone-300 shadow-md p-6 sm:p-7 space-y-5" aria-labelledby="stay-title">
               <div class="flex items-center justify-between pb-3 border-b border-stone-100">
                 <div class="flex items-center gap-2.5">
                   <div class="w-9 h-9 rounded-xl bg-[#0D2E28] text-amber-200 flex items-center justify-center font-bold text-sm">

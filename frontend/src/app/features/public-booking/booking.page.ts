@@ -67,7 +67,7 @@ interface TenantBrandFacet {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="min-h-screen bg-[#FBF9F5] pb-24 font-sans text-slate-800">
+    <div class="min-h-screen bg-[#EFECE6] pb-24 font-sans text-stone-900">
       <!-- 1. HERO BANNER & THANH TÌM KIẾM ĐA NĂNG (SEAMLESS LIGHT CONTEMPORARY LUXURY) -->
       <section
         class="bg-gradient-to-b from-white via-slate-50/90 to-stone-100/60 text-slate-900 pt-8 sm:pt-12 pb-12 sm:pb-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden border-b border-slate-200/80"
