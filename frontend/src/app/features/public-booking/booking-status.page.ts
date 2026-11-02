@@ -2228,7 +2228,7 @@ export class BookingStatusPage implements OnInit {
     this.isVnpayRedirecting.set(true);
     const returnUrl = typeof window !== 'undefined' ? `${window.location.origin}/booking/status/${detail.lookupToken}` : undefined;
 
-    this.publicBookingService.createVnpayPaymentUrl(undefined, detail.lookupToken, returnUrl).subscribe({
+    this.publicBookingService.createVnpayPaymentUrl(detail.reservationId, detail.confirmationCode || detail.lookupToken, returnUrl).subscribe({
       next: (res) => {
         if (res?.paymentUrl && typeof window !== 'undefined') {
           window.location.href = res.paymentUrl;
