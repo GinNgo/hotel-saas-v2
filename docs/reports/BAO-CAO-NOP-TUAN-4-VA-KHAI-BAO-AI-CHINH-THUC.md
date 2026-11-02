@@ -102,6 +102,7 @@ Mọi đóng góp mã nguồn đều được lưu trữ minh bạch trên kho G
 
 | Mã Commit (Link GitHub) | Tác giả | Tài khoản GitHub | Ngày Giờ | Nguyên văn Commit Message | Nội dung thay đổi chính |
 | :--- | :--- | :---: | :---: | :--- | :--- |
+| [`dbaaed8`](https://github.com/GinNgo/hotel-saas-v2/commit/dbaaed8) | Ngô Võ Tuấn An | `GinNgo` | 03/11 | `fix(tests): align paymentMethod navigation expectations and test db connection string` | Chuẩn hóa biến môi trường kết nối CSDL TEST_DB_CONNECTION cho CI runner và cập nhật kỳ vọng queryParams điều hướng trong Unit test. |
 | [`5353c1e`](https://github.com/GinNgo/hotel-saas-v2/commit/5353c1e) | Ngô Võ Tuấn An | `GinNgo` | 03/11 | `merge: integrate feature/nguyen-week4-invoicing-export into develop` | Hợp nhất gói tính năng xuất báo cáo Excel/PDF và thanh toán tại quầy của Nguyễn Khôi Nguyên vào develop. |
 | [`4983182`](https://github.com/GinNgo/hotel-saas-v2/commit/4983182) | Nguyen Khoi Nguyen | `khoinguyen1310` | 02/11 | `feat(reports): add Excel and PDF exports with payment options` | Xây dựng ReportExportService (ClosedXML, QuestPDF), API tải báo cáo, tùy chọn tiền mặt tại quầy và mã VietQR. |
 | [`9c48602`](https://github.com/GinNgo/hotel-saas-v2/commit/9c48602) | Ngô Võ Tuấn An | `GinNgo` | 02/11 | `feat(auth): implement email verification token and confirm email page` | Xây dựng token xác thực HMAC-SHA256, gửi mail Gmail SMTP, endpoint confirm-email và trang ConfirmEmailPage. |
