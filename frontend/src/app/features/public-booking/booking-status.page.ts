@@ -980,7 +980,8 @@ export interface StatusErrorState {
                           <div class="grid grid-cols-1 gap-3.5">
                             
                             <!-- Option 1: Cổng VNPAY Sandbox -->
-                            <div class="p-4 sm:p-5 rounded-2xl bg-blue-50/90 border-2 border-blue-300 hover:border-[#005BAA] transition-all space-y-3">
+                            <div class="p-4 sm:p-5 rounded-2xl bg-blue-50/90 border-2 border-blue-300 hover:border-[#005BAA] transition-all space-y-3"
+                              [class.ring-2]="selectedPaymentMethod() === 'VNPay'" [class.ring-blue-600]="selectedPaymentMethod() === 'VNPay'">
                               <div class="flex items-center justify-between">
                                 <span class="px-2 py-0.5 rounded-md bg-[#005BAA] text-white text-[10px] font-black uppercase tracking-wider">
                                   VNPAY SANDBOX
@@ -1011,7 +1012,8 @@ export interface StatusErrorState {
                             </div>
 
                             <!-- Option 2: VietQR NAPAS 24/7 -->
-                            <div class="p-4 sm:p-5 rounded-2xl bg-amber-50/90 border-2 border-amber-300 hover:border-amber-500 transition-all space-y-3">
+                            <div class="p-4 sm:p-5 rounded-2xl bg-amber-50/90 border-2 border-amber-300 hover:border-amber-500 transition-all space-y-3"
+                              [class.ring-2]="selectedPaymentMethod() === 'VietQR'" [class.ring-amber-500]="selectedPaymentMethod() === 'VietQR'">
                               <div class="flex items-center justify-between">
                                 <span class="px-2 py-0.5 rounded-md bg-amber-600 text-white text-[10px] font-black uppercase tracking-wider">
                                   VIETQR 24/7
@@ -1020,20 +1022,44 @@ export interface StatusErrorState {
                               </div>
 
                               <div class="p-2.5 bg-white rounded-xl border border-amber-200 flex items-center gap-3 shadow-2xs">
-                                <img [src]="getVietQrImageUrl(detail)" alt="VietQR" class="w-20 h-20 object-contain shrink-0 rounded-lg border border-slate-100" />
+                                @if (vietQr(); as qr) {
+                                  <img [src]="qr.qrImageUrl" alt="Mã thanh toán VietQR" class="w-20 h-20 object-contain shrink-0 rounded-lg border border-slate-100" />
+                                } @else {
+                                  <div role="status" class="w-20 h-20 flex items-center justify-center shrink-0 rounded-lg border border-slate-100 text-slate-400">
+                                    <i class="pi" [class.pi-spin]="isVietQrLoading()" [class.pi-spinner]="isVietQrLoading()" [class.pi-qrcode]="!isVietQrLoading()"></i>
+                                  </div>
+                                }
                                 <div class="text-[10px] space-y-0.5 min-w-0 flex-1">
-                                  <div class="font-bold text-slate-900 truncate">MB Bank: 0345678910</div>
-                                  <div class="text-slate-500 text-[10px]">CTK: HOTEL SAAS RESORT</div>
+                                  <div class="font-bold text-slate-900 truncate">{{ vietQr()?.bankName || 'Đang tạo thông tin thanh toán…' }}</div>
+                                  <div class="text-slate-500 text-[10px]">CTK: {{ vietQr()?.accountName || '—' }}</div>
                                   <div class="font-mono text-emerald-700 font-bold text-[11px]">
-                                    Số tiền: {{ getRemainingDeposit(detail) | number:'1.0-0' }} ₫
+                                    Số tiền: {{ (vietQr()?.amount ?? getRemainingDeposit(detail)) | number:'1.0-0' }} ₫
                                   </div>
                                   <div class="text-amber-800 font-mono font-bold text-[10px] bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 truncate">
-                                    CK: DATPHONG {{ detail.confirmationCode }}
+                                    CK: {{ vietQr()?.description || ('DAT PHONG ' + detail.confirmationCode) }}
                                   </div>
+                                  @if (vietQr(); as qr) {
+                                    <button type="button" (click)="copyPaymentAccount(qr.accountNumber)" class="text-blue-700 font-semibold underline underline-offset-2 cursor-pointer">Sao chép STK {{ qr.accountNumber }}</button>
+                                  } @else if (vietQrError()) {
+                                    <p role="alert" class="text-rose-700">{{ vietQrError() }}</p>
+                                  }
                                 </div>
                               </div>
                               <p class="text-[10px] text-slate-500 leading-snug">
-                                Sau khi chuyển khoản thành công, hệ thống tự động kiểm tra và xác nhận phòng cho Quý khách.
+                                Vui lòng chuyển đúng số tiền và nội dung trên mã để khách sạn đối soát khoản thanh toán.
+                              </p>
+                            </div>
+
+                            <!-- Option 3: Cash deposit at the front desk, manually confirmed by staff -->
+                            <div class="p-4 sm:p-5 rounded-2xl bg-emerald-50/90 border-2 border-emerald-300 transition-all space-y-3"
+                              [class.ring-2]="selectedPaymentMethod() === 'PayAtHotel'" [class.ring-emerald-600]="selectedPaymentMethod() === 'PayAtHotel'">
+                              <div class="flex items-center justify-between gap-2">
+                                <span class="px-2 py-0.5 rounded-md bg-emerald-700 text-white text-[10px] font-black uppercase tracking-wider">TIỀN MẶT TẠI QUẦY</span>
+                                <span class="text-[11px] font-semibold text-emerald-900">Xác nhận thủ công</span>
+                              </div>
+                              <p class="text-[11px] text-emerald-950 leading-relaxed">
+                                Nộp cọc <strong>{{ getRemainingDeposit(detail) | number:'1.0-0' }} ₫</strong> tại quầy lễ tân trước khi đồng hồ giữ phòng về 0.
+                                Nhân viên ghi nhận khoản thu bằng tiền mặt và xác nhận đơn. Nếu chưa nộp cọc trong 15 phút, giữ phòng tự hết hạn.
                               </p>
                             </div>
 
@@ -1603,11 +1629,25 @@ export class BookingStatusPage implements OnInit {
   readonly booking = signal<GuestBookingDetailDto | null>(null);
   readonly isSearching = signal<boolean>(false);
   readonly searchError = signal<StatusErrorState | null>(null);
+  readonly selectedPaymentMethod = signal<'VNPay' | 'VietQR' | 'PayAtHotel'>('VNPay');
 
   readonly remainingSeconds = signal<number>(0);
   readonly isHoldExpired = signal<boolean>(false);
   readonly isCopied = signal<boolean>(false);
   readonly isCodeCopied = signal<boolean>(false);
+  readonly vietQr = signal<{
+    qrImageUrl: string;
+    bankBin: string;
+    bankName: string;
+    accountNumber: string;
+    accountName: string;
+    amount: number;
+    description: string;
+    confirmationCode: string;
+    quickPayDeepLink: string;
+  } | null>(null);
+  readonly isVietQrLoading = signal(false);
+  readonly vietQrError = signal('');
   readonly isExtendingHold = signal<boolean>(false);
     readonly extendHoldError = signal<string>('');
 
@@ -1630,6 +1670,7 @@ export class BookingStatusPage implements OnInit {
   readonly canExtendHold = computed(() => this.isExpiringSoon() && !this.isHoldExtended());
 
   private broadcastChannel?: BroadcastChannel;
+  private vietQrGeneration = 0;
 
   // GUEST REVIEWS & RATINGS SIGNALS
   readonly reviewRating = signal<number>(5);
@@ -1689,6 +1730,13 @@ export class BookingStatusPage implements OnInit {
   };
 
   ngOnInit(): void {
+    const queryParamMap$ = this.route.queryParamMap ?? of(this.route.snapshot?.queryParamMap ?? { get: () => null });
+    queryParamMap$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+      const method = params.get('paymentMethod');
+      if (method === 'VNPay' || method === 'VietQR' || method === 'PayAtHotel') {
+        this.selectedPaymentMethod.set(method);
+      }
+    });
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibilityChange);
     }
@@ -1824,6 +1872,7 @@ export class BookingStatusPage implements OnInit {
         if (currentGen !== this.fetchGeneration) return; // Guard: request A đến trễ không đè B
         this.isSearching.set(false);
         this.booking.set(b);
+        this.loadVietQr(b);
         if (b.status === 'PendingPayment' && b.holdExpiresAtUtc && !this.isHoldExpired()) {
           this.startHoldCountdown(b.holdExpiresAtUtc, b.status);
           this.startPolling(token);
@@ -2213,11 +2262,41 @@ export class BookingStatusPage implements OnInit {
 
   readonly isVnpayRedirecting = signal<boolean>(false);
 
-  getVietQrImageUrl(detail: GuestBookingDetailDto): string {
+  private loadVietQr(detail: GuestBookingDetailDto): void {
+    const generation = ++this.vietQrGeneration;
+    this.vietQr.set(null);
+    this.vietQrError.set('');
+    if (detail.status !== 'PendingPayment') return;
     const deposit = this.getRemainingDeposit(detail);
     const amount = deposit > 0 ? deposit : (detail.remainingBalance || detail.totalAmount || 0);
-    const code = detail.confirmationCode || 'HOTEL';
-    return `https://img.vietqr.io/image/970422-0345678910-compact2.png?amount=${Math.round(amount)}&addInfo=DATPHONG+${code}&accountName=HOTEL+SAAS+RESORT`;
+    this.isVietQrLoading.set(true);
+    this.publicBookingService.generateVietQr({
+      amount,
+      confirmationCode: detail.confirmationCode || detail.lookupToken,
+      reservationId: detail.reservationId,
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: qr => {
+        if (generation !== this.vietQrGeneration || this.booking()?.reservationId !== detail.reservationId) return;
+        this.vietQr.set(qr);
+        this.isVietQrLoading.set(false);
+      },
+      error: () => {
+        if (generation !== this.vietQrGeneration) return;
+        this.isVietQrLoading.set(false);
+        this.vietQrError.set('Chưa tạo được mã VietQR. Vui lòng tải lại thông tin hoặc chọn VNPay.');
+      }
+    });
+  }
+
+  copyPaymentAccount(accountNumber: string): void {
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      this.alertService.toastWarning('Trình duyệt không hỗ trợ sao chép tự động.');
+      return;
+    }
+    navigator.clipboard.writeText(accountNumber).then(
+      () => this.alertService.toastSuccess('Đã sao chép số tài khoản.'),
+      () => this.alertService.toastWarning('Không thể sao chép số tài khoản.')
+    );
   }
 
   payWithVnpay(): void {

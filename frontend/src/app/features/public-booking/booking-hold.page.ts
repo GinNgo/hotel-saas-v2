@@ -354,9 +354,10 @@ export interface HoldErrorState {
               } @else {
                 <a
                   [routerLink]="['/booking/status', detail.lookupToken]"
+                  [queryParams]="{ paymentMethod: selectedPaymentMethod }"
                   class="w-full sm:w-auto px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>Xem Trạng Thái &amp; Hướng Dẫn Thanh Toán</span>
+                  <span>{{ paymentMethodActionLabel() }}</span>
                   <i class="pi pi-arrow-right text-xs"></i>
                 </a>
               }
@@ -441,9 +442,42 @@ export interface HoldErrorState {
                 </app-form-field>
               </div>
 
+              <section class="space-y-3" aria-labelledby="payment-method-label">
+                <div>
+                  <h3 id="payment-method-label" class="text-sm font-bold text-slate-800">Chọn cách thanh toán tiền cọc</h3>
+                  <p class="text-xs text-slate-500 mt-1">Phòng chỉ được xác nhận sau khi khách sạn ghi nhận đủ khoản cọc.</p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <button type="button" (click)="selectPaymentMethod('VNPay')"
+                    [class.ring-2]="selectedPaymentMethod === 'VNPay'" [class.ring-blue-600]="selectedPaymentMethod === 'VNPay'"
+                    class="text-left rounded-xl border border-slate-200 bg-white p-3 hover:border-blue-400 transition-colors cursor-pointer">
+                    <span class="block text-xs font-bold text-slate-900">Thẻ / VNPay-QR</span>
+                    <span class="block text-[11px] text-slate-500 mt-1">Thanh toán cọc qua VNPay Sandbox.</span>
+                  </button>
+                  <button type="button" (click)="selectPaymentMethod('VietQR')"
+                    [class.ring-2]="selectedPaymentMethod === 'VietQR'" [class.ring-amber-500]="selectedPaymentMethod === 'VietQR'"
+                    class="text-left rounded-xl border border-slate-200 bg-white p-3 hover:border-amber-400 transition-colors cursor-pointer">
+                    <span class="block text-xs font-bold text-slate-900">Chuyển khoản VietQR</span>
+                    <span class="block text-[11px] text-slate-500 mt-1">Quét mã QR động sau khi tạo giữ phòng.</span>
+                  </button>
+                  <button type="button" (click)="selectPaymentMethod('PayAtHotel')"
+                    [class.ring-2]="selectedPaymentMethod === 'PayAtHotel'" [class.ring-emerald-600]="selectedPaymentMethod === 'PayAtHotel'"
+                    class="text-left rounded-xl border border-slate-200 bg-white p-3 hover:border-emerald-400 transition-colors cursor-pointer">
+                    <span class="block text-xs font-bold text-slate-900">Tiền mặt tại khách sạn</span>
+                    <span class="block text-[11px] text-slate-500 mt-1">Nộp cọc tại quầy trong 15 phút; nhân viên xác nhận đơn.</span>
+                  </button>
+                </div>
+                @if (selectedPaymentMethod === 'PayAtHotel') {
+                  <div role="note" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-950">
+                    Tiền cọc dự kiến: <strong>{{ ((priceAny()?.depositRequired ?? (priceAny()?.totalAmount * 0.3)) | number:'1.0-0') }} ₫</strong>.
+                    Đến quầy lễ tân và nộp cọc trước khi giữ phòng hết hạn. Nhân viên sẽ ghi nhận tiền mặt và xác nhận đặt phòng; nếu chưa nộp kịp, giữ phòng sẽ tự hết hạn.
+                  </div>
+                }
+              </section>
+
               <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/70 text-xs text-slate-500 flex items-center gap-2.5">
                 <i class="pi pi-info-circle text-indigo-600 text-sm shrink-0"></i>
-                <span>Phòng được giữ tạm sau khi máy chủ cấp mã. Bạn có thể thanh toán qua VNPAY hoặc chuyển khoản tại bước tiếp theo.</span>
+                <span>Máy chủ giữ phòng tạm trong 15 phút. Phòng chỉ được xác nhận sau khi tiền cọc được ghi nhận.</span>
               </div>
 
               <button
@@ -694,6 +728,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   guestName = '';
   guestPhone = '';
   guestEmail = '';
+  selectedPaymentMethod: 'VNPay' | 'VietQR' | 'PayAtHotel' = 'VNPay';
 
   private timerInterval?: ReturnType<typeof setInterval>;
   private quoteTimerInterval?: ReturnType<typeof setInterval>;
@@ -713,6 +748,20 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
 
   get idempotencyKey(): string {
     return this.currentIdempotencyKey;
+  }
+
+  selectPaymentMethod(method: string | null): void {
+    if (method === 'VNPay' || method === 'VietQR' || method === 'PayAtHotel') {
+      this.selectedPaymentMethod = method;
+    }
+  }
+
+  paymentMethodActionLabel(): string {
+    switch (this.selectedPaymentMethod) {
+      case 'VNPay': return 'Tiếp tục thanh toán VNPay';
+      case 'VietQR': return 'Mở hướng dẫn VietQR';
+      case 'PayAtHotel': return 'Xem hướng dẫn nộp cọc tại quầy';
+    }
   }
 
   private readonly onVisibilityChange = () => {
@@ -741,6 +790,11 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    const queryParamMap$ = this.route.queryParamMap ?? of(this.route.snapshot?.queryParamMap ?? { get: () => null });
+    queryParamMap$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+      this.selectPaymentMethod(params.get('paymentMethod'));
+    });
+
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibilityChange);
     }
@@ -1144,7 +1198,9 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
           this.holdError.set(null);
           this.error.set('');
           this.toast.set(null);
-          this.router.navigate(['/booking/hold', hold.lookupToken]);
+          this.router.navigate(['/booking/hold', hold.lookupToken], {
+            queryParams: { paymentMethod: this.selectedPaymentMethod }
+          });
         },
         error: err => {
           if (submissionGen !== this.holdSubmissionGeneration) return;

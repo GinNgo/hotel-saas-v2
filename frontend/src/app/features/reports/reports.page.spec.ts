@@ -16,6 +16,8 @@ describe('ReportsPage (Multi-Property Group Analytics & Branch Reports)', () => 
     getPmsKpi: ReturnType<typeof vi.fn>;
     getRevenueSummary: ReturnType<typeof vi.fn>;
     exportCsv: ReturnType<typeof vi.fn>;
+    exportExcel: ReturnType<typeof vi.fn>;
+    exportPdf: ReturnType<typeof vi.fn>;
   };
 
   let mockAlertService: {
@@ -151,7 +153,9 @@ describe('ReportsPage (Multi-Property Group Analytics & Branch Reports)', () => 
       getGroupAnalytics: vi.fn().mockReturnValue(of(sampleGroupAnalytics)),
       getPmsKpi: vi.fn().mockReturnValue(of(samplePmsKpi)),
       getRevenueSummary: vi.fn().mockReturnValue(of(sampleRevenueSummary)),
-      exportCsv: vi.fn().mockReturnValue(of(new Blob(['test-csv'], { type: 'text/csv' })))
+      exportCsv: vi.fn().mockReturnValue(of(new Blob(['test-csv'], { type: 'text/csv' }))),
+      exportExcel: vi.fn().mockReturnValue(of(new Blob(['test-xlsx']))),
+      exportPdf: vi.fn().mockReturnValue(of(new Blob(['test-pdf'])))
     };
 
     mockAlertService = {

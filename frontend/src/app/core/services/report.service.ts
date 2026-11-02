@@ -65,4 +65,20 @@ export class ReportService {
       responseType: 'blob'
     });
   }
+
+  exportExcel(fromDate?: string, toDate?: string, propertyId?: string): Observable<Blob> {
+    let params = new HttpParams();
+    if (fromDate) params = params.set('fromDate', fromDate);
+    if (toDate) params = params.set('toDate', toDate);
+    if (propertyId) params = params.set('propertyId', propertyId);
+    return this.http.get(`${this.apiUrl}/export-excel`, { params, responseType: 'blob' });
+  }
+
+  exportPdf(fromDate?: string, toDate?: string, propertyId?: string): Observable<Blob> {
+    let params = new HttpParams();
+    if (fromDate) params = params.set('fromDate', fromDate);
+    if (toDate) params = params.set('toDate', toDate);
+    if (propertyId) params = params.set('propertyId', propertyId);
+    return this.http.get(`${this.apiUrl}/export-pdf`, { params, responseType: 'blob' });
+  }
 }

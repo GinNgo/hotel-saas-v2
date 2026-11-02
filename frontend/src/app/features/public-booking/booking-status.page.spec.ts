@@ -94,6 +94,17 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
   beforeEach(async () => {
     mockBookingService = {
       getBookingByToken: vi.fn().mockReturnValue(of(sampleBookingA)),
+      generateVietQr: vi.fn().mockReturnValue(of({
+        qrImageUrl: 'https://example.test/vietqr.png',
+        bankBin: '970422',
+        bankName: 'MB Bank',
+        accountNumber: '0345678910',
+        accountName: 'HOTEL SAAS',
+        amount: 450000,
+        description: 'DAT PHONG RES-A111',
+        confirmationCode: 'RES-A111',
+        quickPayDeepLink: 'vietqr://pay'
+      })),
       extendHold: vi.fn(),
       getCancellationPreview: vi.fn(),
       cancelBooking: vi.fn()
@@ -970,7 +981,8 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
 
       const compiled = fixture.nativeElement as HTMLElement;
       expect(compiled.textContent).toContain('Thanh toán qua VietQR NAPAS 24/7 hoặc VNPay');
-      expect(compiled.textContent).toContain('MB Bank: 0345678910');
+      expect(compiled.textContent).toContain('MB Bank');
+      expect(compiled.textContent).toContain('Sao chép STK 0345678910');
       expect(compiled.textContent).toContain('Thanh toán Cổng VNPAY');
 
       mockBookingService.createVnpayPaymentUrl = vi.fn().mockReturnValue(of({ paymentUrl: 'https://sandbox.vnpayment.vn/test' }));
