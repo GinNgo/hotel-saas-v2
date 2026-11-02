@@ -65,7 +65,7 @@ public sealed class VnpayPaymentService : IVnpayPaymentService
             ["vnp_Amount"] = vnpAmount.ToString(CultureInfo.InvariantCulture),
             ["vnp_CurrCode"] = "VND",
             ["vnp_TxnRef"] = txnRef,
-            ["vnp_OrderInfo"] = WebUtility.UrlEncode(orderInfo ?? $"Thanh toan don dat phong {confirmationCode}"),
+            ["vnp_OrderInfo"] = orderInfo ?? $"Thanh toan don dat phong {confirmationCode}",
             ["vnp_OrderType"] = "other",
             ["vnp_Locale"] = "vn",
             ["vnp_ReturnUrl"] = targetReturnUrl,
@@ -74,9 +74,8 @@ public sealed class VnpayPaymentService : IVnpayPaymentService
             ["vnp_ExpireDate"] = expireDate
         };
 
-        var rawData = BuildQueryString(paramsMap, urlEncodeValues: false);
-        var secureHash = HmacSha512(_hashSecret, rawData);
         var queryString = BuildQueryString(paramsMap, urlEncodeValues: true);
+        var secureHash = HmacSha512(_hashSecret, queryString);
         var fullUrl = $"{_paymentUrl}?{queryString}&vnp_SecureHash={secureHash}";
 
         return new VnpayCreateUrlResult(fullUrl, txnRef, amountVnd);
@@ -121,7 +120,7 @@ public sealed class VnpayPaymentService : IVnpayPaymentService
             return new VnpayVerificationResult(false, "97", null, null, null, 0, "Thiếu chữ ký kiểm thực vnp_SecureHash.", IsSignatureValid: false, IsSuccess: false);
         }
 
-        var rawData = BuildQueryString(sortedParams, urlEncodeValues: false);
+        var rawData = BuildQueryString(sortedParams, urlEncodeValues: true);
         var calculatedHash = HmacSha512(_hashSecret, rawData);
 
         if (!CryptographicOperations.FixedTimeEquals(
