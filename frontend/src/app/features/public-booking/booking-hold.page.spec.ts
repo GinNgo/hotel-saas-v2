@@ -348,7 +348,9 @@ describe('BookingHoldPageComponent (T01 — Giữ phòng, hết hạn và thử 
     // Hoàn tất request 1
     holdSubject.next({ lookupToken: 'tok-hold-abc-123' } as any);
     expect(component.isSubmitting()).toBe(false);
-    expect(mockRouter.navigate).toHaveBeenCalledWith(['/booking/hold', 'tok-hold-abc-123']);
+    expect(mockRouter.navigate).toHaveBeenCalledWith(['/booking/hold', 'tok-hold-abc-123'], {
+      queryParams: { paymentMethod: 'VNPay' }
+    });
   });
 
   // 3. Retry cùng payload tái sử dụng idempotency key, thông báo kết nối chuẩn, không trùng lặp

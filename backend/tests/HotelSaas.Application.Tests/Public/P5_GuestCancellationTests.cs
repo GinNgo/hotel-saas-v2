@@ -27,7 +27,9 @@ public sealed class P5_GuestCancellationTests
 {
     private static string GetConnectionString()
     {
-        var envConn = Environment.GetEnvironmentVariable("TEST_DATABASE_CONNECTION");
+        var envConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION")
+                   ?? Environment.GetEnvironmentVariable("TEST_DATABASE_CONNECTION")
+                   ?? Environment.GetEnvironmentVariable("HOTEL_SAAS_TEST_CONNECTION_STRING");
         if (!string.IsNullOrWhiteSpace(envConn)) return envConn;
 
         var port = Environment.GetEnvironmentVariable("TEST_POSTGRES_PORT") ?? "5435";
