@@ -31,15 +31,18 @@ public sealed class ReportsController : ControllerBase
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserContext _currentUser;
     private readonly ISender _mediator;
+    private readonly IReportExportService _reportExportService;
 
     public ReportsController(
         IApplicationDbContext context,
         ICurrentUserContext currentUser,
-        ISender mediator)
+        ISender mediator,
+        IReportExportService reportExportService)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _currentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
+        _reportExportService = reportExportService ?? throw new ArgumentNullException(nameof(reportExportService));
     }
 
     /// <summary>
@@ -374,6 +377,63 @@ public sealed class ReportsController : ControllerBase
 
         var filename = $"BaoCao_DoanhThu_{effectiveFrom:yyyyMMdd}_{effectiveTo:yyyyMMdd}.csv";
         return File(fullBytes, "text/csv; charset=utf-8", filename);
+    }
+
+    [HttpGet("export-excel")]
+    [Produces("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")]
+    public async Task<IActionResult> ExportExcel(
+        [FromQuery] DateOnly? fromDate,
+        [FromQuery] DateOnly? toDate,
+        [FromQuery] Guid? propertyId,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _currentUser.TenantId;
+        if (!tenantId.HasValue || tenantId == Guid.Empty)
+            return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var effectiveFrom = fromDate ?? today.AddDays(-30);
+        var effectiveTo = toDate ?? today;
+        if (effectiveFrom > effectiveTo)
+            return BadRequest(new { code = "ERR_INVALID_DATE_RANGE", message = "Ngày bắt đầu không được lớn hơn ngày kết thúc." });
+
+        var bytes = await _reportExportService.ExportReservationsExcelAsync(
+            effectiveFrom, effectiveTo, propertyId, cancellationToken);
+        return File(bytes,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"BaoCao_DoanhThu_{effectiveFrom:yyyyMMdd}_{effectiveTo:yyyyMMdd}.xlsx");
+    }
+
+    [HttpGet("export-pdf")]
+    [Produces("application/pdf")]
+    public async Task<IActionResult> ExportPdf(
+        [FromQuery] DateOnly? fromDate,
+        [FromQuery] DateOnly? toDate,
+        [FromQuery] Guid? propertyId,
+        CancellationToken cancellationToken)
+    {
+        if (!_currentUser.TenantId.HasValue || _currentUser.TenantId == Guid.Empty)
+            return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var effectiveFrom = fromDate ?? today.AddDays(-30);
+        var effectiveTo = toDate ?? today;
+        if (effectiveFrom > effectiveTo)
+            return BadRequest(new { code = "ERR_INVALID_DATE_RANGE", message = "Ngày bắt đầu không được lớn hơn ngày kết thúc." });
+        var bytes = await _reportExportService.ExportRevenuePdfAsync(effectiveFrom, effectiveTo, propertyId, cancellationToken);
+        return File(bytes, "application/pdf", $"BaoCao_DoanhThu_{effectiveFrom:yyyyMMdd}_{effectiveTo:yyyyMMdd}.pdf");
+    }
+
+    [HttpGet("reservations/{reservationId:guid}/invoice.pdf")]
+    [Produces("application/pdf")]
+    public async Task<IActionResult> ExportInvoicePdf(Guid reservationId, CancellationToken cancellationToken)
+    {
+        if (!_currentUser.TenantId.HasValue || _currentUser.TenantId == Guid.Empty)
+            return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
+
+        var bytes = await _reportExportService.ExportInvoicePdfAsync(reservationId, cancellationToken);
+        return bytes is null
+            ? NotFound(new { code = "ERR_INVOICE_NOT_FOUND", message = "Không tìm thấy hóa đơn của đơn đặt phòng." })
+            : File(bytes, "application/pdf", $"HoaDon_{reservationId:N}.pdf");
     }
 
     private static string EscapeCsv(string value)

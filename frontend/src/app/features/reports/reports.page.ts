@@ -32,6 +32,24 @@ import { DateRangeFilterComponent, DateRangeFilterValue } from '../../shared/com
         <div class="flex flex-wrap items-center gap-3">
           <button
             type="button"
+            (click)="exportPdf()"
+            [disabled]="isExporting()"
+            class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-rose-700 hover:bg-rose-800 rounded-xl transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+          >
+            <i class="pi pi-file-pdf" [class.pi-spin]="isExporting()"></i>
+            {{ isExporting() ? 'Đang xuất PDF...' : 'Tải PDF' }}
+          </button>
+          <button
+            type="button"
+            (click)="exportExcel()"
+            [disabled]="isExporting()"
+            class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+          >
+            <i class="pi pi-file-excel" [class.pi-spin]="isExporting()"></i>
+            {{ isExporting() ? 'Đang xuất Excel...' : 'Tải Excel (.xlsx)' }}
+          </button>
+          <button
+            type="button"
             (click)="exportCsv()"
             [disabled]="isExporting()"
             class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
@@ -762,5 +780,46 @@ export class ReportsPage implements OnInit {
         this.alertService.toastError('Không thể tạo file báo cáo. Vui lòng thử lại sau.', 'Lỗi xuất báo cáo');
       }
     });
+  }
+
+  exportExcel(): void {
+    this.isExporting.set(true);
+    this.reportService.exportExcel(this.fromDate, this.toDate).subscribe({
+      next: blob => {
+        this.isExporting.set(false);
+        this.downloadBlob(blob, `BaoCao_DoanhThu_${this.fromDate}_${this.toDate}.xlsx`);
+        this.alertService.toastSuccess('Báo cáo Excel đã được tải về.', 'Xuất file thành công');
+      },
+      error: () => {
+        this.isExporting.set(false);
+        this.alertService.toastError('Không thể tạo file Excel. Vui lòng thử lại sau.', 'Lỗi xuất báo cáo');
+      }
+    });
+  }
+
+  exportPdf(): void {
+    this.isExporting.set(true);
+    this.reportService.exportPdf(this.fromDate, this.toDate).subscribe({
+      next: blob => {
+        this.isExporting.set(false);
+        this.downloadBlob(blob, `BaoCao_DoanhThu_${this.fromDate}_${this.toDate}.pdf`);
+        this.alertService.toastSuccess('Báo cáo PDF đã được tải về.', 'Xuất file thành công');
+      },
+      error: () => {
+        this.isExporting.set(false);
+        this.alertService.toastError('Không thể tạo file PDF. Vui lòng thử lại sau.', 'Lỗi xuất báo cáo');
+      }
+    });
+  }
+
+  private downloadBlob(blob: Blob, filename: string): void {
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    window.URL.revokeObjectURL(url);
   }
 }
