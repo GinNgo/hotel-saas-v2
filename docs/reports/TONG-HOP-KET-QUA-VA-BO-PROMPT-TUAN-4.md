@@ -5,7 +5,7 @@
 **Nhóm sinh viên thực hiện:**
 1. **Ngô Võ Tuấn An** — MSSV: `24TX810001` (Trưởng nhóm — Lead)
 2. **Nguyễn Khôi Nguyên** — MSSV: `24TX810011`
-3. **Trần Trọng Tấn** — MSSV: `24TX810025`
+3. **Trần Trọng Tân** — MSSV: `24TX810025`
 
 **Kho mã nguồn:** [https://github.com/GinNgo/hotel-saas-v2](https://github.com/GinNgo/hotel-saas-v2)  
 **Nhánh tích hợp chính:** `develop` | **Staging VPS:** [https://luxustay.duckdns.org/](https://luxustay.duckdns.org/)
@@ -41,7 +41,7 @@ Tuần 04 là tuần bản lề hoàn thiện và khép kín toàn bộ chu trì
   * Hiển thị thông tin chuyển khoản VietQR kèm nút sao chép số tài khoản tiện lợi.
 * **Commit tiêu biểu:** [`4983182`](https://github.com/GinNgo/hotel-saas-v2/commit/4983182) (`feat(reports): add Excel and PDF exports with payment options`).
 
-### 3. Phân hệ của Trần Trọng Tấn (`24TX810025`)
+### 3. Phân hệ của Trần Trọng Tân (`24TX810025`)
 * **T01 — Trung tâm thông báo Lễ tân (Notification Center & SignalR Hub Client):**
   * Xây dựng `<app-notification-bell>` OnPush Signals trên Header PMS, âm thanh Web Audio dịu nhẹ, Toast nổi 5s, tự động reconnect khi mất mạng. **(21/21 tests pass)**.
 * **T02 — Cảnh báo hết hạn giữ phòng 3 phút & Gia hạn 5 phút:**
@@ -156,7 +156,7 @@ HÃY XÂY DỰNG TÍNH NĂNG XUẤT HÓA ĐƠN ĐẶT PHÒNG / PHIẾU THU PDF:
 
 ---
 
-### 👤 PROMPT CHO TRẦN TRỌNG TẤN (24TX810025)
+### 👤 PROMPT CHO TRẦN TRỌNG TÂN (24TX810025)
 
 #### 🔹 Prompt #06 — Trung tâm Thông báo Realtime SignalR & Toast Lễ tân
 ```text
@@ -234,7 +234,7 @@ Bạn là Thư ký Kỹ thuật và Lead QA của dự án Hotel SaaS Platform v
 DỰA TRÊN KẾT QUẢ THỰC TẾ TUẦN 04 ĐÃ ĐƯỢC NGHIỆM THU VÀ MERGE VÀO NHÁNH DEVELOP:
 - Ngô Võ Tuấn An (24TX810001 - Lead): VNPay Sandbox HMAC-SHA512, Webhook IPN Fail-Closed, Email Verification Token HMAC-SHA256, Nâng cấp giao diện Luxury B2C, Chuẩn hóa 100% PrimeNG DatePicker.
 - Nguyễn Khôi Nguyên (24TX810011): Xuất Excel ClosedXML với công thức SUM động, Xuất PDF QuestPDF, UI thanh toán B2C tiền mặt & VietQR.
-- Trần Trọng Tấn (24TX810025): Notification Bell OnPush Signals (21 tests), Cảnh báo giữ phòng 3 phút & gia hạn 5 phút (39 tests), Audit Logging Interceptor (29 tests), Hủy phòng B2C & chính sách D23 (111 tests).
+- Trần Trọng Tân (24TX810025): Notification Bell OnPush Signals (21 tests), Cảnh báo giữ phòng 3 phút & gia hạn 5 phút (39 tests), Audit Logging Interceptor (29 tests), Hủy phòng B2C & chính sách D23 (111 tests).
 - Chất lượng: 578/578 frontend unit tests pass, 0 compile errors, 0 warnings.
 
 HÃY SINH RA BẢN TỔNG HỢP NGHIỆM THU ĐẦY ĐỦ GỒM:

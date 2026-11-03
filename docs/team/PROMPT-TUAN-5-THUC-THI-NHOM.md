@@ -1,5 +1,5 @@
 # BỘ PROMPT THỰC THI & PHÂN CÔNG NHIỆM VỤ TUẦN 05 — DỰ ÁN HOTEL SAAS PLATFORM V2
-## Dành cho 3 thành viên: Ngô Võ Tuấn An (Lead), Nguyễn Khôi Nguyên, Trần Trọng Tấn
+## Dành cho 3 thành viên: Ngô Võ Tuấn An (Lead), Nguyễn Khôi Nguyên, Trần Trọng Tân
 **Nền tảng công nghệ:** .NET 10 WebAPI + Angular 22 Standalone Signals + PostgreSQL 17 + Docker Caddy
 **Môi trường Staging:** `https://luxustay.duckdns.org/` | **Nhánh Git cơ sở:** `develop`
 
@@ -205,7 +205,7 @@ HÃY CUNG CẤP QUERY LINQ ĐÃ TỐI ƯU, COMPONENT ANGULAR TƯƠNG ỨNG VÀ T
 
 ---
 
-## 4. PROMPT DÀNH CHO TRẦN TRỌNG TẤN (MSSV: 24TX810025)
+## 4. PROMPT DÀNH CHO TRẦN TRỌNG TÂN (MSSV: 24TX810025)
 * **Nhánh làm việc:** `feature/tan-week5-refund-realtime-demo`
 * **Phạm vi file:**
   * `frontend/src/app/features/cashier/`

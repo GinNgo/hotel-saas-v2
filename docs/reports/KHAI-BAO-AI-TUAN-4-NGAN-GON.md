@@ -57,7 +57,7 @@ Commit `5353c1e` : merge: integrate feature/nguyen-week4-invoicing-export into d
 
 ---
 
-### 3. Trần Trọng Tấn (MSSV: 24TX810025)
+### 3. Trần Trọng Tân (MSSV: 24TX810025)
 
 **AI hỗ trợ:** Google Antigravity / Gemini 3.8 Flash
 
