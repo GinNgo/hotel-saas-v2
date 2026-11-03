@@ -56,7 +56,7 @@ Tuần 04 là tuần bản lề khép kín toàn bộ chu trình nghiệp vụ c
 * **Xây dựng Hệ thống Xuất Báo cáo Tài chính Đa định dạng (Excel & PDF):**
   * Triển khai giao diện và dịch vụ `IReportExportService` / `ReportExportService` phục vụ nhu cầu trích xuất dữ liệu kế toán khách sạn.
   * **Xuất Excel (ClosedXML):** Tạo bảng kê doanh thu và đơn đặt phòng đầy đủ thông tin chi nhánh, mã đặt phòng, khách hàng, ngày lưu trú, tiền phòng, thuế phí. Dòng cuối cùng của bảng tính tự động gắn công thức Excel `=SUM(...)` chuẩn mực, tự động tính tổng khi mở file trên Microsoft Excel.
-  * **Xuất PDF (QuestPDF):** Kết xuất báo cáo doanh thu và bản in hóa đơn thanh toán sắc nét theo chuẩn Typography in ấn, có đầy đủ logo, cơ cấu thuế VAT, khoản đã thanh toán và số dư còn lại.
+  * **Xuất PDF (QuestPDF):** Tạo báo cáo doanh thu và hóa đơn thanh toán với thông tin khách sạn, danh sách các hạng mục dịch vụ, thuế VAT, số tiền đã thanh toán và số dư còn lại.
   * **Phân quyền dữ liệu:** Giới hạn dữ liệu trích xuất nghiêm ngặt theo Tenant và chi nhánh thuộc thẩm quyền của tài khoản đăng nhập.
 * **Mở rộng Phương thức Thanh toán Khách hàng B2C & VietQR:**
   * Bổ sung tùy chọn nộp tiền mặt tại quầy (yêu cầu khách thanh toán cọc 30% trong thời hạn giữ phòng 15 phút).
