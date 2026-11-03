@@ -177,27 +177,6 @@ Tiếp tục phát huy chỉ dẫn của Thầy Huỳnh Xuân Phụng, nhóm cam
 
 Tuần 05 tiếp tục triển khai các tính năng nâng cao, tối ưu hóa bảo mật, tích hợp liên phân hệ và chuẩn bị báo cáo tiến độ tuần tiếp theo:
 
-```mermaid
-gantt
-    title Kế hoạch triển khai Tuần 05 - Hotel SaaS Platform v2
-    dateFormat YYYY-MM-DD
-    axisFormat %d/%m
-
-    section Ngô Võ Tuấn An
-    Nghiên cứu và tích hợp Firebase Phone Auth :a1, 2026-11-03, 2d
-    Đóng gói Docker và tăng cường bảo mật :a2, after a1, 2d
-    Viết báo cáo tiến độ Tuần 05 :a3, after a2, 2d
-
-    section Nguyễn Khôi Nguyên
-    Hoàn thiện mã QR trên hóa đơn PDF :n1, 2026-11-03, 2d
-    Lưu phương thức thanh toán vào CSDL :n2, after n1, 2d
-    Kiểm thử hiệu năng xuất báo cáo :n3, after n2, 2d
-
-    section Trần Trọng Tân
-    Xây dựng giao diện duyệt hoàn tiền D23 :t1, 2026-11-03, 2d
-    Tối ưu âm thanh và thông báo Push PWA :t2, after t1, 2d
-    Chuẩn bị kịch bản demo nghiệp vụ :t3, after t2, 2d
-```
 
 ### Phân công Nhiệm vụ Cụ thể cho Từng Thành viên (Tuần 05):
 
