@@ -199,17 +199,55 @@ Toàn bộ mã nguồn đã được đẩy lên nhánh [`feature/tan-week4-noti
 * **[Prompt 3 - Phân hệ Nhật ký Kiểm toán Audit Logging & Interceptor (T03)]:** "Hãy thiết kế hệ thống Audit Logging ghi vết mọi thao tác thay đổi dữ liệu bảng giá phòng (RoomRate, RatePlan), hóa đơn thanh toán (Payment) và đơn đặt phòng (Reservation). Tạo thực thể AuditLog trong Domain, cài đặt AuditSaveChangesInterceptor trong EF Core để tự động bắt các thay đổi trong ChangeTracker và lưu OldValues / NewValues dạng JSON. Xây dựng API và màn hình quản trị viên tra cứu nhật ký kiểm toán dành riêng cho vai trò Owner và GeneralManager."
 * **[Prompt 4 - Quy trình Hủy phòng B2C & Tính phí phạt 24h (T04)]:** "Trên trang tra cứu trạng thái đơn (booking-status.page.ts), xây dựng nút 'Yêu cầu hủy đặt phòng' và modal xác nhận đối soát tài chính. Kiểm tra điều kiện: Nếu hủy trước giờ nhận phòng từ 24 giờ trở lên thì miễn phí hủy phòng và hoàn 100% tiền cọc/điểm; nếu hủy trong vòng 24 giờ trước nhận phòng thì áp dụng phí phạt 30% tổng tiền đơn. Giải phóng phòng vật lý tức thì về trạng thái sẵn sàng đón khách mới."
 
-**AI tạo ra:**
-* Component chuông thông báo nhồi nhét 6 phần tử vào Header 400px cố định khiến tiêu đề bị tràn cắt cụt, badge trạng thái bị vỡ dòng; sử dụng file mp3 tĩnh dễ bị lỗi 404.
-* Chức năng gia hạn chỉ viết hàm tăng biến cục bộ `remainingSeconds += 300` trên client mỗi khi click, không kiểm soát số lần bấm, cho phép khách liên tục bấm để giữ phòng vĩnh viễn mà không gọi API backend.
-* Cơ chế ghi log kiểm toán được AI gợi ý viết rải rác thủ công ở từng controller, dễ bị sót khi có thao tác ngầm; lưu toàn bộ dữ liệu thô bao gồm cả các trường nhạy cảm vào database.
-* Modal hủy phòng hiển thị thông báo chung chung *"Bạn bị phạt 30% và khách sạn sẽ chuyển khoản hoàn tiền"*, không cho biết giờ nhận phòng và giờ hủy, mặc định sai phương thức chuyển khoản và gây hiểu nhầm là tiền đã được hoàn ngay lập tức về tài khoản của khách.
+### AI tạo ra và những hạn chế phát hiện được
 
-**SV đã sửa:**
-* **Kiểm tra Chuông thông báo:** Đưa mã vào chạy thử nghiệm, em thao tác mở dropdown thông báo thì thấy tiêu đề bị cắt cụt thành *"Trung tâm thông..."* và badge *"Trực tiếp"* bị nhảy 2 dòng; em kêu AI chỉnh lại CSS `whitespace-nowrap shrink-0`, dời badge số lượng gọn gàng cạnh tiêu đề và mở rộng khung hiển thị linh hoạt `w-[min(26rem,calc(100vw-1.5rem))]`.
-* **Kiểm tra cảnh báo giữ phòng & Khóa gia hạn 1 lần:** Đưa tính năng gia hạn vào thử nghiệm, em quan sát thấy đồng hồ đếm ngược đến 03:00 đã hiển thị thanh cảnh báo; tuy nhiên khi click nút gia hạn nhiều lần thì thời gian cứ tăng mãi mà không bị chặn, chưa đúng ý kiểm soát quỹ phòng; em viết prompt yêu cầu ràng buộc chặt chẽ trường `holdExtensionCount` từ backend DTO. Em thao tác bấm gia hạn thử nghiệm 1 lần thấy cộng đúng 5 phút, nút bấm chuyển ngay sang nhãn *"Đã sử dụng 1/1 lượt gia hạn"* và bị vô hiệu hóa hoàn toàn, đúng ý bảo vệ cơ sở.
-* **Kiểm tra Nhật ký kiểm toán & Che mờ dữ liệu:** Thao tác chỉnh sửa giá phòng trong PMS, em thấy AI đề xuất gọi hàm log thủ công rất dễ sót; nên em đã yêu cầu AI chuyển sang `AuditSaveChangesInterceptor` tự động ghi vết trong `SaveChangesAsync()`. Vào database em kiểm tra thì thấy dữ liệu JSON lưu cả token và thông tin mật, chưa đúng ý bảo mật; em đã kêu AI viết thêm lớp `AuditPayloadSanitizer` để loại bỏ các trường nhạy cảm trước khi lưu. Khi em đăng nhập tài khoản lễ tân thường thử truy cập `/admin/audit-logs` thì bị chặn 403 Forbidden, đăng nhập tài khoản Owner/GM thì xem được đầy đủ lịch sử thay đổi và bảng so sánh Diff trực quan.
-* **Kiểm tra Hủy phòng & Bóc tách hoàn tiền D23:** Em đã thực hiện thử nghiệm hủy một đơn phòng trong vòng 24 giờ trước giờ check-in, thấy modal chỉ báo phạt 30% mà không ghi rõ giờ giấc khiến khách khó hiểu; em viết prompt yêu cầu bổ sung 3 mốc thời gian thực tế: giờ nhận phòng, giờ gửi yêu cầu hủy và số giờ còn lại, đồng thời in đậm các điều khoản phạt để khách dễ nắm bắt. Đặc biệt, em phát hiện dòng chữ mặc định "khách sạn sẽ chuyển khoản" là sai thực tế nếu khách trả bằng VNPay hoặc tiền mặt, và đơn hủy chỉ chuyển trạng thái `Cancelled` còn tiền hoàn phải chờ quản lý duyệt theo Quyết định D23; em đã sửa câu chữ thông báo minh bạch: *"Đặt phòng sẽ được hủy sau khi bạn xác nhận. Khoản hoàn dự kiến sẽ được khách sạn đối soát và xử lý theo phương thức hoàn tiền được xác nhận. Đây chưa phải khoản tiền đã được hoàn"*, đúng ý nghiệp vụ khách sạn.
+- **T01 – Chuông thông báo:** Ở phiên bản đầu, AI sắp xếp quá nhiều thành phần trong khung Header có chiều rộng cố định 400px. Điều này khiến tiêu đề “Trung tâm thông báo” bị cắt chữ, còn nhãn “Trực tiếp” bị xuống dòng. AI cũng đưa ra phương án sử dụng âm thanh từ tệp MP3 tĩnh thay vì tạo âm thanh bằng Web Audio như yêu cầu ban đầu.
+
+- **T02 – Cảnh báo và gia hạn giữ phòng:** Phần gia hạn ban đầu chỉ tăng biến `remainingSeconds` thêm 300 giây ở frontend, chưa gọi API để cập nhật thời hạn giữ phòng thực tế. Do không kiểm soát số lượt gia hạn, người dùng có thể liên tục bấm nút khiến thời gian hiển thị tăng lên, dù server chưa xác nhận gia hạn.
+
+- **T03 – Nhật ký kiểm toán:** Mặc dù prompt đã yêu cầu sử dụng EF Core Interceptor, phương án AI đưa ra ban đầu vẫn thiên về ghi log thủ công tại từng Controller. Cách triển khai này dễ bỏ sót thao tác thay đổi dữ liệu và khó quản lý tập trung. Bên cạnh đó, dữ liệu lưu trong nhật ký chưa được lọc đầy đủ, tiềm ẩn nguy cơ ghi nhận cả những trường thông tin nhạy cảm.
+
+- **T04 – Hủy phòng và hoàn tiền:** Modal xác nhận hủy phòng ban đầu chỉ thông báo mức phí phạt 30% mà không hiển thị rõ các mốc thời gian dùng để tính phí. Nội dung thông báo còn mặc định khách sẽ nhận tiền hoàn qua chuyển khoản, chưa phân biệt giữa việc hủy đơn thành công và quá trình đối soát, phê duyệt hoàn tiền.
+
+### Quá trình sinh viên phát hiện, điều chỉnh và kiểm chứng
+
+**T01 – Kiểm tra và chỉnh sửa giao diện Chuông thông báo**
+
+Sau khi chạy frontend, em mở dropdown chuông thông báo để xem giao diện thực tế. Lúc này, tiêu đề bị cắt thành “Trung tâm thông...” và nhãn “Trực tiếp” hiển thị trên hai dòng, làm phần Header khá rối.
+
+Em chụp ảnh màn hình lỗi và gửi cho Antigravity IDE, yêu cầu AI sắp xếp lại các thành phần để không bị tràn hoặc xuống dòng. AI bổ sung `whitespace-nowrap`, `shrink-0`, thu gọn badge số lượng thông báo chưa đọc và điều chỉnh chiều rộng dropdown thành `w-[min(26rem,calc(100vw-1.5rem))]`.
+
+Em mở lại giao diện để kiểm tra phần tiêu đề, badge và cách hiển thị của dropdown sau khi sửa.
+
+**T02 – Kiểm tra chức năng gia hạn giữ phòng**
+
+Trong lúc thử tính năng trên trang giữ phòng, em thấy thanh cảnh báo đã xuất hiện khi đồng hồ còn khoảng 3 phút. Tuy nhiên, khi bấm gia hạn nhiều lần, thời gian trên giao diện tiếp tục tăng mà chưa có cơ chế chặn lượt.
+
+Em nhận thấy cách xử lý này không phù hợp vì thời hạn giữ phòng cần được backend quản lý. Em viết prompt yêu cầu AI sửa lại chức năng, gọi API gia hạn và sử dụng `holdExtensionCount` từ dữ liệu server để kiểm tra số lượt đã dùng.
+
+Sau khi AI cập nhật, em thử gia hạn thêm 5 phút và kiểm tra trạng thái nút. Giao diện hiển thị “Đã sử dụng 1/1 lượt gia hạn”, đồng thời không cho phép tiếp tục bấm. Phần backend cũng được bổ sung kiểm tra giới hạn một lần gia hạn để tránh phụ thuộc hoàn toàn vào frontend.
+
+**T03 – Kiểm tra Audit Logging và dữ liệu nhạy cảm**
+
+Khi xem lại cách AI triển khai chức năng ghi nhật ký, em nhận thấy việc thêm lệnh ghi log thủ công vào từng Controller sẽ dễ thiếu sót nếu sau này hệ thống phát sinh thêm API hoặc các thao tác cập nhật ngầm.
+
+Vì vậy, em yêu cầu AI viết một prompt fix, trong đó nhấn mạnh việc chuyển sang `AuditSaveChangesInterceptor` của EF Core và sử dụng `ChangeTracker` để tự động ghi nhận các thay đổi.
+
+Đối với dữ liệu JSON, em tiếp tục yêu cầu AI bổ sung cơ chế lọc thông tin nhạy cảm trước khi lưu. Phần xử lý này được triển khai thông qua các hàm kiểm tra tên trường và xử lý giá trị ngay trong `AuditSaveChangesInterceptor`, thay vì lưu toàn bộ dữ liệu thô.
+
+Ở bước kiểm chứng, em xem lại dữ liệu nhật ký và thử phân quyền truy cập trang `/admin/audit-logs`. Tài khoản lễ tân thông thường bị từ chối truy cập, trong khi tài khoản có vai trò `Owner` hoặc `GeneralManager` có thể mở trang tra cứu và xem chi tiết thay đổi.
+
+**T04 – Kiểm tra hủy phòng và làm rõ quy trình hoàn tiền D23**
+
+Khi thử hủy một đơn đặt phòng trong vòng 24 giờ trước giờ nhận phòng, em thấy modal chỉ hiển thị khoản phạt 30% mà không giải thích rõ cách xác định thời gian. Nếu là khách hàng, việc chỉ nhìn thấy tỷ lệ phạt như vậy sẽ khá khó hiểu.
+
+Em yêu cầu AI viết prompt fix để bổ sung giờ nhận phòng, thời điểm gửi yêu cầu hủy và số giờ còn lại trước khi nhận phòng. Đồng thời, phần điều khoản phí phạt cần được trình bày nổi bật hơn.
+
+Một vấn đề khác em nhận ra là thông báo hoàn tiền chưa đúng với mọi phương thức thanh toán. Khách có thể thanh toán bằng VNPay, VietQR hoặc tiền mặt, nên không thể mặc định khách sạn sẽ hoàn tiền bằng chuyển khoản.
+
+Em sử dụng prompt đã điều chỉnh để Antigravity IDE sửa lại giao diện và nội dung thông báo. Theo quy trình D23, việc hủy đơn và giải phóng phòng được xử lý riêng với việc hoàn tiền; khoản hoàn dự kiến vẫn cần được đối soát và phê duyệt trước khi chi trả.
+
+Sau khi chỉnh sửa, em kiểm tra lại modal hủy phòng và trang trạng thái đặt phòng để bảo đảm khách có thể phân biệt giữa “Đã hủy đặt phòng” và “Đã hoàn tiền”.
 
 **Minh chứng Commit GitHub:**
 * Commit [`96e0acc`](https://github.com/GinNgo/hotel-saas-v2/commit/96e0acc): `feat(audit): implement audit logging entity, interceptor, controller and admin UI (T03)`

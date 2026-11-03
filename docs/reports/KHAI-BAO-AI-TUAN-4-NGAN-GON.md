@@ -70,13 +70,58 @@ Commit `5353c1e` : merge: integrate feature/nguyen-week4-invoicing-export into d
 
 [Prompt 4 - Hủy phòng B2C & Phí phạt 24h]: "Xây dựng chức năng hủy đặt phòng trên booking-status.page.ts: hủy trước 24h miễn phí, trong vòng 24h phạt 100% cọc đêm đầu. Tách bạch việc giải phóng phòng trống ngay với quy trình duyệt hoàn tiền D23 tại quầy."
 
-**AI tạo ra:**  
-Chuông thông báo tải file MP3 ngoài bị lỗi 404 trên VPS, dùng `setInterval` gây rò rỉ bộ nhớ. Nút gia hạn chỉ tăng biến client `remainingSeconds += 300` cho phép bấm liên tục để giữ phòng vô hạn. Hệ thống kiểm toán đề xuất gọi thủ công ở Controller dễ sót và chuỗi JSON lưu cả hash mật khẩu. Giao diện hủy phòng không hiện mốc giờ check-in thực tế và báo tự động chuyển khoản tiền ngay gây hiểu nhầm.
+### AI tạo ra và những hạn chế phát hiện được
 
-**SV đã sửa:**  
-Kiểm tra chuông thông báo: Dùng Web Audio API tổng hợp âm thanh chuông 2 âm sắc bằng JavaScript không cần file mp3, dọn dẹp subscription khi OnDestroy; test frontend pass 21/21. Kiểm tra cảnh báo giữ phòng: Đồng bộ thời gian với server, thêm biến `holdExtensionCount` khóa nút sau 1 lần gia hạn, đồng hồ dưới 3 phút chuyển màu hổ phách; test pass 39/39. Kiểm tra nhật ký kiểm toán: Dùng `AuditSaveChangesInterceptor` bắt ChangeTracker tự động, lọc bỏ PasswordHash/CreditCard trước khi lưu, phân quyền xem nhật ký; test pass 29/29. Kiểm tra hủy phòng: Hiển thị rõ giờ check-in, giờ hủy, số giờ còn lại và điều khoản phạt 24h; hủy phòng giải phóng phòng trống ngay, cọc chuyển sang chờ duyệt D23; test pass 111/111.  
-**Minh chứng Commit GitHub:**  
-Commit `ce6dfe9` : feat(notifications): add notification bell, realtime toast and SignalR client (T01)  
-Commit `3f43393` : feat(booking): add 3-min hold expiration alert and guest cancellation workflow (T02, T04)  
-Commit `96e0acc` : feat(audit): implement audit logging entity, interceptor, controller and admin UI (T03)  
-Commit `786fa5a` : merge(week4): integrate feature/tan-week4-notifications-audit into develop
+- **T01 – Chuông thông báo:** Ở phiên bản đầu, AI sắp xếp quá nhiều thành phần trong khung Header có chiều rộng cố định 400px. Điều này khiến tiêu đề “Trung tâm thông báo” bị cắt chữ, còn nhãn “Trực tiếp” bị xuống dòng. AI cũng đưa ra phương án sử dụng âm thanh từ tệp MP3 tĩnh thay vì tạo âm thanh bằng Web Audio như yêu cầu ban đầu.
+
+- **T02 – Cảnh báo và gia hạn giữ phòng:** Phần gia hạn ban đầu chỉ tăng biến `remainingSeconds` thêm 300 giây ở frontend, chưa gọi API để cập nhật thời hạn giữ phòng thực tế. Do không kiểm soát số lượt gia hạn, người dùng có thể liên tục bấm nút khiến thời gian hiển thị tăng lên, dù server chưa xác nhận gia hạn.
+
+- **T03 – Nhật ký kiểm toán:** Mặc dù prompt đã yêu cầu sử dụng EF Core Interceptor, phương án AI đưa ra ban đầu vẫn thiên về ghi log thủ công tại từng Controller. Cách triển khai này dễ bỏ sót thao tác thay đổi dữ liệu và khó quản lý tập trung. Bên cạnh đó, dữ liệu lưu trong nhật ký chưa được lọc đầy đủ, tiềm ẩn nguy cơ ghi nhận cả những trường thông tin nhạy cảm.
+
+- **T04 – Hủy phòng và hoàn tiền:** Modal xác nhận hủy phòng ban đầu chỉ thông báo mức phí phạt 30% mà không hiển thị rõ các mốc thời gian dùng để tính phí. Nội dung thông báo còn mặc định khách sẽ nhận tiền hoàn qua chuyển khoản, chưa phân biệt giữa việc hủy đơn thành công và quá trình đối soát, phê duyệt hoàn tiền.
+
+### Quá trình sinh viên phát hiện, điều chỉnh và kiểm chứng
+
+**T01 – Kiểm tra và chỉnh sửa giao diện Chuông thông báo**
+
+Sau khi chạy frontend, em mở dropdown chuông thông báo để xem giao diện thực tế. Lúc này, tiêu đề bị cắt thành “Trung tâm thông...” và nhãn “Trực tiếp” hiển thị trên hai dòng, làm phần Header khá rối.
+
+Em chụp ảnh màn hình lỗi và gửi cho Antigravity IDE, yêu cầu AI sắp xếp lại các thành phần để không bị tràn hoặc xuống dòng. AI bổ sung `whitespace-nowrap`, `shrink-0`, thu gọn badge số lượng thông báo chưa đọc và điều chỉnh chiều rộng dropdown thành `w-[min(26rem,calc(100vw-1.5rem))]`.
+
+Em mở lại giao diện để kiểm tra phần tiêu đề, badge và cách hiển thị của dropdown sau khi sửa.
+
+**T02 – Kiểm tra chức năng gia hạn giữ phòng**
+
+Trong lúc thử tính năng trên trang giữ phòng, em thấy thanh cảnh báo đã xuất hiện khi đồng hồ còn khoảng 3 phút. Tuy nhiên, khi bấm gia hạn nhiều lần, thời gian trên giao diện tiếp tục tăng mà chưa có cơ chế chặn lượt.
+
+Em nhận thấy cách xử lý này không phù hợp vì thời hạn giữ phòng cần được backend quản lý. Em viết prompt yêu cầu AI sửa lại chức năng, gọi API gia hạn và sử dụng `holdExtensionCount` từ dữ liệu server để kiểm tra số lượt đã dùng.
+
+Sau khi AI cập nhật, em thử gia hạn thêm 5 phút và kiểm tra trạng thái nút. Giao diện hiển thị “Đã sử dụng 1/1 lượt gia hạn”, đồng thời không cho phép tiếp tục bấm. Phần backend cũng được bổ sung kiểm tra giới hạn một lần gia hạn để tránh phụ thuộc hoàn toàn vào frontend.
+
+**T03 – Kiểm tra Audit Logging và dữ liệu nhạy cảm**
+
+Khi xem lại cách AI triển khai chức năng ghi nhật ký, em nhận thấy việc thêm lệnh ghi log thủ công vào từng Controller sẽ dễ thiếu sót nếu sau này hệ thống phát sinh thêm API hoặc các thao tác cập nhật ngầm.
+
+Vì vậy, em yêu cầu AI viết một prompt fix, trong đó nhấn mạnh việc chuyển sang `AuditSaveChangesInterceptor` của EF Core và sử dụng `ChangeTracker` để tự động ghi nhận các thay đổi.
+
+Đối với dữ liệu JSON, em tiếp tục yêu cầu AI bổ sung cơ chế lọc thông tin nhạy cảm trước khi lưu. Phần xử lý này được triển khai thông qua các hàm kiểm tra tên trường và xử lý giá trị ngay trong `AuditSaveChangesInterceptor`, thay vì lưu toàn bộ dữ liệu thô.
+
+Ở bước kiểm chứng, em xem lại dữ liệu nhật ký và thử phân quyền truy cập trang `/admin/audit-logs`. Tài khoản lễ tân thông thường bị từ chối truy cập, trong khi tài khoản có vai trò `Owner` hoặc `GeneralManager` có thể mở trang tra cứu và xem chi tiết thay đổi.
+
+**T04 – Kiểm tra hủy phòng và làm rõ quy trình hoàn tiền D23**
+
+Khi thử hủy một đơn đặt phòng trong vòng 24 giờ trước giờ nhận phòng, em thấy modal chỉ hiển thị khoản phạt 30% mà không giải thích rõ cách xác định thời gian. Nếu là khách hàng, việc chỉ nhìn thấy tỷ lệ phạt như vậy sẽ khá khó hiểu.
+
+Em yêu cầu AI viết prompt fix để bổ sung giờ nhận phòng, thời điểm gửi yêu cầu hủy và số giờ còn lại trước khi nhận phòng. Đồng thời, phần điều khoản phí phạt cần được trình bày nổi bật hơn.
+
+Một vấn đề khác em nhận ra là thông báo hoàn tiền chưa đúng với mọi phương thức thanh toán. Khách có thể thanh toán bằng VNPay, VietQR hoặc tiền mặt, nên không thể mặc định khách sạn sẽ hoàn tiền bằng chuyển khoản.
+
+Em sử dụng prompt đã điều chỉnh để Antigravity IDE sửa lại giao diện và nội dung thông báo. Theo quy trình D23, việc hủy đơn và giải phóng phòng được xử lý riêng với việc hoàn tiền; khoản hoàn dự kiến vẫn cần được đối soát và phê duyệt trước khi chi trả.
+
+Sau khi chỉnh sửa, em kiểm tra lại modal hủy phòng và trang trạng thái đặt phòng để bảo đảm khách có thể phân biệt giữa “Đã hủy đặt phòng” và “Đã hoàn tiền”.
+
+**Minh chứng Commit GitHub:**
+Commit ce6dfe9 : feat(notifications): add notification bell, realtime toast and SignalR client (T01)
+Commit 3f43393 : feat(booking): add 3-min hold expiration alert and guest cancellation workflow (T02, T04)
+Commit 96e0acc : feat(audit): implement audit logging entity, interceptor, controller and admin UI (T03)
+Commit 786fa5a : merge(week4): integrate feature/tan-week4-notifications-audit into develop
