@@ -271,7 +271,7 @@ HÃY CUNG CẤP MÃ NGUỒN BACKEND HUB, INTEGRATION SERVICE Ở FRONTEND VÀ TE
 Bạn là Lead QA & Solutions Architect của dự án Hotel SaaS Platform v2.
 
 MỤC TIÊU:
-Soạn thảo Kịch bản Trình diễn Nghiệp vụ (Live Demo Playbook) xuyên suốt giữa 2 màn hình đồng thời phục vụ buổi Báo cáo Nghiệm thu Tuần 5 và Bảo vệ Đồ án trước Hội đồng chấm thi.
+Soạn thảo Kịch bản Trình diễn Nghiệp vụ (Live Demo Playbook) xuyên suốt giữa 2 màn hình đồng thời phục vụ buổi Báo cáo Tiến độ Tuần 05 với Giảng viên hướng dẫn.
 
 YÊU CẦU KỊCH BẢN:
 1. Màn hình 1 (Khách hàng B2C trên Mobile/Browser Khách):
@@ -304,4 +304,4 @@ Khi thực hiện xong mỗi task, sinh viên ghi lại theo mẫu sau vào file
 ```
 
 ---
-*Tài liệu này được biên soạn bởi Ban Điều phối Kỹ thuật Hotel SaaS Platform v2 để đảm bảo tính đồng bộ, tuân thủ nguyên tắc kiến trúc và phục vụ công tác nghiệm thu đồ án.*
+*Tài liệu này được biên soạn bởi Ban Điều phối Kỹ thuật Hotel SaaS Platform v2 để đảm bảo tính đồng bộ, tuân thủ nguyên tắc kiến trúc và phục vụ báo cáo tiến độ và nghiệm thu công việc.*

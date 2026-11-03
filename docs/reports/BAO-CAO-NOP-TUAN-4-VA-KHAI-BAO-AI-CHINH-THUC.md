@@ -173,9 +173,9 @@ Tiếp tục phát huy chỉ dẫn của Thầy Huỳnh Xuân Phụng, nhóm cam
 
 ---
 
-## PHẦN IV. KẾ HOẠCH VÀ PHÂN CÔNG NHIỆM VỤ TUẦN 05 (TUẦN NGHIỆM THU & BẢO VỆ CUỐI KỲ)
+## PHẦN IV. KẾ HOẠCH VÀ PHÂN CÔNG NHIỆM VỤ TUẦN 05
 
-Tuần 05 là giai đoạn về đích của toàn bộ đề tài. Nhóm tập trung vào các hạng mục tối ưu hóa bảo mật, đóng gói sản phẩm hoàn chỉnh, diễn tập bảo vệ và chuẩn bị tài liệu nghiệm thu:
+Tuần 05 tiếp tục triển khai các tính năng nâng cao, tối ưu hóa bảo mật, tích hợp liên phân hệ và chuẩn bị báo cáo tiến độ tuần tiếp theo:
 
 ```mermaid
 gantt
@@ -186,7 +186,7 @@ gantt
     section Ngô Võ Tuấn An
     Nghiên cứu và tích hợp Firebase Phone Auth :a1, 2026-11-03, 2d
     Đóng gói Docker và tăng cường bảo mật :a2, after a1, 2d
-    Viết báo cáo tổng kết và slide bảo vệ :a3, after a2, 2d
+    Viết báo cáo tiến độ Tuần 05 :a3, after a2, 2d
 
     section Nguyễn Khôi Nguyên
     Hoàn thiện mã QR trên hóa đơn PDF :n1, 2026-11-03, 2d
@@ -205,7 +205,7 @@ gantt
 * **Nhiệm vụ 1 (Xác thực SĐT):** Nghiên cứu và tích hợp Firebase Phone Authentication (Google Identity Platform) để hỗ trợ xác thực số điện thoại bằng mã OTP qua SMS. Kết hợp reCAPTCHA nhằm hạn chế các yêu cầu gửi OTP tự động, đồng thời kiểm tra chính sách tính phí và hạn mức sử dụng của Firebase trước khi triển khai thực tế.
 * **Nhiệm vụ 2 (Chính sách Kích hoạt Tài khoản Kép):** Hoàn thiện cơ chế phân tầng (Soft-Gating cho khách vãng lai, Hard-Gating cho nhân sự khách sạn) và tự động kích hoạt tài khoản khi đăng nhập bằng Google OAuth.
 * **Nhiệm vụ 3 (Bảo mật & Tối ưu Hệ thống):** Khắc phục toàn bộ các khuyến nghị từ Code Review (bảo vệ link xác thực khỏi rò rỉ token qua config server, chuẩn hóa ApiResponse wrapper).
-* **Nhiệm vụ 4 (Đóng gói Tổng kết):** Chủ trì viết Báo cáo Tổng kết đề tài, thiết kế Slides thuyết trình bảo vệ và quay video demo tổng thể hệ thống trên môi trường thật.
+* **Nhiệm vụ 4 (Đóng gói & Báo cáo tiến độ):** Phối hợp đóng gói mã nguồn, kiểm tra chất lượng CI/CD, viết Báo cáo tiến độ Tuần 05 và chuẩn bị kịch bản demo tính năng mới.
 
 #### 2. Nguyễn Khôi Nguyên (`24TX810011`):
 * **Nhiệm vụ 1 (Hoàn thiện Hóa đơn PDF):** Bổ sung mã QR tra cứu động nhúng an toàn trực tiếp vào hóa đơn PDF (dùng thư viện sinh SVG cục bộ, không gọi internet).
