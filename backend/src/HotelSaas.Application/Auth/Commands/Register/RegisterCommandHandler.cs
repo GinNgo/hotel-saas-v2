@@ -68,7 +68,7 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Re
         var verificationToken = _jwtService.GenerateEmailVerificationToken(user.Id, user.Email, TimeSpan.FromMinutes(30));
         var appUrl = !string.IsNullOrWhiteSpace(request.AppUrl)
             ? request.AppUrl.Trim().TrimEnd('/')
-            : "https://saigonlex.duckdns.org";
+            : "https://luxustay.duckdns.org";
         var verificationUrl = $"{appUrl}/confirm-email?token={Uri.EscapeDataString(verificationToken)}";
 
         // Dispatch Verification Email asynchronously without blocking client registration response

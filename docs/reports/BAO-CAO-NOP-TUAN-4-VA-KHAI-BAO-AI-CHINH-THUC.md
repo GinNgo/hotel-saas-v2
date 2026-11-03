@@ -14,7 +14,7 @@
 * **Thời gian thực hiện Tuần 04:** 26/10/2026 – 02/11/2026 (Hoàn tất rà soát, nghiệm thu, tích hợp nhánh & kiểm thử: 03/11/2026)
 * **Kho mã nguồn chính thức (GitHub Repository):** [https://github.com/GinNgo/hotel-saas-v2](https://github.com/GinNgo/hotel-saas-v2)
 * **Nhánh phát triển chính (Default Integration Branch):** [`develop`](https://github.com/GinNgo/hotel-saas-v2/tree/develop)
-* **Máy chủ Staging thực tế (VPS Production-Like):** [https://saigonlex.duckdns.org](https://saigonlex.duckdns.org) (IP: `103.116.38.74`, Caddy TLS Reverse Proxy, Docker Engine, PostgreSQL 17 Staging).
+* **Máy chủ Staging thực tế (VPS Production-Like):** [https://luxustay.duckdns.org](https://luxustay.duckdns.org) (IP: `103.116.38.74`, Caddy TLS Reverse Proxy, Docker Engine, PostgreSQL 17 Staging).
 * **Cam kết liên kết minh chứng:** Toàn bộ liên kết trong báo cáo này 100% sử dụng đường dẫn trực tiếp trên kho mã nguồn GitHub (`github.com/GinNgo/hotel-saas-v2`), tuyệt đối không sử dụng liên kết ngoài GitHub.
 
 ### Danh Sách Thành Viên Nhóm Thực Hiện
@@ -47,7 +47,7 @@ Tuần 04 là tuần bản lề khép kín toàn bộ chu trình nghiệp vụ c
   * Nâng cấp Hero Banner trang chủ với hình ảnh khách sạn cao cấp, bảng màu trung tính kết hợp điểm nhấn ngọc lục bảo (Emerald) và vàng kim (Gold/Amber).
 * **Đóng gói Docker & Triển khai Máy chủ VPS Staging:**
   * Cập nhật Dockerfile multi-stage cho Backend (.NET 10) và Frontend (Angular 22 + Nginx 1.27-alpine).
-  * Vận hành CSDL PostgreSQL 17 Cloud, Redis Caching và reverse proxy bảo mật HTTPS Caddy tại tên miền thật `https://saigonlex.duckdns.org`.
+  * Vận hành CSDL PostgreSQL 17 Cloud, Redis Caching và reverse proxy bảo mật HTTPS Caddy tại tên miền thật `https://luxustay.duckdns.org`.
 
 ---
 
