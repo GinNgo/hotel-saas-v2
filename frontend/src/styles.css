@@ -121,6 +121,27 @@ p-datepicker {
   min-height: 2.75rem !important;
   border-radius: var(--radius-xl) !important;
 }
+/* ═══════════════════════════════════════════════════════════════
+   PRIMENG DATEPICKER ICON OVERLAP SAFEGUARDS
+   Ensures calendar icon and clear button never cover date text (dd/mm/yyyy).
+   ═══════════════════════════════════════════════════════════════ */
+.p-datepicker-input {
+  padding-right: 2.75rem !important;
+}
+
+.p-datepicker-dropdown ~ .p-datepicker-input,
+.p-datepicker-input-icon ~ .p-datepicker-input {
+  padding-right: 2.75rem !important;
+}
+
+.p-datepicker-clear-icon ~ .p-datepicker-input {
+  padding-right: 2.75rem !important;
+}
+
+.p-datepicker-clear-icon ~ .p-datepicker-dropdown ~ .p-datepicker-input,
+.p-datepicker-clear-icon ~ .p-datepicker-input-icon ~ .p-datepicker-input {
+  padding-right: 4.5rem !important;
+}
 
 input.p-inputtext {
   height: 2.75rem;

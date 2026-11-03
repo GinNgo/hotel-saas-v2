@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DatePicker } from 'primeng/datepicker';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -11,11 +12,12 @@ import { QuoteDto } from '../../core/models/reservation.model';
 import { PublicStayContext, publicStayInterval, readPublicStay } from '../../core/models/public-stay-context';
 import { PhotoGalleryModalComponent, GalleryPhotoItem } from '../../shared';
 import { resolvePropertyGallery, resolveRoomThumbnail } from '../../core/utils';
+import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-time.util';
 
 @Component({
   selector: 'app-property-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, PhotoGalleryModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink, PhotoGalleryModalComponent, DatePicker],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="min-h-screen bg-[#EFECE6] py-6 sm:py-8 font-sans text-stone-900">
@@ -227,12 +229,19 @@ import { resolvePropertyGallery, resolveRoomThumbnail } from '../../core/utils';
                   <label for="stay-checkin-date" class="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1.5">
                     Ngày nhận phòng
                   </label>
-                  <input
-                    id="stay-checkin-date"
-                    type="date"
-                    [ngModel]="stay().checkInDate"
-                    (ngModelChange)="updateStay('checkInDate', $event)"
-                    class="w-full h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-stone-300 bg-[#FBF9F5] text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#C05621]/20 focus:border-[#C05621] shadow-2xs transition-all font-medium"
+                  <p-datepicker
+                    inputId="stay-checkin-date"
+                    [ngModel]="checkInDateValue()"
+                    (ngModelChange)="onCheckInDateChange($event)"
+                    dateFormat="dd/mm/yy"
+                    [showIcon]="true"
+                    iconDisplay="input"
+                    appendTo="body"
+                    [firstDayOfWeek]="1"
+                    placeholder="dd/mm/yyyy"
+                    ariaLabel="Ngày nhận phòng"
+                    styleClass="w-full"
+                    inputStyleClass="w-full h-11 text-xs sm:text-sm pl-3.5 pr-10 rounded-xl border border-stone-300 bg-[#FBF9F5] text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#C05621]/20 focus:border-[#C05621] shadow-2xs transition-all font-medium"
                   />
                 </div>
 
@@ -241,12 +250,19 @@ import { resolvePropertyGallery, resolveRoomThumbnail } from '../../core/utils';
                     <label for="stay-checkout-date" class="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1.5">
                       Ngày trả phòng
                     </label>
-                    <input
-                      id="stay-checkout-date"
-                      type="date"
-                      [ngModel]="stay().checkOutDate"
-                      (ngModelChange)="updateStay('checkOutDate', $event)"
-                      class="w-full h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-stone-300 bg-[#FBF9F5] text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#C05621]/20 focus:border-[#C05621] shadow-2xs transition-all font-medium"
+                    <p-datepicker
+                      inputId="stay-checkout-date"
+                      [ngModel]="checkOutDateValue()"
+                      (ngModelChange)="onCheckOutDateChange($event)"
+                      dateFormat="dd/mm/yy"
+                      [showIcon]="true"
+                      iconDisplay="input"
+                      appendTo="body"
+                      [firstDayOfWeek]="1"
+                      placeholder="dd/mm/yyyy"
+                      ariaLabel="Ngày trả phòng"
+                      styleClass="w-full"
+                      inputStyleClass="w-full h-11 text-xs sm:text-sm pl-3.5 pr-10 rounded-xl border border-stone-300 bg-[#FBF9F5] text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#C05621]/20 focus:border-[#C05621] shadow-2xs transition-all font-medium"
                     />
                   </div>
                 } @else {
@@ -794,6 +810,20 @@ import { resolvePropertyGallery, resolveRoomThumbnail } from '../../core/utils';
   `,
 })
 export class PropertyDetailPageComponent implements OnInit {
+  readonly checkInDateValue = computed(() => parseCalendarDate(this.stay().checkInDate));
+  readonly checkOutDateValue = computed(() => parseCalendarDate(this.stay().checkOutDate));
+
+  onCheckInDateChange(val: Date | null): void {
+    if (val) {
+      this.updateStay('checkInDate', formatCalendarDate(val));
+    }
+  }
+
+  onCheckOutDateChange(val: Date | null): void {
+    if (val) {
+      this.updateStay('checkOutDate', formatCalendarDate(val));
+    }
+  }
   getRoomPhoto(room: PublicRoomTypeAvailabilityDto, index: number = 0): string {
     return resolveRoomThumbnail(room.name || room.roomTypeName, index, room.imageUrl);
   }

@@ -9,11 +9,12 @@ import { AuditFieldChange, AuditLogDetail, AuditLogFilterParams, AuditLogListIte
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { DateRangeFilterComponent, DateRangeFilterValue } from '../../shared/components/date-range-filter/date-range-filter.component';
 
 @Component({
   selector: 'app-audit-logs-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, PageHeaderComponent, PaginationComponent, EmptyStateComponent],
+  imports: [CommonModule, FormsModule, PageHeaderComponent, PaginationComponent, EmptyStateComponent, DateRangeFilterComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="space-y-6">
@@ -86,31 +87,14 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
               </select>
             </div>
 
-            <!-- Từ ngày -->
-            <div>
-              <label for="filter-from-date" class="block text-xs font-bold text-slate-700 mb-1.5">
-                Từ ngày
-              </label>
-              <input
-                id="filter-from-date"
-                type="date"
-                [(ngModel)]="fromDate"
-                (change)="onFilterChange()"
-                class="w-full h-10 px-3 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-800 focus:bg-white focus:outline-indigo-500 transition-all"
-              />
-            </div>
-
-            <!-- Đến ngày -->
-            <div>
-              <label for="filter-to-date" class="block text-xs font-bold text-slate-700 mb-1.5">
-                Đến ngày
-              </label>
-              <input
-                id="filter-to-date"
-                type="date"
-                [(ngModel)]="toDate"
-                (change)="onFilterChange()"
-                class="w-full h-10 px-3 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-800 focus:bg-white focus:outline-indigo-500 transition-all"
+            <!-- Lọc Ngày tạo (DateRangeFilterComponent) -->
+            <div class="sm:col-span-2 lg:col-span-2">
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">Thời gian thực hiện</label>
+              <app-date-range-filter
+                label="Khoảng ngày"
+                [initialFromDate]="fromDate"
+                [initialToDate]="toDate"
+                (filterChange)="onAuditDateFilterChange($event)"
               />
             </div>
           </div>
@@ -634,6 +618,8 @@ export class AuditLogsPage implements OnInit {
   selectedEntityName = '';
   fromDate = '';
   toDate = '';
+  fromUtc = '';
+  toUtc = '';
   searchKeyword = '';
 
   /**
@@ -696,10 +682,14 @@ export class AuditLogsPage implements OnInit {
       pageSize: this.pageSize()
     };
 
-    if (this.fromDate) {
+    if (this.fromUtc) {
+      params.fromUtc = this.fromUtc;
+    } else if (this.fromDate) {
       params.fromUtc = new Date(this.fromDate + 'T00:00:00Z').toISOString();
     }
-    if (this.toDate) {
+    if (this.toUtc) {
+      params.toUtc = this.toUtc;
+    } else if (this.toDate) {
       params.toUtc = new Date(this.toDate + 'T23:59:59Z').toISOString();
     }
     if (this.searchKeyword.trim()) {
@@ -728,6 +718,21 @@ export class AuditLogsPage implements OnInit {
     });
   }
 
+  onAuditDateFilterChange(val: DateRangeFilterValue | null): void {
+    if (val) {
+      this.fromDate = val.fromDate;
+      this.toDate = val.toDate;
+      this.fromUtc = val.startUtc;
+      this.toUtc = val.endExclusiveUtc;
+    } else {
+      this.fromDate = '';
+      this.toDate = '';
+      this.fromUtc = '';
+      this.toUtc = '';
+    }
+    this.onFilterChange();
+  }
+
   onFilterChange(): void {
     this.currentPage.set(1);
     this.loadAuditLogs();
@@ -738,6 +743,8 @@ export class AuditLogsPage implements OnInit {
     this.selectedEntityName = '';
     this.fromDate = '';
     this.toDate = '';
+    this.fromUtc = '';
+    this.toUtc = '';
     this.searchKeyword = '';
     this.currentPage.set(1);
     this.loadAuditLogs();

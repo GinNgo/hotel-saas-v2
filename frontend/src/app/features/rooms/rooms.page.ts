@@ -1,5 +1,7 @@
 import { Component, OnInit, inject, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { DatePicker } from 'primeng/datepicker';
+import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-time.util';
 import { FormBuilder, FormGroup, ReactiveFormsModule, FormsModule, Validators } from '@angular/forms';
 import { RoomService } from '../../core/services/room.service';
 import { ReservationService } from '../../core/services/reservation.service';
@@ -53,7 +55,8 @@ export interface QuickMinibarCatalogItem {
     PageHeaderComponent,
     StatusBadgeComponent,
     EmptyStateComponent,
-    LoadingSpinnerComponent
+    LoadingSpinnerComponent,
+    DatePicker
   ],
   template: `
     <div class="max-w-7xl mx-auto space-y-6 pb-12">
@@ -722,18 +725,36 @@ export interface QuickMinibarCatalogItem {
               <div class="grid grid-cols-2 gap-3">
                 <div class="space-y-1.5">
                   <label class="block text-xs font-bold text-slate-700">Ngày nhận phòng</label>
-                  <input
-                    type="date"
-                    formControlName="checkInDate"
-                    class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm bg-slate-50 text-slate-700 focus:outline-hidden"
+                  <p-datepicker
+                    [ngModel]="walkinCheckInDateValue()"
+                    (ngModelChange)="onWalkinCheckInDateChange($event)"
+                    [ngModelOptions]="{standalone: true}"
+                    dateFormat="dd/mm/yy"
+                    [showIcon]="true"
+                    iconDisplay="input"
+                    appendTo="body"
+                    [firstDayOfWeek]="1"
+                    placeholder="dd/mm/yyyy"
+                    ariaLabel="Ngày nhận phòng"
+                    styleClass="w-full"
+                    inputStyleClass="w-full h-10 px-3.5 pr-10 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white focus:outline-hidden focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs font-medium"
                   />
                 </div>
                 <div class="space-y-1.5">
                   <label class="block text-xs font-bold text-slate-700">Ngày trả phòng</label>
-                  <input
-                    type="date"
-                    formControlName="checkOutDate"
-                    class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white focus:outline-hidden focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs"
+                  <p-datepicker
+                    [ngModel]="walkinCheckOutDateValue()"
+                    (ngModelChange)="onWalkinCheckOutDateChange($event)"
+                    [ngModelOptions]="{standalone: true}"
+                    dateFormat="dd/mm/yy"
+                    [showIcon]="true"
+                    iconDisplay="input"
+                    appendTo="body"
+                    [firstDayOfWeek]="1"
+                    placeholder="dd/mm/yyyy"
+                    ariaLabel="Ngày trả phòng"
+                    styleClass="w-full"
+                    inputStyleClass="w-full h-10 px-3.5 pr-10 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white focus:outline-hidden focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs font-medium"
                   />
                 </div>
               </div>
@@ -1032,6 +1053,23 @@ export class RoomsPage implements OnInit {
     { code: 'SVC-MOTO', name: 'Thuê xe máy theo ngày (AirBlade)', price: 150000, category: 'Service', icon: 'pi-compass' },
     { code: 'FB-BUFFET', name: 'Suất Buffet sáng tại nhà hàng', price: 120000, category: 'FoodBeverage', icon: 'pi-heart' },
   ];
+
+  readonly walkinCheckInDateValue = computed(() => parseCalendarDate(this.walkinForm?.get('checkInDate')?.value));
+  readonly walkinCheckOutDateValue = computed(() => parseCalendarDate(this.walkinForm?.get('checkOutDate')?.value));
+
+  onWalkinCheckInDateChange(val: Date | null): void {
+    if (val) {
+      this.walkinForm.patchValue({ checkInDate: formatCalendarDate(val) });
+      this.walkinForm.get('checkInDate')?.markAsDirty();
+    }
+  }
+
+  onWalkinCheckOutDateChange(val: Date | null): void {
+    if (val) {
+      this.walkinForm.patchValue({ checkOutDate: formatCalendarDate(val) });
+      this.walkinForm.get('checkOutDate')?.markAsDirty();
+    }
+  }
 
   walkinForm: FormGroup = this.fb.group({
     roomId: ['', Validators.required],

@@ -1,6 +1,8 @@
 import { Component, OnInit, inject, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DatePicker } from 'primeng/datepicker';
+import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-time.util';
 import { Router } from '@angular/router';
 import { AdminContractsService } from '../../core/services/admin-contracts.service';
 import { AdminPlansService } from '../../core/services/admin-plans.service';
@@ -11,7 +13,7 @@ import { AdminSubscriptionPlanDto } from '../../core/models/admin-plan.model';
 @Component({
   selector: 'app-admin-contracts-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, DatePicker],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="space-y-8 max-w-7xl mx-auto pb-12">
@@ -288,11 +290,33 @@ import { AdminSubscriptionPlanDto } from '../../core/models/admin-plan.model';
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label class="block text-xs font-semibold text-slate-700 mb-1">Ngày bắt đầu</label>
-                  <input type="date" [(ngModel)]="newStartDate" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300" />
+                  <p-datepicker
+                    [(ngModel)]="newStartDateValue"
+                    dateFormat="dd/mm/yy"
+                    [showIcon]="true"
+                    iconDisplay="input"
+                    appendTo="body"
+                    [firstDayOfWeek]="1"
+                    placeholder="dd/mm/yyyy"
+                    ariaLabel="Ngày bắt đầu"
+                    styleClass="w-full"
+                    inputStyleClass="w-full h-10 px-3.5 pr-10 text-sm rounded-xl border border-slate-300 bg-white shadow-2xs font-medium"
+                  />
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-slate-700 mb-1">Ngày kết thúc</label>
-                  <input type="date" [(ngModel)]="newEndDate" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300" />
+                  <p-datepicker
+                    [(ngModel)]="newEndDateValue"
+                    dateFormat="dd/mm/yy"
+                    [showIcon]="true"
+                    iconDisplay="input"
+                    appendTo="body"
+                    [firstDayOfWeek]="1"
+                    placeholder="dd/mm/yyyy"
+                    ariaLabel="Ngày kết thúc"
+                    styleClass="w-full"
+                    inputStyleClass="w-full h-10 px-3.5 pr-10 text-sm rounded-xl border border-slate-300 bg-white shadow-2xs font-medium"
+                  />
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-slate-700 mb-1">Tổng giá trị HĐ (VNĐ)</label>
@@ -359,6 +383,20 @@ export class AdminContractsPage implements OnInit {
   newRepPhone = '0909123456';
   newStartDate = '';
   newEndDate = '';
+
+  get newStartDateValue(): Date | null {
+    return parseCalendarDate(this.newStartDate);
+  }
+  set newStartDateValue(val: Date | null) {
+    this.newStartDate = formatCalendarDate(val);
+  }
+
+  get newEndDateValue(): Date | null {
+    return parseCalendarDate(this.newEndDate);
+  }
+  set newEndDateValue(val: Date | null) {
+    this.newEndDate = formatCalendarDate(val);
+  }
   newContractValue = 6990000;
   newTerms = 'Bên A cam kết cung cấp dịch vụ hạ tầng SaaS Hotel v2 với SLA 99.9%, hỗ trợ backup hàng ngày và bảo mật tuyệt đối.';
 

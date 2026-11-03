@@ -159,7 +159,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                 [showIcon]="true"
                 [maxDate]="todayDate"
                 appendTo="body"
-                [inputStyleClass]="'text-xs'"
+                [inputStyleClass]="'w-full text-xs pr-10'"
               />
               <button
                 type="button"
@@ -296,7 +296,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                 [showIcon]="true"
                 [maxDate]="todayDate"
                 appendTo="body"
-                [inputStyleClass]="'text-xs'"
+                [inputStyleClass]="'w-full text-xs pr-10'"
               />
               <button
                 type="button"
@@ -834,7 +834,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                 [showIcon]="true"
                 appendTo="body"
                 placeholder="Chọn ngày"
-                [inputStyleClass]="'w-full text-xs'"
+                [inputStyleClass]="'w-full text-xs pr-10'"
               />
             </div>
 
@@ -849,7 +849,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                 [showIcon]="true"
                 appendTo="body"
                 placeholder="Chọn ngày"
-                [inputStyleClass]="'w-full text-xs'"
+                [inputStyleClass]="'w-full text-xs pr-10'"
               />
             </div>
 

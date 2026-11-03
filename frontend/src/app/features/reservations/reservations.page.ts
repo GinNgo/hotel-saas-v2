@@ -1,6 +1,8 @@
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef, inject, signal, computed, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { DatePicker } from 'primeng/datepicker';
+import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-time.util';
 import { Subscription } from 'rxjs';
 import { ReservationService } from '../../core/services/reservation.service';
 import { RoomTypeService } from '../../core/services/room-type.service';
@@ -76,7 +78,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
 @Component({
   selector: 'app-reservations',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, EmptyStateComponent, DateRangeFilterComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, EmptyStateComponent, DateRangeFilterComponent, DatePicker],
   template: `
     <div class="max-w-7xl mx-auto space-y-6">
       <!-- Header -->
@@ -450,12 +452,20 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
 
               <!-- Start Date Picker -->
               <div class="flex items-center gap-1.5">
-                <span class="text-xs text-slate-500 font-medium">Từ ngày:</span>
-                <input
-                  type="date"
-                  [value]="timelineStartDate()"
-                  (change)="onTimelineStartDateChange($event)"
-                  class="px-2.5 py-1 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+                <span class="text-xs text-slate-500 font-medium whitespace-nowrap">Từ ngày:</span>
+                <p-datepicker
+                  [ngModel]="timelineStartDateValue()"
+                  (ngModelChange)="onTimelineStartDatePicked($event)"
+                  [ngModelOptions]="{standalone: true}"
+                  dateFormat="dd/mm/yy"
+                  [showIcon]="true"
+                  iconDisplay="input"
+                  appendTo="body"
+                  [firstDayOfWeek]="1"
+                  placeholder="dd/mm/yyyy"
+                  ariaLabel="Từ ngày sơ đồ phòng"
+                  styleClass="w-36 text-xs"
+                  inputStyleClass="w-full text-xs py-1.5 pl-2.5 pr-8 rounded-lg border border-slate-200 bg-white text-slate-800 shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 />
               </div>
 
@@ -1190,11 +1200,19 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div>
                       <label class="block text-xs font-bold text-slate-700 mb-1">Ngày nhận phòng *</label>
-                      <input
-                        type="date"
-                        formControlName="checkInDate"
-                        (change)="onScheduleInputsChanged()"
-                        class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
+                      <p-datepicker
+                        [ngModel]="createCheckInDateValue()"
+                        (ngModelChange)="onCreateCheckInDateChange($event)"
+                        [ngModelOptions]="{standalone: true}"
+                        dateFormat="dd/mm/yy"
+                        [showIcon]="true"
+                        iconDisplay="input"
+                        appendTo="body"
+                        [firstDayOfWeek]="1"
+                        placeholder="dd/mm/yyyy"
+                        ariaLabel="Ngày nhận phòng"
+                        styleClass="w-full"
+                        inputStyleClass="w-full h-10 px-3.5 pr-10 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                       />
                     </div>
                     <div>
@@ -1215,11 +1233,19 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                     </div>
                     <div>
                       <label class="block text-xs font-bold text-slate-700 mb-1">Ngày trả phòng *</label>
-                      <input
-                        type="date"
-                        formControlName="checkOutDate"
-                        (change)="onScheduleInputsChanged()"
-                        class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
+                      <p-datepicker
+                        [ngModel]="createCheckOutDateValue()"
+                        (ngModelChange)="onCreateCheckOutDateChange($event)"
+                        [ngModelOptions]="{standalone: true}"
+                        dateFormat="dd/mm/yy"
+                        [showIcon]="true"
+                        iconDisplay="input"
+                        appendTo="body"
+                        [firstDayOfWeek]="1"
+                        placeholder="dd/mm/yyyy"
+                        ariaLabel="Ngày trả phòng"
+                        styleClass="w-full"
+                        inputStyleClass="w-full h-10 px-3.5 pr-10 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                       />
                     </div>
                     <div>
@@ -1244,11 +1270,19 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label class="block text-xs font-bold text-slate-700 mb-1">Ngày thuê *</label>
-                      <input
-                        type="date"
-                        formControlName="hourlyDate"
-                        (change)="onScheduleInputsChanged()"
-                        class="w-full h-10 px-3.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
+                      <p-datepicker
+                        [ngModel]="createHourlyDateValue()"
+                        (ngModelChange)="onCreateHourlyDateChange($event)"
+                        [ngModelOptions]="{standalone: true}"
+                        dateFormat="dd/mm/yy"
+                        [showIcon]="true"
+                        iconDisplay="input"
+                        appendTo="body"
+                        [firstDayOfWeek]="1"
+                        placeholder="dd/mm/yyyy"
+                        ariaLabel="Ngày thuê"
+                        styleClass="w-full"
+                        inputStyleClass="w-full h-10 px-3.5 pr-10 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-2xs font-medium"
                       />
                     </div>
                     <div>
@@ -3512,6 +3546,43 @@ export class ReservationsPage implements OnInit, OnDestroy {
     const count = this.timelineDaysCount();
     this.timelineStartDate.set(addDaysToDateString(current, count));
     this.loadTimelineData();
+  }
+
+  readonly timelineStartDateValue = computed(() => parseCalendarDate(this.timelineStartDate()));
+
+  onTimelineStartDatePicked(val: Date | null): void {
+    if (val) {
+      this.timelineStartDate.set(formatCalendarDate(val));
+      this.loadTimelineData();
+    }
+  }
+
+  readonly createCheckInDateValue = computed(() => parseCalendarDate(this.createForm?.get('checkInDate')?.value));
+  readonly createCheckOutDateValue = computed(() => parseCalendarDate(this.createForm?.get('checkOutDate')?.value));
+  readonly createHourlyDateValue = computed(() => parseCalendarDate(this.createForm?.get('hourlyDate')?.value));
+
+  onCreateCheckInDateChange(val: Date | null): void {
+    if (val) {
+      this.createForm.patchValue({ checkInDate: formatCalendarDate(val) });
+      this.createForm.get('checkInDate')?.markAsDirty();
+      this.onScheduleInputsChanged();
+    }
+  }
+
+  onCreateCheckOutDateChange(val: Date | null): void {
+    if (val) {
+      this.createForm.patchValue({ checkOutDate: formatCalendarDate(val) });
+      this.createForm.get('checkOutDate')?.markAsDirty();
+      this.onScheduleInputsChanged();
+    }
+  }
+
+  onCreateHourlyDateChange(val: Date | null): void {
+    if (val) {
+      this.createForm.patchValue({ hourlyDate: formatCalendarDate(val) });
+      this.createForm.get('hourlyDate')?.markAsDirty();
+      this.onScheduleInputsChanged();
+    }
   }
 
   onTimelineStartDateChange(event: Event): void {
