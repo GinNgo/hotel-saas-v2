@@ -43,6 +43,64 @@ export interface AccessRoleDto {
   name: string;
   description?: string;
   isSystemRole: boolean;
+  staffCount: number;
+}
+
+export interface PermissionFunctionDto {
+  id: string;
+  code: string;
+  name: string;
+  moduleCode: string;
+  supportedActionMask: number;
+}
+
+export interface RolePermissionDto {
+  functionId: string;
+  functionCode: string;
+  functionName: string;
+  moduleCode: string;
+  actionMask: number;
+  canRead: boolean;
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+  canApprove: boolean;
+  canExport: boolean;
+}
+
+export interface RoleDetailDto {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  isSystemRole: boolean;
+  tenantId?: string;
+  staffCount: number;
+  permissions: RolePermissionDto[];
+}
+
+export interface RolePermissionInput {
+  functionId: string;
+  canRead: boolean;
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+  canApprove?: boolean;
+  canExport?: boolean;
+}
+
+export interface CreateRoleRequest {
+  code: string;
+  name: string;
+  description?: string;
+  permissions: RolePermissionInput[];
+}
+
+export interface UpdateRoleRequest {
+  id: string;
+  name: string;
+  description?: string;
+  permissions: RolePermissionInput[];
 }
 
 export interface CreateStaffMemberRequest {

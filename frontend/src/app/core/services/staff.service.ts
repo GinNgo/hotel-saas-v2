@@ -5,6 +5,10 @@ import { map } from 'rxjs/operators';
 import {
   StaffMemberDto,
   AccessRoleDto,
+  PermissionFunctionDto,
+  RoleDetailDto,
+  CreateRoleRequest,
+  UpdateRoleRequest,
   CreateStaffMemberRequest,
   UpdateStaffMemberRequest,
   StaffRole
@@ -45,6 +49,36 @@ export class StaffService {
     return this.http
       .get<ApiResponse<AccessRoleDto[]>>(`${this.baseUrl}/roles`)
       .pipe(map(res => res.data || []));
+  }
+
+  getPermissionFunctions(): Observable<PermissionFunctionDto[]> {
+    return this.http
+      .get<ApiResponse<PermissionFunctionDto[]>>(`${this.baseUrl}/permissions/functions`)
+      .pipe(map(res => res.data || []));
+  }
+
+  getRolesWithPermissions(): Observable<RoleDetailDto[]> {
+    return this.http
+      .get<ApiResponse<RoleDetailDto[]>>(`${this.baseUrl}/roles/detailed`)
+      .pipe(map(res => res.data || []));
+  }
+
+  createRole(request: CreateRoleRequest): Observable<RoleDetailDto> {
+    return this.http
+      .post<ApiResponse<RoleDetailDto>>(`${this.baseUrl}/roles`, request)
+      .pipe(map(res => res.data!));
+  }
+
+  updateRole(id: string, request: UpdateRoleRequest): Observable<RoleDetailDto> {
+    return this.http
+      .put<ApiResponse<RoleDetailDto>>(`${this.baseUrl}/roles/${id}`, request)
+      .pipe(map(res => res.data!));
+  }
+
+  deleteRole(id: string): Observable<boolean> {
+    return this.http
+      .delete<ApiResponse<unknown>>(`${this.baseUrl}/roles/${id}`)
+      .pipe(map(res => res.success));
   }
 
   createStaffMember(payload: CreateStaffMemberRequest): Observable<StaffMemberDto> {

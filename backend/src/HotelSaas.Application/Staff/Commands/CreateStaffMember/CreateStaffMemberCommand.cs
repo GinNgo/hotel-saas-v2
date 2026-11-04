@@ -72,7 +72,7 @@ public sealed class CreateStaffMemberCommandHandler : IRequestHandler<CreateStaf
                 Email = normalizedEmail,
                 FullName = request.FullName.Trim(),
                 PhoneNumber = request.PhoneNumber?.Trim(),
-                PasswordHash = _passwordHasher.HashPassword(rawPassword),
+                PasswordHash = _passwordHasher.Hash(rawPassword),
                 GlobalRole = GlobalUserRole.Staff,
                 TenantId = tenantId.Value,
                 IsActive = true,

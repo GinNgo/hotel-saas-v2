@@ -137,13 +137,14 @@ public sealed class AuthController : ControllerBase
     /// </summary>
     [HttpPost("social-login")]
     [AllowAnonymous]
-    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
-    public Task<IActionResult> SocialLogin(
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SocialLogin(
         [FromBody] HotelSaas.Application.Auth.Commands.SocialLogin.SocialLoginCommand command,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult<IActionResult>(StatusCode(StatusCodes.Status503ServiceUnavailable,
-            new { code = "SOCIAL_LOGIN_DISABLED", message = "Social login is disabled until provider token verification is implemented." }));
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
     }
 
     /// <summary>
