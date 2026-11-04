@@ -178,7 +178,12 @@ export const routes: Routes = [
         data: { permission: 'ROOMS', action: 1 },
         loadComponent: () => import('./features/rooms/rooms.page').then(m => m.RoomsPage)
       },
-      { path: 'room-types', redirectTo: 'dashboard', pathMatch: 'full' },
+      {
+        path: 'room-types',
+        canActivate: [permissionGuard],
+        data: { permission: 'ROOM_TYPES', action: 1 },
+        loadComponent: () => import('./features/room-types/room-types.page').then(m => m.RoomTypesPage)
+      },
 
       {
         path: 'housekeeping',
@@ -257,7 +262,12 @@ export const routes: Routes = [
         data: { permission: 'ROOMS', action: 1 },
         loadComponent: () => import('./features/rooms/rooms.page').then(m => m.RoomsPage)
       },
-      { path: 'room-types', redirectTo: 'dashboard', pathMatch: 'full' },
+      {
+        path: 'room-types',
+        canActivate: [permissionGuard],
+        data: { permission: 'ROOM_TYPES', action: 1 },
+        loadComponent: () => import('./features/room-types/room-types.page').then(m => m.RoomTypesPage)
+      },
       {
         path: 'housekeeping',
         canActivate: [permissionGuard],

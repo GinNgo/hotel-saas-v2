@@ -119,6 +119,7 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
               <img
                 [src]="dest.imageUrl"
                 [alt]="dest.name"
+                (error)="$any($event.target).src = '/images/hanoi-old-quarter-hotel.png'"
                 class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                 loading="lazy"
               />

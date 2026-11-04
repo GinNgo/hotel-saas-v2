@@ -28,8 +28,19 @@ export const authInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, ne
     headers['X-Property-Id'] = activePropertyId;
   }
 
-  if (Object.keys(headers).length > 0) {
-    req = req.clone({ setHeaders: headers });
+  // Khi chạy trên môi trường preview Cloud Run (*.run.app) hoặc dev port 3000,
+  // tự động chuyển tiếp qua proxy '/api' của Angular dev-server để tránh lỗi chặn CORS từ trình duyệt.
+  let targetUrl = req.url;
+  if (
+    typeof window !== 'undefined' &&
+    (window.location.hostname.endsWith('.run.app') || window.location.port === '3000') &&
+    targetUrl.startsWith('https://luxustay.duckdns.org/api')
+  ) {
+    targetUrl = targetUrl.replace('https://luxustay.duckdns.org/api', '/api');
+  }
+
+  if (Object.keys(headers).length > 0 || targetUrl !== req.url) {
+    req = req.clone({ url: targetUrl, setHeaders: headers });
   }
 
   return next(req);

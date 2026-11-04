@@ -13,6 +13,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { of } from 'rxjs';
 import { readPublicStay } from '../../core/models/public-stay-context';
+import { resolvePropertyThumbnail } from '../../core/utils/hotel-image.util';
 import { VIETNAM_34_PROVINCES } from '../../core/data/vietnam-provinces.data';
 import { BookingFilterBarComponent } from './components/booking-filter-bar/booking-filter-bar.component';
 import { PopularDestinationsComponent } from './components/popular-destinations/popular-destinations.component';
@@ -1109,9 +1110,9 @@ export class BookingPageComponent implements OnInit {
               touristZoneSlug: p.touristZoneSlug || '',
               latitude: p.latitude,
               longitude: p.longitude,
-              thumbnailUrl: p.thumbnailUrl || p.imageUrl || '',
+              thumbnailUrl: resolvePropertyThumbnail(p.name, `${p.addressLine || p.address || ''} ${p.provinceName || p.city || ''} ${p.touristZoneName || ''}`, p.thumbnailUrl || p.imageUrl),
               imageUrl: p.imageUrl || p.thumbnailUrl,
-              galleryUrls: p.galleryUrls?.length ? p.galleryUrls : (p.thumbnailUrl || p.imageUrl ? [p.thumbnailUrl || p.imageUrl] : []),
+              galleryUrls: p.galleryUrls?.length ? p.galleryUrls : [resolvePropertyThumbnail(p.name, `${p.addressLine || p.address || ''} ${p.provinceName || p.city || ''} ${p.touristZoneName || ''}`, p.thumbnailUrl || p.imageUrl)],
               allowedRentalTypes: allowedModes,
               allowHourlyBooking: p.allowHourlyBooking,
               allowOvernightBooking: p.allowOvernightBooking,

@@ -58,216 +58,214 @@ import { UserMembershipDto } from '../../core/models/auth.model';
 
         <!-- Navigation Menu -->
         <nav class="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
-          <!-- Active Modules Group -->
-          <div class="space-y-1">
-            <div class="px-3 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Nghiệp vụ hoạt động</div>
+          @if (!isSuperAdmin()) {
+            <!-- Active Modules Group (Tenant PMS) -->
+            <div class="space-y-1">
+              <div class="px-3 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Nghiệp vụ hoạt động</div>
 
-            <a
-              routerLink="/dashboard"
-              routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-              [routerLinkActiveOptions]="{ exact: true }"
-              (click)="onNavItemClick()"
-              class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
-            >
-              <i class="pi pi-home text-base text-emerald-700"></i>
-              <span>Tổng quan</span>
-            </a>
-
-            @if (hasPropertiesPermission()) {
               <a
-                routerLink="/properties"
+                routerLink="/dashboard"
+                routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                [routerLinkActiveOptions]="{ exact: true }"
+                (click)="onNavItemClick()"
+                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+              >
+                <i class="pi pi-home text-base text-emerald-700"></i>
+                <span>Tổng quan</span>
+              </a>
+
+              @if (hasPropertiesPermission()) {
+                <a
+                  routerLink="/properties"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-building text-base text-emerald-700"></i>
+                  <span>Cơ sở & Chi nhánh</span>
+                  <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">HQ</span>
+                </a>
+              }
+
+              @if (hasRoomsPermission()) {
+                <a
+                  routerLink="/rooms"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-th-large text-base text-emerald-700"></i>
+                  <span>Quản lý phòng</span>
+                </a>
+              }
+
+              @if (hasRoomTypesPermission()) {
+                <a
+                  routerLink="/room-types"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-tags text-base text-emerald-700"></i>
+                  <span>Loại phòng</span>
+                </a>
+              }
+
+              @if (hasHousekeepingPermission()) {
+                <a
+                  routerLink="/housekeeping"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-sparkles text-base text-amber-600"></i>
+                  <span>Buồng phòng</span>
+                </a>
+              }
+
+              @if (hasPoliciesPermission()) {
+                <a
+                  routerLink="/policies"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-sliders-h text-base text-emerald-700"></i>
+                  <span>Chính sách & Mẫu in</span>
+                </a>
+              }
+
+              @if (hasRatesPermission()) {
+                <a
+                  routerLink="/rates"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-dollar text-base text-emerald-700"></i>
+                  <span>Bảng giá phòng</span>
+                </a>
+              }
+
+              @if (hasReservationsPermission()) {
+                <a
+                  routerLink="/reservations"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-calendar text-base text-emerald-700"></i>
+                  <span>Đặt phòng</span>
+                </a>
+              }
+
+              @if (hasPaymentsPermission()) {
+                <a
+                  routerLink="/payments"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-wallet text-base text-emerald-700"></i>
+                  <span>Thu ngân & Giao dịch</span>
+                </a>
+              }
+
+              <a
+                routerLink="/reports"
                 routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
                 (click)="onNavItemClick()"
                 class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
               >
-                <i class="pi pi-building text-base text-emerald-700"></i>
-                <span>Cơ sở & Chi nhánh</span>
-                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">HQ</span>
+                <i class="pi pi-chart-bar text-base text-emerald-700"></i>
+                <span>Báo cáo & Thống kê</span>
               </a>
-            }
 
-            @if (hasRoomsPermission()) {
               <a
-                routerLink="/rooms"
+                routerLink="/subscriptions"
                 routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
                 (click)="onNavItemClick()"
                 class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
               >
-                <i class="pi pi-th-large text-base text-emerald-700"></i>
-                <span>Quản lý phòng</span>
+                <i class="pi pi-box text-base text-emerald-700"></i>
+                <span>Gói cước SaaS</span>
               </a>
-            }
 
-            @if (hasRoomTypesPermission()) {
-              <a
-                routerLink="/room-types"
-                routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                (click)="onNavItemClick()"
-                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
-              >
-                <i class="pi pi-tags text-base text-emerald-700"></i>
-                <span>Loại phòng</span>
-              </a>
-            }
-
-            @if (hasHousekeepingPermission()) {
-              <a
-                routerLink="/housekeeping"
-                routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                (click)="onNavItemClick()"
-                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
-              >
-                <i class="pi pi-sparkles text-base text-amber-600"></i>
-                <span>Buồng phòng</span>
-              </a>
-            }
-
-            @if (hasPoliciesPermission()) {
-              <a
-                routerLink="/policies"
-                routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                (click)="onNavItemClick()"
-                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
-              >
-                <i class="pi pi-sliders-h text-base text-emerald-700"></i>
-                <span>Chính sách chi nhánh</span>
-              </a>
-            }
-
-            @if (hasRatesPermission()) {
-              <a
-                routerLink="/rates"
-                routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                (click)="onNavItemClick()"
-                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
-              >
-                <i class="pi pi-dollar text-base text-emerald-700"></i>
-                <span>Bảng giá phòng</span>
-              </a>
-            }
-
-            @if (hasReservationsPermission()) {
-              <a
-                routerLink="/reservations"
-                routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                (click)="onNavItemClick()"
-                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
-              >
-                <i class="pi pi-calendar text-base text-emerald-700"></i>
-                <span>Đặt phòng</span>
-              </a>
-            }
-
-            @if (hasPaymentsPermission()) {
-              <a
-                routerLink="/payments"
-                routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                (click)="onNavItemClick()"
-                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
-              >
-                <i class="pi pi-wallet text-base text-emerald-700"></i>
-                <span>Thu ngân & Giao dịch</span>
-              </a>
-            }
-
-            <a
-              routerLink="/reports"
-              routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-              (click)="onNavItemClick()"
-              class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
-            >
-              <i class="pi pi-chart-bar text-base text-emerald-700"></i>
-              <span>Báo cáo & Thống kê</span>
-            </a>
-
-            <a
-              routerLink="/subscriptions"
-              routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-              (click)="onNavItemClick()"
-              class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
-            >
-              <i class="pi pi-box text-base text-emerald-700"></i>
-              <span>Gói cước SaaS</span>
-            </a>
-
-            @if (isOwnerOrManager()) {
-              <a
-                routerLink="/audit-logs"
-                routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                (click)="onNavItemClick()"
-                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
-              >
-                <i class="pi pi-history text-base text-emerald-700"></i>
-                <span>Nhật ký kiểm toán</span>
-                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">Audit</span>
-              </a>
-            }
-          </div>
-
-          <!-- Platform Administrator Management Group -->
-          <div class="space-y-1 pt-2 border-t border-slate-100">
-            <div class="px-3 pb-2 text-[10px] font-bold text-indigo-500 uppercase tracking-wider flex items-center justify-between">
-              <span>Quản trị Nền tảng (Platform)</span>
-              <i class="pi pi-shield text-[10px] text-indigo-400"></i>
+              @if (isOwnerOrManager()) {
+                <a
+                  routerLink="/audit-logs"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-history text-base text-emerald-700"></i>
+                  <span>Nhật ký kiểm toán</span>
+                  <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">Audit</span>
+                </a>
+              }
             </div>
+          }
 
-            <a
-              routerLink="/plans"
-              routerLinkActive="bg-indigo-50 text-indigo-800 font-semibold border-l-4 border-indigo-600 shadow-2xs"
-              (click)="onNavItemClick()"
-              class="flex items-center gap-3 px-3.5 py-2 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
-            >
-              <i class="pi pi-sliders-v text-base text-indigo-600"></i>
-              <span>Cấu hình gói Tenant</span>
-              <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800">Admin</span>
-            </a>
+          @if (isSuperAdmin()) {
+            <!-- Platform Administrator Management Group -->
+            <div class="space-y-1">
+              <div class="px-3 pb-2 text-[10px] font-bold text-indigo-500 uppercase tracking-wider flex items-center justify-between">
+                <span>Quản trị Nền tảng (Platform)</span>
+                <i class="pi pi-shield text-[10px] text-indigo-400"></i>
+              </div>
 
-            <a
-              routerLink="/contracts"
-              routerLinkActive="bg-indigo-50 text-indigo-800 font-semibold border-l-4 border-indigo-600 shadow-2xs"
-              (click)="onNavItemClick()"
-              class="flex items-center gap-3 px-3.5 py-2 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
-            >
-              <i class="pi pi-file-edit text-base text-indigo-600"></i>
-              <span>Hợp đồng Đối tác</span>
-              <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800">Admin</span>
-            </a>
-          </div>
+              <a
+                routerLink="/dashboard"
+                routerLinkActive="bg-indigo-50 text-indigo-800 font-semibold border-l-4 border-indigo-600 shadow-2xs"
+                [routerLinkActiveOptions]="{ exact: true }"
+                (click)="onNavItemClick()"
+                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+              >
+                <i class="pi pi-chart-line text-base text-indigo-600"></i>
+                <span>Tổng quan Nền tảng</span>
+                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800">SaaS</span>
+              </a>
 
-          <!-- Pending Review & Roadmap Group (Chưa triển khai / Bị Blocker) -->
-          <div class="space-y-1 pt-2 border-t border-slate-100">
-            <div class="px-3 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-              <span>Chờ duyệt & Roadmap</span>
-              <i class="pi pi-lock text-[10px] text-slate-400"></i>
+              <a
+                routerLink="/plans"
+                routerLinkActive="bg-indigo-50 text-indigo-800 font-semibold border-l-4 border-indigo-600 shadow-2xs"
+                (click)="onNavItemClick()"
+                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+              >
+                <i class="pi pi-sliders-v text-base text-indigo-600"></i>
+                <span>Cấu hình gói Tenant</span>
+                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800">Admin</span>
+              </a>
+
+              <a
+                routerLink="/contracts"
+                routerLinkActive="bg-indigo-50 text-indigo-800 font-semibold border-l-4 border-indigo-600 shadow-2xs"
+                (click)="onNavItemClick()"
+                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+              >
+                <i class="pi pi-file-edit text-base text-indigo-600"></i>
+                <span>Hợp đồng Đối tác</span>
+                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800">Admin</span>
+              </a>
             </div>
+          }
 
-            <!-- Khách hàng -->
-            <button
-              type="button"
-              (click)="showUnimplementedNotice('guests')"
-              class="w-full flex items-center justify-between px-3.5 py-2 rounded-lg text-xs text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all cursor-pointer text-left"
-              title="Quản lý khách hàng (Chưa triển khai)"
+          <!-- Quick Navigation to Public Guest Portal -->
+          <div class="space-y-1 pt-2 border-t border-slate-100">
+            <div class="px-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Cổng Đặt phòng Công khai
+            </div>
+            <a
+              routerLink="/booking"
+              (click)="onNavItemClick()"
+              class="flex items-center justify-between px-3.5 py-2 rounded-lg text-xs text-slate-600 hover:text-emerald-800 hover:bg-emerald-50/70 transition-all"
             >
               <div class="flex items-center gap-2.5 truncate">
-                <i class="pi pi-users text-sm"></i>
-                <span class="truncate">Khách hàng</span>
+                <i class="pi pi-globe text-sm text-emerald-600"></i>
+                <span class="truncate font-medium">Trang Đặt phòng Khách</span>
               </div>
-              <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-400 shrink-0">Chưa có</span>
-            </button>
-
-            <!-- Nhân sự & Phân quyền -->
-            <button
-              type="button"
-              (click)="showUnimplementedNotice('staff')"
-              class="w-full flex items-center justify-between px-3.5 py-2 rounded-lg text-xs text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all cursor-pointer text-left"
-              title="Nhân sự & Phân quyền (Chưa có API được duyệt)"
-            >
-              <div class="flex items-center gap-2.5 truncate">
-                <i class="pi pi-id-card text-sm"></i>
-                <span class="truncate">Nhân sự & Roles</span>
-              </div>
-              <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-400 shrink-0">Chưa có</span>
-            </button>
+              <i class="pi pi-external-link text-[10px] text-slate-400"></i>
+            </a>
           </div>
         </nav>
 
@@ -297,32 +295,43 @@ import { UserMembershipDto } from '../../core/models/auth.model';
               <i class="pi pi-bars text-base sm:text-lg"></i>
             </button>
 
-            <!-- Context Switcher Pill (Bấm để chọn/đổi chi nhánh hoặc quản lý chuỗi) -->
-            <button
-              type="button"
-              (click)="openBranchSwitcher()"
-              class="group flex items-center gap-2 sm:gap-2.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200/90 bg-slate-50/80 hover:bg-emerald-50 hover:border-emerald-300 transition-all duration-200 cursor-pointer shadow-2xs text-left max-w-[200px] sm:max-w-[320px] lg:max-w-none min-w-0"
-              title="Nhấn để đổi chi nhánh làm việc hoặc chuyển sang HQ"
-              aria-label="Đổi chi nhánh làm việc hoặc chuyển sang HQ"
-            >
-              <div class="flex items-center justify-center min-w-[26px] px-1.5 h-6 sm:h-7 rounded-lg bg-emerald-600 text-white text-[10px] sm:text-xs font-bold shrink-0 whitespace-nowrap shadow-xs">
-                {{ authService.activePropertyCode() || 'HQ' }}
-              </div>
-              <div class="min-w-0 pr-1 truncate">
-                <div class="flex items-center gap-1.5 truncate">
-                  <span class="text-[9px] sm:text-[10px] font-extrabold uppercase text-emerald-800 bg-emerald-100/90 px-1.5 py-0.2 rounded shrink-0">
-                    {{ tenantBrandName }}
-                  </span>
-                  <span class="text-[11px] sm:text-xs font-semibold text-slate-800 group-hover:text-emerald-900 truncate">
-                    {{ authService.activePropertyName() || 'Chế độ Chuỗi HQ' }}
-                  </span>
+            @if (isSuperAdmin()) {
+              <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50/80 text-indigo-900">
+                <div class="flex items-center justify-center px-2 h-6 rounded-lg bg-indigo-600 text-white text-[10px] font-bold">
+                  PLATFORM
                 </div>
-                <div class="text-[9px] sm:text-[10px] text-slate-500 group-hover:text-emerald-700 truncate hidden sm:block">
-                  Nhấn để đổi chi nhánh
+                <div class="text-xs font-semibold truncate">
+                  Quản trị Nền tảng SaaS (SuperAdmin)
                 </div>
               </div>
-              <i class="pi pi-chevron-down text-[9px] sm:text-[10px] text-slate-400 group-hover:text-emerald-600 ml-0.5 sm:ml-1 shrink-0"></i>
-            </button>
+            } @else {
+              <!-- Context Switcher Pill (Bấm để chọn/đổi chi nhánh hoặc quản lý chuỗi) -->
+              <button
+                type="button"
+                (click)="openBranchSwitcher()"
+                class="group flex items-center gap-2 sm:gap-2.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200/90 bg-slate-50/80 hover:bg-emerald-50 hover:border-emerald-300 transition-all duration-200 cursor-pointer shadow-2xs text-left max-w-[200px] sm:max-w-[320px] lg:max-w-none min-w-0"
+                title="Nhấn để đổi chi nhánh làm việc hoặc chuyển sang HQ"
+                aria-label="Đổi chi nhánh làm việc hoặc chuyển sang HQ"
+              >
+                <div class="flex items-center justify-center min-w-[26px] px-1.5 h-6 sm:h-7 rounded-lg bg-emerald-600 text-white text-[10px] sm:text-xs font-bold shrink-0 whitespace-nowrap shadow-xs">
+                  {{ authService.activePropertyCode() || 'HQ' }}
+                </div>
+                <div class="min-w-0 pr-1 truncate">
+                  <div class="flex items-center gap-1.5 truncate">
+                    <span class="text-[9px] sm:text-[10px] font-extrabold uppercase text-emerald-800 bg-emerald-100/90 px-1.5 py-0.2 rounded shrink-0">
+                      {{ tenantBrandName }}
+                    </span>
+                    <span class="text-[11px] sm:text-xs font-semibold text-slate-800 group-hover:text-emerald-900 truncate">
+                      {{ authService.activePropertyName() || 'Chế độ Chuỗi HQ' }}
+                    </span>
+                  </div>
+                  <div class="text-[9px] sm:text-[10px] text-slate-500 group-hover:text-emerald-700 truncate hidden sm:block">
+                    Nhấn để đổi chi nhánh
+                  </div>
+                </div>
+                <i class="pi pi-chevron-down text-[9px] sm:text-[10px] text-slate-400 group-hover:text-emerald-600 ml-0.5 sm:ml-1 shrink-0"></i>
+              </button>
+            }
           </div>
 
           <!-- Right: User Avatar & Logout -->
@@ -445,10 +454,14 @@ export class AdminLayoutComponent {
     return this.authService.hasPermission('PAYMENTS', 1);
   }
 
+  isSuperAdmin(): boolean {
+    return this.authService.currentUser?.globalRole === 'SuperAdmin';
+  }
+
   isOwnerOrManager(): boolean {
     const user = this.authService.currentUser;
     if (!user) return false;
-    if (user.globalRole === 'Owner' || user.globalRole === 'PlatformAdmin') return true;
+    if (user.globalRole === 'Owner' || user.globalRole === 'SuperAdmin' || user.globalRole === 'PlatformAdmin') return true;
     const activeRole = this.authService.activeRoleName();
     if (activeRole === 'Owner' || activeRole === 'Manager') return true;
     return this.authService.memberships.some(m => m.staffRole === 'Owner' || m.staffRole === 'Manager');

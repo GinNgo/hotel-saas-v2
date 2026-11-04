@@ -391,7 +391,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                       </p>
                     </div>
 
-                    @if (room.dailyPrice != null || room.dailyRate != null || room.hourlyBasePrice != null || room.hourlyRate != null || room.overnightPrice != null || room.overnightRate != null) {
+                    @if (startingPrice(room) !== null) {
                       <div class="sm:text-right">
                         <span class="text-[10px] text-stone-400 uppercase font-bold tracking-wider block">Giá cơ bản:</span>
                         <span class="text-lg sm:text-xl font-mono font-black text-[#C05621]">
@@ -535,7 +535,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                     <span class="text-[10px] text-stone-400">R = 6,371 km</span>
                   </div>
                   <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                    @for (landmark of hotel.nearbyLandmarks; track landmark.landmarkId) {
+                    @for (landmark of hotel.nearbyLandmarks; track (landmark.landmarkId || landmark.name || $index)) {
                       <div class="p-3 rounded-xl bg-[#FBF9F5] border border-stone-200/80 flex items-center justify-between gap-2">
                         <div class="truncate">
                           <p class="text-xs font-bold text-stone-800 truncate">{{ landmark.landmarkName || landmark.name }}</p>
@@ -912,10 +912,10 @@ export class PropertyDetailPageComponent implements OnInit {
 
   startingPrice(room: PublicRoomTypeAvailabilityDto): number | null {
     const mode = this.stay().rentalType;
-    const price = mode === 'Hourly' ? room.hourlyBasePrice ?? room.hourlyRate
+    const price = (mode === 'Hourly' ? room.hourlyBasePrice ?? room.hourlyRate
       : mode === 'Overnight' ? room.overnightPrice ?? room.overnightRate
-      : room.dailyPrice ?? room.dailyRate;
-    return typeof price === 'number' && Number.isFinite(price) && price >= 0 ? price : null;
+      : room.dailyPrice ?? room.dailyRate) ?? (room.calculatedQuoteTotal && room.calculatedQuoteTotal > 0 ? room.calculatedQuoteTotal : undefined) ?? room.estimatedPrice;
+    return typeof price === 'number' && Number.isFinite(price) && price > 0 ? price : null;
   }
 
   galleryPhotos(): GalleryPhotoItem[] {

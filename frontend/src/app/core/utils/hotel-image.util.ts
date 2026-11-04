@@ -11,23 +11,34 @@ export function resolvePropertyThumbnail(name?: string, address?: string, curren
 
   const text = `${name || ''} ${address || ''}`.toLowerCase();
 
-  if (text.includes('đà lạt') || text.includes('da lat') || text.includes('dalat') || text.includes('lâm đồng') || text.includes('pine')) {
+  if (text.includes('đà lạt') || text.includes('da lat') || text.includes('dalat') || text.includes('lâm đồng') || text.includes('pine') || text.includes('sa pa') || text.includes('sapa')) {
     return '/images/dalat-pine-resort.png';
   }
-  if (text.includes('đà nẵng') || text.includes('da nang') || text.includes('danang') || text.includes('ocean')) {
+  if (text.includes('đà nẵng') || text.includes('da nang') || text.includes('danang') || text.includes('ocean') || text.includes('vũng tàu') || text.includes('vung tau') || text.includes('phú quốc')) {
     return '/images/danang-ocean-suites.png';
   }
-  if (text.includes('hà nội') || text.includes('ha noi') || text.includes('hanoi') || text.includes('hoàn kiếm') || text.includes('old quarter')) {
+  if (text.includes('hà nội') || text.includes('ha noi') || text.includes('hanoi') || text.includes('hoàn kiếm') || text.includes('old quarter') || text.includes('hội an')) {
     return '/images/hanoi-old-quarter-hotel.png';
   }
-  if (text.includes('nha trang') || text.includes('khánh hòa') || text.includes('khanh hoa')) {
+  if (text.includes('nha trang') || text.includes('khánh hòa') || text.includes('khanh hoa') || text.includes('hạ long') || text.includes('quảng ninh') || text.includes('grand')) {
     return '/images/nhatrang-grand-hotel.png';
   }
-  if (text.includes('sài gòn') || text.includes('sai gon') || text.includes('saigon') || text.includes('hồ chí minh') || text.includes('riverside')) {
+  if (text.includes('sài gòn') || text.includes('sai gon') || text.includes('saigon') || text.includes('hồ chí minh') || text.includes('riverside') || text.includes('an lâm') || text.includes('an lam') || text.includes('thuận an')) {
     return '/images/saigon-riverside-tower.png';
   }
 
-  return '/images/danang-ocean-suites.png';
+  const pool = [
+    '/images/danang-ocean-suites.png',
+    '/images/saigon-riverside-tower.png',
+    '/images/dalat-pine-resort.png',
+    '/images/nhatrang-grand-hotel.png',
+    '/images/hanoi-old-quarter-hotel.png',
+  ];
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) {
+    hash = (hash * 31 + text.charCodeAt(i)) | 0;
+  }
+  return pool[Math.abs(hash) % pool.length];
 }
 
 export function resolveRoomThumbnail(roomName?: string, index: number = 0, currentUrl?: string | null): string {

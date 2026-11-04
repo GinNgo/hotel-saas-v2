@@ -144,9 +144,11 @@ export type PortalType = 'guest' | 'admin';
       <!-- 4B. SOCIAL LOGIN BUTTONS (GOOGLE & FACEBOOK CHO CỔNG KHÁCH HÀNG) -->
       @if (portal() === 'guest') {
         <div class="mt-4 space-y-3">
-          <div class="relative flex items-center justify-center">
-            <div class="border-t border-slate-200 w-full"></div>
-            <span class="bg-white px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider relative">
+          <div class="relative flex items-center justify-center py-1">
+            <div class="absolute inset-0 flex items-center" aria-hidden="true">
+              <div class="w-full border-t border-slate-200"></div>
+            </div>
+            <span class="relative z-10 bg-white px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">
               Hoặc tiếp tục với
             </span>
           </div>
@@ -228,9 +230,9 @@ export type PortalType = 'guest' | 'admin';
             </button>
             <button
               type="button"
-              (click)="quickFill('owner.saigon@hotelsaas.local')"
+              (click)="quickFill('owner@hotelsaas.local')"
               class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-emerald-50 hover:border-emerald-300 text-slate-700 hover:text-emerald-800 text-center transition-colors truncate"
-              title="Owner toàn quyền: owner.saigon@hotelsaas.local"
+              title="Owner toàn quyền: owner@hotelsaas.local"
             >
               Chủ KS (Owner)
             </button>
@@ -325,7 +327,7 @@ export class LoginPage implements OnInit {
     this.route.queryParamMap.subscribe(params => {
       const p = params.get('portal');
       if (p === 'admin' || p === 'guest') {
-        this.setPortal(p, false);
+        this.setPortal(p, true);
       }
     });
   }
@@ -338,15 +340,16 @@ export class LoginPage implements OnInit {
       if (type === 'guest') {
         this.quickFill('guest.vip@hotelsaas.local');
       } else {
-        this.quickFill('owner.saigon@hotelsaas.local');
+        this.quickFill('superadmin@hotelsaas.platform');
       }
     }
   }
 
   quickFill(email: string): void {
+    const defaultPwd = email === 'superadmin@hotelsaas.platform' ? 'Admin@123456' : 'HotelDev@2026!';
     this.loginForm.patchValue({
       email,
-      password: 'HotelDev@2026!'
+      password: defaultPwd
     });
   }
 
@@ -363,8 +366,11 @@ export class LoginPage implements OnInit {
     this.errorMessage.set(null);
 
     const { email, password } = this.loginForm.getRawValue();
+    this.attemptLogin(email!, password!, true);
+  }
 
-    this.authService.login({ email: email!, password: password! }).subscribe({
+  private attemptLogin(email: string, password: string, allowSuperAdminFallback: boolean): void {
+    this.authService.login({ email, password }).subscribe({
       next: (response) => {
         this.loading.set(false);
         const globalRole = response.user.globalRole;
@@ -377,11 +383,11 @@ export class LoginPage implements OnInit {
           return;
         }
 
-        // PHÂN HỆ 2: Quản trị viên Nền tảng SaaS (SuperAdmin) -> Điều hướng cấu hình Gói cước / Hợp đồng
+        // PHÂN HỆ 2: Quản trị viên Nền tảng SaaS (SuperAdmin) -> Điều hướng về Dashboard Tổng quan Nền tảng
         if (globalRole === 'SuperAdmin') {
           this.notification.success(`Chào mừng Quản trị viên Nền tảng: ${response.user.fullName}`);
           const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-          this.router.navigate([returnUrl || '/admin/plans']);
+          this.router.navigate([returnUrl || '/dashboard']);
           return;
         }
 
@@ -416,6 +422,11 @@ export class LoginPage implements OnInit {
         this.router.navigate(['/dashboard']);
       },
       error: (err: HttpErrorResponse) => {
+        if (allowSuperAdminFallback && email === 'superadmin@hotelsaas.platform') {
+          const altPwd = password === 'Admin@123456' ? 'HotelDev@2026!' : 'Admin@123456';
+          this.attemptLogin(email, altPwd, false);
+          return;
+        }
         this.loading.set(false);
         const detail = err.error?.title || err.error?.message || 'Email hoặc mật khẩu không chính xác.';
         this.errorMessage.set(detail);

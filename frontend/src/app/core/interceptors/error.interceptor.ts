@@ -73,7 +73,9 @@ export const errorInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, n
       }
 
       if (error.status >= 500) {
-        notification.error('Lỗi hệ thống. Vui lòng thử lại sau.');
+        if (!requestPath.endsWith('/audit-logs')) {
+          notification.error('Lỗi hệ thống. Vui lòng thử lại sau.');
+        }
         return throwError(() => error);
       }
 

@@ -276,7 +276,8 @@ export class GuestLayoutComponent {
   readonly userFirstName = computed<string>(() => {
     const name = this.currentUser()?.fullName;
     if (!name) return 'Khách';
-    const parts = name.trim().split(' ');
+    const cleaned = name.replace(/\([^)]*\)/g, '').trim();
+    const parts = (cleaned || name.trim()).split(/\s+/);
     return parts[parts.length - 1];
   });
 }

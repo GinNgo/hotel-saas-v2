@@ -1,4 +1,4 @@
 export const environment = {
   production: true,
-  apiUrl: '/api'
+  apiUrl: 'https://luxustay.duckdns.org/api' // hoặc http://<IP_VPS>:5000/api
 };

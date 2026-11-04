@@ -34,7 +34,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 88,
     rating: 4.9,
     tag: 'Thủ Đô Ngàn Năm',
-    imageUrl: 'https://images.unsplash.com/photo-1509030450996-93d39589d3d3?auto=format&fit=crop&w=800&q=80',
+    imageUrl: '/images/hanoi-old-quarter-hotel.png',
     searchTerm: 'Hà Nội'
   },
   {

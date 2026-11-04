@@ -103,6 +103,7 @@ p-password {
   flex: 1 1 auto !important;
   height: 2.75rem !important;
   min-height: 2.75rem !important;
+  padding-right: 2.5rem !important;
   border-radius: var(--radius-xl) !important;
 }
 
@@ -122,11 +123,34 @@ p-datepicker {
   border-radius: var(--radius-xl) !important;
 }
 /* ═══════════════════════════════════════════════════════════════
-   PRIMENG DATEPICKER ICON OVERLAP SAFEGUARDS
-   Ensures calendar icon and clear button never cover date text (dd/mm/yyyy).
+   PRIMENG DATEPICKER & INPUT ICON OVERLAP SAFEGUARDS
+   Ensures left/right calendar icons and clear buttons never cover date text (dd/mm/yyyy).
    ═══════════════════════════════════════════════════════════════ */
 .p-datepicker-input {
   padding-right: 2.75rem !important;
+}
+
+.p-datepicker-input.pl-10,
+input.p-inputtext.pl-10 {
+  padding-left: 2.5rem !important;
+  padding-inline-start: 2.5rem !important;
+}
+
+.p-datepicker-input.pl-9,
+input.p-inputtext.pl-9 {
+  padding-left: 2.25rem !important;
+  padding-inline-start: 2.25rem !important;
+}
+
+.p-datepicker-input.pl-8,
+input.p-inputtext.pl-8 {
+  padding-left: 2rem !important;
+  padding-inline-start: 2rem !important;
+}
+
+.p-datepicker-input.pr-3\.5 {
+  padding-right: 0.875rem !important;
+  padding-inline-end: 0.875rem !important;
 }
 
 .p-datepicker-dropdown ~ .p-datepicker-input,

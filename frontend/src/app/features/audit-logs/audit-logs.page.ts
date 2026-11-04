@@ -629,7 +629,7 @@ export class AuditLogsPage implements OnInit {
     const user = this.authService.currentUser;
     if (!user) return false;
     const globalRole = user.globalRole;
-    if (globalRole === 'Owner' || globalRole === 'PlatformAdmin') return true;
+    if (globalRole === 'Owner' || globalRole === 'SuperAdmin' || globalRole === 'PlatformAdmin') return true;
 
     const activeRole = this.authService.activeRoleName();
     if (activeRole === 'Owner' || activeRole === 'Manager') return true;

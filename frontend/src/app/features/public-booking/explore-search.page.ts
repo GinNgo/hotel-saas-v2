@@ -13,6 +13,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { readPublicStay } from '../../core/models/public-stay-context';
+import { resolvePropertyThumbnail } from '../../core/utils/hotel-image.util';
 import { VIETNAM_34_PROVINCES } from '../../core/data/vietnam-provinces.data';
 import { BookingFilterBarComponent } from './components/booking-filter-bar/booking-filter-bar.component';
 import {
@@ -480,7 +481,7 @@ interface TenantBrandFacet {
                               </span>
                             }
 
-                            @for (landmark of property.nearbyLandmarks; track landmark.landmarkId) {
+                            @for (landmark of property.nearbyLandmarks; track (landmark.landmarkId || landmark.name || $index)) {
                               <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
                                 <i class="pi pi-flag-fill text-[9px] text-amber-600"></i>
                                 <span>
@@ -948,14 +949,22 @@ export class ExploreSearchPageComponent implements OnInit {
             if (filter.rentalType === 'Hourly') price = p.hourlyStartingPrice ?? price;
             if (filter.rentalType === 'Overnight') price = p.overnightStartingPrice ?? price;
 
+            const landmarks = (p.nearbyLandmarks || []).map((l: any, idx: number) => ({
+              ...l,
+              landmarkId: l.landmarkId || l.slug || l.landmarkSlug || `lm-${idx}-${l.name || l.landmarkName || idx}`,
+              landmarkName: l.landmarkName || l.name || 'Địa danh',
+              landmarkSlug: l.landmarkSlug || l.slug || 'dia-danh',
+              distanceMeters: l.distanceMeters ?? (typeof l.distanceKm === 'number' ? Math.round(l.distanceKm * 1000) : 0),
+            }));
+
             return {
               ...p,
               propertyId: p.id || p.propertyId,
               startingPriceForSelectedMode: price,
               ratingAverage: p.ratingAverage ?? p.starRating ?? 4.5,
               reviewCount: p.reviewCount ?? 12,
-              nearbyLandmarks: p.nearbyLandmarks ?? [],
-              thumbnailUrl: p.imageUrl || p.thumbnailUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800',
+              nearbyLandmarks: landmarks,
+              thumbnailUrl: resolvePropertyThumbnail(p.name, `${p.addressLine || p.address || ''} ${p.provinceName || p.city || ''} ${p.touristZoneName || ''}`, p.imageUrl || p.thumbnailUrl),
             };
           });
           this.properties.set(mapped);
