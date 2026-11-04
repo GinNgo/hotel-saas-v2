@@ -191,7 +191,28 @@ import { UserMembershipDto } from '../../core/models/auth.model';
                 <span>Gói cước SaaS</span>
               </a>
 
+              <a
+                routerLink="/guests"
+                routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                (click)="onNavItemClick()"
+                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+              >
+                <i class="pi pi-id-card text-base text-emerald-700"></i>
+                <span>Khách hàng (CRM)</span>
+              </a>
+
               @if (isOwnerOrManager()) {
+                <a
+                  routerLink="/staff"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-users text-base text-indigo-700"></i>
+                  <span>Nhân sự & Phân quyền</span>
+                  <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800">RBAC</span>
+                </a>
+
                 <a
                   routerLink="/audit-logs"
                   routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"

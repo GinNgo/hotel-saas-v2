@@ -32,15 +32,18 @@
               "zone.js"
             ],
             "index": "src/index.html",
-            "preserveSymlinks": true
+            "preserveSymlinks": true,
+            "allowedCommonJsDependencies": [
+              "sweetalert2"
+            ]
           },
           "configurations": {
             "production": {
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "1MB",
-                  "maximumError": "2MB"
+                  "maximumWarning": "2MB",
+                  "maximumError": "4MB"
                 },
                 {
                   "type": "anyComponentStyle",

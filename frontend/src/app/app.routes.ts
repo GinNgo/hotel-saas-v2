@@ -228,6 +228,14 @@ export const routes: Routes = [
         loadComponent: () => import('./features/audit-logs/audit-logs.page').then(m => m.AuditLogsPage)
       },
       {
+        path: 'staff',
+        loadComponent: () => import('./features/staff/staff.page').then(m => m.StaffPage)
+      },
+      {
+        path: 'guests',
+        loadComponent: () => import('./features/guests/guests.page').then(m => m.GuestsPage)
+      },
+      {
         path: 'plans',
         canActivate: [platformAdminGuard],
         loadComponent: () => import('./features/admin-plans/admin-plans.page').then(m => m.AdminPlansPage)
@@ -309,6 +317,14 @@ export const routes: Routes = [
       {
         path: 'audit-logs',
         loadComponent: () => import('./features/audit-logs/audit-logs.page').then(m => m.AuditLogsPage)
+      },
+      {
+        path: 'staff',
+        loadComponent: () => import('./features/staff/staff.page').then(m => m.StaffPage)
+      },
+      {
+        path: 'guests',
+        loadComponent: () => import('./features/guests/guests.page').then(m => m.GuestsPage)
       },
       {
         path: 'plans',
