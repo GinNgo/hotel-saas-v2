@@ -29,9 +29,9 @@ public sealed class CalculateQuoteQueryValidator : AbstractValidator<CalculateQu
         // Finding 4: Reject any RentalType outside enum - never return 0 VND quote
         RuleFor(x => x.RentalType)
             .IsInEnum()
-            .Must(x => x == RentalType.Hourly || x == RentalType.Overnight)
+            .Must(x => x == RentalType.Hourly || x == RentalType.Overnight || x == RentalType.Daily)
             .WithErrorCode("ERR_INVALID_RENTAL_TYPE")
-            .WithMessage("Hình thức thuê không hợp lệ. Chỉ chấp nhận Hourly (1) hoặc Overnight (2).");
+            .WithMessage("Hình thức thuê không hợp lệ. Chỉ chấp nhận Hourly (1), Overnight (2) hoặc Daily (3).");
 
         RuleFor(x => x.EndAtUtc)
             .GreaterThan(x => x.StartAtUtc)
@@ -43,7 +43,7 @@ public sealed class CalculateQuoteQueryValidator : AbstractValidator<CalculateQu
             .WithErrorCode("ERR_PAST_DATE")
             .WithMessage("Thời điểm bắt đầu không được lùi quá dung sai walk-in 30 phút so với hiện tại.");
 
-        When(x => x.RentalType == RentalType.Overnight, () =>
+        When(x => x.RentalType == RentalType.Overnight || x.RentalType == RentalType.Daily, () =>
         {
             RuleFor(x => x.CheckInDate)
                 .NotNull()

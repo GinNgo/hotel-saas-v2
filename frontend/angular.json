@@ -19,7 +19,6 @@
           "options": {
             "browser": "src/main.ts",
             "tsConfig": "tsconfig.app.json",
-            "preserveSymlinks": true,
             "assets": [
               {
                 "glob": "**/*",
@@ -31,7 +30,9 @@
             ],
             "polyfills": [
               "zone.js"
-            ]
+            ],
+            "index": "src/index.html",
+            "preserveSymlinks": true
           },
           "configurations": {
             "production": {

@@ -124,7 +124,7 @@ public sealed class PricingCalculator : IPricingCalculator
                 });
             }
         }
-        else if (rentalType == RentalType.Overnight)
+        else if (rentalType == RentalType.Overnight || rentalType == RentalType.Daily)
         {
             var startLocal = TimeZoneInfo.ConvertTimeFromUtc(startAtUtc, tz);
             var startDateLocal = DateOnly.FromDateTime(startLocal);
@@ -276,7 +276,7 @@ public sealed class PricingCalculator : IPricingCalculator
         else
         {
             throw new BadRequestException("ERR_INVALID_RENTAL_TYPE",
-                "Hình thức thuê không hợp lệ. Chỉ chấp nhận Hourly hoặc Overnight.");
+                "Hình thức thuê không hợp lệ. Chỉ chấp nhận Hourly, Overnight hoặc Daily.");
         }
 
         if (totalAmount <= 0)

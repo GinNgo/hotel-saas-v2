@@ -21,7 +21,7 @@
 [Prompt 4 - Khắc phục lóa trắng & Chuẩn hóa DatePicker]: "Khắc phục giao diện B2C bị lóa trắng, tăng tương phản viền khối. Thay toàn bộ input date native bằng PrimeNG DatePicker chuẩn UTC+7, thêm padding-right an toàn tránh icon che khuất chữ số ngày dd/mm/yyyy."
 
 **AI tạo ra:**  
-Hàm băm VNPay dùng `UrlEncode` trước khi băm gây sai lệch chữ ký, báo lỗi Checksum 97. Webhook IPN chạy ngầm không có claims người dùng nên bị DbContext chặn vì thiếu TenantId/PropertyId. Phần xác thực email đề xuất lưu cột OTP vào bảng Users gây nặng CSDL. DatePicker bị icon calendar đè mất 2 số cuối của năm.
+Hàm băm VNPay dùng `UrlEncode` trước khi băm gây sai lệch chữ ký, báo lỗi Checksum 97. Webhook IPN chạy ngầm không có claims người dùng nên bị DbContext chặn vì thiếu TenantId/PropertyId. Phần xác thực email đề xuất lưu cột OTP vào bảng Users làm phình schema với dữ liệu tạm thời và phát sinh I/O ghi đĩa không cần thiết. DatePicker bị icon calendar đè mất 2 số cuối của năm.
 
 **SV đã sửa:**  
 Kiểm tra ký số VNPay: Sửa hàm băm chỉ lấy raw string các trường có tiền tố `vnp_` nối bằng `&`, bổ sung fallback kiểm tra cả unencoded và encoded; thanh toán thử 1.500.000đ trên VNPay Sandbox thành công 100%. Kiểm tra Webhook IPN: Truy vấn đơn phòng theo TransactionRef trước, nạp TenantId/PropertyId vào ICurrentTenantService rồi mới SaveChanges; test webhook cập nhật đơn Confirmed chuẩn xác. Kiểm tra xác thực email: Chuyển sang dùng JWT Stateless ký HMAC-SHA256, claim `purpose: email_verification` hạn 30 phút, gửi qua MailKit; test click link kích hoạt thành công IsEmailVerified = true. Kiểm tra giao diện & DatePicker: Tăng tương phản viền slate, đặt padding-right `2.75rem` cho input datepicker; test hiển thị rõ `dd/mm/yyyy` trên toàn bộ màn hình.  

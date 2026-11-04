@@ -121,7 +121,7 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
             checkInDate = localDates.CheckInDate;
             checkOutDate = localDates.CheckOutDate;
         }
-        else if (request.RentalType == RentalType.Overnight)
+        else if (request.RentalType == RentalType.Overnight || request.RentalType == RentalType.Daily)
         {
             if (request.StartAtUtc != default && request.EndAtUtc != default && request.EndAtUtc > request.StartAtUtc)
             {
@@ -147,7 +147,7 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
         }
         else
         {
-            throw new BadRequestException("ERR_INVALID_RENTAL_TYPE", "Hình thức thuê không hợp lệ. Chỉ chấp nhận Hourly hoặc Overnight.");
+            throw new BadRequestException("ERR_INVALID_RENTAL_TYPE", "Hình thức thuê không hợp lệ. Chỉ chấp nhận Hourly, Overnight hoặc Daily.");
         }
 
         // Establish tenant & property context for change tracker & interceptors
