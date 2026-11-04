@@ -99,5 +99,22 @@ public sealed class AuditLogsController : ControllerBase
         var result = await _mediator.Send(query, cancellationToken);
         return Ok(result);
     }
+
+    /// <summary>
+    /// Explicitly records an administrative or user action across branches for security and compliance tracking.
+    /// </summary>
+    [HttpPost("events")]
+    [ProducesResponseType(typeof(ApiResponse<Guid>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> RecordEvent(
+        [FromBody] HotelSaas.Application.AuditLogs.Commands.RecordAuditEvent.RecordAuditEventCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
 }
+
 

@@ -91,6 +91,87 @@ public sealed class AuditInterceptorOptions
             nameof(Invoice.BuyerAddress),
             nameof(Invoice.BuyerEmail));
 
+        // Core business resources across branches (Properties, Inventory, Bookings, Payments, Staff RBAC)
+        options.RegisterEntity<Property>(
+            nameof(Property),
+            nameof(Property.Name),
+            nameof(Property.Code),
+            nameof(Property.Slug),
+            nameof(Property.Description),
+            nameof(Property.Address),
+            nameof(Property.City),
+            nameof(Property.PhoneNumber),
+            nameof(Property.Email),
+            nameof(Property.PropertyType),
+            nameof(Property.StarRating),
+            nameof(Property.CheckInTime),
+            nameof(Property.CheckOutTime),
+            nameof(Property.BufferMinutes),
+            nameof(Property.MaxHourlyHours),
+            nameof(Property.TaxRatePercent));
+
+        options.RegisterEntity<Room>(
+            nameof(Room),
+            nameof(Room.RoomNumber),
+            nameof(Room.Floor),
+            nameof(Room.Status),
+            nameof(Room.RoomTypeId),
+            nameof(Room.Notes));
+
+        options.RegisterEntity<RoomType>(
+            nameof(RoomType),
+            nameof(RoomType.Name),
+            nameof(RoomType.Code),
+            nameof(RoomType.BasePrice),
+            nameof(RoomType.StandardOccupancy),
+            nameof(RoomType.MaxOccupancy));
+
+        options.RegisterEntity<Reservation>(
+            nameof(Reservation),
+            nameof(Reservation.ConfirmationCode),
+            nameof(Reservation.GuestName),
+            nameof(Reservation.GuestEmail),
+            nameof(Reservation.GuestPhone),
+            nameof(Reservation.RoomId),
+            nameof(Reservation.CheckInDate),
+            nameof(Reservation.CheckOutDate),
+            nameof(Reservation.NumberOfGuests),
+            nameof(Reservation.TotalAmount),
+            nameof(Reservation.Status),
+            nameof(Reservation.Notes),
+            nameof(Reservation.CancellationReason));
+
+        options.RegisterEntity<Payment>(
+            nameof(Payment),
+            nameof(Payment.ReservationId),
+            nameof(Payment.Amount),
+            nameof(Payment.Method),
+            nameof(Payment.Status),
+            nameof(Payment.TransactionRef));
+
+        options.RegisterEntity<TenantStaff>(
+            nameof(TenantStaff),
+            nameof(TenantStaff.UserId),
+            nameof(TenantStaff.RoleId),
+            nameof(TenantStaff.StaffRole),
+            nameof(TenantStaff.PropertyId),
+            nameof(TenantStaff.IsActive));
+
+        options.RegisterEntity<AccessRole>(
+            nameof(AccessRole),
+            nameof(AccessRole.Name),
+            nameof(AccessRole.Code),
+            nameof(AccessRole.Description),
+            nameof(AccessRole.IsSystemRole));
+
+        options.RegisterEntity<HousekeepingTask>(
+            nameof(HousekeepingTask),
+            nameof(HousekeepingTask.RoomId),
+            nameof(HousekeepingTask.AssignedToUserId),
+            nameof(HousekeepingTask.Status),
+            nameof(HousekeepingTask.Priority),
+            nameof(HousekeepingTask.Notes));
+
         return options;
     }
 
@@ -552,8 +633,21 @@ public sealed class AuditSaveChangesInterceptor : SaveChangesInterceptor
             return (currentTenantId.Value, propertyEntity.PropertyId);
         }
 
-        // Tenant-scoped entity without IPropertyScopedEntity (e.g., Invoice):
+        // Tenant-scoped entity without IPropertyScopedEntity (e.g., Invoice, Property, TenantStaff):
         // Never assign an arbitrary or mismatched PropertyId from ambient context if the entity does not bind to a property.
+        // For Property itself, its Id is the branch PropertyId.
+        if (entry.Entity is Property prop)
+        {
+            var propId = prop.Id != Guid.Empty ? prop.Id : (Guid?)null;
+            return (currentTenantId.Value, propId);
+        }
+
+        // For TenantStaff, use its assigned branch PropertyId (or null for tenant-wide staff).
+        if (entry.Entity is TenantStaff staff)
+        {
+            return (currentTenantId.Value, staff.PropertyId);
+        }
+
         // For Invoice, deterministically resolve PropertyId from its associated Reservation (in memory or DB).
         if (entry.Entity is Invoice invoice)
         {

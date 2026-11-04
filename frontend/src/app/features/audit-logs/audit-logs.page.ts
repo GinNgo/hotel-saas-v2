@@ -81,9 +81,17 @@ import { DateRangeFilterComponent, DateRangeFilterValue } from '../../shared/com
                 class="w-full h-10 px-3 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-800 focus:bg-white focus:outline-indigo-500 transition-all cursor-pointer"
               >
                 <option value="">Tất cả đối tượng</option>
+                <option value="Property">Cơ sở / Chi nhánh (Property)</option>
+                <option value="Room">Phòng lưu trú (Room)</option>
+                <option value="RoomType">Loại phòng (RoomType)</option>
                 <option value="RoomTypeRate">Bảng giá phòng (RoomTypeRate)</option>
                 <option value="PropertySurchargePolicy">Phụ thu chi nhánh (SurchargePolicy)</option>
+                <option value="Reservation">Đơn đặt phòng (Reservation)</option>
+                <option value="Payment">Thanh toán & Giao dịch (Payment)</option>
                 <option value="Invoice">Hóa đơn (Invoice)</option>
+                <option value="TenantStaff">Tài khoản Nhân sự (TenantStaff)</option>
+                <option value="AccessRole">Chức vụ & Quyền hạn (AccessRole)</option>
+                <option value="HousekeepingTask">Buồng phòng (Housekeeping)</option>
               </select>
             </div>
 
@@ -867,9 +875,17 @@ export class AuditLogsPage implements OnInit {
 
   getEntityDisplayLabel(name?: string): string {
     switch (name) {
+      case 'Property': return 'Cơ sở & Chi nhánh';
+      case 'Room': return 'Phòng lưu trú';
+      case 'RoomType': return 'Loại phòng';
       case 'RoomTypeRate': return 'Bảng giá phòng';
       case 'PropertySurchargePolicy': return 'Phụ thu chi nhánh';
+      case 'Reservation': return 'Đơn đặt phòng';
+      case 'Payment': return 'Giao dịch thanh toán';
       case 'Invoice': return 'Hóa đơn thanh toán';
+      case 'TenantStaff': return 'Tài khoản nhân sự';
+      case 'AccessRole': return 'Chức vụ & Quyền hạn';
+      case 'HousekeepingTask': return 'Nhiệm vụ buồng phòng';
       default: return name || 'Bản ghi';
     }
   }
@@ -879,6 +895,49 @@ export class AuditLogsPage implements OnInit {
    */
   getFieldDisplayLabel(fieldName: string): string {
     const labels: Record<string, string> = {
+      // Property
+      Name: 'Tên đối tượng',
+      Code: 'Mã ký hiệu',
+      Slug: 'Đường dẫn liên kết (Slug)',
+      Address: 'Địa chỉ cơ sở',
+      City: 'Tỉnh / Thành phố',
+      PhoneNumber: 'Số điện thoại liên hệ',
+      Email: 'Email liên hệ',
+      StarRating: 'Xếp hạng sao',
+      CheckInTime: 'Giờ nhận phòng tiêu chuẩn',
+      CheckOutTime: 'Giờ trả phòng tiêu chuẩn',
+      BufferMinutes: 'Thời gian dọn phòng (phút)',
+      MaxHourlyHours: 'Số giờ tối đa thuê theo giờ',
+      TaxRatePercent: 'Tỷ lệ thuế VAT (%)',
+      // Room
+      RoomNumber: 'Số phòng',
+      Floor: 'Tầng',
+      CleanlinessStatus: 'Tình trạng vệ sinh',
+      // RoomType
+      BasePrice: 'Giá phòng tiêu chuẩn',
+      StandardOccupancy: 'Số khách tiêu chuẩn',
+      MaxOccupancy: 'Số khách tối đa',
+      // Reservation
+      ConfirmationCode: 'Mã xác nhận đơn',
+      GuestName: 'Họ tên khách lưu trú',
+      GuestEmail: 'Email khách lưu trú',
+      GuestPhone: 'Số điện thoại khách',
+      CheckInDate: 'Ngày nhận phòng',
+      CheckOutDate: 'Ngày trả phòng',
+      NumberOfGuests: 'Số lượng khách',
+      CancellationReason: 'Lý do hủy đơn',
+      // Payment
+      Amount: 'Số tiền thanh toán',
+      Method: 'Phương thức thanh toán',
+      TransactionRef: 'Mã giao dịch ngân hàng',
+      // Staff & RBAC
+      StaffRole: 'Chức danh nhân viên',
+      RoleId: 'Chức vụ phân quyền',
+      IsSystemRole: 'Vai trò mặc định hệ thống',
+      Description: 'Mô tả vai trò',
+      // Housekeeping
+      Priority: 'Mức độ ưu tiên dọn dẹp',
+      AssignedToUserId: 'Nhân viên phụ trách',
       // RoomTypeRate
       NightlyPrice: 'Giá thuê theo đêm',
       FirstHours: 'Số giờ ban đầu',
@@ -905,11 +964,11 @@ export class AuditLogsPage implements OnInit {
       SubTotal: 'Tổng tiền dịch vụ',
       TaxAmount: 'Tiền thuế VAT',
       DiscountAmount: 'Tiền giảm giá',
-      Status: 'Trạng thái hóa đơn',
+      Status: 'Trạng thái nghiệp vụ',
       IssuedAtUtc: 'Thời điểm phát hành',
       DueAtUtc: 'Hạn thanh toán',
       PaidAtUtc: 'Thời điểm thanh toán',
-      Notes: 'Ghi chú hóa đơn',
+      Notes: 'Ghi chú nghiệp vụ',
       PaymentMethod: 'Phương thức thanh toán',
       // Common
       Id: 'Mã bản ghi (ID)',
@@ -928,9 +987,17 @@ export class AuditLogsPage implements OnInit {
     let s = summary;
 
     // Thay thế tên Entity
+    s = s.replace(/\bProperty\b/g, 'Cơ sở/Chi nhánh');
+    s = s.replace(/\bRoom\b/g, 'Phòng');
+    s = s.replace(/\bRoomType\b/g, 'Loại phòng');
     s = s.replace(/\bRoomTypeRate\b/g, 'Bảng giá phòng');
     s = s.replace(/\bPropertySurchargePolicy\b/g, 'Phụ thu chi nhánh');
+    s = s.replace(/\bReservation\b/g, 'Đơn đặt phòng');
+    s = s.replace(/\bPayment\b/g, 'Giao dịch thanh toán');
     s = s.replace(/\bInvoice\b/g, 'Hóa đơn');
+    s = s.replace(/\bTenantStaff\b/g, 'Tài khoản nhân sự');
+    s = s.replace(/\bAccessRole\b/g, 'Chức vụ phân quyền');
+    s = s.replace(/\bHousekeepingTask\b/g, 'Buồng phòng');
 
     // Loại bỏ các GUID dài trong chuỗi mô tả chính
     s = s.replace(/,?\s*(RoomTypeId|CreatedByUserId|TenantId|PropertyId|Id)=[0-9a-f-]{36}/gi, '');

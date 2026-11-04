@@ -57,5 +57,19 @@ export class AuditLogService {
     }
     return this.http.get<ApiResponse<AuditLogDetail>>(`${this.apiUrl}/${id}`, { params: httpParams });
   }
+
+  /**
+   * Ghi nhận sự kiện hành động tuân thủ & bảo mật tường minh từ người dùng / quản trị viên.
+   */
+  recordAuditEvent(event: {
+    action: string;
+    entityName: string;
+    entityId: string;
+    propertyId?: string | null;
+    oldValues?: any;
+    newValues?: any;
+  }): Observable<ApiResponse<string>> {
+    return this.http.post<ApiResponse<string>>(`${this.apiUrl}/events`, event);
+  }
 }
 
