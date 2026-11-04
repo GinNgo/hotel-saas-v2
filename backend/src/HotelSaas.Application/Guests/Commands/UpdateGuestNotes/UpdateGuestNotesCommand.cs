@@ -49,7 +49,7 @@ public sealed class UpdateGuestNotesCommandHandler : IRequestHandler<UpdateGuest
 
         foreach (var b in recentBookings)
         {
-            b.GuestNotes = request.Notes;
+            b.Notes = request.Notes;
         }
 
         await _context.SaveChangesAsync(cancellationToken);

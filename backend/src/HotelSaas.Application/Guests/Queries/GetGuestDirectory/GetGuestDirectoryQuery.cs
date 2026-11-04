@@ -49,20 +49,19 @@ public sealed class GetGuestDirectoryQueryHandler : IRequestHandler<GetGuestDire
             var search = request.Search.Trim().ToLower();
             reservationsQuery = reservationsQuery.Where(r =>
                 r.GuestName.ToLower().Contains(search) ||
-                r.GuestPhone.Contains(search) ||
-                (r.GuestEmail != null && r.GuestEmail.ToLower().Contains(search)) ||
-                (r.GuestIdNumber != null && r.GuestIdNumber.Contains(search)));
+                r.GuestPhone!.Contains(search) ||
+                (r.GuestEmail != null && r.GuestEmail.ToLower().Contains(search)));
         }
 
         // Group by Phone
         var grouped = reservationsQuery
-            .GroupBy(r => r.GuestPhone)
+            .GroupBy(r => r.GuestPhone!)
             .Select(g => new
             {
                 PhoneNumber = g.Key,
                 FullName = g.OrderByDescending(r => r.CreatedAtUtc).Select(r => r.GuestName).FirstOrDefault() ?? string.Empty,
                 Email = g.OrderByDescending(r => r.CreatedAtUtc).Select(r => r.GuestEmail).FirstOrDefault(),
-                IdCardNumber = g.OrderByDescending(r => r.CreatedAtUtc).Select(r => r.GuestIdNumber).FirstOrDefault(),
+                IdCardNumber = (string?)null,
                 GuestUserId = g.OrderByDescending(r => r.CreatedAtUtc).Select(r => r.GuestUserId).FirstOrDefault(),
                 TotalBookings = g.Count(),
                 CompletedStays = g.Count(r => r.Status == ReservationStatus.CheckedOut),
@@ -70,7 +69,7 @@ public sealed class GetGuestDirectoryQueryHandler : IRequestHandler<GetGuestDire
                 TotalSpent = g.Where(r => r.Status == ReservationStatus.CheckedOut || r.Status == ReservationStatus.CheckedIn || r.Status == ReservationStatus.Confirmed)
                               .Sum(r => (decimal?)r.TotalAmount) ?? 0m,
                 LastStayDate = g.Max(r => (DateTime?)r.CreatedAtUtc),
-                Notes = g.OrderByDescending(r => r.CreatedAtUtc).Select(r => r.GuestNotes).FirstOrDefault()
+                Notes = g.OrderByDescending(r => r.CreatedAtUtc).Select(r => r.Notes).FirstOrDefault()
             });
 
         var totalCount = await grouped.CountAsync(cancellationToken);
@@ -107,8 +106,19 @@ public sealed class GetGuestDirectoryQueryHandler : IRequestHandler<GetGuestDire
 
         var items = pagedRows.Select(r =>
         {
-            var hasLoyalty = r.GuestUserId.HasValue && loyaltyMap.TryGetValue(r.GuestUserId.Value, out var l);
-            var isVip = r.TotalSpent >= 5_000_000 || r.CompletedStays >= 3 || (hasLoyalty && l.Tier != "Silver");
+            var tier = "Standard";
+            var points = 0;
+            if (r.GuestUserId.HasValue && loyaltyMap.TryGetValue(r.GuestUserId.Value, out var l))
+            {
+                tier = l.Tier;
+                points = l.Points;
+            }
+            else if (r.CompletedStays >= 2)
+            {
+                tier = "Silver";
+            }
+
+            var isVip = r.TotalSpent >= 5_000_000 || r.CompletedStays >= 3 || tier != "Standard";
 
             return new GuestDirectoryItemDto
             {
@@ -123,8 +133,8 @@ public sealed class GetGuestDirectoryQueryHandler : IRequestHandler<GetGuestDire
                 CancelledBookings = r.CancelledBookings,
                 TotalSpent = r.TotalSpent,
                 LastStayDate = r.LastStayDate,
-                LoyaltyTier = hasLoyalty ? l.Tier : (r.CompletedStays >= 2 ? "Silver" : "Standard"),
-                PointsBalance = hasLoyalty ? l.Points : 0,
+                LoyaltyTier = tier,
+                PointsBalance = points,
                 IsVip = isVip,
                 IsBlacklisted = false,
                 Notes = r.Notes

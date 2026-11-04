@@ -60,7 +60,7 @@ public sealed class GetGuestHistoryQueryHandler : IRequestHandler<GetGuestHistor
         var bookingItems = bookings.Select(b => new GuestBookingHistoryItemDto
         {
             ReservationId = b.Id,
-            BookingCode = b.BookingCode,
+            BookingCode = b.ConfirmationCode,
             PropertyId = b.PropertyId,
             PropertyName = b.Property != null ? b.Property.Name : "—",
             RoomNumber = b.Room != null ? b.Room.RoomNumber : "—",
@@ -78,8 +78,8 @@ public sealed class GetGuestHistoryQueryHandler : IRequestHandler<GetGuestHistor
             UserId = latest.GuestUserId,
             FullName = latest.GuestName,
             Email = latest.GuestEmail,
-            PhoneNumber = latest.GuestPhone,
-            IdCardNumber = latest.GuestIdNumber,
+            PhoneNumber = latest.GuestPhone ?? normalizedPhone,
+            IdCardNumber = null,
             TotalBookings = bookings.Count,
             CompletedStays = completedStays,
             CancelledBookings = cancelled,
@@ -89,7 +89,7 @@ public sealed class GetGuestHistoryQueryHandler : IRequestHandler<GetGuestHistor
             PointsBalance = 0,
             IsVip = totalSpent >= 5_000_000 || completedStays >= 3,
             IsBlacklisted = false,
-            Notes = latest.GuestNotes
+            Notes = latest.Notes
         };
 
         return new GuestDetailDto
