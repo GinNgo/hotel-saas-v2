@@ -123,7 +123,6 @@ public sealed class AuditInterceptorOptions
             nameof(RoomType.Name),
             nameof(RoomType.Code),
             nameof(RoomType.BasePrice),
-            nameof(RoomType.StandardOccupancy),
             nameof(RoomType.MaxOccupancy));
 
         options.RegisterEntity<Reservation>(
