@@ -31,5 +31,8 @@ public record ReservationDto
     public string? Notes { get; init; }
     public string? SmartLockPin { get; init; }
     public string? SmartLockStatus { get; init; }
+    public DateTime? HoldExpiresAtUtc { get; init; }
+    public int HoldExtensionCount { get; init; }
+    public bool IsHoldExpired { get; init; }
     public DateTime CreatedAtUtc { get; init; }
 }

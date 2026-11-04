@@ -42,7 +42,7 @@ public sealed class CreateReservationCommandValidator : AbstractValidator<Create
                 .WithMessage("Thời lượng thuê theo giờ tối đa không vượt quá 24 giờ.");
         });
 
-        When(x => x.RentalType == RentalType.Overnight && x.CheckInDate.HasValue && x.CheckOutDate.HasValue, () =>
+        When(x => (x.RentalType == RentalType.Overnight || x.RentalType == RentalType.Daily) && x.CheckInDate.HasValue && x.CheckOutDate.HasValue, () =>
         {
             RuleFor(x => x)
                 .Must(x => x.CheckOutDate!.Value > x.CheckInDate!.Value)

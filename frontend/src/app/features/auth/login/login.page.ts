@@ -228,9 +228,9 @@ export type PortalType = 'guest' | 'admin';
             </button>
             <button
               type="button"
-              (click)="quickFill('owner@hotelsaas.local')"
+              (click)="quickFill('owner.saigon@hotelsaas.local')"
               class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-emerald-50 hover:border-emerald-300 text-slate-700 hover:text-emerald-800 text-center transition-colors truncate"
-              title="Owner toàn quyền: owner@hotelsaas.local"
+              title="Owner toàn quyền: owner.saigon@hotelsaas.local"
             >
               Chủ KS (Owner)
             </button>
@@ -338,7 +338,7 @@ export class LoginPage implements OnInit {
       if (type === 'guest') {
         this.quickFill('guest.vip@hotelsaas.local');
       } else {
-        this.quickFill('manager.both@hotelsaas.local');
+        this.quickFill('owner.saigon@hotelsaas.local');
       }
     }
   }

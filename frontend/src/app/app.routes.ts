@@ -25,6 +25,10 @@ export const routes: Routes = [
         loadComponent: () => import('./features/auth/register/register.page').then(m => m.RegisterPage)
       },
       {
+        path: 'confirm-email',
+        loadComponent: () => import('./features/auth/confirm-email/confirm-email.page').then(m => m.ConfirmEmailPage)
+      },
+      {
         path: 'partner-register',
         loadComponent: () => import('./features/auth/partner-register/partner-register.page').then(m => m.PartnerRegisterPage)
       }
@@ -43,6 +47,10 @@ export const routes: Routes = [
       {
         path: 'register',
         loadComponent: () => import('./features/auth/register/register.page').then(m => m.RegisterPage)
+      },
+      {
+        path: 'confirm-email',
+        loadComponent: () => import('./features/auth/confirm-email/confirm-email.page').then(m => m.ConfirmEmailPage)
       },
       {
         path: 'partner-register',
@@ -211,6 +219,10 @@ export const routes: Routes = [
         loadComponent: () => import('./features/subscriptions/subscriptions.page').then(m => m.SubscriptionsPage)
       },
       {
+        path: 'audit-logs',
+        loadComponent: () => import('./features/audit-logs/audit-logs.page').then(m => m.AuditLogsPage)
+      },
+      {
         path: 'plans',
         canActivate: [platformAdminGuard],
         loadComponent: () => import('./features/admin-plans/admin-plans.page').then(m => m.AdminPlansPage)
@@ -283,6 +295,10 @@ export const routes: Routes = [
       {
         path: 'subscriptions',
         loadComponent: () => import('./features/subscriptions/subscriptions.page').then(m => m.SubscriptionsPage)
+      },
+      {
+        path: 'audit-logs',
+        loadComponent: () => import('./features/audit-logs/audit-logs.page').then(m => m.AuditLogsPage)
       },
       {
         path: 'plans',

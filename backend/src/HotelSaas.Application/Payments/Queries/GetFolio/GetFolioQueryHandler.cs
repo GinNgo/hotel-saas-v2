@@ -9,6 +9,7 @@ using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Payments.DTOs;
 using HotelSaas.Application.Quotes.DTOs;
 using HotelSaas.Application.Reservations.DTOs;
+using HotelSaas.Application.Reservations.Services;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using MediatR;
@@ -26,19 +27,22 @@ public sealed class GetFolioQueryHandler : IRequestHandler<GetFolioQuery, FolioD
     private readonly ICurrentUserContext _userContext;
     private readonly IMembershipLookupService _membershipLookupService;
     private readonly ICurrentPropertyService? _propertyService;
+    private readonly ICancellationPolicyService _cancellationPolicyService;
 
     public GetFolioQueryHandler(
         IApplicationDbContext context,
         ICurrentTenantService tenantService,
         ICurrentUserContext userContext,
         IMembershipLookupService membershipLookupService,
-        ICurrentPropertyService? propertyService = null)
+        ICurrentPropertyService? propertyService = null,
+        ICancellationPolicyService? cancellationPolicyService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _tenantService = tenantService ?? throw new ArgumentNullException(nameof(tenantService));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _membershipLookupService = membershipLookupService ?? throw new ArgumentNullException(nameof(membershipLookupService));
         _propertyService = propertyService;
+        _cancellationPolicyService = cancellationPolicyService ?? new CancellationPolicyService();
     }
 
     public async Task<FolioDto> Handle(GetFolioQuery request, CancellationToken cancellationToken)
@@ -142,8 +146,84 @@ public sealed class GetFolioQueryHandler : IRequestHandler<GetFolioQuery, FolioD
         var startUtc = snapshot?.StartAtUtc ?? reservation.CheckInDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         var endUtc = snapshot?.EndAtUtc ?? reservation.CheckOutDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 
-        var remainingBalance = reservation.TotalAmount - paidAmount;
-        var isFullyPaid = remainingBalance <= 0;
+        decimal remainingBalance;
+        bool isFullyPaid;
+        decimal? cancellationFee = null;
+        decimal? refundableAmount = null;
+        string? refundStatus = null;
+        decimal? netCollectibleAmount = null;
+        string? financialSettlementStatus = null;
+
+        if (reservation.Status == ReservationStatus.Cancelled)
+        {
+            var property = await _context.Properties
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == request.PropertyId && p.TenantId == tenantId.Value, cancellationToken);
+
+            var cancelEstimate = _cancellationPolicyService.CalculateEstimate(
+                reservation,
+                property,
+                reservation.CancelledAtUtc ?? DateTime.UtcNow,
+                paidAmount);
+
+            cancellationFee = cancelEstimate.CancellationFee;
+            refundableAmount = cancelEstimate.RefundableAmount;
+
+            var refundPayment = payments
+                .FirstOrDefault(p => !string.IsNullOrEmpty(p.TransactionRef) &&
+                                     p.TransactionRef.Contains("REFUND", StringComparison.OrdinalIgnoreCase));
+
+            if (refundPayment != null)
+            {
+                if (refundPayment.Status == PaymentStatus.Completed)
+                    refundStatus = "Refunded";
+                else if (refundPayment.Status == PaymentStatus.Pending)
+                    refundStatus = "PendingApproval";
+                else if (refundPayment.Status == PaymentStatus.Failed)
+                    refundStatus = "Failed";
+                else
+                    refundStatus = refundPayment.Status.ToString();
+            }
+            else if (refundableAmount > 0)
+            {
+                refundStatus = "PendingApproval";
+            }
+            else
+            {
+                refundStatus = "None";
+            }
+
+            if (paidAmount == 0)
+            {
+                netCollectibleAmount = 0m;
+                remainingBalance = 0m;
+                isFullyPaid = false;
+                financialSettlementStatus = "CancelledNoDebt";
+            }
+            else
+            {
+                if (cancellationFee > paidAmount)
+                {
+                    netCollectibleAmount = cancellationFee.Value - paidAmount;
+                    remainingBalance = netCollectibleAmount.Value;
+                    financialSettlementStatus = "CancelledDebtDue";
+                }
+                else
+                {
+                    netCollectibleAmount = 0m;
+                    remainingBalance = 0m;
+                    financialSettlementStatus = refundStatus == "Refunded" ? "CancelledSettled" : "CancelledPendingRefund";
+                }
+                isFullyPaid = false;
+            }
+        }
+        else
+        {
+            remainingBalance = reservation.TotalAmount - paidAmount;
+            isFullyPaid = remainingBalance <= 0;
+            netCollectibleAmount = Math.Max(0m, remainingBalance);
+            financialSettlementStatus = isFullyPaid ? "ActiveSettled" : "ActiveOutstanding";
+        }
 
         var breakdown = snapshot?.Breakdown ?? Array.Empty<QuoteBreakdownItemDto>();
         decimal? baseRoomAmount = null;
@@ -222,7 +302,12 @@ public sealed class GetFolioQueryHandler : IRequestHandler<GetFolioQuery, FolioD
             surchargesAmount,
             servicesAmount,
             depositRequired,
-            depositPaid
+            depositPaid,
+            cancellationFee,
+            refundableAmount,
+            refundStatus,
+            netCollectibleAmount,
+            financialSettlementStatus
         );
     }
 }

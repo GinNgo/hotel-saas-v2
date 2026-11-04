@@ -20,8 +20,8 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
 }
 
 /**
- * Trang Đăng ký tài khoản hệ thống Hotel SaaS.
- * Sử dụng PrimeNG + Tailwind CSS.
+ * Trang Đăng ký tài khoản khách hàng hệ thống LuxeStay Hotel SaaS.
+ * Hỗ trợ đầy đủ thông tin: Họ tên, Email, Số điện thoại, Ảnh đại diện Avatar, Mật khẩu bảo mật.
  */
 @Component({
   selector: 'app-register',
@@ -35,7 +35,10 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
   ],
   template: `
     <div class="w-full">
-      <h2 class="text-xl font-bold text-slate-800 text-center mb-6">Tạo tài khoản mới</h2>
+      <div class="text-center mb-6">
+        <h2 class="text-xl font-bold text-slate-800">Tạo tài khoản hội viên</h2>
+        <p class="text-xs text-slate-500 mt-1">Đăng ký để nhận ưu đãi phòng độc quyền và quản lý đặt phòng tiện lợi</p>
+      </div>
 
       @if (errorMessage()) {
         <div class="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-start gap-2.5">
@@ -54,7 +57,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
             id="fullName"
             pInputText
             formControlName="fullName"
-            placeholder="Nguyễn Văn A"
+            placeholder="Ví dụ: An Ngô Võ Tuấn"
             class="w-full text-sm"
             [class.ng-invalid]="registerForm.get('fullName')?.invalid && registerForm.get('fullName')?.touched"
           />
@@ -66,14 +69,14 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
         <!-- Email Field -->
         <div>
           <label for="email" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-            Email <span class="text-rose-500">*</span>
+            Email nhận thông báo & vé phòng <span class="text-rose-500">*</span>
           </label>
           <input
             id="email"
             pInputText
             formControlName="email"
             type="email"
-            placeholder="example@hotel.com"
+            placeholder="ngovotuananh@gmail.com"
             class="w-full text-sm"
             [class.ng-invalid]="registerForm.get('email')?.invalid && registerForm.get('email')?.touched"
           />
@@ -83,6 +86,65 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
           @if (registerForm.get('email')?.hasError('email') && registerForm.get('email')?.touched) {
             <p class="text-xs text-rose-600 mt-1">Email không đúng định dạng</p>
           }
+        </div>
+
+        <!-- Phone Number Field -->
+        <div>
+          <label for="phoneNumber" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+            Số điện thoại liên hệ <span class="text-rose-500">*</span>
+          </label>
+          <input
+            id="phoneNumber"
+            pInputText
+            formControlName="phoneNumber"
+            type="tel"
+            placeholder="Ví dụ: 0912345678 hoặc +84912345678"
+            class="w-full text-sm"
+            [class.ng-invalid]="registerForm.get('phoneNumber')?.invalid && registerForm.get('phoneNumber')?.touched"
+          />
+          @if (registerForm.get('phoneNumber')?.hasError('required') && registerForm.get('phoneNumber')?.touched) {
+            <p class="text-xs text-rose-600 mt-1">Số điện thoại không được để trống</p>
+          }
+          @if (registerForm.get('phoneNumber')?.hasError('pattern') && registerForm.get('phoneNumber')?.touched) {
+            <p class="text-xs text-rose-600 mt-1">Số điện thoại không hợp lệ (từ 9-15 chữ số)</p>
+          }
+        </div>
+
+        <!-- Avatar Selection Field -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+            Ảnh đại diện (Avatar)
+          </label>
+          <div class="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200 bg-slate-50/70">
+            <img
+              [src]="currentAvatarUrl()"
+              alt="Avatar preview"
+              class="w-12 h-12 rounded-full object-cover border-2 border-emerald-500 shadow-sm flex-shrink-0"
+              (error)="onAvatarError($event)"
+            />
+            <div class="flex-1 min-w-0">
+              <input
+                id="avatarUrl"
+                pInputText
+                formControlName="avatarUrl"
+                placeholder="Dán link ảnh hoặc chọn mẫu bên dưới"
+                class="w-full text-xs"
+                (input)="onAvatarInput($any($event.target).value)"
+              />
+              <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                <span class="text-[11px] text-slate-500">Mẫu chọn nhanh:</span>
+                @for (preset of avatarPresets; track preset.url) {
+                  <button
+                    type="button"
+                    (click)="selectPresetAvatar(preset.url)"
+                    class="text-[10px] px-2 py-0.5 rounded-full border border-slate-300 hover:border-emerald-600 hover:text-emerald-700 bg-white transition-colors"
+                  >
+                    {{ preset.label }}
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Password Field -->
@@ -169,15 +231,44 @@ export class RegisterPage {
   private readonly router = inject(Router);
   private readonly notification = inject(NotificationService);
 
+  readonly defaultAvatar = '/images/avatars/an-ngo-vo-tuan.png';
+  currentAvatarUrl = signal<string>(this.defaultAvatar);
+
+  readonly avatarPresets = [
+    { label: 'An Ngô Võ Tuấn', url: '/images/avatars/an-ngo-vo-tuan.png' },
+    { label: 'Doanh nhân VIP', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150' },
+    { label: 'Khách du lịch', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150' }
+  ];
+
   registerForm = this.fb.group({
     fullName: ['', [Validators.required]],
     email: ['', [Validators.required, Validators.email]],
+    phoneNumber: ['', [Validators.required, Validators.pattern(/^(\+?[0-9]{9,15})$/)]],
+    avatarUrl: [this.defaultAvatar],
     password: ['', [Validators.required, Validators.minLength(8)]],
     confirmPassword: ['', [Validators.required]]
   }, { validators: passwordMatchValidator });
 
   loading = signal(false);
   errorMessage = signal<string | null>(null);
+
+  selectPresetAvatar(url: string): void {
+    this.currentAvatarUrl.set(url);
+    this.registerForm.get('avatarUrl')?.setValue(url);
+  }
+
+  onAvatarInput(value: string): void {
+    if (value && value.trim().length > 0) {
+      this.currentAvatarUrl.set(value.trim());
+    } else {
+      this.currentAvatarUrl.set(this.defaultAvatar);
+    }
+  }
+
+  onAvatarError(event: Event): void {
+    const img = event.target as HTMLImageElement;
+    img.src = 'https://ui-avatars.com/api/?name=User&background=0D8ABC&color=fff';
+  }
 
   onSubmit(): void {
     if (this.registerForm.invalid) {
@@ -188,17 +279,20 @@ export class RegisterPage {
     this.loading.set(true);
     this.errorMessage.set(null);
 
-    const { fullName, email, password } = this.registerForm.getRawValue();
+    const { fullName, email, phoneNumber, avatarUrl, password } = this.registerForm.getRawValue();
 
     this.authService.register({
-      fullName: fullName!,
-      email: email!,
-      password: password!
+      fullName: fullName!.trim(),
+      email: email!.trim().toLowerCase(),
+      phoneNumber: phoneNumber?.trim() || undefined,
+      avatarUrl: avatarUrl?.trim() || undefined,
+      password: password!,
+      appUrl: typeof window !== 'undefined' ? window.location.origin : undefined
     }).subscribe({
       next: (response) => {
         this.loading.set(false);
-        if (response.success) {
-          this.notification.success('Đăng ký tài khoản thành công! Vui lòng đăng nhập.');
+        if (response.success || (response as any).userId || (response as any).data) {
+          this.notification.success('Đăng ký tài khoản thành công! Thư xác thực tài khoản đã được gửi đến email của bạn. Vui lòng mở hộp thư để bấm liên kết kích hoạt.');
           this.router.navigate(['/login']);
         }
       },

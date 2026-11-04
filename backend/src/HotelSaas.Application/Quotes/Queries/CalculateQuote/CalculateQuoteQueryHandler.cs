@@ -210,7 +210,7 @@ public sealed class CalculateQuoteQueryHandler : IRequestHandler<CalculateQuoteQ
                 });
             }
         }
-        else if (request.RentalType == RentalType.Overnight)
+        else if (request.RentalType == RentalType.Overnight || request.RentalType == RentalType.Daily)
         {
             // Finding 3: CheckInDate and CheckOutDate must match StartAtUtc and EndAtUtc in branch local timezone
             var startLocal = TimeZoneInfo.ConvertTimeFromUtc(request.StartAtUtc, tz);
@@ -366,7 +366,7 @@ public sealed class CalculateQuoteQueryHandler : IRequestHandler<CalculateQuoteQ
         {
             // Finding 4: Reject any RentalType outside enum - NEVER return 0 VND quote
             throw new BadRequestException("ERR_INVALID_RENTAL_TYPE",
-                "Hình thức thuê không hợp lệ. Chỉ chấp nhận Hourly hoặc Overnight.");
+                "Hình thức thuê không hợp lệ. Chỉ chấp nhận Hourly, Overnight hoặc Daily.");
         }
 
         // Finding 4 & 5: Safety check - totalAmount must be strictly positive

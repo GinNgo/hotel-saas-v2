@@ -1,0 +1,106 @@
+# ═══════════════════════════════════════════════════════════════
+# Hotel SaaS Platform — Full-Stack Production/Demo Compose
+# (.NET 10 + Angular 22 + PostgreSQL 17 + Redis 7 + Nginx)
+# ═══════════════════════════════════════════════════════════════
+# Usage:
+#   docker compose -f docker/docker-compose.full.yml up --build -d
+# ═══════════════════════════════════════════════════════════════
+
+services:
+  # ── 1. PostgreSQL 17 Relational Database ──
+  postgres:
+    image: postgres:17-alpine
+    container_name: hotelsaas-db-full
+    environment:
+      POSTGRES_DB: hotel_saas_production
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres-data-full:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hotel_saas_production"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - hotelsaas-net
+
+  # ── 2. Redis 7 In-Memory Cache & Rate Limiter ──
+  redis:
+    image: redis:7-alpine
+    container_name: hotelsaas-redis-full
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis-data-full:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - hotelsaas-net
+
+  # ── 3. Backend WebApi Service (.NET 10 Clean Architecture) ──
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: hotelsaas-backend-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=hotel_saas_production;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres};Pooling=true;"
+      ConnectionStrings__RedisConnection: "redis:6379"
+      JwtSettings__SecretKey: "${JWT_SECRET_KEY:-HotelSaasPlatform2026EnterpriseSuperSecretKey32BytesLong!}"
+      JwtSettings__Issuer: "HotelSaas"
+      JwtSettings__Audience: "HotelSaasClient"
+      JwtSettings__AccessTokenExpirationMinutes: "120"
+      AllowCloudDevSeed: "true"
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - hotelsaas-net
+
+  # ── 4. Frontend Web Application (Angular 22 + Nginx SPA) ──
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: hotelsaas-frontend-app
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - hotelsaas-net
+
+networks:
+  hotelsaas-net:
+    driver: bridge
+
+volumes:
+  postgres-data-full:
+  redis-data-full:

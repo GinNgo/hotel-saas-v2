@@ -53,7 +53,10 @@ public sealed class CreateVnpayUrlCommandHandler : IRequestHandler<CreateVnpayUr
         else if (!string.IsNullOrWhiteSpace(request.LookupToken))
         {
             // Lookup token may be ConfirmationCode or Guid lookup token
-            reservation = await query.FirstOrDefaultAsync(r => r.ConfirmationCode == request.LookupToken, cancellationToken);
+            var token = request.LookupToken.Trim();
+            reservation = await query.FirstOrDefaultAsync(r => r.ConfirmationCode == token, cancellationToken);
+            if (reservation == null && Guid.TryParse(token, out var parsedGuid)) { reservation = await query.FirstOrDefaultAsync(r => r.Id == parsedGuid, cancellationToken); }
+            if (reservation == null) { reservation = await query.FirstOrDefaultAsync(r => r.Notes != null && r.Notes.Contains(token), cancellationToken); }
         }
 
         if (reservation == null)

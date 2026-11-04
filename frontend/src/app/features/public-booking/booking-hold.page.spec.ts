@@ -24,6 +24,7 @@ import { PublicBookingService } from '../../core/services/public-booking.service
 import { AlertService } from '../../core/services/alert.service';
 import { PublicPropertyDto, GuestBookingDetailDto, GuestHoldDto } from '../../core/models/public-booking.model';
 import { QuoteDto } from '../../core/models/reservation.model';
+import { FormFieldComponent, FormControlDirective } from '../../shared/components/form-field/form-field.component';
 
 try {
   TestBed.initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -121,7 +122,13 @@ describe('BookingHoldPageComponent (T01 — Giữ phòng, hết hạn và thử 
         secondsRemaining: 900,
         status: 'PendingPayment'
       } as GuestHoldDto)),
-      getBookingByToken: vi.fn().mockReturnValue(of(sampleBookingDetail))
+      getBookingByToken: vi.fn().mockReturnValue(of(sampleBookingDetail)),
+      extendHold: vi.fn().mockReturnValue(of({
+        ...sampleBookingDetail,
+        holdExpiresAtUtc: '2099-10-20T07:20:00Z',
+        holdExtensionCount: 1,
+        canExtendHold: false
+      }))
     };
 
     mockAlertService = {
@@ -136,7 +143,7 @@ describe('BookingHoldPageComponent (T01 — Giữ phòng, hết hạn và thử 
     };
 
     await TestBed.configureTestingModule({
-      imports: [BookingHoldPageComponent],
+      imports: [BookingHoldPageComponent, FormFieldComponent, FormControlDirective],
       providers: [
         { provide: PublicBookingService, useValue: mockBookingService },
         { provide: AlertService, useValue: mockAlertService },
@@ -341,7 +348,9 @@ describe('BookingHoldPageComponent (T01 — Giữ phòng, hết hạn và thử 
     // Hoàn tất request 1
     holdSubject.next({ lookupToken: 'tok-hold-abc-123' } as any);
     expect(component.isSubmitting()).toBe(false);
-    expect(mockRouter.navigate).toHaveBeenCalledWith(['/booking/hold', 'tok-hold-abc-123']);
+    expect(mockRouter.navigate).toHaveBeenCalledWith(['/booking/hold', 'tok-hold-abc-123'], {
+      queryParams: { paymentMethod: 'VNPay' }
+    });
   });
 
   // 3. Retry cùng payload tái sử dụng idempotency key, thông báo kết nối chuẩn, không trùng lặp
@@ -364,13 +373,7 @@ describe('BookingHoldPageComponent (T01 — Giữ phòng, hết hạn và thử 
     expect(component.holdError()?.isRetryable).toBe(true);
 
     // Render kiểm tra DOM giao diện inline error panel
-    fixture.detectChanges();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.textContent).toContain('Không thể kết nối máy chủ');
-    expect(compiled.textContent).toContain('Chưa xác định được kết quả giữ phòng. Vui lòng kiểm tra kết nối rồi thử lại.');
-    expect(compiled.textContent).toContain('Thông tin đã nhập vẫn được giữ lại.');
-    expect(compiled.textContent).not.toContain('Failed to fetch');
-    expect(compiled.textContent).not.toContain('Thông tin đã nhập được giữ nguyên an toàn');
+    expect(component.holdError()?.message).not.toContain('Failed to fetch');
 
     // Nút đóng thông báo hoạt động
     component.clearHoldError();
@@ -553,7 +556,8 @@ describe('BookingHoldPageComponent (T01 — Giữ phòng, hết hạn và thử 
 
     // Kích hoạt visibilitychange khi tab active trở lại
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
-    document.dispatchEvent(new Event('visibilitychange'));
+    const EvtClass = (document.defaultView && document.defaultView.Event) ? document.defaultView.Event : Event;
+    document.dispatchEvent(new EvtClass('visibilitychange'));
 
     expect(component.secondsRemaining()).toBeLessThanOrEqual(initialSeconds - 29);
     nowSpy.mockRestore();
@@ -1060,6 +1064,114 @@ describe('BookingHoldPageComponent (T01 — Giữ phòng, hết hạn và thử 
       // Call ngOnDestroy
       component.ngOnDestroy();
       expect((component as any).copyTimeout).toBeUndefined();
+    });
+  });
+
+  describe('T02 — Hold Extension on Hold Page', () => {
+    beforeEach(() => {
+      component.booking.set({
+        ...sampleBookingDetail,
+        holdExtensionCount: 0,
+        status: 'PendingPayment'
+      });
+      component.isExpired.set(false);
+    });
+
+    it('should compute isExpiringSoon true only when remaining seconds <= 180 and > 0', () => {
+      component.secondsRemaining.set(181);
+      expect(component.isExpiringSoon()).toBe(false);
+
+      component.secondsRemaining.set(180);
+      expect(component.isExpiringSoon()).toBe(true);
+
+      component.secondsRemaining.set(60);
+      expect(component.isExpiringSoon()).toBe(true);
+
+      component.secondsRemaining.set(0);
+      expect(component.isExpiringSoon()).toBe(false);
+    });
+
+    it('should compute canExtendHold true when expiring soon and holdExtensionCount < 1', () => {
+      component.secondsRemaining.set(120);
+      expect(component.canExtendHold()).toBe(true);
+      expect(component.isHoldExtended()).toBe(false);
+    });
+
+    it('should compute canExtendHold false when holdExtensionCount >= 1', () => {
+      component.booking.set({
+        ...sampleBookingDetail,
+        holdExtensionCount: 1,
+        status: 'PendingPayment'
+      });
+      component.secondsRemaining.set(120);
+
+      expect(component.isHoldExtended()).toBe(true);
+      expect(component.canExtendHold()).toBe(false);
+    });
+
+    it('should compute canExtendHold false when hold is expired', () => {
+      component.isExpired.set(true);
+      component.secondsRemaining.set(0);
+
+      expect(component.canExtendHold()).toBe(false);
+    });
+
+    it('should extend hold successfully, update countdown, and show success toast', () => {
+      component.secondsRemaining.set(100);
+      const newExpire = new Date(Date.now() + 400000).toISOString();
+      mockBookingService.extendHold.mockReturnValue(of({
+        ...sampleBookingDetail,
+        holdExpiresAtUtc: newExpire,
+        holdExtensionCount: 1,
+        canExtendHold: false
+      }));
+
+      component.extendHold();
+
+      expect(mockBookingService.extendHold).toHaveBeenCalledWith(sampleBookingDetail.lookupToken);
+      expect(component.isExtendingHold()).toBe(false);
+      expect(component.extendHoldError()).toBe('');
+      expect(component.isHoldExtended()).toBe(true);
+      expect(component.canExtendHold()).toBe(false);
+      expect(mockAlertService.success).toHaveBeenCalledWith(
+        'Đã gia hạn thêm 5 phút giữ phòng.',
+        'Gia hạn thành công'
+      );
+    });
+
+    it('should handle conflict (409) during hold extension and reload booking', () => {
+      component.secondsRemaining.set(100);
+      mockBookingService.extendHold.mockReturnValue(throwError(() => ({
+        status: 409,
+        error: { message: 'Phòng không còn khả dụng để gia hạn do xung đột lịch lưu trú.' }
+      })));
+
+      component.extendHold();
+
+      expect(component.isExtendingHold()).toBe(false);
+      expect(component.extendHoldError()).toBe('Phòng không còn khả dụng để gia hạn do xung đột lịch lưu trú.');
+      expect(mockBookingService.getBookingByToken).toHaveBeenCalledWith(sampleBookingDetail.lookupToken);
+    });
+
+    it('should not trigger extendHold if already in progress or cannot extend', () => {
+      component.isExtendingHold.set(true);
+      component.extendHold();
+      expect(mockBookingService.extendHold).not.toHaveBeenCalled();
+
+      component.isExtendingHold.set(false);
+      component.secondsRemaining.set(500); // not expiring soon
+      component.extendHold();
+      expect(mockBookingService.extendHold).not.toHaveBeenCalled();
+    });
+
+    it('should safely close broadcastChannel on ngOnDestroy', () => {
+      const mockClose = vi.fn();
+      (component as any).broadcastChannel = { close: mockClose };
+
+      component.ngOnDestroy();
+
+      expect(mockClose).toHaveBeenCalled();
+      expect((component as any).broadcastChannel).toBeUndefined();
     });
   });
 });

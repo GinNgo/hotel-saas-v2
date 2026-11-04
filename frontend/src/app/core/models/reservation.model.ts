@@ -97,6 +97,9 @@ export interface ReservationDetailDto extends ReservationDto {
   appliedPolicies: AppliedPoliciesDto;
   cancelledAtUtc?: string;
   cancellationReason?: string;
+  cancellationFee?: number;
+  refundableAmount?: number;
+  pointsRefunded?: number;
 }
 
 export interface RoomAvailabilityDto {
@@ -126,3 +129,4 @@ export interface CreateReservationRequest {
   expectedTotalAmount?: number;
   idempotencyKey?: string;
 }
+

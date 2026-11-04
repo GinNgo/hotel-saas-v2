@@ -37,17 +37,20 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
     private readonly ICurrentTenantService _tenantService;
     private readonly ICurrentPropertyService _propertyService;
     private readonly ICurrentUserContext _userContext;
+    private readonly INotificationDispatcher? _notificationDispatcher;
 
     public ConfirmGuestBookingCommandHandler(
         IApplicationDbContext context,
         ICurrentTenantService tenantService,
         ICurrentPropertyService propertyService,
-        ICurrentUserContext userContext)
+        ICurrentUserContext userContext,
+        INotificationDispatcher? notificationDispatcher = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _tenantService = tenantService ?? throw new ArgumentNullException(nameof(tenantService));
         _propertyService = propertyService ?? throw new ArgumentNullException(nameof(propertyService));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
+        _notificationDispatcher = notificationDispatcher;
     }
 
     public async Task<GuestBookingDetailDto> Handle(ConfirmGuestBookingCommand request, CancellationToken cancellationToken)
@@ -349,7 +352,29 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
         await _context.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
-        return await BuildDetailDtoAsync(reservation, snapshot, cancellationToken);
+        var resultDto = await BuildDetailDtoAsync(reservation, snapshot, cancellationToken);
+
+        if (_notificationDispatcher != null)
+        {
+            try
+            {
+                await _notificationDispatcher.NotifyNewReservationConfirmedAsync(
+                    reservation.PropertyId.ToString(),
+                    reservation.Id.ToString(),
+                    reservation.ConfirmationCode,
+                    reservation.GuestName,
+                    resultDto.RoomTypeName,
+                    reservation.TotalAmount,
+                    resultDto.PaidAmount,
+                    cancellationToken);
+            }
+            catch
+            {
+                // Dispatch failure should never fail an already committed transaction
+            }
+        }
+
+        return resultDto;
     }
 
     private static bool HasDepositTag(string? transactionRef)
@@ -445,6 +470,9 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
             MaskedGuestPhone = PiiMaskingHelper.MaskPhone(reservation.GuestPhone),
             HoldExpiresAtUtc = snapshot.HoldExpiresAtUtc,
             SecondsRemaining = 0,
+            HoldExtensionCount = snapshot.HoldExtensionCount,
+            HoldExtendedAtUtc = snapshot.HoldExtendedAtUtc,
+            CanExtendHold = false,
             SmartLockPin = reservation.SmartLockPin,
             SmartLockStatus = reservation.SmartLockStatus,
             CreatedAtUtc = reservation.CreatedAtUtc,

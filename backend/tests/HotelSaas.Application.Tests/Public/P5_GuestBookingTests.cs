@@ -8,6 +8,7 @@ using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Public.Commands.ConfirmGuestBooking;
 using HotelSaas.Application.Public.Commands.CreateGuestHold;
+using HotelSaas.Application.Public.Commands.ExtendGuestHold;
 using HotelSaas.Application.Public.DTOs;
 using HotelSaas.Application.Public.Queries.GetGuestBookingByToken;
 using HotelSaas.Application.Public.Queries.GetPublicAvailability;
@@ -67,12 +68,12 @@ public sealed class P5_GuestBookingTests
         }
     }
 
-    private sealed class MockTenantService : ICurrentTenantService
+    internal sealed class MockTenantService : ICurrentTenantService
     {
         public Guid? TenantId { get; set; }
     }
 
-    private sealed class MockPropertyService : ICurrentPropertyService
+    internal sealed class MockPropertyService : ICurrentPropertyService
     {
         public Guid? PropertyId { get; set; }
         public Guid? HeaderPropertyId { get; set; }
@@ -163,7 +164,7 @@ public sealed class P5_GuestBookingTests
         return conn;
     }
 
-    private sealed class TestFixture : IAsyncDisposable
+    internal sealed class TestFixture : IAsyncDisposable
     {
         public string ConnectionString { get; }
         public string TestSchema { get; }
@@ -500,7 +501,8 @@ public sealed class P5_GuestBookingTests
                 HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(-5), // Expired 5 mins ago
                 LookupToken = "expired_token_1234567890abcdef",
                 DepositRequired = 300_000m,
-                IsOnlineHold = true
+                IsOnlineHold = true,
+                TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7)
             };
 
             var expiredRes = new Reservation
@@ -2267,5 +2269,297 @@ public sealed class P5_GuestBookingTests
         // Smart lock PIN is accessible because Confirmed + Active
         Assert.Equal("308077", detail.SmartLockPin);
         Assert.Equal("Active", detail.SmartLockStatus);
+    }
+
+    // -------------------------------------------------------------------------
+    // T02: TEMPORARY ROOM HOLD MANAGEMENT (15M HOLD, 3M WARNING, +5M 1X EXTEND)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task T02_ExtendGuestHold_WithinThreeMinutes_AddsFiveMinutesOnce_AndBlocksSecondExtension()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this, roomCount: 1);
+        var tenantSvc = new MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new MockPropertyService { PropertyId = fixture.PropertyId };
+        await using var ctx = fixture.CreateDbContext(tenantSvc, propSvc);
+
+        var initialExpiryUtc = DateTime.UtcNow.AddSeconds(150); // 2m30s remaining (<= 3 minutes)
+        var lookupToken = $"tok-extend-{Guid.NewGuid():N}";
+        var snap = new ReservationSnapshot
+        {
+            RentalType = RentalType.Daily,
+            StartAtUtc = DateTime.UtcNow.AddDays(1),
+            EndAtUtc = DateTime.UtcNow.AddDays(2),
+            HoldExpiresAtUtc = initialExpiryUtc,
+            LookupToken = lookupToken,
+            DepositRequired = 300_000m,
+            IsOnlineHold = true,
+            HoldExtensionCount = 0,
+            TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7)
+        };
+
+        var res = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = fixture.RoomId1,
+            CheckInDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            CheckOutDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)),
+            GuestName = "Nguyen Van A",
+            GuestEmail = "a@example.com",
+            GuestPhone = "0912345678",
+            TotalAmount = 1_000_000m,
+            Status = ReservationStatus.PendingPayment,
+            ConfirmationCode = "HOLD-T02A",
+            Notes = ReservationSnapshotHelper.Serialize(snap)
+        };
+        ctx.Reservations.Add(res);
+        await ctx.SaveChangesAsync();
+
+        var extendHandler = new ExtendGuestHoldCommandHandler(ctx, tenantSvc, propSvc);
+
+        // 1st extension succeeds (+5 minutes)
+        var extended = await extendHandler.Handle(new ExtendGuestHoldCommand(lookupToken), CancellationToken.None);
+        Assert.NotNull(extended);
+        Assert.Equal("PendingPayment", extended.Status);
+        Assert.Equal(1, extended.HoldExtensionCount);
+        Assert.False(extended.CanExtendHold);
+        Assert.NotNull(extended.HoldExpiresAtUtc);
+        Assert.NotNull(extended.HoldExtendedAtUtc);
+
+        var expectedNewExpiry = initialExpiryUtc.AddMinutes(5);
+        Assert.True(Math.Abs((extended.HoldExpiresAtUtc.Value - expectedNewExpiry).TotalSeconds) < 2);
+        Assert.True(extended.SecondsRemaining > 400); // ~450s remaining
+
+        // 2nd extension is rejected (max 1 time)
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+            extendHandler.Handle(new ExtendGuestHoldCommand(lookupToken), CancellationToken.None));
+        Assert.Equal("ERR_HOLD_EXTENSION_LIMIT_REACHED", ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task T02_ExtendGuestHold_ConcurrentRequests_OnlyExtendsOnceUnderRowLock()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this, roomCount: 1);
+        var initialExpiryUtc = DateTime.UtcNow.AddSeconds(120); // 2m remaining
+        var lookupToken = $"tok-race-ext-{Guid.NewGuid():N}";
+
+        await using (var seedCtx = fixture.CreateDbContext())
+        {
+            var snap = new ReservationSnapshot
+            {
+                RentalType = RentalType.Daily,
+                StartAtUtc = DateTime.UtcNow.AddDays(1),
+                EndAtUtc = DateTime.UtcNow.AddDays(2),
+                HoldExpiresAtUtc = initialExpiryUtc,
+                LookupToken = lookupToken,
+                DepositRequired = 300_000m,
+                IsOnlineHold = true,
+                HoldExtensionCount = 0,
+                TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7)
+            };
+
+            seedCtx.Reservations.Add(new Reservation
+            {
+                Id = Guid.NewGuid(),
+                TenantId = fixture.TenantId,
+                PropertyId = fixture.PropertyId,
+                RoomId = fixture.RoomId1,
+                CheckInDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+                CheckOutDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)),
+                GuestName = "Tran Thi B",
+                GuestEmail = "b@example.com",
+                GuestPhone = "0987654321",
+                TotalAmount = 1_000_000m,
+                Status = ReservationStatus.PendingPayment,
+                ConfirmationCode = "HOLD-RACE",
+                Notes = ReservationSnapshotHelper.Serialize(snap)
+            });
+            await seedCtx.SaveChangesAsync();
+        }
+
+        async Task<GuestBookingDetailDto?> AttemptExtendAsync()
+        {
+            var tSvc = new MockTenantService();
+            var pSvc = new MockPropertyService();
+            await using var c = fixture.CreateDbContext(tSvc, pSvc);
+            var h = new ExtendGuestHoldCommandHandler(c, tSvc, pSvc);
+            try
+            {
+                return await h.Handle(new ExtendGuestHoldCommand(lookupToken), CancellationToken.None);
+            }
+            catch (ConflictException ex) when (ex.ErrorCode == "ERR_HOLD_EXTENSION_LIMIT_REACHED")
+            {
+                return null;
+            }
+        }
+
+        var results = await Task.WhenAll(AttemptExtendAsync(), AttemptExtendAsync());
+        var successes = results.Where(r => r != null).ToList();
+        Assert.Single(successes);
+        Assert.Equal(1, successes[0]!.HoldExtensionCount);
+        Assert.True(Math.Abs((successes[0]!.HoldExpiresAtUtc!.Value - initialExpiryUtc.AddMinutes(5)).TotalSeconds) < 2);
+    }
+
+    [Fact]
+    public async Task T02_ExtendGuestHold_WhenMoreThanThreeMinutesRemain_OrWhenExpiredOrConfirmed_IsRejected()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this, roomCount: 1);
+        var tenantSvc = new MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new MockPropertyService { PropertyId = fixture.PropertyId };
+        await using var ctx = fixture.CreateDbContext(tenantSvc, propSvc);
+
+        // Case 1: > 3 minutes remaining (e.g., 10 minutes left)
+        var tokenEarly = $"tok-early-{Guid.NewGuid():N}";
+        ctx.Reservations.Add(new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = fixture.RoomId1,
+            CheckInDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            CheckOutDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)),
+            GuestName = "Early Guest",
+            GuestEmail = "early@example.com",
+            TotalAmount = 1_000_000m,
+            Status = ReservationStatus.PendingPayment,
+            ConfirmationCode = "HOLD-EARLY",
+            Notes = ReservationSnapshotHelper.Serialize(new ReservationSnapshot
+            {
+                RentalType = RentalType.Daily,
+                StartAtUtc = DateTime.UtcNow.AddDays(1),
+                EndAtUtc = DateTime.UtcNow.AddDays(2),
+                HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(10),
+                LookupToken = tokenEarly,
+                IsOnlineHold = true,
+                TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7)
+            })
+        });
+
+        // Case 2: Already expired
+        var tokenExpired = $"tok-exp-{Guid.NewGuid():N}";
+        ctx.Reservations.Add(new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = fixture.RoomId1,
+            CheckInDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(3)),
+            CheckOutDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(4)),
+            GuestName = "Expired Guest",
+            GuestEmail = "exp@example.com",
+            TotalAmount = 1_000_000m,
+            Status = ReservationStatus.PendingPayment,
+            ConfirmationCode = "HOLD-EXP",
+            Notes = ReservationSnapshotHelper.Serialize(new ReservationSnapshot
+            {
+                RentalType = RentalType.Daily,
+                StartAtUtc = DateTime.UtcNow.AddDays(3),
+                EndAtUtc = DateTime.UtcNow.AddDays(4),
+                HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(-1),
+                LookupToken = tokenExpired,
+                IsOnlineHold = true,
+                TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7)
+            })
+        });
+
+        // Case 3: Already confirmed
+        var tokenConfirmed = $"tok-conf-{Guid.NewGuid():N}";
+        ctx.Reservations.Add(new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = fixture.RoomId1,
+            CheckInDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5)),
+            CheckOutDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(6)),
+            GuestName = "Confirmed Guest",
+            GuestEmail = "conf@example.com",
+            TotalAmount = 1_000_000m,
+            Status = ReservationStatus.Confirmed,
+            ConfirmationCode = "HOLD-CONF",
+            Notes = ReservationSnapshotHelper.Serialize(new ReservationSnapshot
+            {
+                RentalType = RentalType.Daily,
+                StartAtUtc = DateTime.UtcNow.AddDays(5),
+                EndAtUtc = DateTime.UtcNow.AddDays(6),
+                HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(2),
+                LookupToken = tokenConfirmed,
+                IsOnlineHold = true,
+                TokenExpiresAtUtc = DateTime.UtcNow.AddDays(7)
+            })
+        });
+
+        await ctx.SaveChangesAsync();
+
+        var handler = new ExtendGuestHoldCommandHandler(ctx, tenantSvc, propSvc);
+
+        var earlyEx = await Assert.ThrowsAsync<BadRequestException>(() =>
+            handler.Handle(new ExtendGuestHoldCommand(tokenEarly), CancellationToken.None));
+        Assert.Equal("ERR_HOLD_EXTENSION_TOO_EARLY", earlyEx.ErrorCode);
+
+        var expEx = await Assert.ThrowsAsync<ConflictException>(() =>
+            handler.Handle(new ExtendGuestHoldCommand(tokenExpired), CancellationToken.None));
+        Assert.Equal("ERR_HOLD_EXPIRED", expEx.ErrorCode);
+
+        var confEx = await Assert.ThrowsAsync<ConflictException>(() =>
+            handler.Handle(new ExtendGuestHoldCommand(tokenConfirmed), CancellationToken.None));
+        Assert.Equal("ERR_HOLD_ALREADY_CONFIRMED", confEx.ErrorCode);
+    }
+
+    [Fact]
+    public async Task T02_ExtendGuestHold_WithConfirmationCodeAlone_ThrowsForbiddenException_AndBlocksTokenLeak()
+    {
+        await using var fixture = await TestFixture.CreateAsync(this, roomCount: 1);
+        var tenantSvc = new MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new MockPropertyService { PropertyId = fixture.PropertyId };
+        await using var ctx = fixture.CreateDbContext(tenantSvc, propSvc);
+
+        var nowUtc = DateTime.UtcNow;
+        var lookupToken = "tok_sec_leak_guard_" + Guid.NewGuid().ToString("N");
+        var confirmationCode = "RES-LEAKGUARD";
+
+        var snap = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            StartAtUtc = nowUtc.AddDays(1),
+            EndAtUtc = nowUtc.AddDays(2),
+            TotalAmount = 2000000m,
+            LookupToken = lookupToken,
+            TokenExpiresAtUtc = nowUtc.AddMinutes(30),
+            HoldExpiresAtUtc = nowUtc.AddMinutes(2), // within 3 minutes
+            HoldExtensionCount = 0
+        };
+
+        var res = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = fixture.RoomId1,
+            GuestName = "Token Leak Tester",
+            GuestEmail = "guard@hotelsaas.test",
+            ConfirmationCode = confirmationCode,
+            TotalAmount = 2000000m,
+            Status = ReservationStatus.PendingPayment,
+            CheckInDate = DateOnly.FromDateTime(nowUtc.AddDays(1)),
+            CheckOutDate = DateOnly.FromDateTime(nowUtc.AddDays(2)),
+            Notes = ReservationSnapshotHelper.Serialize(snap),
+            CreatedAtUtc = nowUtc,
+            UpdatedAtUtc = nowUtc
+        };
+
+        ctx.Reservations.Add(res);
+        await ctx.SaveChangesAsync();
+
+        var handler = new ExtendGuestHoldCommandHandler(ctx, tenantSvc, propSvc);
+
+        // ACT & ASSERT: Passing only the ConfirmationCode must throw ForbiddenException (ERR_AUTHORIZATION_REQUIRED)
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(() =>
+            handler.Handle(new ExtendGuestHoldCommand(confirmationCode), CancellationToken.None));
+
+        Assert.Equal("ERR_AUTHORIZATION_REQUIRED", ex.ErrorCode);
+        Assert.Contains("Mã xác nhận (ConfirmationCode) chỉ dùng để tra cứu trạng thái", ex.Message);
     }
 }

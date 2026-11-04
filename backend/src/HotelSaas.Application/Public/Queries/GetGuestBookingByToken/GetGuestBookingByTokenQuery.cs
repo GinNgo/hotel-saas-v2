@@ -8,7 +8,6 @@ using HotelSaas.Application.Public.DTOs;
 using HotelSaas.Application.Public.Services;
 using HotelSaas.Application.Quotes.DTOs;
 using HotelSaas.Application.Reservations.DTOs;
-using HotelSaas.Application.Reservations.Services;
 using HotelSaas.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -106,7 +105,46 @@ public sealed class GetGuestBookingByTokenQueryHandler : IRequestHandler<GetGues
                          reservation.Status == ReservationStatus.Cancelled;
 
         DateTime? effectiveHoldExpiresAtUtc = isSettled ? null : snapshot.HoldExpiresAtUtc;
-        int? effectiveSecondsRemaining = isSettled ? null : (isHoldExpired ? 0 : secondsRemaining);
+        int? effectiveSecondsRemaining = isSettled ? null : secondsRemaining;
+
+        decimal? cancellationFee = null;
+        decimal? refundableAmount = null;
+        string? refundStatus = null;
+
+        if (reservation.Status == ReservationStatus.Cancelled)
+        {
+            var refundPayment = await _context.Payments
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(p => p.ReservationId == reservation.Id &&
+                            p.TransactionRef != null &&
+                            p.TransactionRef.Contains("REFUND"))
+                .OrderByDescending(p => p.CreatedAtUtc)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (refundPayment != null)
+            {
+                refundableAmount = refundPayment.Amount;
+                refundStatus = refundPayment.Status == PaymentStatus.Completed
+                    ? "Refunded"
+                    : (refundPayment.Status == PaymentStatus.Pending ? "PendingApproval" : refundPayment.Status.ToString());
+            }
+            else
+            {
+                refundStatus = "None";
+            }
+
+            if (paidAmount == 0)
+            {
+                cancellationFee = 0m;
+                refundableAmount = 0m;
+                refundStatus = "None";
+            }
+            else if (refundableAmount.HasValue)
+            {
+                cancellationFee = Math.Max(0m, paidAmount - refundableAmount.Value);
+            }
+        }
 
         return new GuestBookingDetailDto
         {
@@ -134,9 +172,17 @@ public sealed class GetGuestBookingByTokenQueryHandler : IRequestHandler<GetGues
             MaskedGuestPhone = PiiMaskingHelper.MaskPhone(reservation.GuestPhone),
             HoldExpiresAtUtc = effectiveHoldExpiresAtUtc,
             SecondsRemaining = effectiveSecondsRemaining,
+            HoldExtensionCount = snapshot.HoldExtensionCount,
+            HoldExtendedAtUtc = snapshot.HoldExtendedAtUtc,
+            CanExtendHold = !isSettled && !isHoldExpired && snapshot.IsOnlineHold && snapshot.HoldExtensionCount < 1 && effectiveSecondsRemaining.HasValue && effectiveSecondsRemaining.Value > 0 && effectiveSecondsRemaining.Value <= 180,
             SmartLockPin = isPinPermitted ? reservation.SmartLockPin : null,
             SmartLockStatus = reservation.SmartLockStatus,
             CreatedAtUtc = reservation.CreatedAtUtc,
+            CancelledAtUtc = reservation.CancelledAtUtc,
+            CancellationReason = reservation.CancellationReason,
+            CancellationFee = cancellationFee,
+            RefundableAmount = refundableAmount,
+            RefundStatus = refundStatus,
             Breakdown = snapshot.Breakdown ?? Array.Empty<QuoteBreakdownItemDto>()
         };
     }

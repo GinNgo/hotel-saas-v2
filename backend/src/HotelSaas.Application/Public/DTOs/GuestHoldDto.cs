@@ -28,6 +28,8 @@ public sealed class GuestHoldDto
     public string Currency { get; set; } = "VND";
     public DateTime HoldExpiresAtUtc { get; set; }
     public int SecondsRemaining { get; set; }
+    public int HoldExtensionCount { get; set; }
+    public bool CanExtendHold { get; set; }
     public string Status { get; set; } = "PendingPayment";
     public int PointsRedeemed { get; set; }
     public decimal PointsDiscountAmount { get; set; }

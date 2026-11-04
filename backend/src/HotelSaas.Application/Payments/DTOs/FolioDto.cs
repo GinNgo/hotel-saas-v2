@@ -36,5 +36,10 @@ public sealed record FolioDto(
     decimal? SurchargesAmount,
     decimal? ServicesAmount,
     decimal? DepositRequired,
-    decimal? DepositPaid
+    decimal? DepositPaid,
+    decimal? CancellationFee = null,
+    decimal? RefundableAmount = null,
+    string? RefundStatus = null,
+    decimal? NetCollectibleAmount = null,
+    string? FinancialSettlementStatus = null
 );

@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Báo Cáo Minh Chứng Thực Tế Tuần 03 — Hotel SaaS Platform v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --primary-light: #eef2ff;
+      --primary-dark: #3730a3;
+      --success: #059669;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --slate-50: #f8fafc;
+      --slate-100: #f1f5f9;
+      --slate-200: #e2e8f0;
+      --slate-300: #cbd5e1;
+      --slate-600: #475569;
+      --slate-700: #334155;
+      --slate-800: #1e293b;
+      --slate-900: #0f172a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background: #f8fafc;
+      color: var(--slate-800);
+      line-height: 1.6;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 20px;
+      padding: 48px;
+      box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.08), 0 0 1px 1px rgba(15, 23, 42, 0.04);
+    }
+    header {
+      border-bottom: 2px solid var(--slate-100);
+      padding-bottom: 32px;
+      margin-bottom: 40px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--primary-light);
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 13px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--slate-900);
+      line-height: 1.25;
+      margin-bottom: 12px;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+      background: var(--slate-50);
+      padding: 20px;
+      border-radius: 14px;
+      border: 1px solid var(--slate-200);
+    }
+    .meta-item strong {
+      display: block;
+      font-size: 12px;
+      color: var(--slate-600);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+    .meta-item span {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--slate-900);
+    }
+    .team-badge {
+      display: inline-block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      background: #e2e8f0;
+      padding: 2px 8px;
+      border-radius: 6px;
+      color: var(--slate-800);
+    }
+    .toc {
+      background: #fdfefe;
+      border: 1px solid var(--slate-200);
+      border-left: 4px solid var(--primary);
+      padding: 24px 28px;
+      border-radius: 12px;
+      margin-bottom: 48px;
+    }
+    .toc h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      color: var(--slate-900);
+    }
+    .toc ol {
+      padding-left: 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 8px 24px;
+    }
+    .toc a {
+      color: var(--slate-700);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+    .toc a:hover {
+      color: var(--primary);
+      text-decoration: underline;
+    }
+    .step-card {
+      margin-bottom: 48px;
+      padding: 32px;
+      border-radius: 16px;
+      border: 1px solid var(--slate-200);
+      background: #ffffff;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .step-card:hover {
+      box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.06);
+    }
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .step-number {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--primary);
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .step-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--slate-900);
+    }
+    .step-desc {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+      background: var(--slate-50);
+      padding: 16px 20px;
+      border-radius: 12px;
+      border: 1px solid var(--slate-200);
+    }
+    .desc-block h4 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--slate-600);
+      margin-bottom: 6px;
+    }
+    .desc-block p {
+      font-size: 14px;
+      color: var(--slate-800);
+      line-height: 1.5;
+    }
+    .img-wrapper {
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--slate-200);
+      background: var(--slate-900);
+      margin-top: 12px;
+    }
+    .img-wrapper img {
+      width: 100%;
+      height: auto;
+      display: block;
+      transition: transform 0.2s ease;
+    }
+    .img-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .img-caption {
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--slate-600);
+      background: var(--slate-50);
+      border-top: 1px solid var(--slate-200);
+      font-weight: 500;
+    }
+    .summary-box {
+      background: linear-gradient(135deg, #eef2ff 0%, #f0fdf4 100%);
+      border: 2px solid #c7d2fe;
+      border-radius: 16px;
+      padding: 32px;
+      margin-top: 56px;
+    }
+    .summary-box h3 {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--slate-900);
+      margin-bottom: 16px;
+    }
+    .summary-box ul {
+      padding-left: 20px;
+      font-size: 15px;
+      color: var(--slate-700);
+    }
+    .summary-box li {
+      margin-bottom: 8px;
+    }
+    @media print {
+      body { padding: 0; background: #fff; }
+      .container { box-shadow: none; padding: 0; }
+      .step-card { page-break-inside: avoid; border: 1px solid #ccc; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="badge">Báo Cáo Nghiệm Thu & Minh Chứng Hoạt Động</div>
+    <h1>Hotel SaaS Platform v2 — Báo Cáo Trực Quan Tuần 03</h1>
+    <p style="color: var(--slate-600); font-size: 16px;">Tài liệu minh chứng hình ảnh từng bước cụ thể, kết quả kiểm thử luồng khách hàng B2C và quản trị vận hành PMS.</p>
+    
+    <div class="meta-grid">
+      <div class="meta-item">
+        <strong>Đề tài</strong>
+        <span>578 — Hotel SaaS Multi-tenant</span>
+      </div>
+      <div class="meta-item">
+        <strong>Giảng viên hướng dẫn</strong>
+        <span>Thầy Huỳnh Xuân Phụng</span>
+      </div>
+      <div class="meta-item">
+        <strong>CSDL Cloud VPS</strong>
+        <span class="team-badge">103.116.38.74:5435</span>
+      </div>
+      <div class="meta-item">
+        <strong>Nhóm sinh viên</strong>
+        <span>Tuấn An, Khôi Nguyên, Trọng Tân</span>
+      </div>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <h3>Danh Mục 10 Bước Kiểm Thử Thực Tế</h3>
+    <ol>
+      <li><a href="#b1">Trang chủ B2C & Thanh tìm kiếm</a></li>
+      <li><a href="#b2">Gợi ý Điểm đến & Lịch sử tìm kiếm</a></li>
+      <li><a href="#b3">Fuzzy Search & Bỏ dấu tiếng Việt</a></li>
+      <li><a href="#b4">Trang Khám phá (/explore) & Dữ liệu 34 tỉnh</a></li>
+      <li><a href="#b5">Chi tiết Khách sạn & 3 Chế độ lưu trú</a></li>
+      <li><a href="#b6">Màn hình Giữ phòng & Đếm ngược 15 phút</a></li>
+      <li><a href="#b7">Tra cứu Đặt phòng & Che mờ PII Masking</a></li>
+      <li><a href="#b8">Xác nhận Đặt phòng & Smart Lock PIN</a></li>
+      <li><a href="#b9">Group Analytics Chuỗi đa chi nhánh</a></li>
+      <li><a href="#b10">Quản trị PMS, Tape Chart & In Hóa đơn</a></li>
+    </ol>
+  </nav>
+
+  <!-- BƯỚC 1 -->
+  <section class="step-card" id="b1">
+    <div class="step-header">
+      <div class="step-number">01</div>
+      <div class="step-title">Trang chủ Cổng B2C & Thanh Tìm kiếm Thông minh</div>
+    </div>
+    <div class="step-desc">
+      <div class="desc-block">
+        <h4>Thao tác thực tế</h4>
+        <p>Khách hàng truy cập đường dẫn <code>http://localhost:4200/</code>.</p>
+      </div>
+      <div class="desc-block">
+        <h4>Kết quả kiểm chứng</h4>
+        <p>Giao diện B2C độc lập tải mượt mà với Angular Signals, hiển thị thanh tìm kiếm nổi bật chọn điểm đến, ngày nhận/trả và số khách.</p>
+      </div>
+    </div>
+    <div class="img-wrapper">
+      <img src="images/step_23_home_clean.png" alt="Trang chủ B2C">
+      <div class="img-caption">Hình 1: Giao diện trang chủ cổng B2C khách hàng với thanh tìm kiếm đa tiêu chí</div>
+    </div>
+  </section>
+
+  <!-- BƯỚC 2 -->
+  <section class="step-card" id="b2">
+    <div class="step-header">
+      <div class="step-number">02</div>
+      <div class="step-title">Gợi ý Điểm đến Du lịch & Lịch sử Tìm kiếm Gần đây</div>
+    </div>
+    <div class="step-desc">
+      <div class="desc-block">
+        <h4>Thao tác thực tế</h4>
+        <p>Click chuột vào ô nhập điểm đến trên thanh tìm kiếm.</p>
+      </div>
+      <div class="desc-block">
+        <h4>Kết quả kiểm chứng</h4>
+        <p>Dropdown bung mở mượt mà hiển thị các điểm du lịch nổi tiếng (Đà Lạt, Sa Pa, Phú Quốc...) và hiển thị 5 lượt tìm gần nhất lưu trong localStorage.</p>
+      </div>
+    </div>
+    <div class="img-grid-2">
+      <div class="img-wrapper">
+        <img src="images/step_24_search_dropdown_popular.png" alt="Điểm đến phổ biến">
+        <div class="img-caption">Hình 2.1: Dropdown gợi ý các điểm đến nổi tiếng</div>
+      </div>
+      <div class="img-wrapper">
+        <img src="images/step_27_recent_search_history.png" alt="Lịch sử tìm kiếm">
+        <div class="img-caption">Hình 2.2: Lịch sử tìm kiếm gần đây lưu tại localStorage</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BƯỚC 3 -->
+  <section class="step-card" id="b3">
+    <div class="step-header">
+      <div class="step-number">03</div>
+      <div class="step-title">Tìm kiếm Mờ (Fuzzy Search) & Chuẩn hóa Bỏ Dấu Tiếng Việt</div>
+    </div>
+    <div class="step-desc">
+      <div class="desc-block">
+        <h4>Thao tác thực tế</h4>
+        <p>Người dùng gõ từ khóa không dấu như <code>"sapa"</code> hoặc <code>"vung tau"</code>.</p>
+      </div>
+      <div class="desc-block">
+        <h4>Kết quả kiểm chứng</h4>
+        <p>Hàm normalize chuẩn hóa unaccent loại bỏ dấu tiếng Việt, so khớp chính xác khu du lịch Sa Pa (Lào Cai) với số lượng khách sạn thực tế.</p>
+      </div>
+    </div>
+    <div class="img-wrapper">
+      <img src="images/step_25_fuzzy_search_sapa.png" alt="Fuzzy search sapa">
+      <div class="img-caption">Hình 3: Gõ không dấu "sapa" tìm kiếm tự động nhận diện chính xác Sa Pa</div>
+    </div>
+  </section>
+
+  <!-- BƯỚC 4 -->
+  <section class="step-card" id="b4">
+    <div class="step-header">
+      <div class="step-number">04</div>
+      <div class="step-title">Trang Khám phá (/explore) & Dữ liệu Thật 34 Tỉnh Thành</div>
+    </div>
+    <div class="step-desc">
+      <div class="desc-block">
+        <h4>Thao tác thực tế</h4>
+        <p>Bấm tìm kiếm hoặc truy cập <code>/explore?city=Đà+Lạt</code> hoặc <code>/explore?city=Phú+Quốc</code>.</p>
+      </div>
+      <div class="desc-block">
+        <h4>Kết quả kiểm chứng</h4>
+        <p>Danh sách 35 cơ sở lưu trú thật được tải từ PostgreSQL VPS Staging với địa chỉ chi tiết đến cấp Phường/Xã thật, tọa độ GPS và khoảng cách Haversine.</p>
+      </div>
+    </div>
+    <div class="img-grid-2">
+      <div class="img-wrapper">
+        <img src="images/step_26_explore_dalat_results.png" alt="Khám phá Đà Lạt">
+        <div class="img-caption">Hình 4.1: Danh sách khách sạn tại Đà Lạt (Phường 4, Phường 10...)</div>
+      </div>
+      <div class="img-wrapper">
+        <img src="images/step_28_explore_phuquoc_results.png" alt="Khám phá Phú Quốc">
+        <div class="img-caption">Hình 4.2: Danh sách resort thực tế tại Phú Quốc (Xã Dương Tơ...)</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BƯỚC 5 -->
+  <section class="step-card" id="b5">
+    <div class="step-header">
+      <div class="step-number">05</div>
+      <div class="step-title">Xem Chi tiết Khách sạn & Báo giá 3 Chế độ Lưu trú</div>
+    </div>
+    <div class="step-desc">
+      <div class="desc-block">
+        <h4>Thao tác thực tế</h4>
+        <p>Bấm vào một khách sạn để xem chi tiết hạng phòng.</p>
+      </div>
+      <div class="desc-block">
+        <h4>Kết quả kiểm chứng</h4>
+        <p>Hiển thị các hạng phòng Standard / Deluxe / Suite với giá linh hoạt theo Giờ, Qua đêm, Theo ngày. Khi bấm nút Quay lại (Back), toàn bộ bộ lọc trên URL được giữ nguyên vẹn.</p>
+      </div>
+    </div>
+    <div class="img-wrapper">
+      <img src="images/step_06_property_detail.png" alt="Chi tiết khách sạn">
+      <div class="img-caption">Hình 5: Trang chi tiết khách sạn, danh sách hạng phòng và tính năng Context Retention</div>
+    </div>
+  </section>
+
+  <!-- BƯỚC 6 -->
+  <section class="step-card" id="b6">
+    <div class="step-header">
+      <div class="step-number">06</div>
+      <div class="step-title">Màn hình Giữ phòng 15 phút & Đồng hồ Đếm ngược Thời gian thực</div>
+    </div>
+    <div class="step-desc">
+      <div class="desc-block">
+        <h4>Thao tác thực tế</h4>
+        <p>Bấm nút "Giữ phòng này" chuyển sang trang <code>/booking/hold</code>.</p>
+      </div>
+      <div class="desc-block">
+        <h4>Kết quả kiểm chứng</h4>
+        <p>Đồng hồ đếm ngược 15:00 (900 giây) chạy lùi từng giây theo thời gian thực. Hết giờ giao diện tự động chuyển trạng thái Expired và vô hiệu hóa nút đặt.</p>
+      </div>
+    </div>
+    <div class="img-wrapper">
+      <img src="images/03_guest_booking_hold.png" alt="Giữ phòng 15 phút">
+      <div class="img-caption">Hình 6: Đồng hồ đếm ngược giữ phòng 15 phút bảo vệ phòng chống trùng lặp</div>
+    </div>
+  </section>
+
+  <!-- BƯỚC 7 -->
+  <section class="step-card" id="b7">
+    <div class="step-header">
+      <div class="step-number">07</div>
+      <div class="step-title">Tra cứu Đặt phòng & Che mờ Thông tin Cá nhân (PII Masking)</div>
+    </div>
+    <div class="step-desc">
+      <div class="desc-block">
+        <h4>Thao tác thực tế</h4>
+        <p>Khách hàng truy cập <code>/booking/lookup</code> nhập Mã đặt phòng và Số điện thoại.</p>
+      </div>
+      <div class="desc-block">
+        <h4>Kết quả kiểm chứng</h4>
+        <p>Đơn phòng được truy xuất đầy đủ nhưng số điện thoại (<code>090****567</code>) và email (<code>n***a@gmail.com</code>) được che mờ bảo mật theo chuẩn PII.</p>
+      </div>
+    </div>
+    <div class="img-wrapper">
+      <img src="images/step_07_booking_lookup.png" alt="Tra cứu đặt phòng">
+      <div class="img-caption">Hình 7: Màn hình tra cứu đơn phòng với cơ chế che mờ PII Masking an toàn</div>
+    </div>
+  </section>
+
+  <!-- BƯỚC 8 -->
+  <section class="step-card" id="b8">
+    <div class="step-header">
+      <div class="step-number">08</div>
+      <div class="step-title">Màn hình Xác nhận Đặt phòng & Chính sách Mã PIN Khóa Thông minh</div>
+    </div>
+    <div class="step-desc">
+      <div class="desc-block">
+        <h4>Thao tác thực tế</h4>
+        <p>Xem màn hình trạng thái xác nhận đơn phòng tại <code>/booking/status/:token</code>.</p>
+      </div>
+      <div class="desc-block">
+        <h4>Kết quả kiểm chứng</h4>
+        <p>Chính sách IoT PMS: Mã PIN khóa phòng bị ẩn (null) khi đơn chưa cọc; chỉ mở hiển thị mã PIN thật khi đơn đạt Confirmed và đúng khung giờ nhận phòng.</p>
+      </div>
+    </div>
+    <div class="img-wrapper">
+      <img src="images/28_booking_status_smart_lock_and_vnpay.png" alt="Trạng thái xác nhận và Smart Lock PIN">
+      <div class="img-caption">Hình 8: Trạng thái xác nhận đơn phòng và điều kiện hiển thị mã PIN khóa thông minh</div>
+    </div>
+  </section>
+
+  <!-- BƯỚC 9 -->
+  <section class="step-card" id="b9">
+    <div class="step-header">
+      <div class="step-number">09</div>
+      <div class="step-title">Báo cáo Phân tích Chuỗi Đa Chi nhánh (Group Analytics)</div>
+    </div>
+    <div class="step-desc">
+      <div class="desc-block">
+        <h4>Thao tác thực tế</h4>
+        <p>Đăng nhập quyền Chủ chuỗi (Tenant Owner), vào phân hệ Báo cáo <code>/admin/reports</code>.</p>
+      </div>
+      <div class="desc-block">
+        <h4>Kết quả kiểm chứng</h4>
+        <p>API GetGroupAnalyticsQuery tổng hợp số liệu thực tế toàn chuỗi: Tổng phòng, Công suất lấp đầy, RevPAR, ADR và bảng so sánh các chi nhánh.</p>
+      </div>
+    </div>
+    <div class="img-wrapper">
+      <img src="images/step_22_group_analytics.png" alt="Group analytics">
+      <div class="img-caption">Hình 9: Dashboard phân tích hiệu quả kinh doanh chuỗi đa cơ sở lưu trú</div>
+    </div>
+  </section>
+
+  <!-- BƯỚC 10 -->
+  <section class="step-card" id="b10">
+    <div class="step-header">
+      <div class="step-number">10</div>
+      <div class="step-title">Quản trị Vận hành PMS, Sơ đồ Tape Chart & In Hóa đơn VAT</div>
+    </div>
+    <div class="step-desc">
+      <div class="desc-block">
+        <h4>Thao tác thực tế</h4>
+        <p>Nhân viên Lễ tân quản lý lịch buồng phòng và thu ngân in phiếu thanh toán.</p>
+      </div>
+      <div class="desc-block">
+        <h4>Kết quả kiểm chứng</h4>
+        <p>Sơ đồ thời gian Tape Chart theo dõi trạng thái phòng trực quan và mẫu in hóa đơn VAT chuẩn có mã VietQR phục vụ đối soát.</p>
+      </div>
+    </div>
+    <div class="img-grid-2">
+      <div class="img-wrapper">
+        <img src="images/31_rooms_timeline_tape_chart.png" alt="Tape Chart">
+        <div class="img-caption">Hình 10.1: Sơ đồ thời gian phòng Tape Chart</div>
+      </div>
+      <div class="img-wrapper">
+        <img src="images/step_20_print_invoice.png" alt="In hóa đơn VAT">
+        <div class="img-caption">Hình 10.2: Mẫu in hóa đơn VAT VietQR</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="summary-box">
+    <h3>Tóm Tắt Bằng Chứng Nghiệm Thu Tuần 03</h3>
+    <ul>
+      <li><strong>Mã nguồn & CSDL Cloud:</strong> Hoạt động ổn định trên máy chủ VPS PostgreSQL 17 tại <code>103.116.38.74:5435</code> với đầy đủ 32 bảng hệ thống và dữ liệu thật 34 tỉnh thành Việt Nam.</li>
+      <li><strong>Kiểm thử Tự động:</strong> 100% bài test xUnit (Backend) và Vitest (Frontend) đều pass xanh trên GitHub Actions CI.</li>
+      <li><strong>Toàn vẹn Dữ liệu:</strong> Không sử dụng mock ảo hay hàm ngẫu nhiên <code>Math.random()</code>, toàn bộ quy trình từ B2C đến PMS được liên thông chặt chẽ.</li>
+    </ul>
+  </div>
+</div>
+
+</body>
+</html>

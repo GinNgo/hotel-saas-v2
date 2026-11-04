@@ -477,7 +477,7 @@ public sealed class PricingAndPoliciesHttpPipelineTests
                 firstHoursPrice = 300000m,
                 additionalHourPrice = 100000m,
                 nightlyPrice = 1200000m,
-                effectiveFrom = "2026-11-01",
+                effectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)).ToString("yyyy-MM-dd"),
                 effectiveTo = "2026-11-30",
                 changeReason = "Winter schedule"
             });

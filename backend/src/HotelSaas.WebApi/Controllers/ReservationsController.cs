@@ -13,6 +13,8 @@ using HotelSaas.Application.Reservations.DTOs;
 using HotelSaas.Application.Reservations.Queries.GetReservationById;
 using HotelSaas.Application.Reservations.Queries.GetReservations;
 using HotelSaas.Application.Reservations.Queries.GetRoomAvailability;
+using HotelSaas.Application.Reservations.Queries.GetReservationCancellationPreview;
+using HotelSaas.Application.Reservations.Services;
 using HotelSaas.Application.Public.Commands.ConfirmGuestBooking;
 using HotelSaas.Application.Public.DTOs;
 using HotelSaas.Domain.Enums;
@@ -178,6 +180,26 @@ public sealed class ReservationsController : ControllerBase
     /// <summary>
     /// Cancels a confirmed or pending reservation prior to check-in, recording the cancellation reason.
     /// </summary>
+    /// <summary>
+    /// Previews the financial and policy impact of cancelling a reservation for staff before confirming.
+    /// Completely read-only calculation.
+    /// </summary>
+    [HttpGet("{id:guid}/cancellation-preview")]
+    [RequirePermission("RESERVATIONS", PermissionAction.Read)]
+    [ProducesResponseType(typeof(CancellationEstimateResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetCancellationPreview(
+        [FromRoute] Guid id,
+        [FromQuery] Guid propertyId,
+        CancellationToken cancellationToken)
+    {
+        var query = new GetReservationCancellationPreviewQuery(id, propertyId);
+        var result = await _mediator.Send(query, cancellationToken);
+        return Ok(result);
+    }
+
     [HttpPost("{id:guid}/cancel")]
     [RequirePermission("RESERVATIONS", PermissionAction.Update)]
     [ProducesResponseType(typeof(ReservationDetailDto), StatusCodes.Status200OK)]

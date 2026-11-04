@@ -10,7 +10,8 @@ namespace HotelSaas.Infrastructure.Services;
 
 /// <summary>
 /// JWT token generation and validation service.
-/// Produces signed access tokens with role/permission claims and cryptographic refresh tokens.
+/// Produces signed access tokens with role/permission claims, cryptographic refresh tokens,
+/// and secure signed email verification tokens.
 /// </summary>
 public sealed class JwtService : IJwtService
 {
@@ -144,5 +145,93 @@ public sealed class JwtService : IJwtService
         }
 
         return principal;
+    }
+
+    /// <inheritdoc />
+    public string GenerateEmailVerificationToken(Guid userId, string email, TimeSpan validity)
+    {
+        var jwtSettings = _configuration.GetSection("JwtSettings");
+        var secretKey = JwtKeyValidator.ValidateSecretKey(jwtSettings["SecretKey"]);
+        var issuer = jwtSettings["Issuer"] ?? "HotelSaas";
+        var audience = jwtSettings["Audience"] ?? "HotelSaasClient";
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new(JwtRegisteredClaimNames.Email, email),
+            new("purpose", "email_verification"),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        };
+
+        var token = new JwtSecurityToken(
+            issuer: issuer,
+            audience: audience,
+            claims: claims,
+            expires: DateTime.UtcNow.Add(validity),
+            signingCredentials: credentials);
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    /// <inheritdoc />
+    public (bool isValid, Guid userId, string email) ValidateEmailVerificationToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return (false, Guid.Empty, string.Empty);
+        }
+
+        try
+        {
+            var jwtSettings = _configuration.GetSection("JwtSettings");
+            var secretKey = JwtKeyValidator.ValidateSecretKey(jwtSettings["SecretKey"]);
+            var issuer = jwtSettings["Issuer"] ?? "HotelSaas";
+            var audience = jwtSettings["Audience"] ?? "HotelSaasClient";
+
+            var tokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateAudience = true,
+                ValidateIssuer = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = issuer,
+                ValidAudience = audience,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromMinutes(2)
+            };
+
+            var tokenHandler = new JwtSecurityTokenHandler();
+            tokenHandler.InboundClaimTypeMap.Clear();
+            var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out var securityToken);
+
+            if (securityToken is not JwtSecurityToken jwtSecurityToken ||
+                !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
+            {
+                return (false, Guid.Empty, string.Empty);
+            }
+
+            var purpose = principal.FindFirst("purpose")?.Value;
+            if (purpose != "email_verification")
+            {
+                return (false, Guid.Empty, string.Empty);
+            }
+
+            var sub = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            var email = principal.FindFirst(JwtRegisteredClaimNames.Email)?.Value;
+
+            if (Guid.TryParse(sub, out var userId) && !string.IsNullOrWhiteSpace(email))
+            {
+                return (true, userId, email);
+            }
+
+            return (false, Guid.Empty, string.Empty);
+        }
+        catch
+        {
+            return (false, Guid.Empty, string.Empty);
+        }
     }
 }

@@ -1,20 +1,28 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Interfaces;
+using HotelSaas.Application.Public.Commands.CancelGuestBooking;
 using HotelSaas.Application.Public.Commands.ConfirmGuestBooking;
 using HotelSaas.Application.Public.Commands.CreateGuestHold;
+using HotelSaas.Application.Public.Commands.ExtendGuestHold;
 using HotelSaas.Application.Public.DTOs;
 using HotelSaas.Application.Public.Queries.CalculatePublicQuote;
 using HotelSaas.Application.Public.Queries.GetGuestBookingByToken;
+using HotelSaas.Application.Public.Queries.GetGuestCancellationPreview;
 using HotelSaas.Application.Public.Queries.GetPublicAvailability;
 using HotelSaas.Application.Public.Queries.GetPublicProperties;
 using HotelSaas.Application.Public.Queries.GetPublicPropertyBySlug;
 using HotelSaas.Application.Public.Queries.GetPublicRoomTypes;
 using HotelSaas.Application.Quotes.DTOs;
+using HotelSaas.Application.Reviews.Commands.SubmitGuestReview;
+using HotelSaas.Application.Reviews.DTOs;
+using HotelSaas.Application.Reviews.Queries.GetPropertyReviews;
 using HotelSaas.Domain.Enums;
 using HotelSaas.WebApi.Authorization;
+using HotelSaas.WebApi.Models;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -252,6 +260,70 @@ public sealed class PublicController : ControllerBase
     }
 
     /// <summary>
+    /// Extends an active guest room hold by 5 minutes (maximum 1 extension per hold, allowed when &lt;= 3 minutes remain).
+    /// </summary>
+    [HttpPost("bookings/{lookupToken}/extend")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(GuestBookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ExtendHold(string lookupToken, CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(new ExtendGuestHoldCommand(lookupToken), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Previews the financial and policy impact of cancelling a booking via lookup token.
+    /// Completely read-only.
+    /// </summary>
+    [HttpGet("bookings/{lookupToken}/cancel-preview")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(GuestCancellationPreviewDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetCancelPreview(string lookupToken, CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(new GetGuestCancellationPreviewQuery(lookupToken), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Cancels a guest online reservation using their secure lookup token and optional identity verification.
+    /// Unblocks physical room inventory immediately.
+    /// </summary>
+    [HttpPost("bookings/{lookupToken}/cancel")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(GuestBookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CancelBooking(
+        string lookupToken,
+        [FromBody] CancelGuestBookingRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var idempotencyKey = request?.IdempotencyKey;
+        if (string.IsNullOrWhiteSpace(idempotencyKey) &&
+            Request.Headers.TryGetValue("Idempotency-Key", out var headerKey) &&
+            !string.IsNullOrWhiteSpace(headerKey))
+        {
+            idempotencyKey = headerKey.ToString();
+        }
+
+        var command = new CancelGuestBookingCommand(
+            LookupToken: lookupToken,
+            VerificationEmailOrPhone: request?.VerificationEmailOrPhone,
+            Reason: request?.Reason,
+            IdempotencyKey: idempotencyKey);
+
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Confirms guest booking upon receiving manual deposit payment by authorized staff (Decision D08, D15, D21).
     /// Anonymous access is strictly forbidden.
     /// </summary>
@@ -317,7 +389,64 @@ public sealed class PublicController : ControllerBase
         var result = await _mediator.Send(command, cancellationToken);
         return Ok(result);
     }
+
+    /// <summary>
+    /// Gets verified reviews and aggregate ratings for an accommodation property.
+    /// </summary>
+    [HttpGet("properties/{slug}/reviews")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(PropertyReviewsSummaryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetPropertyReviews(
+        string slug,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _mediator.Send(new GetPropertyReviewsQuery(slug, page, pageSize), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Submits a verified guest review using the reservation lookup token.
+    /// </summary>
+    [HttpPost("bookings/{lookupToken}/review")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(GuestReviewDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SubmitReview(
+        string lookupToken,
+        [FromBody] SubmitReviewApiRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request == null)
+        {
+            return BadRequest(new { code = "ERR_EMPTY_BODY", message = "Dữ liệu đánh giá không hợp lệ." });
+        }
+
+        var command = new SubmitGuestReviewCommand(
+            LookupToken: lookupToken,
+            Rating: request.Rating,
+            CleanlinessRating: request.CleanlinessRating,
+            LocationRating: request.LocationRating,
+            ServiceRating: request.ServiceRating,
+            ValueRating: request.ValueRating,
+            Comment: request.Comment);
+
+        var result = await _mediator.Send(command, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created, result);
+    }
 }
+
+public sealed record SubmitReviewApiRequest(
+    int Rating,
+    int? CleanlinessRating = null,
+    int? LocationRating = null,
+    int? ServiceRating = null,
+    int? ValueRating = null,
+    string? Comment = null
+);
 
 public sealed record CalculatePublicQuoteRequest(
     string PropertySlug,

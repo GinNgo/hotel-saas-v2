@@ -500,7 +500,8 @@ describe('Public Booking Pages Suite — Angular 22 Signals Architecture', () =>
 
       expect(mockBookingService.createHold).toHaveBeenCalled();
       expect(mockRouter.navigate).toHaveBeenCalledWith(
-        ['/booking/hold', 'tok-hold-abc-123']
+        ['/booking/hold', 'tok-hold-abc-123'],
+        { queryParams: { paymentMethod: 'VNPay' } }
       );
       expect(mockBookingService.createHold.mock.calls[0][0]).toMatchObject({ rentalType: 3, numberOfGuests: 4,
         startAtUtc: '2099-10-20T07:00:00.000Z', endAtUtc: '2099-10-22T05:00:00.000Z', expectedTotalAmount: 1900000 });

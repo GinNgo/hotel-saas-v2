@@ -65,7 +65,7 @@ public sealed class VnpayPaymentService : IVnpayPaymentService
             ["vnp_Amount"] = vnpAmount.ToString(CultureInfo.InvariantCulture),
             ["vnp_CurrCode"] = "VND",
             ["vnp_TxnRef"] = txnRef,
-            ["vnp_OrderInfo"] = WebUtility.UrlEncode(orderInfo ?? $"Thanh toan don dat phong {confirmationCode}"),
+            ["vnp_OrderInfo"] = orderInfo ?? $"Thanh toan don dat phong {confirmationCode}",
             ["vnp_OrderType"] = "other",
             ["vnp_Locale"] = "vn",
             ["vnp_ReturnUrl"] = targetReturnUrl,
@@ -74,9 +74,8 @@ public sealed class VnpayPaymentService : IVnpayPaymentService
             ["vnp_ExpireDate"] = expireDate
         };
 
-        var rawData = BuildQueryString(paramsMap, urlEncodeValues: false);
-        var secureHash = HmacSha512(_hashSecret, rawData);
         var queryString = BuildQueryString(paramsMap, urlEncodeValues: true);
+        var secureHash = HmacSha512(_hashSecret, queryString);
         var fullUrl = $"{_paymentUrl}?{queryString}&vnp_SecureHash={secureHash}";
 
         return new VnpayCreateUrlResult(fullUrl, txnRef, amountVnd);
@@ -85,11 +84,11 @@ public sealed class VnpayPaymentService : IVnpayPaymentService
     public VnpayVerificationResult VerifyCallback(IDictionary<string, string> queryParams)
     {
         if (string.IsNullOrWhiteSpace(_tmnCode) || string.IsNullOrWhiteSpace(_hashSecret))
-            return new VnpayVerificationResult(false, "99", null, null, null, 0, "VNPay is not configured.");
+            return new VnpayVerificationResult(false, "99", null, null, null, 0, "VNPay is not configured.", IsSignatureValid: false, IsSuccess: false);
 
         if (queryParams == null || queryParams.Count == 0)
         {
-            return new VnpayVerificationResult(false, "99", null, null, null, 0, "Dữ liệu callback rỗng.");
+            return new VnpayVerificationResult(false, "99", null, null, null, 0, "Dữ liệu callback rỗng.", IsSignatureValid: false, IsSuccess: false);
         }
 
         var sortedParams = new SortedDictionary<string, string>(StringComparer.Ordinal);
@@ -118,17 +117,25 @@ public sealed class VnpayPaymentService : IVnpayPaymentService
 
         if (string.IsNullOrWhiteSpace(incomingHash))
         {
-            return new VnpayVerificationResult(false, "97", null, null, null, 0, "Thiếu chữ ký kiểm thực vnp_SecureHash.");
+            return new VnpayVerificationResult(false, "97", null, null, null, 0, "Thiếu chữ ký kiểm thực vnp_SecureHash.", IsSignatureValid: false, IsSuccess: false);
         }
 
-        var rawData = BuildQueryString(sortedParams, urlEncodeValues: false);
+        var rawData = BuildQueryString(sortedParams, urlEncodeValues: true);
         var calculatedHash = HmacSha512(_hashSecret, rawData);
 
         if (!CryptographicOperations.FixedTimeEquals(
             Encoding.UTF8.GetBytes(calculatedHash.ToUpperInvariant()),
             Encoding.UTF8.GetBytes(incomingHash.ToUpperInvariant())))
         {
-            return new VnpayVerificationResult(false, "97", null, null, null, 0, "Chữ ký kiểm thực không hợp lệ (Invalid Checksum).");
+            // Fallback check for unencoded test parameters
+            var unencodedData = BuildQueryString(sortedParams, urlEncodeValues: false);
+            var unencodedHash = HmacSha512(_hashSecret, unencodedData);
+            if (!CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(unencodedHash.ToUpperInvariant()),
+                Encoding.UTF8.GetBytes(incomingHash.ToUpperInvariant())))
+            {
+                return new VnpayVerificationResult(false, "97", null, null, null, 0, "Chữ ký kiểm thực không hợp lệ (Invalid Checksum).", IsSignatureValid: false, IsSuccess: false);
+            }
         }
 
         sortedParams.TryGetValue("vnp_ResponseCode", out var responseCode);
@@ -143,16 +150,19 @@ public sealed class VnpayPaymentService : IVnpayPaymentService
             amount = parsedVnpAmount / 100m;
         }
 
-        bool isSuccessful = responseCode == "00" && (transactionStatus == null || transactionStatus == "00");
+        bool isSignatureValid = true;
+        bool isSuccess = isSignatureValid && responseCode == "00" && (transactionStatus == null || transactionStatus == "00");
 
         return new VnpayVerificationResult(
-            IsValid: isSuccessful,
+            IsValid: isSignatureValid,
             ResponseCode: responseCode,
             TransactionStatus: transactionStatus,
             TransactionNo: transactionNo,
             TxnRef: txnRef,
             Amount: amount,
-            Message: isSuccessful ? "Giao dịch VNPay thành công." : $"Giao dịch không thành công với mã lỗi: {responseCode}"
+            Message: isSuccess ? "Giao dịch VNPay thành công." : $"Giao dịch không thành công với mã lỗi: {responseCode}",
+            IsSignatureValid: isSignatureValid,
+            IsSuccess: isSuccess
         );
     }
 

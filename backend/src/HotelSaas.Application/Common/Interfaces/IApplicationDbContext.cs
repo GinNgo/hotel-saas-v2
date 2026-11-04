@@ -62,6 +62,9 @@ public interface IApplicationDbContext
     /// <summary>Audit trail for room type rate modifications and interval splittings.</summary>
     DbSet<RoomTypeRateAudit> RoomTypeRateAudits { get; }
 
+    /// <summary>Immutable system-wide audit logs for critical mutations.</summary>
+    DbSet<AuditLog> AuditLogs => throw new NotImplementedException();
+
     /// <summary>Invoices issued for reservations.</summary>
     DbSet<Invoice> Invoices { get; }
 
@@ -82,6 +85,12 @@ public interface IApplicationDbContext
 
     /// <summary>Liên kết tài khoản mạng xã hội (Google, Facebook).</summary>
     DbSet<SocialIdentity> SocialIdentities { get; }
+
+    /// <summary>Đánh giá và nhận xét của khách lưu trú (Guest Reviews).</summary>
+    DbSet<GuestReview> GuestReviews { get; }
+
+    /// <summary>Nhật ký sử dụng các tính năng AI (AI Usage Logs).</summary>
+    DbSet<AiUsageLog> AiUsageLogs { get; }
 
     /// <summary>
     /// Starts a database transaction asynchronously.

@@ -3,6 +3,8 @@ export interface UserDto {
   id: string;
   email: string;
   fullName: string;
+  phoneNumber?: string | null;
+  avatarUrl?: string | null;
   globalRole: string;
   tenantId: string | null;
 }
@@ -36,6 +38,13 @@ export interface RegisterResponse {
   message: string;
 }
 
+/** Confirm email response */
+export interface ConfirmEmailResponse {
+  success: boolean;
+  message: string;
+  email?: string | null;
+}
+
 /** Login request */
 export interface LoginRequest {
   email: string;
@@ -47,6 +56,9 @@ export interface RegisterRequest {
   email: string;
   password: string;
   fullName: string;
+  phoneNumber?: string;
+  avatarUrl?: string;
+  appUrl?: string;
 }
 
 /** Partner Register request */

@@ -25,7 +25,7 @@ export interface HoldErrorState {
   imports: [CommonModule, FormsModule, RouterLink, FormFieldComponent, FormControlDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="bg-slate-50 min-h-screen py-8 px-4 sm:px-6 lg:px-8 relative">
+    <div class="bg-[#EFECE6] min-h-screen py-8 px-4 sm:px-6 lg:px-8 relative text-stone-800">
       <!-- TOAST THÔNG BÁO HỆ THỐNG (LUXESTAY TOAST — VỊ TRÍ GÓC DƯỚI KHÔNG CHE HEADER/NAV) -->
       @if (toast(); as t) {
         <aside
@@ -136,16 +136,18 @@ export interface HoldErrorState {
           </div>
         }
 
-        @if (loading()) {
+        @if (!booking() && loading() && (!quote() || activeRouteToken)) {
           <div role="status" class="bg-white rounded-2xl p-8 border border-slate-200 text-center flex flex-col items-center justify-center gap-3">
             <i class="pi pi-spin pi-spinner text-2xl text-indigo-600"></i>
-            <p class="text-sm font-medium text-slate-600">Đang đối soát giá và tình trạng phòng thời gian thực…</p>
+            <p class="text-sm font-medium text-slate-600">
+              {{ activeRouteToken ? 'Đang tải thông tin giữ phòng…' : 'Đang đối soát giá và tình trạng phòng thời gian thực…' }}
+            </p>
           </div>
         }
 
         @if (booking(); as detail) {
           <!-- VOUCHER THÀNH CÔNG SAU KHI TẠO GIỮ PHÒNG -->
-          <section class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-md space-y-6">
+          <section class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-stone-300 shadow-md space-y-6">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3">
               <div class="flex items-center gap-3">
                 <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl shrink-0">
@@ -173,14 +175,26 @@ export interface HoldErrorState {
             </div>
 
             <!-- BANNER THỜI HẠN GIỮ PHÒNG NỔI BẬT -->
-            @if (!isExpired() && detail.holdExpiresAtUtc) {
+            @if (!isHoldExpired() && detail.holdExpiresAtUtc) {
               <div class="p-4 sm:p-5 rounded-2xl bg-amber-50/90 border-2 border-amber-300 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div class="flex items-start sm:items-center gap-3.5">
                   <div class="w-11 h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-xl shrink-0 shadow-xs">
                     <i class="pi pi-clock"></i>
                   </div>
                   <div>
-                    <div class="text-xs font-bold uppercase tracking-wider text-amber-800">Thời hạn giữ phòng</div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <div class="text-xs font-bold uppercase tracking-wider text-amber-800">Thời hạn giữ phòng</div>
+                      @if (isExpiringSoon()) {
+                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200 animate-pulse">
+                          <i class="pi pi-exclamation-triangle text-[10px]"></i> Sắp hết hạn
+                        </span>
+                      }
+                      @if (isHoldExtended() && !isHoldExpired()) {
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                          <i class="pi pi-history text-[10px]"></i> Đã gia hạn (+5 phút)
+                        </span>
+                      }
+                    </div>
                     <p class="text-xs sm:text-sm text-slate-700 font-medium mt-0.5">
                       Vui lòng hoàn tất bước tiếp theo trước khi thời hạn giữ phòng kết thúc.
                     </p>
@@ -197,10 +211,65 @@ export interface HoldErrorState {
                   </div>
                 </div>
               </div>
+
+              <!-- CẢNH BÁO SẮP HẾT HẠN & NÚT GIA HẠN THÊM 5 PHÚT -->
+              @if (isExpiringSoon()) {
+                <div
+                  role="alert"
+                  class="w-full p-4 rounded-2xl bg-rose-50/95 border border-rose-300/80 text-rose-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs"
+                >
+                  <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                      <i class="pi pi-exclamation-triangle text-base"></i>
+                    </div>
+                    <div>
+                      <div class="text-xs font-bold uppercase tracking-wider text-rose-800">Cảnh báo sắp hết hạn</div>
+                      <p class="text-xs sm:text-sm font-semibold text-rose-900 mt-0.5 leading-snug">
+                        Thời gian giữ phòng sắp hết. Bạn có thể gia hạn thêm 5 phút (tối đa 1 lần) để hoàn tất thủ tục.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="shrink-0 flex items-center gap-2 self-start sm:self-center">
+                    @if (canExtendHold()) {
+                      <button
+                        type="button"
+                        (click)="extendHold()"
+                        [disabled]="isExtendingHold()"
+                        class="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-all inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+                      >
+                        @if (isExtendingHold()) {
+                          <i class="pi pi-spin pi-spinner text-xs"></i>
+                          <span>Đang gia hạn...</span>
+                        } @else {
+                          <i class="pi pi-plus-circle text-xs"></i>
+                          <span>Gia hạn thêm 5 phút</span>
+                        }
+                      </button>
+                    } @else if (isHoldExtended()) {
+                      <span class="text-xs font-bold text-indigo-700 bg-white px-3 py-1.5 rounded-xl border border-indigo-200">
+                        <i class="pi pi-check text-[11px] mr-1"></i>Đã sử dụng 1/1 lượt gia hạn
+                      </span>
+                    }
+                  </div>
+                </div>
+              }
+
+              @if (extendHoldError()) {
+                <div role="alert" class="w-full p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2">
+                    <i class="pi pi-exclamation-circle text-rose-600 shrink-0"></i>
+                    <span>{{ extendHoldError() }}</span>
+                  </div>
+                  <button type="button" (click)="extendHoldError.set('')" class="text-rose-400 hover:text-rose-600 p-1 rounded cursor-pointer" aria-label="Đóng thông báo lỗi gia hạn">
+                    <i class="pi pi-times text-xs"></i>
+                  </button>
+                </div>
+              }
             }
 
             <!-- Mã tra cứu & Hướng dẫn sao chép an toàn -->
-            <div class="p-4 sm:p-5 rounded-2xl bg-indigo-50/50 border border-indigo-100 space-y-2.5">
+            <div class="p-4 sm:p-5 rounded-2xl bg-[#F5F2EB] border-2 border-stone-300 space-y-2.5">
               <div class="flex items-center justify-between flex-wrap gap-2">
                 <div class="flex items-center gap-2">
                   <i class="pi pi-key text-indigo-600 text-xs"></i>
@@ -237,7 +306,7 @@ export interface HoldErrorState {
             </div>
 
             <!-- Lưới chi tiết đặt phòng -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-5 rounded-2xl bg-[#F5F2EB] border-2 border-stone-300">
               <div>
                 <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Hạng phòng</span>
                 <span class="text-sm font-bold text-slate-800">{{ detail.roomTypeName }}</span>
@@ -255,7 +324,7 @@ export interface HoldErrorState {
             </div>
 
             <!-- Tổng tiền & Cọc yêu cầu -->
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-2xl bg-indigo-50/70 border border-indigo-100 gap-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-2xl bg-[#FAF7F2] border-2 border-stone-300 gap-4">
               <div>
                 <div class="text-xs text-indigo-900 font-medium">Tổng tiền lưu trú dự tính</div>
                 <div class="text-2xl sm:text-3xl font-black text-indigo-700">{{ detail.totalAmount | number:'1.0-0' }} ₫</div>
@@ -266,7 +335,7 @@ export interface HoldErrorState {
               </div>
             </div>
 
-            @if (isExpired()) {
+            @if (isHoldExpired()) {
               <div role="status" class="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
                 <i class="pi pi-times-circle text-base shrink-0"></i>
                 <span>Giữ phòng đã hết hạn. Vui lòng quay lại tìm kiếm và đặt phòng mới.</span>
@@ -274,7 +343,7 @@ export interface HoldErrorState {
             }
 
             <div class="pt-2 flex flex-col sm:flex-row items-center justify-end gap-3">
-              @if (isExpired()) {
+              @if (isHoldExpired()) {
                 <a
                   routerLink="/booking"
                   class="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
@@ -285,9 +354,10 @@ export interface HoldErrorState {
               } @else {
                 <a
                   [routerLink]="['/booking/status', detail.lookupToken]"
+                  [queryParams]="{ paymentMethod: selectedPaymentMethod }"
                   class="w-full sm:w-auto px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>Xem Trạng Thái &amp; Hướng Dẫn Thanh Toán</span>
+                  <span>{{ paymentMethodActionLabel() }}</span>
                   <i class="pi pi-arrow-right text-xs"></i>
                 </a>
               }
@@ -300,7 +370,7 @@ export interface HoldErrorState {
             <form
               (ngSubmit)="confirmBooking()"
               [attr.aria-busy]="isSubmitting()"
-              class="lg:col-span-7 bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/90 shadow-sm space-y-5"
+              class="lg:col-span-7 bg-white rounded-3xl p-6 sm:p-8 border-2 border-stone-300 shadow-md space-y-6"
             >
               <div class="flex items-center gap-2.5 pb-3 border-b border-slate-100">
                 <div class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">
@@ -372,15 +442,48 @@ export interface HoldErrorState {
                 </app-form-field>
               </div>
 
+              <section class="space-y-3" aria-labelledby="payment-method-label">
+                <div>
+                  <h3 id="payment-method-label" class="text-sm font-bold text-slate-800">Chọn cách thanh toán tiền cọc</h3>
+                  <p class="text-xs text-slate-500 mt-1">Phòng chỉ được xác nhận sau khi khách sạn ghi nhận đủ khoản cọc.</p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <button type="button" (click)="selectPaymentMethod('VNPay')"
+                    [class.ring-2]="selectedPaymentMethod === 'VNPay'" [class.ring-blue-600]="selectedPaymentMethod === 'VNPay'"
+                    class="text-left rounded-xl border border-slate-200 bg-white p-3 hover:border-blue-400 transition-colors cursor-pointer">
+                    <span class="block text-xs font-bold text-slate-900">Thẻ / VNPay-QR</span>
+                    <span class="block text-[11px] text-slate-500 mt-1">Thanh toán cọc qua VNPay Sandbox.</span>
+                  </button>
+                  <button type="button" (click)="selectPaymentMethod('VietQR')"
+                    [class.ring-2]="selectedPaymentMethod === 'VietQR'" [class.ring-amber-500]="selectedPaymentMethod === 'VietQR'"
+                    class="text-left rounded-xl border border-slate-200 bg-white p-3 hover:border-amber-400 transition-colors cursor-pointer">
+                    <span class="block text-xs font-bold text-slate-900">Chuyển khoản VietQR</span>
+                    <span class="block text-[11px] text-slate-500 mt-1">Quét mã QR động sau khi tạo giữ phòng.</span>
+                  </button>
+                  <button type="button" (click)="selectPaymentMethod('PayAtHotel')"
+                    [class.ring-2]="selectedPaymentMethod === 'PayAtHotel'" [class.ring-emerald-600]="selectedPaymentMethod === 'PayAtHotel'"
+                    class="text-left rounded-xl border border-slate-200 bg-white p-3 hover:border-emerald-400 transition-colors cursor-pointer">
+                    <span class="block text-xs font-bold text-slate-900">Tiền mặt tại khách sạn</span>
+                    <span class="block text-[11px] text-slate-500 mt-1">Nộp cọc tại quầy trong 15 phút; nhân viên xác nhận đơn.</span>
+                  </button>
+                </div>
+                @if (selectedPaymentMethod === 'PayAtHotel') {
+                  <div role="note" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-950">
+                    Tiền cọc dự kiến: <strong>{{ ((priceAny()?.depositRequired ?? (priceAny()?.totalAmount * 0.3)) | number:'1.0-0') }} ₫</strong>.
+                    Đến quầy lễ tân và nộp cọc trước khi giữ phòng hết hạn. Nhân viên sẽ ghi nhận tiền mặt và xác nhận đặt phòng; nếu chưa nộp kịp, giữ phòng sẽ tự hết hạn.
+                  </div>
+                }
+              </section>
+
               <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/70 text-xs text-slate-500 flex items-center gap-2.5">
                 <i class="pi pi-info-circle text-indigo-600 text-sm shrink-0"></i>
-                <span>Phòng được giữ tạm sau khi máy chủ cấp mã. Bạn có thể thanh toán qua VNPAY hoặc chuyển khoản tại bước tiếp theo.</span>
+                <span>Máy chủ giữ phòng tạm trong 15 phút. Phòng chỉ được xác nhận sau khi tiền cọc được ghi nhận.</span>
               </div>
 
               <button
                 type="submit"
                 [disabled]="loading() || isSubmitting() || !quote() || isQuoteExpired()"
-                class="w-full h-12 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-sm sm:text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                class="w-full h-13 px-6 rounded-xl bg-[#0D2E28] hover:bg-[#14473D] active:bg-[#08201B] text-white font-bold text-sm sm:text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 @if (isSubmitting()) {
                   <i class="pi pi-spin pi-spinner text-base"></i>
@@ -437,7 +540,7 @@ export interface HoldErrorState {
             </form>
 
             <!-- Cột Phải: Báo giá & Chi tiết chỗ nghỉ (5 cột) -->
-            <section class="lg:col-span-5 bg-white rounded-3xl p-6 border border-slate-200/90 shadow-sm space-y-5 lg:sticky lg:top-24">
+            <section class="lg:col-span-5 bg-[#FAF7F2] rounded-3xl p-6 sm:p-7 border-2 border-stone-300 shadow-md space-y-5 lg:sticky lg:top-24">
               <div class="flex items-center gap-2.5 pb-3 border-b border-slate-100">
                 <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm">
                   <i class="pi pi-receipt"></i>
@@ -598,6 +701,18 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   readonly quoteRemainingSeconds = signal(0);
   readonly isQuoteExpired = signal(false);
 
+  readonly isExtendingHold = signal(false);
+  readonly extendHoldError = signal('');
+  readonly isHoldExpired = computed(() => this.isExpired() || this.booking()?.status === 'Expired');
+  readonly isHoldExtended = computed(() => (this.booking()?.holdExtensionCount ?? 0) >= 1);
+  readonly isExpiringSoon = computed(() => {
+    const b = this.booking();
+    return !this.isHoldExpired() && b?.status === 'PendingPayment' && this.secondsRemaining() > 0 && this.secondsRemaining() <= 180;
+  });
+  readonly canExtendHold = computed(() => this.isExpiringSoon() && !this.isHoldExtended());
+
+  private broadcastChannel?: BroadcastChannel;
+
   readonly finalGrandTotal = computed(() => this.quote()?.totalAmount ?? this.booking()?.totalAmount ?? 0);
   readonly priceAny = computed<any>(() => this.quote());
 
@@ -613,6 +728,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   guestName = '';
   guestPhone = '';
   guestEmail = '';
+  selectedPaymentMethod: 'VNPay' | 'VietQR' | 'PayAtHotel' = 'VNPay';
 
   private timerInterval?: ReturnType<typeof setInterval>;
   private quoteTimerInterval?: ReturnType<typeof setInterval>;
@@ -632,6 +748,20 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
 
   get idempotencyKey(): string {
     return this.currentIdempotencyKey;
+  }
+
+  selectPaymentMethod(method: string | null): void {
+    if (method === 'VNPay' || method === 'VietQR' || method === 'PayAtHotel') {
+      this.selectedPaymentMethod = method;
+    }
+  }
+
+  paymentMethodActionLabel(): string {
+    switch (this.selectedPaymentMethod) {
+      case 'VNPay': return 'Tiếp tục thanh toán VNPay';
+      case 'VietQR': return 'Mở hướng dẫn VietQR';
+      case 'PayAtHotel': return 'Xem hướng dẫn nộp cọc tại quầy';
+    }
   }
 
   private readonly onVisibilityChange = () => {
@@ -660,8 +790,32 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    const queryParamMap$ = this.route.queryParamMap ?? of(this.route.snapshot?.queryParamMap ?? { get: () => null });
+    queryParamMap$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+      this.selectPaymentMethod(params.get('paymentMethod'));
+    });
+
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibilityChange);
+    }
+
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        this.broadcastChannel = new BroadcastChannel('hotelsaas-live-notifications');
+        this.broadcastChannel.onmessage = event => {
+          const data = event.data;
+          const current = this.booking();
+          if (!data || !current?.lookupToken) return;
+          if (
+            (data.action === 'extend-hold' || data.action === 'confirm') &&
+            (data.lookupToken === current.lookupToken || (data.reservationId && data.reservationId === current.reservationId))
+          ) {
+            this.loadBooking(current.lookupToken);
+          }
+        };
+      }
+    } catch {
+      // Bỏ qua nếu không hỗ trợ BroadcastChannel
     }
 
     const paramMap$ = this.route.paramMap ?? of(this.route.snapshot?.paramMap ?? { get: () => null });
@@ -687,7 +841,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
       this.currentQueryParams = query ?? this.route.snapshot?.queryParams ?? {};
       const queryToken = (query as any)?.['token']?.trim();
       const paramToken = typeof this.route.snapshot?.paramMap?.get === 'function' ? this.route.snapshot.paramMap.get('token') : null;
-      const token = (paramToken || queryToken || '').trim();
+      const token = (this.activeRouteToken || paramToken || queryToken || '').trim();
       if (token) {
         this.handleRouteTokenChange(token, this.currentQueryParams);
       } else {
@@ -710,6 +864,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
         this.booking.set(null);
         this.clearHoldTimer();
         this.clearQuoteTimer();
+        this.loading.set(false);
         if (this.copyTimeout) {
           clearTimeout(this.copyTimeout);
           this.copyTimeout = undefined;
@@ -784,14 +939,17 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
         takeUntilDestroyed(this.destroyRef),
       ).subscribe({
         next: price => {
-          if (generation !== this.requestGeneration) return;
+          if (generation !== this.requestGeneration) {
+            this.loading.set(false);
+            return;
+          }
           this.quote.set(price);
           this.loading.set(false);
           this.startQuoteCountdown(price.expiresAtUtc);
         },
         error: () => {
-          if (generation !== this.requestGeneration) return;
           this.loading.set(false);
+          if (generation !== this.requestGeneration) return;
           this.error.set('Chưa kiểm tra được giá. Vui lòng thử lại hoặc chọn lại phòng.');
         },
       });
@@ -904,6 +1062,46 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
     }
   }
 
+  extendHold(): void {
+    const detail = this.booking();
+    if (!detail?.lookupToken || this.isExtendingHold() || this.isHoldExpired() || !this.canExtendHold()) {
+      return;
+    }
+
+    const token = detail.lookupToken;
+    const gen = this.bookingGeneration;
+    this.isExtendingHold.set(true);
+    this.extendHoldError.set('');
+
+    this.publicBookingService.extendHold(token).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: updated => {
+        if (this.isDestroyed || gen !== this.bookingGeneration || this.booking()?.lookupToken !== token) return;
+        this.isExtendingHold.set(false);
+        this.extendHoldError.set('');
+        this.booking.set({
+          ...updated,
+          holdExtensionCount: updated.holdExtensionCount ?? 1,
+          canExtendHold: false
+        });
+        this.startHoldCountdown(updated.holdExpiresAtUtc, updated.status);
+        this.alertService.success('Đã gia hạn thêm 5 phút giữ phòng.', 'Gia hạn thành công');
+      },
+      error: err => {
+        if (this.isDestroyed || gen !== this.bookingGeneration || this.booking()?.lookupToken !== token) return;
+        this.isExtendingHold.set(false);
+        const serverMsg = typeof err?.error?.message === 'string' && !/failed|exception|stacktrace/i.test(err.error.message)
+          ? err.error.message
+          : 'Không thể gia hạn thời gian giữ phòng lúc này. Vui lòng hoàn tất đặt phòng hoặc thử lại.';
+        this.extendHoldError.set(serverMsg);
+        if (err?.status === 409) {
+          this.loadBooking(token);
+        }
+      }
+    });
+  }
+
   confirmBooking(): void {
     if (this.isSubmitting() || this.loading() || this.booking() || this.isQuoteExpired()) return;
     this.submitted.set(true);
@@ -1000,7 +1198,9 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
           this.holdError.set(null);
           this.error.set('');
           this.toast.set(null);
-          this.router.navigate(['/booking/hold', hold.lookupToken]);
+          this.router.navigate(['/booking/hold', hold.lookupToken], {
+            queryParams: { paymentMethod: this.selectedPaymentMethod }
+          });
         },
         error: err => {
           if (submissionGen !== this.holdSubmissionGeneration) return;
@@ -1253,6 +1453,14 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
     if (this.toastTimeout) {
       clearTimeout(this.toastTimeout);
       this.toastTimeout = undefined;
+    }
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.close();
+      } catch {
+        // ignore
+      }
+      this.broadcastChannel = undefined;
     }
   }
 }

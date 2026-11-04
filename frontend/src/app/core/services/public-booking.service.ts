@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { map, catchError, tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import {
   PublicPropertyDto,
@@ -18,11 +18,13 @@ import {
   TenantBrandDto,
   PropertyPolicyDto,
   GuestReviewDto,
+  PropertyReviewsSummaryDto,
   SubmitGuestReviewRequest,
-  PromotionDealDto
+  PromotionDealDto,
+  GuestCancellationPreviewDto,
+  CancelGuestBookingRequest
 } from '../models/public-booking.model';
 import { QuoteDto } from '../models/reservation.model';
-import { of } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class PublicBookingService {
@@ -191,7 +193,8 @@ export class PublicBookingService {
     }
 
     return this.http.post<any>(`${this.apiUrl}/bookings/hold`, request, { headers }).pipe(
-      map(res => (res.data ? res.data : res) as GuestHoldDto)
+      map(res => (res.data ? res.data : res) as GuestHoldDto),
+      tap(hold => this.broadcastLiveBookingPing('hold', hold?.reservationId))
     );
   }
 
@@ -200,7 +203,8 @@ export class PublicBookingService {
    */
   getBookingByToken(lookupToken: string): Observable<GuestBookingDetailDto> {
     return this.http.get<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}`).pipe(
-      map(res => (res.data ? res.data : res) as GuestBookingDetailDto)
+      map(res => (res.data ? res.data : res) as GuestBookingDetailDto),
+      tap(detail => this.broadcastLiveBookingPing('confirm', detail?.reservationId, detail?.propertyId, lookupToken))
     );
   }
 
@@ -214,15 +218,90 @@ export class PublicBookingService {
     }
 
     return this.http.post<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/confirm`, request ?? {}, { headers }).pipe(
-      map(res => (res.data ? res.data : res) as GuestBookingDetailDto)
+      map(res => (res.data ? res.data : res) as GuestBookingDetailDto),
+      tap(detail => this.broadcastLiveBookingPing('confirm', detail?.reservationId, detail?.propertyId, lookupToken))
+    );
+  }
+
+  /**
+   * Retrieves an authoritative pre-cancellation preview with breakdown of fees, refundable amounts, and loyalty points.
+   */
+  getCancellationPreview(lookupToken: string): Observable<GuestCancellationPreviewDto> {
+    return this.http.get<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/cancel-preview`).pipe(
+      map(res => (res.data ? res.data : res) as GuestCancellationPreviewDto)
+    );
+  }
+
+  /**
+   * Submits a guest cancellation request under authoritative policy calculations and records pending refund.
+   */
+  cancelBooking(lookupToken: string, request?: CancelGuestBookingRequest): Observable<GuestBookingDetailDto> {
+    const headers: Record<string, string> = {};
+    if (request?.idempotencyKey) {
+      headers['Idempotency-Key'] = request.idempotencyKey;
+    }
+
+    return this.http.post<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/cancel`, request ?? {}, { headers }).pipe(
+      map(res => (res.data ? res.data : res) as GuestBookingDetailDto),
+      tap(detail => this.broadcastLiveBookingPing('cancel', detail?.reservationId, detail?.propertyId, lookupToken))
+    );
+  }
+
+  /**
+   * Extends active room hold timer by 5 minutes (maximum 1 extension per session).
+   */
+  extendHold(lookupToken: string): Observable<GuestBookingDetailDto> {
+    return this.http.post<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/extend`, {}).pipe(
+      map(res => (res.data ? res.data : res) as GuestBookingDetailDto),
+      tap(detail => this.broadcastLiveBookingPing('extend-hold', detail?.reservationId, detail?.propertyId, lookupToken))
     );
   }
 
   /**
    * Sinh URL thanh toán trực tuyến qua Cổng VNPay Sandbox cho đơn đặt phòng.
    */
-  createVnpayPaymentUrl(reservationId: string, returnUrl?: string): Observable<{ paymentUrl: string; transactionRef: string }> {
-    return this.http.post<any>(`${environment.apiUrl}/payments/vnpay/create-url`, { reservationId, returnUrl }).pipe(
+  createVnpayPaymentUrl(
+    reservationId?: string,
+    lookupTokenOrReturnUrl?: string,
+    returnUrl?: string
+  ): Observable<{ paymentUrl: string; transactionRef: string }> {
+    let payload: any = {};
+    if (returnUrl) {
+      payload = { reservationId, lookupToken: lookupTokenOrReturnUrl, returnUrl };
+    } else if (lookupTokenOrReturnUrl && lookupTokenOrReturnUrl.startsWith('http')) {
+      payload = { reservationId, returnUrl: lookupTokenOrReturnUrl };
+    } else {
+      payload = { reservationId, lookupToken: lookupTokenOrReturnUrl };
+    }
+
+    return this.http.post<any>(`${environment.apiUrl}/payments/vnpay/create-url`, payload).pipe(
+      map(res => (res.data ? res.data : res))
+    );
+  }
+
+  /**
+   * Sinh mã VietQR động chuẩn NAPAS 24/7 theo đơn đặt phòng hoặc số tiền yêu cầu.
+   */
+  generateVietQr(payload: {
+    amount: number;
+    confirmationCode?: string;
+    reservationId?: string;
+    bankBin?: string;
+    accountNumber?: string;
+    accountName?: string;
+    description?: string;
+  }): Observable<{
+    qrImageUrl: string;
+    bankBin: string;
+    bankName: string;
+    accountNumber: string;
+    accountName: string;
+    amount: number;
+    description: string;
+    confirmationCode: string;
+    quickPayDeepLink: string;
+  }> {
+    return this.http.post<any>(`${environment.apiUrl}/public/payments/vietqr/generate`, payload).pipe(
       map(res => (res.data ? res.data : res))
     );
   }
@@ -302,12 +381,28 @@ export class PublicBookingService {
     })));
   }
 
-  getPropertyReviews(_slug: string): Observable<GuestReviewDto[]> {
-    return of([]);
+  getPropertyReviews(slug: string): Observable<GuestReviewDto[]> {
+    return this.http.get<any>(`${this.apiUrl}/properties/${encodeURIComponent(slug)}/reviews`).pipe(
+      map(res => {
+        if (Array.isArray(res)) return res as GuestReviewDto[];
+        if (Array.isArray(res?.data)) return res.data as GuestReviewDto[];
+        if (Array.isArray(res?.reviews)) return res.reviews as GuestReviewDto[];
+        return [];
+      }),
+      catchError(() => of([]))
+    );
   }
-  submitReview(request: SubmitGuestReviewRequest): Observable<boolean> {
-    // Contract FR10: Honest capability. Guest reviews submission endpoint is gated for a future sprint.
-    return of(false);
+
+  getPropertyReviewsSummary(slug: string): Observable<PropertyReviewsSummaryDto> {
+    return this.http.get<any>(`${this.apiUrl}/properties/${encodeURIComponent(slug)}/reviews`).pipe(
+      map(res => (res.data ? res.data : res) as PropertyReviewsSummaryDto)
+    );
+  }
+
+  submitReview(request: SubmitGuestReviewRequest): Observable<GuestReviewDto> {
+    return this.http.post<any>(`${this.apiUrl}/bookings/${encodeURIComponent(request.lookupToken)}/review`, request).pipe(
+      map(res => (res.data ? res.data : res) as GuestReviewDto)
+    );
   }
 
   /**
@@ -365,5 +460,17 @@ export class PublicBookingService {
         bannerImageUrl: 'https://images.unsplash.com/photo-1590523741831-ab7e8b8f9c7f?w=800'
       }
     ]);
+  }
+
+  private broadcastLiveBookingPing(action: string, reservationId?: string, propertyId?: string, lookupToken?: string): void {
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        const channel = new BroadcastChannel('hotelsaas-live-notifications');
+        channel.postMessage({ action, reservationId, propertyId, lookupToken, timestamp: Date.now() });
+        channel.close();
+      }
+    } catch {
+      // Bỏ qua nếu môi trường không hỗ trợ BroadcastChannel
+    }
   }
 }

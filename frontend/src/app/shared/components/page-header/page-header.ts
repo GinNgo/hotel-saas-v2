@@ -21,6 +21,6 @@ import { Component, input } from '@angular/core';
   `
 })
 export class PageHeaderComponent {
-  title = input.required<string>();
-  subtitle = input<string>();
+  title = input<string>('');
+  subtitle = input<string>('');
 }

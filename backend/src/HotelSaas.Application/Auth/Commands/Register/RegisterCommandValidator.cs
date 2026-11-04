@@ -26,5 +26,10 @@ public sealed class RegisterCommandValidator : AbstractValidator<RegisterCommand
         RuleFor(x => x.FullName)
             .NotEmpty().WithMessage("Họ tên không được để trống.")
             .MaximumLength(100).WithMessage("Họ tên tối đa 100 ký tự.");
+
+        RuleFor(x => x.PhoneNumber)
+            .Matches(@"^(\+?[0-9]{9,15})$")
+            .When(x => !string.IsNullOrWhiteSpace(x.PhoneNumber))
+            .WithMessage("Số điện thoại không đúng định dạng (9 đến 15 chữ số).");
     }
 }

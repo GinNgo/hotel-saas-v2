@@ -9,6 +9,7 @@ import {
   LoginResponse,
   RegisterRequest,
   RegisterResponse,
+  ConfirmEmailResponse,
   PartnerRegisterRequest,
   PartnerRegisterResponse,
   RefreshTokenRequest,
@@ -60,6 +61,10 @@ export class AuthService {
 
   register(request: RegisterRequest): Observable<ApiResponse<RegisterResponse>> {
     return this.http.post<ApiResponse<RegisterResponse>>(`${this.apiUrl}/register`, request);
+  }
+
+  confirmEmail(token: string): Observable<ApiResponse<ConfirmEmailResponse>> {
+    return this.http.post<ApiResponse<ConfirmEmailResponse>>(`${this.apiUrl}/confirm-email`, { token });
   }
 
   partnerRegister(request: PartnerRegisterRequest): Observable<ApiResponse<PartnerRegisterResponse>> {

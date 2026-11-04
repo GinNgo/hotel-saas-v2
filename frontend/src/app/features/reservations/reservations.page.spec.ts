@@ -1997,4 +1997,96 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
     // Check-in / check-out operations remain fully functional
     expect(comp.canCheckInOut()).toBe(true);
   });
+
+  it('49. should correctly identify system notes vs customer notes with isSystemNote', () => {
+    const comp = createComponent();
+    expect(comp.isSystemNote('Guest online reservation (15-min hold)')).toBe(true);
+    expect(comp.isSystemNote('guest online reservation')).toBe(true);
+    expect(comp.isSystemNote('15-min hold pending')).toBe(true);
+    expect(comp.isSystemNote('{"LookupToken":"abc"}')).toBe(true);
+
+    expect(comp.isSystemNote('Khách muốn nhận phòng lúc 14:00')).toBe(false);
+    expect(comp.isSystemNote('Cần thêm 1 gối lông vũ')).toBe(false);
+    expect(comp.isSystemNote('')).toBe(false);
+    expect(comp.isSystemNote(null)).toBe(false);
+    expect(comp.isSystemNote(undefined)).toBe(false);
+  });
+
+  it('50. should format Vietnam full datetime dd/MM/yyyy HH:mm:ss in Asia/Ho_Chi_Minh', () => {
+    const comp = createComponent();
+    const utcStr = '2026-10-30T02:30:00Z';
+    const formatted = comp.formatVietnamFullDateTime(utcStr);
+    expect(formatted).toContain('2026');
+    expect(formatted).toContain('30');
+    expect(formatted).toContain('10');
+    // 02:30 UTC is 09:30 in Vietnam (+7)
+    expect(formatted).toContain('09:30');
+
+    expect(comp.formatVietnamFullDateTime('')).toBe('');
+    expect(comp.formatVietnamFullDateTime(null)).toBe('');
+  });
+
+  it('51. should return correct folio settlement badge for cancelled reservations', () => {
+    const comp = createComponent();
+    const cancelledDetail: any = { status: ReservationStatus.Cancelled };
+
+    // Unpaid cancelled hold
+    const unpaidFolio: any = {
+      paidAmount: 0,
+      cancellationFee: 0,
+      netCollectibleAmount: 0,
+      refundStatus: 'None'
+    };
+    const unpaidBadge = comp.getFolioSettlementBadge(unpaidFolio, cancelledDetail);
+    expect(unpaidBadge.label).toBe('Đã hủy — Không phát sinh nợ');
+    expect(unpaidBadge.badgeClass).toContain('bg-slate-100');
+
+    // Cancelled with pending refund
+    const pendingRefundFolio: any = {
+      paidAmount: 1000000,
+      cancellationFee: 300000,
+      refundableAmount: 700000,
+      refundStatus: 'PendingApproval'
+    };
+    const pendingBadge = comp.getFolioSettlementBadge(pendingRefundFolio, cancelledDetail);
+    expect(pendingBadge.label).toBe('Chờ duyệt hoàn tiền');
+    expect(pendingBadge.badgeClass).toContain('bg-amber-50');
+
+    // Cancelled with completed refund
+    const refundedFolio: any = {
+      paidAmount: 1000000,
+      cancellationFee: 0,
+      refundableAmount: 1000000,
+      refundStatus: 'Refunded'
+    };
+    const refundedBadge = comp.getFolioSettlementBadge(refundedFolio, cancelledDetail);
+    expect(refundedBadge.label).toBe('Đã hoàn tiền');
+    expect(refundedBadge.badgeClass).toContain('bg-emerald-50');
+
+    // Cancelled with net fee due
+    const debtFolio: any = {
+      paidAmount: 0,
+      cancellationFee: 600000,
+      netCollectibleAmount: 600000,
+      refundStatus: 'None'
+    };
+    const debtBadge = comp.getFolioSettlementBadge(debtFolio, cancelledDetail);
+    expect(debtBadge.label).toBe('Còn phải thu phí hủy');
+    expect(debtBadge.badgeClass).toContain('bg-rose-50');
+  });
+
+  it('52. should return standard active folio badge for non-cancelled reservations', () => {
+    const comp = createComponent();
+    const confirmedDetail: any = { status: ReservationStatus.Confirmed };
+
+    const fullyPaidFolio: any = { isFullyPaid: true, remainingBalance: 0 };
+    const paidBadge = comp.getFolioSettlementBadge(fullyPaidFolio, confirmedDetail);
+    expect(paidBadge.label).toBe('Đã thanh toán đủ');
+    expect(paidBadge.badgeClass).toContain('bg-emerald-50');
+
+    const outstandingFolio: any = { isFullyPaid: false, remainingBalance: 500000 };
+    const outstandingBadge = comp.getFolioSettlementBadge(outstandingFolio, confirmedDetail);
+    expect(outstandingBadge.label).toBe('Còn dư nợ');
+    expect(outstandingBadge.badgeClass).toContain('bg-amber-50');
+  });
 });

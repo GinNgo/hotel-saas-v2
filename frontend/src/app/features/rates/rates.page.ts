@@ -1,6 +1,8 @@
 import { Component, OnInit, OnDestroy, inject, signal, computed, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { DatePicker } from 'primeng/datepicker';
+import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-time.util';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { RateService } from '../../core/services/rate.service';
@@ -38,7 +40,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
 @Component({
   selector: 'app-rates',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, EmptyStateComponent, SkeletonTableComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, EmptyStateComponent, SkeletonTableComponent, DatePicker],
   template: `
     <div class="max-w-6xl mx-auto space-y-6">
       <!-- Page Header -->
@@ -444,9 +446,11 @@ export function addDaysToDateString(dateStr: string, days: number): string {
         }
       }
 
-      <!-- Modal: Thiết lập Bảng giá mới (Create / Split Rate) -->
-      @if (showCreateModal()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
+    </div>
+
+    <!-- Modal: Thiết lập Bảng giá mới (Create / Split Rate) -->
+    @if (showCreateModal()) {
+      <div class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
           <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xl max-w-xl w-full p-6 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-150">
             <!-- Modal Header -->
             <div class="flex items-center justify-between pb-3.5 border-b border-slate-100">
@@ -516,12 +520,20 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                   <label class="block text-xs font-bold text-slate-700">
                     Từ ngày hiệu lực <span class="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="date"
-                    formControlName="effectiveFrom"
-                    [min]="minEffectiveFromDate"
-                    class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-mono text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs bg-white"
-                    aria-label="Ngày bắt đầu hiệu lực"
+                  <p-datepicker
+                    [ngModel]="effectiveFromDateValue()"
+                    (ngModelChange)="onEffectiveFromChange($event)"
+                    [ngModelOptions]="{standalone: true}"
+                    dateFormat="dd/mm/yy"
+                    [showIcon]="true"
+                    iconDisplay="input"
+                    [minDate]="minEffectiveFromDateObj()"
+                    appendTo="body"
+                    [firstDayOfWeek]="1"
+                    placeholder="dd/mm/yyyy"
+                    ariaLabel="Ngày bắt đầu hiệu lực"
+                    styleClass="w-full"
+                    inputStyleClass="w-full h-10 px-3.5 pr-10 text-xs sm:text-sm rounded-xl border border-slate-300 font-mono text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs bg-white"
                   />
                   <p class="text-[10px] text-slate-400">Không được chọn ngày trong quá khứ</p>
                 </div>
@@ -531,12 +543,20 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                   <label class="block text-xs font-bold text-slate-700">
                     Đến ngày hiệu lực <span class="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="date"
-                    formControlName="effectiveTo"
-                    [min]="rateForm.get('effectiveFrom')?.value || minEffectiveFromDate"
-                    class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-mono text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs bg-white"
-                    aria-label="Ngày kết thúc hiệu lực"
+                  <p-datepicker
+                    [ngModel]="effectiveToDateValue()"
+                    (ngModelChange)="onEffectiveToChange($event)"
+                    [ngModelOptions]="{standalone: true}"
+                    dateFormat="dd/mm/yy"
+                    [showIcon]="true"
+                    iconDisplay="input"
+                    [minDate]="minEffectiveToDateObj()"
+                    appendTo="body"
+                    [firstDayOfWeek]="1"
+                    placeholder="dd/mm/yyyy"
+                    ariaLabel="Ngày kết thúc hiệu lực"
+                    styleClass="w-full"
+                    inputStyleClass="w-full h-10 px-3.5 pr-10 text-xs sm:text-sm font-mono text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs bg-white"
                   />
                   <p class="text-[10px] text-slate-400">Phải lớn hơn ngày bắt đầu</p>
                 </div>
@@ -653,7 +673,6 @@ export function addDaysToDateString(dateStr: string, days: number): string {
           </div>
         </div>
       }
-    </div>
   `
 })
 export class RatesPage implements OnInit, OnDestroy {
@@ -686,6 +705,28 @@ export class RatesPage implements OnInit, OnDestroy {
   readonly showCreateModal = signal(false);
 
   readonly minEffectiveFromDate = getTodayVnDateString();
+
+  readonly effectiveFromDateValue = computed(() => parseCalendarDate(this.rateForm?.get('effectiveFrom')?.value));
+  readonly effectiveToDateValue = computed(() => parseCalendarDate(this.rateForm?.get('effectiveTo')?.value));
+  readonly minEffectiveFromDateObj = computed(() => parseCalendarDate(this.minEffectiveFromDate) || new Date());
+  readonly minEffectiveToDateObj = computed(() => {
+    const fromVal = this.rateForm?.get('effectiveFrom')?.value;
+    return parseCalendarDate(fromVal) || this.minEffectiveFromDateObj();
+  });
+
+  onEffectiveFromChange(val: Date | null): void {
+    if (val) {
+      this.rateForm.patchValue({ effectiveFrom: formatCalendarDate(val) });
+      this.rateForm.get('effectiveFrom')?.markAsDirty();
+    }
+  }
+
+  onEffectiveToChange(val: Date | null): void {
+    if (val) {
+      this.rateForm.patchValue({ effectiveTo: formatCalendarDate(val) });
+      this.rateForm.get('effectiveTo')?.markAsDirty();
+    }
+  }
 
   readonly propertyId = computed(() => this.authService.activePropertyId());
   readonly canRead = computed(() => this.authService.hasPermission('ROOM_TYPES', 1));
@@ -798,7 +839,8 @@ export class RatesPage implements OnInit, OnDestroy {
     this.roomTypesSub = this.roomTypeService.getRoomTypes(undefined, 1, 100).subscribe({
       next: res => {
         this.isLoadingRoomTypes.set(false);
-        const list = res.items || [];
+        const rawItems = res.items || [];
+        const list = rawItems.filter((item, idx, arr) => arr.findIndex(x => x.id === item.id) === idx);
         this.roomTypes.set(list);
 
         // If there is an active selection already, keep it; otherwise pick first if available

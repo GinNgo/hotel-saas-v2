@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import '@angular/compiler';
 import { TestBed } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
@@ -14,11 +15,12 @@ describe('Authoritative property availability and quote', () => {
   const property = { propertyId: 'p', slug: 'hotel', name: 'Hotel', allowedRentalTypes: ['Daily', 'Hourly'], checkInTime: '14:00', checkOutTime: '12:00' } as PublicPropertyDto;
   const room = { roomTypeId: 'r', maxGuests: 4, availableRoomsCount: 1 } as PublicRoomTypeAvailabilityDto;
   const price = { totalAmount: 1234000, expiresAtUtc: '2099-10-19T00:00:00Z', roomTypeId: 'r' } as QuoteDto;
-  const service = { getPropertyBySlug: vi.fn(), getAvailability: vi.fn(), calculateQuote: vi.fn() };
+  const service = { getPropertyBySlug: vi.fn(), getAvailability: vi.fn(), calculateQuote: vi.fn(), getPropertyReviewsSummary: vi.fn() };
   const navigate = vi.fn();
   beforeEach(() => {
     navigate.mockClear();
     service.getPropertyBySlug.mockReturnValue(of(property)); service.getAvailability.mockReturnValue(of([room])); service.calculateQuote.mockReturnValue(of(price));
+    service.getPropertyReviewsSummary.mockReturnValue(of(null));
     TestBed.configureTestingModule({ imports: [PropertyDetailPageComponent], providers: [
       { provide: PublicBookingService, useValue: service }, { provide: Router, useValue: { navigate } },
       { provide: ActivatedRoute, useValue: { paramMap: of(new Map([['slug', 'hotel']])), snapshot: { paramMap: new Map([['slug', 'hotel']]), queryParams: { checkInDate: '2099-10-20', checkOutDate: '2099-10-22', guests: '4', rentalType: 'Daily' } } } },

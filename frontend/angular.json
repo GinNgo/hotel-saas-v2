@@ -30,7 +30,9 @@
             ],
             "polyfills": [
               "zone.js"
-            ]
+            ],
+            "index": "src/index.html",
+            "preserveSymlinks": true
           },
           "configurations": {
             "production": {

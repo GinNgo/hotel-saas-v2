@@ -42,15 +42,14 @@ export interface BookingDateRange {
                 [(ngModel)]="inDateObject"
                 (ngModelChange)="onInDateChange($event)"
                 dateFormat="dd/mm/yy"
-                [showIcon]="true"
-                iconDisplay="input"
+                [showIcon]="false"
                 [minDate]="minDate"
                 appendTo="body"
                 [firstDayOfWeek]="1"
                 placeholder="dd/mm/yyyy"
                 ariaLabel="Ngày nhận phòng"
                 styleClass="w-full"
-                inputStyleClass="w-full h-11 pl-9 pr-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors cursor-pointer shadow-2xs"
+                inputStyleClass="w-full h-11 pl-10 pr-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors cursor-pointer shadow-2xs"
               />
               <i class="pi pi-calendar absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm z-10"></i>
             </div>
@@ -74,15 +73,14 @@ export interface BookingDateRange {
                 [(ngModel)]="outDateObject"
                 (ngModelChange)="onOutDateChange($event)"
                 dateFormat="dd/mm/yy"
-                [showIcon]="true"
-                iconDisplay="input"
+                [showIcon]="false"
                 [minDate]="minCheckOutDate()"
                 appendTo="body"
                 [firstDayOfWeek]="1"
                 placeholder="dd/mm/yyyy"
                 ariaLabel="Ngày trả phòng"
                 styleClass="w-full"
-                inputStyleClass="w-full h-11 pl-9 pr-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors cursor-pointer shadow-2xs"
+                inputStyleClass="w-full h-11 pl-10 pr-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors cursor-pointer shadow-2xs"
               />
               <i class="pi pi-calendar-times absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm z-10"></i>
             </div>
@@ -108,15 +106,14 @@ export interface BookingDateRange {
                 [(ngModel)]="inDateObject"
                 (ngModelChange)="onInDateChange($event)"
                 dateFormat="dd/mm/yy"
-                [showIcon]="true"
-                iconDisplay="input"
+                [showIcon]="false"
                 [minDate]="minDate"
                 appendTo="body"
                 [firstDayOfWeek]="1"
                 placeholder="dd/mm/yyyy"
                 ariaLabel="Ngày nhận phòng theo giờ"
                 styleClass="w-full"
-                inputStyleClass="w-full h-11 pl-9 pr-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors cursor-pointer shadow-2xs"
+                inputStyleClass="w-full h-11 pl-10 pr-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors cursor-pointer shadow-2xs"
               />
               <i class="pi pi-calendar absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm z-10"></i>
             </div>
@@ -189,15 +186,14 @@ export interface BookingDateRange {
                 [(ngModel)]="inDateObject"
                 (ngModelChange)="onInDateChange($event)"
                 dateFormat="dd/mm/yy"
-                [showIcon]="true"
-                iconDisplay="input"
+                [showIcon]="false"
                 [minDate]="minDate"
                 appendTo="body"
                 [firstDayOfWeek]="1"
                 placeholder="dd/mm/yyyy"
                 ariaLabel="Đêm nhận phòng qua đêm"
                 styleClass="w-full"
-                inputStyleClass="w-full h-11 pl-9 pr-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer shadow-2xs transition-colors"
+                inputStyleClass="w-full h-11 pl-10 pr-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer shadow-2xs transition-colors"
               />
               <i class="pi pi-moon absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm z-10"></i>
             </div>

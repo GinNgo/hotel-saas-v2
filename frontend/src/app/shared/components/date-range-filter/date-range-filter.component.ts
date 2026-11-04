@@ -90,8 +90,8 @@ export { BUSINESS_TIMEZONE_OFFSET_HOURS, getStartOfDayUtc, getStartOfNextDayUtc 
               [firstDayOfWeek]="1"
               placeholder="dd/mm/yyyy"
               [ariaLabel]="label + ' (dd/mm/yyyy)'"
-              styleClass="w-36 sm:w-44 text-xs"
-              inputStyleClass="w-full text-xs py-1.5 px-2.5 rounded-lg border border-slate-200 bg-white text-slate-800 shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              styleClass="w-44 sm:w-48 text-xs"
+              inputStyleClass="w-full text-xs py-1.5 pl-3 pr-14 rounded-lg border border-slate-200 bg-white text-slate-800 shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-medium"
             />
           </div>
         } @else {
@@ -112,8 +112,8 @@ export { BUSINESS_TIMEZONE_OFFSET_HOURS, getStartOfDayUtc, getStartOfNextDayUtc 
               [firstDayOfWeek]="1"
               placeholder="dd/mm/yyyy"
               ariaLabel="Từ ngày (dd/mm/yyyy)"
-              styleClass="w-36 sm:w-44 text-xs"
-              inputStyleClass="w-full text-xs py-1.5 px-2.5 rounded-lg border border-slate-200 bg-white text-slate-800 shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              styleClass="w-44 sm:w-48 text-xs"
+              inputStyleClass="w-full text-xs py-1.5 pl-3 pr-14 rounded-lg border border-slate-200 bg-white text-slate-800 shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-medium"
             />
           </div>
           <div class="flex items-center gap-1.5">
@@ -133,8 +133,8 @@ export { BUSINESS_TIMEZONE_OFFSET_HOURS, getStartOfDayUtc, getStartOfNextDayUtc 
               [firstDayOfWeek]="1"
               placeholder="dd/mm/yyyy"
               ariaLabel="Đến ngày (dd/mm/yyyy)"
-              styleClass="w-36 sm:w-44 text-xs"
-              inputStyleClass="w-full text-xs py-1.5 px-2.5 rounded-lg border border-slate-200 bg-white text-slate-800 shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              styleClass="w-44 sm:w-48 text-xs"
+              inputStyleClass="w-full text-xs py-1.5 pl-3 pr-14 rounded-lg border border-slate-200 bg-white text-slate-800 shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-medium"
             />
           </div>
         }
