@@ -23,16 +23,29 @@ import { DateRangeFilterComponent, DateRangeFilterValue } from '../../shared/com
         [title]="'Nhật ký kiểm toán (Audit Logs)'"
         subtitle="Theo dõi và tra cứu toàn bộ lịch sử chỉnh sửa giá phòng, phụ thu và các thao tác quan trọng trong hệ thống"
       >
-        <button
-          type="button"
-          (click)="loadAuditLogs()"
-          [disabled]="loading()"
-          class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 active:bg-slate-100 shadow-2xs transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-          title="Tải lại danh sách"
-        >
-          <i class="pi pi-refresh text-xs text-indigo-600" [class.pi-spin]="loading()"></i>
-          <span>Làm mới</span>
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            (click)="loadAuditLogs()"
+            [disabled]="loading()"
+            class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 active:bg-slate-100 shadow-2xs transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            title="Tải lại danh sách"
+          >
+            <i class="pi pi-refresh text-xs text-indigo-600" [class.pi-spin]="loading()"></i>
+            <span>Làm mới</span>
+          </button>
+
+          <button
+            type="button"
+            (click)="exportToCsv()"
+            [disabled]="exporting() || loading() || auditLogs().length === 0"
+            class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-2xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Xuất dữ liệu nhật ký kiểm toán ra định dạng CSV phục vụ báo cáo"
+          >
+            <i class="pi text-xs" [ngClass]="exporting() ? 'pi-spin pi-spinner' : 'pi-file-excel'"></i>
+            <span>{{ exporting() ? 'Đang xuất CSV...' : 'Xuất CSV' }}</span>
+          </button>
+        </div>
       </app-page-header>
 
       <!-- 2. PHÂN QUYỀN: BẢO VỆ CHỈ OWNER / MANAGER -->
@@ -612,6 +625,7 @@ export class AuditLogsPage implements OnInit {
   private readonly router = inject(Router);
 
   readonly loading = signal(false);
+  readonly exporting = signal(false);
   readonly errorMessage = signal('');
   readonly auditLogs = signal<AuditLogListItem[]>([]);
   readonly totalRecords = signal(0);
@@ -756,6 +770,138 @@ export class AuditLogsPage implements OnInit {
     this.searchKeyword = '';
     this.currentPage.set(1);
     this.loadAuditLogs();
+  }
+
+  /**
+   * Xuất danh sách nhật ký kiểm toán hiện tại ra file CSV theo chuẩn báo cáo kiểm toán doanh nghiệp.
+   */
+  exportToCsv(): void {
+    if (this.auditLogs().length === 0) {
+      this.alertService.toastWarning('Không có dữ liệu nhật ký kiểm toán để xuất file CSV.');
+      return;
+    }
+
+    this.exporting.set(true);
+
+    // Chuẩn bị bộ lọc để xuất toàn bộ danh sách phù hợp (tối đa 1000 bản ghi theo giới hạn API)
+    const totalCount = this.totalRecords();
+    const currentItems = this.auditLogs();
+
+    if (totalCount <= currentItems.length) {
+      this.generateAndDownloadCsv(currentItems);
+      this.exporting.set(false);
+      return;
+    }
+
+    const params: AuditLogFilterParams = {
+      action: this.selectedAction.trim() || undefined,
+      entityName: this.selectedEntityName.trim() || undefined,
+      propertyId: this.authService.activePropertyId() || undefined,
+      page: 1,
+      pageSize: Math.min(Math.max(totalCount, 50), 1000)
+    };
+
+    if (this.fromUtc) {
+      params.fromUtc = this.fromUtc;
+    } else if (this.fromDate) {
+      params.fromUtc = new Date(this.fromDate + 'T00:00:00Z').toISOString();
+    }
+    if (this.toUtc) {
+      params.toUtc = this.toUtc;
+    } else if (this.toDate) {
+      params.toUtc = new Date(this.toDate + 'T23:59:59Z').toISOString();
+    }
+    if (this.searchKeyword.trim()) {
+      const kw = this.searchKeyword.trim();
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(kw)) {
+        params.entityId = kw;
+      }
+    }
+
+    this.auditLogService.getAuditLogs(params).subscribe({
+      next: res => {
+        this.exporting.set(false);
+        const exportItems = res.success && res.data && res.data.items.length > 0 ? res.data.items : currentItems;
+        this.generateAndDownloadCsv(exportItems);
+      },
+      error: () => {
+        this.exporting.set(false);
+        // Fallback xuất những gì đang có trên view hiện tại
+        this.generateAndDownloadCsv(currentItems);
+      }
+    });
+  }
+
+  private generateAndDownloadCsv(items: AuditLogListItem[]): void {
+    if (!items || items.length === 0) {
+      this.alertService.toastWarning('Không có dữ liệu để xuất file CSV.');
+      return;
+    }
+
+    const headers = [
+      'Mã kiểm toán (ID)',
+      'Thời gian (UTC)',
+      'Thời gian (Địa phương)',
+      'Chi nhánh',
+      'Mã chi nhánh',
+      'Người thực hiện',
+      'Email người thực hiện',
+      'Hành động',
+      'Đối tượng nghiệp vụ',
+      'Mã đối tượng (Entity ID)',
+      'Tóm tắt thay đổi',
+      'Các trường thay đổi'
+    ];
+
+    const rows = items.map(item => {
+      const localTime = item.createdAtUtc ? new Date(item.createdAtUtc).toLocaleString('vi-VN') : '';
+      const actionLabel = this.getActionLabel(item.action);
+      const entityLabel = this.getEntityDisplayLabel(item.entityName);
+      const changedFieldsStr = (item.changedFields || []).map(f => this.getFieldDisplayLabel(f)).join(', ');
+      const friendlySummary = this.getFriendlySummary(item.changeSummary, item.action, item.entityName);
+
+      return [
+        this.escapeCsvCell(item.id),
+        this.escapeCsvCell(item.createdAtUtc),
+        this.escapeCsvCell(localTime),
+        this.escapeCsvCell(item.propertyName || 'Toàn chuỗi / HQ'),
+        this.escapeCsvCell(item.propertyCode || 'HQ'),
+        this.escapeCsvCell(item.userFullName || 'Hệ thống tự động'),
+        this.escapeCsvCell(item.userEmail || ''),
+        this.escapeCsvCell(actionLabel),
+        this.escapeCsvCell(`${entityLabel} (${item.entityName})`),
+        this.escapeCsvCell(item.entityId),
+        this.escapeCsvCell(friendlySummary),
+        this.escapeCsvCell(changedFieldsStr)
+      ].join(',');
+    });
+
+    // Thêm UTF-8 BOM (\uFEFF) để Excel mở tiếng Việt chuẩn xác không bị lỗi font
+    const csvContent = '\uFEFF' + [headers.map(h => this.escapeCsvCell(h)).join(','), ...rows].join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10);
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+    const propCode = this.authService.activePropertyCode() || 'HQ';
+    link.setAttribute('download', `audit_logs_${propCode}_${dateStr}_${timeStr}.csv`);
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    this.alertService.toastSuccess(`Đã xuất thành công ${items.length} bản ghi kiểm toán ra file CSV.`);
+  }
+
+  private escapeCsvCell(val: any): string {
+    if (val === null || val === undefined) return '""';
+    const str = String(val).replace(/"/g, '""');
+    return `"${str}"`;
   }
 
   onPageChange(page: number): void {
