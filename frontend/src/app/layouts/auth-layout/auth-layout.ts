@@ -1,13 +1,13 @@
 import { Component, inject, signal } from '@angular/core';
 import { RouterOutlet, NavigationEnd, Router } from '@angular/router';
 import { filter } from 'rxjs/operators';
+import { ThemeService } from '../../core/services/theme.service';
 
 /**
  * Layout cho các trang xác thực (Đăng nhập, Đăng ký).
  * Định hướng Visual:
- * - Nền sáng, trung tính ấm (#fbfbfa, stone-50/amber-50).
- * - Không dùng nền tối toàn trang.
- * - Nhấn nhá thương hiệu emerald sắc nét, typography thoáng và chuyên nghiệp.
+ * - Hỗ trợ cả 2 chế độ Sáng / Tối tự động theo ThemeService.
+ * - Card xác thực nổi bật, bo cong mềm mại và typography rõ nét.
  *
  * Hỗ trợ chế độ `wide` (max-w-4xl) cho các trang cần nhiều không gian hơn (ví dụ: partner-register).
  * Tự động phát hiện qua URL path.
@@ -17,7 +17,20 @@ import { filter } from 'rxjs/operators';
   standalone: true,
   imports: [RouterOutlet],
   template: `
-    <div class="min-h-screen flex flex-col justify-center items-center bg-[#fbfbfa] bg-gradient-to-br from-slate-100 via-slate-50 to-indigo-50/30 p-4 sm:p-6 transition-colors">
+    <div class="min-h-screen flex flex-col justify-center items-center bg-[var(--surface-ground)] p-4 sm:p-6 transition-colors duration-200 relative">
+      <!-- Top Right Floating Theme Toggle -->
+      <div class="absolute top-4 right-4 z-20">
+        <button
+          type="button"
+          (click)="themeService.toggleTheme()"
+          class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-[var(--surface-card)] hover:opacity-90 text-[var(--text-main)] border border-[var(--surface-border)] shadow-xs transition-all cursor-pointer"
+          [attr.aria-label]="themeService.isDark() ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'"
+          [title]="themeService.isDark() ? 'Chuyển sang chế độ Sáng (Light Mode)' : 'Chuyển sang chế độ Tối (Dark Mode)'"
+          data-testid="auth-theme-toggle-btn"
+        >
+          <i [class]="themeService.isDark() ? 'pi pi-sun text-amber-400 text-sm' : 'pi pi-moon text-slate-700 text-sm'"></i>
+        </button>
+      </div>
       <div class="w-full" [class.max-w-md]="!wide()" [class.max-w-4xl]="wide()">
         <!-- Logo & Brand Header -->
         <div class="text-center mb-6">
@@ -43,6 +56,7 @@ import { filter } from 'rxjs/operators';
   `
 })
 export class AuthLayoutComponent {
+  readonly themeService = inject(ThemeService);
   wide = signal(false);
 
   private readonly router = inject(Router);

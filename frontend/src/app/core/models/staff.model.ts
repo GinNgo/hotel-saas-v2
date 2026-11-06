@@ -43,6 +43,7 @@ export interface AccessRoleDto {
   name: string;
   description?: string;
   isSystemRole: boolean;
+  isActive?: boolean;
   staffCount: number;
 }
 
@@ -74,6 +75,7 @@ export interface RoleDetailDto {
   name: string;
   description?: string;
   isSystemRole: boolean;
+  isActive?: boolean;
   tenantId?: string;
   staffCount: number;
   permissions: RolePermissionDto[];
@@ -93,6 +95,7 @@ export interface CreateRoleRequest {
   code: string;
   name: string;
   description?: string;
+  isActive?: boolean;
   permissions: RolePermissionInput[];
 }
 
@@ -100,6 +103,7 @@ export interface UpdateRoleRequest {
   id: string;
   name: string;
   description?: string;
+  isActive?: boolean;
   permissions: RolePermissionInput[];
 }
 

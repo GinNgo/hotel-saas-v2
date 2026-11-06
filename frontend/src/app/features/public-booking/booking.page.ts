@@ -21,7 +21,6 @@ import { FlashDealsBannerComponent } from './components/flash-deals-banner/flash
 import { TrustPillarsComponent } from './components/trust-pillars/trust-pillars.component';
 import { CuratedBentoGridComponent } from './components/curated-bento-grid/curated-bento-grid.component';
 import { HotelierCtaBannerComponent } from './components/hotelier-cta-banner/hotelier-cta-banner.component';
-import { AiConciergeWidgetComponent } from './ai-concierge-widget/ai-concierge-widget.component';
 import {
   BookingSortOption,
   DestinationSuggestionDto,
@@ -62,7 +61,6 @@ interface TenantBrandFacet {
     TrustPillarsComponent,
     CuratedBentoGridComponent,
     HotelierCtaBannerComponent,
-    AiConciergeWidgetComponent,
     PhotoGalleryModalComponent,
     RoomDetailModalComponent,
   ],
@@ -433,9 +431,6 @@ interface TenantBrandFacet {
         <app-hotelier-cta-banner />
 
       </div>
-
-      <!-- TRỢ LÝ AI TÌM PHÒNG TIẾNG VIỆT (KHÔNG BỊA GIÁ) -->
-      <app-ai-concierge-widget (applyFilterChip)="onSmartChipClick($event)" />
 
       <!-- MODAL BỘ SƯU TẬP ẢNH CƠ SỞ -->
       <app-photo-gallery-modal

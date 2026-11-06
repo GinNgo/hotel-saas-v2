@@ -228,8 +228,16 @@ export const routes: Routes = [
         loadComponent: () => import('./features/audit-logs/audit-logs.page').then(m => m.AuditLogsPage)
       },
       {
+        path: 'ops-readiness',
+        loadComponent: () => import('./features/ops-readiness/ops-readiness.page').then(m => m.OpsReadinessPage)
+      },
+      {
         path: 'staff',
         loadComponent: () => import('./features/staff/staff.page').then(m => m.StaffPage)
+      },
+      {
+        path: 'roles',
+        loadComponent: () => import('./features/staff/roles-management.component').then(m => m.RolesManagementComponent)
       },
       {
         path: 'guests',
@@ -319,8 +327,16 @@ export const routes: Routes = [
         loadComponent: () => import('./features/audit-logs/audit-logs.page').then(m => m.AuditLogsPage)
       },
       {
+        path: 'ops-readiness',
+        loadComponent: () => import('./features/ops-readiness/ops-readiness.page').then(m => m.OpsReadinessPage)
+      },
+      {
         path: 'staff',
         loadComponent: () => import('./features/staff/staff.page').then(m => m.StaffPage)
+      },
+      {
+        path: 'roles',
+        loadComponent: () => import('./features/staff/roles-management.component').then(m => m.RolesManagementComponent)
       },
       {
         path: 'guests',

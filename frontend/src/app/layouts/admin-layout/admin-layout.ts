@@ -4,8 +4,10 @@ import { CommonModule, AsyncPipe } from '@angular/common';
 import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
 import { NotificationService } from '../../core/services/notification.service';
+import { ThemeService } from '../../core/services/theme.service';
 import { ContextSelectorDialogComponent } from '../../features/auth/context-selector/context-selector.dialog';
 import { NotificationBellComponent } from '../../shared/components/notification-bell/notification-bell.component';
+import { BreadcrumbComponent } from '../../shared/components/breadcrumb/breadcrumb.component';
 import { UserMembershipDto } from '../../core/models/auth.model';
 
 /**
@@ -26,7 +28,8 @@ import { UserMembershipDto } from '../../core/models/auth.model';
     RouterLinkActive,
     AsyncPipe,
     ContextSelectorDialogComponent,
-    NotificationBellComponent
+    NotificationBellComponent,
+    BreadcrumbComponent
   ],
   template: `
     <div class="flex h-screen w-full overflow-hidden bg-[#fbfbfa]">
@@ -214,6 +217,17 @@ import { UserMembershipDto } from '../../core/models/auth.model';
                 </a>
 
                 <a
+                  routerLink="/roles"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-shield text-base text-indigo-700"></i>
+                  <span>Quản lý Vai trò</span>
+                  <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800">Roles</span>
+                </a>
+
+                <a
                   routerLink="/audit-logs"
                   routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
                   (click)="onNavItemClick()"
@@ -222,6 +236,17 @@ import { UserMembershipDto } from '../../core/models/auth.model';
                   <i class="pi pi-history text-base text-emerald-700"></i>
                   <span>Nhật ký kiểm toán</span>
                   <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">Audit</span>
+                </a>
+
+                <a
+                  routerLink="/ops-readiness"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-server text-base text-emerald-700"></i>
+                  <span>Kiểm định & Giám sát SRE</span>
+                  <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">SRE</span>
                 </a>
               }
             </div>
@@ -267,6 +292,78 @@ import { UserMembershipDto } from '../../core/models/auth.model';
                 <i class="pi pi-file-edit text-base text-indigo-600"></i>
                 <span>Hợp đồng Đối tác</span>
                 <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800">Admin</span>
+              </a>
+            </div>
+
+            <!-- Platform RBAC & System Catalogs Group -->
+            <div class="space-y-1 pt-3 border-t border-slate-100">
+              <div class="px-3 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                <span>Cơ sở & Phân quyền Hệ thống</span>
+                <i class="pi pi-users text-[10px] text-slate-400"></i>
+              </div>
+
+              <a
+                routerLink="/staff"
+                routerLinkActive="bg-indigo-50 text-indigo-800 font-semibold border-l-4 border-indigo-600 shadow-2xs"
+                (click)="onNavItemClick()"
+                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+              >
+                <i class="pi pi-users text-base text-indigo-600"></i>
+                <span>Nhân sự & Phân quyền</span>
+                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800">RBAC</span>
+              </a>
+
+              <a
+                routerLink="/roles"
+                routerLinkActive="bg-indigo-50 text-indigo-800 font-semibold border-l-4 border-indigo-600 shadow-2xs"
+                (click)="onNavItemClick()"
+                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+              >
+                <i class="pi pi-shield text-base text-indigo-600"></i>
+                <span>Quản lý Vai trò</span>
+                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800">Roles</span>
+              </a>
+
+              <a
+                routerLink="/properties"
+                routerLinkActive="bg-indigo-50 text-indigo-800 font-semibold border-l-4 border-indigo-600 shadow-2xs"
+                (click)="onNavItemClick()"
+                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+              >
+                <i class="pi pi-building text-base text-indigo-600"></i>
+                <span>Quản trị Cơ sở & Chuỗi</span>
+                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800">All</span>
+              </a>
+
+              <a
+                routerLink="/rooms"
+                routerLinkActive="bg-indigo-50 text-indigo-800 font-semibold border-l-4 border-indigo-600 shadow-2xs"
+                (click)="onNavItemClick()"
+                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+              >
+                <i class="pi pi-th-large text-base text-indigo-600"></i>
+                <span>Giám sát Phòng & Khách sạn</span>
+              </a>
+
+              <a
+                routerLink="/reports"
+                routerLinkActive="bg-indigo-50 text-indigo-800 font-semibold border-l-4 border-indigo-600 shadow-2xs"
+                (click)="onNavItemClick()"
+                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+              >
+                <i class="pi pi-chart-bar text-base text-indigo-600"></i>
+                <span>Báo cáo & Thống kê Toàn sàn</span>
+              </a>
+
+              <a
+                routerLink="/audit-logs"
+                routerLinkActive="bg-indigo-50 text-indigo-800 font-semibold border-l-4 border-indigo-600 shadow-2xs"
+                (click)="onNavItemClick()"
+                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+              >
+                <i class="pi pi-history text-base text-indigo-600"></i>
+                <span>Nhật ký kiểm toán Hệ thống</span>
+                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">Audit</span>
               </a>
             </div>
           }
@@ -357,7 +454,19 @@ import { UserMembershipDto } from '../../core/models/auth.model';
 
           <!-- Right: User Avatar & Logout -->
           @if (authService.currentUser$ | async; as user) {
-            <div class="flex items-center gap-2 sm:gap-4 shrink-0">
+            <div class="flex items-center gap-2 sm:gap-3 shrink-0">
+              <!-- Theme Toggle Button (Light / Dark Mode) -->
+              <button
+                type="button"
+                (click)="themeService.toggleTheme()"
+                class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-[var(--surface-subtle)] hover:opacity-90 text-[var(--text-main)] border border-[var(--surface-border)] transition-all cursor-pointer"
+                [attr.aria-label]="themeService.isDark() ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'"
+                [title]="themeService.isDark() ? 'Chuyển sang chế độ Sáng (Light Mode)' : 'Chuyển sang chế độ Tối (Dark Mode)'"
+                data-testid="admin-theme-toggle-btn"
+              >
+                <i [class]="themeService.isDark() ? 'pi pi-sun text-amber-400 text-sm' : 'pi pi-moon text-slate-700 text-sm'"></i>
+              </button>
+
               <!-- Trung tâm thông báo (Notification Bell T01-A) -->
               <app-notification-bell
                 [notifications]="notificationService.notifications()"
@@ -403,7 +512,8 @@ import { UserMembershipDto } from '../../core/models/auth.model';
         </header>
 
         <!-- Main Page View Container -->
-        <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#fbfbfa]">
+        <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[var(--surface-ground)]">
+          <app-breadcrumb class="block mb-4 sm:mb-6" />
           <router-outlet></router-outlet>
         </main>
       </div>
@@ -421,6 +531,7 @@ export class AdminLayoutComponent {
   readonly authService = inject(AuthService);
   readonly alertService = inject(AlertService);
   readonly notificationService = inject(NotificationService);
+  readonly themeService = inject(ThemeService);
 
   constructor() {
     this.notificationService.enableRealtimeNotifications();

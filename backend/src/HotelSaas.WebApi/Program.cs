@@ -142,8 +142,19 @@ else if (isCloudDb && !allowCloudInit && !isTestingEnv)
 }
 
 // ── Middleware Pipeline ──────────────────────────────────────────────
+app.UseMiddleware<CorrelationAndStructuredLogMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
-app.UseSerilogRequestLogging();
+app.UseSerilogRequestLogging(opts =>
+{
+    opts.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        if (httpContext.Response.Headers.TryGetValue(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, out var corrId))
+        {
+            diagnosticContext.Set("CorrelationId", corrId.ToString());
+        }
+        diagnosticContext.Set("ClientIp", httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+    };
+});
 
 if (app.Environment.IsDevelopment())
 {
@@ -157,6 +168,15 @@ app.UseMiddleware<TenantPropertyContextMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+app.MapGet("/health/live", () => Results.Ok(new { status = "alive", service = "HotelSaas.WebApi", timestamp = DateTime.UtcNow }));
+app.MapGet("/health/ready", async (ApplicationDbContext db, CancellationToken ct) =>
+{
+    var canConnect = await db.Database.CanConnectAsync(ct);
+    return canConnect
+        ? Results.Ok(new { status = "ready", database = "connected", timestamp = DateTime.UtcNow })
+        : Results.Json(new { status = "degraded", database = "unreachable", timestamp = DateTime.UtcNow }, statusCode: StatusCodes.Status503ServiceUnavailable);
+});
+app.MapGet("/metrics", () => Results.Text(SystemMetricsRegistry.ExportPrometheusText(), "text/plain; version=0.0.4; charset=utf-8"));
 app.MapHub<HotelSaas.Infrastructure.Hubs.NotificationHub>("/hubs/notifications").RequireAuthorization();
 
 app.Run();

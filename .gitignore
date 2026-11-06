@@ -89,3 +89,12 @@ docs/weekly-reports/
 *CHAM_DIEM*
 *cham-diem*
 *self-assessment*
+
+# ── Studio & Playwright artifacts ──
+.aistudio/
+.playwright-cli/
+.dev.pid
+metadata.json
+*.patch
+*.bundle
+.github/workflows/cd-vps.yml

@@ -312,6 +312,8 @@ public sealed class TenantPropertyContextMiddleware
             path.StartsWith("/hubs", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/api/print", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/health", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/health/", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/metrics", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/auth/login", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/auth/register", StringComparison.OrdinalIgnoreCase) ||
@@ -331,6 +333,7 @@ public sealed class TenantPropertyContextMiddleware
         string errorCode,
         string message)
     {
+        context.Items["ErrorCode"] = errorCode;
         context.Response.StatusCode = statusCode;
         context.Response.ContentType = "application/json";
 

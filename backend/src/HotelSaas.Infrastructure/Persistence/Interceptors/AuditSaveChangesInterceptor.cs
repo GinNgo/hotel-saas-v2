@@ -504,6 +504,30 @@ public sealed class AuditSaveChangesInterceptor : SaveChangesInterceptor
             throw new ForbiddenException("ERR_TENANT_REQUIRED", "Không thể ghi dữ liệu khi thiếu Tenant context.");
         }
 
+        if (entry.Entity is AccessRole accessRole)
+        {
+            if (entry.State == EntityState.Added)
+            {
+                if (!accessRole.TenantId.HasValue || accessRole.TenantId.Value == Guid.Empty)
+                {
+                    accessRole.TenantId = currentTenantId.Value;
+                }
+                else if (accessRole.TenantId.Value != currentTenantId.Value)
+                {
+                    throw new ForbiddenException("ERR_CROSS_TENANT_MUTATION", "Không được phép tạo chức vụ thuộc Tenant khác.");
+                }
+            }
+            else if (entry.State == EntityState.Modified || entry.State == EntityState.Deleted)
+            {
+                if (!accessRole.TenantId.HasValue || accessRole.TenantId.Value != currentTenantId.Value)
+                {
+                    throw new ForbiddenException("ERR_CROSS_TENANT_MUTATION", "Không được phép sửa/xóa chức vụ thuộc Tenant khác.");
+                }
+            }
+
+            return (currentTenantId.Value, null);
+        }
+
         if (entry.Entity is not ITenantScopedEntity tenantEntity)
         {
             throw new ForbiddenException("ERR_TENANT_REQUIRED", "Thực thể được kiểm toán bắt buộc phải thuộc phạm vi Tenant.");

@@ -17,6 +17,7 @@ import {
   AccessRoleDto,
   PermissionFunctionDto,
   RoleDetailDto,
+  RolePermissionDto,
   RolePermissionInput,
   CreateRoleRequest,
   UpdateRoleRequest,
@@ -29,6 +30,8 @@ import {
 import { TenantPropertySummaryDto } from '../../core/models/public-booking.model';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { RolesManagementComponent } from './roles-management.component';
+import { PermissionsMatrixComponent } from './permissions-matrix.component';
 
 interface PermissionMatrixRow {
   functionId: string;
@@ -45,7 +48,14 @@ interface PermissionMatrixRow {
   selector: 'app-staff',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, EmptyStateComponent, PaginationComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    EmptyStateComponent,
+    PaginationComponent,
+    RolesManagementComponent,
+    PermissionsMatrixComponent
+  ],
   template: `
     <div class="max-w-7xl mx-auto space-y-6 pb-12">
       <!-- Page Header -->
@@ -128,6 +138,30 @@ interface PermissionMatrixRow {
           <i class="pi pi-shield text-sm"></i>
           <span>Chức vụ & Cấp quyền CRUD ({{ rolesWithPermissions().length }})</span>
         </button>
+      </div>
+
+      <!-- Guide Banner: Quản lý tài khoản con & Cấp quyền chi nhánh -->
+      <div class="p-3.5 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200/80 text-xs text-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
+        <div class="flex items-start gap-2.5">
+          <div class="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+            <i class="pi pi-shield"></i>
+          </div>
+          <div>
+            <span class="font-bold text-emerald-950">Phân quyền Tài khoản con & Ủy quyền Chi nhánh:</span>
+            <p class="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+              Chủ cơ sở (Owner) và Quản lý (Manager) có toàn quyền tạo tài khoản con cho nhân viên trực thuộc từng chi nhánh hoặc toàn chuỗi,
+              gán vai trò và cấu hình cấp quyền CRUD (<span class="font-bold text-emerald-700">Xem - Thêm - Sửa - Xóa</span>) tương ứng với từng phân hệ.
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <span class="px-2 py-1 rounded bg-white/80 border border-emerald-200 text-[10px] font-bold text-emerald-800">
+            ✓ Multi-tenant Isolation
+          </span>
+          <span class="px-2 py-1 rounded bg-white/80 border border-indigo-200 text-[10px] font-bold text-indigo-800">
+            ✓ Ma trận CRUD RBAC
+          </span>
+        </div>
       </div>
 
       <!-- ═══════════════════════════════════════════════════════════════════════ -->
@@ -323,103 +357,13 @@ interface PermissionMatrixRow {
       }
 
       <!-- ═══════════════════════════════════════════════════════════════════════ -->
-      <!-- TAB 2: QUẢN LÝ CHỨC VỤ & CẤP QUYỀN CRUD                                  -->
+      <!-- TAB 2: QUẢN LÝ CHỨC VỤ & CẤP QUYỀN CRUD (RolesManagementComponent)     -->
       <!-- ═══════════════════════════════════════════════════════════════════════ -->
       @if (activeTab() === 'roles') {
-        <div class="space-y-4">
-          <div class="bg-amber-50 border border-amber-200/80 rounded-xl p-4 text-xs text-amber-900 leading-relaxed">
-            <div class="flex items-start gap-2.5">
-              <i class="pi pi-info-circle text-amber-700 text-base mt-0.5 shrink-0"></i>
-              <div>
-                <span class="font-bold">Cơ chế kiểm soát truy cập theo vai trò (RBAC):</span>
-                Quản trị viên có thể tạo thêm các chức vụ chuyên biệt (Kế toán, Kinh doanh, An ninh, Lễ tân đêm...).
-                Mỗi chức vụ được cấp quyền cụ thể theo ma trận <span class="font-semibold">Xem (Read), Thêm (Create), Sửa (Update), Xóa (Delete)</span>
-                cho từng phân hệ chức năng. Khi gán chức vụ cho nhân viên, hệ thống sẽ tự động áp dụng ma trận quyền tương ứng.
-              </div>
-            </div>
-          </div>
-
-          <!-- Roles Cards Grid -->
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            @for (role of rolesWithPermissions(); track role.id) {
-              <div class="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs hover:shadow-xs transition-shadow flex flex-col justify-between space-y-4">
-                <div class="space-y-3">
-                  <div class="flex items-start justify-between gap-2">
-                    <div>
-                      <div class="flex items-center gap-2">
-                        <h3 class="font-bold text-slate-900 text-sm">{{ role.name }}</h3>
-                        @if (role.isSystemRole) {
-                          <span class="inline-flex items-center px-2 py-0.2 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                            Hệ thống
-                          </span>
-                        } @else {
-                          <span class="inline-flex items-center px-2 py-0.2 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                            Tùy biến Tenant
-                          </span>
-                        }
-                      </div>
-                      <div class="text-[11px] font-mono text-slate-400 mt-0.5">Mã: {{ role.code }}</div>
-                    </div>
-
-                    <div class="text-right">
-                      <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        <i class="pi pi-users text-[10px]"></i>
-                        {{ role.staffCount }} nhân sự
-                      </span>
-                    </div>
-                  </div>
-
-                  <p class="text-xs text-slate-500 min-h-[32px] line-clamp-2">
-                    {{ role.description || 'Chức vụ thực hiện các nghiệp vụ được phân công trong khách sạn.' }}
-                  </p>
-
-                  <!-- Permissions Summary Pills -->
-                  <div class="space-y-1.5 pt-2 border-t border-slate-100">
-                    <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Quyền phân hệ (CRUD):</div>
-                    <div class="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                      @for (p of role.permissions; track p.functionId) {
-                        @if (p.actionMask > 0) {
-                          <span class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200/60 font-medium">
-                            <span class="font-bold text-slate-900">{{ p.functionCode }}</span>
-                            <span class="text-emerald-700 text-[9px] font-bold">
-                              {{ getCrudShortSummary(p) }}
-                            </span>
-                          </span>
-                        }
-                      }
-                      @if (role.permissions.length === 0) {
-                        <span class="text-[11px] text-slate-400 italic">Chưa cấp quyền cụ thể</span>
-                      }
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Role Actions -->
-                <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                  @if (!role.isSystemRole) {
-                    <button
-                      type="button"
-                      (click)="openEditRoleModal(role)"
-                      class="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition-colors cursor-pointer"
-                    >
-                      <i class="pi pi-pencil mr-1 text-[11px]"></i> Sửa quyền
-                    </button>
-                    <button
-                      type="button"
-                      (click)="confirmDeleteRole(role)"
-                      class="px-2.5 py-1.5 rounded-lg text-rose-600 hover:bg-rose-50 text-xs font-semibold transition-colors cursor-pointer"
-                      title="Xóa chức vụ"
-                    >
-                      <i class="pi pi-trash text-[11px]"></i>
-                    </button>
-                  } @else {
-                    <span class="text-[11px] text-slate-400 italic">Chức vụ lõi hệ thống</span>
-                  }
-                </div>
-              </div>
-            }
-          </div>
-        </div>
+        <app-roles-management
+          [showHeader]="false"
+          (rolesChanged)="loadRolesAndFunctions()"
+        ></app-roles-management>
       }
 
       <!-- ═══════════════════════════════════════════════════════════════════════ -->
@@ -427,11 +371,11 @@ interface PermissionMatrixRow {
       <!-- ═══════════════════════════════════════════════════════════════════════ -->
       @if (showRoleModal()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-3xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-150">
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-5xl w-full p-6 space-y-4 max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in duration-150">
             <div class="flex items-center justify-between pb-3 border-b border-slate-100">
               <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
                 <i class="pi pi-shield text-indigo-600"></i>
-                <span>{{ isEditingRole() ? 'Chỉnh sửa Quyền Chức vụ' : 'Tạo Chức vụ Mới & Cấp quyền CRUD' }}</span>
+                <span>{{ isEditingRole() ? 'Chỉnh sửa Quyền Chức vụ & Ma trận CRUD' : 'Tạo Chức vụ Mới & Cấp quyền CRUD' }}</span>
               </h2>
               <button
                 type="button"
@@ -443,7 +387,7 @@ interface PermissionMatrixRow {
             </div>
 
             <div class="space-y-4 text-xs">
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label class="block font-semibold text-slate-700 mb-1">Mã chức vụ (Code) *</label>
                   <input
@@ -465,105 +409,22 @@ interface PermissionMatrixRow {
                     class="w-full h-10 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label class="block font-semibold text-slate-700 mb-1">Mô tả chức năng & quyền hạn</label>
-                <input
-                  type="text"
-                  [(ngModel)]="roleForm.description"
-                  placeholder="Mô tả phạm vi trách nhiệm của vị trí này trong khách sạn..."
-                  class="w-full h-10 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                />
-              </div>
-
-              <!-- Permission Matrix Table -->
-              <div class="space-y-2 pt-2">
-                <div class="flex items-center justify-between">
-                  <span class="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
-                    Bảng ma trận cấp quyền CRUD theo phân hệ:
-                  </span>
-                  <div class="flex items-center gap-2">
-                    <button
-                      type="button"
-                      (click)="toggleAllPermissions(true)"
-                      class="px-2.5 py-1 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
-                    >
-                      Chọn tất cả
-                    </button>
-                    <button
-                      type="button"
-                      (click)="toggleAllPermissions(false)"
-                      class="px-2.5 py-1 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    >
-                      Bỏ chọn hết
-                    </button>
-                  </div>
-                </div>
-
-                <div class="border border-slate-200 rounded-xl overflow-hidden">
-                  <table class="w-full text-left text-xs text-slate-600">
-                    <thead class="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
-                      <tr>
-                        <th class="px-4 py-2.5">Phân hệ chức năng</th>
-                        <th class="px-3 py-2.5 text-center">Xem (Read)</th>
-                        <th class="px-3 py-2.5 text-center">Thêm (Create)</th>
-                        <th class="px-3 py-2.5 text-center">Sửa (Update)</th>
-                        <th class="px-3 py-2.5 text-center">Xóa (Delete)</th>
-                        <th class="px-3 py-2.5 text-center">Cả dòng</th>
-                      </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                      @for (row of matrixRows(); track row.functionId) {
-                        <tr class="hover:bg-slate-50/80 transition-colors">
-                          <td class="px-4 py-2.5">
-                            <div class="font-bold text-slate-900">{{ row.name }}</div>
-                            <div class="text-[10px] font-mono text-slate-400">{{ row.code }} ({{ row.moduleCode }})</div>
-                          </td>
-                          <td class="px-3 py-2.5 text-center">
-                            <input
-                              type="checkbox"
-                              [(ngModel)]="row.canRead"
-                              class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
-                            />
-                          </td>
-                          <td class="px-3 py-2.5 text-center">
-                            <input
-                              type="checkbox"
-                              [(ngModel)]="row.canCreate"
-                              class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
-                            />
-                          </td>
-                          <td class="px-3 py-2.5 text-center">
-                            <input
-                              type="checkbox"
-                              [(ngModel)]="row.canUpdate"
-                              class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
-                            />
-                          </td>
-                          <td class="px-3 py-2.5 text-center">
-                            <input
-                              type="checkbox"
-                              [(ngModel)]="row.canDelete"
-                              class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
-                            />
-                          </td>
-                          <td class="px-3 py-2.5 text-center">
-                            <button
-                              type="button"
-                              (click)="toggleRow(row)"
-                              class="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
-                              title="Bật/Tắt tất cả quyền hàng này"
-                            >
-                              <i class="pi pi-check-square text-xs"></i>
-                            </button>
-                          </td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
+                <div>
+                  <label class="block font-semibold text-slate-700 mb-1">Mô tả chức năng & quyền hạn</label>
+                  <input
+                    type="text"
+                    [(ngModel)]="roleForm.description"
+                    placeholder="Mô tả phạm vi trách nhiệm của vị trí này..."
+                    class="w-full h-10 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
                 </div>
               </div>
+
+              <app-permissions-matrix
+                [rows]="matrixRows()"
+                (rowsChange)="matrixRows.set($event)"
+              ></app-permissions-matrix>
             </div>
 
             <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
@@ -960,12 +821,16 @@ export class StaffPage implements OnInit {
     return STAFF_ROLE_BADGES[role] || 'bg-slate-100 text-slate-800 border-slate-200';
   }
 
-  getCrudShortSummary(p: any): string {
+  getCrudShortSummary(p: RolePermissionDto): string {
     const letters: string[] = [];
-    if (p.canRead) letters.push('R');
-    if (p.canCreate) letters.push('C');
-    if (p.canUpdate) letters.push('U');
-    if (p.canDelete) letters.push('D');
+    const canRead = p.canRead !== undefined ? p.canRead : (p.actionMask & 1) !== 0;
+    const canCreate = p.canCreate !== undefined ? p.canCreate : (p.actionMask & 2) !== 0;
+    const canUpdate = p.canUpdate !== undefined ? p.canUpdate : (p.actionMask & 4) !== 0;
+    const canDelete = p.canDelete !== undefined ? p.canDelete : (p.actionMask & 8) !== 0;
+    if (canRead) letters.push('R');
+    if (canCreate) letters.push('C');
+    if (canUpdate) letters.push('U');
+    if (canDelete) letters.push('D');
     return letters.join('');
   }
 
@@ -1062,8 +927,12 @@ export class StaffPage implements OnInit {
     });
   }
 
-  confirmDelete(member: StaffMemberDto): void {
-    if (confirm(`Bạn có chắc chắn muốn thu hồi phân công nhân sự của ${member.fullName}?`)) {
+  async confirmDelete(member: StaffMemberDto): Promise<void> {
+    const confirmed = await this.alertService.confirmDelete({
+      title: 'Thu hồi phân công nhân sự?',
+      text: `Bạn có chắc chắn muốn thu hồi phân công nhân sự của "${member.fullName}"?`
+    });
+    if (confirmed) {
       this.staffService.deleteStaffMember(member.id).subscribe({
         next: () => {
           this.alertService.toastSuccess('Đã thu hồi phân công nhân sự.');
@@ -1117,16 +986,16 @@ export class StaffPage implements OnInit {
     const permMap = new Map(role.permissions.map(p => [p.functionId, p]));
 
     this.matrixRows.set(functions.map(f => {
-      const existing = permMap.get(f.id);
+      const existing = permMap.get(f.id) || role.permissions.find(p => p.functionCode === f.code);
       return {
         functionId: f.id,
         code: f.code,
         name: f.name,
         moduleCode: f.moduleCode,
-        canRead: existing ? existing.canRead : false,
-        canCreate: existing ? existing.canCreate : false,
-        canUpdate: existing ? existing.canUpdate : false,
-        canDelete: existing ? existing.canDelete : false
+        canRead: existing ? (existing.canRead ?? (existing.actionMask & 1) !== 0) : false,
+        canCreate: existing ? (existing.canCreate ?? (existing.actionMask & 2) !== 0) : false,
+        canUpdate: existing ? (existing.canUpdate ?? (existing.actionMask & 4) !== 0) : false,
+        canDelete: existing ? (existing.canDelete ?? (existing.actionMask & 8) !== 0) : false
       };
     }));
 
@@ -1143,16 +1012,18 @@ export class StaffPage implements OnInit {
     row.canCreate = !allChecked;
     row.canUpdate = !allChecked;
     row.canDelete = !allChecked;
+    this.matrixRows.set([...this.matrixRows()]);
   }
 
   toggleAllPermissions(checked: boolean): void {
-    const rows = this.matrixRows();
-    for (const r of rows) {
-      r.canRead = checked;
-      r.canCreate = checked;
-      r.canUpdate = checked;
-      r.canDelete = checked;
-    }
+    const rows = this.matrixRows().map(r => ({
+      ...r,
+      canRead: checked,
+      canCreate: checked,
+      canUpdate: checked,
+      canDelete: checked
+    }));
+    this.matrixRows.set(rows);
   }
 
   submitRole(): void {
@@ -1219,8 +1090,12 @@ export class StaffPage implements OnInit {
     }
   }
 
-  confirmDeleteRole(role: RoleDetailDto): void {
-    if (confirm(`Bạn có chắc chắn muốn xóa chức vụ "${role.name}" (${role.code})?`)) {
+  async confirmDeleteRole(role: RoleDetailDto): Promise<void> {
+    const confirmed = await this.alertService.confirmDelete({
+      title: 'Xóa chức vụ tùy biến?',
+      text: `Bạn có chắc chắn muốn xóa chức vụ "${role.name}" (${role.code})?`
+    });
+    if (confirmed) {
       this.staffService.deleteRole(role.id).subscribe({
         next: () => {
           this.alertService.toastSuccess('Đã xóa chức vụ thành công.');

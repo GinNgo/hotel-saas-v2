@@ -189,62 +189,149 @@ export type PortalType = 'guest' | 'admin';
 
       <!-- 5. TÀI KHOẢN MẪU KIỂM THỬ TƯƠNG ỨNG TỪNG PHÂN HỆ -->
       <div class="mt-5 pt-4 border-t border-slate-100">
-        <span class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 text-center">
-          Tài khoản kiểm thử nhanh:
-        </span>
+        <div class="flex items-center justify-between mb-2.5">
+          <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <i class="pi pi-key text-xs text-amber-500"></i>
+            <span>Đăng nhập nhanh 1-chạm (Demo Roles)</span>
+          </span>
+          <span class="text-[10px] text-slate-400">Bấm để đăng nhập ngay</span>
+        </div>
 
         @if (portal() === 'guest') {
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">
-            <button
-              type="button"
-              (click)="quickFill('guest.vip@hotelsaas.local')"
-              class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-indigo-50 hover:border-indigo-300 text-slate-700 hover:text-indigo-800 text-center transition-colors truncate"
-              title="Khách hàng VIP: guest.vip@hotelsaas.local"
-            >
-              <i class="pi pi-star text-amber-500 mr-1"></i> Khách hàng VIP
-            </button>
-            <button
-              type="button"
-              (click)="setPortal('admin')"
-              class="px-2.5 py-1.5 rounded-lg border border-dashed border-slate-300 bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-800 text-center transition-colors truncate"
-            >
-              Chuyển sang Cổng PMS →
-            </button>
+          <div class="space-y-2">
+            <div class="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200/80 flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                  <i class="pi pi-star text-amber-300 text-xs"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-xs font-bold text-indigo-950 truncate">Khách hàng VIP (Guest)</div>
+                  <div class="text-[10px] text-indigo-600 truncate">guest.vip&#64;hotelsaas.local</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                (click)="quickLogin('guest.vip@hotelsaas.local', 'guest')"
+                [disabled]="loading()"
+                class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                Vào ngay
+              </button>
+            </div>
+
+            <!-- Banner chuyển sang Cổng Quản trị PMS -->
+            <div class="p-3 rounded-xl bg-slate-50 border border-dashed border-slate-300 text-center">
+              <div class="text-xs text-slate-600 font-medium mb-1.5">
+                Bạn muốn truy cập Cổng Quản trị Khách sạn & Admin Nền tảng?
+              </div>
+              <button
+                type="button"
+                (click)="setPortal('admin')"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+              >
+                <i class="pi pi-shield text-xs"></i>
+                <span>Chuyển sang Cổng Quản trị (PMS & SuperAdmin) →</span>
+              </button>
+            </div>
           </div>
         } @else {
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">
-            <button
-              type="button"
-              (click)="quickFill('manager.both@hotelsaas.local')"
-              class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-emerald-50 hover:border-emerald-300 text-slate-700 hover:text-emerald-800 text-center transition-colors truncate"
-              title="Quản lý 2 chi nhánh: manager.both@hotelsaas.local"
-            >
-              Quản lý 2 nhánh
-            </button>
-            <button
-              type="button"
-              (click)="quickFill('staff.single@hotelsaas.local')"
-              class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-emerald-50 hover:border-emerald-300 text-slate-700 hover:text-emerald-800 text-center transition-colors truncate"
-              title="Lễ tân CN-Q1: staff.single@hotelsaas.local"
-            >
-              Lễ tân CN-Q1
-            </button>
-            <button
-              type="button"
-              (click)="quickFill('owner@hotelsaas.local')"
-              class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-emerald-50 hover:border-emerald-300 text-slate-700 hover:text-emerald-800 text-center transition-colors truncate"
-              title="Owner toàn quyền: owner@hotelsaas.local"
-            >
-              Chủ KS (Owner)
-            </button>
-            <button
-              type="button"
-              (click)="quickFill('superadmin@hotelsaas.platform')"
-              class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-indigo-50 hover:border-indigo-300 text-slate-700 hover:text-indigo-800 text-center transition-colors truncate"
-              title="Admin toàn sàn: superadmin@hotelsaas.platform"
-            >
-              Admin Nền tảng
-            </button>
+          <!-- Danh sách tài khoản Admin & Quản lý Khách sạn -->
+          <div class="space-y-2">
+            <!-- 1. SuperAdmin Nền tảng -->
+            <div class="p-2.5 rounded-xl bg-indigo-50/60 border border-indigo-200/90 flex items-center justify-between gap-3 hover:bg-indigo-50 transition-colors">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-8 h-8 rounded-lg bg-indigo-700 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                  <i class="pi pi-shield text-xs"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-xs font-bold text-indigo-950 truncate">Admin Nền tảng (SuperAdmin)</span>
+                    <span class="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-indigo-200 text-indigo-800">SaaS</span>
+                  </div>
+                  <div class="text-[10px] text-slate-500 truncate">superadmin&#64;hotelsaas.platform</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                (click)="quickLogin('superadmin@hotelsaas.platform', 'admin')"
+                [disabled]="loading()"
+                class="px-3 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-800 text-white text-[11px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                Vào ngay
+              </button>
+            </div>
+
+            <!-- 2. Chủ Khách sạn (Tenant Owner) -->
+            <div class="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-200/90 flex items-center justify-between gap-3 hover:bg-emerald-50 transition-colors">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-8 h-8 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                  <i class="pi pi-building text-xs"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-xs font-bold text-emerald-950 truncate">Chủ Khách sạn (Owner / HQ)</span>
+                    <span class="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-emerald-200 text-emerald-800">Toàn chuỗi</span>
+                  </div>
+                  <div class="text-[10px] text-slate-500 truncate">owner&#64;hotelsaas.local &bull; Cấp quyền tài khoản con</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                (click)="quickLogin('owner@hotelsaas.local', 'admin')"
+                [disabled]="loading()"
+                class="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                Vào ngay
+              </button>
+            </div>
+
+            <!-- 3. Quản lý Chi nhánh (Branch Manager) -->
+            <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3 hover:bg-slate-100/70 transition-colors">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-8 h-8 rounded-lg bg-slate-700 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                  <i class="pi pi-briefcase text-xs"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-xs font-bold text-slate-800 truncate">Quản lý Chi nhánh (Manager)</span>
+                    <span class="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-slate-200 text-slate-700">2 Cơ sở</span>
+                  </div>
+                  <div class="text-[10px] text-slate-500 truncate">manager.both&#64;hotelsaas.local</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                (click)="quickLogin('manager.both@hotelsaas.local', 'admin')"
+                [disabled]="loading()"
+                class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                Vào ngay
+              </button>
+            </div>
+
+            <!-- 4. Lễ tân Chi nhánh (Receptionist) -->
+            <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3 hover:bg-slate-100/70 transition-colors">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                  <i class="pi pi-id-card text-xs"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-xs font-bold text-slate-800 truncate">Lễ tân Cơ sở Q1</span>
+                    <span class="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-teal-100 text-teal-800">CN-Q1</span>
+                  </div>
+                  <div class="text-[10px] text-slate-500 truncate">staff.single&#64;hotelsaas.local</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                (click)="quickLogin('staff.single@hotelsaas.local', 'admin')"
+                [disabled]="loading()"
+                class="px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white text-[11px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                Vào ngay
+              </button>
+            </div>
           </div>
         }
       </div>
@@ -429,6 +516,12 @@ export class LoginPage implements OnInit {
       email,
       password: defaultPwd
     });
+  }
+
+  quickLogin(email: string, portalType: PortalType = 'admin'): void {
+    this.setPortal(portalType, false);
+    this.quickFill(email);
+    this.onSubmit();
   }
 
   onSubmit(): void {

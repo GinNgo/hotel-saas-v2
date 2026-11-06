@@ -24,21 +24,26 @@ public sealed class GetStaffMembersQueryHandler : IRequestHandler<GetStaffMember
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
+    private readonly ICurrentUserContext _currentUserContext;
 
     public GetStaffMembersQueryHandler(
         IApplicationDbContext context,
-        ICurrentTenantService currentTenantService)
+        ICurrentTenantService currentTenantService,
+        ICurrentUserContext currentUserContext)
     {
         _context = context;
         _currentTenantService = currentTenantService;
+        _currentUserContext = currentUserContext;
     }
 
     public async Task<PagedResult<StaffMemberDto>> Handle(
         GetStaffMembersQuery request,
         CancellationToken cancellationToken)
     {
+        var isSuperAdmin = _currentUserContext.GlobalRole == GlobalUserRole.SuperAdmin;
         var tenantId = _currentTenantService.TenantId;
-        if (!tenantId.HasValue || tenantId.Value == Guid.Empty)
+
+        if (!isSuperAdmin && (!tenantId.HasValue || tenantId.Value == Guid.Empty))
         {
             return new PagedResult<StaffMemberDto>(Array.Empty<StaffMemberDto>(), 0, request.Page, request.PageSize);
         }
@@ -48,7 +53,12 @@ public sealed class GetStaffMembersQueryHandler : IRequestHandler<GetStaffMember
             .Include(s => s.User)
             .Include(s => s.Property)
             .Include(s => s.Role)
-            .Where(s => s.TenantId == tenantId.Value);
+            .AsQueryable();
+
+        if (tenantId.HasValue && tenantId.Value != Guid.Empty)
+        {
+            query = query.Where(s => s.TenantId == tenantId.Value);
+        }
 
         if (request.PropertyId.HasValue && request.PropertyId.Value != Guid.Empty)
         {
