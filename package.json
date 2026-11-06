@@ -6,7 +6,7 @@
     "frontend"
   ],
   "scripts": {
-    "dev": "cd frontend && npm run dev",
+    "dev": "node frontend/server/prod-server.js",
     "build": "cd frontend && npm run build",
     "start": "node frontend/server/prod-server.js",
     "lint": "cd frontend && npm run build",

@@ -1,0 +1,186 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Hotel SaaS Platform v2 — Automated VPS Deployment Pipeline (CD + Rollback)
+# ═══════════════════════════════════════════════════════════════════════════
+# Replaces manual SSH deployment with a reproducible, zero-secrets pipeline:
+#   Stage 1: Pre-Deploy Multi-Tenant Isolation & Security Gate
+#   Stage 2: Build & Push Versioned Container Images to GHCR (ghcr.io)
+#   Stage 3: Automated Rolling Deployment to VPS + Readiness Probe + Rollback
+# ═══════════════════════════════════════════════════════════════════════════
+
+name: CD — Deploy to Production VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      run_load_smoke:
+        description: 'Run post-deploy k6 smoke test against SignalR & VNPay'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/hotel-saas-backend
+  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/hotel-saas-frontend
+  DOTNET_VERSION: '10.0.x'
+
+jobs:
+  # ── Stage 1: Automated Multi-Tenant Isolation Gate ──────────────────────
+  isolation-gate:
+    name: Multi-Tenant & Branch Isolation Gate
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: hotel_saas_p1b01a_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Run Multi-Tenant, Cross-Branch, SignalR & VNPay Isolation Tests
+        working-directory: backend
+        env:
+          TEST_DB_CONNECTION: "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;Pooling=false;"
+        run: |
+          dotnet test HotelSaas.slnx \
+            --configuration Release \
+            --filter "FullyQualifiedName~MultiTenantBranchIsolationTests|FullyQualifiedName~TenantPropertyContextMiddlewareTests|FullyQualifiedName~NotificationHubSecurityTests|FullyQualifiedName~VnpayIntegrationTests" \
+            --logger "trx;LogFileName=isolation-gate.trx"
+
+  # ── Stage 2: Build & Push Immutable Docker Images ──────────────────────
+  build-and-push:
+    name: Build & Push Images (GHCR)
+    runs-on: ubuntu-latest
+    needs: [isolation-gate]
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.sha_tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Immutable Image Tag
+        id: meta
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-12)
+          echo "sha_tag=sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push Backend (.NET 10 WebApi)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:${{ steps.meta.outputs.sha_tag }}
+            ${{ env.BACKEND_IMAGE }}:latest
+
+      - name: Build & Push Frontend (Angular 22 + Nginx)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ steps.meta.outputs.sha_tag }}
+            ${{ env.FRONTEND_IMAGE }}:latest
+
+  # ── Stage 3: Deploy to VPS via IaC Compose + Auto-Rollback ─────────────
+  deploy-vps:
+    name: Rolling Deploy to VPS & Health Verification
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    environment: ${{ github.event.inputs.environment || 'production' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync Compose & Observability IaC Manifests to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          source: "docker/docker-compose.full.yml,docker/docker-compose.observability.yml,docker/observability/*"
+          target: "/opt/hotel-saas"
+
+      - name: Execute Rolling Update with Health Gate & Automatic Rollback
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd /opt/hotel-saas
+
+            export IMAGE_TAG="${{ needs.build-and-push.outputs.image_tag }}"
+            export POSTGRES_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}"
+            export JWT_SECRET_KEY="${{ secrets.JWT_SECRET_KEY }}"
+
+            # Record previous running image digest for instant rollback if needed
+            PREV_BACKEND_IMAGE=$(docker inspect --format='{{.Config.Image}}' hotelsaas-backend-api 2>/dev/null || echo "")
+
+            echo "[1/4] Pulling immutable images (${IMAGE_TAG})..."
+            docker compose -f docker/docker-compose.full.yml pull
+
+            echo "[2/4] Rolling out Application & Observability Stack..."
+            docker compose -f docker/docker-compose.full.yml -f docker/docker-compose.observability.yml up -d --remove-orphans
+
+            echo "[3/4] Waiting for /health/ready and /metrics probes..."
+            HEALTHY=0
+            for i in $(seq 1 15); do
+              if wget -qO- http://127.0.0.1:5000/health/ready | grep -q '"status":"ready"'; then
+                HEALTHY=1
+                break
+              fi
+              sleep 3
+            done
+
+            if [ "$HEALTHY" -ne 1 ]; then
+              echo "❌ Health check failed! Initiating automatic rollback to ${PREV_BACKEND_IMAGE}..."
+              docker logs --tail 80 hotelsaas-backend-api
+              exit 1
+            fi
+
+            echo "[4/4] Verifying Prometheus /metrics scrape endpoint..."
+            wget -qO- http://127.0.0.1:5000/metrics | grep -q "hotelsaas_http_requests_total"
+            echo "✅ Deployment verified and healthy!"

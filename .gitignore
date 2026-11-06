@@ -97,4 +97,3 @@ docs/weekly-reports/
 metadata.json
 *.patch
 *.bundle
-.github/workflows/cd-vps.yml

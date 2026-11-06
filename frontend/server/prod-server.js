@@ -4,7 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { handleChat } = require('./ai-chat-handler.js');
 
-const PORT = Number(process.env.PORT) || 3000;
+// Nginx in the container listens on port 8080 and reverse-proxies to localhost:3000.
+// When Cloud Run sets PORT=8080 for Nginx, the Node app must bind to port 3000.
+const PORT = process.env.APP_PORT
+  ? Number(process.env.APP_PORT)
+  : (process.env.PORT && process.env.PORT !== '8080' ? Number(process.env.PORT) : 3000);
 const HOST = '0.0.0.0';
 const BACKEND_TARGET = process.env.BACKEND_API_URL || 'https://luxustay.duckdns.org';
 
