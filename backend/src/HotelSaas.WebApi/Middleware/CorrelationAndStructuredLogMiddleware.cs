@@ -206,7 +206,7 @@ public sealed class CorrelationAndStructuredLogMiddleware
 
             using (LogContext.PushProperty("TenantId", tenantId?.ToString() ?? "anonymous"))
             using (LogContext.PushProperty("PropertyId", propertyId?.ToString() ?? (isTenantWide ? "tenant-wide" : "unscoped")))
-            using (LogContext.PushProperty("UserId", userId?.ToString() ?? "anonymous"))
+            using (LogContext.PushProperty("UserId", userContext.IsAuthenticated && userContext.UserId != Guid.Empty ? userContext.UserId.ToString() : "anonymous"))
             using (LogContext.PushProperty("StatusCode", statusCode))
             using (LogContext.PushProperty("ElapsedMs", elapsedMs))
             {
