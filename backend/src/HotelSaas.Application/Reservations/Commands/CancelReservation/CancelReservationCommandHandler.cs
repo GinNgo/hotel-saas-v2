@@ -304,6 +304,15 @@ public sealed class CancelReservationCommandHandler : IRequestHandler<CancelRese
                     oldStatus.ToString(),
                     ReservationStatus.Cancelled.ToString(),
                     cancellationToken);
+
+                await _notificationDispatcher.NotifyBookingCancellationRequestedAsync(
+                    reservation.PropertyId.ToString(),
+                    reservation.Id.ToString(),
+                    reservation.ConfirmationCode,
+                    reservation.GuestName,
+                    reservation.CancellationReason ?? "Hủy đặt phòng bởi lễ tân/quản lý",
+                    estimate.RefundableAmount,
+                    cancellationToken);
             }
             catch
             {

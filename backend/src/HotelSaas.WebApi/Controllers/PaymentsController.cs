@@ -1,12 +1,18 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
+using HotelSaas.Application.Payments.Commands.ApproveRefund;
+using HotelSaas.Application.Payments.Commands.ConfirmRefundPayout;
 using HotelSaas.Application.Payments.Commands.CreatePayment;
+using HotelSaas.Application.Payments.Commands.RejectRefund;
 using HotelSaas.Application.Payments.DTOs;
 using HotelSaas.Application.Payments.Queries.GetPayments;
 using HotelSaas.Application.Payments.Queries.GetPaymentSummary;
+using HotelSaas.Application.Payments.Queries.GetRefundRequests;
+using HotelSaas.Application.Payments.Queries.GetRefundRequestDetail;
 using HotelSaas.Application.Payments.Queries.GetShiftReport;
 using HotelSaas.Domain.Enums;
 using HotelSaas.WebApi.Authorization;
@@ -19,7 +25,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace HotelSaas.WebApi.Controllers;
 
 /// <summary>
-/// Manages payment collections, cashier transactions, and daily collection summaries.
+/// Manages payment collections, cashier transactions, daily collection summaries, and refund approvals (Decision D23).
 /// </summary>
 [ApiController]
 [Route("api/payments")]
@@ -114,6 +120,155 @@ public sealed class PaymentsController : ControllerBase
         );
 
         var result = await _mediator.Send(query, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Lists refund requests for the property with optional status/date filters and pagination (Decision D23).
+    /// </summary>
+    [HttpGet("refunds")]
+    [RequirePermission("PAYMENTS", PermissionAction.Read)]
+    [ProducesResponseType(typeof(PagedResult<RefundRequestDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetRefundRequests(
+        [FromQuery] Guid? propertyId,
+        [FromQuery] string? status,
+        [FromQuery] DateOnly? dateFrom,
+        [FromQuery] DateOnly? dateTo,
+        [FromQuery] string? searchTerm,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var targetPropertyId = ResolveTargetPropertyId(propertyId);
+        if (!targetPropertyId.HasValue)
+        {
+            return BadRequest(new { code = "ERR_PROPERTY_REQUIRED", message = "Property context (X-Property-Id header or query) is required." });
+        }
+
+        var query = new GetRefundRequestsQuery(targetPropertyId.Value, status, dateFrom, dateTo, searchTerm, page, pageSize);
+        var result = await _mediator.Send(query, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Retrieves full details, original payments, and D23 audit trail for a single refund request.
+    /// </summary>
+    [HttpGet("refunds/{id:guid}")]
+    [RequirePermission("PAYMENTS", PermissionAction.Read)]
+    [ProducesResponseType(typeof(RefundRequestDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetRefundRequestDetail(
+        [FromRoute] Guid id,
+        [FromQuery] Guid? propertyId,
+        CancellationToken cancellationToken = default)
+    {
+        var targetPropertyId = ResolveTargetPropertyId(propertyId);
+        if (!targetPropertyId.HasValue)
+        {
+            return BadRequest(new { code = "ERR_PROPERTY_REQUIRED", message = "Property context (X-Property-Id header or query) is required." });
+        }
+
+        var query = new GetRefundRequestDetailQuery(id, targetPropertyId.Value);
+        var result = await _mediator.Send(query, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Approves a pending refund request (Decision D23).
+    /// Authorized exclusively for Owner and Property Manager with PAYMENTS:Approve.
+    /// </summary>
+    [HttpPost("refunds/{id:guid}/approve")]
+    [RequirePermission("PAYMENTS", PermissionAction.Approve)]
+    [ProducesResponseType(typeof(RefundRequestDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ApproveRefund(
+        [FromRoute] Guid id,
+        [FromBody] ApproveRefundApiRequest? request,
+        [FromQuery] Guid? propertyId,
+        CancellationToken cancellationToken = default)
+    {
+        var targetPropertyId = ResolveTargetPropertyId(propertyId);
+        if (!targetPropertyId.HasValue)
+        {
+            return BadRequest(new { code = "ERR_PROPERTY_REQUIRED", message = "Property context (X-Property-Id header or query) is required." });
+        }
+
+        var command = new ApproveRefundCommand(id, targetPropertyId.Value, request?.Notes);
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Rejects a pending refund request with a mandatory reason (Decision D23).
+    /// Authorized exclusively for Owner and Property Manager with PAYMENTS:Approve.
+    /// </summary>
+    [HttpPost("refunds/{id:guid}/reject")]
+    [RequirePermission("PAYMENTS", PermissionAction.Approve)]
+    [ProducesResponseType(typeof(RefundRequestDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> RejectRefund(
+        [FromRoute] Guid id,
+        [FromBody] RejectRefundApiRequest request,
+        [FromQuery] Guid? propertyId,
+        CancellationToken cancellationToken = default)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.Reason))
+        {
+            return BadRequest(new { code = "ERR_REASON_REQUIRED", message = "Vui lòng nhập lý do từ chối yêu cầu hoàn tiền." });
+        }
+
+        var targetPropertyId = ResolveTargetPropertyId(propertyId);
+        if (!targetPropertyId.HasValue)
+        {
+            return BadRequest(new { code = "ERR_PROPERTY_REQUIRED", message = "Property context (X-Property-Id header or query) is required." });
+        }
+
+        var command = new RejectRefundCommand(id, targetPropertyId.Value, request.Reason);
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Confirms that refund disbursement has been completed with a valid bank reference or voucher (Decision D23).
+    /// </summary>
+    [HttpPost("refunds/{id:guid}/confirm-payout")]
+    [RequirePermission("PAYMENTS", PermissionAction.Approve)]
+    [ProducesResponseType(typeof(RefundRequestDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ConfirmRefundPayout(
+        [FromRoute] Guid id,
+        [FromBody] ConfirmRefundPayoutApiRequest request,
+        [FromQuery] Guid? propertyId,
+        CancellationToken cancellationToken = default)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.BankTransactionRef))
+        {
+            return BadRequest(new { code = "ERR_BANK_REF_REQUIRED", message = "Mã tham chiếu ngân hàng hoặc số phiếu chi là bắt buộc." });
+        }
+
+        var targetPropertyId = ResolveTargetPropertyId(propertyId);
+        if (!targetPropertyId.HasValue)
+        {
+            return BadRequest(new { code = "ERR_PROPERTY_REQUIRED", message = "Property context (X-Property-Id header or query) is required." });
+        }
+
+        var command = new ConfirmRefundPayoutCommand(
+            id,
+            targetPropertyId.Value,
+            request.PayoutMethod,
+            request.BankTransactionRef,
+            request.Notes);
+
+        var result = await _mediator.Send(command, cancellationToken);
         return Ok(result);
     }
 
@@ -265,6 +420,9 @@ public sealed class PaymentsController : ControllerBase
     }
 }
 
+public sealed record ApproveRefundApiRequest(string? Notes = null);
+public sealed record RejectRefundApiRequest(string Reason);
+public sealed record ConfirmRefundPayoutApiRequest(PaymentMethod PayoutMethod, string BankTransactionRef, string? Notes = null);
 public sealed record CreateVnpayUrlApiRequest(
     Guid? ReservationId = null,
     string? LookupToken = null,

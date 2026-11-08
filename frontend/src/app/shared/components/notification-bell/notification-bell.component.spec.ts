@@ -1,6 +1,6 @@
 import '@angular/compiler';
 import { HttpClient } from '@angular/common/http';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { JSDOM } from 'jsdom';
 import { throwError } from 'rxjs';
@@ -30,6 +30,23 @@ if (typeof document === 'undefined') {
     Node: browser.window.Node
   });
 }
+
+if (typeof globalThis.localStorage === 'undefined') {
+  const storageMap = new Map<string, string>();
+  const storageMock = {
+    getItem: (key: string) => storageMap.get(key) ?? null,
+    setItem: (key: string, val: string) => { storageMap.set(key, String(val)); },
+    removeItem: (key: string) => { storageMap.delete(key); },
+    clear: () => { storageMap.clear(); },
+    key: (i: number) => Array.from(storageMap.keys())[i] ?? null,
+    get length() { return storageMap.size; }
+  };
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: storageMock,
+    writable: true,
+    configurable: true
+  });
+}
 try {
   TestBed.initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
 } catch {}
@@ -54,6 +71,24 @@ describe('NotificationBellComponent & NotificationService (T01-A & T01-B)', () =
     };
   }
 
+  function createBellFixture(): ComponentFixture<NotificationBellComponent> {
+    const fixture = TestBed.createComponent(NotificationBellComponent);
+    const origSetInput = fixture.componentRef.setInput.bind(fixture.componentRef);
+    fixture.componentRef.setInput = (name: string, value: any) => {
+      const prop = (fixture.componentInstance as any)[name];
+      if (prop) {
+        const sym = Object.getOwnPropertySymbols(prop)[0];
+        const node = sym ? prop[sym] : null;
+        if (node && typeof node.applyValueToInputSignal === 'function') {
+          node.applyValueToInputSignal(node, value);
+          return;
+        }
+      }
+      origSetInput(name, value);
+    };
+    return fixture;
+  }
+
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [NotificationBellComponent]
@@ -67,7 +102,7 @@ describe('NotificationBellComponent & NotificationService (T01-A & T01-B)', () =
 
   describe('1. Empty State & Ẩn nút/nhãn "Đã xem hết" khi không có thông báo', () => {
     it('khởi tạo mặc định không có dữ liệu giả và ẩn badge khi unreadCount = 0', () => {
-      const fixture = TestBed.createComponent(NotificationBellComponent);
+      const fixture = createBellFixture();
       fixture.detectChanges();
 
       const el: HTMLElement = fixture.nativeElement;
@@ -81,7 +116,7 @@ describe('NotificationBellComponent & NotificationService (T01-A & T01-B)', () =
     });
 
     it('hiển thị trạng thái rỗng và ẩn pill "Đã xem hết" khi danh sách không có thông báo', () => {
-      const fixture = TestBed.createComponent(NotificationBellComponent);
+      const fixture = createBellFixture();
       fixture.detectChanges();
 
       const el: HTMLElement = fixture.nativeElement;
@@ -102,7 +137,7 @@ describe('NotificationBellComponent & NotificationService (T01-A & T01-B)', () =
     });
 
     it('hiển thị pill "Đã xem hết" khi có thông báo và tất cả đều đã đọc', () => {
-      const fixture = TestBed.createComponent(NotificationBellComponent);
+      const fixture = createBellFixture();
       fixture.componentRef.setInput('notifications', [
         createFixtureItem({ id: 'read-1', isRead: true })
       ]);
@@ -155,7 +190,7 @@ describe('NotificationBellComponent & NotificationService (T01-A & T01-B)', () =
         })
       ];
 
-      const fixture = TestBed.createComponent(NotificationBellComponent);
+      const fixture = createBellFixture();
       fixture.componentRef.setInput('activeTenantId', TENANT_A);
       fixture.componentRef.setInput('activePropertyId', PROP_1);
       fixture.componentRef.setInput('notifications', items);
@@ -201,7 +236,7 @@ describe('NotificationBellComponent & NotificationService (T01-A & T01-B)', () =
         });
       });
 
-      const fixture = TestBed.createComponent(NotificationBellComponent);
+      const fixture = createBellFixture();
       fixture.componentRef.setInput('activeTenantId', TENANT_A);
       fixture.componentRef.setInput('activePropertyId', PROP_1);
       fixture.componentRef.setInput('notifications', fourteenItems);
@@ -223,7 +258,7 @@ describe('NotificationBellComponent & NotificationService (T01-A & T01-B)', () =
 
   describe('3. Badge số lượng chưa đọc', () => {
     it('hiển thị đúng số lượng thông báo chưa đọc và giới hạn "99+" khi vượt quá 99', () => {
-      const fixture = TestBed.createComponent(NotificationBellComponent);
+      const fixture = createBellFixture();
       fixture.componentRef.setInput('activeTenantId', TENANT_A);
       fixture.componentRef.setInput('activePropertyId', PROP_1);
 
@@ -253,7 +288,7 @@ describe('NotificationBellComponent & NotificationService (T01-A & T01-B)', () =
 
   describe('4. Mở/đóng Dropdown & Tương tác Bàn phím (Escape, Arrow Keys)', () => {
     it('mở/đóng khi bấm nút chuông, cập nhật aria-expanded và đóng khi click ra ngoài', () => {
-      const fixture = TestBed.createComponent(NotificationBellComponent);
+      const fixture = createBellFixture();
       fixture.detectChanges();
 
       const el: HTMLElement = fixture.nativeElement;
@@ -271,7 +306,7 @@ describe('NotificationBellComponent & NotificationService (T01-A & T01-B)', () =
     });
 
     it('nhấn phím Escape đóng dropdown và trả focus về nút chuông', () => {
-      const fixture = TestBed.createComponent(NotificationBellComponent);
+      const fixture = createBellFixture();
       fixture.componentRef.setInput('notifications', [
         createFixtureItem({ id: 'esc-1', isRead: false })
       ]);
@@ -292,7 +327,7 @@ describe('NotificationBellComponent & NotificationService (T01-A & T01-B)', () =
     });
 
     it('di chuyển focus giữa các thông báo bằng phím ArrowDown / ArrowUp / Home / End', () => {
-      const fixture = TestBed.createComponent(NotificationBellComponent);
+      const fixture = createBellFixture();
       fixture.componentRef.setInput('notifications', [
         createFixtureItem({ id: 'k-1', createdAtUtc: '2026-10-28T03:03:00.000Z' }),
         createFixtureItem({ id: 'k-2', createdAtUtc: '2026-10-28T03:02:00.000Z' }),
@@ -334,7 +369,7 @@ describe('NotificationBellComponent & NotificationService (T01-A & T01-B)', () =
         createFixtureItem({ id: 'valid-2', tenantId: TENANT_A, propertyId: PROP_1, isRead: true })
       ];
 
-      const fixture = TestBed.createComponent(NotificationBellComponent);
+      const fixture = createBellFixture();
       fixture.componentRef.setInput('activeTenantId', TENANT_A);
       fixture.componentRef.setInput('activePropertyId', PROP_1);
       fixture.componentRef.setInput('notifications', mixedItems);
@@ -347,7 +382,7 @@ describe('NotificationBellComponent & NotificationService (T01-A & T01-B)', () =
     it('áp dụng Fail-Closed (ẩn toàn bộ) nếu activeTenantId hoặc activePropertyId là chuỗi rỗng', () => {
       const items = [createFixtureItem({ id: 'n-1', tenantId: TENANT_A, propertyId: PROP_1, isRead: false })];
 
-      const fixture = TestBed.createComponent(NotificationBellComponent);
+      const fixture = createBellFixture();
       fixture.componentRef.setInput('activeTenantId', '');
       fixture.componentRef.setInput('activePropertyId', PROP_1);
       fixture.componentRef.setInput('notifications', items);
@@ -368,7 +403,7 @@ describe('NotificationBellComponent & NotificationService (T01-A & T01-B)', () =
   describe('6. Không báo đã đọc thành công giả khi thiếu xác nhận từ Backend', () => {
     it('không tự ý chuyển isRead=true hoặc giảm unreadCount khi chưa có xác nhận từ Backend (canMarkAsRead=false)', () => {
       const item = createFixtureItem({ id: 'unread-1', isRead: false });
-      const fixture = TestBed.createComponent(NotificationBellComponent);
+      const fixture = createBellFixture();
       fixture.componentRef.setInput('activeTenantId', TENANT_A);
       fixture.componentRef.setInput('activePropertyId', PROP_1);
       fixture.componentRef.setInput('notifications', [item]);
@@ -400,7 +435,7 @@ describe('NotificationBellComponent & NotificationService (T01-A & T01-B)', () =
 
     it('khi canMarkAsRead=true, chỉ phát yêu cầu lên parent và chờ Backend cập nhật lại nguồn dữ liệu chứ không tự sửa isRead cục bộ', () => {
       const item = createFixtureItem({ id: 'unread-2', isRead: false });
-      const fixture = TestBed.createComponent(NotificationBellComponent);
+      const fixture = createBellFixture();
       fixture.componentRef.setInput('activeTenantId', TENANT_A);
       fixture.componentRef.setInput('activePropertyId', PROP_1);
       fixture.componentRef.setInput('notifications', [item]);
@@ -426,7 +461,7 @@ describe('NotificationBellComponent & NotificationService (T01-A & T01-B)', () =
 
   describe('7. Trạng thái Loading và Error', () => {
     it('hiển thị trạng thái loading và trạng thái lỗi kèm nút thử lại', () => {
-      const fixture = TestBed.createComponent(NotificationBellComponent);
+      const fixture = createBellFixture();
       fixture.componentRef.setInput('loading', true);
       fixture.detectChanges();
 
@@ -769,6 +804,240 @@ describe('NotificationBellComponent & NotificationService (T01-A & T01-B)', () =
       });
 
       expect(transport).toBeDefined();
+    });
+  });
+
+  describe('9. Realtime Hotel Operations Events (T02: BookingPaymentConfirmed, BookingCancellationRequested, HoldExpired)', () => {
+    it('ánh xạ chính xác các loại sự kiện mới từ Backend sang NotificationEventType', async () => {
+      const { normalizeNotificationEventType } = await import('./notification-bell.model');
+
+      expect(normalizeNotificationEventType('BookingPaymentConfirmed')).toBe('BookingPaymentConfirmed');
+      expect(normalizeNotificationEventType('BookingCancellationRequested')).toBe('BookingCancellationRequested');
+      expect(normalizeNotificationEventType('HoldExpired')).toBe('HoldExpired');
+    });
+
+    it('cấu hình hiển thị trực quan (icon, categoryLabel, badgeClass) cho 3 sự kiện mới', async () => {
+      const { NOTIFICATION_TYPE_VISUALS } = await import('./notification-bell.model');
+
+      const payVisual = NOTIFICATION_TYPE_VISUALS['BookingPaymentConfirmed'];
+      expect(payVisual).toBeDefined();
+      expect(payVisual.categoryLabel).toBe('Thanh toán đặt phòng');
+      expect(payVisual.iconClass).toContain('pi-credit-card');
+      expect(payVisual.badgeClass).toContain('emerald');
+
+      const cancelVisual = NOTIFICATION_TYPE_VISUALS['BookingCancellationRequested'];
+      expect(cancelVisual).toBeDefined();
+      expect(cancelVisual.categoryLabel).toBe('Yêu cầu hủy đặt phòng');
+      expect(cancelVisual.iconClass).toContain('pi-calendar-times');
+      expect(cancelVisual.badgeClass).toContain('amber');
+
+      const holdVisual = NOTIFICATION_TYPE_VISUALS['HoldExpired'];
+      expect(holdVisual).toBeDefined();
+      expect(holdVisual.categoryLabel).toBe('Hết hạn giữ phòng');
+      expect(holdVisual.iconClass).toContain('pi-clock');
+      expect(holdVisual.badgeClass).toContain('slate');
+    });
+
+    it('hiển thị đầy đủ thông tin của 3 loại sự kiện mới trên danh sách NotificationBell', () => {
+      const fixture = createBellFixture();
+      const events: NotificationItem[] = [
+        createFixtureItem({
+          id: 'pay-001',
+          type: 'BookingPaymentConfirmed',
+          title: 'Thanh toán đặt phòng thành công',
+          message: 'Khách Nguyễn Văn B vừa thanh toán 2.500.000 đ (Mã: #RES-PAY01, PT: VNPay).',
+          createdAtUtc: '2026-11-06T08:00:00.000Z',
+          isRead: false,
+          metadata: {
+            reservationId: 'res-pay-01',
+            confirmationCode: 'RES-PAY01',
+            guestName: 'Nguyễn Văn B',
+            amount: 2500000,
+            paymentMethod: 'VNPay',
+            targetRoute: '/admin/payments'
+          }
+        }),
+        createFixtureItem({
+          id: 'cancel-001',
+          type: 'BookingCancellationRequested',
+          title: 'Yêu cầu hủy đặt phòng',
+          message: 'Đơn #RES-CNC01 (Trần Thị C) đã bị hủy. Hoàn tiền dự kiến: 1.200.000 đ.',
+          createdAtUtc: '2026-11-06T08:05:00.000Z',
+          isRead: false,
+          metadata: {
+            reservationId: 'res-cnc-01',
+            confirmationCode: 'RES-CNC01',
+            guestName: 'Trần Thị C',
+            cancellationReason: 'Đổi lịch trình cá nhân',
+            refundableAmount: 1200000,
+            targetRoute: '/admin/payments'
+          }
+        }),
+        createFixtureItem({
+          id: 'hold-001',
+          type: 'HoldExpired',
+          title: 'Giữ phòng trực tuyến đã hết hạn',
+          message: 'Đơn giữ phòng #RES-HLD01 đã quá thời gian giữ chỗ (15 phút) và được hệ thống giải phóng tự động.',
+          createdAtUtc: '2026-11-06T08:10:00.000Z',
+          isRead: true,
+          metadata: {
+            reservationId: 'res-hld-01',
+            confirmationCode: 'RES-HLD01',
+            targetRoute: '/admin/frontdesk/timeline'
+          }
+        })
+      ];
+
+      fixture.componentRef.setInput('activeTenantId', TENANT_A);
+      fixture.componentRef.setInput('activePropertyId', PROP_1);
+      fixture.componentRef.setInput('notifications', events);
+      fixture.detectChanges();
+
+      const el: HTMLElement = fixture.nativeElement;
+      el.querySelector<HTMLButtonElement>('[data-testid="notification-bell-trigger"]')!.click();
+      fixture.detectChanges();
+
+      const items = el.querySelectorAll('[role="listitem"]');
+      expect(items.length).toBe(3);
+
+      // Sắp xếp mới nhất lên đầu (descending theo createdAtUtc):
+      // Item 0: HoldExpired (08:10)
+      expect(items[0].textContent).toContain('Hết hạn giữ phòng');
+      expect(items[0].textContent).toContain('RES-HLD01');
+
+      // Item 1: BookingCancellationRequested (08:05)
+      expect(items[1].textContent).toContain('Yêu cầu hủy đặt phòng');
+      expect(items[1].textContent).toContain('1.200.000 đ');
+
+      // Item 2: BookingPaymentConfirmed (08:00)
+      expect(items[2].textContent).toContain('Thanh toán đặt phòng');
+      expect(items[2].textContent).toContain('2.500.000 đ');
+    });
+
+    it('phát sự kiện notificationSelect kèm metadata targetRoute khi người dùng click vào thông báo', () => {
+      const fixture = createBellFixture();
+      const payItem = createFixtureItem({
+        id: 'pay-nav-001',
+        type: 'BookingPaymentConfirmed',
+        title: 'Thanh toán thành công',
+        message: 'Khách thanh toán 500.000 đ',
+        createdAtUtc: '2026-11-06T08:30:00.000Z',
+        isRead: false,
+        metadata: {
+          reservationId: 'res-001',
+          targetRoute: '/admin/payments'
+        }
+      });
+
+      fixture.componentRef.setInput('activeTenantId', TENANT_A);
+      fixture.componentRef.setInput('activePropertyId', PROP_1);
+      fixture.componentRef.setInput('notifications', [payItem]);
+      fixture.detectChanges();
+
+      const selectedSpy = vi.fn();
+      fixture.componentInstance.notificationSelect.subscribe(selectedSpy);
+
+      fixture.componentInstance.onSelectNotification(payItem);
+
+      expect(selectedSpy).toHaveBeenCalledWith(payItem);
+      expect(selectedSpy.mock.calls[0][0].metadata?.targetRoute).toBe('/admin/payments');
+    });
+
+    it('bền vững thông báo qua F5 (reload): giữ nguyên danh sách và trạng thái đã đọc theo đúng chi nhánh, không phát lại chuông/toast và xóa sạch khi logout', async () => {
+      if (typeof localStorage !== 'undefined') localStorage.clear();
+
+      // Phiên trước khi F5
+      const alertServiceBeforeF5 = TestBed.inject(AlertService);
+      vi.spyOn(alertServiceBeforeF5, 'toastSuccess').mockImplementation(() => {});
+      vi.spyOn(alertServiceBeforeF5, 'toastWarning').mockImplementation(() => {});
+      vi.spyOn(alertServiceBeforeF5, 'toastInfo').mockImplementation(() => {});
+
+      const serviceBeforeF5 = TestBed.inject(NotificationService);
+      vi.spyOn(serviceBeforeF5, 'playNotificationSound').mockImplementation(() => {});
+      serviceBeforeF5.setPersistenceEnabled(true);
+      await serviceBeforeF5.syncContext(TENANT_A, PROP_1);
+
+      const mockTransport: RealtimeNotificationTransport = {
+        connect: vi.fn().mockResolvedValue(undefined),
+        disconnect: vi.fn().mockResolvedValue(undefined),
+        onEvent: () => () => {},
+        markAsRead: vi.fn().mockResolvedValue(true),
+        markAllAsRead: vi.fn().mockResolvedValue(true)
+      };
+      serviceBeforeF5.registerTransport(mockTransport);
+
+      serviceBeforeF5.receiveRealtimeNotification({
+        id: 'evt-f5-pay-01',
+        tenantId: TENANT_A,
+        propertyId: PROP_1,
+        type: 'BookingPaymentConfirmed',
+        title: 'Thanh toán đặt phòng thành công',
+        message: 'Khách vừa thanh toán 1.500.000 đ (Mã: #RES-F50001).',
+        createdAtUtc: '2026-11-06T09:00:00.000Z',
+        isRead: false,
+        metadata: {
+          reservationId: 'res-f5-01',
+          confirmationCode: 'RES-F50001',
+          amount: 1500000,
+          targetRoute: '/admin/payments'
+        }
+      });
+
+      serviceBeforeF5.receiveRealtimeNotification({
+        id: 'evt-f5-cancel-02',
+        tenantId: TENANT_A,
+        propertyId: PROP_1,
+        type: 'BookingCancellationRequested',
+        title: 'Yêu cầu hủy đặt phòng',
+        message: 'Đơn #RES-F50002 đã bị hủy. Hoàn tiền dự kiến: 800.000 đ.',
+        createdAtUtc: '2026-11-06T09:05:00.000Z',
+        isRead: false,
+        metadata: {
+          reservationId: 'res-f5-02',
+          confirmationCode: 'RES-F50002',
+          refundableAmount: 800000,
+          targetRoute: '/admin/payments'
+        }
+      });
+
+      // Đánh dấu đã đọc 1 thông báo trước khi F5
+      await serviceBeforeF5.markAsRead('evt-f5-pay-01');
+      expect(serviceBeforeF5.notifications().find(n => n.id === 'evt-f5-pay-01')?.isRead).toBe(true);
+
+      // Mô phỏng F5: Reset TestBed & tạo lại NotificationService mới hoàn toàn
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({ imports: [NotificationBellComponent] });
+      const alertServiceAfterF5 = TestBed.inject(AlertService);
+      const toastSuccessSpy = vi.spyOn(alertServiceAfterF5, 'toastSuccess').mockImplementation(() => {});
+      const toastWarningSpy = vi.spyOn(alertServiceAfterF5, 'toastWarning').mockImplementation(() => {});
+
+      const serviceAfterF5 = TestBed.inject(NotificationService);
+      const soundSpy = vi.spyOn(serviceAfterF5, 'playNotificationSound').mockImplementation(() => {});
+      serviceAfterF5.setPersistenceEnabled(true);
+      await serviceAfterF5.syncContext(TENANT_A, PROP_1);
+
+      // Khôi phục đúng 2 thông báo mà không mất dữ liệu và không phát lại âm thanh/toast
+      expect(serviceAfterF5.notifications()).toHaveLength(2);
+      expect(serviceAfterF5.notifications()[0].id).toBe('evt-f5-cancel-02');
+      expect(serviceAfterF5.notifications()[0].isRead).toBe(false);
+      expect(serviceAfterF5.notifications()[1].id).toBe('evt-f5-pay-01');
+      expect(serviceAfterF5.notifications()[1].isRead).toBe(true);
+      expect(soundSpy).not.toHaveBeenCalled();
+      expect(toastSuccessSpy).not.toHaveBeenCalled();
+      expect(toastWarningSpy).not.toHaveBeenCalled();
+
+      // Cô lập chi nhánh: Chuyển sang PROP_2 không được hiển thị thông báo của PROP_1
+      await serviceAfterF5.syncContext(TENANT_A, PROP_2);
+      expect(serviceAfterF5.notifications()).toHaveLength(0);
+
+      // Chuyển lại về PROP_1 vẫn còn nguyên thông báo của PROP_1
+      await serviceAfterF5.syncContext(TENANT_A, PROP_1);
+      expect(serviceAfterF5.notifications()).toHaveLength(2);
+
+      // Logout phải xóa sạch cache
+      await serviceAfterF5.cleanupOnLogout();
+      await serviceAfterF5.syncContext(TENANT_A, PROP_1);
+      expect(serviceAfterF5.notifications()).toHaveLength(0);
     });
   });
 });

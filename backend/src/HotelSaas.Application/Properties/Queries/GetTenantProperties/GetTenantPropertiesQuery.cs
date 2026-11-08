@@ -61,6 +61,7 @@ public sealed class GetTenantPropertiesQueryHandler : IRequestHandler<GetTenantP
         var todayPayments = await _context.Payments
             .Where(p => propertyIds.Contains(p.PropertyId)
                 && p.Status == PaymentStatus.Completed
+                && (p.TransactionRef == null || !p.TransactionRef.Contains("REFUND"))
                 && p.CreatedAtUtc >= todayStartUtc
                 && p.CreatedAtUtc < todayEndUtc)
             .Select(p => new { p.PropertyId, p.Amount })

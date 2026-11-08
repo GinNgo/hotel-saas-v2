@@ -84,7 +84,8 @@ public sealed class GetMyInvoicesQueryHandler : IRequestHandler<GetMyInvoicesQue
             }
 
             var paidAmount = res.Payments
-                .Where(p => p.Status == PaymentStatus.Completed)
+                .Where(p => p.Status == PaymentStatus.Completed &&
+                            (p.TransactionRef == null || !p.TransactionRef.Contains("REFUND", StringComparison.OrdinalIgnoreCase)))
                 .Sum(p => p.Amount);
 
             string status = "Paid";

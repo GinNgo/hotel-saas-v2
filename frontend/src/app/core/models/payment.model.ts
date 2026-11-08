@@ -137,3 +137,117 @@ export interface ShiftReportDto {
   payments: PaymentDto[];
 }
 
+
+// =========================================================================
+// REFUND APPROVAL MANAGEMENT MODELS (Decision D23)
+// =========================================================================
+
+export interface RefundRequestDto {
+  paymentId: string;
+  tenantId: string;
+  propertyId: string;
+  propertyName: string;
+  reservationId: string;
+  confirmationCode: string;
+  guestName: string;
+  guestEmail?: string | null;
+  guestPhone?: string | null;
+  totalAmount: number;
+  paidAmount: number;
+  cancellationFee: number;
+  refundableAmount: number;
+  method: string;
+  status: 'PendingApproval' | 'Approved' | 'Completed' | 'Rejected' | string;
+  statusName: string;
+  transactionRef?: string | null;
+  bankTransactionRef?: string | null;
+  approvedByUserId?: string | null;
+  approvedByUserName?: string | null;
+  approvedAtUtc?: string | null;
+  paidAtUtc?: string | null;
+  rejectionReason?: string | null;
+  notes?: string | null;
+  createdAtUtc: string;
+}
+
+export interface RefundPaymentHistoryDto {
+  id: string;
+  amount: number;
+  methodName: string;
+  statusName: string;
+  transactionRef?: string | null;
+  paidAtUtc?: string | null;
+  createdAtUtc: string;
+}
+
+export interface RefundAuditStepDto {
+  stepTitle: string;
+  description: string;
+  performedBy?: string | null;
+  timestampUtc?: string | null;
+  state: 'completed' | 'current' | 'upcoming' | 'failed';
+}
+
+export interface RefundRequestDetailDto {
+  paymentId: string;
+  tenantId: string;
+  propertyId: string;
+  propertyName: string;
+  reservationId: string;
+  confirmationCode: string;
+  guestName: string;
+  guestEmail?: string | null;
+  guestPhone?: string | null;
+  roomTypeName: string;
+  roomNumber: string;
+  checkInDate: string;
+  checkOutDate: string;
+  startAtUtc: string;
+  endAtUtc: string;
+  totalAmount: number;
+  paidAmount: number;
+  cancellationFee: number;
+  refundableAmount: number;
+  method: string;
+  status: 'PendingApproval' | 'Approved' | 'Completed' | 'Rejected' | string;
+  statusName: string;
+  transactionRef?: string | null;
+  bankTransactionRef?: string | null;
+  policyDescription: string;
+  isFreeCancellation: boolean;
+  hoursUntilCheckIn: number;
+  approvedByUserId?: string | null;
+  approvedByUserName?: string | null;
+  approvedAtUtc?: string | null;
+  paidAtUtc?: string | null;
+  rejectionReason?: string | null;
+  notes?: string | null;
+  createdAtUtc: string;
+  canApprove: boolean;
+  originalPayments: RefundPaymentHistoryDto[];
+  auditTrail: RefundAuditStepDto[];
+}
+
+export interface GetRefundRequestsFilter {
+  propertyId: string;
+  status?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  searchTerm?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface ApproveRefundRequest {
+  notes?: string;
+}
+
+export interface RejectRefundRequest {
+  reason: string;
+}
+
+export interface ConfirmRefundPayoutRequest {
+  payoutMethod: PaymentMethod;
+  bankTransactionRef: string;
+  notes?: string;
+}

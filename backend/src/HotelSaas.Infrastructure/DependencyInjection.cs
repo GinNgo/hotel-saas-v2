@@ -57,6 +57,7 @@ public static class DependencyInjection
         services.AddScoped<IEmailService, GmailSmtpEmailService>();
         services.AddSignalR();
         services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
+        services.AddHostedService<ExpiredHoldSweepBackgroundService>();
 
         return services;
     }

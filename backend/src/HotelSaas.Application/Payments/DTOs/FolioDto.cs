@@ -41,5 +41,7 @@ public sealed record FolioDto(
     decimal? RefundableAmount = null,
     string? RefundStatus = null,
     decimal? NetCollectibleAmount = null,
-    string? FinancialSettlementStatus = null
+    string? FinancialSettlementStatus = null,
+    decimal TotalRefunded = 0m,
+    decimal NetCollected = 0m
 );

@@ -102,6 +102,7 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
             .Where(p => p.TenantId == tenantId.Value &&
                         propertyIds.Contains(p.PropertyId) &&
                         p.Status == PaymentStatus.Completed &&
+                        (p.TransactionRef == null || !p.TransactionRef.Contains("REFUND")) &&
                         p.PaidAtUtc >= fromUtc &&
                         p.PaidAtUtc <= toUtc)
             .ToListAsync(cancellationToken);

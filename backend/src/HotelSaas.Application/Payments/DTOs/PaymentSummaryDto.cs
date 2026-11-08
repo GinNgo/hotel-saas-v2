@@ -12,5 +12,7 @@ public sealed record PaymentSummaryDto(
     decimal CashCollected,
     decimal BankTransferCollected,
     decimal CreditCardCollected,
-    int CompletedCount
+    int CompletedCount,
+    decimal TotalRefunded = 0m,
+    decimal NetCollected = 0m
 );
