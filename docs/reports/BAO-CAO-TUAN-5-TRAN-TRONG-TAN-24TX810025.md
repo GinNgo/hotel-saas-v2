@@ -16,7 +16,7 @@
 * **Giảng viên hướng dẫn:** ThS. Huỳnh Xuân Phụng (`phunghx@hcmute.edu.vn`)
 * **Thời gian thực hiện Tuần 05:** 02/11/2026 – 08/11/2026
 * **Kho mã nguồn chính thức (GitHub Repository):** [GinNgo/hotel-saas-v2](https://github.com/GinNgo/hotel-saas-v2)
-* **Nhánh phát triển cá nhân:** `feature/tan-week5-refund-realtime-demo`
+* **Nhánh phát triển cá nhân:** [`feature/tan-week5-refund-realtime-demo`](https://github.com/GinNgo/hotel-saas-v2/tree/feature/tan-week5-refund-realtime-demo)
 * **Nhánh đích của Pull Request:** `develop` (không push trực tiếp `main`)
 * **Kế hoạch chi tiết quy chiếu:** [`docs/team/PROMPT-TUAN-5-THUC-THI-NHOM.md`](../team/PROMPT-TUAN-5-THUC-THI-NHOM.md) (Mục 4 — Tasks T01–T03)
 
@@ -87,30 +87,30 @@
 
 | Mã Commit (Link GitHub) | Tác giả | Tài khoản GitHub | Ngày Giờ | Nguyên văn Commit Message | Nội dung thay đổi chính |
 | :--- | :--- | :---: | :---: | :--- | :--- |
-| Chưa có commit triển khai riêng | — | — | — | — | Mã nguồn T01–T02, bộ tài liệu và script T03 đang ở thư mục làm việc của nhánh `feature/tan-week5-refund-realtime-demo`. |
+| [`1e82fb1`](https://github.com/GinNgo/hotel-saas-v2/commit/1e82fb1672278596e15dc57c97d4f61fca595178) | Tan | `trantrongtan096` | 08/11/2026, 09:05 (UTC+7) | `feat(week5): implement D23 refund approval, realtime SignalR notifications, and live demo playbook (T01-T03)` | Triển khai duyệt và chi hoàn D23 (T01), mở rộng thông báo SignalR (T02), bổ sung playbook và script demo (T03). |
 
-Tại thời điểm lập báo cáo, em dẫn các tệp bên dưới để có thể mở và kiểm tra ngay trong repo. Mã commit và liên kết GitHub của Tuần 05 sẽ được bổ sung sau khi bàn giao; em không dùng lại commit Tuần 04 làm minh chứng cho công việc tuần này.
+Em đã đẩy mã nguồn, các bài kiểm thử và tài liệu của cả ba nhiệm vụ lên nhánh cá nhân trong cùng một commit. Các liên kết dưới đây trỏ đến phiên bản đã push để người đọc có thể đối chiếu đúng nội dung tại thời điểm bàn giao.
 
 ---
 
 ### 2. Danh mục Tệp Mã Nguồn Cốt Lõi đã Đóng Góp
 
 #### A. Phân hệ Phê duyệt và Chi hoàn tại quầy (Task T01):
-* [`refund-approval.component.ts`](../../frontend/src/app/features/payments/components/refund-approval/refund-approval.component.ts) và [`refund-approval.component.spec.ts`](../../frontend/src/app/features/payments/components/refund-approval/refund-approval.component.spec.ts) — giao diện thu ngân và kiểm thử thao tác.
-* [`ApproveRefundCommandHandler.cs`](../../backend/src/HotelSaas.Application/Payments/Commands/ApproveRefund/ApproveRefundCommandHandler.cs), [`RejectRefundCommandHandler.cs`](../../backend/src/HotelSaas.Application/Payments/Commands/RejectRefund/RejectRefundCommandHandler.cs) và [`ConfirmRefundPayoutCommandHandler.cs`](../../backend/src/HotelSaas.Application/Payments/Commands/ConfirmRefundPayout/ConfirmRefundPayoutCommandHandler.cs) — ba bước xử lý yêu cầu.
-* [`GetShiftReportQueryHandler.cs`](../../backend/src/HotelSaas.Application/Payments/Queries/GetShiftReport/GetShiftReportQueryHandler.cs), [`GetPaymentSummaryQueryHandler.cs`](../../backend/src/HotelSaas.Application/Payments/Queries/GetPaymentSummary/GetPaymentSummaryQueryHandler.cs) và [`GetFolioQueryHandler.cs`](../../backend/src/HotelSaas.Application/Payments/Queries/GetFolio/GetFolioQueryHandler.cs) — đối chiếu số tiền theo ca, ngày và đơn.
-* [`RefundApprovalManagementTests.cs`](../../backend/tests/HotelSaas.Application.Tests/Payments/RefundApprovalManagementTests.cs) — kiểm tra quyền, trạng thái hồ sơ và kết quả thu/chi.
+* [`refund-approval.component.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/frontend/src/app/features/payments/components/refund-approval/refund-approval.component.ts) và [`refund-approval.component.spec.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/frontend/src/app/features/payments/components/refund-approval/refund-approval.component.spec.ts) — giao diện thu ngân và kiểm thử thao tác.
+* [`ApproveRefundCommandHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Application/Payments/Commands/ApproveRefund/ApproveRefundCommandHandler.cs), [`RejectRefundCommandHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Application/Payments/Commands/RejectRefund/RejectRefundCommandHandler.cs) và [`ConfirmRefundPayoutCommandHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Application/Payments/Commands/ConfirmRefundPayout/ConfirmRefundPayoutCommandHandler.cs) — ba bước xử lý yêu cầu.
+* [`GetShiftReportQueryHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Application/Payments/Queries/GetShiftReport/GetShiftReportQueryHandler.cs), [`GetPaymentSummaryQueryHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Application/Payments/Queries/GetPaymentSummary/GetPaymentSummaryQueryHandler.cs) và [`GetFolioQueryHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Application/Payments/Queries/GetFolio/GetFolioQueryHandler.cs) — đối chiếu số tiền theo ca, ngày và đơn.
+* [`RefundApprovalManagementTests.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/tests/HotelSaas.Application.Tests/Payments/RefundApprovalManagementTests.cs) — kiểm tra quyền, trạng thái hồ sơ và kết quả thu/chi.
 
 #### B. Phân hệ Thông báo Thời gian thực (Task T02):
-* [`NotificationHub.cs`](../../backend/src/HotelSaas.Infrastructure/Hubs/NotificationHub.cs) và [`NotificationDispatcher.cs`](../../backend/src/HotelSaas.Infrastructure/Services/NotificationDispatcher.cs) — chia nhóm nhận và phát bản tin nghiệp vụ.
-* [`ExpiredHoldSweepBackgroundService.cs`](../../backend/src/HotelSaas.Infrastructure/Services/ExpiredHoldSweepBackgroundService.cs) và [`CheckExpiredHoldsCommand.cs`](../../backend/src/HotelSaas.Application/Public/Commands/CheckExpiredHolds/CheckExpiredHoldsCommand.cs) — quét đơn hết hạn và ghi mốc đã thông báo.
-* [`notification.service.ts`](../../frontend/src/app/core/services/notification.service.ts) và [`notification-bell.component.ts`](../../frontend/src/app/shared/components/notification-bell/notification-bell.component.ts) — nhận bản tin, cập nhật badge và hiển thị trên PMS.
-* [`NotificationHubSecurityTests.cs`](../../backend/tests/HotelSaas.Application.Tests/Notifications/NotificationHubSecurityTests.cs) — kiểm tra phạm vi chi nhánh và các trường hợp hết hạn giữ chỗ.
+* [`NotificationHub.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Infrastructure/Hubs/NotificationHub.cs) và [`NotificationDispatcher.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Infrastructure/Services/NotificationDispatcher.cs) — chia nhóm nhận và phát bản tin nghiệp vụ.
+* [`ExpiredHoldSweepBackgroundService.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Infrastructure/Services/ExpiredHoldSweepBackgroundService.cs) và [`CheckExpiredHoldsCommand.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Application/Public/Commands/CheckExpiredHolds/CheckExpiredHoldsCommand.cs) — quét đơn hết hạn và ghi mốc đã thông báo.
+* [`notification.service.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/frontend/src/app/core/services/notification.service.ts) và [`notification-bell.component.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/frontend/src/app/shared/components/notification-bell/notification-bell.component.ts) — nhận bản tin, cập nhật badge và hiển thị trên PMS.
+* [`NotificationHubSecurityTests.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/tests/HotelSaas.Application.Tests/Notifications/NotificationHubSecurityTests.cs) — kiểm tra phạm vi chi nhánh và các trường hợp hết hạn giữ chỗ.
 
 #### C. Kịch bản và Dữ liệu Trình diễn (Task T03):
-* [Kịch bản demo hai màn hình](T03-LIVE-DEMO-PLAYBOOK.md) và [Checklist dữ liệu mẫu](T03-SEED-DATA-CHECKLIST.md).
-* [Hướng dẫn xử lý sự cố](T03-TROUBLESHOOTING.md) và [Bảng kết quả kiểm thử](T03-TEST-RESULTS.md).
-* [`verify-signalr-e2e.mjs`](../../scripts/verify-signalr-e2e.mjs) — script đối chiếu API và sự kiện nhận được ở phía nhân viên.
+* [Kịch bản demo hai màn hình](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/docs/reports/T03-LIVE-DEMO-PLAYBOOK.md) và [Checklist dữ liệu mẫu](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/docs/reports/T03-SEED-DATA-CHECKLIST.md).
+* [Hướng dẫn xử lý sự cố](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/docs/reports/T03-TROUBLESHOOTING.md) và [Bảng kết quả kiểm thử](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/docs/reports/T03-TEST-RESULTS.md).
+* [`verify-signalr-e2e.mjs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/scripts/verify-signalr-e2e.mjs) — script đối chiếu API và sự kiện nhận được ở phía nhân viên.
 
 ---
 
@@ -138,11 +138,11 @@ Trong Tuần 05, em tiếp tục sử dụng **Antigravity IDE — Gemini 3.8 Fl
 
 | Mã Prompt | Thành viên thực hiện | Công cụ & Model AI thực tế | Phần việc áp dụng AI | Lỗi / Thiếu sót của bản đầu | Quá trình phát hiện, tinh chỉnh prompt và kiểm chứng của sinh viên | Link File GitHub & Commit Minh Chứng |
 | :---: | :--- | :--- | :--- | :--- | :--- | :--- |
-| **#01** | Trần Trọng Tân (24TX810025) | Antigravity IDE (`Gemini 3.8 Flash`); Codex (`GPT-6 Astra`) | Duyệt hoàn và đối soát thu/chi (T01) | Khoản đã chi hoàn được cộng vào tổng thu; dữ liệu mẫu dùng `null` khiến test giao diện không biên dịch. | Em yêu cầu đối chiếu một giao dịch thu và một giao dịch hoàn trên cả ba báo cáo, rồi chạy lại suite frontend thay vì chỉ build ứng dụng. | [Test nghiệp vụ](../../backend/tests/HotelSaas.Application.Tests/Payments/RefundApprovalManagementTests.cs) · [Test giao diện](../../frontend/src/app/features/payments/components/refund-approval/refund-approval.component.spec.ts) |
-| **#02** | Trần Trọng Tân (24TX810025) | Antigravity IDE (`Gemini 3.8 Flash`); Codex (`GPT-6 Astra`) | Chuông PMS và sự kiện hết hạn (T02) | Có API quét nhưng nếu không ai gọi thì lễ tân không nhận được thông báo hết hạn. | Em bổ sung vào prompt điều kiện “khách đã đóng trang”, đối chiếu tác vụ nền và test trong đó chi nhánh A được nhận, chi nhánh B không nhận. | [Tác vụ nền](../../backend/src/HotelSaas.Infrastructure/Services/ExpiredHoldSweepBackgroundService.cs) · [Test SignalR](../../backend/tests/HotelSaas.Application.Tests/Notifications/NotificationHubSecurityTests.cs) |
-| **#03** | Trần Trọng Tân (24TX810025) | Antigravity IDE (`Gemini 3.8 Flash`); Codex (`GPT-6 Astra`) | Kịch bản demo, script và biên bản (T03) | Dùng API phòng nội bộ làm bằng chứng cho trang khách; ghi PASS cho sandbox chỉ từ mã xử lý IPN; thông tin đăng nhập nằm trong script. | Em đổi nguồn dữ liệu của TC-02, giữ TC-06 ở trạng thái chưa kiểm chứng và yêu cầu script đọc thông tin đăng nhập từ biến môi trường. | [Biên bản TC-02/TC-06](T03-TEST-RESULTS.md) · [Script demo](../../scripts/verify-signalr-e2e.mjs) |
+| **#01** | Trần Trọng Tân (24TX810025) | Antigravity IDE (`Gemini 3.8 Flash`); Codex (`GPT-6 Astra`) | Duyệt hoàn và đối soát thu/chi (T01) | Khoản đã chi hoàn được cộng vào tổng thu; dữ liệu mẫu dùng `null` khiến test giao diện không biên dịch. | Em yêu cầu đối chiếu một giao dịch thu và một giao dịch hoàn trên cả ba báo cáo, rồi chạy lại suite frontend thay vì chỉ build ứng dụng. | [Test nghiệp vụ](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/tests/HotelSaas.Application.Tests/Payments/RefundApprovalManagementTests.cs) · [Test giao diện](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/frontend/src/app/features/payments/components/refund-approval/refund-approval.component.spec.ts) · [`1e82fb1`](https://github.com/GinNgo/hotel-saas-v2/commit/1e82fb1672278596e15dc57c97d4f61fca595178) |
+| **#02** | Trần Trọng Tân (24TX810025) | Antigravity IDE (`Gemini 3.8 Flash`); Codex (`GPT-6 Astra`) | Chuông PMS và sự kiện hết hạn (T02) | Có API quét nhưng nếu không ai gọi thì lễ tân không nhận được thông báo hết hạn. | Em bổ sung vào prompt điều kiện “khách đã đóng trang”, đối chiếu tác vụ nền và test trong đó chi nhánh A được nhận, chi nhánh B không nhận. | [Tác vụ nền](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Infrastructure/Services/ExpiredHoldSweepBackgroundService.cs) · [Test SignalR](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/tests/HotelSaas.Application.Tests/Notifications/NotificationHubSecurityTests.cs) · [`1e82fb1`](https://github.com/GinNgo/hotel-saas-v2/commit/1e82fb1672278596e15dc57c97d4f61fca595178) |
+| **#03** | Trần Trọng Tân (24TX810025) | Antigravity IDE (`Gemini 3.8 Flash`); Codex (`GPT-6 Astra`) | Kịch bản demo, script và biên bản (T03) | Dùng API phòng nội bộ làm bằng chứng cho trang khách; ghi PASS cho sandbox chỉ từ mã xử lý IPN; thông tin đăng nhập nằm trong script. | Em đổi nguồn dữ liệu của TC-02, giữ TC-06 ở trạng thái chưa kiểm chứng và yêu cầu script đọc thông tin đăng nhập từ biến môi trường. | [Biên bản TC-02/TC-06](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/docs/reports/T03-TEST-RESULTS.md) · [Script demo](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/scripts/verify-signalr-e2e.mjs) · [`1e82fb1`](https://github.com/GinNgo/hotel-saas-v2/commit/1e82fb1672278596e15dc57c97d4f61fca595178) |
 
-*Các liên kết ở cột cuối dẫn tới đúng file làm minh chứng. Trạng thái commit được ghi tại Phần III.*
+*Cả ba dòng cùng dẫn commit [`1e82fb1`](https://github.com/GinNgo/hotel-saas-v2/commit/1e82fb1672278596e15dc57c97d4f61fca595178) vì em bàn giao T01–T03 trong một lần push; liên kết tệp ở từng dòng chỉ rõ phần việc tương ứng.*
 
 ---
 
@@ -184,7 +184,7 @@ Khi rà bảng kết quả do Antigravity IDE soạn, em thấy bước “khác
 
 Em áp dụng cùng cách đối chiếu cho thanh toán: kết quả thu nội bộ được giữ làm minh chứng local, còn TC-06 chỉ được ghi PASS khi có giao dịch sandbox và IPN thực tế từ bên ngoài. Nhờ tách hai bước, khi báo cáo với giảng viên em có thể chỉ rõ phần nào đã chạy và phần nào mới là kịch bản chuẩn bị.
 
-**Minh chứng Commit GitHub:** Tuần 05 chưa có SHA cho phần triển khai tại thời điểm lập báo cáo. Các tệp và kết quả tương ứng đã được đối chiếu theo T01, T02, T03 ở Phần III.
+**Minh chứng Commit GitHub:** [`1e82fb1`](https://github.com/GinNgo/hotel-saas-v2/commit/1e82fb1672278596e15dc57c97d4f61fca595178) — `feat(week5): implement D23 refund approval, realtime SignalR notifications, and live demo playbook (T01-T03)`.
 
 ---
 
