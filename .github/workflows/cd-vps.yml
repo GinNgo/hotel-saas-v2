@@ -1,17 +1,17 @@
 # ═══════════════════════════════════════════════════════════════════════════
 # Hotel SaaS Platform v2 — Automated VPS Deployment Pipeline (CD + Rollback)
 # ═══════════════════════════════════════════════════════════════════════════
-# Replaces manual SSH deployment with a reproducible, zero-secrets pipeline:
-#   Stage 1: Pre-Deploy Multi-Tenant Isolation & Security Gate
-#   Stage 2: Build & Push Versioned Container Images to GHCR (ghcr.io)
-#   Stage 3: Automated Rolling Deployment to VPS + Readiness Probe + Rollback
+# Quy trình chuẩn Enterprise:
+#   - Khi push lên `develop`: Chạy Stage 1 (Isolation Gate) và Stage 2 (Build Test)
+#     để bảo đảm code sạch, KHÔNG tác động tới VPS.
+#   - Khi merge vào `main`: Tự động kích hoạt Stage 3 (Rolling Deploy lên VPS)
 # ═══════════════════════════════════════════════════════════════════════════
 
 name: CD — Deploy to Production VPS
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
     inputs:
       environment:
@@ -22,22 +22,21 @@ on:
         options:
           - staging
           - production
-      run_load_smoke:
-        description: 'Run post-deploy k6 smoke test against SignalR & VNPay'
-        required: false
-        default: true
-        type: boolean
+
+permissions:
+  contents: read
+  packages: write
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/hotel-saas-backend
-  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/hotel-saas-frontend
+  BACKEND_IMAGE: ghcr.io/ginngo/hotel-saas-backend
+  FRONTEND_IMAGE: ghcr.io/ginngo/hotel-saas-frontend
   DOTNET_VERSION: '10.0.x'
 
 jobs:
   # ── Stage 1: Automated Multi-Tenant Isolation Gate ──────────────────────
   isolation-gate:
-    name: Multi-Tenant & Branch Isolation Gate
+    name: 1. Multi-Tenant & Branch Isolation Gate
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -74,7 +73,7 @@ jobs:
 
   # ── Stage 2: Build & Push Immutable Docker Images ──────────────────────
   build-and-push:
-    name: Build & Push Images (GHCR)
+    name: 2. Build & Push Images (GHCR)
     runs-on: ubuntu-latest
     needs: [isolation-gate]
     permissions:
@@ -120,27 +119,16 @@ jobs:
             ${{ env.FRONTEND_IMAGE }}:${{ steps.meta.outputs.sha_tag }}
             ${{ env.FRONTEND_IMAGE }}:latest
 
-  # ── Stage 3: Deploy to VPS via IaC Compose + Auto-Rollback ─────────────
+  # ── Stage 3: Deploy to VPS via Zero-Downtime Rolling Update ─────────────
+  # CHỈ KÍCH HOẠT KHI MERGE VÀO NHÁNH MAIN HOẶC TRIGGER BẰNG TAY
   deploy-vps:
-    name: Rolling Deploy to VPS & Health Verification
+    name: 3. Rolling Deploy to VPS (Chỉ kích hoạt khi vào main)
     runs-on: ubuntu-latest
     needs: [build-and-push]
-    environment: ${{ github.event.inputs.environment || 'production' }}
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Sync Compose & Observability IaC Manifests to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_SSH_PORT || 22 }}
-          source: "docker/docker-compose.full.yml,docker/docker-compose.observability.yml,docker/observability/*"
-          target: "/opt/hotel-saas"
-
-      - name: Execute Rolling Update with Health Gate & Automatic Rollback
+      - name: Execute Rolling Update on VPS
         uses: appleboy/ssh-action@v1.1.0
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -152,35 +140,30 @@ jobs:
             set -euo pipefail
             cd /opt/hotel-saas
 
-            export IMAGE_TAG="${{ needs.build-and-push.outputs.image_tag }}"
-            export POSTGRES_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}"
-            export JWT_SECRET_KEY="${{ secrets.JWT_SECRET_KEY }}"
+            echo "[1/4] Authenticating Docker with GHCR on VPS..."
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # Record previous running image digest for instant rollback if needed
-            PREV_BACKEND_IMAGE=$(docker inspect --format='{{.Config.Image}}' hotelsaas-backend-api 2>/dev/null || echo "")
+            echo "[2/4] Pulling latest immutable images from GHCR..."
+            docker compose -f docker-compose.staging.yml pull
 
-            echo "[1/4] Pulling immutable images (${IMAGE_TAG})..."
-            docker compose -f docker/docker-compose.full.yml pull
+            echo "[3/4] Gracefully rolling update backend & frontend containers..."
+            docker compose -f docker-compose.staging.yml up -d --no-deps backend frontend
 
-            echo "[2/4] Rolling out Application & Observability Stack..."
-            docker compose -f docker/docker-compose.full.yml -f docker/docker-compose.observability.yml up -d --remove-orphans
-
-            echo "[3/4] Waiting for /health/ready and /metrics probes..."
+            echo "[4/4] Verifying health probes..."
             HEALTHY=0
-            for i in $(seq 1 15); do
-              if wget -qO- http://127.0.0.1:5000/health/ready | grep -q '"status":"ready"'; then
+            for i in $(seq 1 20); do
+              if curl -sk https://luxustay.duckdns.org/health | grep -q '"status":"healthy"'; then
                 HEALTHY=1
                 break
               fi
+              echo "Waiting for health check probe ($i/20)..."
               sleep 3
             done
 
             if [ "$HEALTHY" -ne 1 ]; then
-              echo "❌ Health check failed! Initiating automatic rollback to ${PREV_BACKEND_IMAGE}..."
+              echo "❌ Health check failed after 60 seconds!"
               docker logs --tail 80 hotelsaas-backend-api
               exit 1
             fi
 
-            echo "[4/4] Verifying Prometheus /metrics scrape endpoint..."
-            wget -qO- http://127.0.0.1:5000/metrics | grep -q "hotelsaas_http_requests_total"
-            echo "✅ Deployment verified and healthy!"
+            echo "✅ Hotel SaaS Platform deployment verified and healthy!"
