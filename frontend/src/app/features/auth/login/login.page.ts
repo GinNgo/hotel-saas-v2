@@ -9,6 +9,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ContextSelectorDialogComponent } from '../context-selector/context-selector.dialog';
 import { UserMembershipDto } from '../../../core/models/auth.model';
 import { FormFieldComponent, FormControlDirective } from '../../../shared/components/form-field/form-field.component';
+import { PhoneOtpModalComponent } from '../phone-otp-modal/phone-otp-modal.component';
 
 export type PortalType = 'guest' | 'admin';
 
@@ -29,7 +30,8 @@ export type PortalType = 'guest' | 'admin';
     Password,
     ContextSelectorDialogComponent,
     FormFieldComponent,
-    FormControlDirective
+    FormControlDirective,
+    PhoneOtpModalComponent
   ],
   template: `
     <div class="w-full">
@@ -184,6 +186,17 @@ export type PortalType = 'guest' | 'admin';
               <span>Facebook</span>
             </button>
           </div>
+
+          <!-- Nút Đăng nhập nhanh bằng SĐT qua SMS OTP (Firebase Phone Auth) -->
+          <button
+            type="button"
+            (click)="showPhoneOtpModal.set(true)"
+            [disabled]="loading()"
+            class="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100/70 text-indigo-900 text-xs font-bold shadow-2xs hover:border-indigo-300 transition-all cursor-pointer"
+          >
+            <i class="pi pi-phone text-indigo-600 text-xs"></i>
+            <span>Đăng nhập bằng Số điện thoại (SMS OTP)</span>
+          </button>
         </div>
       }
 
@@ -456,6 +469,14 @@ export type PortalType = 'guest' | 'admin';
         </div>
       </div>
     }
+
+    <!-- Modal Đăng nhập / Xác thực SĐT qua SMS OTP (Firebase Phone Auth) -->
+    <app-phone-otp-modal
+      [visible]="showPhoneOtpModal()"
+      (visibleChange)="showPhoneOtpModal.set($event)"
+      [mode]="'login'"
+      (verified)="onPhoneLoginSuccess($event)"
+    />
   `
 })
 export class LoginPage implements OnInit {
@@ -481,6 +502,12 @@ export class LoginPage implements OnInit {
   loading = signal(false);
   errorMessage = signal<string | null>(null);
   showBranchSelector = signal(false);
+  showPhoneOtpModal = signal(false);
+
+  onPhoneLoginSuccess(event: { success: boolean; loginResponse?: any; phoneNumber: string }): void {
+    const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+    this.router.navigate([returnUrl || '/booking/profile']);
+  }
 
   loginForm = this.fb.group({
     email: ['guest.vip@hotelsaas.local', [Validators.required, Validators.email]],

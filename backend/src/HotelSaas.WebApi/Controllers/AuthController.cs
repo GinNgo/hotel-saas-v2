@@ -148,6 +148,22 @@ public sealed class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Authenticates or links a user via Firebase SMS Phone OTP (Google Identity Platform).
+    /// </summary>
+    [HttpPost("verify-phone-firebase")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> VerifyPhoneFirebase(
+        [FromBody] HotelSaas.Application.Auth.Commands.VerifyPhoneFirebase.VerifyPhoneFirebaseCommand command,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Exchanges a valid refresh token for a new access/refresh token pair.
     /// </summary>
     /// <param name="command">The expired access token and current refresh token.</param>

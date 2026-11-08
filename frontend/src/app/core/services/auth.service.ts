@@ -103,6 +103,31 @@ export class AuthService {
   }
 
   /**
+   * Đăng nhập hoặc liên kết tài khoản bằng SĐT qua Firebase Phone Auth (Google Identity Platform).
+   * Kèm token idToken do Firebase cấp sau khi nhập đúng SMS OTP.
+   */
+  verifyPhoneFirebase(request: { firebaseIdToken: string; fullName?: string }): Observable<LoginResponse> {
+    return this.http.post<any>(`${this.apiUrl}/verify-phone-firebase`, request).pipe(
+      map(res => {
+        const data: LoginResponse = res.accessToken ? res : (res.data || res);
+        return data;
+      }),
+      tap(data => {
+        if (data?.accessToken) {
+          this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
+          this.currentUserSubject.next(data.user);
+          const memberships = data.memberships || [];
+          this.tokenStorage.setMemberships(memberships);
+          this.membershipsSubject.next(memberships);
+          if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
+            this.clearPropertyContext();
+          }
+        }
+      })
+    );
+  }
+
+  /**
    * Đăng nhập hệ thống:
    * Backend trả trực tiếp LoginResponse ở root: { accessToken, refreshToken, expiresAtUtc, user, memberships }
    * Hỗ trợ đồng thời cả format bọc ApiResponse<{...}> phòng hờ.

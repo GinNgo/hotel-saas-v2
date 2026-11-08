@@ -34,6 +34,11 @@ public class User : BaseEntity
     public string? PhoneNumber { get; set; }
 
     /// <summary>
+    /// UTC timestamp when the user's phone number was verified via SMS OTP; null if unverified.
+    /// </summary>
+    public DateTime? PhoneVerifiedAtUtc { get; set; }
+
+    /// <summary>
     /// Optional URL to the user's avatar image.
     /// </summary>
     public string? AvatarUrl { get; set; }

@@ -18,11 +18,12 @@ import {
   GuestMeDto,
   GuestBookingSummaryDto,
 } from '../../../core/models/guest-account.model';
+import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-modal.component';
 
 @Component({
   selector: 'app-guest-profile-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, PhoneOtpModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-6 sm:space-y-8">
@@ -284,7 +285,7 @@ import {
                   </div>
                 </form>
               } @else {
-                <dl class="grid sm:grid-cols-2 gap-6">
+                <dl class="grid sm:grid-cols-3 gap-6">
                   <div>
                     <dt class="text-xs font-semibold uppercase tracking-wider text-slate-500">Họ và tên</dt>
                     <dd class="mt-1.5 text-base font-bold text-slate-900">
@@ -295,6 +296,22 @@ import {
                     <dt class="text-xs font-semibold uppercase tracking-wider text-slate-500">Địa chỉ Email</dt>
                     <dd class="mt-1.5 text-base font-medium text-slate-800 break-words">
                       {{ user()?.email }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-xs font-semibold uppercase tracking-wider text-slate-500">Số điện thoại xác thực</dt>
+                    <dd class="mt-1.5 flex items-center gap-2">
+                      <span class="text-base font-mono font-bold" [ngClass]="phoneNumber() ? 'text-slate-900' : 'text-slate-400 italic text-xs'">
+                        {{ phoneNumber() || 'Chưa liên kết' }}
+                      </span>
+                      <button
+                        type="button"
+                        (click)="showPhoneOtpModal.set(true)"
+                        class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 cursor-pointer transition-colors"
+                      >
+                        <i class="pi pi-phone mr-1"></i>
+                        {{ phoneNumber() ? 'Đổi SĐT' : 'Liên kết SĐT' }}
+                      </button>
                     </dd>
                   </div>
                 </dl>
@@ -464,6 +481,14 @@ import {
           Tiếp tục khám phá chỗ nghỉ →
         </a>
       }
+
+      <!-- Modal Xác thực & Liên kết SĐT qua Firebase SMS OTP -->
+      <app-phone-otp-modal
+        [visible]="showPhoneOtpModal()"
+        (visibleChange)="showPhoneOtpModal.set($event)"
+        [mode]="'link'"
+        (verified)="onPhoneLinked($event)"
+      />
     </main>
   `,
 })
@@ -480,6 +505,14 @@ export class GuestProfilePageComponent implements OnInit {
   readonly currentFullName = signal<string>('');
   readonly phoneNumber = signal<string>('');
   readonly isEmailVerified = signal<boolean>(false);
+  readonly showPhoneOtpModal = signal<boolean>(false);
+
+  onPhoneLinked(event: { success: boolean; phoneNumber: string }): void {
+    if (event.success) {
+      this.phoneNumber.set(event.phoneNumber);
+      this.loadProfile();
+    }
+  }
 
   readonly isEditing = signal<boolean>(false);
   readonly isSaving = signal<boolean>(false);

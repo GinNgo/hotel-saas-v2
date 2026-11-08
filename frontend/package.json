@@ -32,6 +32,7 @@
     "@primeuix/themes": "^3.1.0",
     "@primeuix/utils": "^0.8.3",
     "@relynn/ngx-toastr": "^22.0.0",
+    "firebase": "^13.2.0",
     "jwt-decode": "^4.0.0",
     "primeicons": "^8.0.2",
     "primeng": "^22.1.2",
