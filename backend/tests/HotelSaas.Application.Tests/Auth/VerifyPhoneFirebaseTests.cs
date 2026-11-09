@@ -339,4 +339,86 @@ public sealed class VerifyPhoneFirebaseTests
             await dropCmd.ExecuteNonQueryAsync();
         }
     }
+
+    [Fact]
+    public async Task VerifyPhoneFirebase_WithUserTestPhoneNumber_AuthenticatesAndProvisionsCustomer()
+    {
+        var schema = $"test_phone_user_{Guid.NewGuid():N}";
+        await using var conn = new NpgsqlConnection(GetConnectionString());
+        await conn.OpenAsync();
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = $"CREATE SCHEMA IF NOT EXISTS \"{schema}\";";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        try
+        {
+            await using var context = CreateContext(schema);
+            await context.Database.MigrateAsync();
+
+            var tenant = new Tenant
+            {
+                Id = Guid.NewGuid(),
+                Code = "T-PHONE",
+                Name = "Phone Auth Tenant",
+                Slug = $"phone-tenant-{Guid.NewGuid():N}",
+                Status = TenantStatus.Active
+            };
+            context.Tenants.Add(tenant);
+
+            var prop = new Property
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenant.Id,
+                Code = "P-PHONE",
+                Name = "Phone Auth Property",
+                Slug = $"phone-prop-{Guid.NewGuid():N}",
+                Status = PropertyStatus.Active
+            };
+            context.Properties.Add(prop);
+            await context.SaveChangesAsync();
+
+            var handler = new VerifyPhoneFirebaseCommandHandler(
+                context,
+                CreateFirebaseAuthService(),
+                CreateUserContext(),
+                new PasswordHasherService(),
+                CreateJwtService(),
+                NullLogger<VerifyPhoneFirebaseCommandHandler>.Instance);
+
+            // Kiểm thử trực tiếp với Số điện thoại của người dùng: +84123456789
+            var phoneToken = "dev-mock-token:+84123456789";
+            var command = new VerifyPhoneFirebaseCommand(phoneToken, "Khách Hàng +84123456789");
+
+            var response = await handler.Handle(command, CancellationToken.None);
+
+            Assert.NotNull(response);
+            Assert.False(string.IsNullOrWhiteSpace(response.AccessToken));
+            Assert.False(string.IsNullOrWhiteSpace(response.RefreshToken));
+            Assert.Equal("Khách Hàng +84123456789", response.User.FullName);
+
+            var user = await context.Users.FirstOrDefaultAsync(u => u.PhoneNumber == "+84123456789");
+            Assert.NotNull(user);
+            Assert.Equal("+84123456789", user.PhoneNumber);
+            Assert.NotNull(user.PhoneVerifiedAtUtc);
+            Assert.Equal(GlobalUserRole.Customer, user.GlobalRole);
+            Assert.True(user.IsActive);
+
+            var membership = await context.GuestLoyaltyMemberships
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(m => m.UserId == user.Id);
+            Assert.NotNull(membership);
+            Assert.Equal(LoyaltyTier.Silver, membership.Tier);
+            Assert.Equal(50, membership.PointsBalance);
+        }
+        finally
+        {
+            await using var cleanupConn = new NpgsqlConnection(GetConnectionString());
+            await cleanupConn.OpenAsync();
+            await using var dropCmd = cleanupConn.CreateCommand();
+            dropCmd.CommandText = $"DROP SCHEMA IF EXISTS \"{schema}\" CASCADE;";
+            await dropCmd.ExecuteNonQueryAsync();
+        }
+    }
 }
