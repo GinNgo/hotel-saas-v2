@@ -10,14 +10,19 @@ export class ReportService {
   private readonly http = inject(HttpClient);
   private readonly apiUrl = `${environment.apiUrl}/reports`;
 
+  getRoomTypes(): Observable<Array<{ id: string; name: string }>> {
+    return this.http.get<Array<{ id: string; name: string }>>(`${this.apiUrl}/room-types`);
+  }
+
   /**
    * Retrieves financial revenue metrics, payment method distributions, and daily timeline.
    */
-  getRevenueSummary(fromDate?: string, toDate?: string, propertyId?: string): Observable<RevenueSummaryDto> {
+  getRevenueSummary(fromDate?: string, toDate?: string, propertyId?: string, roomTypeId?: string): Observable<RevenueSummaryDto> {
     let params = new HttpParams();
     if (fromDate) params = params.set('fromDate', fromDate);
     if (toDate) params = params.set('toDate', toDate);
     if (propertyId) params = params.set('propertyId', propertyId);
+    if (roomTypeId) params = params.set('roomTypeId', roomTypeId);
 
     return this.http.get<any>(`${this.apiUrl}/revenue-summary`, { params }).pipe(
       map(res => (res.data ? res.data : res) as RevenueSummaryDto)
@@ -27,11 +32,12 @@ export class ReportService {
   /**
    * Retrieves hospitality PMS metrics: Occupancy rate, ADR, RevPAR, and operational stats.
    */
-  getPmsKpi(fromDate?: string, toDate?: string, propertyId?: string): Observable<PmsKpiDto> {
+  getPmsKpi(fromDate?: string, toDate?: string, propertyId?: string, roomTypeId?: string): Observable<PmsKpiDto> {
     let params = new HttpParams();
     if (fromDate) params = params.set('fromDate', fromDate);
     if (toDate) params = params.set('toDate', toDate);
     if (propertyId) params = params.set('propertyId', propertyId);
+    if (roomTypeId) params = params.set('roomTypeId', roomTypeId);
 
     return this.http.get<any>(`${this.apiUrl}/pms-kpi`, { params }).pipe(
       map(res => (res.data ? res.data : res) as PmsKpiDto)

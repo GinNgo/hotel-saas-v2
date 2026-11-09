@@ -71,6 +71,7 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] DateOnly? fromDate,
         [FromQuery] DateOnly? toDate,
         [FromQuery] Guid? propertyId,
+        [FromQuery] Guid? roomTypeId,
         CancellationToken cancellationToken)
     {
         var tenantId = _currentUser.TenantId;
@@ -99,8 +100,17 @@ public sealed class ReportsController : ControllerBase
         {
             reservationsQuery = reservationsQuery.Where(r => r.PropertyId == propertyId.Value);
         }
+        if (roomTypeId.HasValue && roomTypeId != Guid.Empty)
+        {
+            var roomIds = _context.Rooms.AsNoTracking()
+                .Where(room => room.TenantId == tenantId.Value && room.RoomTypeId == roomTypeId.Value)
+                .Select(room => room.Id);
+            reservationsQuery = reservationsQuery.Where(reservation => roomIds.Contains(reservation.RoomId));
+        }
 
-        var reservations = await reservationsQuery.ToListAsync(cancellationToken);
+        var reservations = await reservationsQuery
+            .Select(r => new { r.CheckInDate, r.CheckOutDate, r.TotalAmount })
+            .ToListAsync(cancellationToken);
 
         var totalRevenue = reservations.Sum(r => r.TotalAmount);
         var totalBookings = reservations.Count;
@@ -117,19 +127,30 @@ public sealed class ReportsController : ControllerBase
         {
             paymentsQuery = paymentsQuery.Where(p => p.PropertyId == propertyId.Value);
         }
+        if (roomTypeId.HasValue && roomTypeId != Guid.Empty)
+        {
+            var reservationIds = reservationsQuery.Select(reservation => reservation.Id);
+            paymentsQuery = paymentsQuery.Where(payment => reservationIds.Contains(payment.ReservationId));
+        }
 
-        var payments = await paymentsQuery.ToListAsync(cancellationToken);
+        var paymentTotals = await paymentsQuery
+            .GroupBy(p => p.Method)
+            .Select(group => new { Method = group.Key, Amount = group.Sum(p => p.Amount), Count = group.Count() })
+            .ToListAsync(cancellationToken);
+        var totalPaymentCount = paymentTotals.Sum(p => p.Count);
+        decimal paymentAmount(PaymentMethod method) => paymentTotals.FirstOrDefault(p => p.Method == method)?.Amount ?? 0m;
+        int paymentCount(PaymentMethod method) => paymentTotals.FirstOrDefault(p => p.Method == method)?.Count ?? 0;
 
         var paymentBreakdown = new List<PaymentMethodBreakdownDto>
         {
-            new() { Method = "VNPay", Amount = payments.Where(p => p.Method == PaymentMethod.VNPay).Sum(p => p.Amount), Count = payments.Count(p => p.Method == PaymentMethod.VNPay) },
-            new() { Method = "Tiền mặt (Cash)", Amount = payments.Where(p => p.Method == PaymentMethod.Cash).Sum(p => p.Amount), Count = payments.Count(p => p.Method == PaymentMethod.Cash) },
-            new() { Method = "Chuyển khoản (Bank)", Amount = payments.Where(p => p.Method == PaymentMethod.BankTransfer).Sum(p => p.Amount), Count = payments.Count(p => p.Method == PaymentMethod.BankTransfer) },
-            new() { Method = "Thẻ tín dụng (Card)", Amount = payments.Where(p => p.Method == PaymentMethod.CreditCard).Sum(p => p.Amount), Count = payments.Count(p => p.Method == PaymentMethod.CreditCard) }
+            new() { Method = "VNPay", Amount = paymentAmount(PaymentMethod.VNPay), Count = paymentCount(PaymentMethod.VNPay) },
+            new() { Method = "Tiền mặt (Cash)", Amount = paymentAmount(PaymentMethod.Cash), Count = paymentCount(PaymentMethod.Cash) },
+            new() { Method = "Chuyển khoản (Bank)", Amount = paymentAmount(PaymentMethod.BankTransfer), Count = paymentCount(PaymentMethod.BankTransfer) },
+            new() { Method = "Thẻ tín dụng (Card)", Amount = paymentAmount(PaymentMethod.CreditCard), Count = paymentCount(PaymentMethod.CreditCard) }
         };
 
         // If no direct payment records yet, simulate distribution from confirmed reservations
-        if (payments.Count == 0 && totalRevenue > 0)
+        if (totalPaymentCount == 0 && totalRevenue > 0)
         {
             paymentBreakdown = new List<PaymentMethodBreakdownDto>
             {
@@ -185,6 +206,7 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] DateOnly? fromDate,
         [FromQuery] DateOnly? toDate,
         [FromQuery] Guid? propertyId,
+        [FromQuery] Guid? roomTypeId,
         CancellationToken cancellationToken)
     {
         var tenantId = _currentUser.TenantId;
@@ -211,6 +233,8 @@ public sealed class ReportsController : ControllerBase
         {
             roomsQuery = roomsQuery.Where(r => r.PropertyId == propertyId.Value);
         }
+        if (roomTypeId.HasValue && roomTypeId != Guid.Empty)
+            roomsQuery = roomsQuery.Where(room => room.RoomTypeId == roomTypeId.Value);
 
         var totalRooms = await roomsQuery.CountAsync(cancellationToken);
         if (totalRooms == 0)
@@ -231,8 +255,17 @@ public sealed class ReportsController : ControllerBase
         {
             allResQuery = allResQuery.Where(r => r.PropertyId == propertyId.Value);
         }
+        if (roomTypeId.HasValue && roomTypeId != Guid.Empty)
+        {
+            var roomIds = _context.Rooms.AsNoTracking()
+                .Where(room => room.TenantId == tenantId.Value && room.RoomTypeId == roomTypeId.Value)
+                .Select(room => room.Id);
+            allResQuery = allResQuery.Where(reservation => roomIds.Contains(reservation.RoomId));
+        }
 
-        var allReservations = await allResQuery.ToListAsync(cancellationToken);
+        var allReservations = await allResQuery
+            .Select(r => new { r.CheckInDate, r.CheckOutDate, r.TotalAmount, r.NumberOfGuests, r.Status })
+            .ToListAsync(cancellationToken);
 
         var validReservations = allReservations
             .Where(r => r.Status != ReservationStatus.Cancelled && r.Status != ReservationStatus.NoShow)
@@ -290,6 +323,23 @@ public sealed class ReportsController : ControllerBase
         };
 
         return Ok(kpi);
+    }
+
+    [HttpGet("room-types")]
+    public async Task<IActionResult> GetReportRoomTypes(CancellationToken cancellationToken)
+    {
+        var tenantId = _currentUser.TenantId;
+        if (!tenantId.HasValue || tenantId == Guid.Empty)
+            return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
+
+        var query = _context.RoomTypes.AsNoTracking().Where(type => type.TenantId == tenantId.Value);
+        if (!_currentUser.IsTenantWide && _currentUser.PropertyId.HasValue)
+            query = query.Where(type => type.PropertyId == _currentUser.PropertyId.Value);
+
+        var types = await query.OrderBy(type => type.Name)
+            .Select(type => new { type.Id, type.Name })
+            .ToListAsync(cancellationToken);
+        return Ok(types);
     }
 
     /// <summary>

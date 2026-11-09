@@ -1071,6 +1071,10 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.Property<int>("NumberOfGuests")
                         .HasColumnType("integer");
 
+                    b.Property<int>("PaymentMethodPreference")
+                        .HasDefaultValue(HotelSaas.Domain.Enums.PaymentMethodPreference.VNPay)
+                        .HasColumnType("integer");
+
                     b.Property<decimal>("PointsDiscountAmount")
                         .HasColumnType("numeric");
 

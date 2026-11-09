@@ -34,7 +34,8 @@ public sealed record CreateGuestHoldCommand(
     string? IdempotencyKey = null,
     int? PointsToRedeem = null,
     Guid? GuestUserId = null,
-    string? FirebaseIdToken = null
+    string? FirebaseIdToken = null,
+    PaymentMethodPreference PaymentMethodPreference = HotelSaas.Domain.Enums.PaymentMethodPreference.VNPay
 ) : IRequest<GuestHoldDto>;
 
 public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestHoldCommand, GuestHoldDto>
@@ -76,6 +77,9 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
 
         if (request.NumberOfGuests < 1)
             throw new BadRequestException("ERR_INVALID_GUESTS", "Số lượng khách phải lớn hơn hoặc bằng 1.");
+
+        if (!Enum.IsDefined(request.PaymentMethodPreference))
+            throw new BadRequestException("ERR_INVALID_PAYMENT_METHOD", "Phương thức thanh toán đã chọn không hợp lệ.");
 
         // 2. Phone Verification Gate (Fail-Closed Dual Verification - Option A)
         bool isPhoneVerified = false;
@@ -491,6 +495,7 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
             RoomTypeId = roomType.Id,
             RoomTypeName = roomType.Name,
             TotalAmount = finalTotalAmount,
+            PaymentMethodPreference = request.PaymentMethodPreference,
             Currency = quote.Currency,
             Breakdown = quote.Breakdown,
             AppliedPolicies = quote.AppliedPolicies,

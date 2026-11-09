@@ -68,15 +68,14 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
         var propertyIds = properties.Select(p => p.Id).ToList();
 
         // 2. Tải toàn bộ phòng vật lý trong chuỗi (sử dụng IgnoreQueryFilters để vượt qua filter chi nhánh đơn lẻ của nhân viên)
-        var allRooms = await _context.Rooms
+        var roomCounts = await _context.Rooms
             .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(r => r.TenantId == tenantId.Value && propertyIds.Contains(r.PropertyId))
-            .ToListAsync(cancellationToken);
-
-        var roomsByProperty = allRooms
             .GroupBy(r => r.PropertyId)
-            .ToDictionary(g => g.Key, g => g.ToList());
+            .Select(group => new { PropertyId = group.Key, Count = group.Count() })
+            .ToListAsync(cancellationToken);
+        var roomsByProperty = roomCounts.ToDictionary(row => row.PropertyId, row => row.Count);
 
         // 3. Tải đơn đặt phòng trong kỳ báo cáo
         var allReservations = await _context.Reservations
@@ -86,6 +85,17 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
                         propertyIds.Contains(r.PropertyId) &&
                         r.CheckInDate <= effectiveTo &&
                         r.CheckOutDate >= effectiveFrom)
+            .Select(r => new
+            {
+                r.PropertyId,
+                r.CheckInDate,
+                r.CheckOutDate,
+                r.TotalAmount,
+                r.NumberOfGuests,
+                r.Status,
+                r.GuestUserId,
+                r.BuyerCompanyName
+            })
             .ToListAsync(cancellationToken);
 
         var validReservations = allReservations
@@ -96,7 +106,7 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
         var fromUtc = effectiveFrom.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         var toUtc = effectiveTo.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
 
-        var allPayments = await _context.Payments
+        var paymentTotals = await _context.Payments
             .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(p => p.TenantId == tenantId.Value &&
@@ -104,7 +114,12 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
                         p.Status == PaymentStatus.Completed &&
                         p.PaidAtUtc >= fromUtc &&
                         p.PaidAtUtc <= toUtc)
+            .GroupBy(payment => payment.Method)
+            .Select(group => new { Method = group.Key, Amount = group.Sum(payment => payment.Amount), Count = group.Count() })
             .ToListAsync(cancellationToken);
+        var totalPaymentCount = paymentTotals.Sum(payment => payment.Count);
+        decimal paymentAmount(PaymentMethod method) => paymentTotals.FirstOrDefault(payment => payment.Method == method)?.Amount ?? 0m;
+        int paymentCount(PaymentMethod method) => paymentTotals.FirstOrDefault(payment => payment.Method == method)?.Count ?? 0;
 
         // 5. Tính toán chỉ số cho từng chi nhánh
         var propertyMetrics = new List<PropertyPerformanceDto>();
@@ -115,8 +130,7 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
 
         foreach (var p in properties)
         {
-            var pRooms = roomsByProperty.TryGetValue(p.Id, out var rList) ? rList : new List<Domain.Entities.Room>();
-            var totalRooms = pRooms.Count;
+            var totalRooms = roomsByProperty.TryGetValue(p.Id, out var roomCount) ? roomCount : 0;
             var availableNights = totalRooms * totalDays;
             totalPortfolioAvailableNights += availableNights;
 
@@ -284,41 +298,41 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
         };
 
         // 10. Phân bổ phương thức thanh toán toàn chuỗi
-        var totalPayCount = Math.Max(1, allPayments.Count);
+        var totalPayCount = Math.Max(1, totalPaymentCount);
         var payList = new List<GroupPaymentDistributionDto>
         {
             new()
             {
                 Method = "VNPay QR / Thẻ nội địa",
-                Count = allPayments.Count(p => p.Method == PaymentMethod.VNPay),
-                Amount = allPayments.Where(p => p.Method == PaymentMethod.VNPay).Sum(p => p.Amount),
-                Percentage = Math.Round((double)allPayments.Count(p => p.Method == PaymentMethod.VNPay) / totalPayCount * 100, 1)
+                Count = paymentCount(PaymentMethod.VNPay),
+                Amount = paymentAmount(PaymentMethod.VNPay),
+                Percentage = Math.Round((double)paymentCount(PaymentMethod.VNPay) / totalPayCount * 100, 1)
             },
             new()
             {
                 Method = "Chuyển khoản (VietQR / Napas)",
-                Count = allPayments.Count(p => p.Method == PaymentMethod.BankTransfer),
-                Amount = allPayments.Where(p => p.Method == PaymentMethod.BankTransfer).Sum(p => p.Amount),
-                Percentage = Math.Round((double)allPayments.Count(p => p.Method == PaymentMethod.BankTransfer) / totalPayCount * 100, 1)
+                Count = paymentCount(PaymentMethod.BankTransfer),
+                Amount = paymentAmount(PaymentMethod.BankTransfer),
+                Percentage = Math.Round((double)paymentCount(PaymentMethod.BankTransfer) / totalPayCount * 100, 1)
             },
             new()
             {
                 Method = "Tiền mặt tại quầy (Cash)",
-                Count = allPayments.Count(p => p.Method == PaymentMethod.Cash),
-                Amount = allPayments.Where(p => p.Method == PaymentMethod.Cash).Sum(p => p.Amount),
-                Percentage = Math.Round((double)allPayments.Count(p => p.Method == PaymentMethod.Cash) / totalPayCount * 100, 1)
+                Count = paymentCount(PaymentMethod.Cash),
+                Amount = paymentAmount(PaymentMethod.Cash),
+                Percentage = Math.Round((double)paymentCount(PaymentMethod.Cash) / totalPayCount * 100, 1)
             },
             new()
             {
                 Method = "Thẻ quốc tế (Visa/Mastercard)",
-                Count = allPayments.Count(p => p.Method == PaymentMethod.CreditCard),
-                Amount = allPayments.Where(p => p.Method == PaymentMethod.CreditCard).Sum(p => p.Amount),
-                Percentage = Math.Round((double)allPayments.Count(p => p.Method == PaymentMethod.CreditCard) / totalPayCount * 100, 1)
+                Count = paymentCount(PaymentMethod.CreditCard),
+                Amount = paymentAmount(PaymentMethod.CreditCard),
+                Percentage = Math.Round((double)paymentCount(PaymentMethod.CreditCard) / totalPayCount * 100, 1)
             }
         };
 
         // Nếu chuỗi chưa có bản ghi payment độc lập mà có doanh thu đặt phòng, mô phỏng cơ cấu thực tế
-        if (allPayments.Count == 0 && totalPortfolioRevenue > 0)
+        if (totalPaymentCount == 0 && totalPortfolioRevenue > 0)
         {
             payList = new List<GroupPaymentDistributionDto>
             {
@@ -335,7 +349,7 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
             FromDate = effectiveFrom.ToString("yyyy-MM-dd"),
             ToDate = effectiveTo.ToString("yyyy-MM-dd"),
             TotalProperties = properties.Count,
-            TotalRooms = allRooms.Count,
+            TotalRooms = roomCounts.Sum(room => room.Count),
             TotalAvailableNights = totalPortfolioAvailableNights,
             TotalSoldNights = totalPortfolioSoldNights,
             TotalRevenue = totalPortfolioRevenue,
