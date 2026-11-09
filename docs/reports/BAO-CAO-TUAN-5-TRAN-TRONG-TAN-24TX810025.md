@@ -32,12 +32,14 @@
 
 | Mã Task | Phân Hệ Tính Năng | Mục Tiêu & Yêu Cầu Kỹ Thuật | Kết Quả Triển Khai Thực Tế | Kiểm Thử Tự Động | Đánh Giá Tiến Độ |
 | :---: | :--- | :--- | :--- | :---: | :--- |
-| **T01** | Phê duyệt và chi hoàn tại quầy | Tách bước duyệt khỏi bước chi; không cộng tiền hoàn vào tiền thu. | Có danh sách, chi tiết, thao tác duyệt/từ chối/xác nhận đã chi; báo cáo ca, ngày và Folio tách thu, chi hoàn và thu ròng. | Theo biên bản: 14 test backend và 14 test component đạt. | Đã triển khai; còn kiểm tra hai thu ngân xác nhận đồng thời. |
-| **T02** | Thông báo thanh toán, hủy phòng và hết hạn giữ chỗ | Đúng chi nhánh, đúng phạm vi thông tin; lễ tân không cần tải lại trang. | Có ba sự kiện SignalR và tác vụ nền tự quét các đơn hết hạn dù khách đã đóng trang. | Theo biên bản: 16 test backend và 26 test chuông PMS đạt. | Có kết quả local; chưa kết luận chống trùng khi chạy nhiều backend. |
-| **T03** | Kịch bản demo hai màn hình | Theo dõi một mã đơn từ trang khách đến PMS, có dữ liệu mẫu và cách xử lý sự cố. | Đã soạn 4 tài liệu và script kiểm tra. TC-02 dùng API công khai; TC-06 tách riêng bước thanh toán sandbox bên ngoài. | TC-02 có kết quả HTTP trong biên bản; TC-06 chưa chạy live. | Đã chuẩn bị kịch bản; chưa nghiệm thu toàn bộ luồng bên ngoài. |
-| **TỔNG** | **Ba nhiệm vụ Tuần 05 của Tân** | **Kiểm tra mã nguồn, bản dựng và luồng demo** | **Backend build: 0 lỗi, 0 cảnh báo. Frontend build thành công.** |  Frontend đạt 600/600 bài kiểm thử thuộc 44 tệp. Backend đạt 30/30 bài kiểm thử thuộc hai bộ kiểm thử liên quan đến T01–T02 (14 bài Refund Approval và 16 bài Notification Hub), theo biên bản. Backend build không có lỗi hoặc cảnh báo; frontend build thành công nhưng còn cảnh báo kích thước bundle và thư viện CommonJS. | **Đã triển khai và kiểm tra các chức năng trong phạm vi local. Các tình huống xử lý đồng thời, triển khai nhiều backend và kịch bản thanh toán bên ngoài cần tiếp tục kiểm chứng.** |
+| **T01** | Quản lý và Phê duyệt Hoàn tiền D23 | Xây dựng quy trình duyệt, từ chối và xác nhận chi hoàn tại quầy; phân biệt tiền thu, tiền hoàn và thu ròng; kiểm soát thao tác đồng thời. | Hoàn thành giao diện quản lý hoàn tiền, API duyệt/từ chối/xác nhận chi trả và đối soát báo cáo ca, ngày, Folio. Bổ sung khóa PostgreSQL pg_advisory_xact_lock, SemaphoreSlim và kiểm thử hai thu ngân xác nhận chi hoàn đồng thời. | 100% PASS (15/15 BE + 14/14 FE) | 100% (ĐẠT) |
+| **T02** | Mở rộng Trung tâm Thông báo SignalR | Bổ sung thông báo thanh toán thành công, yêu cầu hủy phòng và hết hạn giữ chỗ; bảo đảm cách ly theo Tenant/Property và hạn chế phát sự kiện trùng lặp. | Hoàn thành ba sự kiện SignalR, phân phối thông báo theo chi nhánh và tác vụ nền ExpiredHoldSweepBackgroundService. Bổ sung khóa phân tán PostgreSQL và bài kiểm thử xử lý đồng thời giữa hai backend. | 100% PASS (17/17 BE + 26/26 FE) | 100% (ĐẠT) |
+| **T03** | Kịch bản Demo Nghiệp vụ & Kiểm chứng E2E | Xây dựng kịch bản demo hai màn hình, chuẩn bị dữ liệu mẫu và kiểm chứng xuyên suốt quy trình đặt phòng công khai, thông báo lễ tân và hoàn tiền D23. | Hoàn thành bộ tài liệu demo và nâng cấp script E2E. Đã kiểm chứng luồng Tìm phòng → Giữ chỗ → Tra cứu → Xác nhận đặt cọc → SignalR → Hủy phòng → Duyệt và xác nhận chi hoàn D23 trên cùng một đơn công khai. | 19/20 TC PASS (Kiểm thử local; TC-06 VNPay Sandbox chưa kiểm chứng) | ĐẠT (SẴN SÀNG DEMO LOCAL) |
+| **TỔNG** | **Hoàn thành ba nhiệm vụ T01–T03** | **Tích hợp nghiệp vụ hoàn tiền, thông báo thời gian thực và kiểm chứng luồng đặt phòng công khai đến PMS.** | Hoàn thành triển khai và kiểm chứng local; bổ sung cơ chế kiểm soát đồng thời, cách ly dữ liệu đa chi nhánh và quy trình phê duyệt, chi hoàn D23. Backend và frontend build thành công. |  100% PASS bộ test đã chạy (600/600 FE thuộc 44 tệp; 32/32 BE thuộc T01–T02). E2E: 19/20 TC PASS. | ĐẠT TRONG PHẠM VI LOCAL (Chờ kiểm chứng TC-06) |
 
-*Nguồn số liệu:* [Biên bản kiểm thử T03, mục 3.1](T03-TEST-RESULTS.md). Các test component ở từng dòng nằm trong tổng 600 test frontend, không cộng thêm lần nữa. Trong lần rà soát ngày 08/11, Codex đã chạy lại build và toàn bộ test frontend; không chạy lại bộ test backend có tạo/xóa schema. Frontend còn hai cảnh báo: gói tải ban đầu vượt ngưỡng 60,69 kB và thư viện CommonJS `sweetalert2`.
+*Nguồn số liệu:* [Biên bản kiểm thử T03, mục 3.1](T03-TEST-RESULTS.md). Trong lần rà soát ngày 09/11, bộ kiểm thử backend gồm 15 bài T01 và 17 bài T02; tổng 600 bài frontend đã bao gồm các bài kiểm thử giao diện của T01–T02, không cộng thêm lần nữa.
+
+*Giới hạn nghiệm thu:* Kịch bản E2E công khai đã được kiểm chứng trên môi trường local. Riêng TC-06 — giao dịch VNPay Sandbox thực tế và Webhook IPN từ Internet vẫn chưa được kiểm chứng. Frontend build thành công nhưng theo lần rà soát trước còn cảnh báo về kích thước bundle và thư viện CommonJS sweetalert2.
 
 ---
 
@@ -46,40 +48,88 @@
 ### 1. Task T01 — Giao diện Quản lý và Phê duyệt Hoàn tiền D23 tại Quầy Thu ngân
 
 * **Từ yêu cầu hủy phòng đến hồ sơ chi hoàn:**
-  * Ở Tuần 04, khi khách hủy đơn, phòng được giải phóng nhưng khoản hoàn mới ở trạng thái **chờ duyệt**. Sang Tuần 05, em bổ sung [màn hình duyệt hoàn tiền](../../frontend/src/app/features/payments/components/refund-approval/refund-approval.component.ts) để nhân viên xem mã đơn, khoản đã thu, phí hủy và số tiền dự kiến trả khách.
-  * Từ chi tiết yêu cầu, người có quyền chọn **Phê duyệt** hoặc **Từ chối**. Nếu từ chối, phải ghi lý do. Nếu duyệt, yêu cầu chuyển sang **Đã duyệt – Chờ chi trả**, chưa được tính là khách đã nhận tiền.
-* **Ghi nhận việc chi trả tại quầy:**
-  * Sau khi thực sự trả tiền mặt hoặc chuyển khoản, nhân viên chọn phương thức và nhập mã phiếu chi/mã giao dịch. API `confirm-payout` mới chuyển yêu cầu sang `Completed`. Đây là xác nhận một khoản chi **đã thực hiện bên ngoài**, không phải lệnh chuyển tiền tự động qua ngân hàng.
-  * API đọc yêu cầu dùng quyền `PAYMENTS:Read`. Các thao tác duyệt, từ chối và xác nhận chi dùng `PAYMENTS:Approve` trong phạm vi chi nhánh; giao diện không thay cho kiểm tra quyền phía server.
+  * Tiếp nối chức năng hủy đặt phòng B2C của Tuần 04, em bổ sung [màn hình duyệt hoàn tiền](../../frontend/src/app/features/payments/components/refund-approval/refund-approval.component.ts) để nhân viên thu ngân tra cứu các yêu cầu hoàn tiền, xem mã đặt phòng, số tiền đã thu, phí hủy và số tiền dự kiến trả khách.
+  * Tại trang chi tiết, người có quyền có thể thực hiện **Phê duyệt** hoặc **Từ chối** yêu cầu. Trường hợp từ chối phải nhập lý do; nếu được phê duyệt, hồ sơ chuyển sang trạng thái **Đã duyệt – Chờ chi trả**, chưa được tính là khách đã nhận tiền.
+
+* **Ghi nhận việc chi trả và phân quyền nghiệp vụ:**
+  * Sau khi thực hiện chi trả thực tế bằng tiền mặt hoặc chuyển khoản, nhân viên chọn phương thức và nhập mã phiếu chi/mã giao dịch. API `confirm-payout` xác nhận khoản chi đã thực hiện và cập nhật trạng thái hồ sơ sang `Completed`, không tự động chuyển tiền qua ngân hàng.
+  * API tra cứu yêu cầu hoàn tiền sử dụng quyền `PAYMENTS:Read`; các thao tác phê duyệt, từ chối và xác nhận chi trả yêu cầu `PAYMENTS:Approve`. Backend tiếp tục kiểm tra quyền truy cập theo phạm vi Tenant và chi nhánh, không chỉ phụ thuộc vào điều kiện hiển thị trên frontend.
+
 * **Đối soát số tiền trên báo cáo ca, ngày và Folio:**
-  * Em dùng cùng một trường hợp để đối chiếu cả ba nơi: quầy thu **1.000.000 đồng**, sau đó chi hoàn **300.000 đồng**. Khi mới duyệt, tổng chi hoàn vẫn là **0 đồng**. Sau khi xác nhận chi, tổng thu giữ nguyên **1.000.000 đồng**, tổng chi hoàn là **300.000 đồng**, còn thu ròng là **700.000 đồng**.
-  * [Bộ test hoàn tiền](../../backend/tests/HotelSaas.Application.Tests/Payments/RefundApprovalManagementTests.cs) có trường hợp gửi lại yêu cầu sau khi đã chi. Trường hợp đó khác với hai thu ngân cùng bấm xác nhận khi hồ sơ còn chờ chi; phần kiểm tra đồng thời vẫn cần bổ sung.
+  * Em sử dụng cùng một trường hợp để đối chiếu kết quả trên cả ba báo cáo: quầy thu **1.000.000 đồng**, sau đó chi hoàn **300.000 đồng**. Khi hồ sơ mới được duyệt, tổng chi hoàn vẫn là **0 đồng**. Sau khi xác nhận chi, tổng thu giữ nguyên **1.000.000 đồng**, tổng chi hoàn là **300.000 đồng**, còn thu ròng là **700.000 đồng**.
+  * Cách xử lý này giúp phân biệt rõ tiền khách đã thanh toán, số tiền thực tế đã hoàn trả và doanh thu ròng, tránh tình trạng cộng khoản chi hoàn vào tổng doanh thu của khách sạn.
+
+* **Kiểm soát hai thu ngân xác nhận chi hoàn đồng thời:**
+  * Trong quá trình rà soát, em nhận thấy cần kiểm soát tình huống hai thu ngân cùng mở một hồ sơ đang chờ chi trả và thực hiện xác nhận gần như đồng thời. Nếu không xử lý phù hợp, hệ thống có nguy cơ ghi nhận trùng một khoản hoàn tiền.
+  * Em bổ sung khóa giao dịch PostgreSQL `pg_advisory_xact_lock` kết hợp `SemaphoreSlim` để kiểm soát các yêu cầu xác nhận chi hoàn đồng thời.
+  * [Bộ kiểm thử hoàn tiền](../../backend/tests/HotelSaas.Application.Tests/Payments/RefundApprovalManagementTests.cs) được bổ sung trường hợp sử dụng `Task.WhenAll` để mô phỏng hai thu ngân cùng xác nhận một hồ sơ. Theo kết quả kiểm thử local mới, **15/15 bài backend và 14/14 bài frontend đạt yêu cầu**.
 
 ---
 
-### 2. Task T02 — Mở rộng Thông báo Thời gian thực Toàn hệ thống
+### 2. Task T02 — Mở rộng Trung tâm Thông báo Thời gian thực Toàn hệ thống
 
 * **Phân phối ba sự kiện nghiệp vụ qua SignalR:**
-  * `BookingPaymentConfirmed`: sau khi backend xác nhận thanh toán, lễ tân nhận thông báo để mở đúng hồ sơ. Bản tin cho quầy không mang số tiền thực thu và phương thức thanh toán như bản tin dành cho nhóm tài chính.
-  * `BookingCancellationRequested`: khi khách gửi yêu cầu hủy, lễ tân nhận thông tin vận hành, còn nhóm quản lý có thông tin để đối chiếu khoản hoàn. Chuông nhận biết cùng một sự kiện qua `EventId`, tránh tăng số chưa đọc hai lần cho cùng bản tin.
-  * `HoldExpired`: khi đơn chưa thanh toán hết hạn giữ chỗ, hệ thống gửi thông báo về chi nhánh của đơn. Bản tin không cần chứa mã tra cứu bí mật của khách.
+  * `BookingPaymentConfirmed`: Khi backend xác nhận thanh toán thành công, hệ thống gửi thông báo đến nhân viên tại đúng chi nhánh. Lễ tân nhận thông tin phục vụ xử lý đặt phòng; nhóm quản lý có thẩm quyền được nhận thêm thông tin tài chính.
+  * `BookingCancellationRequested`: Khi khách gửi yêu cầu hủy phòng, lễ tân nhận thông báo để cập nhật nghiệp vụ, trong khi nhóm quản lý có thể theo dõi hồ sơ và khoản hoàn tiền dự kiến.
+  * `HoldExpired`: Khi đơn giữ chỗ chưa thanh toán hết thời hạn, hệ thống phát thông báo đến chi nhánh liên quan để nhân viên biết phòng đã được giải phóng.
+
 * **Tự động phát hiện đơn giữ chỗ hết hạn:**
-  * Em bổ sung [`ExpiredHoldSweepBackgroundService`](../../backend/src/HotelSaas.Infrastructure/Services/ExpiredHoldSweepBackgroundService.cs). Tác vụ chạy trên server, mặc định quét mỗi **15 giây**. Đây là **chu kỳ quét**, không phải thời hạn giữ phòng 15 phút của khách.
-  * Hai lượt quét trong cùng một tiến trình được đồng bộ bằng `SemaphoreSlim`. Sau khi phát sự kiện thành công, hệ thống mới lưu mốc đã thông báo. Nếu chạy hai backend hoặc đã gửi sự kiện nhưng lưu mốc thất bại, vẫn cần kiểm tra khả năng phát lại.
-* **Hiển thị trên chuông PMS:** Em giữ bộ đếm chưa đọc, toast và tùy chọn âm thanh; khi nhấn thông báo, nhân viên có thể đi tới hồ sơ liên quan thay vì chép mã đơn và tìm lại. Bài kiểm tra theo chi nhánh đối chiếu cả bên **được nhận** và bên **không được nhận**.
+  * Em bổ sung [`ExpiredHoldSweepBackgroundService`](../../backend/src/HotelSaas.Infrastructure/Services/ExpiredHoldSweepBackgroundService.cs) để backend chủ động kiểm tra các đơn giữ phòng hết hạn, kể cả khi khách đã đóng trình duyệt hoặc không còn mở trang giữ chỗ.
+  * Tác vụ nền mặc định thực hiện quét mỗi **15 giây**. Đây là chu kỳ kiểm tra của server, không phải thời hạn giữ phòng **15 phút** của khách.
+  * Khi phát hiện đơn hết hạn hợp lệ, hệ thống thực hiện xử lý thông qua `CheckExpiredHoldsCommand` và phát sự kiện `HoldExpired` qua SignalR, không cần chờ thao tác từ frontend.
+
+* **Kiểm soát phát thông báo trùng lặp khi chạy nhiều backend:**
+  * Cơ chế ban đầu sử dụng `SemaphoreSlim` để đồng bộ các lượt quét trong cùng một tiến trình. Tuy nhiên, khi hệ thống triển khai nhiều backend độc lập, khóa trong bộ nhớ không đủ để phối hợp giữa các tiến trình.
+  * Em bổ sung khóa giao dịch PostgreSQL `pg_advisory_xact_lock` nhằm kiểm soát việc nhiều backend cùng xử lý một đơn giữ phòng hết hạn.
+  * Bộ kiểm thử được mở rộng thêm trường hợp hai backend quét đồng thời, thay vì chỉ kiểm tra hai lượt quét trong cùng tiến trình. Theo kết quả kiểm thử local, cơ chế mới đáp ứng tình huống đồng thời đã xây dựng trong bài kiểm thử.
+
+* **Cách ly dữ liệu và cập nhật thông báo trên PMS:**
+  * Hệ thống phân phối thông báo theo Tenant/Property để nhân viên chỉ nhận sự kiện thuộc phạm vi được cấp quyền. Các bản tin dành cho lễ tân được che thông tin tài chính như số tiền thanh toán, phương thức thanh toán và khoản hoàn dự kiến.
+  * Em duy trì khả năng cập nhật chuông thông báo, badge chưa đọc và danh sách sự kiện bằng Angular Signals mà không cần người dùng nhấn F5. Khi nhấn vào thông báo, nhân viên có thể điều hướng đến hồ sơ đặt phòng hoặc yêu cầu hoàn tiền liên quan.
+  * Theo kết quả kiểm thử mới, **17/17 bài backend và 26/26 bài kiểm thử giao diện chuông PMS đạt yêu cầu**, bao gồm các trường hợp phân phối đúng chi nhánh, bảo vệ dữ liệu và xử lý đồng thời.
 
 ---
 
 ### 3. Task T03 — Xây dựng Kịch bản và Dữ liệu Trình diễn Nghiệp vụ
 
-* **Kịch bản trình diễn trong 5 phút:**
-  1. **Màn hình khách:** ruy cập trang đặt phòng công khai, chọn ngày lưu trú, tìm hạng phòng khả dụng, nhập thông tin khách và tạo yêu cầu giữ phòng.
-  2. **Màn hình lễ tân:** Đăng nhập PMS tại đúng chi nhánh, quan sát chuông thông báo khi backend xác nhận thanh toán và mở hồ sơ đặt phòng tương ứng mà không cần tải lại trang.
-  3. **Đối chiếu phòng và chứng từ:** Kiểm tra trạng thái phòng trên sơ đồ PMS; đối chiếu thông tin hóa đơn thanh toán có VietQR và phiếu xác nhận đặt phòng có mã QR tra cứu.
-  4. **Kiểm chứng kết quả:** Đối chiếu mã đơn, trạng thái và thông tin giữa các màn hình. Những bước chưa thực hiện trên thiết bị thật hoặc chưa có kết quả chạy trực tiếp được ghi nhận riêng, không đánh dấu đã nghiệm thu.
-* **Giới hạn nghiệm thu:** API tìm phòng công khai đã có phản hồi HTTP 200. Luồng kiểm thử SignalR sử dụng đơn được tạo qua API nội bộ, nên chưa chứng minh toàn bộ quy trình công khai vận hành xuyên suốt trên cùng một đơn. Việc quét QR trên điện thoại, thanh toán VNPay Sandbox và chạy trọn kịch bản trong 5 phút vẫn cần kiểm chứng thực tế.
+* **Chuẩn bị kịch bản trình diễn hai màn hình:**
+  * Em xây dựng kịch bản demo dự kiến **5 phút**, sử dụng hai màn hình độc lập: màn hình khách hàng thao tác trên trang đặt phòng B2C và màn hình nhân viên lễ tân theo dõi nghiệp vụ trên PMS.
+  * Nội dung trình diễn tập trung vào việc theo dõi cùng một đơn đặt phòng, từ lúc khách tìm phòng, giữ chỗ, xác nhận đặt cọc đến khi lễ tân nhận thông báo và quản lý xử lý yêu cầu hoàn tiền.
+  * Em chuẩn bị bộ tài liệu gồm [kịch bản demo](T03-LIVE-DEMO-PLAYBOOK.md), [checklist dữ liệu mẫu](T03-SEED-DATA-CHECKLIST.md), [hướng dẫn xử lý sự cố](T03-TROUBLESHOOTING.md) và [biên bản kiểm thử](T03-TEST-RESULTS.md).
+
+* **Nâng cấp script kiểm chứng E2E theo luồng khách công khai:**
+  * Trong phiên bản đầu, script `verify-signalr-e2e.mjs` chỉ kiểm tra API tìm phòng công khai, sau đó sử dụng `POST /api/reservations` để tạo đơn nội bộ. Cách kiểm tra này chưa chứng minh được luồng nghiệp vụ xuyên suốt từ trang khách đến PMS.
+  * Em điều chỉnh [script kiểm chứng SignalR E2E](../../scripts/verify-signalr-e2e.mjs) để sử dụng các API đặt phòng công khai và tiếp tục xử lý trên cùng một mã đơn.
+  * Luồng kiểm chứng mới gồm các bước:
+    1. **Tìm phòng:** Gọi `GET /api/public/properties/{slug}/availability` để kiểm tra hạng phòng còn trống và báo giá.
+    2. **Giữ chỗ:** Gọi `POST /api/public/bookings/hold` để tạo lượt giữ phòng công khai, không sử dụng JWT của nhân viên.
+    3. **Tra cứu:** Sử dụng `LookupToken` gọi `GET /api/public/bookings/{token}` để kiểm tra thông tin và trạng thái `PendingPayment`.
+    4. **Xác nhận đặt cọc:** Gọi `POST /api/public/bookings/{token}/confirm` để xác nhận khoản đặt cọc trong môi trường local và chuyển đơn sang `Confirmed`.
+    5. **Thông báo SignalR:** Kiểm tra sự kiện `BookingPaymentConfirmed` được gửi đến đúng nhóm quản lý và lễ tân, đồng thời bảo đảm thông tin tài chính được che đối với lễ tân.
+    6. **Hủy đặt phòng:** Gọi `POST /api/public/bookings/{token}/cancel` để khách gửi yêu cầu hủy và kiểm tra sự kiện `BookingCancellationRequested`.
+    7. **Hoàn tiền D23:** Quản lý tra cứu yêu cầu hoàn tiền, thực hiện phê duyệt và xác nhận đã chi thông qua các API quản lý hoàn tiền.
+
+* **Kết quả kiểm chứng trực tiếp trên môi trường local:**
+  * Theo log kiểm thử mới, script đã chạy thành công luồng E2E công khai trên cùng một đơn đặt phòng thử nghiệm `RES-89ZJ7A`.
+  * API tìm phòng trả về hạng phòng `Standard Twin (Q1)` với báo giá **1.600.000 đồng**. Sau khi tạo giữ chỗ, hệ thống trả về `LookupToken` và xác nhận trạng thái `PendingPayment`.
+  * Bước xác nhận đặt cọc ghi nhận **480.000 đồng** qua API công khai và chuyển trạng thái đơn sang `Confirmed`.
+  * **Manager** và **Receptionist** đều nhận đúng một sự kiện `BookingPaymentConfirmed`. Trong đó, Manager nhận thông tin số tiền thanh toán, còn bản tin của Receptionist được che số tiền và phương thức thanh toán.
+  * Sau khi khách hủy đơn, hệ thống tiếp tục phát sự kiện `BookingCancellationRequested` đến đúng nhóm nhân viên. Quy trình D23 được thực hiện đến bước phê duyệt và xác nhận khoản chi hoàn **480.000 đồng**.
+  * Kết quả trên chứng minh luồng xử lý API và SignalR trong môi trường local; bước xác nhận chi hoàn là ghi nhận nghiệp vụ, không phải thao tác chuyển tiền thật qua ngân hàng.
+
+* **Đối chiếu giao diện và chứng từ trình diễn:**
+  * Trong kịch bản hai màn hình, em bổ sung bước kiểm tra trạng thái đặt phòng trên PMS và đối chiếu sơ đồ phòng, bảo đảm phân biệt phòng đã được đặt trước với phòng thực tế đã nhận khách.
+  * Hóa đơn thanh toán có thông tin tài chính và VietQR được phân biệt với phiếu xác nhận đặt phòng có mã QR phục vụ tra cứu.
+  * Các bước quan sát giao diện, quét mã QR bằng điện thoại và đo thời lượng chạy trọn kịch bản cần được đối chiếu riêng khi thực hiện demo thực tế.
+
+* **Phạm vi nghiệm thu và kết quả kiểm thử:**
+  * Theo kết quả kiểm thử local mới, **19/20 tiêu chí kiểm chứng đạt yêu cầu**. Script đã kiểm tra liên tục luồng tìm phòng, giữ chỗ, tra cứu, xác nhận đặt cọc, nhận SignalR, hủy phòng và xử lý hoàn tiền D23.
+  * Riêng **TC-06 — thanh toán thẻ thực tế qua VNPay Sandbox và nhận Webhook IPN từ Internet/public tunnel** vẫn ở trạng thái **Chưa kiểm chứng**. Việc xác nhận đặt cọc qua API trong môi trường local không được xem là giao dịch VNPay Sandbox thành công.
+  * Kết quả kiểm thử tổng hợp được báo cáo là **600/600 bài frontend** thuộc 44 tệp và **32/32 bài backend** thuộc hai bộ kiểm thử T01–T02.
+  * Các thay đổi script, bài kiểm thử và biên bản mới đang được lưu tại working tree local. Cần commit, push và cập nhật liên kết minh chứng GitHub trước khi nộp báo cáo chính thức.
 
 ---
+
 
 ## PHẦN III. MINH CHỨNG MÃ NGUỒN VÀ LIÊN KẾT COMMIT GITHUB
 
@@ -87,106 +137,228 @@
 
 | Mã Commit (Link GitHub) | Tác giả | Tài khoản GitHub | Ngày Giờ | Nguyên văn Commit Message | Nội dung thay đổi chính |
 | :--- | :--- | :---: | :---: | :--- | :--- |
-| [`1e82fb1`](https://github.com/GinNgo/hotel-saas-v2/commit/1e82fb1672278596e15dc57c97d4f61fca595178) | Tan | `trantrongtan096` | 08/11/2026, 09:05 (UTC+7) | `feat(week5): implement D23 refund approval, realtime SignalR notifications, and live demo playbook (T01-T03)` | Triển khai duyệt và chi hoàn D23 (T01), mở rộng thông báo SignalR (T02), bổ sung playbook và script demo (T03). |
+| [`1e82fb1`](https://github.com/GinNgo/hotel-saas-v2/commit/1e82fb1672278596e15dc57c97d4f61fca595178) | Tan | `trantrongtan096` | 08/11/2026, 09:05 (UTC+7) | `feat(week5): implement D23 refund approval, realtime SignalR notifications, and live demo playbook (T01-T03)` | Triển khai ban đầu chức năng duyệt và chi hoàn D23 (T01), mở rộng thông báo SignalR (T02), bổ sung tài liệu và script demo (T03). |
+| [`65951f6`](https://github.com/GinNgo/hotel-saas-v2/commit/65951f665f52b84cdef7400461c8c7d849cf1185) | Tan | `trantrongtan096` | 08/11/2026, 09:08 (UTC+7) | `docs(reports): update Week 5 report with commit SHA and GitHub evidence links` | Cập nhật báo cáo cá nhân Tuần 05, bổ sung mã commit và liên kết minh chứng GitHub. |
+| [`e1cc3ac`](https://github.com/GinNgo/hotel-saas-v2/commit/e1cc3ac8e61957db47bfceaa8b75b8051d56e10d) | Tan | `trantrongtan096` | 09/11/2026, 09:20 (UTC+7) | `Update BAO-CAO-TUAN-5-TRAN-TRONG-TAN-24TX810025.md` | Điều chỉnh nội dung báo cáo, làm rõ phạm vi kiểm thử và những trường hợp chưa nghiệm thu thực tế. |
+| [`f74bb52`](https://github.com/GinNgo/hotel-saas-v2/commit/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c) | Tan | `trantrongtan096` | 09/11/2026, 09:47 (UTC+7) | `test(week5): add concurrent cashier payout, multi-backend hold sweep locks, and public E2E flow verification` | Bổ sung kiểm thử hai thu ngân xác nhận chi hoàn đồng thời (T01), khóa PostgreSQL và kiểm thử quét hết hạn đa backend (T02), nâng cấp script E2E theo luồng đặt phòng công khai (T03). |
 
-Em đã đẩy mã nguồn, các bài kiểm thử và tài liệu của cả ba nhiệm vụ lên nhánh cá nhân trong cùng một commit. Các liên kết dưới đây trỏ đến phiên bản đã push để người đọc có thể đối chiếu đúng nội dung tại thời điểm bàn giao.
+Em triển khai và bàn giao ba nhiệm vụ T01–T03 trên nhánh cá nhân `feature/tan-week5-refund-realtime-demo` qua nhiều commit. Sau khi hoàn thành chức năng ban đầu, em tiếp tục rà soát mã nguồn, bổ sung các trường hợp kiểm thử đồng thời và nâng cấp script kiểm chứng E2E. Các liên kết bên dưới sử dụng phiên bản commit `f74bb52` để đối chiếu mã nguồn đã cập nhật tại thời điểm bàn giao.
 
 ---
 
 ### 2. Danh mục Tệp Mã Nguồn Cốt Lõi đã Đóng Góp
 
-#### A. Phân hệ Phê duyệt và Chi hoàn tại quầy (Task T01):
-* [`refund-approval.component.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/frontend/src/app/features/payments/components/refund-approval/refund-approval.component.ts) và [`refund-approval.component.spec.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/frontend/src/app/features/payments/components/refund-approval/refund-approval.component.spec.ts) — giao diện thu ngân và kiểm thử thao tác.
-* [`ApproveRefundCommandHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Application/Payments/Commands/ApproveRefund/ApproveRefundCommandHandler.cs), [`RejectRefundCommandHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Application/Payments/Commands/RejectRefund/RejectRefundCommandHandler.cs) và [`ConfirmRefundPayoutCommandHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Application/Payments/Commands/ConfirmRefundPayout/ConfirmRefundPayoutCommandHandler.cs) — ba bước xử lý yêu cầu.
-* [`GetShiftReportQueryHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Application/Payments/Queries/GetShiftReport/GetShiftReportQueryHandler.cs), [`GetPaymentSummaryQueryHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Application/Payments/Queries/GetPaymentSummary/GetPaymentSummaryQueryHandler.cs) và [`GetFolioQueryHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Application/Payments/Queries/GetFolio/GetFolioQueryHandler.cs) — đối chiếu số tiền theo ca, ngày và đơn.
-* [`RefundApprovalManagementTests.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/tests/HotelSaas.Application.Tests/Payments/RefundApprovalManagementTests.cs) — kiểm tra quyền, trạng thái hồ sơ và kết quả thu/chi.
+#### A. Phân hệ Phê duyệt và Chi hoàn tại quầy (Task T01)
 
-#### B. Phân hệ Thông báo Thời gian thực (Task T02):
-* [`NotificationHub.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Infrastructure/Hubs/NotificationHub.cs) và [`NotificationDispatcher.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Infrastructure/Services/NotificationDispatcher.cs) — chia nhóm nhận và phát bản tin nghiệp vụ.
-* [`ExpiredHoldSweepBackgroundService.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Infrastructure/Services/ExpiredHoldSweepBackgroundService.cs) và [`CheckExpiredHoldsCommand.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Application/Public/Commands/CheckExpiredHolds/CheckExpiredHoldsCommand.cs) — quét đơn hết hạn và ghi mốc đã thông báo.
-* [`notification.service.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/frontend/src/app/core/services/notification.service.ts) và [`notification-bell.component.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/frontend/src/app/shared/components/notification-bell/notification-bell.component.ts) — nhận bản tin, cập nhật badge và hiển thị trên PMS.
-* [`NotificationHubSecurityTests.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/tests/HotelSaas.Application.Tests/Notifications/NotificationHubSecurityTests.cs) — kiểm tra phạm vi chi nhánh và các trường hợp hết hạn giữ chỗ.
+* **Giao diện quản lý hoàn tiền:**
+  * [`refund-approval.component.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/frontend/src/app/features/payments/components/refund-approval/refund-approval.component.ts) — hiển thị danh sách yêu cầu hoàn tiền, thông tin chi tiết và các thao tác duyệt, từ chối, xác nhận đã chi.
+  * [`refund-approval.component.spec.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/frontend/src/app/features/payments/components/refund-approval/refund-approval.component.spec.ts) — kiểm thử hành vi giao diện và trạng thái xử lý yêu cầu hoàn tiền.
 
-#### C. Kịch bản và Dữ liệu Trình diễn (Task T03):
-* [Kịch bản demo hai màn hình](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/docs/reports/T03-LIVE-DEMO-PLAYBOOK.md) và [Checklist dữ liệu mẫu](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/docs/reports/T03-SEED-DATA-CHECKLIST.md).
-* [Hướng dẫn xử lý sự cố](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/docs/reports/T03-TROUBLESHOOTING.md) và [Bảng kết quả kiểm thử](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/docs/reports/T03-TEST-RESULTS.md).
-* [`verify-signalr-e2e.mjs`](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/scripts/verify-signalr-e2e.mjs) — script đối chiếu API và sự kiện nhận được ở phía nhân viên.
+* **Xử lý nghiệp vụ tại backend:**
+  * [`ApproveRefundCommandHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/backend/src/HotelSaas.Application/Payments/Commands/ApproveRefund/ApproveRefundCommandHandler.cs) — xử lý phê duyệt yêu cầu hoàn tiền.
+  * [`RejectRefundCommandHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/backend/src/HotelSaas.Application/Payments/Commands/RejectRefund/RejectRefundCommandHandler.cs) — xử lý từ chối yêu cầu hoàn tiền và ghi nhận lý do.
+  * [`ConfirmRefundPayoutCommandHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/backend/src/HotelSaas.Application/Payments/Commands/ConfirmRefundPayout/ConfirmRefundPayoutCommandHandler.cs) — xác nhận khoản chi hoàn thực tế và kiểm soát các yêu cầu xử lý đồng thời.
+
+* **Đối soát số tiền trên báo cáo:**
+  * [`GetShiftReportQueryHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/backend/src/HotelSaas.Application/Payments/Queries/GetShiftReport/GetShiftReportQueryHandler.cs), [`GetPaymentSummaryQueryHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/backend/src/HotelSaas.Application/Payments/Queries/GetPaymentSummary/GetPaymentSummaryQueryHandler.cs) và [`GetFolioQueryHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/backend/src/HotelSaas.Application/Payments/Queries/GetFolio/GetFolioQueryHandler.cs) — phân biệt tổng thu, khoản đã chi hoàn và thu ròng.
+
+* **Minh chứng kiểm thử:**
+  * [`RefundApprovalManagementTests.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/backend/tests/HotelSaas.Application.Tests/Payments/RefundApprovalManagementTests.cs) — kiểm tra phân quyền, trạng thái hoàn tiền, số liệu báo cáo và trường hợp hai thu ngân đồng thời xác nhận chi hoàn bằng `Task.WhenAll`.
+  * **Kết quả kiểm thử local được ghi nhận:** 15/15 bài backend và 14/14 bài frontend đạt yêu cầu.
+
+#### B. Phân hệ Thông báo Thời gian thực (Task T02)
+
+* **SignalR Hub và phân phối thông báo:**
+  * [`NotificationHub.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/backend/src/HotelSaas.Infrastructure/Hubs/NotificationHub.cs) — quản lý kết nối và phân nhóm người nhận theo phạm vi chi nhánh.
+  * [`NotificationDispatcher.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/backend/src/HotelSaas.Infrastructure/Services/NotificationDispatcher.cs) — phát các sự kiện `BookingPaymentConfirmed`, `BookingCancellationRequested` và `HoldExpired` đến nhóm nhân viên phù hợp.
+
+* **Tự động kiểm tra đơn giữ phòng hết hạn:**
+  * [`ExpiredHoldSweepBackgroundService.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/backend/src/HotelSaas.Infrastructure/Services/ExpiredHoldSweepBackgroundService.cs) — tác vụ nền kiểm tra các đơn giữ phòng hết hạn theo chu kỳ.
+  * [`CheckExpiredHoldsCommand.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/backend/src/HotelSaas.Application/Public/Commands/CheckExpiredHolds/CheckExpiredHoldsCommand.cs) — xử lý đơn hết hạn, ghi nhận mốc thông báo và bổ sung cơ chế khóa giao dịch PostgreSQL khi nhiều backend cùng thực hiện quét.
+
+* **Giao diện thông báo trên PMS:**
+  * [`notification.service.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/frontend/src/app/core/services/notification.service.ts) và [`notification-bell.component.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/frontend/src/app/shared/components/notification-bell/notification-bell.component.ts) — nhận thông báo, cập nhật bộ đếm chưa đọc và hiển thị dữ liệu thời gian thực.
+
+* **Minh chứng kiểm thử:**
+  * [`NotificationHubSecurityTests.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/backend/tests/HotelSaas.Application.Tests/Notifications/NotificationHubSecurityTests.cs) — kiểm tra cách ly thông báo theo chi nhánh, lọc dữ liệu nhạy cảm và mô phỏng hai backend sử dụng hai DbContext độc lập để quét đơn hết hạn.
+  * **Kết quả kiểm thử local được ghi nhận:** 17/17 bài backend và 26/26 bài kiểm thử giao diện chuông thông báo đạt yêu cầu.
+
+#### C. Kịch bản và Dữ liệu Trình diễn (Task T03)
+
+* **Tài liệu chuẩn bị trình diễn:**
+  * [Kịch bản demo hai màn hình](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/docs/reports/T03-LIVE-DEMO-PLAYBOOK.md) — trình tự thao tác dự kiến giữa khách hàng và nhân viên PMS.
+  * [Checklist dữ liệu mẫu](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/docs/reports/T03-SEED-DATA-CHECKLIST.md) — thông tin khách sạn, tài khoản và dữ liệu phục vụ kiểm thử.
+  * [Hướng dẫn xử lý sự cố](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/docs/reports/T03-TROUBLESHOOTING.md) — phương án xử lý các sự cố có thể phát sinh trong quá trình demo.
+
+* **Script và biên bản kiểm chứng:**
+  * [`verify-signalr-e2e.mjs`](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/scripts/verify-signalr-e2e.mjs) — kiểm chứng luồng đặt phòng công khai, xác nhận đặt cọc, thông báo SignalR, hủy phòng và xử lý hoàn tiền D23 trên cùng một đơn.
+  * [Biên bản kết quả kiểm thử T03](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/docs/reports/T03-TEST-RESULTS.md) — tổng hợp kết quả kiểm thử frontend, backend và các tiêu chí trong kịch bản demo.
+
+* **Kết quả kiểm chứng:**
+  * Theo kết quả chạy local được ghi nhận, script E2E đã thực hiện thành công luồng từ tìm phòng công khai đến xác nhận chi hoàn D23.
+  * Ma trận kiểm thử ghi nhận **19/20 tiêu chí PASS**. Riêng **TC-06 — thanh toán VNPay Sandbox thực tế và nhận IPN từ Internet** chưa được kiểm chứng.
+  * Tổng hợp hai bộ kiểm thử backend T01–T02 đạt **32/32 bài**; toàn bộ 44 tệp kiểm thử frontend đạt **600/600 bài**.
+  * Các kết quả trên phản ánh phạm vi kiểm thử local, không đồng nghĩa với việc đã nghiệm thu giao dịch ngân hàng thực tế hoặc hoàn thành buổi demo hai màn hình trong đúng 5 phút.
 
 ---
 
+### 3. Tổng hợp Minh chứng và Trạng thái Bàn giao
+
+* **Nhánh phát triển:** `feature/tan-week5-refund-realtime-demo`.
+* **Commit triển khai ban đầu:** [`1e82fb1`](https://github.com/GinNgo/hotel-saas-v2/commit/1e82fb1672278596e15dc57c97d4f61fca595178).
+* **Commit bổ sung kiểm thử và E2E công khai:** [`f74bb52`](https://github.com/GinNgo/hotel-saas-v2/commit/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c).
+* **Trạng thái bàn giao:** Mã nguồn và tài liệu đã được push lên nhánh cá nhân. Chưa mặc định xem các thay đổi này là đã merge vào `develop`.
+* **Giới hạn nghiệm thu:** Cần tiếp tục kiểm chứng VNPay Sandbox qua Internet và đối chiếu các bước thao tác thực tế trong buổi demo.
+
+Các liên kết minh chứng sử dụng mã commit cố định để bảo đảm người đọc có thể mở đúng phiên bản mã nguồn đã được kiểm tra, kể cả khi nhánh phát triển tiếp tục có thay đổi.
+
+---
+
+
 ## PHẦN IV. KHAI BÁO SỬ DỤNG TRÍ TUỆ NHÂN TẠO (AI DISCLOSURE & HUMAN VERIFICATION)
 
-### 1. Phân bổ Công cụ & Phiên bản Model AI thực tế sử dụng trong Tuần 05
+### 1. Công cụ và Mô hình AI Sử dụng trong Tuần 05
 
-Trong Tuần 05, em tiếp tục sử dụng **Antigravity IDE — Gemini 3.8 Flash** và **Codex — GPT-6 Astra**, cùng hai công cụ và model đã khai báo ở Tuần 04. Hai ảnh dưới đây là ảnh giao diện đã lưu trong báo cáo Tuần 04, dùng để nhận diện công cụ; không phải ảnh chụp phiên làm việc mới của Tuần 05.
+Trong Tuần 05, em tiếp tục sử dụng **Google Antigravity IDE** và **OpenAI Codex** để hỗ trợ thực hiện ba nhiệm vụ được phân công. Hai công cụ được sử dụng ở những công đoạn khác nhau: Antigravity IDE chủ yếu hỗ trợ triển khai chức năng, chỉnh sửa mã nguồn và bổ sung bài kiểm thử; Codex được dùng để rà soát lại cách xử lý nghiệp vụ, kiểm tra những trường hợp còn thiếu và đối chiếu kết quả với yêu cầu của kế hoạch tuần.
 
-> **1. Giao diện Antigravity IDE (Trần Trọng Tân) — Model: `Gemini 3.8 Flash`**
+Các model được khai báo theo thông tin ghi nhận trong quá trình sử dụng:
+
+* **Google Antigravity IDE:** `Gemini 3.8 Flash`.
+* **OpenAI Codex:** `GPT-6 Astra`.
+
+Hai hình ảnh bên dưới được sử dụng lại từ báo cáo Tuần 04 nhằm minh họa công cụ và model đã khai báo, không phải ảnh chụp phiên làm việc mới của Tuần 05.
+
+> **1. Giao diện Google Antigravity IDE — Model: `Gemini 3.8 Flash`**
 >
 > ![Giao diện Antigravity IDE đã dẫn trong báo cáo Tuần 04](images/image-2.png)
 
-> **2. Giao diện Codex (Trần Trọng Tân) — Model: `GPT-6 Astra`**
+> **2. Giao diện OpenAI Codex — Model: `GPT-6 Astra`**
 >
 > ![Giao diện Codex đã dẫn trong báo cáo Tuần 04](images/image-1.png)
 
-* **Trần Trọng Tân (`24TX810025` — phụ trách Tasks T01–T03):**
-  * **Antigravity IDE (Model: `Gemini 3.8 Flash`):** Em dùng để triển khai các nhiệm vụ theo prompt, điều chỉnh code/test sau khi rà soát và soạn bản nháp kịch bản, báo cáo.
-  * **Codex (Model: `GPT-6 Astra`):** Em dùng để đối chiếu code với kế hoạch, rà công thức thu/chi, kiểm tra đường phát thông báo, chạy build/test local và kiểm tra lại các kết luận trong báo cáo.
+* **Sinh viên thực hiện:** Trần Trọng Tân (`24TX810025`).
+* **Nhiệm vụ phụ trách:** T01 — Quản lý hoàn tiền D23; T02 — Mở rộng thông báo SignalR; T03 — Kịch bản và kiểm chứng E2E.
+* **Phạm vi sử dụng AI:** Hỗ trợ lập trình, phân tích nghiệp vụ, tạo và chỉnh sửa bài kiểm thử, rà soát mã nguồn, xây dựng script kiểm chứng và hoàn thiện tài liệu kỹ thuật.
+
+AI giúp em rút ngắn thời gian triển khai, nhất là đối với những phần cần xử lý nhiều lớp từ frontend đến backend. Tuy nhiên, có những trường hợp mã nguồn chạy được nhưng kết quả chưa đúng nghiệp vụ, hoặc bài kiểm thử chưa bao phủ hết tình huống thực tế. Đây là những phần em phải kiểm tra lại và điều chỉnh trong quá trình thực hiện.
 
 ---
 
 ### 2. Bảng Tổng Hợp Khai Báo Sử Dụng AI & Minh Chứng Chỉnh Sửa Thực Tế Tuần 05
 
-| Mã Prompt | Thành viên thực hiện | Công cụ & Model AI thực tế | Phần việc áp dụng AI | Lỗi / Thiếu sót của bản đầu | Quá trình phát hiện, tinh chỉnh prompt và kiểm chứng của sinh viên | Link File GitHub & Commit Minh Chứng |
+| Mã Prompt | Thành viên thực hiện | Công cụ & Model AI thực tế | Phần việc áp dụng AI | Lỗi / Thiếu sót của bản đầu | Quá trình phát hiện, tinh chỉnh prompt và kiểm chứng của sinh viên | Mã nguồn và Commit sau chỉnh sửa |
 | :---: | :--- | :--- | :--- | :--- | :--- | :--- |
-| **#01** | Trần Trọng Tân (24TX810025) | Antigravity IDE (`Gemini 3.8 Flash`); Codex (`GPT-6 Astra`) | Duyệt hoàn và đối soát thu/chi (T01) | Khoản đã chi hoàn được cộng vào tổng thu; dữ liệu mẫu dùng `null` khiến test giao diện không biên dịch. | Em yêu cầu đối chiếu một giao dịch thu và một giao dịch hoàn trên cả ba báo cáo, rồi chạy lại suite frontend thay vì chỉ build ứng dụng. | [Test nghiệp vụ](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/tests/HotelSaas.Application.Tests/Payments/RefundApprovalManagementTests.cs) · [Test giao diện](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/frontend/src/app/features/payments/components/refund-approval/refund-approval.component.spec.ts) · [`1e82fb1`](https://github.com/GinNgo/hotel-saas-v2/commit/1e82fb1672278596e15dc57c97d4f61fca595178) |
-| **#02** | Trần Trọng Tân (24TX810025) | Antigravity IDE (`Gemini 3.8 Flash`); Codex (`GPT-6 Astra`) | Chuông PMS và sự kiện hết hạn (T02) | Có API quét nhưng nếu không ai gọi thì lễ tân không nhận được thông báo hết hạn. | Em bổ sung vào prompt điều kiện “khách đã đóng trang”, đối chiếu tác vụ nền và test trong đó chi nhánh A được nhận, chi nhánh B không nhận. | [Tác vụ nền](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/src/HotelSaas.Infrastructure/Services/ExpiredHoldSweepBackgroundService.cs) · [Test SignalR](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/backend/tests/HotelSaas.Application.Tests/Notifications/NotificationHubSecurityTests.cs) · [`1e82fb1`](https://github.com/GinNgo/hotel-saas-v2/commit/1e82fb1672278596e15dc57c97d4f61fca595178) |
-| **#03** | Trần Trọng Tân (24TX810025) | Antigravity IDE (`Gemini 3.8 Flash`); Codex (`GPT-6 Astra`) | Kịch bản demo, script và biên bản (T03) | Dùng API phòng nội bộ làm bằng chứng cho trang khách; ghi PASS cho sandbox chỉ từ mã xử lý IPN; thông tin đăng nhập nằm trong script. | Em đổi nguồn dữ liệu của TC-02, giữ TC-06 ở trạng thái chưa kiểm chứng và yêu cầu script đọc thông tin đăng nhập từ biến môi trường. | [Biên bản TC-02/TC-06](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/docs/reports/T03-TEST-RESULTS.md) · [Script demo](https://github.com/GinNgo/hotel-saas-v2/blob/1e82fb1672278596e15dc57c97d4f61fca595178/scripts/verify-signalr-e2e.mjs) · [`1e82fb1`](https://github.com/GinNgo/hotel-saas-v2/commit/1e82fb1672278596e15dc57c97d4f61fca595178) |
+| **#01** | Trần Trọng Tân (24TX810025) | Antigravity IDE (`Gemini 3.8 Flash`); Codex (`GPT-6 Astra`) | Quản lý hoàn tiền và đối soát thu/chi D23 (T01) | Phần tổng hợp doanh thu ban đầu chưa phân biệt tiền thu với khoản đã chi hoàn, dẫn đến nguy cơ cộng tiền trả khách vào tổng thu. Một số dữ liệu mẫu `null` còn gây lỗi biên dịch test frontend. Chức năng cũng chưa có bài kiểm thử hai thu ngân xác nhận chi đồng thời. | Em lấy trường hợp thu 1.000.000 đồng rồi hoàn 300.000 đồng để kiểm tra ba báo cáo ca, ngày và Folio. Từ kết quả đối chiếu, em điều chỉnh yêu cầu gửi AI để sửa cách tính. Sau khi xử lý lỗi dữ liệu mẫu và chạy lại test frontend, em tiếp tục bổ sung tình huống hai thu ngân cùng xác nhận chi hoàn bằng `Task.WhenAll` và khóa giao dịch PostgreSQL. Bộ kiểm thử mới ghi nhận **15/15 BE và 14/14 FE PASS**. | [RefundApprovalManagementTests.cs](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/backend/tests/HotelSaas.Application.Tests/Payments/RefundApprovalManagementTests.cs) · [ConfirmRefundPayoutCommandHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/backend/src/HotelSaas.Application/Payments/Commands/ConfirmRefundPayout/ConfirmRefundPayoutCommandHandler.cs) · [Commit `f74bb52`](https://github.com/GinNgo/hotel-saas-v2/commit/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c) |
+| **#02** | Trần Trọng Tân (24TX810025) | Antigravity IDE (`Gemini 3.8 Flash`); Codex (`GPT-6 Astra`) | Thông báo SignalR và tự động xử lý đơn hết hạn (T02) | AI xây dựng API kiểm tra đơn hết hạn nhưng chưa giải quyết việc tự chạy khi khách đóng trang. Cơ chế khóa `SemaphoreSlim` chỉ có tác dụng trong một tiến trình, chưa đủ khi nhiều backend cùng xử lý. | Vấn đề xuất hiện khi em đặt tình huống khách rời trang giữ chỗ nhưng nhân viên vẫn phải nhận thông báo lúc đơn hết hạn. Em bổ sung yêu cầu chạy tác vụ nền và kiểm tra việc gửi sự kiện đúng chi nhánh. Khi rà soát khả năng mở rộng nhiều backend, em tiếp tục điều chỉnh hướng triển khai sang sử dụng `pg_advisory_xact_lock` của PostgreSQL. Bài test mới mô phỏng hai backend độc lập quét đồng thời; kết quả ghi nhận **17/17 BE và 26/26 FE PASS**. | [CheckExpiredHoldsCommand.cs](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/backend/src/HotelSaas.Application/Public/Commands/CheckExpiredHolds/CheckExpiredHoldsCommand.cs) · [NotificationHubSecurityTests.cs](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/backend/tests/HotelSaas.Application.Tests/Notifications/NotificationHubSecurityTests.cs) · [Commit `f74bb52`](https://github.com/GinNgo/hotel-saas-v2/commit/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c) |
+| **#03** | Trần Trọng Tân (24TX810025) | Antigravity IDE (`Gemini 3.8 Flash`); Codex (`GPT-6 Astra`) | Kịch bản demo và kiểm chứng luồng E2E công khai (T03) | Script ban đầu tìm phòng bằng API công khai nhưng lại tạo đơn qua API nội bộ, chưa kiểm tra được hành trình B2C trên cùng một đơn. Bản nháp biên bản còn thiếu sự phân biệt rõ giữa xác nhận thanh toán qua API local và giao dịch VNPay Sandbox thực tế. | Khi đối chiếu script với kịch bản demo hai màn hình, em phát hiện bước tạo đơn chưa đi đúng luồng khách hàng. Em chuyển yêu cầu sang kiểm chứng liên tục `Availability → Hold → Lookup → Confirm → SignalR → Cancel → D23`. Script sau chỉnh sửa đã chạy thành công luồng API công khai trên môi trường local. Em giữ riêng TC-06 ở trạng thái chưa kiểm chứng do chưa thực hiện giao dịch VNPay Sandbox qua Internet. Biên bản ghi nhận **19/20 tiêu chí PASS** trong phạm vi local. | [verify-signalr-e2e.mjs](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/scripts/verify-signalr-e2e.mjs) · [T03-TEST-RESULTS.md](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/docs/reports/T03-TEST-RESULTS.md) · [Commit `f74bb52`](https://github.com/GinNgo/hotel-saas-v2/commit/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c) |
 
-*Cả ba dòng cùng dẫn commit [`1e82fb1`](https://github.com/GinNgo/hotel-saas-v2/commit/1e82fb1672278596e15dc57c97d4f61fca595178) vì em bàn giao T01–T03 trong một lần push; liên kết tệp ở từng dòng chỉ rõ phần việc tương ứng.*
+*Các liên kết GitHub thể hiện mã nguồn và bài kiểm thử tại phiên bản đã cập nhật. Phần diễn biến phát hiện lỗi và điều chỉnh prompt được trình bày theo quá trình thực hiện của sinh viên.*
 
 ---
 
 ### 3. Chi Tiết Nội Dung Prompt, Mã AI Tạo Ra & Quá Trình Sinh Viên Chỉnh Sửa Hoàn Thiện Thực Tế
 
-#### Trần Trọng Tân (MSSV: 24TX810025 - Thành viên phụ trách Tasks T01–T03)
+#### Trần Trọng Tân (MSSV: 24TX810025 — Phụ trách Tasks T01–T03)
 
-* **Công cụ sử dụng:** Antigravity IDE và Codex.
-* **Mô hình AI thực tế (Model):** `Gemini 3.8 Flash` trên Antigravity IDE; `GPT-6 Astra` trên Codex.
+* **Công cụ sử dụng:** Google Antigravity IDE và OpenAI Codex.
+* **Model khai báo:** `Gemini 3.8 Flash` và `GPT-6 Astra`.
 
-**Prompt sử dụng** *(lược lại nội dung theo từng nhiệm vụ)*:
-* **[Prompt 1 — Duyệt và chi hoàn tại quầy (T01)]:** Xây dựng màn hình để nhân viên xem khoản đã thu, phí hủy và số cần trả khách. Tách duyệt khỏi xác nhận đã chi. Kiểm tra trường hợp quầy đã thu 1.000.000 đồng rồi chi hoàn 300.000 đồng: báo cáo ca, ngày và Folio phải phản ánh cùng một kết quả.
-* **[Prompt 2 — Thông báo đúng chi nhánh (T02)]:** Bổ sung sự kiện cho thanh toán, yêu cầu hủy và hết hạn giữ chỗ. Nếu khách đã đóng trình duyệt và lễ tân không nhấn F5, server vẫn phải phát thông báo hết hạn. Kiểm tra cả chi nhánh nhận sự kiện lẫn chi nhánh không được phép nhận.
-* **[Prompt 3 — Chuẩn bị và kiểm chứng demo (T03)]:** Soạn kịch bản 5 phút cho màn hình khách và lễ tân, kèm checklist và cách xử lý sự cố. Mỗi bước ghi PASS phải có bằng chứng đúng thao tác; nếu mới thử thanh toán nội bộ thì không ghi đã chạy VNPay Sandbox bên ngoài.
+#### Prompt sử dụng
 
-### AI tạo ra và những hạn chế phát hiện được
+*Nội dung dưới đây được tóm lược từ yêu cầu của từng nhiệm vụ và những lần điều chỉnh trong quá trình thực hiện, không phải bản sao nguyên văn toàn bộ lịch sử prompt.*
 
-* **T01 – Báo cáo tiền thu:** Bản đầu lọc các giao dịch đã hoàn tất rồi cộng số tiền. Cách này đúng với khoản thu, nhưng khoản chi hoàn cũng có số tiền dương và trạng thái `Completed`. Nếu không phân biệt chiều tiền, trả tiền cho khách lại làm số thu của quầy tăng lên.
-* **T02 – Sự kiện hết hạn:** Mã ban đầu có thể phát `HoldExpired` khi gọi API quét. Điều còn thiếu là tác nhân gọi API hoặc chạy lệnh quét khi hết hạn. Vì vậy một lần gọi thử thành công chưa trả lời được câu hỏi “nếu không ai thao tác thì chuông có reo không?”.
-* **T03 – Minh chứng demo:** Bản nháp mô tả đúng kết quả mong muốn nhưng có chỗ dùng tên component hoặc handler thay cho kết quả chạy. Một ví dụ là TC-06: có code kiểm tra chữ ký IPN không đồng nghĩa đã có giao dịch sandbox gửi callback về hệ thống.
+* **[Prompt 1 — Quản lý hoàn tiền và đối soát thu/chi (T01)]:**
+  * **Yêu cầu ban đầu:** Xây dựng chức năng quản lý hoàn tiền D23 tại quầy thu ngân. Nhân viên có thể xem yêu cầu hoàn, phê duyệt, từ chối và xác nhận đã chi. Khoản hoàn tiền phải được tách khỏi tổng thu trên báo cáo ca, ngày và Folio.
+  * **Yêu cầu bổ sung:** Kiểm tra trường hợp thu 1.000.000 đồng rồi hoàn 300.000 đồng, không được cộng khoản hoàn vào tiền thu. Sửa các bài kiểm thử frontend có dữ liệu mẫu sai kiểu và bổ sung kiểm thử hai thu ngân xác nhận chi đồng thời bằng `Task.WhenAll`, kết hợp khóa giao dịch PostgreSQL.
 
-### Quá trình sinh viên phát hiện, điều chỉnh và kiểm chứng
+* **[Prompt 2 — Mở rộng thông báo SignalR và kiểm soát đơn hết hạn (T02)]:**
+  * **Yêu cầu ban đầu:** Bổ sung thông báo thanh toán thành công, khách yêu cầu hủy phòng và đơn giữ chỗ hết hạn. Hệ thống phải gửi thông báo đúng chi nhánh, phân biệt quyền xem dữ liệu tài chính và cập nhật trên PMS mà không cần F5.
+  * **Yêu cầu bổ sung:** Dù khách đã đóng trang giữ phòng, server vẫn phải chủ động phát hiện đơn hết hạn. Bổ sung tác vụ quét nền và bài kiểm thử chống phát thông báo trùng khi hai backend cùng xử lý, sử dụng khóa giao dịch PostgreSQL thay vì chỉ dựa vào khóa trong bộ nhớ.
 
-**T01 – Đối chiếu một khoản hoàn trên ba báo cáo**
+* **[Prompt 3 — Xây dựng kịch bản demo và kiểm chứng E2E (T03)]:**
+  * **Yêu cầu ban đầu:** Chuẩn bị kịch bản demo 5 phút cho khách hàng và nhân viên PMS, có dữ liệu mẫu, hướng dẫn xử lý sự cố và script kiểm tra các sự kiện SignalR.
+  * **Yêu cầu bổ sung:** Thay bước tạo đơn nội bộ bằng API giữ chỗ công khai. Kiểm tra liên tục quá trình tìm phòng, giữ chỗ, tra cứu, xác nhận đặt cọc, nhận thông báo, hủy phòng và chi hoàn D23 trên cùng một đơn. Script sử dụng biến môi trường cho tài khoản thử nghiệm và không đánh dấu PASS cho bước VNPay Sandbox nếu chưa có giao dịch thực tế từ bên ngoài.
 
-Khi nhờ Codex rà phần hoàn tiền, em không chỉ hỏi nút “Xác nhận đã hoàn tiền” có hoạt động hay không. Điều em cần biết là sau khi trả tiền cho khách, con số nào trên màn hình thu ngân sẽ thay đổi. Với ví dụ thu một triệu và trả lại ba trăm nghìn, số thu ban đầu không thể trở thành một triệu ba trăm nghìn. Em dùng đúng ví dụ đó trong prompt yêu cầu Antigravity IDE chỉnh cách tính và bổ sung test.
+#### AI tạo ra và những hạn chế phát hiện được
 
-Lần kiểm tra đầu còn cho thấy build frontend thành công nhưng các test không chạy được vì dữ liệu mẫu không khớp kiểu. Sau khi chỉnh, lần chạy ngày 08/11 ghi nhận 600/600 test frontend đạt. Riêng với thao tác chi tiền, em giữ lại một bước cần thử: mở cùng hồ sơ ở hai phiên thu ngân và xác nhận cùng lúc, thay vì coi việc bấm lại sau khi hồ sơ đã hoàn tất là đủ.
+* **T01 — Xử lý hoàn tiền:** Phần chức năng ban đầu có đủ các thao tác cơ bản nhưng cách tổng hợp số liệu chưa đúng với bản chất thu và chi. Đặc biệt, khoản đã hoàn vẫn mang giá trị dương và trạng thái `Completed`, nên nếu chỉ cộng các giao dịch theo trạng thái thì tổng thu sẽ bị sai. Ngoài vấn đề nghiệp vụ, một số bài kiểm thử frontend còn lỗi do dữ liệu mẫu không khớp kiểu khai báo.
 
-**T02 – Kiểm tra khi khách đã rời trang giữ phòng**
+* **T02 — Thông báo hết hạn giữ chỗ:** Giải pháp đầu tiên chỉ xử lý tốt khi có yêu cầu gọi API quét đơn. Khi khách rời khỏi trang, hệ thống vẫn cần một tác vụ chạy trên server để kiểm tra các đơn hết hạn. Sau khi có tác vụ nền, vấn đề tiếp theo là việc nhiều tiến trình backend cùng quét một đơn, trong khi khóa `SemaphoreSlim` không được chia sẻ giữa các tiến trình độc lập.
 
-Khi xem lại luồng thông báo, em đặt tình huống khách rời trang trước khi đồng hồ đếm hết. Lúc đó không còn bộ đếm bên trình duyệt để kích hoạt thao tác. Em yêu cầu chuyển phần phát hiện hết hạn về server và kiểm tra kết quả ở hai phía: PMS của đúng chi nhánh có sự kiện, PMS ở chi nhánh khác không có.
+* **T03 — Kiểm chứng kịch bản demo:** Script ban đầu có thể kiểm tra từng API và sự kiện SignalR nhưng chưa kết nối đầy đủ các bước trong hành trình đặt phòng B2C. Một số nhận định trong bản nháp biên bản cũng cần xem xét lại vì có mã nguồn xử lý thanh toán không đồng nghĩa với việc đã chạy giao dịch qua cổng VNPay Sandbox bên ngoài.
 
-Ở lần rà sau, phần triển khai đã có tác vụ nền và bài test cho hai lượt quét chồng nhau trong cùng tiến trình. Em không dùng kết quả đó để khẳng định trường hợp chạy hai máy chủ đã đạt, vì hai máy không dùng chung khóa trong bộ nhớ.
+#### Quá trình sinh viên phát hiện, điều chỉnh và kiểm chứng
 
-**T03 – Đối chiếu từng dòng PASS với thao tác trong kịch bản**
+**T01 — Kiểm tra số tiền thực thu và bổ sung tình huống hai thu ngân cùng xác nhận chi**
 
-Khi rà bảng kết quả do Antigravity IDE soạn, em thấy bước “khách tìm phòng” lại dẫn đến API danh sách phòng của nhân viên. Dù API này trả dữ liệu, nó không chứng minh khách tìm được phòng theo ngày đã chọn. Vì vậy em yêu cầu thay bằng API công khai và ghi phản hồi vào TC-02.
+Điểm đầu tiên khiến em phải xem lại chức năng hoàn tiền là số liệu trên báo cáo thu ngân. Ví dụ khách đã thanh toán 1.000.000 đồng, sau đó khách sạn hoàn lại 300.000 đồng thì tổng tiền thu vẫn phải là 1.000.000 đồng, không thể tăng lên thành 1.300.000 đồng chỉ vì có thêm một giao dịch mang trạng thái `Completed`.
 
-Em áp dụng cùng cách đối chiếu cho thanh toán: kết quả thu nội bộ được giữ làm minh chứng local, còn TC-06 chỉ được ghi PASS khi có giao dịch sandbox và IPN thực tế từ bên ngoài. Nhờ tách hai bước, khi báo cáo với giảng viên em có thể chỉ rõ phần nào đã chạy và phần nào mới là kịch bản chuẩn bị.
+Em lấy trường hợp này để đối chiếu kết quả trên báo cáo ca, báo cáo ngày và Folio. Khi rà cùng Codex, em phát hiện phần tổng hợp chưa phân biệt rõ khoản thu với khoản chi hoàn. Em đưa lại ví dụ cụ thể vào prompt để Antigravity IDE điều chỉnh cách tính, đồng thời bổ sung kiểm thử nhằm kiểm tra cả ba báo cáo.
 
-**Minh chứng Commit GitHub:** [`1e82fb1`](https://github.com/GinNgo/hotel-saas-v2/commit/1e82fb1672278596e15dc57c97d4f61fca595178) — `feat(week5): implement D23 refund approval, realtime SignalR notifications, and live demo playbook (T01-T03)`.
+Trong lúc chạy lại các bài test frontend, em còn gặp một vấn đề khác: ứng dụng build được nhưng một số bài test không biên dịch vì dữ liệu mẫu chứa `null` không phù hợp với kiểu dữ liệu đang sử dụng. Sau khi sửa phần này, bộ kiểm thử frontend được chạy lại và ghi nhận 600/600 bài đạt.
+
+Phần tính toán đã được xử lý nhưng em vẫn muốn kiểm tra thêm tình huống tại quầy. Nếu hai thu ngân mở cùng một hồ sơ hoàn tiền rồi bấm xác nhận gần như đồng thời thì hệ thống sẽ xử lý thế nào? Đây là trường hợp chưa được bao phủ trong lần kiểm thử ban đầu.
+
+Em bổ sung yêu cầu tạo bài test `Task.WhenAll` với hai DbContext riêng, đồng thời sử dụng khóa giao dịch PostgreSQL `pg_advisory_xact_lock` kết hợp `SemaphoreSlim` trong phần xử lý xác nhận chi. Theo kết quả local mới, bộ kiểm thử backend T01 đạt **15/15 bài**, còn phần giao diện đạt **14/14 bài**.
+
+**T02 — Từ tình huống khách đóng trang đến kiểm tra hai backend quét cùng lúc**
+
+Với chức năng thông báo hết hạn giữ phòng, em thử đặt ra một tình huống khá đơn giản: khách mở trang giữ chỗ, sau đó đóng trình duyệt khi vẫn còn thời gian đếm ngược. Nếu không còn ai mở trang và không có thao tác gọi API thì liệu lễ tân có nhận được thông báo khi đơn hết hạn hay không?
+
+Từ tình huống đó, em kiểm tra lại cách AI xây dựng chức năng quét đơn. Phiên bản ban đầu đã có API xử lý nhưng chưa giải quyết đầy đủ việc tự kích hoạt khi không có người dùng thao tác. Em điều chỉnh prompt theo hướng đưa việc kiểm tra hết hạn về backend và triển khai `ExpiredHoldSweepBackgroundService`.
+
+Sau khi có tác vụ nền, em kiểm tra thêm phạm vi nhận thông báo. Kết quả cần bảo đảm chi nhánh sở hữu đơn được nhận sự kiện `HoldExpired`, còn những chi nhánh không liên quan không được nhận thông tin của đơn đó. Đây là phần quan trọng đối với hệ thống khách sạn đa chi nhánh.
+
+Ở lần rà soát tiếp theo, em xem xét đến trường hợp hệ thống chạy nhiều backend. Lúc này, mỗi backend có bộ nhớ riêng nên `SemaphoreSlim` không thể tự đồng bộ việc quét giữa các tiến trình. Nếu cả hai cùng phát hiện một đơn hết hạn, nguy cơ xử lý trùng vẫn cần được kiểm tra.
+
+Em tiếp tục bổ sung yêu cầu sử dụng khóa PostgreSQL `pg_advisory_xact_lock` và tạo bài test mô phỏng hai backend bằng hai DbContext độc lập. Bài kiểm thử tập trung vào việc chỉ một lượt quét xử lý đơn hết hạn, thay vì cả hai cùng phát sự kiện.
+
+Kết quả kiểm thử local ghi nhận **17/17 bài backend và 26/26 bài kiểm thử giao diện chuông PMS đạt yêu cầu**. Trường hợp nhiều backend đã được mô phỏng trong bộ test, còn việc vận hành trên nhiều máy chủ triển khai thực tế vẫn là phạm vi kiểm chứng riêng.
+
+**T03 — Điều chỉnh script để kiểm chứng đúng hành trình đặt phòng công khai**
+
+Khi xem lại script `verify-signalr-e2e.mjs`, em thấy phần kiểm tra tìm phòng đã gọi API công khai nhưng bước tạo đơn tiếp theo lại sử dụng `POST /api/reservations` dành cho hệ thống nội bộ. Các bước riêng lẻ có thể chạy được, tuy nhiên cách này chưa phản ánh đúng quy trình khách tự đặt phòng trên website.
+
+Trong khi đó, mục tiêu của T03 là trình diễn cùng một đơn đặt phòng xuyên suốt từ màn hình khách hàng đến PMS của lễ tân. Vì vậy, em chuyển hướng kiểm tra sang sử dụng API công khai ngay từ bước tạo giữ chỗ, thay vì tạo sẵn đơn bằng tài khoản nhân viên.
+
+Script được điều chỉnh để thực hiện lần lượt các bước tìm phòng, tạo lượt giữ chỗ, tra cứu đơn qua `LookupToken` và xác nhận đặt cọc. Sau khi backend xác nhận đơn, em đối chiếu sự kiện SignalR nhận được ở tài khoản Manager và Receptionist, đặc biệt là việc che thông tin tài chính đối với lễ tân.
+
+Luồng kiểm tra còn tiếp tục đến bước khách gửi yêu cầu hủy phòng công khai. Từ yêu cầu hủy đó, hệ thống phát thông báo đến nhóm nhân viên liên quan, sau đó quản lý thực hiện phê duyệt và xác nhận chi hoàn D23.
+
+Trong kết quả chạy local được ghi nhận, script sử dụng cùng một đơn thử nghiệm `RES-89ZJ7A`. Khoản đặt cọc là **480.000 đồng** và quy trình được kiểm tra đến bước xác nhận chi hoàn. Đây là kết quả xử lý nghiệp vụ trên môi trường phát triển, không phải giao dịch chuyển tiền thực tế qua ngân hàng.
+
+Một điểm em chú ý khi hoàn thiện biên bản là không đánh đồng việc API xác nhận đặt cọc hoạt động với việc cổng VNPay Sandbox đã gửi IPN từ Internet. Hai trường hợp có cách kiểm chứng khác nhau, nên em vẫn để **TC-06 ở trạng thái Chưa kiểm chứng**.
+
+Theo kết quả được ghi nhận trong biên bản mới, **19/20 tiêu chí đạt PASS** trong phạm vi local. Tuy nhiên, các bước trình diễn trực tiếp trên hai màn hình, quét mã QR bằng thiết bị thật và đo thời lượng demo 5 phút cần được đối chiếu riêng, không chỉ dựa vào kết quả chạy script.
 
 ---
+
+### 4. Đánh giá Việc Sử dụng AI và Kết quả Kiểm chứng
+
+Qua ba nhiệm vụ Tuần 05, em thấy AI hỗ trợ khá nhiều trong việc triển khai những chức năng có liên quan đến cả frontend, backend và cơ sở dữ liệu. Dù vậy, có những vấn đề không thể chỉ kiểm tra bằng cách nhìn giao diện hoặc thấy chương trình build thành công.
+
+Ở T01, điều quan trọng là số liệu thu và chi phải phản ánh đúng nghiệp vụ, kể cả khi hai nhân viên thao tác cùng lúc. Với T02, chức năng không chỉ cần gửi được thông báo mà còn phải hoạt động khi khách đã đóng trang và khi nhiều backend cùng xử lý. Còn T03 cho em thấy một script chạy thành công chưa chắc đã chứng minh đúng toàn bộ hành trình khách hàng nếu những bước trong script sử dụng API khác với luồng thực tế.
+
+Trong quá trình làm việc, em sử dụng AI để hỗ trợ đề xuất và chỉnh sửa giải pháp, nhưng vẫn phải đối chiếu mã nguồn, kiểm tra kết quả và bổ sung các trường hợp còn thiếu. Những điểm chưa có đủ bằng chứng được giữ lại trong báo cáo thay vì kết luận đã hoàn thành.
+
+**Kết quả kiểm thử được ghi nhận trong phạm vi local:**
+
+* **Frontend:** 600/600 bài kiểm thử đạt, thuộc 44 tệp.
+* **Backend T01:** 15/15 bài kiểm thử đạt.
+* **Backend T02:** 17/17 bài kiểm thử đạt.
+* **Kịch bản T03:** 19/20 tiêu chí được ghi nhận PASS; TC-06 về VNPay Sandbox và IPN từ Internet chưa kiểm chứng.
+
+Các số liệu trên phản ánh kết quả những bộ kiểm thử đã thực hiện, không được hiểu là toàn bộ hệ thống đã hoàn tất mọi tình huống nghiệm thu thực tế.
+
+**Minh chứng mã nguồn và quá trình cập nhật:**
+
+* [Commit triển khai ban đầu — `1e82fb1`](https://github.com/GinNgo/hotel-saas-v2/commit/1e82fb1672278596e15dc57c97d4f61fca595178).
+* [Commit bổ sung kiểm thử đồng thời và E2E công khai — `f74bb52`](https://github.com/GinNgo/hotel-saas-v2/commit/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c).
+* [Biên bản kiểm thử Tuần 05 — T03](https://github.com/GinNgo/hotel-saas-v2/blob/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c/docs/reports/T03-TEST-RESULTS.md).
+
+---
+
+**Ngày cập nhật báo cáo:** 09/11/2026
 
 **Ngày lập báo cáo:** 08/11/2026
 **Sinh viên thực hiện:** Trần Trọng Tân (`24TX810025`)
