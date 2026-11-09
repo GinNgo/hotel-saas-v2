@@ -26,7 +26,7 @@
 
 1. **T01 — Quản lý và Phê duyệt Hoàn tiền tại quầy thu ngân (Refund Approval — D23):** Tiếp nối chức năng hủy phòng của Tuần 04, em bổ sung màn hình để nhân viên đối chiếu yêu cầu hoàn, duyệt hoặc từ chối, sau đó ghi nhận số tiền thực tế đã trả cho khách.
 2. **T02 — Mở rộng Trung tâm Thông báo thời gian thực (SignalR Notifications):** Em bổ sung ba sự kiện cho chuông PMS: thanh toán đã xác nhận, khách yêu cầu hủy phòng và đơn hết hạn giữ chỗ. Mỗi sự kiện được chuyển đến đúng chi nhánh; thông tin tài chính được phân biệt với thông tin tác nghiệp của lễ tân.
-3. **T03 — Kịch bản và dữ liệu trình diễn nghiệp vụ (Live Demo Playbook):** Em chuẩn bị kịch bản 5 phút dùng hai màn hình để theo dõi cùng một đơn: khách tìm và giữ phòng ở màn hình thứ nhất, lễ tân nhận thông báo và mở hồ sơ trên PMS ở màn hình thứ hai.
+3. **T03 — Kịch bản và dữ liệu trình diễn nghiệp vụ (Live Demo Playbook):** Em xây dựng kịch bản trình diễn dự kiến 5 phút trên hai màn hình khách hàng và lễ tân, chuẩn bị dữ liệu mẫu, hướng dẫn xử lý sự cố và script kiểm chứng. Trong quá trình kiểm tra, em đã đối chiếu riêng API tìm phòng công khai và luồng thông báo SignalR phát sinh từ đơn đặt phòng nội bộ. Tuy nhiên, chưa xác nhận được toàn bộ luồng xuyên suốt trên cùng một đơn đặt phòng từ trang khách đến PMS, chưa thực hiện giao dịch VNPay Sandbox bên ngoài và chưa đo thời gian chạy trọn kịch bản.
 
 ### Bảng Tổng hợp Kết quả Triển khai & Kiểm thử Tuần 05:
 
@@ -35,7 +35,7 @@
 | **T01** | Phê duyệt và chi hoàn tại quầy | Tách bước duyệt khỏi bước chi; không cộng tiền hoàn vào tiền thu. | Có danh sách, chi tiết, thao tác duyệt/từ chối/xác nhận đã chi; báo cáo ca, ngày và Folio tách thu, chi hoàn và thu ròng. | Theo biên bản: 14 test backend và 14 test component đạt. | Đã triển khai; còn kiểm tra hai thu ngân xác nhận đồng thời. |
 | **T02** | Thông báo thanh toán, hủy phòng và hết hạn giữ chỗ | Đúng chi nhánh, đúng phạm vi thông tin; lễ tân không cần tải lại trang. | Có ba sự kiện SignalR và tác vụ nền tự quét các đơn hết hạn dù khách đã đóng trang. | Theo biên bản: 16 test backend và 26 test chuông PMS đạt. | Có kết quả local; chưa kết luận chống trùng khi chạy nhiều backend. |
 | **T03** | Kịch bản demo hai màn hình | Theo dõi một mã đơn từ trang khách đến PMS, có dữ liệu mẫu và cách xử lý sự cố. | Đã soạn 4 tài liệu và script kiểm tra. TC-02 dùng API công khai; TC-06 tách riêng bước thanh toán sandbox bên ngoài. | TC-02 có kết quả HTTP trong biên bản; TC-06 chưa chạy live. | Đã chuẩn bị kịch bản; chưa nghiệm thu toàn bộ luồng bên ngoài. |
-| **TỔNG** | **Ba nhiệm vụ Tuần 05 của Tân** | **Kiểm tra mã nguồn, bản dựng và luồng demo** | **Backend build: 0 lỗi, 0 cảnh báo. Frontend build thành công.** | **600/600 test frontend** (44 file); **30/30 test backend** theo biên bản. | **Đã kiểm tra local; còn các trường hợp nêu trên.** |
+| **TỔNG** | **Ba nhiệm vụ Tuần 05 của Tân** | **Kiểm tra mã nguồn, bản dựng và luồng demo** | **Backend build: 0 lỗi, 0 cảnh báo. Frontend build thành công.** |  Frontend đạt 600/600 bài kiểm thử thuộc 44 tệp. Backend đạt 30/30 bài kiểm thử thuộc hai bộ kiểm thử liên quan đến T01–T02 (14 bài Refund Approval và 16 bài Notification Hub), theo biên bản. Backend build không có lỗi hoặc cảnh báo; frontend build thành công nhưng còn cảnh báo kích thước bundle và thư viện CommonJS. | **Đã triển khai và kiểm tra các chức năng trong phạm vi local. Các tình huống xử lý đồng thời, triển khai nhiều backend và kịch bản thanh toán bên ngoài cần tiếp tục kiểm chứng.** |
 
 *Nguồn số liệu:* [Biên bản kiểm thử T03, mục 3.1](T03-TEST-RESULTS.md). Các test component ở từng dòng nằm trong tổng 600 test frontend, không cộng thêm lần nữa. Trong lần rà soát ngày 08/11, Codex đã chạy lại build và toàn bộ test frontend; không chạy lại bộ test backend có tạo/xóa schema. Frontend còn hai cảnh báo: gói tải ban đầu vượt ngưỡng 60,69 kB và thư viện CommonJS `sweetalert2`.
 
@@ -73,11 +73,11 @@
 ### 3. Task T03 — Xây dựng Kịch bản và Dữ liệu Trình diễn Nghiệp vụ
 
 * **Kịch bản trình diễn trong 5 phút:**
-  1. **Màn hình khách:** Tìm hạng phòng còn trống theo ngày, nhập thông tin demo, giữ chỗ và quan sát đồng hồ đếm ngược.
-  2. **Màn hình lễ tân:** Giữ PMS mở tại đúng chi nhánh. Sau bước xác nhận thanh toán ở backend, quan sát chuông mà không nhấn F5; mở hồ sơ từ thông báo và đối chiếu mã đơn với màn hình khách.
-  3. **Đối chiếu cuối luồng:** Mở phiếu in trên PMS, dùng mã QR trên phiếu để quay lại trang tra cứu của khách. Đây là bước trong *kịch bản trình diễn*, không phải tuyên bố đã quét thành công trên thiết bị thật.
-* **Chuẩn bị dữ liệu và xử lý sự cố:** Em tách danh sách dữ liệu mẫu, lời dẫn và cách xử lý mất kết nối thành các tài liệu riêng để có thể dùng ngay lúc trình bày. Script kiểm tra đọc tài khoản demo từ biến môi trường và dừng nếu thiếu cấu hình; không lưu mật khẩu dự phòng trong mã nguồn.
-* **Phân biệt kiểm thử local với giao dịch sandbox:** Với **TC-02**, biên bản có phản hồi HTTP 200 từ API phòng trống *công khai* tại Quận 1. Với **TC-06**, việc backend xử lý được thanh toán nội bộ không chứng minh VNPay Sandbox đã gửi IPN qua Internet. Vì vậy, bước này vẫn ghi **“Chưa kiểm chứng”**.
+  1. **Màn hình khách:** ruy cập trang đặt phòng công khai, chọn ngày lưu trú, tìm hạng phòng khả dụng, nhập thông tin khách và tạo yêu cầu giữ phòng.
+  2. **Màn hình lễ tân:** Đăng nhập PMS tại đúng chi nhánh, quan sát chuông thông báo khi backend xác nhận thanh toán và mở hồ sơ đặt phòng tương ứng mà không cần tải lại trang.
+  3. **Đối chiếu phòng và chứng từ:** Kiểm tra trạng thái phòng trên sơ đồ PMS; đối chiếu thông tin hóa đơn thanh toán có VietQR và phiếu xác nhận đặt phòng có mã QR tra cứu.
+  4. **Kiểm chứng kết quả:** Đối chiếu mã đơn, trạng thái và thông tin giữa các màn hình. Những bước chưa thực hiện trên thiết bị thật hoặc chưa có kết quả chạy trực tiếp được ghi nhận riêng, không đánh dấu đã nghiệm thu.
+* **Giới hạn nghiệm thu:** API tìm phòng công khai đã có phản hồi HTTP 200. Luồng kiểm thử SignalR sử dụng đơn được tạo qua API nội bộ, nên chưa chứng minh toàn bộ quy trình công khai vận hành xuyên suốt trên cùng một đơn. Việc quét QR trên điện thoại, thanh toán VNPay Sandbox và chạy trọn kịch bản trong 5 phút vẫn cần kiểm chứng thực tế.
 
 ---
 
