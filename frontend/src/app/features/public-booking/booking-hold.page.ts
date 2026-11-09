@@ -10,6 +10,8 @@ import { CreateGuestHoldRequest, GuestBookingDetailDto, PublicPropertyDto } from
 import { QuoteDto } from '../../core/models/reservation.model';
 import { PublicStayContext, publicStayInterval, readPublicStay } from '../../core/models/public-stay-context';
 import { FormFieldComponent, FormControlDirective } from '../../shared/components/form-field/form-field.component';
+import { PhoneOtpModalComponent } from '../auth/phone-otp-modal/phone-otp-modal.component';
+import { AuthService } from '../../core/services/auth.service';
 
 export interface HoldErrorState {
   title: string;
@@ -22,7 +24,7 @@ export interface HoldErrorState {
 @Component({
   selector: 'app-booking-hold-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, FormFieldComponent, FormControlDirective],
+  imports: [CommonModule, FormsModule, RouterLink, FormFieldComponent, FormControlDirective, PhoneOtpModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="bg-[#EFECE6] min-h-screen py-8 px-4 sm:px-6 lg:px-8 relative text-stone-800">
@@ -401,25 +403,44 @@ export interface HoldErrorState {
                   />
                 </app-form-field>
 
-                <app-form-field #phoneField controlId="hold-phone" label="Số điện thoại nhận tin nhắn" [required]="true" [error]="fieldError('phone', phoneControl.touched)">
-                  <input
-                    [appFormControl]="phoneField"
-                    name="phone"
-                    [(ngModel)]="guestPhone"
-                    #phoneControl="ngModel"
-                    [disabled]="isSubmitting() || loading()"
-                    required
-                    type="tel"
-                    inputmode="tel"
-                    maxlength="20"
-                    autocomplete="tel"
-                    placeholder="Ví dụ: 0912345678 hoặc +84912345678"
-                    class="transition-all duration-150"
+                <app-form-field #phoneField controlId="hold-phone" label="Số điện thoại nhận tin nhắn &amp; OTP giữ phòng" [required]="true" [error]="fieldError('phone', phoneControl.touched)">
+                  <div
+                    class="flex rounded-xl border border-slate-300 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 overflow-hidden bg-white"
                     [class.!border-rose-300]="fieldError('phone', phoneControl.touched)"
                     [class.!bg-rose-50/20]="fieldError('phone', phoneControl.touched)"
-                    [class.focus:!border-rose-400]="fieldError('phone', phoneControl.touched)"
-                    [class.focus:!ring-rose-100]="fieldError('phone', phoneControl.touched)"
-                  />
+                  >
+                    <select
+                      [ngModel]="selectedCountryCode()"
+                      (ngModelChange)="selectedCountryCode.set($event)"
+                      name="countryCode"
+                      class="bg-slate-50 border-r border-slate-300 px-2.5 py-2 text-xs font-bold text-slate-700 outline-none cursor-pointer hover:bg-slate-100 transition-colors shrink-0"
+                    >
+                      @for (country of countryCodes; track country.code) {
+                        <option [value]="country.code">{{ country.flag }} {{ country.code }}</option>
+                      }
+                    </select>
+                    <input
+                      [appFormControl]="phoneField"
+                      id="hold-phone"
+                      name="phone"
+                      [(ngModel)]="guestPhone"
+                      #phoneControl="ngModel"
+                      [disabled]="isSubmitting() || loading()"
+                      required
+                      type="tel"
+                      inputmode="tel"
+                      maxlength="20"
+                      autocomplete="tel"
+                      placeholder="912 345 678"
+                      class="w-full px-3 py-2 text-xs text-slate-800 outline-none bg-transparent"
+                    />
+                  </div>
+                  @if (isPhoneOtpVerified()) {
+                    <div class="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold mt-1">
+                      <i class="pi pi-check-circle text-xs text-emerald-600"></i>
+                      <span>Số điện thoại đã xác thực an toàn qua SMS OTP</span>
+                    </div>
+                  }
                 </app-form-field>
 
                 <app-form-field #emailField controlId="hold-email" label="Email nhận xác nhận đặt chỗ" [required]="true" [error]="fieldError('email', emailControl.touched)">
@@ -672,6 +693,14 @@ export interface HoldErrorState {
             </section>
           </div>
         }
+              <!-- MODAL XAC THUC SO DIEN THOAI FIREBASE SMS OTP (DUAL VERIFICATION GATE) -->
+        <app-phone-otp-modal
+          [visible]="showPhoneOtpModal()"
+          (visibleChange)="showPhoneOtpModal.set($event)"
+          mode="verify-for-booking"
+          [initialPhoneNumber]="getNormalizedPhone()"
+          (verified)="onPhoneVerifiedForHold($event)"
+        ></app-phone-otp-modal>
       </main>
     </div>
   `,
@@ -683,6 +712,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly element: ElementRef<HTMLElement> = inject(ElementRef);
+  private readonly authService = inject(AuthService);
 
   readonly submitted = signal(false);
   readonly booking = signal<GuestBookingDetailDto | null>(null);
@@ -700,6 +730,25 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   readonly isCopied = signal(false);
   readonly quoteRemainingSeconds = signal(0);
   readonly isQuoteExpired = signal(false);
+  readonly showPhoneOtpModal = signal<boolean>(false);
+  readonly verifiedFirebaseIdToken = signal<string | null>(null);
+  readonly isPhoneOtpVerified = signal<boolean>(false);
+
+  readonly countryCodes = [
+    { code: '+84', name: 'Vietnam (+84)', flag: '🇻🇳' },
+    { code: '+1', name: 'USA/Canada (+1)', flag: '🇺🇸' },
+    { code: '+81', name: 'Japan (+81)', flag: '🇯🇵' },
+    { code: '+82', name: 'South Korea (+82)', flag: '🇰🇷' },
+    { code: '+86', name: 'China (+86)', flag: '🇨🇳' },
+    { code: '+65', name: 'Singapore (+65)', flag: '🇸🇬' },
+    { code: '+66', name: 'Thailand (+66)', flag: '🇹🇭' },
+    { code: '+60', name: 'Malaysia (+60)', flag: '🇲🇾' },
+    { code: '+61', name: 'Australia (+61)', flag: '🇦🇺' },
+    { code: '+44', name: 'UK (+44)', flag: '🇬🇧' },
+    { code: '+33', name: 'France (+33)', flag: '🇫🇷' },
+    { code: '+49', name: 'Germany (+49)', flag: '🇩🇪' },
+  ];
+  selectedCountryCode = signal('+84');
 
   readonly isExtendingHold = signal(false);
   readonly extendHoldError = signal('');
@@ -1129,6 +1178,56 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // ── Option A (Strict Gate) Verification Check ──
+    const normalizedPhone = this.getNormalizedPhone();
+    const currentUser = this.authService.currentUser;
+    const isUserPreVerified = Boolean(
+      currentUser &&
+      currentUser.phoneNumber &&
+      this.normalizePhoneSimple(currentUser.phoneNumber) === normalizedPhone
+    );
+
+    // If not verified in current session AND not a pre-verified logged-in user matching phone:
+    if (!this.verifiedFirebaseIdToken() && !isUserPreVerified) {
+      this.showPhoneOtpModal.set(true);
+      return;
+    }
+
+    this.executeCreateHold(this.verifiedFirebaseIdToken() ?? undefined);
+  }
+
+  onPhoneVerifiedForHold(event: { success: boolean; phoneNumber: string; firebaseIdToken?: string }): void {
+    if (event.success && event.firebaseIdToken) {
+      this.verifiedFirebaseIdToken.set(event.firebaseIdToken);
+      this.isPhoneOtpVerified.set(true);
+      this.executeCreateHold(event.firebaseIdToken);
+    }
+  }
+
+  getNormalizedPhone(): string {
+    const raw = this.guestPhone.trim().replace(/[\s.\-]/g, '');
+    if (!raw) return '';
+    if (raw.startsWith('+')) return raw;
+    const code = this.selectedCountryCode();
+    if (code === '+84') {
+      if (raw.startsWith('0')) return '+84' + raw.substring(1);
+      return '+84' + raw;
+    }
+    if (raw.startsWith('0')) return code + raw.substring(1);
+    return code + raw;
+  }
+
+  private normalizePhoneSimple(phone: string): string {
+    const cleaned = phone.replace(/[\s.\-]/g, '');
+    if (cleaned.startsWith('0')) return '+84' + cleaned.substring(1);
+    if (!cleaned.startsWith('+')) return '+84' + cleaned;
+    return cleaned;
+  }
+
+  private executeCreateHold(firebaseIdToken?: string): void {
+    const price = this.quote();
+    if (!price) return;
+
     try {
       const params = Object.keys(this.currentQueryParams || {}).length > 0
         ? this.currentQueryParams
@@ -1138,6 +1237,9 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
       if (!property) throw new Error('Chưa có dữ liệu cơ sở.');
 
       const interval = publicStayInterval(stay, property);
+      const normalizedPhone = this.getNormalizedPhone();
+      const currentUser = this.authService.currentUser;
+
       const requestPayload: CreateGuestHoldRequest = {
         propertySlug: params['propertySlug'],
         roomTypeId: params['roomTypeId'],
@@ -1146,9 +1248,11 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
         endAtUtc: interval.endAtUtc,
         guestName: this.guestName.trim(),
         guestEmail: this.guestEmail.trim(),
-        guestPhone: this.guestPhone.trim(),
+        guestPhone: normalizedPhone,
         numberOfGuests: stay.guests,
-        expectedTotalAmount: price.totalAmount
+        expectedTotalAmount: price.totalAmount,
+        firebaseIdToken: firebaseIdToken,
+        guestUserId: currentUser?.id
       };
 
       const payloadSig = JSON.stringify({
@@ -1205,6 +1309,11 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
         error: err => {
           if (submissionGen !== this.holdSubmissionGeneration) return;
           this.isSubmitting.set(false);
+          const errorCode = err?.error?.errorCode || err?.error?.code;
+          if (errorCode === 'ERR_PHONE_VERIFICATION_REQUIRED' || errorCode === 'ERR_PHONE_MISMATCH') {
+            this.showPhoneOtpModal.set(true);
+            return;
+          }
           const parsed = this.parseHoldError(err);
           this.holdError.set(parsed);
           this.error.set(parsed.message);

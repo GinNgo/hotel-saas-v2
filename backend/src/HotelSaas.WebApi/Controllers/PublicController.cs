@@ -239,7 +239,8 @@ public sealed class PublicController : ControllerBase
             request.ExpectedTotalAmount,
             idempotencyKey,
             request.PointsToRedeem,
-            guestUserId);
+            guestUserId,
+            request.FirebaseIdToken);
 
         var result = await _mediator.Send(command, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, result);
@@ -473,7 +474,8 @@ public sealed record CreateGuestHoldRequest(
     decimal? ExpectedTotalAmount = null,
     string? IdempotencyKey = null,
     int? PointsToRedeem = null,
-    Guid? GuestUserId = null
+    Guid? GuestUserId = null,
+    string? FirebaseIdToken = null
 );
 
 public sealed record ConfirmGuestBookingRequest(

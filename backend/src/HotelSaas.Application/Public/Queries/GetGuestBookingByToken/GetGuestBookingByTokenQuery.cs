@@ -183,6 +183,7 @@ public sealed class GetGuestBookingByTokenQueryHandler : IRequestHandler<GetGues
             CancellationFee = cancellationFee,
             RefundableAmount = refundableAmount,
             RefundStatus = refundStatus,
+            IsPhoneVerified = snapshot.IsPhoneVerified,
             Breakdown = snapshot.Breakdown ?? Array.Empty<QuoteBreakdownItemDto>()
         };
     }

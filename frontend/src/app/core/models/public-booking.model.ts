@@ -301,6 +301,7 @@ export interface GuestHoldDto {
   holdExtendedAtUtc?: string;
   canExtendHold?: boolean;
   status?: string;
+  isPhoneVerified?: boolean;
   breakdown?: QuoteBreakdownItemDto[];
 }
 
@@ -343,6 +344,7 @@ export interface GuestBookingDetailDto {
   smartLockPin?: string;
   smartLockStatus?: string;
   smartLockActivatedAtUtc?: string;
+  isPhoneVerified?: boolean;
   createdAtUtc: string;
   createdAt?: string; // for compatibility
   cancelledAtUtc?: string;
@@ -379,6 +381,7 @@ export interface CreateGuestHoldRequest {
   idempotencyKey?: string;
   pointsToRedeem?: number;
   guestUserId?: string;
+  firebaseIdToken?: string;
 }
 
 export interface ConfirmGuestBookingRequest {

@@ -31,4 +31,6 @@ public sealed class ReservationSnapshot
     public DateTime? HoldExtendedAtUtc { get; set; }
     public DateTime? TokenExpiresAtUtc { get; set; }
     public bool IsTokenRevoked { get; set; }
+    public bool IsPhoneVerified { get; set; }
+    public DateTime? PhoneVerifiedAtUtc { get; set; }
 }

@@ -4,7 +4,9 @@ import {
   DestroyRef,
   EventEmitter,
   Input,
+  OnChanges,
   Output,
+  SimpleChanges,
   inject,
   signal
 } from '@angular/core';
@@ -15,7 +17,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { LoginResponse } from '../../../core/models/auth.model';
 
-export type PhoneOtpMode = 'login' | 'link';
+export type PhoneOtpMode = 'login' | 'link' | 'verify-for-booking';
 
 @Component({
   selector: 'app-phone-otp-modal',
@@ -34,7 +36,7 @@ export type PhoneOtpMode = 'login' | 'link';
               </div>
               <div>
                 <h3 class="font-bold text-slate-900 text-sm">
-                  {{ mode === 'link' ? 'Liên kết Số Điện Thoại' : 'Đăng nhập qua SMS OTP' }}
+                  {{ mode === 'link' ? 'Liên kết Số Điện Thoại' : (mode === 'verify-for-booking' ? 'Xác thực SĐT Giữ Phòng' : 'Đăng nhập qua SMS OTP') }}
                 </h3>
                 <p class="text-[11px] text-slate-500">Google Identity Platform &bull; reCAPTCHA Invisible</p>
               </div>
@@ -47,6 +49,14 @@ export type PhoneOtpMode = 'login' | 'link';
               <i class="pi pi-times text-xs"></i>
             </button>
           </div>
+
+          <!-- Mode Notice for Booking -->
+          @if (mode === 'verify-for-booking') {
+            <div class="p-3 rounded-xl bg-indigo-50/80 border border-indigo-200 text-indigo-900 text-xs flex items-center gap-2">
+              <i class="pi pi-shield text-indigo-600 shrink-0"></i>
+              <span>Cần xác thực số điện thoại qua tin nhắn SMS OTP để cấp quyền giữ chỗ và mã PIN khóa phòng.</span>
+            </div>
+          }
 
           <!-- 2. Thông báo lỗi / trạng thái -->
           @if (errorMessage()) {
@@ -180,7 +190,7 @@ export type PhoneOtpMode = 'login' | 'link';
                     <span>Đang thẩm định token Firebase...</span>
                   } @else {
                     <i class="pi pi-check-circle text-xs"></i>
-                    <span>Xác nhận &amp; Đăng nhập</span>
+                    <span>{{ mode === 'verify-for-booking' ? 'Xác thực & Tiến hành Giữ phòng' : 'Xác nhận & Đăng nhập' }}</span>
                   }
                 </button>
 
@@ -209,7 +219,7 @@ export type PhoneOtpMode = 'login' | 'link';
     }
   `
 })
-export class PhoneOtpModalComponent {
+export class PhoneOtpModalComponent implements OnChanges {
   private readonly firebaseAuth = inject(FirebaseAuthService);
   private readonly authService = inject(AuthService);
   private readonly notification = inject(NotificationService);
@@ -217,8 +227,14 @@ export class PhoneOtpModalComponent {
 
   @Input() visible: boolean = false;
   @Input() mode: PhoneOtpMode = 'login';
+  @Input() initialPhoneNumber?: string;
   @Output() visibleChange = new EventEmitter<boolean>();
-  @Output() verified = new EventEmitter<{ success: boolean; loginResponse?: LoginResponse; phoneNumber: string }>();
+  @Output() verified = new EventEmitter<{
+    success: boolean;
+    loginResponse?: LoginResponse;
+    phoneNumber: string;
+    firebaseIdToken?: string;
+  }>();
 
   step = signal<'phone' | 'otp'>('phone');
   loading = signal<boolean>(false);
@@ -233,6 +249,16 @@ export class PhoneOtpModalComponent {
 
   private countdownInterval: any = null;
 
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['visible']?.currentValue === true) {
+      if (this.initialPhoneNumber && !this.phoneNumber) {
+        // Strip country code if present to fit input (+84 -> "")
+        const clean = this.initialPhoneNumber.replace(/^\+84/, '0').trim();
+        this.phoneNumber = clean.startsWith('0') ? clean.substring(1) : clean;
+      }
+    }
+  }
+
   closeModal(): void {
     this.stopCountdown();
     this.firebaseAuth.reset();
@@ -241,7 +267,7 @@ export class PhoneOtpModalComponent {
   }
 
   quickFillDemoPhone(): void {
-    this.phoneNumber = '0123456789';
+    this.phoneNumber = '123456789';
     this.fullName = 'Khách Kiểm Thử (+84123456789)';
   }
 
@@ -295,7 +321,20 @@ export class PhoneOtpModalComponent {
       // 1. Thẩm định qua Firebase SDK để lấy Firebase ID Token
       const verifyRes = await this.firebaseAuth.verifyPhoneOtp(trimmedOtp);
 
-      // 2. Gửi ID Token về WebApi Backend
+      // Kịch bản Verify-for-booking: Không gọi authService.verifyPhoneFirebase (tránh đăng nhập/tạo tài khoản ngoài ý muốn)
+      if (this.mode === 'verify-for-booking') {
+        this.loading.set(false);
+        this.notification.success(`Xác thực SĐT ${verifyRes.phoneNumber} thành công!`);
+        this.verified.emit({
+          success: true,
+          phoneNumber: verifyRes.phoneNumber,
+          firebaseIdToken: verifyRes.idToken
+        });
+        this.closeModal();
+        return;
+      }
+
+      // 2. Gửi ID Token về WebApi Backend (cho mode login hoặc link)
       this.authService.verifyPhoneFirebase({
         firebaseIdToken: verifyRes.idToken,
         fullName: this.fullName.trim() || undefined
@@ -306,7 +345,8 @@ export class PhoneOtpModalComponent {
           this.verified.emit({
             success: true,
             loginResponse,
-            phoneNumber: verifyRes.phoneNumber
+            phoneNumber: verifyRes.phoneNumber,
+            firebaseIdToken: verifyRes.idToken
           });
           this.closeModal();
         },

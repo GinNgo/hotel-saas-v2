@@ -894,7 +894,13 @@ export interface StatusErrorState {
                   @if (detail.maskedGuestPhone) {
                     <div class="flex justify-between items-center pt-1">
                       <span class="text-slate-500">Số điện thoại:</span>
-                      <span class="font-semibold text-slate-900 font-mono">{{ detail.maskedGuestPhone }}</span>
+                      <div class="flex items-center gap-2">
+                        <span class="font-semibold text-slate-900 font-mono">{{ detail.maskedGuestPhone }}</span>
+                        @if (detail.isPhoneVerified) {
+                          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <i class="pi pi-check-circle text-[9px]"></i> Đã xác thực OTP</span>
+                        }
+                      </div>
                     </div>
                   }
                 </div>

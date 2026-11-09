@@ -404,6 +404,7 @@ public sealed class CancelGuestBookingCommandHandler : IRequestHandler<CancelGue
             CreatedAtUtc = reservation.CreatedAtUtc,
             CancelledAtUtc = reservation.CancelledAtUtc,
             CancellationReason = reservation.CancellationReason,
+            IsPhoneVerified = snapshot.IsPhoneVerified,
             Breakdown = snapshot.Breakdown ?? Array.Empty<QuoteBreakdownItemDto>()
         };
     }

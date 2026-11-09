@@ -476,6 +476,7 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
             SmartLockPin = reservation.SmartLockPin,
             SmartLockStatus = reservation.SmartLockStatus,
             CreatedAtUtc = reservation.CreatedAtUtc,
+            IsPhoneVerified = snapshot.IsPhoneVerified,
             Breakdown = snapshot.Breakdown ?? Array.Empty<QuoteBreakdownItemDto>()
         };
     }
