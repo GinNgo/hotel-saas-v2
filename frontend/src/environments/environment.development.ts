@@ -2,11 +2,11 @@ export const environment = {
   production: false,
   apiUrl: 'https://luxustay.duckdns.org/api',
   firebase: {
-    apiKey: 'AIzaSyDemoKeyForHotelSaasDevTestOnly',
-    authDomain: 'hotel-saas-staging.firebaseapp.com',
-    projectId: 'hotel-saas-staging',
-    storageBucket: 'hotel-saas-staging.appspot.com',
-    messagingSenderId: '123456789012',
-    appId: '1:123456789012:web:abcdef1234567890abcdef'
+    apiKey: 'AIzaSyARYavAkib_gBxJO14tixlipjFrA0d42Yw',
+    authDomain: 'hotel-saas-platform-8f7c7.firebaseapp.com',
+    projectId: 'hotel-saas-platform-8f7c7',
+    storageBucket: 'hotel-saas-platform-8f7c7.firebasestorage.app',
+    messagingSenderId: '142535749911',
+    appId: '1:142535749911:web:b543fb0a72a0396614c752'
   }
 };

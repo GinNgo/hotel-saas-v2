@@ -48,9 +48,26 @@ public sealed class FirebaseAuthService : IFirebaseAuthService
 
             try
             {
-                var credentialsPath = _configuration["Firebase:CredentialsPath"];
-                var credentialsJson = _configuration["Firebase:CredentialsJson"];
-                var projectId = _configuration["Firebase:ProjectId"] ?? "hotelsaas-platform";
+                var credentialsPath = _configuration["Firebase:CredentialsPath"]
+                    ?? _configuration["FIREBASE_CONFIG_PATH"]
+                    ?? Environment.GetEnvironmentVariable("FIREBASE_CONFIG_PATH")
+                    ?? Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
+
+                if (string.IsNullOrWhiteSpace(credentialsPath) || !File.Exists(credentialsPath))
+                {
+                    var localSecret = Path.Combine(Directory.GetCurrentDirectory(), "secrets", "firebase-adminsdk.json");
+                    if (File.Exists(localSecret))
+                    {
+                        credentialsPath = localSecret;
+                    }
+                }
+
+                var credentialsJson = _configuration["Firebase:CredentialsJson"]
+                    ?? Environment.GetEnvironmentVariable("FIREBASE_CREDENTIALS_JSON");
+
+                var projectId = _configuration["Firebase:ProjectId"]
+                    ?? Environment.GetEnvironmentVariable("FIREBASE_PROJECT_ID")
+                    ?? "hotel-saas-platform-8f7c7";
 
                 AppOptions options;
 
