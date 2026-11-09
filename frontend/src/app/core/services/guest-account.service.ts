@@ -27,9 +27,9 @@ export class GuestAccountService {
       .pipe(map((res) => res.data));
   }
 
-  updateMe(fullName: string): Observable<GuestMeDto> {
+  updateMe(fullName: string, avatarUrl?: string | null): Observable<GuestMeDto> {
     return this.http
-      .patch<ApiResponse<GuestMeDto>>(`${this.apiUrl}/me`, { fullName })
+      .patch<ApiResponse<GuestMeDto>>(`${this.apiUrl}/me`, { fullName, avatarUrl })
       .pipe(map((res) => res.data));
   }
 

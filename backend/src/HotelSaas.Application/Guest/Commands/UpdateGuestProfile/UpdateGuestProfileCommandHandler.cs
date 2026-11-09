@@ -37,6 +37,10 @@ public sealed class UpdateGuestProfileCommandHandler : IRequestHandler<UpdateGue
         }
 
         user.FullName = request.FullName.Trim();
+        if (request.AvatarUrl != null)
+        {
+            user.AvatarUrl = string.IsNullOrWhiteSpace(request.AvatarUrl) ? null : request.AvatarUrl.Trim();
+        }
         user.UpdatedAtUtc = DateTime.UtcNow;
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -47,7 +51,9 @@ public sealed class UpdateGuestProfileCommandHandler : IRequestHandler<UpdateGue
             user.Email,
             user.PhoneNumber,
             user.EmailVerifiedAtUtc.HasValue,
-            new GuestCapabilitiesDto(CanEditName: true, CanViewBookings: true)
+            new GuestCapabilitiesDto(CanEditName: true, CanViewBookings: true),
+            user.AvatarUrl,
+            user.PhoneVerifiedAtUtc.HasValue
         );
     }
 }

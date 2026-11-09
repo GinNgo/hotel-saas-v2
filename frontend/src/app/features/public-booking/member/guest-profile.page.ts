@@ -108,26 +108,52 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
         <section
           class="bg-gradient-to-r from-indigo-950 via-indigo-900 to-slate-900 text-white rounded-2xl p-6 sm:p-7 flex flex-col sm:flex-row justify-between gap-5 sm:items-center shadow-md"
         >
-          <div class="space-y-1.5">
-            <div class="flex items-center gap-2 flex-wrap">
-              <span class="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                <i class="pi pi-star-fill text-[10px]"></i> Hội viên Chuỗi Di Sản
-              </span>
-              @if (isEmailVerified()) {
-                <span class="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                  <i class="pi pi-verified text-[11px]"></i> Đã xác thực
-                </span>
+          <div class="flex items-center gap-4 sm:gap-5">
+            <!-- Avatar Display -->
+            <div class="relative shrink-0">
+              @if (currentAvatarUrl()) {
+                <img
+                  [src]="currentAvatarUrl()"
+                  alt="Ảnh đại diện"
+                  class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-indigo-400/50 shadow-md bg-indigo-900"
+                  (error)="onAvatarImgError($event)"
+                />
+              } @else {
+                <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-indigo-800 border-2 border-indigo-400/40 flex items-center justify-center text-white font-extrabold text-xl sm:text-2xl shadow-md">
+                  {{ userInitials() }}
+                </div>
               }
+              <button
+                type="button"
+                (click)="startEditing()"
+                class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white border-2 border-indigo-950 flex items-center justify-center text-[10px] cursor-pointer shadow-xs transition-transform hover:scale-110"
+                title="Thay đổi ảnh đại diện hoặc họ tên"
+              >
+                <i class="pi pi-pencil"></i>
+              </button>
             </div>
-            <h2 class="text-xl sm:text-2xl font-extrabold text-white">
-              Xin chào, {{ currentFullName() || user()?.fullName }}!
-            </h2>
-            <p class="text-xs sm:text-sm text-indigo-200 flex items-center gap-2 flex-wrap">
-              <span>{{ user()?.email }}</span>
-              @if (phoneNumber()) {
-                <span>• {{ phoneNumber() }}</span>
-              }
-            </p>
+
+            <div class="space-y-1.5 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                  <i class="pi pi-star-fill text-[10px]"></i> Hội viên Chuỗi Di Sản
+                </span>
+                @if (isEmailVerified()) {
+                  <span class="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                    <i class="pi pi-verified text-[11px]"></i> Đã xác thực
+                  </span>
+                }
+              </div>
+              <h2 class="text-xl sm:text-2xl font-extrabold text-white truncate">
+                Xin chào, {{ currentFullName() || user()?.fullName }}!
+              </h2>
+              <p class="text-xs sm:text-sm text-indigo-200 flex items-center gap-2 flex-wrap">
+                <span>{{ user()?.email }}</span>
+                @if (phoneNumber()) {
+                  <span>• {{ phoneNumber() }}</span>
+                }
+              </p>
+            </div>
           </div>
           <div class="flex items-center gap-2.5 self-start sm:self-center shrink-0">
             <button
@@ -246,8 +272,62 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
               </div>
 
               @if (isEditing()) {
-                <!-- FORM CHỈNH SỬA HỌ TÊN -->
-                <form (ngSubmit)="saveProfile()" class="max-w-md space-y-4 bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                <!-- FORM CHỈNH SỬA HỌ TÊN VÀ ẢNH ĐẠI DIỆN -->
+                <form (ngSubmit)="saveProfile()" class="max-w-xl space-y-4 bg-slate-50 p-5 sm:p-6 rounded-2xl border border-slate-200">
+                  <!-- Avatar Picker -->
+                  <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
+                      Ảnh đại diện (Avatar)
+                    </label>
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-3 rounded-xl border border-slate-200 bg-white">
+                      <div class="relative shrink-0">
+                        @if (editAvatarUrl) {
+                          <img
+                            [src]="editAvatarUrl"
+                            alt="Avatar preview"
+                            class="w-16 h-16 rounded-2xl object-cover border-2 border-indigo-500 shadow-sm"
+                            (error)="onAvatarImgError($event)"
+                          />
+                        } @else {
+                          <div class="w-16 h-16 rounded-2xl bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg border-2 border-slate-300">
+                            {{ userInitials() }}
+                          </div>
+                        }
+                      </div>
+
+                      <div class="flex-1 min-w-0 w-full space-y-2">
+                        <input
+                          type="text"
+                          [(ngModel)]="editAvatarUrl"
+                          name="avatarUrl"
+                          class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50/50"
+                          placeholder="Dán link ảnh đại diện (URL) hoặc chọn mẫu..."
+                        />
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                          <span class="text-[11px] text-slate-500">Mẫu có sẵn:</span>
+                          @for (p of avatarPresets; track p.url) {
+                            <button
+                              type="button"
+                              (click)="selectAvatarPreset(p.url)"
+                              class="text-[10px] px-2 py-0.5 rounded-full border border-slate-300 hover:border-indigo-600 hover:text-indigo-700 bg-white cursor-pointer transition-colors"
+                            >
+                              {{ p.label }}
+                            </button>
+                          }
+                          @if (editAvatarUrl) {
+                            <button
+                              type="button"
+                              (click)="selectAvatarPreset('')"
+                              class="text-[10px] px-2 py-0.5 rounded-full border border-rose-200 text-rose-600 hover:bg-rose-50 cursor-pointer transition-colors"
+                            >
+                              Gỡ ảnh
+                            </button>
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div>
                     <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
                       Họ và tên mới
@@ -503,9 +583,34 @@ export class GuestProfilePageComponent implements OnInit {
   readonly activeTab = signal<string>('account');
 
   readonly currentFullName = signal<string>('');
+  readonly currentAvatarUrl = signal<string>('');
   readonly phoneNumber = signal<string>('');
   readonly isEmailVerified = signal<boolean>(false);
   readonly showPhoneOtpModal = signal<boolean>(false);
+
+  readonly avatarPresets = [
+    { label: 'An Ngô Võ Tuấn', url: '/images/avatars/an-ngo-vo-tuan.png' },
+    { label: 'Doanh nhân VIP', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150' },
+    { label: 'Khách du lịch', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150' },
+  ];
+
+  readonly userInitials = computed(() => {
+    const name = (this.currentFullName() || this.user()?.fullName || 'Khách').trim();
+    const parts = name.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  });
+
+  onAvatarImgError(event: Event): void {
+    const img = event.target as HTMLImageElement;
+    img.src = 'https://ui-avatars.com/api/?name=User&background=4F46E5&color=fff';
+  }
+
+  selectAvatarPreset(url: string): void {
+    this.editAvatarUrl = url;
+  }
 
   onPhoneLinked(event: { success: boolean; phoneNumber: string }): void {
     if (event.success) {
@@ -517,6 +622,7 @@ export class GuestProfilePageComponent implements OnInit {
   readonly isEditing = signal<boolean>(false);
   readonly isSaving = signal<boolean>(false);
   editFullName = '';
+  editAvatarUrl = '';
 
   readonly bookings = signal<GuestBookingSummaryDto[]>([]);
   readonly isLoadingBookings = signal<boolean>(false);
@@ -567,15 +673,18 @@ export class GuestProfilePageComponent implements OnInit {
           this.currentFullName.set(me.fullName);
           this.phoneNumber.set(me.phoneNumber || '');
           this.isEmailVerified.set(me.emailVerified);
+          this.currentAvatarUrl.set(me.avatarUrl || this.user()?.avatarUrl || '');
         },
         error: () => {
           this.currentFullName.set(this.user()?.fullName || '');
+          this.currentAvatarUrl.set(this.user()?.avatarUrl || '');
         },
       });
   }
 
   startEditing(): void {
     this.editFullName = this.currentFullName() || this.user()?.fullName || '';
+    this.editAvatarUrl = this.currentAvatarUrl() || '';
     this.isEditing.set(true);
   }
 
@@ -588,15 +697,18 @@ export class GuestProfilePageComponent implements OnInit {
     if (trimmed.length < 2) return;
 
     this.isSaving.set(true);
+    const avatarToSave = this.editAvatarUrl.trim() || null;
     this.guestAccountService
-      .updateMe(trimmed)
+      .updateMe(trimmed, avatarToSave)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (updated: GuestMeDto) => {
           this.isSaving.set(false);
           this.isEditing.set(false);
           this.currentFullName.set(updated.fullName);
-          this.alert.success('Họ và tên của bạn đã được cập nhật thành công.');
+          this.currentAvatarUrl.set(updated.avatarUrl || '');
+          this.auth.updateCurrentUser({ fullName: updated.fullName, avatarUrl: updated.avatarUrl });
+          this.alert.success('Hồ sơ cá nhân và ảnh đại diện đã được cập nhật thành công.');
         },
         error: (err) => {
           this.isSaving.set(false);
@@ -655,6 +767,7 @@ export class GuestProfilePageComponent implements OnInit {
   logout(): void {
     this.activeTab.set('account');
     this.currentFullName.set('');
+    this.currentAvatarUrl.set('');
     this.bookings.set([]);
     this.loyaltyData.set(null);
     this.auth.logout();

@@ -235,6 +235,13 @@ export class AuthService {
     );
   }
 
+  updateCurrentUser(partial: Partial<UserDto>): void {
+    const current = this.currentUserSubject.value;
+    if (current) {
+      this.currentUserSubject.next({ ...current, ...partial });
+    }
+  }
+
   logout(): void {
     const refreshToken = this.tokenStorage.getRefreshToken();
     if (refreshToken) {

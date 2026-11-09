@@ -3,4 +3,4 @@ using MediatR;
 
 namespace HotelSaas.Application.Guest.Commands.UpdateGuestProfile;
 
-public sealed record UpdateGuestProfileCommand(string FullName) : IRequest<GuestMeDto>;
+public sealed record UpdateGuestProfileCommand(string FullName, string? AvatarUrl = null) : IRequest<GuestMeDto>;
