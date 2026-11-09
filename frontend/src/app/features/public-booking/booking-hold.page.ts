@@ -1348,6 +1348,9 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
     }
     const cleaned = trimmed.replace(/[\s.\-]/g, '');
 
+    // 0. Support Google Identity Platform / Firebase Test Numbers
+    if (cleaned === '+84123456789' || cleaned === '0123456789' || cleaned === '123456789') return true;
+
     // 1. Vietnamese domestic mobile: 10 digits starting with 03, 05, 07, 08, 09
     const vnDomestic = /^0(3[2-9]|5[25689]|7[06-9]|8[1-9]|9[0-9])[0-9]{7}$/;
     if (vnDomestic.test(cleaned)) return true;

@@ -1,0 +1,28 @@
+meta {
+  name: 02 - Calculate Quote
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/public/quotes/calculate
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "propertySlug": "{{propertySlug}}",
+    "roomTypeId": "{{roomTypeId}}",
+    "rentalType": 3,
+    "startAtUtc": "2026-11-20T07:00:00Z",
+    "endAtUtc": "2026-11-21T05:00:00Z",
+    "checkInDate": "2026-11-20",
+    "checkOutDate": "2026-11-21"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.totalAmount: gt 0
+}

@@ -1,0 +1,18 @@
+meta {
+  name: 06 - Get Booking Detail (Verify IsPhoneVerified Badge)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/public/bookings/{{lookupToken}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.isPhoneVerified: eq true
+  res.body.status: eq PendingPayment
+  res.body.propertySlug: isDefined
+}

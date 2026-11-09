@@ -1,0 +1,17 @@
+meta {
+  name: 01 - Get Public Properties
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/public/properties
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body: isDefined
+  res.body.length: gt 0
+}

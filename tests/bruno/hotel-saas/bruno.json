@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "Hotel SaaS - Dual Verification Gate API Test Kit",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

@@ -1,0 +1,38 @@
+meta {
+  name: 05 - Hold Anonymous With Valid Verified Token (Gate Option A Pass)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/public/bookings/hold
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "propertySlug": "{{propertySlug}}",
+    "roomTypeId": "{{roomTypeId}}",
+    "rentalType": 3,
+    "startAtUtc": "2026-11-20T07:00:00Z",
+    "endAtUtc": "2026-11-21T05:00:00Z",
+    "guestName": "Nguyễn Văn A",
+    "guestEmail": "nguyenvana@gmail.com",
+    "guestPhone": "{{validPhone}}",
+    "numberOfGuests": 2,
+    "expectedTotalAmount": 3200000,
+    "firebaseIdToken": "{{validToken}}"
+  }
+}
+
+vars:post-response {
+  lookupToken: res.body.lookupToken
+}
+
+assert {
+  res.status: in [200, 201]
+  res.body.lookupToken: isDefined
+  res.body.isPhoneVerified: eq true
+  res.body.holdExpiresAtUtc: isDefined
+}

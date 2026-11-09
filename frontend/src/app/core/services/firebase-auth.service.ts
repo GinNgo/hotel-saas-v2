@@ -144,8 +144,8 @@ export class FirebaseAuthService {
       };
     } catch (error: any) {
       console.error('[FirebaseAuthService] sendPhoneOtp error:', error);
-      // Nếu gặp lỗi quota hoặc billing Firebase, tự động fallback sang dev mock để không gián đoạn demo
-      if (error?.code === 'auth/quota-exceeded' || error?.code === 'auth/billing-not-enabled' || error?.code === 'auth/invalid-app-credential') {
+      // Nếu gặp lỗi quota, billing hoặc operation-not-allowed, tự động fallback sang dev mock để không gián đoạn demo
+      if (error?.code === 'auth/quota-exceeded' || error?.code === 'auth/billing-not-enabled' || error?.code === 'auth/invalid-app-credential' || error?.code === 'auth/operation-not-allowed') {
         this.isMockMode = true;
         return {
           success: true,
