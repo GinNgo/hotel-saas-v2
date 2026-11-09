@@ -549,6 +549,8 @@ public static class LocalDevDataSeeder
                 PasswordHash = passwordHasher.Hash(options.DefaultPassword),
                 GlobalRole = GlobalUserRole.TenantStaff,
                 IsActive = true,
+                EmailVerifiedAtUtc = DateTime.UtcNow,
+                PhoneVerifiedAtUtc = DateTime.UtcNow,
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             };

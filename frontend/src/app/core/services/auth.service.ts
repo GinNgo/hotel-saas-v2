@@ -72,6 +72,31 @@ export class AuthService {
   }
 
   /**
+   * Đăng nhập một chạm bằng Google OAuth (Google Identity Services / Firebase Google Provider).
+   * Tự động xác thực tài khoản và cấp thẻ thành viên Silver theo cơ chế Soft-Gating.
+   */
+  googleLogin(idToken: string): Observable<LoginResponse> {
+    return this.http.post<any>(`${this.apiUrl}/google-login`, { idToken }).pipe(
+      map(res => {
+        const data: LoginResponse = res.accessToken ? res : (res.data || res);
+        return data;
+      }),
+      tap(data => {
+        if (data?.accessToken) {
+          this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
+          this.currentUserSubject.next(data.user);
+          const memberships = data.memberships || [];
+          this.tokenStorage.setMemberships(memberships);
+          this.membershipsSubject.next(memberships);
+          if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
+            this.clearPropertyContext();
+          }
+        }
+      })
+    );
+  }
+
+  /**
    * Đăng nhập thông qua tài khoản mạng xã hội (Google, Facebook).
    * Tự động liên kết SocialIdentity hoặc tạo mới tài khoản Customer kèm thẻ thành viên Silver.
    */

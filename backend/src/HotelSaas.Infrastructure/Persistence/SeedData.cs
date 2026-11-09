@@ -203,6 +203,7 @@ public static class SeedData
                 FullName = "Quản Trị Viên Nền Tảng (SuperAdmin)",
                 GlobalRole = GlobalUserRole.SuperAdmin,
                 IsActive = true,
+                EmailVerifiedAtUtc = DateTime.UtcNow,
                 CreatedAtUtc = DateTime.UtcNow
             };
             context.Users.Add(superAdminUser);

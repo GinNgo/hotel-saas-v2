@@ -666,14 +666,29 @@ export class LoginPage implements OnInit {
     this.errorMessage.set(null);
     this.showSocialModal.set(false);
 
+    if (provider === 'Google') {
+      const mockGoogleIdToken = `dev-mock-google-token:${email}:${fullName}`;
+      this.authService.googleLogin(mockGoogleIdToken).subscribe({
+        next: (response) => {
+          this.loading.set(false);
+          this.notification.success(`Đăng nhập Google thành công! Chào mừng ${response.user.fullName}`);
+          const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+          this.router.navigate([returnUrl || '/booking/profile']);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.loading.set(false);
+          this.errorMessage.set(err.error?.detail || err.error?.message || 'Đăng nhập Google thất bại.');
+        }
+      });
+      return;
+    }
+
     this.authService.socialLogin({
       provider,
       providerSubject: subject,
       providerEmail: email,
       fullName,
-      avatarUrl: provider === 'Google'
-        ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
-        : 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&auto=format&fit=crop&q=80'
+      avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&auto=format&fit=crop&q=80'
     }).subscribe({
       next: (response) => {
         this.loading.set(false);

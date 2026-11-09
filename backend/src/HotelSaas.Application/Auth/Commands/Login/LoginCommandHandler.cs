@@ -11,6 +11,7 @@ namespace HotelSaas.Application.Auth.Commands.Login;
 /// Handles user login: verifies credentials, resolves valid context memberships independently of ambient scope
 /// for authenticated users without weakening business query filters, avoids implicitly selecting a branch
 /// when multiple branches exist, generates tokens, and persists the session.
+/// Enforces Dual-Verification Policy (Soft-Gating for B2C Customer, Hard-Gating for Hotel Personnel).
 /// </summary>
 public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResponse>
 {
@@ -43,6 +44,18 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
 
         if (!_passwordHasher.Verify(request.Password, user.PasswordHash))
             throw new UnauthorizedAccessException("Email hoặc mật khẩu không đúng.");
+
+        // 1.1 Dual-Verification Policy Enforcement:
+        // - B2C Guests (Role Customer): Soft-Gating applied; guests may authenticate directly.
+        // - Hotel Personnel (TenantStaff, SuperAdmin): Hard-Gating applied.
+        //   Must have confirmed either their corporate Email or verified Phone Number before gaining system access.
+        var isHotelPersonnel = user.GlobalRole != GlobalUserRole.Customer;
+
+        if (isHotelPersonnel && !user.EmailVerifiedAtUtc.HasValue && !user.PhoneVerifiedAtUtc.HasValue)
+        {
+            throw new UnauthorizedAccessException(
+                "Tài khoản nhân sự/quản trị viên bắt buộc phải kích hoạt email hoặc xác thực số điện thoại trước khi đăng nhập hệ thống PMS.");
+        }
 
         // 2. Query memberships independently of ambient tenant/property context ONLY for password-verified user
         // Using IgnoreQueryFilters on TenantStaffMembers ensures bootstrap discovery works when TenantId is null

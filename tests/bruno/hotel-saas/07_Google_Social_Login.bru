@@ -1,0 +1,24 @@
+meta {
+  name: 07 - Google Social Login (Soft-Gating)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/auth/google-login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "idToken": "dev-mock-google-token:guest.google@gmail.com:Guest Google Verified"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.accessToken: isDefined
+  res.body.user.email: eq guest.google@gmail.com
+  res.body.user.globalRole: eq Customer
+}

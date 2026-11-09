@@ -56,6 +56,7 @@ public static class DependencyInjection
         services.AddScoped<IReportExportService, ReportExportService>();
         services.AddScoped<IEmailService, GmailSmtpEmailService>();
         services.AddSingleton<IFirebaseAuthService, FirebaseAuthService>();
+        services.AddSingleton<IGoogleAuthService, GoogleAuthService>();
         services.AddSignalR();
         services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
         services.AddScoped<IAuditLogService, AuditLogService>();

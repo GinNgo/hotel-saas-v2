@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: hotelsaas-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - hotelsaas-network
+    depends_on:
+      - backend
+      - frontend
+
+  backend:
+    image: ghcr.io/ginngo/hotel-saas-backend:latest
+    container_name: hotelsaas-backend-api
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Staging
+      - ASPNETCORE_URLS=http://+:5000
+      - ConnectionStrings__DefaultConnection=${STAGING_DB_CONNECTION}
+      - JwtSettings__SecretKey=${JWT_SECRET_KEY}
+      - JwtSettings__Issuer=HotelSaas
+      - JwtSettings__Audience=HotelSaasAudience
+      - VNPAY__HASHSECRET=${VNPAY_HASH_SECRET}
+      - VNPAY__TMNCODE=${VNPAY_TMN_CODE}
+      - FIREBASE_CONFIG_PATH=/app/secrets/firebase-adminsdk.json
+    volumes:
+      - /opt/hotel-saas/secrets:/app/secrets:ro
+    expose:
+      - "5000"
+    networks:
+      - hotelsaas-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  frontend:
+    image: ghcr.io/ginngo/hotel-saas-frontend:latest
+    container_name: hotelsaas-frontend-spa
+    restart: unless-stopped
+    expose:
+      - "80"
+    networks:
+      - hotelsaas-network
+
+networks:
+  hotelsaas-network:
+    name: hotelsaas-staging-network
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
