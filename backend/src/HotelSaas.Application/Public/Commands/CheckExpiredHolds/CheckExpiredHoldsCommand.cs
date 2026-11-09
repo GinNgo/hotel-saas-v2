@@ -23,20 +23,37 @@ public sealed class CheckExpiredHoldsCommandHandler : IRequestHandler<CheckExpir
     private static readonly SemaphoreSlim SweepLock = new(1, 1);
     private readonly IApplicationDbContext _context;
     private readonly INotificationDispatcher? _notificationDispatcher;
+    private readonly bool _useInMemoryLock;
 
     public CheckExpiredHoldsCommandHandler(
         IApplicationDbContext context,
-        INotificationDispatcher? notificationDispatcher = null)
+        INotificationDispatcher? notificationDispatcher = null,
+        bool useInMemoryLock = true)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _notificationDispatcher = notificationDispatcher;
+        _useInMemoryLock = useInMemoryLock;
     }
 
     public async Task<int> Handle(CheckExpiredHoldsCommand request, CancellationToken cancellationToken)
     {
-        await SweepLock.WaitAsync(cancellationToken);
+        if (_useInMemoryLock)
+        {
+            await SweepLock.WaitAsync(cancellationToken);
+        }
+
         try
         {
+            // Distributed multi-backend synchronization via PostgreSQL transaction-scoped advisory lock (pg_advisory_xact_lock)
+            await using var tx = await _context.BeginTransactionAsync(cancellationToken);
+            if (tx != null)
+            {
+                var lockScopeId = request.PropertyId.HasValue && request.PropertyId.Value != Guid.Empty
+                    ? request.PropertyId.Value
+                    : Guid.Empty;
+                await _context.LockIdempotencyKeyAsync(lockScopeId, "expired_hold_sweep_distributed_lock", cancellationToken);
+            }
+
             var nowUtc = DateTime.UtcNow;
 
             var query = _context.Reservations
@@ -95,11 +112,19 @@ public sealed class CheckExpiredHoldsCommandHandler : IRequestHandler<CheckExpir
                 await _context.SaveChangesAsync(cancellationToken);
             }
 
+            if (tx != null)
+            {
+                await tx.CommitAsync(cancellationToken);
+            }
+
             return count;
         }
         finally
         {
-            SweepLock.Release();
+            if (_useInMemoryLock)
+            {
+                SweepLock.Release();
+            }
         }
     }
 }

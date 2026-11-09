@@ -53,23 +53,44 @@ async function runE2E() {
   const pubProp = await pubPropRes.json();
   console.log(`   ✅ Public Property found: ${pubProp.name} (slug: ${pubProp.slug})`);
 
-  const startDay = 15 + Math.floor(Math.random() * 10);
-  const checkInDate = `2026-11-${String(startDay).padStart(2, '0')}`;
-  const checkOutDate = `2026-11-${String(startDay + 2).padStart(2, '0')}`;
-  const futureStart = new Date(`${checkInDate}T07:00:00.000Z`);
-  const futureEnd = new Date(`${checkOutDate}T05:00:00.000Z`);
+  let checkInDate = '';
+  let checkOutDate = '';
+  let futureStart = null;
+  let futureEnd = null;
+  let availableRoomType = null;
 
-  const pubAvailUrl =
-    `${BASE_URL}/api/public/properties/${PROPERTY_SLUG}/availability` +
-    `?rentalType=Overnight&startAtUtc=${encodeURIComponent(futureStart.toISOString())}` +
-    `&endAtUtc=${encodeURIComponent(futureEnd.toISOString())}` +
-    `&checkInDate=${checkInDate}&checkOutDate=${checkOutDate}`;
-  const pubAvailRes = await fetch(pubAvailUrl);
-  if (!pubAvailRes.ok) {
-    throw new Error(`Public availability check failed: HTTP ${pubAvailRes.status}`);
+  for (let offset = 15; offset <= 75; offset += 3) {
+    const startObj = new Date(Date.UTC(2026, 10, offset, 7, 0, 0));
+    const endObj = new Date(Date.UTC(2026, 10, offset + 2, 5, 0, 0));
+    const ci = startObj.toISOString().slice(0, 10);
+    const co = endObj.toISOString().slice(0, 10);
+
+    const pubAvailUrl =
+      `${BASE_URL}/api/public/properties/${PROPERTY_SLUG}/availability` +
+      `?rentalType=Overnight&startAtUtc=${encodeURIComponent(startObj.toISOString())}` +
+      `&endAtUtc=${encodeURIComponent(endObj.toISOString())}` +
+      `&checkInDate=${ci}&checkOutDate=${co}`;
+    const pubAvailRes = await fetch(pubAvailUrl);
+    if (!pubAvailRes.ok) {
+      throw new Error(`Public availability check failed: HTTP ${pubAvailRes.status}`);
+    }
+    const pubAvailList = await pubAvailRes.json();
+    const candidate = pubAvailList.find(rt => rt.isAvailable && rt.availableRooms > 0);
+    if (candidate) {
+      checkInDate = ci;
+      checkOutDate = co;
+      futureStart = startObj;
+      futureEnd = endObj;
+      availableRoomType = candidate;
+      console.log(`   ✅ Public Availability returned ${pubAvailList.length} room type(s) for ${checkInDate} -> ${checkOutDate}.`);
+      console.log(`   ✅ Selected Public RoomType: ${candidate.roomTypeName} (ID: ${candidate.roomTypeId}, Price: ${candidate.estimatedPrice} VND)\n`);
+      break;
+    }
   }
-  const pubAvailList = await pubAvailRes.json();
-  console.log(`   ✅ Public Availability returned ${pubAvailList.length} room type(s) for ${checkInDate} -> ${checkOutDate}.\n`);
+
+  if (!availableRoomType) {
+    throw new Error('No available public room types found across candidate dates.');
+  }
 
   // Step 1: Authenticate two distinct sessions (Manager vs Receptionist)
   console.log('🔑 Step 1: Logging in Manager & Receptionist...');
@@ -165,81 +186,70 @@ async function runE2E() {
     console.log(`   ✅ Cross-tenant join correctly rejected: ${err.message}`);
   }
 
-  // Step 5: Fetch physical rooms to create a clean reservation
-  console.log('\n📦 Step 5: Fetching available room to create test reservation...');
-  const roomsResp = await fetch(`${BASE_URL}/api/rooms?propertyId=${PROPERTY_ID}`, {
+  // Step 5 & 6: Public Guest Hold Creation & Public Token Lookup (TC-04, TC-05, TC-16)
+  console.log('\n📝 Step 5 & 6: Creating Public Guest Hold (POST /api/public/bookings/hold) & Verifying Public Token Lookup...');
+  const guestEmail = 'test.realtime@hotelsaas.test';
+  const holdResp = await fetch(`${BASE_URL}/api/public/bookings/hold`, {
+    method: 'POST',
     headers: {
-      'Authorization': `Bearer ${managerAuth.accessToken}`,
-      'X-Property-Id': PROPERTY_ID,
-      'X-Tenant-Id': managerAuth.user.tenantId
-    }
+      'Content-Type': 'application/json',
+      'Idempotency-Key': `idemp-pubhold-${Date.now()}`
+    },
+    body: JSON.stringify({
+      propertySlug: PROPERTY_SLUG,
+      roomTypeId: availableRoomType.roomTypeId,
+      rentalType: 2, // Overnight
+      startAtUtc: futureStart.toISOString(),
+      endAtUtc: futureEnd.toISOString(),
+      checkInDate: checkInDate,
+      checkOutDate: checkOutDate,
+      guestName: 'Nguyễn Văn Test Public E2E',
+      guestEmail: guestEmail,
+      guestPhone: '0901234567',
+      numberOfGuests: 2,
+      expectedTotalAmount: availableRoomType.estimatedPrice
+    })
   });
-  const roomsData = await roomsResp.json();
-  const roomList = Array.isArray(roomsData) ? roomsData : (roomsData.items || []);
-  if (!roomList || roomList.length === 0) {
-    throw new Error('No rooms found in property to create test reservation');
-  }
-  const targetRoom = roomList.find(r => r.roomNumber !== '101' && r.roomNumber !== '102') || roomList[0];
-  console.log(`   Target room: Room ${targetRoom.roomNumber} (ID: ${targetRoom.id})`);
 
-  // Step 6: Create reservation with dates in valid seeded pricing period (Nov 2026)
-  console.log('\n📝 Step 6: Creating active internal reservation for testing...');
-  const createResResp = await fetch(`${BASE_URL}/api/reservations`, {
+  if (!holdResp.ok) {
+    throw new Error(`Public hold creation failed: ${holdResp.status} ${await holdResp.text()}`);
+  }
+  const holdData = await holdResp.json();
+  const lookupToken = holdData.lookupToken;
+  console.log(`   ✅ Created Public Hold: ${holdData.confirmationCode} (ReservationId: ${holdData.reservationId}, Deposit: ${holdData.depositAmount} VND, Expires: ${holdData.holdExpiresAtUtc})`);
+
+  const lookupResp = await fetch(`${BASE_URL}/api/public/bookings/${encodeURIComponent(lookupToken)}`);
+  if (!lookupResp.ok) {
+    throw new Error(`Public booking token lookup failed: ${lookupResp.status}`);
+  }
+  const lookupBooking = await lookupResp.json();
+  console.log(`   ✅ Public Token Lookup verified: Status=${lookupBooking.status}, MaskedEmail=${lookupBooking.guestEmail}`);
+
+  // Step 7: Confirm Public Guest Hold Deposit & Trigger Live SignalR Payment Notification
+  console.log('\n💳 Step 7: Confirming Public Guest Booking Deposit (POST /api/public/bookings/{token}/confirm)...');
+  const depositAmount = holdData.depositAmount || Math.round(availableRoomType.estimatedPrice * 0.3);
+  const confirmResp = await fetch(`${BASE_URL}/api/public/bookings/${encodeURIComponent(lookupToken)}/confirm?propertyId=${PROPERTY_ID}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${managerAuth.accessToken}`,
       'X-Property-Id': PROPERTY_ID,
       'X-Tenant-Id': managerAuth.user.tenantId,
-      'Idempotency-Key': `idemp-create-${Date.now()}`
+      'Idempotency-Key': `idemp-pubconf-${Date.now()}`
     },
     body: JSON.stringify({
       propertyId: PROPERTY_ID,
-      roomId: targetRoom.id,
-      rentalType: 2, // Overnight
-      startAtUtc: futureStart.toISOString(),
-      endAtUtc: futureEnd.toISOString(),
-      checkInDate: checkInDate,
-      checkOutDate: checkOutDate,
-      guestName: 'Nguyễn Văn Test Realtime',
-      guestEmail: 'test.realtime@hotelsaas.test',
-      guestPhone: '0901234567',
-      numberOfGuests: 2,
-      customerNotes: 'E2E Realtime SignalR test reservation'
+      paymentAmount: depositAmount,
+      paymentMethod: 'BankTransfer',
+      transactionRef: `VIETQR-PUBLIC-${Date.now()}`
     })
   });
 
-  if (!createResResp.ok) {
-    throw new Error(`Failed to create reservation: ${createResResp.status} ${await createResResp.text()}`);
+  if (!confirmResp.ok) {
+    throw new Error(`Confirm public booking failed: ${confirmResp.status} ${await confirmResp.text()}`);
   }
-  const createdReservation = await createResResp.json();
-  console.log(`   ✅ Created reservation: ${createdReservation.confirmationCode} (ID: ${createdReservation.id})`);
-
-  // Step 7: Trigger Live Payment Confirmation
-  console.log('\n💳 Step 7: Triggering Live Payment Confirmation (POST /api/payments)...');
-  const payRes = await fetch(`${BASE_URL}/api/payments?propertyId=${PROPERTY_ID}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${managerAuth.accessToken}`,
-      'X-Property-Id': PROPERTY_ID,
-      'X-Tenant-Id': managerAuth.user.tenantId
-    },
-    body: JSON.stringify({
-      reservationId: createdReservation.id,
-      amount: 500000,
-      method: 2, // Cash
-      transactionRef: `TEST-CASH-${Date.now()}`,
-      idempotencyKey: `idemp-pay-${Date.now()}`,
-      isDeposit: false
-    })
-  });
-
-  if (!payRes.ok) {
-    console.error('   Payment error detail:', await payRes.text());
-  } else {
-    console.log('   ✅ Payment recorded successfully. Status: 201 Created.');
-  }
+  const confirmedBooking = await confirmResp.json();
+  console.log(`   ✅ Public Booking confirmed: Status=${confirmedBooking.status}, PaidDeposit=${depositAmount} VND`);
 
   // Wait for WebSocket message propagation
   await new Promise(r => setTimeout(r, 1500));
@@ -272,26 +282,24 @@ async function runE2E() {
     console.error(`   ❌ Receptionist received unexpected count of payment events: ${receptionistPayEvents.length}`);
   }
 
-  // Step 8: Trigger Cancellation
-  console.log('\n❌ Step 8: Triggering Live Cancellation (POST /api/reservations/{id}/cancel)...');
-  const cancelResp = await fetch(`${BASE_URL}/api/reservations/${createdReservation.id}/cancel?propertyId=${PROPERTY_ID}`, {
+  // Step 8: Public Guest Cancellation via Lookup Token + D23 Refund Approval & Payout
+  console.log('\n❌ Step 8: Triggering Public Guest Cancellation (POST /api/public/bookings/{token}/cancel) & D23 Refund Flow...');
+  const cancelResp = await fetch(`${BASE_URL}/api/public/bookings/${encodeURIComponent(lookupToken)}/cancel`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${managerAuth.accessToken}`,
-      'X-Property-Id': PROPERTY_ID,
-      'X-Tenant-Id': managerAuth.user.tenantId
+      'Idempotency-Key': `idemp-pubcancel-${Date.now()}`
     },
     body: JSON.stringify({
-      reason: 'Khách hàng thay đổi lịch trình công tác'
+      verificationEmailOrPhone: guestEmail,
+      reason: 'Khách hàng hủy đơn trực tuyến qua trang tra cứu công khai'
     })
   });
 
   if (!cancelResp.ok) {
-    console.error('   Cancellation error detail:', await cancelResp.text());
-  } else {
-    console.log('   ✅ Reservation cancelled successfully. Status: 200 OK.');
+    throw new Error(`Public guest cancellation failed: ${cancelResp.status} ${await cancelResp.text()}`);
   }
+  console.log('   ✅ Public Guest Booking cancelled successfully via LookupToken. Status: 200 OK.');
 
   await new Promise(r => setTimeout(r, 1500));
 
@@ -311,6 +319,60 @@ async function runE2E() {
     console.log(`      RefundableAmount: ${receptionistCancelEvents[0].payload.refundableAmount} VND (Sanitized: No payout figures leaked).`);
   } else {
     console.error(`   ❌ Receptionist received unexpected count of cancellation events: ${receptionistCancelEvents.length}`);
+  }
+
+  // Verify D23 Refund Approval -> Payout -> Folio NetCollected
+  const refundListResp = await fetch(
+    `${BASE_URL}/api/payments/refunds?propertyId=${PROPERTY_ID}&status=PendingApproval&search=${encodeURIComponent(holdData.confirmationCode)}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${managerAuth.accessToken}`,
+        'X-Property-Id': PROPERTY_ID,
+        'X-Tenant-Id': managerAuth.user.tenantId
+      }
+    }
+  );
+  if (refundListResp.ok) {
+    const refundPage = await refundListResp.json();
+    const items = refundPage.items || [];
+    const targetRefund = items.find(i => i.confirmationCode === holdData.confirmationCode);
+    if (targetRefund) {
+      const approveResp = await fetch(
+        `${BASE_URL}/api/payments/refunds/${targetRefund.paymentId}/approve?propertyId=${PROPERTY_ID}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${managerAuth.accessToken}`,
+            'X-Property-Id': PROPERTY_ID,
+            'X-Tenant-Id': managerAuth.user.tenantId
+          },
+          body: JSON.stringify({ notes: 'Duyệt hoàn tiền E2E D23' })
+        }
+      );
+      if (approveResp.ok) {
+        const payoutResp = await fetch(
+          `${BASE_URL}/api/payments/refunds/${targetRefund.paymentId}/confirm-payout?propertyId=${PROPERTY_ID}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${managerAuth.accessToken}`,
+              'X-Property-Id': PROPERTY_ID,
+              'X-Tenant-Id': managerAuth.user.tenantId
+            },
+            body: JSON.stringify({
+              payoutMethod: 3, // BankTransfer
+              bankTransactionRef: `FT-E2E-${Date.now()}`,
+              notes: 'Xác nhận chi hoàn ngoài hệ thống D23'
+            })
+          }
+        );
+        if (payoutResp.ok) {
+          console.log(`   ✅ D23 Refund Approved & External Payout Confirmed for ${holdData.confirmationCode} (${targetRefund.refundableAmount} VND).`);
+        }
+      }
+    }
   }
 
   // Step 9: Trigger Expired Holds Sweep (Scenario A & B: Live E2E Hold Expired)

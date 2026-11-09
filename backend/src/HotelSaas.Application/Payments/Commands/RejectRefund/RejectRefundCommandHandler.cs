@@ -125,6 +125,10 @@ public sealed class RejectRefundCommandHandler : IRequestHandler<RejectRefundCom
                 "Bạn không có quyền từ chối yêu cầu hoàn tiền. Thao tác này chỉ dành cho Quản lý chi nhánh (Property Manager) hoặc Chủ khách sạn (Owner) theo Quyết định D23.");
         }
 
+        // Serialize concurrent refund state transitions via PostgreSQL transactional advisory lock
+        await using var tx = await _context.BeginTransactionAsync(cancellationToken);
+        await _context.LockIdempotencyKeyAsync(request.PropertyId, $"refund_mutation_{request.PaymentId:N}", cancellationToken);
+
         // Load tracked payment
         var payment = await _context.Payments
             .Include(p => p.Property)
@@ -187,6 +191,10 @@ public sealed class RejectRefundCommandHandler : IRequestHandler<RejectRefundCom
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+        if (tx != null)
+        {
+            await tx.CommitAsync(cancellationToken);
+        }
 
         // Notify SignalR hub
         if (_notificationDispatcher != null)

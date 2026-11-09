@@ -1451,4 +1451,170 @@ public sealed class RefundApprovalManagementTests
             await DropTestSchemaAsync(connStr, schemaName);
         }
     }
+
+    [Fact]
+    public async Task ConfirmRefundPayout_TwoCashiersSimultaneously_OnlyOneSucceedsAndOneThrowsConflict()
+    {
+        var connStr = GetConnectionString();
+        var schemaName = await InitializeTestSchemaAsync(connStr);
+
+        try
+        {
+            var dummyTenant = new MockTenantService();
+            var dummyProp = new MockPropertyService();
+            await using var seedContext = CreateDbContext(connStr, schemaName, dummyTenant, dummyProp);
+            var (tenant, property, room) = await SeedHierarchyAsync(seedContext, dummyTenant, dummyProp);
+
+            var roleId = Guid.NewGuid();
+            var cashier1Id = Guid.NewGuid();
+            var cashier2Id = Guid.NewGuid();
+            var reservationId = Guid.NewGuid();
+            var paymentId = Guid.NewGuid();
+
+            var tenantService = new MockTenantService { TenantId = tenant.Id };
+            var propertyService = new MockPropertyService { PropertyId = property.Id, HeaderPropertyId = property.Id };
+            var membershipService = new MockMembershipLookupService();
+
+            await using (var setupContext = CreateDbContext(connStr, schemaName, tenantService, propertyService))
+            {
+                var role = new AccessRole { Id = roleId, TenantId = tenant.Id, Name = "Cashier / Manager" };
+                var function = await setupContext.PermissionFunctions.FirstOrDefaultAsync(f => f.Code == "PAYMENTS");
+                if (function == null)
+                {
+                    function = new PermissionFunction { Id = Guid.NewGuid(), Code = "PAYMENTS", Name = "Payments", ModuleCode = "FINANCE", SupportedActionMask = 127 };
+                    setupContext.PermissionFunctions.Add(function);
+                }
+                setupContext.AccessRoles.Add(role);
+                setupContext.RolePermissions.Add(new RolePermission
+                {
+                    Id = Guid.NewGuid(),
+                    RoleId = roleId,
+                    FunctionId = function.Id,
+                    ActionMask = 51 // Has bit 16 (Approve)
+                });
+
+                var reservation = new Reservation
+                {
+                    Id = reservationId,
+                    TenantId = tenant.Id,
+                    PropertyId = property.Id,
+                    RoomId = room.Id,
+                    ConfirmationCode = "RES-CONCURRENT-01",
+                    GuestName = "Khach Hang Dong Thoi",
+                    Status = ReservationStatus.Cancelled,
+                    TotalAmount = 1_000_000m,
+                    CheckInDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+                    CheckOutDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2))
+                };
+                setupContext.Reservations.Add(reservation);
+
+                // Original collected payment: 1,000,000 VND
+                setupContext.Payments.Add(new Payment
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenant.Id,
+                    PropertyId = property.Id,
+                    ReservationId = reservationId,
+                    Amount = 1_000_000m,
+                    Method = PaymentMethod.BankTransfer,
+                    Status = PaymentStatus.Completed,
+                    TransactionRef = "COLLECT-ORIG-1M",
+                    PaidAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                    CreatedAtUtc = DateTime.UtcNow.AddMinutes(-5)
+                });
+
+                // Approved refund awaiting payout confirmation: 300,000 VND
+                setupContext.Payments.Add(new Payment
+                {
+                    Id = paymentId,
+                    TenantId = tenant.Id,
+                    PropertyId = property.Id,
+                    ReservationId = reservationId,
+                    Amount = 300_000m,
+                    Method = PaymentMethod.BankTransfer,
+                    Status = PaymentStatus.Pending,
+                    TransactionRef = "REFUND-APPROVED-RES-CONCURRENT-01",
+                    CreatedAtUtc = DateTime.UtcNow
+                });
+
+                await setupContext.SaveChangesAsync();
+            }
+
+            // Two independent DbContext instances representing two cashier sessions clicking "Confirm Payout" simultaneously
+            await using var contextCashier1 = CreateDbContext(connStr, schemaName, tenantService, propertyService);
+            await using var contextCashier2 = CreateDbContext(connStr, schemaName, tenantService, propertyService);
+
+            var userContext1 = new MockUserContext { UserId = cashier1Id, Email = "cashier1@luxestay.vn", TenantId = tenant.Id, RoleId = roleId };
+            var userContext2 = new MockUserContext { UserId = cashier2Id, Email = "cashier2@luxestay.vn", TenantId = tenant.Id, RoleId = roleId };
+
+            var handler1 = new ConfirmRefundPayoutCommandHandler(contextCashier1, tenantService, userContext1, membershipService, propertyService);
+            var handler2 = new ConfirmRefundPayoutCommandHandler(contextCashier2, tenantService, userContext2, membershipService, propertyService);
+
+            var cmd1 = new ConfirmRefundPayoutCommand(paymentId, property.Id, PaymentMethod.BankTransfer, "VCB-CASHIER-01", "Thu ngân 1 xác nhận");
+            var cmd2 = new ConfirmRefundPayoutCommand(paymentId, property.Id, PaymentMethod.Cash, "CASH-CASHIER-02", "Thu ngân 2 xác nhận cùng lúc");
+
+            using var startGate = new ManualResetEventSlim(false);
+
+            async Task<(RefundRequestDto? Result, Exception? Error)> RunCashierAsync(
+                ConfirmRefundPayoutCommandHandler handler,
+                ConfirmRefundPayoutCommand command)
+            {
+                await Task.Run(() => startGate.Wait());
+                try
+                {
+                    var dto = await handler.Handle(command, CancellationToken.None);
+                    return (dto, null);
+                }
+                catch (Exception ex)
+                {
+                    return (null, ex);
+                }
+            }
+
+            var task1 = RunCashierAsync(handler1, cmd1);
+            var task2 = RunCashierAsync(handler2, cmd2);
+
+            // Release both cashiers at the exact same instant
+            startGate.Set();
+            var outcomes = await Task.WhenAll(task1, task2);
+
+            var successes = outcomes.Where(o => o.Result != null).ToList();
+            var failures = outcomes.Where(o => o.Error != null).ToList();
+
+            // Exactly 1 cashier must succeed, and 1 cashier must receive ConflictException (ERR_ALREADY_COMPLETED)
+            Assert.Single(successes);
+            Assert.Single(failures);
+
+            var conflictEx = Assert.IsType<ConflictException>(failures[0].Error);
+            Assert.Equal("ERR_ALREADY_COMPLETED", conflictEx.ErrorCode);
+
+            var winnerDto = successes[0].Result!;
+            Assert.Equal("Completed", winnerDto.Status);
+
+            // Verify database state and audit logs using a fresh context
+            await using var verifyContext = CreateDbContext(connStr, schemaName, tenantService, propertyService);
+            var dbPayment = await verifyContext.Payments.AsNoTracking().FirstOrDefaultAsync(p => p.Id == paymentId);
+            Assert.NotNull(dbPayment);
+            Assert.Equal(PaymentStatus.Completed, dbPayment.Status);
+            Assert.Contains($"BankRef:{winnerDto.BankTransactionRef}", dbPayment.TransactionRef);
+
+            var loserRef = winnerDto.BankTransactionRef == "VCB-CASHIER-01" ? "CASH-CASHIER-02" : "VCB-CASHIER-01";
+            Assert.DoesNotContain(loserRef, dbPayment.TransactionRef);
+
+            var auditCount = await verifyContext.AuditLogs
+                .AsNoTracking()
+                .CountAsync(a => a.EntityName == nameof(Payment) && a.EntityId == paymentId);
+            Assert.Equal(1, auditCount);
+
+            var folioHandler = new GetFolioQueryHandler(verifyContext, tenantService, userContext1, membershipService, propertyService);
+            var folio = await folioHandler.Handle(new GetFolioQuery(reservationId, property.Id), CancellationToken.None);
+            Assert.Equal(1_000_000m, folio.PaidAmount);
+            Assert.Equal(300_000m, folio.TotalRefunded);
+            Assert.Equal(700_000m, folio.NetCollected);
+        }
+        finally
+        {
+            await DropTestSchemaAsync(connStr, schemaName);
+        }
+    }
 }

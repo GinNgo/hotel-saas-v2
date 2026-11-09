@@ -343,6 +343,7 @@ public sealed class NotificationHubSecurityTests
 
     private sealed class TestNotificationClient : INotificationClient
     {
+        private readonly object _sync = new();
         public List<PaymentConfirmedNotificationPayload> PaymentConfirmed { get; } = new();
         public List<BookingCancellationNotificationPayload> CancellationRequested { get; } = new();
         public List<HoldExpiredNotificationPayload> HoldExpired { get; } = new();
@@ -353,19 +354,28 @@ public sealed class NotificationHubSecurityTests
 
         public Task ReceiveBookingPaymentConfirmed(PaymentConfirmedNotificationPayload notification)
         {
-            PaymentConfirmed.Add(notification);
+            lock (_sync)
+            {
+                PaymentConfirmed.Add(notification);
+            }
             return Task.CompletedTask;
         }
 
         public Task ReceiveBookingCancellationRequested(BookingCancellationNotificationPayload notification)
         {
-            CancellationRequested.Add(notification);
+            lock (_sync)
+            {
+                CancellationRequested.Add(notification);
+            }
             return Task.CompletedTask;
         }
 
         public Task ReceiveHoldExpired(HoldExpiredNotificationPayload notification)
         {
-            HoldExpired.Add(notification);
+            lock (_sync)
+            {
+                HoldExpired.Add(notification);
+            }
             return Task.CompletedTask;
         }
     }
@@ -767,17 +777,21 @@ public sealed class NotificationHubSecurityTests
 
     private sealed class MultiBranchHubClients : IHubClients<INotificationClient>
     {
+        private readonly object _sync = new();
         private readonly TestNotificationClient _defaultClient = new();
         public Dictionary<string, TestNotificationClient> GroupClients { get; } = new(StringComparer.Ordinal);
 
         public TestNotificationClient GetOrCreateGroupClient(string groupName)
         {
-            if (!GroupClients.TryGetValue(groupName, out var c))
+            lock (_sync)
             {
-                c = new TestNotificationClient();
-                GroupClients[groupName] = c;
+                if (!GroupClients.TryGetValue(groupName, out var c))
+                {
+                    c = new TestNotificationClient();
+                    GroupClients[groupName] = c;
+                }
+                return c;
             }
-            return c;
         }
 
         public INotificationClient All => _defaultClient;
@@ -918,5 +932,87 @@ public sealed class NotificationHubSecurityTests
 
         // Branch B receptionist receives 0 notifications
         Assert.Empty(branchBClient.HoldExpired);
+    }
+
+    [Fact]
+    public async Task MultiBackendHoldSweep_WithoutSharedInMemoryLock_DispatchesExactlyOnceViaPostgresAdvisoryLock()
+    {
+        await using var fixture = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+        var tenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId };
+        await using var seedCtx = fixture.CreateDbContext(tenantSvc, propSvc);
+
+        var room = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(seedCtx.Rooms, r => r.PropertyId == fixture.PropertyId);
+        Assert.NotNull(room);
+
+        var expiredSnap = new HotelSaas.Application.Reservations.DTOs.ReservationSnapshot
+        {
+            HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(-3),
+            IsOnlineHold = true,
+            RoomTypeName = "Executive Suite",
+            LookupToken = "TOKEN-MUST-NOT-LEAK",
+            HoldExpiredNotifiedAtUtc = null
+        };
+        var expiredRes = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = room.Id,
+            ConfirmationCode = "RES-MULTINODE-01",
+            GuestName = "Khach Multi Node",
+            Status = ReservationStatus.PendingPayment,
+            CheckInDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            CheckOutDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)),
+            TotalAmount = 2_500_000m,
+            Notes = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.Serialize(expiredSnap),
+            CreatedAtUtc = DateTime.UtcNow.AddMinutes(-18)
+        };
+        seedCtx.Reservations.Add(expiredRes);
+        await seedCtx.SaveChangesAsync();
+
+        var multiClients = new MultiBranchHubClients();
+        var branchClient = multiClients.GetOrCreateGroupClient(NotificationHub.GetPropertyGroupName(fixture.PropertyId.ToString()));
+        var hubContext = new MultiBranchHubContext(multiClients);
+        var dispatcher = new HotelSaas.Infrastructure.Services.NotificationDispatcher(
+            hubContext,
+            NullLogger<HotelSaas.Infrastructure.Services.NotificationDispatcher>.Instance);
+
+        // Simulate 2 separate backend server instances:
+        // - 2 independent DbContext connections (ctxNode1, ctxNode2)
+        // - useInMemoryLock: false so neither node shares the static SemaphoreSlim in RAM
+        // Synchronization relies purely on PostgreSQL pg_advisory_xact_lock across database connections
+        await using var ctxNode1 = fixture.CreateDbContext(tenantSvc, propSvc);
+        await using var ctxNode2 = fixture.CreateDbContext(tenantSvc, propSvc);
+
+        var node1Handler = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+            ctxNode1, dispatcher, useInMemoryLock: false);
+        var node2Handler = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+            ctxNode2, dispatcher, useInMemoryLock: false);
+
+        using var startGate = new ManualResetEventSlim(false);
+
+        async Task<int> RunNodeSweepAsync(HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler handler)
+        {
+            await Task.Run(() => startGate.Wait());
+            return await handler.Handle(
+                new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(PropertyId: null),
+                CancellationToken.None);
+        }
+
+        var taskNode1 = RunNodeSweepAsync(node1Handler);
+        var taskNode2 = RunNodeSweepAsync(node2Handler);
+
+        startGate.Set();
+        var counts = await Task.WhenAll(taskNode1, taskNode2);
+
+        // One backend node sweeps 1 expired hold, the other backend node sweeps 0 (serialized by PostgreSQL pg_advisory_xact_lock)
+        Assert.Equal(1, counts[0] + counts[1]);
+        Assert.Contains(1, counts);
+        Assert.Contains(0, counts);
+
+        // Strictly 1 HoldExpired notification emitted across the entire cluster
+        Assert.Single(branchClient.HoldExpired);
+        Assert.Equal("RES-MULTINODE-01", branchClient.HoldExpired[0].ConfirmationCode);
     }
 }
