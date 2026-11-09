@@ -123,7 +123,7 @@ export type PhoneOtpMode = 'login' | 'link';
                   (click)="quickFillDemoPhone()"
                   class="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] transition-colors cursor-pointer"
                 >
-                  Dùng số thử nghiệm nhanh (0987.654.321)
+                  Dùng số kiểm thử (+84 123 456 789 / Mã: 123456)
                 </button>
               </div>
             </div>
@@ -241,8 +241,8 @@ export class PhoneOtpModalComponent {
   }
 
   quickFillDemoPhone(): void {
-    this.phoneNumber = '0987654321';
-    this.fullName = 'Khách Thử Nghiệm SĐT';
+    this.phoneNumber = '0123456789';
+    this.fullName = 'Khách Kiểm Thử (+84123456789)';
   }
 
   quickFillOtp(code: string): void {

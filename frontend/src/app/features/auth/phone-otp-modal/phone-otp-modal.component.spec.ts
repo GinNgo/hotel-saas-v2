@@ -57,7 +57,7 @@ describe('PhoneOtpModalComponent', () => {
 
     expect(fixture.componentInstance.step()).toBe('phone');
     fixture.componentInstance.quickFillDemoPhone();
-    expect(fixture.componentInstance.phoneNumber).toBe('0987654321');
+    expect(fixture.componentInstance.phoneNumber).toBe('0123456789');
   });
 
   it('transitions to otp step when sendOtp succeeds', async () => {
