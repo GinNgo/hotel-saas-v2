@@ -527,6 +527,7 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
             TotalAmount = finalTotalAmount,
             PointsRedeemed = pointsToRedeem,
             PointsDiscountAmount = pointsDiscount,
+            PaymentMethodPreference = request.PaymentMethodPreference,
             Status = ReservationStatus.PendingPayment,
             Notes = ReservationSnapshotHelper.Serialize(snapshot),
             ConfirmationCode = confirmationCode,

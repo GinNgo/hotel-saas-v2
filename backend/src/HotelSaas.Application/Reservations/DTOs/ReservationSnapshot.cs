@@ -34,4 +34,5 @@ public sealed class ReservationSnapshot
     public bool IsPhoneVerified { get; set; }
     public DateTime? PhoneVerifiedAtUtc { get; set; }
     public DateTime? HoldExpiredNotifiedAtUtc { get; set; }
+    public PaymentMethodPreference PaymentMethodPreference { get; set; } = PaymentMethodPreference.VNPay;
 }
