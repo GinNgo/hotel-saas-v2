@@ -160,6 +160,12 @@ public sealed class AuthController : ControllerBase
         [FromBody] HotelSaas.Application.Auth.Commands.SocialLogin.SocialLoginCommand command,
         CancellationToken cancellationToken)
     {
+        if (_mediator == null)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new { code = "SOCIAL_LOGIN_DISABLED", message = "Social login is disabled until provider token verification is implemented." });
+        }
+
         var result = await _mediator.Send(command, cancellationToken);
         return Ok(result);
     }
