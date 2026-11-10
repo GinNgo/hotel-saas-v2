@@ -201,4 +201,94 @@ describe('PaymentService', () => {
       })
     );
   });
+
+  it('6. should call GET /payments/refunds with propertyId header and filter params', () => {
+    const mockRefundsResponse = {
+      items: [
+        {
+          paymentId: 'ref-001',
+          confirmationCode: 'BOOK123',
+          guestName: 'Nguyen Van A',
+          refundableAmount: 1500000,
+          status: 'PendingApproval'
+        }
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 10
+    };
+
+    mockHttp.get.mockReturnValue(of({ success: true, data: mockRefundsResponse }));
+
+    service.getRefundRequests({
+      propertyId: 'prop-001',
+      status: 'PendingApproval',
+      page: 1,
+      pageSize: 10
+    }).subscribe(data => {
+      expect(data.totalCount).toBe(1);
+      expect(data.items[0].confirmationCode).toBe('BOOK123');
+      expect(data.items[0].status).toBe('PendingApproval');
+    });
+
+    expect(mockHttp.get).toHaveBeenCalledWith(
+      `${environment.apiUrl}/payments/refunds`,
+      expect.objectContaining({
+        headers: { 'X-Property-Id': 'prop-001' }
+      })
+    );
+  });
+
+  it('7. should call POST /payments/refunds/{id}/approve with propertyId header', () => {
+    mockHttp.post.mockReturnValue(of({
+      success: true,
+      data: {
+        paymentId: 'ref-001',
+        status: 'Approved',
+        statusName: 'Đã duyệt - Chờ chi trả'
+      }
+    }));
+
+    service.approveRefund('ref-001', 'prop-001', 'Duyệt hoàn tiền D23').subscribe(res => {
+      expect(res.status).toBe('Approved');
+    });
+
+    expect(mockHttp.post).toHaveBeenCalledWith(
+      `${environment.apiUrl}/payments/refunds/ref-001/approve`,
+      { notes: 'Duyệt hoàn tiền D23' },
+      expect.objectContaining({
+        headers: { 'X-Property-Id': 'prop-001' }
+      })
+    );
+  });
+
+  it('8. should call POST /payments/refunds/{id}/confirm-payout with bankTransactionRef', () => {
+    mockHttp.post.mockReturnValue(of({
+      success: true,
+      data: {
+        paymentId: 'ref-001',
+        status: 'Completed',
+        bankTransactionRef: 'VCB-998877'
+      }
+    }));
+
+    service.confirmRefundPayout('ref-001', 'prop-001', {
+      payoutMethod: PaymentMethod.BankTransfer,
+      bankTransactionRef: 'VCB-998877',
+      notes: 'Đã chuyển'
+    }).subscribe(res => {
+      expect(res.status).toBe('Completed');
+      expect(res.bankTransactionRef).toBe('VCB-998877');
+    });
+
+    expect(mockHttp.post).toHaveBeenCalledWith(
+      `${environment.apiUrl}/payments/refunds/ref-001/confirm-payout`,
+      expect.objectContaining({
+        bankTransactionRef: 'VCB-998877'
+      }),
+      expect.objectContaining({
+        headers: { 'X-Property-Id': 'prop-001' }
+      })
+    );
+  });
 });

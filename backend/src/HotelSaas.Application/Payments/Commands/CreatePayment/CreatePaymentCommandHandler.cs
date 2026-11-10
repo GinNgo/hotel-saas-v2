@@ -27,19 +27,22 @@ public sealed class CreatePaymentCommandHandler : IRequestHandler<CreatePaymentC
     private readonly ICurrentUserContext _userContext;
     private readonly IMembershipLookupService _membershipLookupService;
     private readonly ICurrentPropertyService? _propertyService;
+    private readonly INotificationDispatcher? _notificationDispatcher;
 
     public CreatePaymentCommandHandler(
         IApplicationDbContext context,
         ICurrentTenantService tenantService,
         ICurrentUserContext userContext,
         IMembershipLookupService membershipLookupService,
-        ICurrentPropertyService? propertyService = null)
+        ICurrentPropertyService? propertyService = null,
+        INotificationDispatcher? notificationDispatcher = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _tenantService = tenantService ?? throw new ArgumentNullException(nameof(tenantService));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _membershipLookupService = membershipLookupService ?? throw new ArgumentNullException(nameof(membershipLookupService));
         _propertyService = propertyService;
+        _notificationDispatcher = notificationDispatcher;
     }
 
     public async Task<PaymentDto> Handle(CreatePaymentCommand request, CancellationToken cancellationToken)
@@ -254,7 +257,8 @@ public sealed class CreatePaymentCommandHandler : IRequestHandler<CreatePaymentC
 
         // 7. Folio balance calculation and reconciliation
         var existingPaid = reservation.Payments
-            .Where(p => p.Status == PaymentStatus.Completed)
+            .Where(p => p.Status == PaymentStatus.Completed &&
+                        (p.TransactionRef == null || !p.TransactionRef.Contains("REFUND", StringComparison.OrdinalIgnoreCase)))
             .Sum(p => p.Amount);
 
         var remainingBalance = reservation.TotalAmount - existingPaid;
@@ -333,6 +337,26 @@ public sealed class CreatePaymentCommandHandler : IRequestHandler<CreatePaymentC
 
         await _context.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
+
+        if (_notificationDispatcher != null)
+        {
+            try
+            {
+                await _notificationDispatcher.NotifyBookingPaymentConfirmedAsync(
+                    reservation.PropertyId.ToString(),
+                    reservation.Id.ToString(),
+                    reservation.ConfirmationCode,
+                    reservation.GuestName,
+                    reservation.TotalAmount,
+                    request.Amount,
+                    request.Method.ToString(),
+                    cancellationToken);
+            }
+            catch
+            {
+                // Soft failure for realtime dispatch
+            }
+        }
 
         return PaymentDto.FromEntity(payment);
     }

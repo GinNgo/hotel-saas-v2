@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, inject, signal, computed, effect, untrack
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { DatePicker } from 'primeng/datepicker';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
@@ -20,6 +21,7 @@ import {
 } from '../../core/models/payment.model';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { RefundApprovalComponent } from './components/refund-approval/refund-approval.component';
 
 /**
  * Helper: Lấy chuỗi ngày YYYY-MM-DD theo múi giờ Việt Nam (UTC+7).
@@ -71,28 +73,46 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
 @Component({
   selector: 'app-payments',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePicker, EmptyStateComponent, PaginationComponent],
+  imports: [CommonModule, FormsModule, DatePicker, EmptyStateComponent, PaginationComponent, RefundApprovalComponent],
   template: `
     <div class="max-w-7xl mx-auto space-y-6 pb-12">
       <!-- Page Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/80">
         <div>
-          <div class="flex items-center gap-2.5">
-            <h1 class="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Thu ngân & Nhật ký Giao dịch</h1>
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-              Chỉ đọc (Read-Only)
-            </span>
+          <div class="flex items-center gap-2.5 flex-wrap">
+            <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              {{ activeTab() === 'cashier' ? 'Thu ngân & Nhật ký Giao dịch' : 'Quản lý & Phê duyệt Hoàn tiền D23' }}
+            </h1>
+            @if (activeTab() === 'cashier') {
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                Tra cứu & Đối soát
+              </span>
+            } @else {
+              @if (canApproveRefund()) {
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <i class="pi pi-check-circle text-xs text-emerald-600"></i>
+                  <span>Có quyền Phê duyệt</span>
+                </span>
+              } @else {
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                  <i class="pi pi-eye text-xs text-slate-500"></i>
+                  <span>Chế độ Theo dõi (Chỉ đọc)</span>
+                </span>
+              }
+            }
           </div>
           <p class="text-xs sm:text-sm text-slate-500 mt-1">
-            Theo dõi tổng kết thực thu trong ngày và tra cứu lịch sử các giao dịch ghi nhận tại quầy chi nhánh.
+            {{ activeTab() === 'cashier'
+              ? 'Theo dõi tổng kết thực thu trong ngày và tra cứu lịch sử các giao dịch ghi nhận tại quầy chi nhánh.'
+              : 'Quy trình kiểm soát hoàn tiền booking hủy theo Quyết định D23 — Phê duyệt và Xác nhận chi trả.' }}
           </p>
         </div>
 
         <!-- Property Context Indicator -->
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 shrink-0">
           @if (activePropertyId()) {
-            <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/80 text-xs text-slate-700 font-medium border border-slate-200/70 shadow-2xs">
-              <i class="pi pi-building text-emerald-600"></i>
+            <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/90 text-xs text-slate-700 font-medium border border-slate-200/80 shadow-2xs">
+              <i class="pi pi-building text-sky-600"></i>
               <span>{{ activePropertyName() || 'Chi nhánh hiện hành' }}</span>
             </div>
           } @else {
@@ -102,6 +122,28 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
             </div>
           }
         </div>
+      </div>
+
+      <!-- Navigation Tabs: Cashier Operations vs Refund Approval -->
+      <div class="flex items-center gap-1 border-b border-slate-200 overflow-x-auto scrollbar-none mb-6">
+        <button
+          type="button"
+          (click)="activeTab.set('cashier')"
+          [class]="activeTab() === 'cashier' ? 'border-emerald-600 text-emerald-800 font-semibold border-b-2 bg-emerald-50/30' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'"
+          class="pb-2.5 pt-2 px-3.5 text-xs sm:text-sm rounded-t-lg transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap"
+        >
+          <i class="pi pi-wallet text-sm" [class.text-emerald-600]="activeTab() === 'cashier'"></i>
+          <span>Thu ngân & Ca trực</span>
+        </button>
+        <button
+          type="button"
+          (click)="activeTab.set('refunds')"
+          [class]="activeTab() === 'refunds' ? 'border-sky-600 text-sky-800 font-semibold border-b-2 bg-sky-50/30' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'"
+          class="pb-2.5 pt-2 px-3.5 text-xs sm:text-sm rounded-t-lg transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap"
+        >
+          <i class="pi pi-undo text-sm" [class.text-sky-600]="activeTab() === 'refunds'"></i>
+          <span>Yêu cầu hoàn tiền</span>
+        </button>
       </div>
 
       <!-- Permission Denied State -->
@@ -118,6 +160,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
           [description]="'Hệ thống yêu cầu xác định chi nhánh hoạt động để tra cứu dữ liệu thu ngân. Hãy chọn chi nhánh từ bộ chuyển ngữ cảnh ở thanh điều hướng trên cùng.'"
         ></app-empty-state>
       } @else {
+        @if (activeTab() === 'cashier') {
         <!-- Mandatory Disclaimer Banner -->
         <div class="rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-xs text-amber-900 leading-relaxed shadow-2xs">
           <div class="flex items-start gap-2.5">
@@ -1061,6 +1104,12 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
             />
           }
         </section>
+        } @else if (activeTab() === 'refunds') {
+          <app-refund-approval
+            [initialSearchCode]="refundSearchCode()"
+            [autoOpenTrigger]="refundAutoOpenTrigger()"
+          ></app-refund-approval>
+        }
       }
     </div>
 
@@ -1170,14 +1219,22 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
 export class PaymentsPage implements OnInit, OnDestroy {
   readonly authService = inject(AuthService);
   private readonly paymentService = inject(PaymentService);
+  private readonly route = inject(ActivatedRoute, { optional: true });
 
   readonly PaymentMethod = PaymentMethod;
   readonly PaymentStatus = PaymentStatus;
+
+  // Active Tab Signal: Cashier vs Refunds (D23)
+  readonly activeTab = signal<'cashier' | 'refunds'>('cashier');
+  readonly refundSearchCode = signal<string | null>(null);
+  readonly refundAutoOpenTrigger = signal<number>(0);
+  private queryParamsSub?: Subscription;
 
   // Context Signals
   readonly activePropertyId = computed(() => this.authService.activePropertyId());
   readonly activePropertyName = computed(() => this.authService.activePropertyName());
   readonly canReadPayments = () => this.authService.hasPermission('PAYMENTS', 1);
+  readonly canApproveRefund = computed(() => this.authService.hasPermission('PAYMENTS', 16));
 
   // Access Denied Persistent Latch State
   readonly isAccessDenied = signal<boolean>(false);
@@ -1475,11 +1532,36 @@ export class PaymentsPage implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     // Ngữ cảnh chi nhánh và quyền được kích hoạt tự động qua context effect
+    if (this.route?.queryParams) {
+      this.queryParamsSub = this.route.queryParams.subscribe(params => {
+        const tab = params['tab'];
+        const code = params['code'] ? String(params['code']).trim() : '';
+        const reservationId = params['reservationId'] ? String(params['reservationId']).trim() : '';
+
+        if (tab === 'refunds') {
+          this.activeTab.set('refunds');
+          if (code || reservationId) {
+            this.refundSearchCode.set(code || reservationId);
+            this.refundAutoOpenTrigger.update(v => v + 1);
+          }
+        } else if (tab === 'cashier') {
+          this.activeTab.set('cashier');
+          if (reservationId) {
+            setTimeout(() => {
+              this.inspectReservationFolio(reservationId);
+            }, 50);
+          }
+        }
+      });
+    }
   }
 
   ngOnDestroy(): void {
     // Hủy triệt để các subscription HTTP đang chạy và subscription auth
     this.cancelSubscriptions();
+    if (this.queryParamsSub && !this.queryParamsSub.closed) {
+      this.queryParamsSub.unsubscribe();
+    }
     if (this.authSub && !this.authSub.closed) {
       this.authSub.unsubscribe();
     }

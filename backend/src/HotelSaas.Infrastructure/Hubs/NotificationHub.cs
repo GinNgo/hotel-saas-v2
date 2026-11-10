@@ -2,6 +2,7 @@ using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Interfaces;
+using HotelSaas.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +18,45 @@ public interface INotificationClient
     Task ReceiveNewReservation(ReservationNotificationPayload notification);
     Task ReceiveReservationStatusUpdated(ReservationStatusNotificationPayload notification);
     Task ReceiveHousekeepingAlert(HousekeepingNotificationPayload alert);
+    Task ReceiveBookingPaymentConfirmed(PaymentConfirmedNotificationPayload notification);
+    Task ReceiveBookingCancellationRequested(BookingCancellationNotificationPayload notification);
+    Task ReceiveHoldExpired(HoldExpiredNotificationPayload notification);
 }
+
+public sealed record PaymentConfirmedNotificationPayload(
+    string EventId,
+    string ReservationId,
+    string ConfirmationCode,
+    string GuestName,
+    decimal TotalAmount,
+    decimal PaidAmount,
+    string PaymentMethod,
+    string PropertyId,
+    string CreatedAtUtc,
+    string TargetRoute
+);
+
+public sealed record BookingCancellationNotificationPayload(
+    string EventId,
+    string ReservationId,
+    string ConfirmationCode,
+    string GuestName,
+    string Reason,
+    decimal RefundableAmount,
+    string PropertyId,
+    string CreatedAtUtc,
+    string TargetRoute
+);
+
+public sealed record HoldExpiredNotificationPayload(
+    string EventId,
+    string ReservationId,
+    string ConfirmationCode,
+    string RoomTypeName,
+    string PropertyId,
+    string CreatedAtUtc,
+    string TargetRoute
+);
 
 public sealed record ReservationNotificationPayload(
     string ReservationId,
@@ -65,10 +104,14 @@ public class NotificationHub : Hub<INotificationClient>
     }
 
     public static string GetPropertyGroupName(string propertyId) => $"Property_{propertyId.Trim().ToLowerInvariant()}";
+    public static string GetPropertyFinancialGroupName(string propertyId) => $"Property_{propertyId.Trim().ToLowerInvariant()}_financial";
+    public static string GetPropertyFrontdeskGroupName(string propertyId) => $"Property_{propertyId.Trim().ToLowerInvariant()}_frontdesk";
+    public static string GetPropertyHousekeepingGroupName(string propertyId) => $"Property_{propertyId.Trim().ToLowerInvariant()}_housekeeping";
 
     /// <summary>
     /// Authenticated receptionists / hotel staff join their specific property notification channel.
     /// Strictly verifies user active membership and prevents cross-tenant or cross-branch eavesdropping.
+    /// Granularly assigns staff to role-scoped channels (base operations vs. financial payouts vs. housekeeping).
     /// </summary>
     public async Task JoinProperty(string propertyId)
     {
@@ -99,9 +142,10 @@ public class NotificationHub : Hub<INotificationClient>
 
         if (isSuperAdmin)
         {
-            var superAdminGroup = GetPropertyGroupName(propertyId);
-            await Groups.AddToGroupAsync(Context.ConnectionId, superAdminGroup);
-            _logger.LogInformation("SuperAdmin {UserId} joined property notification channel {Group}", userId, superAdminGroup);
+            await Groups.AddToGroupAsync(Context.ConnectionId, GetPropertyGroupName(propertyId));
+            await Groups.AddToGroupAsync(Context.ConnectionId, GetPropertyFinancialGroupName(propertyId));
+            await Groups.AddToGroupAsync(Context.ConnectionId, GetPropertyHousekeepingGroupName(propertyId));
+            _logger.LogInformation("SuperAdmin {UserId} joined property notification channels for {PropertyId}", userId, propertyId);
             return;
         }
 
@@ -131,15 +175,18 @@ public class NotificationHub : Hub<INotificationClient>
         }
 
         // Multi-branch membership verification: User must have active staff assignment for this tenant and property
-        var isAuthorizedStaff = await _context.TenantStaffMembers
+        var staff = await _context.TenantStaffMembers
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .AnyAsync(s => s.UserId == userId &&
+            .Include(s => s.Role)
+                .ThenInclude(r => r!.Permissions)
+                    .ThenInclude(p => p.Function)
+            .FirstOrDefaultAsync(s => s.UserId == userId &&
                            s.TenantId == property.TenantId &&
                            s.IsActive &&
                            (s.PropertyId == null || s.PropertyId == targetPropertyGuid));
 
-        if (!isAuthorizedStaff)
+        if (staff == null)
         {
             _logger.LogWarning("Security Guard: User {UserId} denied access to property {PropertyId} due to lack of active staff membership",
                 userId, targetPropertyGuid);
@@ -148,6 +195,34 @@ public class NotificationHub : Hub<INotificationClient>
 
         var groupName = GetPropertyGroupName(propertyId);
         await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
+
+        // RBAC Scoping: Only staff with financial approval authority (Owner, Manager, or PAYMENTS:Approve) join the financial channel
+        bool hasFinancialPermission = staff.StaffRole == StaffRole.Owner ||
+                                      staff.StaffRole == StaffRole.Manager ||
+                                      (staff.Role?.Permissions?.Any(p => p.Function?.Code == "PAYMENTS" && (p.ActionMask & 16) != 0) == true);
+        if (hasFinancialPermission)
+        {
+            var financialGroup = GetPropertyFinancialGroupName(propertyId);
+            await Groups.AddToGroupAsync(Context.ConnectionId, financialGroup);
+            _logger.LogInformation("Staff {UserId} (Role: {Role}) joined property financial notification channel {Group}",
+                userId, staff.StaffRole, financialGroup);
+        }
+        else if (staff.StaffRole == StaffRole.Receptionist || staff.Role?.Permissions?.Any(p => p.Function?.Code == "RESERVATIONS") == true)
+        {
+            // Frontdesk operational channel: Mutually exclusive with financial channel to prevent double notifications
+            var frontdeskGroup = GetPropertyFrontdeskGroupName(propertyId);
+            await Groups.AddToGroupAsync(Context.ConnectionId, frontdeskGroup);
+            _logger.LogInformation("Staff {UserId} (Role: {Role}) joined property frontdesk notification channel {Group}",
+                userId, staff.StaffRole, frontdeskGroup);
+        }
+
+        // Housekeeping channel
+        if (staff.StaffRole == StaffRole.Housekeeper || staff.StaffRole == StaffRole.Manager || staff.StaffRole == StaffRole.Owner)
+        {
+            var housekeepingGroup = GetPropertyHousekeepingGroupName(propertyId);
+            await Groups.AddToGroupAsync(Context.ConnectionId, housekeepingGroup);
+        }
+
         _logger.LogInformation("Staff {UserId} joined property notification group {Group}", userId, groupName);
     }
 
@@ -155,8 +230,10 @@ public class NotificationHub : Hub<INotificationClient>
     {
         if (!string.IsNullOrWhiteSpace(propertyId))
         {
-            var groupName = GetPropertyGroupName(propertyId);
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, GetPropertyGroupName(propertyId));
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, GetPropertyFinancialGroupName(propertyId));
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, GetPropertyFrontdeskGroupName(propertyId));
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, GetPropertyHousekeepingGroupName(propertyId));
         }
     }
 }

@@ -60,6 +60,7 @@ public static class DependencyInjection
         services.AddSignalR();
         services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+        services.AddHostedService<ExpiredHoldSweepBackgroundService>();
 
         return services;
     }

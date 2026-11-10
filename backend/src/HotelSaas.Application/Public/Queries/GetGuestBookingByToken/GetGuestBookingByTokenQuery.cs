@@ -19,10 +19,14 @@ public sealed record GetGuestBookingByTokenQuery(string LookupToken) : IRequest<
 public sealed class GetGuestBookingByTokenQueryHandler : IRequestHandler<GetGuestBookingByTokenQuery, GuestBookingDetailDto>
 {
     private readonly IApplicationDbContext _context;
+    private readonly INotificationDispatcher? _notificationDispatcher;
 
-    public GetGuestBookingByTokenQueryHandler(IApplicationDbContext context)
+    public GetGuestBookingByTokenQueryHandler(
+        IApplicationDbContext context,
+        INotificationDispatcher? notificationDispatcher = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
+        _notificationDispatcher = notificationDispatcher;
     }
 
     public async Task<GuestBookingDetailDto> Handle(GetGuestBookingByTokenQuery request, CancellationToken cancellationToken)
@@ -74,7 +78,9 @@ public sealed class GetGuestBookingByTokenQueryHandler : IRequestHandler<GetGues
         var paidAmount = await _context.Payments
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(p => p.ReservationId == reservation.Id && p.Status == PaymentStatus.Completed)
+            .Where(p => p.ReservationId == reservation.Id &&
+                        p.Status == PaymentStatus.Completed &&
+                        (p.TransactionRef == null || !p.TransactionRef.Contains("REFUND")))
             .SumAsync(p => (decimal?)p.Amount, cancellationToken) ?? 0m;
 
         var nowUtc = DateTime.UtcNow;
@@ -87,6 +93,36 @@ public sealed class GetGuestBookingByTokenQueryHandler : IRequestHandler<GetGues
         bool isHoldExpired = reservation.Status == ReservationStatus.PendingPayment &&
                              snapshot.HoldExpiresAtUtc.HasValue &&
                              snapshot.HoldExpiresAtUtc.Value <= nowUtc;
+
+        if (isHoldExpired && !snapshot.HoldExpiredNotifiedAtUtc.HasValue && _notificationDispatcher != null)
+        {
+            try
+            {
+                bool dispatched = await _notificationDispatcher.NotifyHoldExpiredAsync(
+                    reservation.PropertyId.ToString(),
+                    reservation.Id.ToString(),
+                    reservation.ConfirmationCode,
+                    roomTypeName,
+                    cancellationToken);
+
+                if (dispatched)
+                {
+                    snapshot.HoldExpiredNotifiedAtUtc = nowUtc;
+                    var trackedRes = await _context.Reservations
+                        .IgnoreQueryFilters()
+                        .FirstOrDefaultAsync(r => r.Id == reservation.Id, cancellationToken);
+                    if (trackedRes != null)
+                    {
+                        trackedRes.Notes = ReservationSnapshotHelper.Serialize(snapshot);
+                        await _context.SaveChangesAsync(cancellationToken);
+                    }
+                }
+            }
+            catch
+            {
+                // Soft failure: do not mark HoldExpiredNotifiedAtUtc on error so background sweep or retry can redeliver
+            }
+        }
 
         var statusDisplay = isHoldExpired ? "Expired" : reservation.Status.ToString();
         var depositRequired = snapshot.DepositRequired ?? Math.Round(reservation.TotalAmount * 0.30m, 0, MidpointRounding.AwayFromZero);

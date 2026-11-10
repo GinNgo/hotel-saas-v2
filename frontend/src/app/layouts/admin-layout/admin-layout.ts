@@ -8,6 +8,7 @@ import { ThemeService } from '../../core/services/theme.service';
 import { ContextSelectorDialogComponent } from '../../features/auth/context-selector/context-selector.dialog';
 import { NotificationBellComponent } from '../../shared/components/notification-bell/notification-bell.component';
 import { BreadcrumbComponent } from '../../shared/components/breadcrumb/breadcrumb.component';
+import { NotificationItem } from '../../shared/components/notification-bell/notification-bell.model';
 import { UserMembershipDto } from '../../core/models/auth.model';
 
 /**
@@ -475,6 +476,7 @@ import { UserMembershipDto } from '../../core/models/auth.model';
                 [loading]="notificationService.loading()"
                 [errorMessage]="notificationService.errorMessage()"
                 [canMarkAsRead]="notificationService.canMarkAsRead()"
+                (notificationSelect)="onNotificationSelect($event)"
                 (markAsReadRequest)="notificationService.markAsRead($event)"
                 (markAllAsReadRequest)="notificationService.markAllAsRead()"
               />
@@ -658,6 +660,61 @@ export class AdminLayoutComponent {
     this.router.navigateByUrl('/', { skipLocationChange: true }).then(() => {
       this.router.navigateByUrl(currentUrl);
     });
+  }
+
+  onNotificationSelect(item: NotificationItem): void {
+    const code = item.metadata?.confirmationCode || undefined;
+    const resId = item.metadata?.reservationId || undefined;
+    const roomNumber = item.metadata?.roomNumber || undefined;
+    const refundableAmount = item.metadata?.refundableAmount ?? 0;
+    const canReadPayments = this.authService.hasPermission('PAYMENTS', 1);
+    const t = Date.now();
+
+    switch (item.type) {
+      case 'BookingCancellationRequested':
+        if (refundableAmount > 0 && canReadPayments) {
+          void this.router.navigate(['/payments'], {
+            queryParams: { tab: 'refunds', code, reservationId: resId, t }
+          });
+        } else {
+          void this.router.navigate(['/reservations'], {
+            queryParams: { code, reservationId: resId, t }
+          });
+        }
+        return;
+
+      case 'BookingPaymentConfirmed':
+        if (canReadPayments) {
+          void this.router.navigate(['/payments'], {
+            queryParams: { tab: 'cashier', code, reservationId: resId, t }
+          });
+        } else {
+          void this.router.navigate(['/reservations'], {
+            queryParams: { code, reservationId: resId, t }
+          });
+        }
+        return;
+
+      case 'HoldExpired':
+        void this.router.navigate(['/reservations'], {
+          queryParams: { view: 'timeline', code, reservationId: resId, t }
+        });
+        return;
+
+      case 'RoomNeedsCleaning':
+      case 'RoomCleaningCompleted':
+        void this.router.navigate(['/housekeeping'], {
+          queryParams: { room: roomNumber, t }
+        });
+        return;
+
+      case 'NewReservation':
+      case 'ReservationCancelled':
+        void this.router.navigate(['/reservations'], {
+          queryParams: { code, reservationId: resId, t }
+        });
+        return;
+    }
   }
 
   logout(): void {

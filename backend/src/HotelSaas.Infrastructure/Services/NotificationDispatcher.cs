@@ -119,4 +119,154 @@ public sealed class NotificationDispatcher : INotificationDispatcher
             _logger.LogWarning(ex, "Failed to dispatch SignalR housekeeping alert to group {Group}", groupName);
         }
     }
+
+    public async Task NotifyBookingPaymentConfirmedAsync(
+        string propertyId,
+        string reservationId,
+        string confirmationCode,
+        string guestName,
+        decimal totalAmount,
+        decimal paidAmount,
+        string paymentMethod,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(propertyId)) return;
+
+        var financialGroupName = NotificationHub.GetPropertyFinancialGroupName(propertyId);
+        var frontdeskGroupName = NotificationHub.GetPropertyFrontdeskGroupName(propertyId);
+        var eventId = $"evt-pay-{confirmationCode}";
+
+        // 1. Detailed financial payload strictly for Manager / Owner / Financial Authority
+        var financialPayload = new PaymentConfirmedNotificationPayload(
+            EventId: eventId,
+            ReservationId: reservationId,
+            ConfirmationCode: confirmationCode,
+            GuestName: guestName,
+            TotalAmount: totalAmount,
+            PaidAmount: paidAmount,
+            PaymentMethod: paymentMethod,
+            PropertyId: propertyId,
+            CreatedAtUtc: DateTime.UtcNow.ToString("o"),
+            TargetRoute: $"/reservations?code={confirmationCode}"
+        );
+
+        // 2. Sanitized operational payload for Receptionists (zero financial figures, no payment method details)
+        var frontdeskPayload = new PaymentConfirmedNotificationPayload(
+            EventId: eventId,
+            ReservationId: reservationId,
+            ConfirmationCode: confirmationCode,
+            GuestName: guestName,
+            TotalAmount: 0m,
+            PaidAmount: 0m,
+            PaymentMethod: string.Empty,
+            PropertyId: propertyId,
+            CreatedAtUtc: DateTime.UtcNow.ToString("o"),
+            TargetRoute: $"/reservations?code={confirmationCode}"
+        );
+
+        try
+        {
+            await _hubContext.Clients.Group(financialGroupName).ReceiveBookingPaymentConfirmed(financialPayload);
+            _logger.LogInformation("SignalR dispatched ReceiveBookingPaymentConfirmed (financial) to group {Group} for code {Code}",
+                financialGroupName, confirmationCode);
+
+            await _hubContext.Clients.Group(frontdeskGroupName).ReceiveBookingPaymentConfirmed(frontdeskPayload);
+            _logger.LogInformation("SignalR dispatched ReceiveBookingPaymentConfirmed (sanitized frontdesk) to group {Group} for code {Code}",
+                frontdeskGroupName, confirmationCode);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to dispatch SignalR BookingPaymentConfirmed for property {PropertyId}", propertyId);
+        }
+    }
+
+    public async Task NotifyBookingCancellationRequestedAsync(
+        string propertyId,
+        string reservationId,
+        string confirmationCode,
+        string guestName,
+        string reason,
+        decimal refundableAmount,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(propertyId)) return;
+
+        var frontdeskGroupName = NotificationHub.GetPropertyFrontdeskGroupName(propertyId);
+        var financialGroupName = NotificationHub.GetPropertyFinancialGroupName(propertyId);
+        var eventId = $"evt-cancel-{confirmationCode}";
+
+        try
+        {
+            // 1. Dispatch full financial detail to Manager / Financial role
+            var financialPayload = new BookingCancellationNotificationPayload(
+                EventId: eventId,
+                ReservationId: reservationId,
+                ConfirmationCode: confirmationCode,
+                GuestName: guestName,
+                Reason: reason,
+                RefundableAmount: refundableAmount,
+                PropertyId: propertyId,
+                CreatedAtUtc: DateTime.UtcNow.ToString("o"),
+                TargetRoute: refundableAmount > 0 ? "/payments" : $"/reservations?code={confirmationCode}"
+            );
+            await _hubContext.Clients.Group(financialGroupName).ReceiveBookingCancellationRequested(financialPayload);
+            _logger.LogInformation("SignalR dispatched BookingCancellationRequested (financial) to {Group} for code {Code}",
+                financialGroupName, confirmationCode);
+
+            // 2. Dispatch sanitized operational alert to frontdesk channel (RefundableAmount: 0, no payout leakage)
+            var operationalPayload = new BookingCancellationNotificationPayload(
+                EventId: eventId,
+                ReservationId: reservationId,
+                ConfirmationCode: confirmationCode,
+                GuestName: guestName,
+                Reason: reason,
+                RefundableAmount: 0m,
+                PropertyId: propertyId,
+                CreatedAtUtc: DateTime.UtcNow.ToString("o"),
+                TargetRoute: $"/reservations?code={confirmationCode}"
+            );
+            await _hubContext.Clients.Group(frontdeskGroupName).ReceiveBookingCancellationRequested(operationalPayload);
+            _logger.LogInformation("SignalR dispatched ReceiveBookingCancellationRequested (sanitized frontdesk) to {Group} for code {Code}",
+                frontdeskGroupName, confirmationCode);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to dispatch SignalR BookingCancellationRequested for property {PropertyId}", propertyId);
+        }
+    }
+
+    public async Task<bool> NotifyHoldExpiredAsync(
+        string propertyId,
+        string reservationId,
+        string confirmationCode,
+        string roomTypeName,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(propertyId)) return false;
+
+        var groupName = NotificationHub.GetPropertyGroupName(propertyId);
+        var eventId = $"evt-holdexp-{confirmationCode}";
+        var payload = new HoldExpiredNotificationPayload(
+            EventId: eventId,
+            ReservationId: reservationId,
+            ConfirmationCode: confirmationCode,
+            RoomTypeName: roomTypeName,
+            PropertyId: propertyId,
+            CreatedAtUtc: DateTime.UtcNow.ToString("o"),
+            TargetRoute: $"/reservations?code={confirmationCode}"
+        );
+
+        try
+        {
+            await _hubContext.Clients.Group(groupName).ReceiveHoldExpired(payload);
+            _logger.LogInformation("SignalR dispatched ReceiveHoldExpired to group {Group} for code {Code}",
+                groupName, confirmationCode);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to dispatch SignalR HoldExpired to group {Group}", groupName);
+            return false;
+        }
+    }
 }

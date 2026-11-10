@@ -367,6 +367,16 @@ public sealed class ConfirmGuestBookingCommandHandler : IRequestHandler<ConfirmG
                     reservation.TotalAmount,
                     resultDto.PaidAmount,
                     cancellationToken);
+
+                await _notificationDispatcher.NotifyBookingPaymentConfirmedAsync(
+                    reservation.PropertyId.ToString(),
+                    reservation.Id.ToString(),
+                    reservation.ConfirmationCode,
+                    reservation.GuestName,
+                    reservation.TotalAmount,
+                    resultDto.PaidAmount,
+                    request.PaymentMethod.ToString(),
+                    cancellationToken);
             }
             catch
             {

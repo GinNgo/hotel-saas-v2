@@ -689,6 +689,7 @@ export class NotificationBellComponent {
     if (!item.isRead && this.canMarkAsRead()) {
       this.markAsReadRequest.emit(item.id);
     }
+    this.closeDropdown(false);
   }
 
   /**

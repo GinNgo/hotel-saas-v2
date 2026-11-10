@@ -56,6 +56,18 @@ export class SignalRNotificationTransport implements RealtimeNotificationTranspo
       this.handleIncomingHousekeeping(payload, context);
     });
 
+    conn.on('ReceiveBookingPaymentConfirmed', (payload: unknown) => {
+      this.handleIncomingPaymentConfirmed(payload, context);
+    });
+
+    conn.on('ReceiveBookingCancellationRequested', (payload: unknown) => {
+      this.handleIncomingCancellationRequested(payload, context);
+    });
+
+    conn.on('ReceiveHoldExpired', (payload: unknown) => {
+      this.handleIncomingHoldExpired(payload, context);
+    });
+
     conn.onreconnecting(() => {
       this.stateHandler?.('reconnecting');
     });
@@ -128,6 +140,24 @@ export class SignalRNotificationTransport implements RealtimeNotificationTranspo
     };
   }
 
+  async markAsRead(notificationId: string): Promise<boolean> {
+    if (!notificationId || !this.currentContext?.tenantId || !this.currentContext?.propertyId) {
+      return false;
+    }
+    return true;
+  }
+
+  async markAllAsRead(context: { tenantId: string; propertyId: string }): Promise<boolean> {
+    if (
+      !this.currentContext ||
+      context.tenantId !== this.currentContext.tenantId ||
+      context.propertyId !== this.currentContext.propertyId
+    ) {
+      return false;
+    }
+    return true;
+  }
+
   private handleIncomingReservation(rawPayload: unknown, context: { tenantId: string; propertyId: string }): void {
     if (!rawPayload || !this.eventHandler) return;
     const payload = rawPayload as Record<string, unknown>;
@@ -135,9 +165,11 @@ export class SignalRNotificationTransport implements RealtimeNotificationTranspo
     const code = String(payload['confirmationCode'] || resId.substring(0, 8).toUpperCase());
     const guest = String(payload['guestName'] || 'Khách đặt phòng');
     const room = String(payload['roomTypeName'] || 'Phòng lưu trú');
+    const eventId = String(payload['eventId'] || (resId ? `sig-res-${resId}` : `sig-res-${code}`));
+    const targetRoute = `/reservations?code=${encodeURIComponent(code)}${resId ? '&reservationId=' + encodeURIComponent(resId) : ''}`;
 
     this.eventHandler({
-      id: `sig-res-${resId}-${Date.now()}`,
+      id: eventId,
       tenantId: context.tenantId,
       propertyId: String(payload['propertyId'] || context.propertyId),
       type: 'NewReservation',
@@ -148,7 +180,8 @@ export class SignalRNotificationTransport implements RealtimeNotificationTranspo
       metadata: {
         reservationId: resId,
         confirmationCode: code,
-        guestName: guest
+        guestName: guest,
+        targetRoute
       }
     });
   }
@@ -160,9 +193,11 @@ export class SignalRNotificationTransport implements RealtimeNotificationTranspo
     const code = String(payload['confirmationCode'] || resId.substring(0, 8).toUpperCase());
     const newStatus = String(payload['newStatus'] || '');
     const isCancel = newStatus === 'Cancelled';
+    const eventId = String(payload['eventId'] || `sig-status-${resId || code}-${newStatus}`);
+    const targetRoute = `/reservations?code=${encodeURIComponent(code)}${resId ? '&reservationId=' + encodeURIComponent(resId) : ''}`;
 
     this.eventHandler({
-      id: `sig-status-${resId}-${Date.now()}`,
+      id: eventId,
       tenantId: context.tenantId,
       propertyId: String(payload['propertyId'] || context.propertyId),
       type: isCancel ? 'ReservationCancelled' : 'NewReservation',
@@ -174,7 +209,8 @@ export class SignalRNotificationTransport implements RealtimeNotificationTranspo
       isRead: false,
       metadata: {
         reservationId: resId,
-        confirmationCode: code
+        confirmationCode: code,
+        targetRoute
       }
     });
   }
@@ -185,9 +221,12 @@ export class SignalRNotificationTransport implements RealtimeNotificationTranspo
     const roomNumber = String(payload['roomNumber'] || '');
     const roomStatus = String(payload['roomStatus'] || '');
     const isClean = roomStatus === 'Clean';
+    const updatedAt = String(payload['updatedAtUtc'] || new Date().toISOString());
+    const eventId = String(payload['eventId'] || `sig-housekeeping-${roomNumber}-${roomStatus}-${updatedAt}`);
+    const targetRoute = `/housekeeping${roomNumber ? '?room=' + encodeURIComponent(roomNumber) : ''}`;
 
     this.eventHandler({
-      id: `sig-housekeeping-${roomNumber}-${Date.now()}`,
+      id: eventId,
       tenantId: context.tenantId,
       propertyId: String(payload['propertyId'] || context.propertyId),
       type: isClean ? 'RoomCleaningCompleted' : 'RoomNeedsCleaning',
@@ -198,10 +237,114 @@ export class SignalRNotificationTransport implements RealtimeNotificationTranspo
             ? `Phòng ${roomNumber} đã dọn dẹp hoàn tất và sẵn sàng đón khách.`
             : `Phòng ${roomNumber} đang ở trạng thái ${roomStatus}.`)
       ),
-      createdAtUtc: String(payload['updatedAtUtc'] || new Date().toISOString()),
+      createdAtUtc: updatedAt,
       isRead: false,
       metadata: {
-        roomNumber
+        roomNumber,
+        targetRoute
+      }
+    });
+  }
+
+  private handleIncomingPaymentConfirmed(rawPayload: unknown, context: { tenantId: string; propertyId: string }): void {
+    if (!rawPayload || !this.eventHandler) return;
+    const payload = rawPayload as Record<string, unknown>;
+    const resId = String(payload['reservationId'] || payload['id'] || '');
+    const code = String(payload['confirmationCode'] || resId.substring(0, 8).toUpperCase());
+    const guest = String(payload['guestName'] || 'Khách đặt phòng');
+    const amount = Number(payload['paidAmount'] ?? payload['amount'] ?? 0);
+    const method = String(payload['paymentMethod'] || '');
+    const txRef = payload['transactionReference'] ? String(payload['transactionReference']) : undefined;
+    const eventId = String(payload['eventId'] || `evt-pay-${code}`);
+    const targetRoute = amount > 0
+      ? `/payments?tab=cashier&code=${encodeURIComponent(code)}${resId ? '&reservationId=' + encodeURIComponent(resId) : ''}`
+      : `/reservations?code=${encodeURIComponent(code)}${resId ? '&reservationId=' + encodeURIComponent(resId) : ''}`;
+
+    const message = amount > 0
+      ? `Khách ${guest} vừa thanh toán ${amount.toLocaleString('vi-VN')} đ (Mã: #${code}${method ? ', PT: ' + method : ''}).`
+      : `Đơn #${code} (${guest}) đã được xác nhận thanh toán thành công.`;
+
+    this.eventHandler({
+      id: eventId,
+      tenantId: context.tenantId,
+      propertyId: String(payload['propertyId'] || context.propertyId),
+      type: 'BookingPaymentConfirmed',
+      title: 'Thanh toán đặt phòng thành công',
+      message,
+      createdAtUtc: String(payload['createdAtUtc'] || payload['confirmedAtUtc'] || new Date().toISOString()),
+      isRead: false,
+      metadata: {
+        reservationId: resId,
+        confirmationCode: code,
+        guestName: guest,
+        amount,
+        paymentMethod: method,
+        transactionReference: txRef,
+        targetRoute
+      }
+    });
+  }
+
+  private handleIncomingCancellationRequested(rawPayload: unknown, context: { tenantId: string; propertyId: string }): void {
+    if (!rawPayload || !this.eventHandler) return;
+    const payload = rawPayload as Record<string, unknown>;
+    const resId = String(payload['reservationId'] || payload['id'] || '');
+    const code = String(payload['confirmationCode'] || resId.substring(0, 8).toUpperCase());
+    const guest = String(payload['guestName'] || 'Khách đặt phòng');
+    const reason = String(payload['reason'] || 'Hủy đặt phòng');
+    const refundableAmount = Number(payload['refundableAmount'] || 0);
+    const eventId = String(payload['eventId'] || `evt-cancel-${code}`);
+    const targetRoute = refundableAmount > 0
+      ? `/payments?tab=refunds&code=${encodeURIComponent(code)}${resId ? '&reservationId=' + encodeURIComponent(resId) : ''}`
+      : `/reservations?code=${encodeURIComponent(code)}${resId ? '&reservationId=' + encodeURIComponent(resId) : ''}`;
+
+    this.eventHandler({
+      id: eventId,
+      tenantId: context.tenantId,
+      propertyId: String(payload['propertyId'] || context.propertyId),
+      type: 'BookingCancellationRequested',
+      title: 'Yêu cầu hủy đặt phòng',
+      message: `Đơn #${code} (${guest}) đã bị hủy. ${
+        refundableAmount > 0
+          ? 'Hoàn tiền dự kiến: ' + refundableAmount.toLocaleString('vi-VN') + ' đ.'
+          : 'Không hoàn tiền.'
+      }`,
+      createdAtUtc: String(payload['createdAtUtc'] || payload['cancelledAtUtc'] || new Date().toISOString()),
+      isRead: false,
+      metadata: {
+        reservationId: resId,
+        confirmationCode: code,
+        guestName: guest,
+        cancellationReason: reason,
+        refundableAmount,
+        targetRoute
+      }
+    });
+  }
+
+  private handleIncomingHoldExpired(rawPayload: unknown, context: { tenantId: string; propertyId: string }): void {
+    if (!rawPayload || !this.eventHandler) return;
+    const payload = rawPayload as Record<string, unknown>;
+    const resId = String(payload['reservationId'] || payload['id'] || '');
+    const code = String(payload['confirmationCode'] || resId.substring(0, 8).toUpperCase());
+    const eventId = String(payload['eventId'] || `evt-holdexp-${code}`);
+    const holdExpiresAtUtc = payload['holdExpiresAtUtc'] ? String(payload['holdExpiresAtUtc']) : undefined;
+    const targetRoute = `/reservations?view=timeline&code=${encodeURIComponent(code)}${resId ? '&reservationId=' + encodeURIComponent(resId) : ''}`;
+
+    this.eventHandler({
+      id: eventId,
+      tenantId: context.tenantId,
+      propertyId: String(payload['propertyId'] || context.propertyId),
+      type: 'HoldExpired',
+      title: 'Giữ phòng trực tuyến đã hết hạn',
+      message: `Đơn giữ phòng #${code} đã quá thời gian giữ chỗ (15 phút) và được hệ thống giải phóng tự động.`,
+      createdAtUtc: String(payload['createdAtUtc'] || payload['expiredAtUtc'] || new Date().toISOString()),
+      isRead: false,
+      metadata: {
+        reservationId: resId,
+        confirmationCode: code,
+        holdExpiresAtUtc,
+        targetRoute
       }
     });
   }
