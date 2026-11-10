@@ -84,6 +84,9 @@ public class Reservation : BaseEntity, IPropertyScopedEntity
     /// </summary>
     public decimal TotalAmount { get; set; }
 
+    /// <summary>Payment method selected by the guest during public booking.</summary>
+    public PaymentMethodPreference PaymentMethodPreference { get; set; } = HotelSaas.Domain.Enums.PaymentMethodPreference.VNPay;
+
     /// <summary>
     /// Current lifecycle status of the reservation.
     /// </summary>

@@ -1,10 +1,12 @@
 using ClosedXML.Excel;
 using HotelSaas.Application.Common.Interfaces;
+using HotelSaas.Application.Reservations.DTOs;
 using HotelSaas.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using QRCoder;
 
 namespace HotelSaas.Infrastructure.Services;
 
@@ -214,6 +216,18 @@ public sealed class ReportExportService(
                 cancellationToken);
         if (invoice is null) return null;
 
+        var reservationSnapshot = ReservationSnapshotHelper.TryDeserialize(invoice.Reservation?.Notes);
+        var lookupToken = reservationSnapshot is { IsTokenRevoked: false, LookupToken: { Length: > 0 } token } &&
+            (!reservationSnapshot.TokenExpiresAtUtc.HasValue || reservationSnapshot.TokenExpiresAtUtc.Value > DateTime.UtcNow)
+                ? token
+                : null;
+        return RenderInvoicePdf(invoice, lookupToken);
+    }
+
+    public static byte[] RenderInvoicePdf(HotelSaas.Domain.Entities.Invoice invoice, string? lookupToken)
+    {
+        ArgumentNullException.ThrowIfNull(invoice);
+        var lookupQr = string.IsNullOrWhiteSpace(lookupToken) ? null : CreateLookupQrPng(lookupToken);
         QuestPDF.Settings.License = LicenseType.Community;
         return Document.Create(document => document.Page(page =>
         {
@@ -265,6 +279,15 @@ public sealed class ReportExportService(
                     totals.Item().Text($"Đã thanh toán: {invoice.PaidAmount:N0} ₫");
                     totals.Item().Text($"Còn phải trả: {invoice.Balance:N0} ₫").Bold();
                 });
+                if (lookupQr is not null)
+                {
+                    content.Item().PaddingTop(16).AlignRight().Column(qr =>
+                    {
+                        qr.Item().Width(80).Height(80).Image(lookupQr);
+                        qr.Item().Width(180).AlignCenter().Text("Quét mã để tra cứu hóa đơn & trạng thái phòng điện tử")
+                            .FontSize(8).FontColor(Colors.Grey.Darken2);
+                    });
+                }
                 content.Item().PaddingTop(24).Row(signatures =>
                 {
                     signatures.RelativeItem().AlignCenter().Text("Khách hàng\n(Ký và ghi rõ họ tên)");
@@ -273,6 +296,16 @@ public sealed class ReportExportService(
             });
             page.Footer().AlignCenter().Text("Cảm ơn Quý khách đã sử dụng dịch vụ.");
         })).GeneratePdf();
+    }
+
+    private static byte[] CreateLookupQrPng(string lookupToken)
+    {
+        using var generator = new QRCodeGenerator();
+        using var data = generator.CreateQrCode(
+            $"https://luxustay.duckdns.org/booking/lookup?token={Uri.EscapeDataString(lookupToken)}",
+            QRCodeGenerator.ECCLevel.Q);
+        var qrCode = new PngByteQRCode(data);
+        return qrCode.GetGraphic(8);
     }
 
     private Guid? ResolvePropertyId(Guid? requestedPropertyId)

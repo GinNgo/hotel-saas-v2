@@ -5,6 +5,7 @@ import { ReportService } from '../../core/services/report.service';
 import { AlertService } from '../../core/services/alert.service';
 import { RevenueSummaryDto, PmsKpiDto, GroupAnalyticsDto } from '../../core/models/report.model';
 import { DateRangeFilterComponent, DateRangeFilterValue } from '../../shared/components/date-range-filter/date-range-filter.component';
+import { formatCalendarDate } from '../../core/utils/date-time.util';
 
 @Component({
   selector: 'app-reports-page',
@@ -39,6 +40,10 @@ import { DateRangeFilterComponent, DateRangeFilterValue } from '../../shared/com
             <i class="pi pi-file-pdf" [class.pi-spin]="isExporting()"></i>
             {{ isExporting() ? 'Đang xuất PDF...' : 'Tải PDF' }}
           </button>
+          <button type="button" (click)="selectCalendarPeriod('week')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">Tuần này</button>
+          <button type="button" (click)="selectCalendarPeriod('month')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">Tháng này</button>
+          <button type="button" (click)="selectCalendarPeriod('quarter')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">Quý này</button>
+          <button type="button" (click)="selectCalendarPeriod('year')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">Năm nay</button>
           <button
             type="button"
             (click)="exportExcel()"
@@ -137,6 +142,17 @@ import { DateRangeFilterComponent, DateRangeFilterValue } from '../../shared/com
             (filterChange)="onReportDateFilterChange($event)"
           />
         </div>
+        @if (activeTab() === 'branch') {
+          <label class="flex items-center gap-2 text-sm text-slate-600">
+            <span>Loại phòng</span>
+            <select class="rounded-lg border border-slate-300 px-3 py-2" [ngModel]="selectedRoomTypeId()" (ngModelChange)="onRoomTypeChange($event)">
+              <option value="">Tất cả</option>
+              @for (roomType of roomTypes(); track roomType.id) {
+                <option [value]="roomType.id">{{ roomType.name }}</option>
+              }
+            </select>
+          </label>
+        }
       </div>
 
       <!-- ========================================================================= -->
@@ -569,6 +585,8 @@ export class ReportsPage implements OnInit {
   isLoading = signal(false);
   isExporting = signal(false);
   selectedDays = signal(30);
+  roomTypes = signal<Array<{ id: string; name: string }>>([]);
+  selectedRoomTypeId = signal('');
 
   fromDate = '';
   toDate = '';
@@ -578,7 +596,13 @@ export class ReportsPage implements OnInit {
   groupAnalytics = signal<GroupAnalyticsDto | null>(null);
 
   ngOnInit(): void {
+    this.reportService.getRoomTypes().subscribe({ next: types => this.roomTypes.set(types), error: () => this.roomTypes.set([]) });
     this.selectQuickPeriod(30);
+  }
+
+  onRoomTypeChange(roomTypeId: string): void {
+    this.selectedRoomTypeId.set(roomTypeId);
+    this.loadData();
   }
 
   switchTab(tab: 'group' | 'branch'): void {
@@ -592,8 +616,29 @@ export class ReportsPage implements OnInit {
     const start = new Date();
     start.setDate(end.getDate() - (days - 1));
 
-    this.toDate = end.toISOString().split('T')[0];
-    this.fromDate = start.toISOString().split('T')[0];
+    this.toDate = formatCalendarDate(end);
+    this.fromDate = formatCalendarDate(start);
+    this.loadData();
+  }
+
+  selectCalendarPeriod(period: 'week' | 'month' | 'quarter' | 'year'): void {
+    const today = new Date();
+    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12);
+    let start: Date;
+    if (period === 'week') {
+      start = new Date(end);
+      const daysSinceMonday = (end.getDay() + 6) % 7;
+      start.setDate(end.getDate() - daysSinceMonday);
+    } else if (period === 'month') {
+      start = new Date(end.getFullYear(), end.getMonth(), 1, 12);
+    } else if (period === 'quarter') {
+      start = new Date(end.getFullYear(), Math.floor(end.getMonth() / 3) * 3, 1, 12);
+    } else {
+      start = new Date(end.getFullYear(), 0, 1, 12);
+    }
+    this.fromDate = formatCalendarDate(start);
+    this.toDate = formatCalendarDate(end);
+    this.selectedDays.set(0);
     this.loadData();
   }
 
@@ -694,7 +739,7 @@ export class ReportsPage implements OnInit {
         }
       });
     } else {
-      this.reportService.getPmsKpi(this.fromDate, this.toDate).subscribe({
+      this.reportService.getPmsKpi(this.fromDate, this.toDate, undefined, this.selectedRoomTypeId()).subscribe({
         next: res => {
           this.kpi.set(res);
           this.isLoading.set(false);
@@ -719,7 +764,7 @@ export class ReportsPage implements OnInit {
         }
       });
 
-      this.reportService.getRevenueSummary(this.fromDate, this.toDate).subscribe({
+      this.reportService.getRevenueSummary(this.fromDate, this.toDate, undefined, this.selectedRoomTypeId()).subscribe({
         next: res => {
           this.revenueSummary.set(res);
         },

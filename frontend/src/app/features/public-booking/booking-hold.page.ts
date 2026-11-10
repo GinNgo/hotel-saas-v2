@@ -468,7 +468,7 @@ export interface HoldErrorState {
                   <h3 id="payment-method-label" class="text-sm font-bold text-slate-800">Chọn cách thanh toán tiền cọc</h3>
                   <p class="text-xs text-slate-500 mt-1">Phòng chỉ được xác nhận sau khi khách sạn ghi nhận đủ khoản cọc.</p>
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
                   <button type="button" (click)="selectPaymentMethod('VNPay')"
                     [class.ring-2]="selectedPaymentMethod === 'VNPay'" [class.ring-blue-600]="selectedPaymentMethod === 'VNPay'"
                     class="text-left rounded-xl border border-slate-200 bg-white p-3 hover:border-blue-400 transition-colors cursor-pointer">
@@ -486,6 +486,12 @@ export interface HoldErrorState {
                     class="text-left rounded-xl border border-slate-200 bg-white p-3 hover:border-emerald-400 transition-colors cursor-pointer">
                     <span class="block text-xs font-bold text-slate-900">Tiền mặt tại khách sạn</span>
                     <span class="block text-[11px] text-slate-500 mt-1">Nộp cọc tại quầy trong 15 phút; nhân viên xác nhận đơn.</span>
+                  </button>
+                  <button type="button" (click)="selectPaymentMethod('BankTransfer')"
+                    [class.ring-2]="selectedPaymentMethod === 'BankTransfer'" [class.ring-violet-600]="selectedPaymentMethod === 'BankTransfer'"
+                    class="text-left rounded-xl border border-slate-200 bg-white p-3 hover:border-violet-400 transition-colors cursor-pointer">
+                    <span class="block text-xs font-bold text-slate-900">Chuyển khoản ngân hàng</span>
+                    <span class="block text-[11px] text-slate-500 mt-1">Chuyển khoản thủ công theo hướng dẫn của cơ sở.</span>
                   </button>
                 </div>
                 @if (selectedPaymentMethod === 'PayAtHotel') {
@@ -777,7 +783,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   guestName = '';
   guestPhone = '';
   guestEmail = '';
-  selectedPaymentMethod: 'VNPay' | 'VietQR' | 'PayAtHotel' = 'VNPay';
+  selectedPaymentMethod: 'VNPay' | 'VietQR' | 'PayAtHotel' | 'BankTransfer' = 'VNPay';
 
   private timerInterval?: ReturnType<typeof setInterval>;
   private quoteTimerInterval?: ReturnType<typeof setInterval>;
@@ -800,7 +806,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   }
 
   selectPaymentMethod(method: string | null): void {
-    if (method === 'VNPay' || method === 'VietQR' || method === 'PayAtHotel') {
+    if (method === 'VNPay' || method === 'VietQR' || method === 'PayAtHotel' || method === 'BankTransfer') {
       this.selectedPaymentMethod = method;
     }
   }
@@ -809,6 +815,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
     switch (this.selectedPaymentMethod) {
       case 'VNPay': return 'Tiếp tục thanh toán VNPay';
       case 'VietQR': return 'Mở hướng dẫn VietQR';
+      case 'BankTransfer': return 'Xem hướng dẫn chuyển khoản';
       case 'PayAtHotel': return 'Xem hướng dẫn nộp cọc tại quầy';
     }
   }
@@ -1252,7 +1259,8 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
         numberOfGuests: stay.guests,
         expectedTotalAmount: price.totalAmount,
         firebaseIdToken: firebaseIdToken,
-        guestUserId: currentUser?.id
+        guestUserId: currentUser?.id,
+        paymentMethodPreference: this.selectedPaymentMethod === 'PayAtHotel' ? 'Cash' : this.selectedPaymentMethod
       };
 
       const payloadSig = JSON.stringify({
@@ -1265,7 +1273,8 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
         guestEmail: requestPayload.guestEmail,
         guestPhone: requestPayload.guestPhone,
         numberOfGuests: requestPayload.numberOfGuests,
-        expectedTotalAmount: requestPayload.expectedTotalAmount
+        expectedTotalAmount: requestPayload.expectedTotalAmount,
+        paymentMethodPreference: requestPayload.paymentMethodPreference
       });
 
       if (this.lastSubmittedPayloadSig && this.lastSubmittedPayloadSig !== payloadSig) {

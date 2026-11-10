@@ -382,6 +382,7 @@ export interface CreateGuestHoldRequest {
   pointsToRedeem?: number;
   guestUserId?: string;
   firebaseIdToken?: string;
+  paymentMethodPreference?: 'Cash' | 'VietQR' | 'VNPay' | 'BankTransfer';
 }
 
 export interface ConfirmGuestBookingRequest {
