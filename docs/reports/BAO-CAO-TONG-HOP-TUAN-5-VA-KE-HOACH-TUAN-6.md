@@ -1,139 +1,91 @@
-# BÁO CÁO TIẾN ĐỘ TUẦN 05 & KẾ HOẠCH NGHIỆM THU TUẦN 06
-## Dự Án: Nền Tảng Quản Lý Khách Sạn Đa Chi Nhánh (Hotel SaaS Platform v2)
-### Định hướng: *"Đào Sâu Nghiệp Vụ, Khép Góc 4 Yêu Cầu Nâng Cao & Kiểm Thử Hoạt Động Thực Tế"*
+# BÁO CÁO TIẾN ĐỘ TUẦN 05 & KẾ HOẠCH TUẦN 06
+## Đề tài: Nền Tảng Quản Lý Khách Sạn Đa Chi Nhánh (Hotel SaaS Platform v2)
 
 ---
 
-> **MỤC TIÊU TRỌNG TÂM & ĐỊNH HƯỚNG NÂNG CAO TUẦN 05 (THEO GÓP Ý CỦA GVHD):**
-> - Chuẩn hóa tiêu đề báo cáo đúng tiến trình phân kỳ trên hệ thống LMS trường: **BÁO CÁO TUẦN 05**.
-> - Triển khai và đối soát 4 yêu cầu nâng cao:
->   1. Chứng minh cô lập dữ liệu đa tenant giữa các chi nhánh bằng test tự động.
->   2. Chạy load test cho hub SignalR và luồng thanh toán VNPay.
->   3. Đưa việc deploy VPS vào CI/CD tự động thay vì thao tác tay.
->   4. Bổ sung quan sát hệ thống bằng log có cấu trúc và giám sát tập trung.
+### THÔNG TIN CHUNG
+- **Mã đề tài:** 578
+- **Giảng viên hướng dẫn:** Huỳnh Xuân Phụng (`phunghx@hcmute.edu.vn`)
+- **Thời gian thực hiện Tuần 05:** 02/11/2026 – 09/11/2026 (Hoàn tất kiểm thử và deploy: 11/11/2026)
+- **Kho mã nguồn:** [https://github.com/GinNgo/hotel-saas-v2](https://github.com/GinNgo/hotel-saas-v2)
+- **Môi trường VPS Staging:** [https://luxustay.duckdns.org](https://luxustay.duckdns.org)
+
+### Mục Tiêu Trọng Tâm Tuần 05 Theo Góp Ý Của GVHD:
+1. Chuẩn hóa tiêu đề báo cáo thành **TUẦN 05**.
+2. Đưa việc deploy VPS vào CI/CD tự động thay vì thao tác tay.
+3. Bổ sung test tự động kiểm tra cô lập dữ liệu đa tenant giữa các chi nhánh.
+4. Chuẩn bị kịch bản load test cho SignalR Hub và thanh toán VNPay.
+5. Ghi log có cấu trúc (structured log) có CorrelationId, TenantId, PropertyId để tiện theo dõi lỗi.
 
 ---
 
-## PHẦN 1: ĐỐI SOÁT 4 YÊU CẦU NÂNG CAO — CÁI NÀO ĐÃ LÀM VÀ CÁI NÀO LÀM TRONG TUẦN 6
+## PHẦN 1: ĐỐI SOÁT CÁC YÊU CẦU NÂNG CAO THEO GÓP Ý CỦA GVHD
 
-Nhóm đã nghiêm túc rà soát toàn bộ hiện trạng kỹ thuật và phân định minh bạch thành 2 nhóm:
-- **Nhóm đã làm xong trong Tuần 5:** Đã có code, test tự động, đã cấu hình trên VPS Staging và có số liệu minh chứng thực tế.
-- **Nhóm để làm nhiệm vụ Tuần 6:** Các phần cần đo đạc tải sâu hơn trên hạ tầng mạng hoặc mở rộng dashboard giao diện quan sát.
-
-### Bảng Tổng Hợp Đối Soát Tiến Độ 4 Yêu Cầu Của GVHD:
-
-| Yêu cầu của GVHD | Tình trạng hiện tại | Đã thực hiện được gì (Minh chứng Tuần 5) | Nhiệm vụ kỹ thuật giao cho Tuần 6 |
-| :--- | :---: | :--- | :--- |
-| **1. Đưa deploy VPS vào CI/CD tự động** | **HOÀN THÀNH 100%**<br>*(Đưa vào báo cáo)* | • Xây dựng pipeline `.github/workflows/cd-vps.yml`.<br>• Cấu hình 3 Secrets (`VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`).<br>• Tự động build image GHCR, SSH Rolling Update và verify `/health` trên VPS Staging (`luxustay.duckdns.org`). Đã chạy pass 3 lần thực tế. | Khép lại mục này, duy trì vận hành ổn định trong suốt quá trình phát triển. |
-| **2. Chứng minh cô lập đa tenant giữa các chi nhánh bằng test tự động** | **ĐÃ LÀM 90%**<br>*(Đưa vào báo cáo)*<br>+ **10% làm Tuần 6** | • Bộ test tự động 35/35 isolation test cases tích hợp làm **Gate 1** bắt buộc trong CI/CD pipeline.<br>• Kiểm thử chặt chẽ Global Query Filters (`TenantPropertyFilter`), Interceptor chặn mạo danh Tenant/Branch ID (`Fail-Closed`). | Bổ sung kịch bản kiểm thử E2E HTTP API chéo chi nhánh mức người dùng: Dùng token Lễ tân Q1 (`staff.single`) can thiệp phòng/đơn chi nhánh Phú Nhuận (`CN-PN`) $\rightarrow$ Xác nhận phản hồi `403 Forbidden`. |
-| **3. Chạy load test cho hub SignalR và luồng thanh toán VNPay** | **ĐÃ LÀM 60%**<br>*(VNPay xong 100%<br>SignalR có script)* | • **VNPay Load Test (100%):** Cài đặt k6 v2.3.0, chạy script `vnpay-checkout-ipn.k6.js` với 100 VU đến VPS Staging. 100% request giả mạo checksum bị từ chối (`RspCode 97`), $p_{90} = 129\text{ ms}$.<br>• **SignalR Load Test (50%):** Đã viết xong script k6 `signalr-hub.k6.js` kiểm thử bắt tay WebSocket và JoinProperty. | Chạy thực tế k6 `signalr-hub.k6.js` lên VPS Staging với 500 CCU WebSocket, xuất biểu đồ đo độ trễ broadcast và tỷ lệ chặn truy cập trái phép nhóm chi nhánh khác. |
-| **4. Bổ sung quan sát hệ thống bằng log có cấu trúc và giám sát tập trung** | **ĐÃ LÀM 75%**<br>*(Log & Metrics xong<br>Dashboard làm T6)* | • **Log có cấu trúc (100%):** Serilog JSON Formatter, Middleware `CorrelationAndStructuredLogMiddleware` đẩy `{CorrelationId, TenantId, PropertyId, ClientIp, ElapsedMs}` vào LogContext.<br>• **Prometheus Metrics (100%):** `SystemMetricsRegistry` xuất chỉ số tại `/metrics`, đã mở route Caddy trên VPS. | Dựng container Prometheus + Grafana (hoặc Seq / Grafana Cloud) kết nối VPS để trực quan hóa biểu đồ lưu lượng, mã lỗi 4xx/5xx và độ trễ theo thời gian thực. |
-| **Đặc biệt: Giải phóng khóa đăng nhập tài khoản test PMS** | **HOÀN THÀNH 100%**<br>*(Bổ sung Tuần 5)* | • Xử lý triệt để lỗi Hard-Gating `ERR_VERIFICATION_REQUIRED` cho toàn bộ tài khoản test PMS.<br>• Bổ sung Migration cập nhật SQL và cơ chế Self-Healing lúc login.<br>• Đã xác nhận 100% tài khoản (`owner`, `manager`, `staff`, `superadmin`, `guest.vip`) đăng nhập thành công trực tiếp trên VPS Staging. | Bàn giao tài khoản test sẵn sàng cho GVHD và nhóm kiểm thử nghiệm thu trực tiếp trên web. |
+| Yêu cầu của GVHD | Hiện trạng thực hiện Tuần 05 | Kế hoạch tuần 06 |
+| :--- | :--- | :--- |
+| **1. Đưa deploy VPS vào CI/CD tự động** | **Đã hoàn thành:** Xây dựng workflow `.github/workflows/cd-vps.yml`. Khi merge code vào nhánh `main`, hệ thống tự build Docker image đẩy lên GHCR, kết nối SSH vào VPS pull image về và khởi động lại container, có bước kiểm tra `/health` tự động. Đã triển khai chạy thực tế khi merge PR #22. | Duy trì ổn định pipeline khi nhóm có commit mới. |
+| **2. Chứng minh cô lập đa tenant giữa các chi nhánh bằng test tự động** | **Đã hoàn thành một phần:** Đã có 35 test tự động kiểm tra việc áp dụng `TenantPropertyFilter` và interceptor chặn dữ liệu chéo chi nhánh ở tầng DbContext / Entity Framework Core (chạy trong Cổng 1 của CI/CD). | Viết thêm bài test E2E kiểm tra ở mức API HTTP (`CrossBranchSecurityE2ETests.cs`): dùng token của lễ tân chi nhánh này để gọi API đọc/sửa dữ liệu của chi nhánh khác, kiểm tra kết quả trả về `403 Forbidden`. |
+| **3. Chạy load test cho SignalR Hub và luồng thanh toán VNPay** | **Đã chuẩn bị script kiểm thử:** Đã viết xong 2 file k6 script gồm `scripts/load-tests/vnpay-checkout-ipn.k6.js` (test webhook IPN) và `scripts/load-tests/signalr-hub.k6.js` (test kết nối WebSocket). | Chạy trực tiếp k6 lên môi trường VPS Staging với các kịch bản người dùng đồng thời để ghi lại số liệu thời gian phản hồi và độ trễ thực tế để báo cáo thầy. |
+| **4. Bổ sung quan sát hệ thống bằng log có cấu trúc và giám sát tập trung** | **Đã hoàn thành phần log:** Tích hợp Serilog ghi log dạng JSON, middleware tự động đính kèm `CorrelationId`, `TenantId`, `PropertyId` và `ElapsedMs` vào từng request. | Tìm hiểu và cấu hình công cụ xem log tập trung trên VPS để dễ tra cứu khi có sự cố. |
+| **5. Sửa lỗi đăng nhập tài khoản test PMS** | **Đã hoàn thành:** Đã xử lý xong việc tài khoản test bị chặn đăng nhập bằng migration cập nhật cờ xác thực và hàm tự phục hồi trong `LoginCommandHandler`. Đã kiểm tra thực tế trên web các tài khoản `owner`, `manager`, `staff` đều đăng nhập bình thường. | Nhóm và thầy có thể sử dụng các tài khoản có sẵn để nghiệm thu trực tiếp. |
 
 ---
 
-## PHẦN 2: MINH CHỨNG THỰC TẾ CHI TIẾT CỦA CÁC PHẦN ĐÃ HOÀN THÀNH
+## PHẦN 2: MINH CHỨNG THỰC TẾ CÁC PHẦN ĐÃ HOÀN THÀNH
 
-### 1. Minh chứng CI/CD Rolling Deploy Tự Động Lên VPS Staging (Yêu cầu 1)
-- **Workflow:** [`.github/workflows/cd-vps.yml`](file:///C:/Projects/hotel-sass-rbac/.github/workflows/cd-vps.yml)
-- **Quy trình 4 cổng kiểm soát chất lượng tự động:**
-  ```
-  [Git Push / PR develop / main]
-              │
-              ▼
-  [Cổng 1: Multi-Tenant & Branch Isolation Gate] ────> Chạy 35 test cases cô lập (PASS in 1m14s)
-              │
-              ▼
-  [Cổng 2: Build & Push Images to GHCR] ────────────> Multi-stage Docker build (.NET 10 & Angular 22)
-              │
-              ▼
-  [Cổng 3: Zero-Downtime Rolling Update VPS] ───────> SSH qua Appleboy Action, pull immutable tag
-              │
-              ▼
-  [Cổng 4: Automated Health Probe Verification] ────> curl probe https://luxustay.duckdns.org/health
-  ```
-- **Lịch sử thực thi thực tế trên GitHub Actions:**
-  - Run `#42850301572`: **SUCCESS** (5m38s).
-  - Run `#42998702741`: **SUCCESS** (4m43s).
-  - Run `#42999949114`: **SUCCESS** (3m39s) — Cập nhật xác thực tài khoản test và kích hoạt staging database seeder.
+### 1. Tự động hóa Deploy VPS qua CI/CD
+- **File workflow:** [`.github/workflows/cd-vps.yml`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/.github/workflows/cd-vps.yml)
+- **Quy trình thực hiện:** Khi code được merge vào nhánh `main`, GitHub Actions tự động chạy qua các bước:
+  1. Chạy 35 bài test cô lập tenant và chi nhánh.
+  2. Build 2 Docker images (`hotelsaas-backend` và `hotelsaas-frontend`) và đẩy lên GitHub Container Registry (`ghcr.io`).
+  3. Kết nối SSH vào VPS Staging, pull images mới về và khởi động lại các container.
+  4. Gửi request kiểm tra endpoint `https://luxustay.duckdns.org/health`.
+- **Kết quả:** Pipeline đã chạy thành công khi merge PR #22 (Run ID #43021042865), hệ thống trên VPS đang chạy bình thường.
 
-### 2. Minh chứng Kiểm Thử Tải Luồng Thanh Toán VNPay Bằng k6 (Yêu cầu 3A)
-- **Kịch bản kiểm thử:** [`scripts/load-tests/vnpay-checkout-ipn.k6.js`](file:///C:/Projects/hotel-sass-rbac/scripts/load-tests/vnpay-checkout-ipn.k6.js)
-- **Công cụ:** Grafana k6 v2.3.0.
-- **Mục tiêu thử tải:** Mô phỏng 100 Virtual Users đồng thời gửi webhook thanh toán IPN, trong đó có cả request hợp lệ và request cố tình giả mạo chữ ký HMAC-SHA512 (`vnp_SecureHash`).
-- **Kết quả đo đạc thực tế trên VPS Staging:**
-  ```text
-  ✓ vnpay_ipn_tampered_rejected......: 100.00% ✓ 100       ✗ 0
-  ✓ vnpay_ipn_valid_processed........: 100.00% ✓ 100       ✗ 0
-  ✓ connection_errors................: 0.00%   ✓ 0         ✗ 200
-  http_req_duration..................: avg=82.4ms   min=41.2ms   med=73.5ms   max=194.1ms  p(90)=129.3ms  p(95)=158.7ms
-  ```
-- **Kết luận:** Hệ thống xử lý mượt mà $100\%$ các giao dịch, loại bỏ hoàn toàn nguy cơ giả mạo số tiền hoặc tấn công replay attack.
+### 2. Chuẩn bị kịch bản Load Test (k6)
+- **Thư mục script:** `scripts/load-tests/`
+- Đã chuẩn bị sẵn 2 kịch bản:
+  - `vnpay-checkout-ipn.k6.js`: kiểm tra xử lý webhook IPN của VNPay, kiểm tra việc từ chối các request có chữ ký sai lệch (`vnp_SecureHash`).
+  - `signalr-hub.k6.js`: kiểm tra kết nối WebSocket đến SignalR Hub và kiểm tra phân luồng theo chi nhánh (`JoinProperty`).
+- Nhóm sẽ tiến hành chạy k6 trực tiếp lên VPS trong tuần 06 và ghi nhận số liệu cụ thể.
 
-### 3. Minh chứng Log Có Cấu Trúc & Prometheus Metrics (Yêu cầu 4A)
-- **Middleware:** [`CorrelationAndStructuredLogMiddleware.cs`](file:///C:/Projects/hotel-sass-rbac/backend/src/HotelSaas.WebApi/Middleware/CorrelationAndStructuredLogMiddleware.cs)
-- **Mã theo dõi duy nhất (`X-Correlation-Id`):** Được sinh tự động hoặc kế thừa từ client, gắn vào mọi log event của Serilog và phản hồi lại HTTP header.
-- **Định dạng Log:** Chuẩn Serilog JsonFormatter trên Console và file:
+### 3. Log có cấu trúc (Structured Log)
+- **Middleware:** [`backend/src/HotelSaas.WebApi/Middleware/CorrelationAndStructuredLogMiddleware.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Middleware/CorrelationAndStructuredLogMiddleware.cs)
+- Cấu hình Serilog xuất log dạng JSON, tự động gán `CorrelationId` cho từng request để tiện truy vết khi có lỗi:
   ```json
   {"Timestamp":"2026-11-11T17:04:38.123+07:00","Level":"Information","MessageTemplate":"HTTP {Method} {Path} responded {StatusCode} in {ElapsedMs}ms [CorrelationId={CorrelationId}, TenantId={TenantId}, PropertyId={PropertyId}]","Properties":{"Method":"POST","Path":"/api/auth/login","StatusCode":200,"ElapsedMs":142,"CorrelationId":"corr-89a1c2d3","TenantId":"11111111-1111-1111-1111-111111111111","PropertyId":"ed955ce2-2e01-4437-9bc8-391def32acdf"}}
   ```
-- **Chỉ số hiệu năng Prometheus:** Endpoint `GET /metrics` xuất dữ liệu chuẩn OpenMetrics phục vụ thu thập tự động.
 
-### 4. Minh chứng Kích Hoạt Đăng Nhập Tài Khoản Test (Bổ sung khẩn cấp)
-- Đã khắc phục triệt để lỗi Hard-Gating `ERR_VERIFICATION_REQUIRED` bằng EF Core Migration [`20261111163000_AutoVerifyPersonnelTestAccounts.cs`](file:///C:/Projects/hotel-sass-rbac/backend/src/HotelSaas.Infrastructure/Migrations/20261111163000_AutoVerifyPersonnelTestAccounts.cs) và cơ chế tự phục hồi (`Self-Healing`) trong [`LoginCommandHandler.cs`](file:///C:/Projects/hotel-sass-rbac/backend/src/HotelSaas.Application/Auth/Commands/Login/LoginCommandHandler.cs).
-- **Kết quả kiểm thử trực tiếp trên Staging VPS (`https://luxustay.duckdns.org`):**
-  - `owner@hotelsaas.local` (Nguyễn Văn Toàn — Quyền Chủ chuỗi): **ĐĂNG NHẬP THÀNH CÔNG**.
-  - `manager.both@hotelsaas.local` (Lê Minh Quản Lý — Quyền 2 chi nhánh): **ĐĂNG NHẬP THÀNH CÔNG**.
-  - `staff.single@hotelsaas.local` (Phạm Thu Hà — Lễ tân Q1): **ĐĂNG NHẬP THÀNH CÔNG**.
-  - `superadmin@hotelsaas.platform` (Quản Trị Viên Nền Tảng): **ĐĂNG NHẬP THÀNH CÔNG**.
-  - `guest.vip@hotelsaas.local` (Trần Hoàng Bảo Ngọc — Khách VIP): **ĐĂNG NHẬP THÀNH CÔNG**.
+### 4. Đăng nhập tài khoản test PMS
+- Đã sửa lỗi bằng Migration [`20261111163000_AutoVerifyPersonnelTestAccounts.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Migrations/20261111163000_AutoVerifyPersonnelTestAccounts.cs) và bổ sung hàm tự gán cờ xác thực khi đăng nhập trong [`LoginCommandHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Auth/Commands/Login/LoginCommandHandler.cs).
+- Đã kiểm tra thực tế đăng nhập thành công 5 tài khoản demo: `owner@hotelsaas.local`, `manager.both@hotelsaas.local`, `staff.single@hotelsaas.local`, `superadmin@hotelsaas.platform`, `guest.vip@hotelsaas.local`.
 
 ---
 
-## PHẦN 3: KẾ HOẠCH & PHÂN CÔNG NHIỆM VỤ TUẦN 06 (CÁC MỤC CÒN LẠI CỦA GVHD)
+## PHẦN 3: PHÂN CÔNG NHIỆM VỤ TUẦN 06
 
-> [!IMPORTANT]
-> **Triết lý thực hiện Tuần 06:** *"Làm chậm lại để đào sâu nghiệp vụ"* — Tuyệt đối không mở rộng tính năng mới ngoài phạm vi. Tập trung 100% nhân lực vào việc hoàn tất trọn vẹn các phần việc còn lại theo yêu cầu của GVHD.
+Trong tuần 06, nhóm tập trung vào việc hoàn thành các phần việc nâng cao còn lại theo góp ý của GVHD, kiểm tra kỹ lưỡng các tính năng trên môi trường thực tế:
 
-### Bảng Phân Công Nhiệm Vụ Tuần 06:
-
-| Thành viên / MSSV | Phân hệ phụ trách | Nhiệm vụ kỹ thuật Tuần 06 | Sản phẩm bàn giao (Deliverables) |
+| Thành viên / MSSV | Phân hệ phụ trách | Nhiệm vụ kỹ thuật Tuần 06 | Kết quả dự kiến bàn giao |
 | :--- | :--- | :--- | :--- |
-| **Ngô Võ Tuấn An**<br>`24TX810001`<br>*(Lead & DevOps)* | **CI/CD VPS & Dashboard Giám sát Tập trung** | 1. Dựng container Prometheus và Grafana trên VPS Staging (hoặc kết nối Grafana Cloud / Seq).<br>2. Thiết lập Dashboard hiển thị thời gian thực: Lưu lượng Request/giây, Phân bố mã lỗi HTTP (2xx, 4xx, 5xx), P95 Latency và cảnh báo lỗi theo từng Tenant.<br>3. Duy trì và kiểm soát chất lượng pipeline `cd-vps.yml` khi nhóm merge tính năng mới. | • Dashboard Grafana / Prometheus hoạt động thật trên Staging.<br>• Tài liệu hướng dẫn truy cập Dashboard giám sát tập trung.<br>• Báo cáo uptime và latency 7 ngày của Staging VPS. |
-| **Trần Trọng Tân**<br>`24TX810025`<br>*(Operations & Realtime)* | **Load Test SignalR Hub & Nghiệp vụ D23** | 1. Chạy thực tế k6 load test SignalR Hub (`scripts/load-tests/signalr-hub.k6.js`) với 500 CCU kết nối đồng thời.<br>2. Đo đạc các chỉ số: Tỷ lệ bắt tay thành công WebSocket, độ trễ nhận thông báo đặt phòng realtime, và kiểm chứng tỷ lệ chặn 100% khi cố tình JoinProperty chi nhánh khác trái phép.<br>3. Kiểm thử tận tay luồng Hoàn tiền D23 tại quầy thu ngân trên giao diện web thật. | • Báo cáo số liệu kiểm thử tải SignalR (biểu đồ k6, $p_{95} < 200\text{ ms}$, 0% rớt kết nối).<br>• Bằng chứng chặn rò rỉ SignalR broadcast chéo chi nhánh.<br>• Video/Biên bản kiểm thử hoàn tiền D23 quầy thu ngân. |
-| **Nguyễn Khôi Nguyên**<br>`24TX810011`<br>*(Finance & Reporting)* | **Kiểm thử E2E Cô lập Chi nhánh & Báo cáo** | 1. Viết bộ kiểm thử tự động E2E HTTP API chứng minh cô lập chéo chi nhánh (`CrossBranchSecurityE2ETests.cs`): Lấy bearer token của Lễ tân CN-Q1 gửi request đọc/sửa đổi đặt phòng và hóa đơn của CN-PN, xác minh HTTP 403 Forbidden.<br>2. Kiểm tra thực tế trên mobile app ngân hàng việc quét mã Dynamic VietQR trên hóa đơn PDF do QuestPDF sinh ra.<br>3. Đối soát tính chính xác 100% của báo cáo ca thu ngân (Zero Cash Variance). | • Bộ test E2E cô lập chi nhánh có assert HTTP 403 (PASS 100%).<br>• File log minh chứng cô lập dữ liệu chéo (`cross-branch-proof.log`).<br>• Ảnh chụp quét mã QR hóa đơn thực tế trên ứng dụng ngân hàng di động. |
+| **Ngô Võ Tuấn An**<br>`24TX810001` | **CI/CD & Giám sát hệ thống** | 1. Tìm hiểu và thiết lập công cụ theo dõi log tập trung trên VPS để tra cứu log JSON Serilog có CorrelationId.<br>2. Tiếp tục duy trì và kiểm soát pipeline CI/CD `cd-vps.yml` khi các thành viên đẩy code mới. | • Hệ thống xem log tập trung hoạt động trên VPS.<br>• Báo cáo kiểm tra các lỗi phát sinh (nếu có) qua log. |
+| **Trần Trọng Tân**<br>`24TX810025` | **Load Test SignalR & Nghiệp vụ D23** | 1. Chạy bài test tải k6 cho SignalR Hub (`scripts/load-tests/signalr-hub.k6.js`) lên VPS Staging, đo đạc số lượng kết nối đồng thời và độ trễ nhận thông báo thực tế.<br>2. Kiểm thử thực tế nghiệp vụ duyệt và chi hoàn tiền D23 tại quầy thu ngân trên giao diện web. | • File số liệu đo đạc load test k6 SignalR thực tế trên VPS.<br>• Biên bản kiểm thử nghiệp vụ chi hoàn tiền D23. |
+| **Nguyễn Khôi Nguyên**<br>`24TX810011` | **Test cô lập chi nhánh & Báo cáo** | 1. Viết bài test tự động E2E HTTP API chứng minh cô lập chéo chi nhánh (`CrossBranchSecurityE2ETests.cs`): lấy token lễ tân chi nhánh này gọi API chi nhánh khác, khẳng định nhận mã lỗi 403 Forbidden.<br>2. Dùng ứng dụng ngân hàng trên điện thoại quét thử mã VietQR trên hóa đơn PDF để xác nhận thông tin chuyển khoản hiển thị đúng. | • File mã nguồn test E2E cô lập chi nhánh chạy pass.<br>• Ảnh chụp thực tế kết quả quét mã QR hóa đơn từ app ngân hàng. |
 
 ---
 
-## PHẦN 4: LỆNH CLI NGHIỆM THU DÀNH CHO GIẢNG VIÊN HƯỚNG DẪN
-
-Thầy và hội đồng có thể trực tiếp xác minh các tính năng và kết quả thông qua các lệnh tiêu chuẩn sau:
+## PHẦN 4: LỆNH KIỂM TRA HỆ THỐNG
 
 ```bash
-# 1. Kiểm tra bộ test cô lập đa tenant và đa chi nhánh (Gate 1 trong CI/CD)
-dotnet test backend/HotelSaas.slnx \
-  --filter "FullyQualifiedName~MultiProperty|FullyQualifiedName~Tenant|FullyQualifiedName~Branch|FullyQualifiedName~Isolation" \
-  --logger "console;verbosity=minimal"
+# 1. Chạy test Backend (.NET 10)
+dotnet test backend/HotelSaas.slnx
 
-# 2. Chạy kiểm thử tải k6 cho luồng thanh toán VNPay IPN (Chặn giả mạo Checksum)
-k6 run scripts/load-tests/vnpay-checkout-ipn.k6.js
+# 2. Chạy test cô lập đa tenant và chi nhánh
+dotnet test backend/HotelSaas.slnx --filter "FullyQualifiedName~Isolation|FullyQualifiedName~Tenant"
 
-# 3. Chạy kiểm thử tải k6 cho SignalR Realtime Hub (Độ trễ & Cô lập WebSocket)
-k6 run scripts/load-tests/signalr-hub.k6.js
+# 3. Chạy test Frontend (Angular 22)
+npm --prefix frontend test -- --watch=false
 
-# 4. Kiểm tra sức khỏe Staging VPS và Metrics thời gian thực
+# 4. Kiểm tra sức khỏe hệ thống trên VPS Staging
 curl -sk https://luxustay.duckdns.org/health
-curl -sk https://luxustay.duckdns.org/metrics
 ```
-
----
-
-## PHẦN 5: NHẬT KÝ SỬ DỤNG TRỢ LÝ AI (AI USAGE DISCLOSURE)
-
-1. **Công cụ AI sử dụng:** Google Antigravity Coding Engine (Gemini 3.8 Flash High / Gemini 3.8 Live).
-2. **Nội dung công việc có sự hỗ trợ của AI:**
-   - Hỗ trợ xây dựng pipeline GitHub Actions CI/CD (`cd-vps.yml`) với các cơ chế secret injection và rolling deploy qua SSH an toàn theo Zero-Secrets Policy.
-   - Hỗ trợ thiết kế kịch bản k6 cho giao thức SignalR JSON framing (`\x1e`) và kiểm thử tấn công giả mạo checksum VNPay.
-   - Hỗ trợ phát hiện lỗi Hard-Gating `ERR_VERIFICATION_REQUIRED` trên tài khoản seed và đề xuất giải pháp 3 tầng kiến trúc (Migration + Seeder Self-Healing + CloudGuard Staging Authorization).
-3. **Cam kết trung thực:**
-   - Toàn bộ kết quả kiểm thử, log thực tế trên VPS Staging và mã nguồn được xây dựng đều do các thành viên trực tiếp rà soát, kiểm chứng và chịu trách nhiệm 100% trước GVHD.
