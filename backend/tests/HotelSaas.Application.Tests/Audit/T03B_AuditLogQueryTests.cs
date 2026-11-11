@@ -211,6 +211,31 @@ public sealed class T03B_AuditLogQueryTests
         return new ApplicationDbContext(options, tenantService, propertyService);
     }
 
+    private static ApplicationDbContext CreateUnAuditedDbContext(
+        string connString,
+        string testSchema,
+        ICurrentTenantService tenantService,
+        ICurrentPropertyService propertyService)
+    {
+        var builder = new NpgsqlConnectionStringBuilder(connString)
+        {
+            SearchPath = testSchema,
+            Pooling = false
+        };
+
+        var tenantInterceptor = new TenantPropertySaveChangesInterceptor(tenantService, propertyService);
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql(builder.ConnectionString, npgsql =>
+                npgsql.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName))
+            .ConfigureWarnings(w =>
+                w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
+            .AddInterceptors(tenantInterceptor)
+            .Options;
+
+        return new ApplicationDbContext(options, tenantService, propertyService);
+    }
+
     private sealed record SeededAuditScenario(
         Guid TenantAId,
         Guid TenantBId,
@@ -254,9 +279,8 @@ public sealed class T03B_AuditLogQueryTests
 
         var tenantSvc = new StubTenantService { TenantId = tenantAId };
         var propSvc = new StubPropertyService { IsTenantWide = true };
-        var userCtx = new StubUserContext { UserId = ownerUserId, TenantId = tenantAId, StaffRole = StaffRole.Owner };
 
-        await using (var ctx = CreateAuditedDbContext(connString, testSchema, tenantSvc, propSvc, userCtx))
+        await using (var ctx = CreateUnAuditedDbContext(connString, testSchema, tenantSvc, propSvc))
         {
             await ctx.Database.MigrateAsync();
 
@@ -424,8 +448,8 @@ public sealed class T03B_AuditLogQueryTests
 
         // Seed Tenant B log under Tenant B context
         var tenantBSvc = new StubTenantService { TenantId = tenantBId };
-        var userBCtx = new StubUserContext { UserId = Guid.NewGuid(), TenantId = tenantBId, StaffRole = StaffRole.Owner };
-        await using (var ctxB = CreateAuditedDbContext(connString, testSchema, tenantBSvc, propSvc, userBCtx))
+        var tenantBUserId = Guid.NewGuid();
+        await using (var ctxB = CreateUnAuditedDbContext(connString, testSchema, tenantBSvc, propSvc))
         {
             ctxB.Properties.Add(new Property
             {
@@ -444,7 +468,7 @@ public sealed class T03B_AuditLogQueryTests
                 Id = tenantBLogId,
                 TenantId = tenantBId,
                 PropertyId = propertyTenantBId,
-                UserId = userBCtx.UserId,
+                UserId = tenantBUserId,
                 Action = AuditActions.Delete,
                 EntityName = nameof(RoomTypeRate),
                 EntityId = Guid.NewGuid(),

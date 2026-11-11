@@ -81,6 +81,16 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
         if (!Enum.IsDefined(request.PaymentMethodPreference))
             throw new BadRequestException("ERR_INVALID_PAYMENT_METHOD", "Phương thức thanh toán đã chọn không hợp lệ.");
 
+        if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
+        {
+            var key = request.IdempotencyKey.Trim();
+            if (key.Length < 8 || key.Length > 128 || !Regex.IsMatch(key, @"^[a-zA-Z0-9_\-]+$"))
+            {
+                throw new BadRequestException("ERR_INVALID_IDEMPOTENCY_KEY",
+                    "Khóa Idempotency-Key không hợp lệ. Chỉ chấp nhận các ký tự chữ, số, gạch nối và gạch dưới (độ dài 8-128 ký tự).");
+            }
+        }
+
         // 2. Phone Verification Gate (Fail-Closed Dual Verification - Option A)
         bool isPhoneVerified = false;
         DateTime? phoneVerifiedAtUtc = null;
@@ -139,16 +149,6 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
                 // Fallback for isolated unit test fixtures where IFirebaseAuthService is not provided
                 isPhoneVerified = !string.IsNullOrWhiteSpace(request.FirebaseIdToken);
                 phoneVerifiedAtUtc = isPhoneVerified ? DateTime.UtcNow : null;
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
-        {
-            var key = request.IdempotencyKey.Trim();
-            if (key.Length < 8 || key.Length > 128 || !Regex.IsMatch(key, @"^[a-zA-Z0-9_\-]+$"))
-            {
-                throw new BadRequestException("ERR_INVALID_IDEMPOTENCY_KEY",
-                    "Khóa Idempotency-Key không hợp lệ. Chỉ chấp nhận các ký tự chữ, số, gạch nối và gạch dưới (độ dài 8-128 ký tự).");
             }
         }
 

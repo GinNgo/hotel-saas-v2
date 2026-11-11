@@ -647,7 +647,8 @@ public sealed class P5_GuestBookingHttpPipelineTests
                 guestPhone = "0901234567",
                 numberOfGuests = 1,
                 expectedTotalAmount = 300000m,
-                idempotencyKey = holdKey1
+                idempotencyKey = holdKey1,
+                firebaseIdToken = "dev-mock-token:0901234567"
             };
 
             var holdResp = await client.PostAsJsonAsync("/api/public/bookings/hold", holdPayload);
@@ -1085,7 +1086,8 @@ public sealed class P5_GuestBookingHttpPipelineTests
                 guestPhone = "0933334444",
                 numberOfGuests = 1,
                 expectedTotalAmount = 200000m,
-                idempotencyKey = "race-online-hold-key-01"
+                idempotencyKey = "race-online-hold-key-01",
+                firebaseIdToken = "dev-mock-token:0933334444"
             };
 
             // Task 1: Internal staff booking
@@ -1724,7 +1726,8 @@ public sealed class P5_GuestBookingHttpPipelineTests
                 guestPhone = "0911222333",
                 numberOfGuests = 2,
                 expectedTotalAmount = 500000m,
-                idempotencyKey = "hold-t04a-" + Guid.NewGuid().ToString("N").Substring(0, 12)
+                idempotencyKey = "hold-t04a-" + Guid.NewGuid().ToString("N").Substring(0, 12),
+                firebaseIdToken = "dev-mock-token:0911222333"
             };
 
             var holdResp = await client.PostAsJsonAsync("/api/public/bookings/hold", holdPayload);
