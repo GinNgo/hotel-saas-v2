@@ -30,7 +30,7 @@ luxustay.duckdns.org {
 
     # ── WebApi REST Endpoints & Health Probe ───────────────────────────────
     @api {
-        path /api/* /health /swagger*
+        path /api/* /health /metrics /swagger*
     }
     handle @api {
         reverse_proxy backend:5000 {
