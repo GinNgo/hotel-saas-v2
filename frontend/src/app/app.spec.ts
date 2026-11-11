@@ -3,16 +3,19 @@ import { describe, it, expect, vi } from 'vitest';
 import { Injector, runInInjectionContext } from '@angular/core';
 import { App } from './app';
 import { AuthService } from './core/services/auth.service';
+import { ThemeService } from './core/services/theme.service';
 
 describe('App', () => {
   it('should create the app and initialize user context', () => {
     const mockAuthService = {
       initializeUser: vi.fn()
     };
+    const mockThemeService = {};
 
     const injector = Injector.create({
       providers: [
-        { provide: AuthService, useValue: mockAuthService }
+        { provide: AuthService, useValue: mockAuthService },
+        { provide: ThemeService, useValue: mockThemeService }
       ]
     });
 

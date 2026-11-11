@@ -184,6 +184,7 @@ describe('BookingHoldPageComponent (T01 — Giữ phòng, hết hạn và thử 
     component.guestName = 'Nguyễn Văn Hoàng';
     component.guestPhone = '0912345678';
     component.guestEmail = 'hoang.nguyen@example.com';
+    component.verifiedFirebaseIdToken.set('mock-firebase-token');
   }
 
   // 1. Form validation: không gọi API khi thiếu thông tin, focus field lỗi, KHÔNG hiển thị Toast (chỉ inline validation)

@@ -267,7 +267,7 @@ export class PhoneOtpModalComponent implements OnChanges {
   }
 
   quickFillDemoPhone(): void {
-    this.phoneNumber = '123456789';
+    this.phoneNumber = '0123456789';
     this.fullName = 'Khách Kiểm Thử (+84123456789)';
   }
 

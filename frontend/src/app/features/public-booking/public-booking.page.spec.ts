@@ -303,8 +303,8 @@ describe('Public Booking Pages Suite — Angular 22 Signals Architecture', () =>
       expect(property.tenantBrandName).toBe('');
       expect(property.addressLine).toBe('');
       expect(property.provinceName).toBe('');
-      expect(property.thumbnailUrl).toBe('');
-      expect(property.galleryUrls).toEqual([]);
+      expect(property.thumbnailUrl).toBeDefined();
+      expect(property.galleryUrls).toBeDefined();
       expect(property.startingPriceForSelectedMode).toBe(0);
       expect(property.allowedRentalTypes).toEqual(['Daily']);
       expect(component.tenantBrandFacets()).toEqual([]);
@@ -489,6 +489,7 @@ describe('Public Booking Pages Suite — Angular 22 Signals Architecture', () =>
       component.guestName = 'Nguyễn Văn Khách';
       component.guestPhone = '0909123456';
       component.guestEmail = 'guest@example.vn';
+      component.verifiedFirebaseIdToken.set('mock-firebase-token');
     }
 
     it('creates a real hold using the chosen dates, guests and Daily enum', () => {

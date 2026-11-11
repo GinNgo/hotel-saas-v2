@@ -1,5 +1,4 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import { test, assert } from 'vitest';
 import {
   BRANCH_A1_SGN,
   BRANCH_A2_DAD,

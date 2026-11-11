@@ -1,5 +1,4 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import { test, assert } from 'vitest';
 import {
   DEFAULT_LOADING_LABEL,
   SKIP_OVERLAY_HEADER,
