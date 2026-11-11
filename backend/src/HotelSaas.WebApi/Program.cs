@@ -115,7 +115,10 @@ if (!shouldSkipStartupInit)
         await SeedData.SeedDefaultRolesAndPermissions(context);
 
         var canRunDevSeeder = !isCloudDb || builder.Configuration.GetValue<bool>("AllowCloudDevSeed");
-        if (app.Environment.IsDevelopment() && canRunDevSeeder && !string.IsNullOrWhiteSpace(effectiveConnStr))
+        var isDevOrAllowedStaging = app.Environment.IsDevelopment() ||
+            (app.Environment.IsEnvironment("Staging") && builder.Configuration.GetValue<bool>("AllowStagingDevSeed"));
+
+        if (isDevOrAllowedStaging && canRunDevSeeder && !string.IsNullOrWhiteSpace(effectiveConnStr))
         {
             try
             {

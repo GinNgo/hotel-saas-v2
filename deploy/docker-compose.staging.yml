@@ -33,6 +33,9 @@ services:
       - VNPAY__HASHSECRET=${VNPAY_HASH_SECRET}
       - VNPAY__TMNCODE=${VNPAY_TMN_CODE}
       - FIREBASE_CONFIG_PATH=/app/secrets/firebase-adminsdk.json
+      - AllowCloudStartupDatabaseInit=true
+      - AllowCloudDevSeed=true
+      - AllowStagingDevSeed=true
     volumes:
       - /opt/hotel-saas/secrets:/app/secrets:ro
     expose:
