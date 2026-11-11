@@ -12,14 +12,12 @@
 * **Tên đề tài:** Nền tảng Quản lý Khách sạn Đa chi nhánh theo Mô hình SaaS (Hotel SaaS Platform v2)
 * **Giảng viên hướng dẫn:** Huỳnh Xuân Phụng (`phunghx@hcmute.edu.vn`)
 * **Thời gian thực hiện Tuần 05:** 02/11/2026 – 09/11/2026 (Hoàn tất rà soát, nghiệm thu, tích hợp nhánh, hotfix đăng nhập tài khoản test & kiểm thử: 11/11/2026)
-* **Kết quả đánh giá của GVHD Tuần 05:** **ĐÃ DUYỆT (Tiến độ tốt và đúng hướng)**
-  * **Nhận xét của GVHD:** *"Báo cáo của nhóm cho thấy mức độ đầu tư rất đáng khen: cả ba thành viên đều ghi rõ MSSV, tài khoản GitHub và phân hệ phụ trách, từ cổng VNPay Sandbox với webhook IPN và SMTP của Tuấn An, đến báo cáo tài chính Excel/PDF của Khôi Nguyên, tới trung tâm thông báo SignalR và AuditLog của Trọng Tân — mỗi người một mảng thật, và con số test 27/27, 578/578, 200/200 PASS cho thấy nhóm kiểm thử nghiêm túc chứ không chạy cho có. Stack đúng yêu cầu đề tài với Angular, .NET và PostgreSQL 17, lại đã có môi trường staging chạy thật trên VPS với HTTPS qua Caddy, khai báo AI ba mục đầy đủ, kể cả những lỗi thật em gặp như checksum hay cô lập tenant — thầy thấy trung thực, và đó là điều quan trọng nhất."*
-  * **Chỉ đạo hoàn thiện & Yêu cầu nâng cao của GVHD:**
-    1. Chuẩn hóa tiêu đề báo cáo thành **TUẦN 05** theo đúng tiến trình phân kỳ trên hệ thống LMS trường (khắc phục việc ghi nhầm Tuần 04).
-    2. Chứng minh cô lập dữ liệu đa tenant giữa các chi nhánh bằng test tự động.
-    3. Chạy load test cho hub SignalR và luồng thanh toán VNPay.
-    4. Đưa việc deploy VPS vào CI/CD hoặc IaC thay vì thao tác tay.
-    5. Bổ sung quan sát hệ thống bằng log có cấu trúc và giám sát tập trung.
+* **Mục tiêu kỹ thuật & Định hướng nâng cao theo góp ý của GVHD:**
+  1. Chuẩn hóa tiêu đề báo cáo thành **TUẦN 05** theo đúng tiến trình phân kỳ trên hệ thống LMS trường.
+  2. Chứng minh cô lập dữ liệu đa tenant giữa các chi nhánh bằng test tự động.
+  3. Chạy load test cho hub SignalR và luồng thanh toán VNPay.
+  4. Đưa việc deploy VPS vào CI/CD tự động thay vì thao tác tay.
+  5. Bổ sung quan sát hệ thống bằng log có cấu trúc và giám sát tập trung.
 * **Kho mã nguồn chính thức (GitHub Repository):** [https://github.com/GinNgo/hotel-saas-v2](https://github.com/GinNgo/hotel-saas-v2)
 * **Nhánh phát triển chính (Default Integration Branch):** [`develop`](https://github.com/GinNgo/hotel-saas-v2/tree/develop)
 * **Máy chủ Staging thực tế (VPS Production-Like):** [https://luxustay.duckdns.org](https://luxustay.duckdns.org) (IP: `103.116.38.74`, Caddy TLS Reverse Proxy, Docker Engine, PostgreSQL 17 Cloud).
@@ -104,9 +102,9 @@ Tuần 05 là tuần trọng điểm nâng tầm hệ thống từ mô hình th�
 
 ---
 
-## PHẦN II. ĐỐI SOÁT 4 YÊU CẦU NÂNG CAO CỦA GVHD: CÁI NÀO ĐÃ LÀM VÀ CÁI NÀO LÀM TRONG TUẦN 6
+## PHẦN II. ĐỐI SOÁT CÁC YÊU CẦU NÂNG CAO THEO GÓP Ý CỦA GVHD: CÁI NÀO ĐÃ HOÀN THÀNH VÀ CÁI NÀO LÀM TRONG TUẦN 6
 
-Nhóm đã nghiêm túc rà soát toàn bộ hiện trạng kỹ thuật theo đúng chỉ đạo của Thầy Huỳnh Xuân Phụng, phân định minh bạch thành 2 nhóm rõ ràng:
+Căn cứ theo định hướng nâng cao của Thầy Huỳnh Xuân Phụng, nhóm đã rà soát toàn bộ hiện trạng kỹ thuật trong Tuần 05, phân định minh bạch thành 2 nhóm rõ ràng:
 * **Nhóm đã hoàn thành trong Tuần 05:** Đã có mã nguồn, bài kiểm thử tự động, đã cấu hình trên VPS Staging và có số liệu đo đạc thực tế.
 * **Nhóm giao làm nhiệm vụ Tuần 06:** Các phần việc kiểm thử mở rộng, đo đạc tải ở quy mô lớn hơn hoặc xây dựng dashboard giao diện trực quan hóa.
 

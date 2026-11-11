@@ -4,16 +4,13 @@
 
 ---
 
-> **CĂN CỨ ĐÁNH GIÁ & GÓP Ý TỪ GIẢNG VIÊN HƯỚNG DẪN (TUẦN 5):**
-> - **Kết quả:** **ĐÃ DUYỆT**.
-> - **Nhận xét của GVHD:** *"Báo cáo của nhóm cho thấy mức độ đầu tư rất đáng khen: cả ba thành viên đều ghi rõ MSSV, tài khoản GitHub và phân hệ phụ trách, từ cổng VNPay Sandbox với webhook IPN và SMTP của Tuấn An, đến báo cáo tài chính Excel/PDF của Khôi Nguyên, tới trung tâm thông báo SignalR và AuditLog của Trọng Tân — mỗi người một mảng thật, và con số test 27/27, 578/578, 200/200 PASS cho thấy nhóm kiểm thử nghiêm túc chứ không chạy cho có. Stack đúng yêu cầu đề tài với Angular, .NET và PostgreSQL 17, lại đã có môi trường staging chạy thật trên VPS với HTTPS qua Caddy, khai báo AI ba mục đầy đủ, kể cả những lỗi thật em gặp như checksum hay cô lập tenant — thầy thấy trung thực, và đó là điều quan trọng nhất."*
-> - **Chỉ đạo nâng cao của GVHD:**
->   1. Chuẩn hóa tiêu đề báo cáo thành **TUẦN 05** theo đúng tiến trình hệ thống LMS trường.
->   2. Thực hiện 4 yêu cầu nâng cao:
->      - *(a)* Chứng minh cô lập dữ liệu đa tenant giữa các chi nhánh bằng test tự động.
->      - *(b)* Chạy load test cho hub SignalR và luồng thanh toán VNPay.
->      - *(c)* Đưa việc deploy VPS vào CI/CD hoặc IaC thay vì thao tác tay.
->      - *(d)* Bổ sung quan sát hệ thống bằng log có cấu trúc và giám sát tập trung.
+> **MỤC TIÊU TRỌNG TÂM & ĐỊNH HƯỚNG NÂNG CAO TUẦN 05 (THEO GÓP Ý CỦA GVHD):**
+> - Chuẩn hóa tiêu đề báo cáo đúng tiến trình phân kỳ trên hệ thống LMS trường: **BÁO CÁO TUẦN 05**.
+> - Triển khai và đối soát 4 yêu cầu nâng cao:
+>   1. Chứng minh cô lập dữ liệu đa tenant giữa các chi nhánh bằng test tự động.
+>   2. Chạy load test cho hub SignalR và luồng thanh toán VNPay.
+>   3. Đưa việc deploy VPS vào CI/CD tự động thay vì thao tác tay.
+>   4. Bổ sung quan sát hệ thống bằng log có cấu trúc và giám sát tập trung.
 
 ---
 
