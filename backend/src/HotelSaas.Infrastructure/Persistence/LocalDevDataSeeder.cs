@@ -529,6 +529,21 @@ public static class LocalDevDataSeeder
                     throw new InvalidOperationException(
                         $"[SEED CONFLICT] User '{email}' exists with unexpected username '{existing.Username}'. Aborting.");
                 }
+                var modified = false;
+                if (!existing.EmailVerifiedAtUtc.HasValue)
+                {
+                    existing.EmailVerifiedAtUtc = DateTime.UtcNow;
+                    modified = true;
+                }
+                if (!existing.PhoneVerifiedAtUtc.HasValue)
+                {
+                    existing.PhoneVerifiedAtUtc = DateTime.UtcNow;
+                    modified = true;
+                }
+                if (modified)
+                {
+                    await context.SaveChangesAsync();
+                }
                 existingDataPreserved = true;
                 return existing;
             }

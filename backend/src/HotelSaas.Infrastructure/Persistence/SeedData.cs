@@ -179,6 +179,7 @@ public static class SeedData
 
         await context.SaveChangesAsync();
         await SeedPlatformAdminDataAsync(context);
+        await EnsureTestPersonnelAccountsVerifiedAsync(context);
     }
 
     /// <summary>
@@ -204,10 +205,29 @@ public static class SeedData
                 GlobalRole = GlobalUserRole.SuperAdmin,
                 IsActive = true,
                 EmailVerifiedAtUtc = DateTime.UtcNow,
+                PhoneVerifiedAtUtc = DateTime.UtcNow,
                 CreatedAtUtc = DateTime.UtcNow
             };
             context.Users.Add(superAdminUser);
             await context.SaveChangesAsync();
+        }
+        else
+        {
+            var superAdminModified = false;
+            if (!existingSuperAdmin.EmailVerifiedAtUtc.HasValue)
+            {
+                existingSuperAdmin.EmailVerifiedAtUtc = DateTime.UtcNow;
+                superAdminModified = true;
+            }
+            if (!existingSuperAdmin.PhoneVerifiedAtUtc.HasValue)
+            {
+                existingSuperAdmin.PhoneVerifiedAtUtc = DateTime.UtcNow;
+                superAdminModified = true;
+            }
+            if (superAdminModified)
+            {
+                await context.SaveChangesAsync();
+            }
         }
 
         // 1. Subscription Plans
@@ -414,5 +434,51 @@ public static class SeedData
 
         // Also ensure platform admin data is seeded even if roles already exist
         await SeedPlatformAdminDataAsync(context);
+        await EnsureTestPersonnelAccountsVerifiedAsync(context);
+    }
+
+    /// <summary>
+    /// Ensures all known seed test accounts and personnel accounts satisfy the Dual-Verification Policy
+    /// (EmailVerifiedAtUtc != null and PhoneVerifiedAtUtc != null) so that QA/E2E test roles can log in immediately.
+    /// </summary>
+    public static async Task EnsureTestPersonnelAccountsVerifiedAsync(ApplicationDbContext context)
+    {
+        var testEmails = new[]
+        {
+            "owner@hotelsaas.local",
+            "manager.both@hotelsaas.local",
+            "staff.single@hotelsaas.local",
+            "superadmin@hotelsaas.platform",
+            "admin@hotelsaas.local",
+            "receptionist.sgn@grandhotel.vn",
+            "guest.vip@hotelsaas.local"
+        };
+
+        var usersToVerify = await context.Users
+            .IgnoreQueryFilters()
+            .Where(u => testEmails.Contains(u.Email) || (u.GlobalRole != GlobalUserRole.Customer && (!u.EmailVerifiedAtUtc.HasValue && !u.PhoneVerifiedAtUtc.HasValue)))
+            .ToListAsync();
+
+        var anyModified = false;
+        var now = DateTime.UtcNow;
+
+        foreach (var user in usersToVerify)
+        {
+            if (!user.EmailVerifiedAtUtc.HasValue)
+            {
+                user.EmailVerifiedAtUtc = now;
+                anyModified = true;
+            }
+            if (!user.PhoneVerifiedAtUtc.HasValue)
+            {
+                user.PhoneVerifiedAtUtc = now;
+                anyModified = true;
+            }
+        }
+
+        if (anyModified)
+        {
+            await context.SaveChangesAsync();
+        }
     }
 }
