@@ -15,6 +15,8 @@ import {
 } from '../../core/models/policy.model';
 import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
+import { PrintDocumentsService } from '../../core/services/print-documents.service';
+import { PrintTemplateConfigDto } from '../../core/models/print-document.model';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 
 @Component({
@@ -454,6 +456,159 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
             </div>
           }
         </form>
+
+        <!-- Block 3: Cấu hình Mẫu In Hóa đơn, Phiếu Xác nhận & Tài khoản VietQR -->
+        @if (printConfigForm) {
+          <form [formGroup]="printConfigForm" (ngSubmit)="savePrintTemplateConfig()" class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-5">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-sm">
+                  <i class="pi pi-print"></i>
+                </div>
+                <div>
+                  <h2 class="text-sm font-bold text-slate-800">Cấu hình Mẫu In Hóa đơn, Voucher & VietQR</h2>
+                  <p class="text-[11px] text-slate-400">Thông tin pháp nhân, ngân hàng thụ hưởng tạo mã QR tự động và khổ giấy máy in thu ngân (A4 / K80)</p>
+                </div>
+              </div>
+
+              @if (canUpdate()) {
+                <button
+                  type="submit"
+                  [disabled]="isSavingPrintConfig()"
+                  class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                >
+                  @if (isSavingPrintConfig()) {
+                    <i class="pi pi-spin pi-spinner text-xs"></i>
+                    <span>Đang lưu mẫu in...</span>
+                  } @else {
+                    <i class="pi pi-save text-xs"></i>
+                    <span>Lưu mẫu in & VietQR</span>
+                  }
+                </button>
+              }
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div class="sm:col-span-2 space-y-1">
+                <label class="block text-xs font-semibold text-slate-700">Tên đơn vị / Khách sạn in trên đầu phiếu</label>
+                <input
+                  type="text"
+                  formControlName="headerCompanyName"
+                  placeholder="VD: Khách sạn Grand Hotel Sài Gòn"
+                  class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div class="space-y-1">
+                <label class="block text-xs font-semibold text-slate-700">Mã số thuế</label>
+                <input
+                  type="text"
+                  formControlName="taxNumber"
+                  placeholder="0318928374"
+                  class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-800 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div class="space-y-1">
+                <label class="block text-xs font-semibold text-slate-700">Hotline lễ tân / CSKH</label>
+                <input
+                  type="text"
+                  formControlName="hotline"
+                  placeholder="1900 6868"
+                  class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-800 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div class="sm:col-span-3 space-y-1">
+                <label class="block text-xs font-semibold text-slate-700">Địa chỉ in trên hóa đơn</label>
+                <input
+                  type="text"
+                  formControlName="headerAddress"
+                  placeholder="123 Đồng Khởi, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh"
+                  class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div class="space-y-1">
+                <label class="block text-xs font-semibold text-slate-700">Khổ giấy in mặc định</label>
+                <select
+                  formControlName="defaultPaperSize"
+                  class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="A4">Khổ tiêu chuẩn A4</option>
+                  <option value="K80">Khổ nhiệt thu ngân K80 (80mm)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- VietQR Banking Info -->
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <i class="pi pi-qrcode text-indigo-600"></i>
+                  <span>Tài khoản Ngân hàng tích hợp mã thanh toán VietQR tự động</span>
+                </span>
+                <label class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    formControlName="showVietQrCode"
+                    class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span>In mã VietQR lên hóa đơn</span>
+                </label>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="space-y-1">
+                  <label class="block text-[11px] font-medium text-slate-600">Ngân hàng (Mã BIN / Tên NH)</label>
+                  <input
+                    type="text"
+                    formControlName="bankName"
+                    placeholder="MBBank, Vietcombank, ACB..."
+                    class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs text-slate-800"
+                  />
+                </div>
+                <div class="space-y-1">
+                  <label class="block text-[11px] font-medium text-slate-600">Số tài khoản nhận tiền</label>
+                  <input
+                    type="text"
+                    formControlName="bankAccountNumber"
+                    placeholder="999988887777"
+                    class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-mono font-bold text-indigo-900"
+                  />
+                </div>
+                <div class="space-y-1">
+                  <label class="block text-[11px] font-medium text-slate-600">Tên chủ tài khoản</label>
+                  <input
+                    type="text"
+                    formControlName="bankAccountHolder"
+                    placeholder="CTY CP KHACH SAN..."
+                    class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs uppercase font-semibold text-slate-800"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="space-y-1">
+                <label class="block text-xs font-semibold text-slate-700">Lưu ý quy định Check-in trên Voucher</label>
+                <input
+                  type="text"
+                  formControlName="checkInPolicyText"
+                  class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800"
+                />
+              </div>
+              <div class="space-y-1">
+                <label class="block text-xs font-semibold text-slate-700">Lời cảm ơn chân trang Hóa đơn</label>
+                <input
+                  type="text"
+                  formControlName="footerNote"
+                  class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800"
+                />
+              </div>
+            </div>
+          </form>
+        }
       }
     </div>
   `
@@ -463,9 +618,11 @@ export class PoliciesPage implements OnInit, OnDestroy {
   readonly authService = inject(AuthService);
   private readonly policyService = inject(PolicyService);
   private readonly alertService = inject(AlertService);
+  private readonly printService = inject(PrintDocumentsService, { optional: true });
 
   readonly isLoading = signal(false);
   readonly isSaving = signal(false);
+  readonly isSavingPrintConfig = signal(false);
   readonly errorMessage = signal<string | null>(null);
   readonly clientErrors = signal<string[]>([]);
   readonly loadedPropertyId = signal<string | null>(null);
@@ -475,6 +632,7 @@ export class PoliciesPage implements OnInit, OnDestroy {
   readonly canUpdate = computed(() => this.authService.hasPermission('PROPERTIES', 4));
 
   policyForm!: FormGroup;
+  printConfigForm!: FormGroup;
 
   private loadSub?: Subscription;
   private saveSub?: Subscription;
@@ -514,6 +672,21 @@ export class PoliciesPage implements OnInit, OnDestroy {
       bufferMinutes: [30, [Validators.required, Validators.min(30)]],
       maxHourlyHours: [12, [Validators.required, Validators.min(1), Validators.max(24)]],
       surcharges: this.fb.array([])
+    });
+
+    this.printConfigForm = this.fb.group({
+      headerCompanyName: [''],
+      headerAddress: [''],
+      taxNumber: [''],
+      hotline: [''],
+      logoUrl: [''],
+      bankName: ['MBBank'],
+      bankAccountNumber: [''],
+      bankAccountHolder: [''],
+      footerNote: ['Cảm ơn Quý khách đã sử dụng dịch vụ của chúng tôi!'],
+      checkInPolicyText: ['Vui lòng xuất trình CCCD/Hộ chiếu khi làm thủ tục nhận phòng.'],
+      showVietQrCode: [true],
+      defaultPaperSize: ['A4']
     });
   }
 
@@ -583,6 +756,51 @@ export class PoliciesPage implements OnInit, OnDestroy {
         this.isLoading.set(false);
         const msg = err?.error?.message || err?.message || 'Không thể tải chính sách của chi nhánh.';
         this.errorMessage.set(msg);
+      }
+    });
+
+    if (this.printService) {
+      this.printService.getTemplateConfig(requestedPropId).subscribe({
+        next: (cfg: PrintTemplateConfigDto) => {
+          if (cfg && this.printConfigForm) {
+            this.printConfigForm.patchValue({
+              headerCompanyName: cfg.headerCompanyName || '',
+              headerAddress: cfg.headerAddress || '',
+              taxNumber: cfg.taxNumber || '',
+              hotline: cfg.hotline || '',
+              logoUrl: cfg.logoUrl || '',
+              bankName: cfg.bankName || 'MBBank',
+              bankAccountNumber: cfg.bankAccountNumber || '',
+              bankAccountHolder: cfg.bankAccountHolder || '',
+              footerNote: cfg.footerNote || '',
+              checkInPolicyText: cfg.checkInPolicyText || '',
+              showVietQrCode: cfg.showVietQrCode ?? true,
+              defaultPaperSize: cfg.defaultPaperSize || 'A4'
+            });
+          }
+        },
+        error: () => {}
+      });
+    }
+  }
+
+  savePrintTemplateConfig(): void {
+    if (!this.printService || !this.canUpdate() || this.isSavingPrintConfig()) return;
+    const propId = this.propertyId() || undefined;
+    const raw = this.printConfigForm.getRawValue() as PrintTemplateConfigDto;
+
+    this.isSavingPrintConfig.set(true);
+    this.printService.updateTemplateConfig(raw, propId).subscribe({
+      next: (updated) => {
+        this.isSavingPrintConfig.set(false);
+        if (updated) {
+          this.printConfigForm.patchValue(updated);
+        }
+        this.alertService.toastSuccess('Đã lưu cấu hình mẫu in hóa đơn & VietQR.', 'Thành công');
+      },
+      error: (err) => {
+        this.isSavingPrintConfig.set(false);
+        this.alertService.toastError(err?.error?.message || 'Không thể lưu cấu hình mẫu in.', 'Lỗi');
       }
     });
   }

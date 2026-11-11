@@ -529,6 +529,21 @@ public static class LocalDevDataSeeder
                     throw new InvalidOperationException(
                         $"[SEED CONFLICT] User '{email}' exists with unexpected username '{existing.Username}'. Aborting.");
                 }
+                var modified = false;
+                if (!existing.EmailVerifiedAtUtc.HasValue)
+                {
+                    existing.EmailVerifiedAtUtc = DateTime.UtcNow;
+                    modified = true;
+                }
+                if (!existing.PhoneVerifiedAtUtc.HasValue)
+                {
+                    existing.PhoneVerifiedAtUtc = DateTime.UtcNow;
+                    modified = true;
+                }
+                if (modified)
+                {
+                    await context.SaveChangesAsync();
+                }
                 existingDataPreserved = true;
                 return existing;
             }
@@ -549,6 +564,8 @@ public static class LocalDevDataSeeder
                 PasswordHash = passwordHasher.Hash(options.DefaultPassword),
                 GlobalRole = GlobalUserRole.TenantStaff,
                 IsActive = true,
+                EmailVerifiedAtUtc = DateTime.UtcNow,
+                PhoneVerifiedAtUtc = DateTime.UtcNow,
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             };

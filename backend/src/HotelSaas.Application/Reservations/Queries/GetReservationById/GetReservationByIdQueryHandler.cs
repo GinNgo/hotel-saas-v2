@@ -151,7 +151,9 @@ public sealed class GetReservationByIdQueryHandler : IRequestHandler<GetReservat
         {
             var paidAmount = await _context.Payments
                 .AsNoTracking()
-                .Where(p => p.ReservationId == r.Id && p.Status == PaymentStatus.Completed)
+                .Where(p => p.ReservationId == r.Id &&
+                            p.Status == PaymentStatus.Completed &&
+                            (p.TransactionRef == null || !p.TransactionRef.Contains("REFUND")))
                 .SumAsync(p => (decimal?)p.Amount, cancellationToken) ?? 0m;
 
             var cancelEstimate = _cancellationPolicyService.CalculateEstimate(

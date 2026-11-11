@@ -329,6 +329,30 @@ public sealed class ReservationsController : ControllerBase
         var result = await _mediator.Send(command, cancellationToken);
         return Ok(result);
     }
+
+    /// <summary>
+    /// Sweeps and releases expired 15-minute online booking holds for the property, notifying staff via SignalR.
+    /// </summary>
+    [HttpPost("sweep-expired-holds")]
+    [RequirePermission("RESERVATIONS", PermissionAction.Update)]
+    public async Task<IActionResult> SweepExpiredHolds(
+        [FromQuery] Guid propertyId,
+        CancellationToken cancellationToken)
+    {
+        var targetPropertyId = propertyId;
+        if (targetPropertyId == Guid.Empty && Request.Headers.TryGetValue("X-Property-Id", out var headerProp) && Guid.TryParse(headerProp, out var parsedProp))
+        {
+            targetPropertyId = parsedProp;
+        }
+
+        if (targetPropertyId == Guid.Empty)
+        {
+            return BadRequest(new { code = "ERR_PROPERTY_REQUIRED", message = "Property context is required." });
+        }
+
+        var count = await _mediator.Send(new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(targetPropertyId), cancellationToken);
+        return Ok(new { sweptCount = count });
+    }
 }
 
 public sealed record AddFolioItemRequest(

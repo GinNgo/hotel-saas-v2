@@ -43,11 +43,20 @@ export function publicStayInterval(stay: PublicStayContext, property: PublicProp
   const startClock = stay.rentalType === 'Hourly' ? stay.checkInTime : property.checkInTime?.slice(0, 5);
   const endClock = property.checkOutTime?.slice(0, 5);
   if (!startClock || (stay.rentalType !== 'Hourly' && !endClock)) throw new Error('Cơ sở chưa công bố giờ nhận/trả phòng.');
-  const start = new Date(`${stay.checkInDate}T${startClock}:00+07:00`);
+  let start = new Date(`${stay.checkInDate}T${startClock}:00+07:00`);
   const end = stay.rentalType === 'Hourly'
     ? new Date(start.getTime() + stay.durationHours * 3600000)
     : new Date(`${stay.checkOutDate}T${endClock}:00+07:00`);
-  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start || start <= new Date()) throw new Error('Khoảng thời gian lưu trú không hợp lệ hoặc đã qua.');
+  const now = new Date();
+  if (stay.rentalType !== 'Hourly' && Number.isFinite(start.getTime()) && Number.isFinite(end.getTime()) && start <= now && now < end) {
+    const todayVn = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(now);
+    const immediateStart = new Date(now.getTime() + 5 * 60 * 1000);
+    const immediateDateVn = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(immediateStart);
+    if (stay.checkInDate === todayVn && immediateDateVn === stay.checkInDate && immediateStart < end) {
+      start = immediateStart;
+    }
+  }
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start || start <= now) throw new Error('Khoảng thời gian lưu trú không hợp lệ hoặc đã qua.');
   return { rentalType: stay.rentalType === 'Hourly' ? 1 : stay.rentalType === 'Overnight' ? 2 : 3,
     startAtUtc: start.toISOString(), endAtUtc: end.toISOString(),
     checkInDate: stay.checkInDate, checkOutDate: stay.checkOutDate };

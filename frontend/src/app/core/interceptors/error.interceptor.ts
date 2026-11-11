@@ -55,6 +55,16 @@ export const errorInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, n
       }
 
       if (error.status === 403) {
+        const isStaffOrPropertyEndpoint =
+          requestPath.startsWith(`${apiPath}/staff`) ||
+          requestPath.startsWith(`${apiPath}/properties`) ||
+          requestPath.startsWith(`${apiPath}/rooms`) ||
+          requestPath.startsWith(`${apiPath}/audit-logs`) ||
+          requestPath.startsWith(`${apiPath}/reports`);
+        const isSuperAdmin = authService.currentUser?.globalRole === 'SuperAdmin';
+        if (isStaffOrPropertyEndpoint || isSuperAdmin || req.method !== 'GET') {
+          return throwError(() => error);
+        }
         notification.error('Bạn không có quyền thực hiện thao tác này.');
         router.navigate(['/forbidden']);
         return throwError(() => error);
@@ -73,7 +83,9 @@ export const errorInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, n
       }
 
       if (error.status >= 500) {
-        notification.error('Lỗi hệ thống. Vui lòng thử lại sau.');
+        if (!requestPath.endsWith('/audit-logs')) {
+          notification.error('Lỗi hệ thống. Vui lòng thử lại sau.');
+        }
         return throwError(() => error);
       }
 

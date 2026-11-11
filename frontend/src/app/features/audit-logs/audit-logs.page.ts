@@ -23,16 +23,29 @@ import { DateRangeFilterComponent, DateRangeFilterValue } from '../../shared/com
         [title]="'Nhật ký kiểm toán (Audit Logs)'"
         subtitle="Theo dõi và tra cứu toàn bộ lịch sử chỉnh sửa giá phòng, phụ thu và các thao tác quan trọng trong hệ thống"
       >
-        <button
-          type="button"
-          (click)="loadAuditLogs()"
-          [disabled]="loading()"
-          class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 active:bg-slate-100 shadow-2xs transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-          title="Tải lại danh sách"
-        >
-          <i class="pi pi-refresh text-xs text-indigo-600" [class.pi-spin]="loading()"></i>
-          <span>Làm mới</span>
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            (click)="loadAuditLogs()"
+            [disabled]="loading()"
+            class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 active:bg-slate-100 shadow-2xs transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            title="Tải lại danh sách"
+          >
+            <i class="pi pi-refresh text-xs text-indigo-600" [class.pi-spin]="loading()"></i>
+            <span>Làm mới</span>
+          </button>
+
+          <button
+            type="button"
+            (click)="exportToCsv()"
+            [disabled]="exporting() || loading() || auditLogs().length === 0"
+            class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-2xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Xuất dữ liệu nhật ký kiểm toán ra định dạng CSV phục vụ báo cáo"
+          >
+            <i class="pi text-xs" [ngClass]="exporting() ? 'pi-spin pi-spinner' : 'pi-file-excel'"></i>
+            <span>{{ exporting() ? 'Đang xuất CSV...' : 'Xuất CSV' }}</span>
+          </button>
+        </div>
       </app-page-header>
 
       <!-- 2. PHÂN QUYỀN: BẢO VỆ CHỈ OWNER / MANAGER -->
@@ -81,9 +94,17 @@ import { DateRangeFilterComponent, DateRangeFilterValue } from '../../shared/com
                 class="w-full h-10 px-3 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-800 focus:bg-white focus:outline-indigo-500 transition-all cursor-pointer"
               >
                 <option value="">Tất cả đối tượng</option>
+                <option value="Property">Cơ sở / Chi nhánh (Property)</option>
+                <option value="Room">Phòng lưu trú (Room)</option>
+                <option value="RoomType">Loại phòng (RoomType)</option>
                 <option value="RoomTypeRate">Bảng giá phòng (RoomTypeRate)</option>
                 <option value="PropertySurchargePolicy">Phụ thu chi nhánh (SurchargePolicy)</option>
+                <option value="Reservation">Đơn đặt phòng (Reservation)</option>
+                <option value="Payment">Thanh toán & Giao dịch (Payment)</option>
                 <option value="Invoice">Hóa đơn (Invoice)</option>
+                <option value="TenantStaff">Tài khoản Nhân sự (TenantStaff)</option>
+                <option value="AccessRole">Chức vụ & Quyền hạn (AccessRole)</option>
+                <option value="HousekeepingTask">Buồng phòng (Housekeeping)</option>
               </select>
             </div>
 
@@ -604,6 +625,7 @@ export class AuditLogsPage implements OnInit {
   private readonly router = inject(Router);
 
   readonly loading = signal(false);
+  readonly exporting = signal(false);
   readonly errorMessage = signal('');
   readonly auditLogs = signal<AuditLogListItem[]>([]);
   readonly totalRecords = signal(0);
@@ -629,7 +651,7 @@ export class AuditLogsPage implements OnInit {
     const user = this.authService.currentUser;
     if (!user) return false;
     const globalRole = user.globalRole;
-    if (globalRole === 'Owner' || globalRole === 'PlatformAdmin') return true;
+    if (globalRole === 'Owner' || globalRole === 'SuperAdmin' || globalRole === 'PlatformAdmin') return true;
 
     const activeRole = this.authService.activeRoleName();
     if (activeRole === 'Owner' || activeRole === 'Manager') return true;
@@ -750,6 +772,138 @@ export class AuditLogsPage implements OnInit {
     this.loadAuditLogs();
   }
 
+  /**
+   * Xuất danh sách nhật ký kiểm toán hiện tại ra file CSV theo chuẩn báo cáo kiểm toán doanh nghiệp.
+   */
+  exportToCsv(): void {
+    if (this.auditLogs().length === 0) {
+      this.alertService.toastWarning('Không có dữ liệu nhật ký kiểm toán để xuất file CSV.');
+      return;
+    }
+
+    this.exporting.set(true);
+
+    // Chuẩn bị bộ lọc để xuất toàn bộ danh sách phù hợp (tối đa 1000 bản ghi theo giới hạn API)
+    const totalCount = this.totalRecords();
+    const currentItems = this.auditLogs();
+
+    if (totalCount <= currentItems.length) {
+      this.generateAndDownloadCsv(currentItems);
+      this.exporting.set(false);
+      return;
+    }
+
+    const params: AuditLogFilterParams = {
+      action: this.selectedAction.trim() || undefined,
+      entityName: this.selectedEntityName.trim() || undefined,
+      propertyId: this.authService.activePropertyId() || undefined,
+      page: 1,
+      pageSize: Math.min(Math.max(totalCount, 50), 1000)
+    };
+
+    if (this.fromUtc) {
+      params.fromUtc = this.fromUtc;
+    } else if (this.fromDate) {
+      params.fromUtc = new Date(this.fromDate + 'T00:00:00Z').toISOString();
+    }
+    if (this.toUtc) {
+      params.toUtc = this.toUtc;
+    } else if (this.toDate) {
+      params.toUtc = new Date(this.toDate + 'T23:59:59Z').toISOString();
+    }
+    if (this.searchKeyword.trim()) {
+      const kw = this.searchKeyword.trim();
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(kw)) {
+        params.entityId = kw;
+      }
+    }
+
+    this.auditLogService.getAuditLogs(params).subscribe({
+      next: res => {
+        this.exporting.set(false);
+        const exportItems = res.success && res.data && res.data.items.length > 0 ? res.data.items : currentItems;
+        this.generateAndDownloadCsv(exportItems);
+      },
+      error: () => {
+        this.exporting.set(false);
+        // Fallback xuất những gì đang có trên view hiện tại
+        this.generateAndDownloadCsv(currentItems);
+      }
+    });
+  }
+
+  private generateAndDownloadCsv(items: AuditLogListItem[]): void {
+    if (!items || items.length === 0) {
+      this.alertService.toastWarning('Không có dữ liệu để xuất file CSV.');
+      return;
+    }
+
+    const headers = [
+      'Mã kiểm toán (ID)',
+      'Thời gian (UTC)',
+      'Thời gian (Địa phương)',
+      'Chi nhánh',
+      'Mã chi nhánh',
+      'Người thực hiện',
+      'Email người thực hiện',
+      'Hành động',
+      'Đối tượng nghiệp vụ',
+      'Mã đối tượng (Entity ID)',
+      'Tóm tắt thay đổi',
+      'Các trường thay đổi'
+    ];
+
+    const rows = items.map(item => {
+      const localTime = item.createdAtUtc ? new Date(item.createdAtUtc).toLocaleString('vi-VN') : '';
+      const actionLabel = this.getActionLabel(item.action);
+      const entityLabel = this.getEntityDisplayLabel(item.entityName);
+      const changedFieldsStr = (item.changedFields || []).map(f => this.getFieldDisplayLabel(f)).join(', ');
+      const friendlySummary = this.getFriendlySummary(item.changeSummary, item.action, item.entityName);
+
+      return [
+        this.escapeCsvCell(item.id),
+        this.escapeCsvCell(item.createdAtUtc),
+        this.escapeCsvCell(localTime),
+        this.escapeCsvCell(item.propertyName || 'Toàn chuỗi / HQ'),
+        this.escapeCsvCell(item.propertyCode || 'HQ'),
+        this.escapeCsvCell(item.userFullName || 'Hệ thống tự động'),
+        this.escapeCsvCell(item.userEmail || ''),
+        this.escapeCsvCell(actionLabel),
+        this.escapeCsvCell(`${entityLabel} (${item.entityName})`),
+        this.escapeCsvCell(item.entityId),
+        this.escapeCsvCell(friendlySummary),
+        this.escapeCsvCell(changedFieldsStr)
+      ].join(',');
+    });
+
+    // Thêm UTF-8 BOM (\uFEFF) để Excel mở tiếng Việt chuẩn xác không bị lỗi font
+    const csvContent = '\uFEFF' + [headers.map(h => this.escapeCsvCell(h)).join(','), ...rows].join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10);
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+    const propCode = this.authService.activePropertyCode() || 'HQ';
+    link.setAttribute('download', `audit_logs_${propCode}_${dateStr}_${timeStr}.csv`);
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    this.alertService.toastSuccess(`Đã xuất thành công ${items.length} bản ghi kiểm toán ra file CSV.`);
+  }
+
+  private escapeCsvCell(val: any): string {
+    if (val === null || val === undefined) return '""';
+    const str = String(val).replace(/"/g, '""');
+    return `"${str}"`;
+  }
+
   onPageChange(page: number): void {
     this.currentPage.set(page);
     this.loadAuditLogs();
@@ -867,9 +1021,17 @@ export class AuditLogsPage implements OnInit {
 
   getEntityDisplayLabel(name?: string): string {
     switch (name) {
+      case 'Property': return 'Cơ sở & Chi nhánh';
+      case 'Room': return 'Phòng lưu trú';
+      case 'RoomType': return 'Loại phòng';
       case 'RoomTypeRate': return 'Bảng giá phòng';
       case 'PropertySurchargePolicy': return 'Phụ thu chi nhánh';
+      case 'Reservation': return 'Đơn đặt phòng';
+      case 'Payment': return 'Giao dịch thanh toán';
       case 'Invoice': return 'Hóa đơn thanh toán';
+      case 'TenantStaff': return 'Tài khoản nhân sự';
+      case 'AccessRole': return 'Chức vụ & Quyền hạn';
+      case 'HousekeepingTask': return 'Nhiệm vụ buồng phòng';
       default: return name || 'Bản ghi';
     }
   }
@@ -879,6 +1041,49 @@ export class AuditLogsPage implements OnInit {
    */
   getFieldDisplayLabel(fieldName: string): string {
     const labels: Record<string, string> = {
+      // Property
+      Name: 'Tên đối tượng',
+      Code: 'Mã ký hiệu',
+      Slug: 'Đường dẫn liên kết (Slug)',
+      Address: 'Địa chỉ cơ sở',
+      City: 'Tỉnh / Thành phố',
+      PhoneNumber: 'Số điện thoại liên hệ',
+      Email: 'Email liên hệ',
+      StarRating: 'Xếp hạng sao',
+      CheckInTime: 'Giờ nhận phòng tiêu chuẩn',
+      CheckOutTime: 'Giờ trả phòng tiêu chuẩn',
+      BufferMinutes: 'Thời gian dọn phòng (phút)',
+      MaxHourlyHours: 'Số giờ tối đa thuê theo giờ',
+      TaxRatePercent: 'Tỷ lệ thuế VAT (%)',
+      // Room
+      RoomNumber: 'Số phòng',
+      Floor: 'Tầng',
+      CleanlinessStatus: 'Tình trạng vệ sinh',
+      // RoomType
+      BasePrice: 'Giá phòng tiêu chuẩn',
+      StandardOccupancy: 'Số khách tiêu chuẩn',
+      MaxOccupancy: 'Số khách tối đa',
+      // Reservation
+      ConfirmationCode: 'Mã xác nhận đơn',
+      GuestName: 'Họ tên khách lưu trú',
+      GuestEmail: 'Email khách lưu trú',
+      GuestPhone: 'Số điện thoại khách',
+      CheckInDate: 'Ngày nhận phòng',
+      CheckOutDate: 'Ngày trả phòng',
+      NumberOfGuests: 'Số lượng khách',
+      CancellationReason: 'Lý do hủy đơn',
+      // Payment
+      Amount: 'Số tiền thanh toán',
+      Method: 'Phương thức thanh toán',
+      TransactionRef: 'Mã giao dịch ngân hàng',
+      // Staff & RBAC
+      StaffRole: 'Chức danh nhân viên',
+      RoleId: 'Chức vụ phân quyền',
+      IsSystemRole: 'Vai trò mặc định hệ thống',
+      Description: 'Mô tả vai trò',
+      // Housekeeping
+      Priority: 'Mức độ ưu tiên dọn dẹp',
+      AssignedToUserId: 'Nhân viên phụ trách',
       // RoomTypeRate
       NightlyPrice: 'Giá thuê theo đêm',
       FirstHours: 'Số giờ ban đầu',
@@ -905,11 +1110,11 @@ export class AuditLogsPage implements OnInit {
       SubTotal: 'Tổng tiền dịch vụ',
       TaxAmount: 'Tiền thuế VAT',
       DiscountAmount: 'Tiền giảm giá',
-      Status: 'Trạng thái hóa đơn',
+      Status: 'Trạng thái nghiệp vụ',
       IssuedAtUtc: 'Thời điểm phát hành',
       DueAtUtc: 'Hạn thanh toán',
       PaidAtUtc: 'Thời điểm thanh toán',
-      Notes: 'Ghi chú hóa đơn',
+      Notes: 'Ghi chú nghiệp vụ',
       PaymentMethod: 'Phương thức thanh toán',
       // Common
       Id: 'Mã bản ghi (ID)',
@@ -928,9 +1133,17 @@ export class AuditLogsPage implements OnInit {
     let s = summary;
 
     // Thay thế tên Entity
+    s = s.replace(/\bProperty\b/g, 'Cơ sở/Chi nhánh');
+    s = s.replace(/\bRoom\b/g, 'Phòng');
+    s = s.replace(/\bRoomType\b/g, 'Loại phòng');
     s = s.replace(/\bRoomTypeRate\b/g, 'Bảng giá phòng');
     s = s.replace(/\bPropertySurchargePolicy\b/g, 'Phụ thu chi nhánh');
+    s = s.replace(/\bReservation\b/g, 'Đơn đặt phòng');
+    s = s.replace(/\bPayment\b/g, 'Giao dịch thanh toán');
     s = s.replace(/\bInvoice\b/g, 'Hóa đơn');
+    s = s.replace(/\bTenantStaff\b/g, 'Tài khoản nhân sự');
+    s = s.replace(/\bAccessRole\b/g, 'Chức vụ phân quyền');
+    s = s.replace(/\bHousekeepingTask\b/g, 'Buồng phòng');
 
     // Loại bỏ các GUID dài trong chuỗi mô tả chính
     s = s.replace(/,?\s*(RoomTypeId|CreatedByUserId|TenantId|PropertyId|Id)=[0-9a-f-]{36}/gi, '');

@@ -37,6 +37,13 @@ public sealed class PermissionAuthorizationHandler : AuthorizationHandler<Permis
         AuthorizationHandlerContext context,
         PermissionRequirement requirement)
     {
+        // Platform SuperAdmin users bypass all permission checks
+        if (_userContext.GlobalRole == GlobalUserRole.SuperAdmin)
+        {
+            context.Succeed(requirement);
+            return;
+        }
+
         // Fail-closed: Must possess an authoritative role resolved by context middleware
         if (!_userContext.RoleId.HasValue || _userContext.RoleId.Value == Guid.Empty)
         {

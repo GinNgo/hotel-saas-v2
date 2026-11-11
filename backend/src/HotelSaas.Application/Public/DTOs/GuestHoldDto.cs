@@ -33,5 +33,6 @@ public sealed class GuestHoldDto
     public string Status { get; set; } = "PendingPayment";
     public int PointsRedeemed { get; set; }
     public decimal PointsDiscountAmount { get; set; }
+    public bool IsPhoneVerified { get; set; }
     public IReadOnlyList<QuoteBreakdownItemDto> Breakdown { get; set; } = Array.Empty<QuoteBreakdownItemDto>();
 }

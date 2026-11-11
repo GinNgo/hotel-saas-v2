@@ -10,7 +10,7 @@ import { PaymentService } from '../../core/services/payment.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
-import { RoomDto } from '../../core/models/room.model';
+import { RoomDto, CreateRoomRequest, UpdateRoomRequest } from '../../core/models/room.model';
 import { RoomStatus, ROOM_STATUS_LABELS } from '../../core/models/enums';
 import { ReservationDto, CreateReservationRequest, RentalType } from '../../core/models/reservation.model';
 import { RoomTypeDto } from '../../core/models/room-type.model';
@@ -96,6 +96,16 @@ export interface QuickMinibarCatalogItem {
               <span>Danh sách</span>
             </button>
           </div>
+
+          <!-- Add Physical Room Button -->
+          <button
+            type="button"
+            (click)="openCreateRoomModal()"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm shadow-2xs transition-colors cursor-pointer"
+          >
+            <i class="pi pi-plus text-xs text-emerald-600"></i>
+            <span>Thêm phòng</span>
+          </button>
 
           <!-- Quick Walk-in Button -->
           <button
@@ -298,11 +308,21 @@ export interface QuickMinibarCatalogItem {
                       <span class="text-base font-extrabold text-slate-900 font-mono tracking-tight group-hover:text-emerald-700">
                         {{ room.roomNumber }}
                       </span>
-                      <span
-                        class="w-2.5 h-2.5 rounded-full"
-                        [ngClass]="getRoomDotClass(room)"
-                        [title]="getRoomStatusLabel(room)"
-                      ></span>
+                      <div class="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          (click)="$event.stopPropagation(); openEditRoomModal(room)"
+                          class="opacity-0 group-hover:opacity-100 w-5 h-5 rounded-md bg-white/90 hover:bg-white text-slate-500 hover:text-emerald-700 border border-slate-200/80 flex items-center justify-center transition-opacity cursor-pointer"
+                          title="Chỉnh sửa thông tin phòng"
+                        >
+                          <i class="pi pi-pencil text-[9px]"></i>
+                        </button>
+                        <span
+                          class="w-2.5 h-2.5 rounded-full"
+                          [ngClass]="getRoomDotClass(room)"
+                          [title]="getRoomStatusLabel(room)"
+                        ></span>
+                      </div>
                     </div>
 
                     <!-- Middle: Room Type & Pricing / Guest Info -->
@@ -396,43 +416,61 @@ export interface QuickMinibarCatalogItem {
                         <span class="text-slate-400">—</span>
                       }
                     </td>
-                    <td class="py-3 px-4 text-right">
-                      @if (room.status === 'Clean') {
+                    <td class="py-3 px-4 text-right whitespace-nowrap">
+                      <div class="inline-flex items-center justify-end gap-1.5">
+                        @if (room.status === 'Clean') {
+                          <button
+                            type="button"
+                            (click)="openQuickWalkinForRoom(room)"
+                            class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold text-xs transition-colors cursor-pointer"
+                          >
+                            Walk-in
+                          </button>
+                        } @else if (room.status === 'Occupied') {
+                          <button
+                            type="button"
+                            (click)="openFolioModalForRoom(room)"
+                            class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-semibold text-xs border border-indigo-200 transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                          >
+                            <i class="pi pi-plus text-[10px]"></i>
+                            <span>Minibar</span>
+                          </button>
+                        } @else if (room.status === 'Dirty') {
+                          <button
+                            type="button"
+                            (click)="changeRoomStatus(room, RoomStatus.Cleaning)"
+                            class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 font-semibold text-xs transition-colors cursor-pointer"
+                          >
+                            Bắt đầu dọn
+                          </button>
+                        } @else if (room.status === 'Cleaning') {
+                          <button
+                            type="button"
+                            (click)="changeRoomStatus(room, RoomStatus.Clean)"
+                            class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold text-xs transition-colors cursor-pointer"
+                          >
+                            Xong dọn
+                          </button>
+                        }
                         <button
                           type="button"
-                          (click)="openQuickWalkinForRoom(room)"
-                          class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold text-xs transition-colors cursor-pointer"
+                          (click)="openEditRoomModal(room)"
+                          class="px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
+                          title="Chỉnh sửa phòng"
                         >
-                          Walk-in
+                          <i class="pi pi-pencil text-[10px]"></i>
                         </button>
-                      } @else if (room.status === 'Occupied') {
-                        <button
-                          type="button"
-                          (click)="openFolioModalForRoom(room)"
-                          class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-semibold text-xs border border-indigo-200 transition-colors cursor-pointer flex items-center gap-1.5 inline-flex"
-                        >
-                          <i class="pi pi-plus text-[10px]"></i>
-                          <span>Minibar</span>
-                        </button>
-                      } @else if (room.status === 'Dirty') {
-                        <button
-                          type="button"
-                          (click)="changeRoomStatus(room, RoomStatus.Cleaning)"
-                          class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 font-semibold text-xs transition-colors cursor-pointer"
-                        >
-                          Bắt đầu dọn
-                        </button>
-                      } @else if (room.status === 'Cleaning') {
-                        <button
-                          type="button"
-                          (click)="changeRoomStatus(room, RoomStatus.Clean)"
-                          class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold text-xs transition-colors cursor-pointer"
-                        >
-                          Xong dọn
-                        </button>
-                      } @else {
-                        <span class="text-slate-400 text-xs">Đang phục vụ</span>
-                      }
+                        @if (room.status !== 'Occupied') {
+                          <button
+                            type="button"
+                            (click)="confirmDeleteRoom(room)"
+                            class="px-2 py-1 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs transition-colors cursor-pointer"
+                            title="Xóa phòng"
+                          >
+                            <i class="pi pi-trash text-[10px]"></i>
+                          </button>
+                        }
+                      </div>
                     </td>
                   </tr>
                 }
@@ -1005,6 +1043,195 @@ export interface QuickMinibarCatalogItem {
         </div>
       </div>
     }
+
+    <!-- Physical Room Create / Edit Modal Dialog -->
+    @if (isRoomCrudModalOpen()) {
+      <div
+        class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto"
+        (click)="closeRoomCrudModal()"
+      >
+        <div
+          (click)="$event.stopPropagation()"
+          class="bg-white rounded-2xl shadow-2xl border border-slate-200/80 max-w-lg w-full p-6 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-150"
+        >
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
+                <i class="pi pi-building text-sm"></i>
+              </div>
+              <div>
+                <h2 class="text-base sm:text-lg font-bold text-slate-900">
+                  {{ editingRoom() ? 'Chỉnh sửa Phòng ' + editingRoom()!.roomNumber : 'Thêm Phòng Vật Lý Mới' }}
+                </h2>
+                <p class="text-xs text-slate-500">
+                  Thiết lập số phòng, tầng, loại phòng và ghi chú kỹ thuật
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              (click)="closeRoomCrudModal()"
+              class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+            >
+              <i class="pi pi-times text-sm"></i>
+            </button>
+          </div>
+
+          <form [formGroup]="roomCrudForm" (ngSubmit)="submitRoomCrud()" class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <!-- Số phòng -->
+              <div class="space-y-1.5">
+                <label class="block text-xs font-bold text-slate-700">
+                  Số phòng / Mã phòng <span class="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  formControlName="roomNumber"
+                  placeholder="VD: 101, 205, V01..."
+                  class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-mono font-bold focus:border-emerald-600 focus:outline-hidden bg-white"
+                />
+              </div>
+
+              <!-- Tầng -->
+              <div class="space-y-1.5">
+                <label class="block text-xs font-bold text-slate-700">
+                  Tầng (Floor) <span class="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  formControlName="floor"
+                  class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-mono focus:border-emerald-600 focus:outline-hidden bg-white"
+                />
+              </div>
+            </div>
+
+            <!-- Hạng phòng -->
+            <div class="space-y-1.5">
+              <label class="block text-xs font-bold text-slate-700">
+                Loại phòng (Room Type) <span class="text-rose-500">*</span>
+              </label>
+              <select
+                formControlName="roomTypeId"
+                class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold text-slate-800 focus:border-emerald-600 focus:outline-hidden bg-white"
+              >
+                <option value="">-- Chọn hạng phòng --</option>
+                @for (rt of roomTypes(); track rt.id) {
+                  <option [value]="rt.id">{{ rt.name }} ({{ rt.code }} - {{ rt.basePrice | number:'1.0-0' }}₫)</option>
+                }
+              </select>
+            </div>
+
+            <!-- Ghi chú kỹ thuật -->
+            <div class="space-y-1.5">
+              <label class="block text-xs font-bold text-slate-700">Ghi chú phòng (Hướng nhìn, đặc điểm)</label>
+              <input
+                type="text"
+                formControlName="notes"
+                placeholder="VD: Phòng góc có ban công hướng sông, gần thang máy..."
+                class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:border-emerald-600 focus:outline-hidden bg-white"
+              />
+            </div>
+
+            @if (editingRoom()) {
+              <div class="pt-1 flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div>
+                  <span class="block text-xs font-bold text-slate-800">Trạng thái kinh doanh</span>
+                  <span class="text-[11px] text-slate-500">Cho phép nhận khách và hiển thị trên sơ đồ</span>
+                </div>
+                <input
+                  type="checkbox"
+                  formControlName="isActive"
+                  class="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                />
+              </div>
+            }
+
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+              @if (editingRoom() && editingRoom()!.status !== 'Occupied') {
+                <button
+                  type="button"
+                  (click)="confirmDeleteRoom(editingRoom()!)"
+                  class="px-3.5 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <i class="pi pi-trash text-xs"></i>
+                  <span>Xóa phòng</span>
+                </button>
+              } @else {
+                <span></span>
+              }
+
+              <div class="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  (click)="closeRoomCrudModal()"
+                  class="px-4 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  [disabled]="roomCrudForm.invalid || isSubmittingRoomCrud()"
+                  class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-xs sm:text-sm font-semibold shadow-sm transition-all cursor-pointer inline-flex items-center gap-2"
+                >
+                  @if (isSubmittingRoomCrud()) {
+                    <i class="pi pi-spin pi-spinner text-xs"></i>
+                  }
+                  <span>{{ editingRoom() ? 'Lưu cập nhật' : 'Tạo phòng mới' }}</span>
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    }
+
+    <!-- Delete Physical Room Confirmation Dialog -->
+    @if (deletingRoom(); as targetRoom) {
+      <div
+        class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[110] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+        (click)="deletingRoom.set(null)"
+      >
+        <div
+          (click)="$event.stopPropagation()"
+          class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150"
+        >
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
+              <i class="pi pi-exclamation-triangle text-lg"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-slate-900">Xác nhận xóa phòng {{ targetRoom.roomNumber }}</h3>
+              <p class="text-xs text-slate-600 mt-1 leading-relaxed">
+                Bạn có chắc chắn muốn xóa phòng <strong class="text-slate-900">Phòng {{ targetRoom.roomNumber }} (Tầng {{ targetRoom.floor }} - {{ targetRoom.roomTypeName }})</strong> khỏi sơ đồ chi nhánh?
+              </p>
+            </div>
+          </div>
+
+          <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+            <button
+              type="button"
+              (click)="deletingRoom.set(null)"
+              class="px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              [disabled]="isSubmittingRoomCrud()"
+              (click)="executeDeleteRoom()"
+              class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5"
+            >
+              @if (isSubmittingRoomCrud()) {
+                <i class="pi pi-spin pi-spinner text-xs"></i>
+              }
+              <span>Xác nhận xóa phòng</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    }
   `
 })
 export class RoomsPage implements OnInit {
@@ -1034,6 +1261,20 @@ export class RoomsPage implements OnInit {
   activeFolioReservation = signal<ReservationDto | null>(null);
   currentFolio = signal<FolioDto | null>(null);
   isAddingFolioItem = signal<boolean>(false);
+
+  // Physical Room CRUD state
+  isRoomCrudModalOpen = signal<boolean>(false);
+  editingRoom = signal<ExtendedRoomDto | null>(null);
+  deletingRoom = signal<ExtendedRoomDto | null>(null);
+  isSubmittingRoomCrud = signal<boolean>(false);
+
+  roomCrudForm: FormGroup = this.fb.group({
+    roomNumber: ['', [Validators.required, Validators.maxLength(20)]],
+    floor: [1, [Validators.required, Validators.min(1), Validators.max(100)]],
+    roomTypeId: ['', [Validators.required]],
+    notes: [''],
+    isActive: [true]
+  });
 
   customItemName = signal<string>('');
   customItemPrice = signal<number | null>(null);
@@ -1713,5 +1954,109 @@ export class RoomsPage implements OnInit {
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
+  }
+
+  // --- Physical Room CRUD Methods ---
+  openCreateRoomModal(): void {
+    this.editingRoom.set(null);
+    const defaultRt = this.roomTypes()[0]?.id || '';
+    this.roomCrudForm.reset({
+      roomNumber: '',
+      floor: 1,
+      roomTypeId: defaultRt,
+      notes: '',
+      isActive: true
+    });
+    this.isRoomCrudModalOpen.set(true);
+  }
+
+  openEditRoomModal(room: ExtendedRoomDto): void {
+    this.editingRoom.set(room);
+    this.roomCrudForm.reset({
+      roomNumber: room.roomNumber,
+      floor: room.floor,
+      roomTypeId: room.roomTypeId,
+      notes: room.notes || '',
+      isActive: room.isActive ?? true
+    });
+    this.isRoomCrudModalOpen.set(true);
+  }
+
+  closeRoomCrudModal(): void {
+    this.isRoomCrudModalOpen.set(false);
+    this.editingRoom.set(null);
+  }
+
+  submitRoomCrud(): void {
+    if (this.roomCrudForm.invalid || this.isSubmittingRoomCrud()) return;
+
+    const val = this.roomCrudForm.getRawValue();
+    this.isSubmittingRoomCrud.set(true);
+    const editing = this.editingRoom();
+
+    if (editing) {
+      const req: UpdateRoomRequest = {
+        roomNumber: String(val.roomNumber || '').trim(),
+        floor: Number(val.floor),
+        roomTypeId: String(val.roomTypeId),
+        notes: val.notes ? String(val.notes).trim() : undefined,
+        isActive: Boolean(val.isActive)
+      };
+      this.roomService.updateRoom(editing.id, req).subscribe({
+        next: () => {
+          this.isSubmittingRoomCrud.set(false);
+          this.closeRoomCrudModal();
+          this.alertService.toastSuccess(`Đã cập nhật thông tin phòng ${req.roomNumber}.`, 'Thành công');
+          this.loadData();
+        },
+        error: err => {
+          this.isSubmittingRoomCrud.set(false);
+          this.alertService.toastError(err?.error?.message || 'Không thể cập nhật thông tin phòng.', 'Lỗi');
+        }
+      });
+    } else {
+      const req: CreateRoomRequest = {
+        roomNumber: String(val.roomNumber || '').trim(),
+        floor: Number(val.floor),
+        roomTypeId: String(val.roomTypeId),
+        notes: val.notes ? String(val.notes).trim() : undefined
+      };
+      this.roomService.createRoom(req).subscribe({
+        next: () => {
+          this.isSubmittingRoomCrud.set(false);
+          this.closeRoomCrudModal();
+          this.alertService.toastSuccess(`Đã thêm phòng ${req.roomNumber} (Tầng ${req.floor}) vào sơ đồ.`, 'Thành công');
+          this.loadData();
+        },
+        error: err => {
+          this.isSubmittingRoomCrud.set(false);
+          this.alertService.toastError(err?.error?.message || 'Không thể thêm phòng mới. Kiểm tra trùng số phòng.', 'Lỗi');
+        }
+      });
+    }
+  }
+
+  confirmDeleteRoom(room: ExtendedRoomDto): void {
+    this.isRoomCrudModalOpen.set(false);
+    this.deletingRoom.set(room);
+  }
+
+  executeDeleteRoom(): void {
+    const target = this.deletingRoom();
+    if (!target || this.isSubmittingRoomCrud()) return;
+
+    this.isSubmittingRoomCrud.set(true);
+    this.roomService.deleteRoom(target.id).subscribe({
+      next: () => {
+        this.isSubmittingRoomCrud.set(false);
+        this.deletingRoom.set(null);
+        this.alertService.toastSuccess(`Đã xóa phòng ${target.roomNumber} khỏi sơ đồ chi nhánh.`, 'Đã xóa');
+        this.loadData();
+      },
+      error: err => {
+        this.isSubmittingRoomCrud.set(false);
+        this.alertService.toastError(err?.error?.message || 'Không thể xóa phòng này (có thể phòng đã phát sinh lịch sử đặt phòng).', 'Lỗi');
+      }
+    });
   }
 }

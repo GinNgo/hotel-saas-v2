@@ -403,8 +403,8 @@ public sealed class BookingHttpPipelineTests
                 propertyId = propId,
                 roomId = room1Id,
                 rentalType = 1, // Hourly
-                startAtUtc = "2026-11-10T07:00:00Z", // 14:00 VN
-                endAtUtc = "2026-11-10T09:00:00Z",   // 16:00 VN (2 hours)
+                startAtUtc = "2026-11-18T07:00:00Z", // 14:00 VN
+                endAtUtc = "2026-11-18T09:00:00Z",   // 16:00 VN (2 hours)
                 guestName = "Nguyen Van A",
                 guestEmail = "nguyenvana@gmail.com",
                 guestPhone = "0901234567",
@@ -463,7 +463,7 @@ public sealed class BookingHttpPipelineTests
             // ── STEP 6: GET Availability (200 OK) ──────────────────────────────────────
             // Query interval overlapping Room 101's hourly reservation + buffer
             var getAvailResp = await client.GetAsync(
-                $"/api/reservations/availability?propertyId={propId}&rentalType=1&startAtUtc=2026-11-10T08:00:00Z&endAtUtc=2026-11-10T10:00:00Z");
+                $"/api/reservations/availability?propertyId={propId}&rentalType=1&startAtUtc=2026-11-18T08:00:00Z&endAtUtc=2026-11-18T10:00:00Z");
             Assert.Equal(HttpStatusCode.OK, getAvailResp.StatusCode);
             var availJson = await getAvailResp.Content.ReadFromJsonAsync<JsonElement>();
             Assert.True(availJson.GetArrayLength() >= 2);
@@ -526,8 +526,8 @@ public sealed class BookingHttpPipelineTests
                 propertyId = mismatchedPropId, // Mismatched body property!
                 roomId = room1Id,
                 rentalType = 1,
-                startAtUtc = "2026-11-10T07:00:00Z",
-                endAtUtc = "2026-11-10T09:00:00Z",
+                startAtUtc = "2026-11-18T07:00:00Z",
+                endAtUtc = "2026-11-18T09:00:00Z",
                 guestName = "Mismatch Tester",
                 guestEmail = "mismatch@gmail.com",
                 expectedTotalAmount = 300000m

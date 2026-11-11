@@ -10,7 +10,11 @@ import {
   CreatePaymentRequest,
   PaymentSummaryDto,
   ShiftReportDto,
-  ShiftType
+  ShiftType,
+  RefundRequestDto,
+  RefundRequestDetailDto,
+  GetRefundRequestsFilter,
+  ConfirmRefundPayoutRequest
 } from '../models/payment.model';
 
 export interface GetPaymentsFilter {
@@ -120,6 +124,89 @@ export class PaymentService {
 
     return this.http.get<any>(`${this.apiUrl}/shift-report`, { params }).pipe(
       map(res => (res.data ? res.data : res) as ShiftReportDto)
+    );
+  }
+
+  // =========================================================================
+  // REFUND APPROVAL MANAGEMENT APIS (Decision D23)
+  // =========================================================================
+
+  /**
+   * Retrieves a paginated list of refund requests for the active property.
+   */
+  getRefundRequests(filter: GetRefundRequestsFilter): Observable<PagedResult<RefundRequestDto>> {
+    let params = new HttpParams()
+      .set('propertyId', filter.propertyId)
+      .set('page', (filter.page ?? 1).toString())
+      .set('pageSize', (filter.pageSize ?? 20).toString());
+
+    if (filter.status && filter.status !== 'all') {
+      params = params.set('status', filter.status);
+    }
+    if (filter.dateFrom) {
+      params = params.set('dateFrom', filter.dateFrom);
+    }
+    if (filter.dateTo) {
+      params = params.set('dateTo', filter.dateTo);
+    }
+    if (filter.searchTerm) {
+      params = params.set('searchTerm', filter.searchTerm.trim());
+    }
+
+    const headers: Record<string, string> = {
+      'X-Property-Id': filter.propertyId
+    };
+
+    return this.http.get<any>(`${this.apiUrl}/refunds`, { params, headers }).pipe(
+      map(res => (res.data ? res.data : res) as PagedResult<RefundRequestDto>)
+    );
+  }
+
+  /**
+   * Retrieves complete details, original payments, and D23 audit trail for a refund request.
+   */
+  getRefundRequestDetail(paymentId: string, propertyId: string): Observable<RefundRequestDetailDto> {
+    const params = new HttpParams().set('propertyId', propertyId);
+    const headers = { 'X-Property-Id': propertyId };
+
+    return this.http.get<any>(`${this.apiUrl}/refunds/${paymentId}`, { params, headers }).pipe(
+      map(res => (res.data ? res.data : res) as RefundRequestDetailDto)
+    );
+  }
+
+  /**
+   * Approves a pending refund request (Owner / Property Manager with PAYMENTS:Approve).
+   */
+  approveRefund(paymentId: string, propertyId: string, notes?: string): Observable<RefundRequestDto> {
+    const params = new HttpParams().set('propertyId', propertyId);
+    const headers = { 'X-Property-Id': propertyId };
+
+    return this.http.post<any>(`${this.apiUrl}/refunds/${paymentId}/approve`, { notes }, { params, headers }).pipe(
+      map(res => (res.data ? res.data : res) as RefundRequestDto)
+    );
+  }
+
+  /**
+   * Rejects a pending refund request with a mandatory reason.
+   */
+  rejectRefund(paymentId: string, propertyId: string, reason: string): Observable<RefundRequestDto> {
+    const params = new HttpParams().set('propertyId', propertyId);
+    const headers = { 'X-Property-Id': propertyId };
+
+    return this.http.post<any>(`${this.apiUrl}/refunds/${paymentId}/reject`, { reason }, { params, headers }).pipe(
+      map(res => (res.data ? res.data : res) as RefundRequestDto)
+    );
+  }
+
+  /**
+   * Confirms refund disbursement has been completed with a bank transaction reference or voucher number.
+   */
+  confirmRefundPayout(paymentId: string, propertyId: string, request: ConfirmRefundPayoutRequest): Observable<RefundRequestDto> {
+    const params = new HttpParams().set('propertyId', propertyId);
+    const headers = { 'X-Property-Id': propertyId };
+
+    return this.http.post<any>(`${this.apiUrl}/refunds/${paymentId}/confirm-payout`, request, { params, headers }).pipe(
+      map(res => (res.data ? res.data : res) as RefundRequestDto)
     );
   }
 }

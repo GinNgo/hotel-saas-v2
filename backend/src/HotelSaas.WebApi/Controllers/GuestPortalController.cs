@@ -28,7 +28,7 @@ public class GuestPortalController : BaseApiController
 {
     public sealed record EnrollMembershipRequest(Guid PropertyId);
     public sealed record UpdateVatProfileRequest(string? CompanyName, string? CompanyTaxCode, string? CompanyAddress);
-    public sealed record UpdateGuestProfileRequest(string FullName);
+    public sealed record UpdateGuestProfileRequest(string FullName, string? AvatarUrl = null);
 
     /// <summary>
     /// Lấy thông tin tài khoản cá nhân của khách đang đăng nhập (Contract Gate G3 / US3).
@@ -62,7 +62,7 @@ public class GuestPortalController : BaseApiController
             return BadRequest(ApiResponse.Fail("ERR_FULLNAME_LENGTH", "Họ và tên phải từ 2 đến 100 ký tự."));
         }
 
-        var result = await Mediator.Send(new UpdateGuestProfileCommand(request.FullName.Trim()), cancellationToken);
+        var result = await Mediator.Send(new UpdateGuestProfileCommand(request.FullName.Trim(), request.AvatarUrl), cancellationToken);
         return OkResponse(result, "Cập nhật hồ sơ tài khoản thành công.");
     }
 

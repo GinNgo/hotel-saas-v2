@@ -44,6 +44,22 @@ public sealed class GuestAccountUnitTests
         result.ShouldNotHaveValidationErrorFor(x => x.FullName);
     }
 
+    [Fact]
+    public void ProfileValidator_ValidAvatarUrl_PassesValidation()
+    {
+        var command = new UpdateGuestProfileCommand("Nguyễn Văn An", "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150");
+        var result = _profileValidator.TestValidate(command);
+        result.ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    public void ProfileValidator_TooLongAvatarUrl_HasValidationError()
+    {
+        var command = new UpdateGuestProfileCommand("Nguyễn Văn An", "https://example.com/" + new string('a', 1001));
+        var result = _profileValidator.TestValidate(command);
+        result.ShouldHaveValidationErrorFor(x => x.AvatarUrl);
+    }
+
     [Theory]
     [InlineData(0, 10)]
     [InlineData(-1, 10)]

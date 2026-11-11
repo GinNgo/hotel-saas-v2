@@ -1,0 +1,169 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Hotel SaaS Platform v2 — Automated VPS Deployment Pipeline (CD + Rollback)
+# ═══════════════════════════════════════════════════════════════════════════
+# Quy trình chuẩn Enterprise:
+#   - Khi push lên `develop`: Chạy Stage 1 (Isolation Gate) và Stage 2 (Build Test)
+#     để bảo đảm code sạch, KHÔNG tác động tới VPS.
+#   - Khi merge vào `main`: Tự động kích hoạt Stage 3 (Rolling Deploy lên VPS)
+# ═══════════════════════════════════════════════════════════════════════════
+
+name: CD — Deploy to Production VPS
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/ginngo/hotel-saas-backend
+  FRONTEND_IMAGE: ghcr.io/ginngo/hotel-saas-frontend
+  DOTNET_VERSION: '10.0.x'
+
+jobs:
+  # ── Stage 1: Automated Multi-Tenant Isolation Gate ──────────────────────
+  isolation-gate:
+    name: 1. Multi-Tenant & Branch Isolation Gate
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: hotel_saas_p1b01a_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Run Multi-Tenant, Cross-Branch, SignalR & VNPay Isolation Tests
+        working-directory: backend
+        env:
+          TEST_DB_CONNECTION: "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;Pooling=false;"
+        run: |
+          dotnet test HotelSaas.slnx \
+            --configuration Release \
+            --filter "FullyQualifiedName~MultiTenantBranchIsolationTests|FullyQualifiedName~TenantPropertyContextMiddlewareTests|FullyQualifiedName~NotificationHubSecurityTests|FullyQualifiedName~VnpayIntegrationTests" \
+            --logger "trx;LogFileName=isolation-gate.trx"
+
+  # ── Stage 2: Build & Push Immutable Docker Images ──────────────────────
+  build-and-push:
+    name: 2. Build & Push Images (GHCR)
+    runs-on: ubuntu-latest
+    needs: [isolation-gate]
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.sha_tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Immutable Image Tag
+        id: meta
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-12)
+          echo "sha_tag=sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push Backend (.NET 10 WebApi)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:${{ steps.meta.outputs.sha_tag }}
+            ${{ env.BACKEND_IMAGE }}:latest
+
+      - name: Build & Push Frontend (Angular 22 + Nginx)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ steps.meta.outputs.sha_tag }}
+            ${{ env.FRONTEND_IMAGE }}:latest
+
+  # ── Stage 3: Deploy to VPS via Zero-Downtime Rolling Update ─────────────
+  # CHỈ KÍCH HOẠT KHI MERGE VÀO NHÁNH MAIN HOẶC TRIGGER BẰNG TAY
+  deploy-vps:
+    name: 3. Rolling Deploy to VPS (Chỉ kích hoạt khi vào main)
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Execute Rolling Update on VPS
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd /opt/hotel-saas
+
+            echo "[1/4] Authenticating Docker with GHCR on VPS..."
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            echo "[2/4] Pulling latest immutable images from GHCR..."
+            docker compose -f docker-compose.staging.yml pull
+
+            echo "[3/4] Gracefully rolling update backend & frontend containers..."
+            docker compose -f docker-compose.staging.yml up -d --no-deps backend frontend
+
+            echo "[4/4] Verifying health probes..."
+            HEALTHY=0
+            for i in $(seq 1 20); do
+              if curl -sk https://luxustay.duckdns.org/health | grep -q '"status":"healthy"'; then
+                HEALTHY=1
+                break
+              fi
+              echo "Waiting for health check probe ($i/20)..."
+              sleep 3
+            done
+
+            if [ "$HEALTHY" -ne 1 ]; then
+              echo "❌ Health check failed after 60 seconds!"
+              docker logs --tail 80 hotelsaas-backend-api
+              exit 1
+            fi
+
+            echo "✅ Hotel SaaS Platform deployment verified and healthy!"

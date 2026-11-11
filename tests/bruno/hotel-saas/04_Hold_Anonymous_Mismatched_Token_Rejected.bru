@@ -1,0 +1,32 @@
+meta {
+  name: 04 - Hold Anonymous With Mismatched Phone Token (Anti-Spoofing Rejection)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/public/bookings/hold
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "propertySlug": "{{propertySlug}}",
+    "roomTypeId": "{{roomTypeId}}",
+    "rentalType": 3,
+    "startAtUtc": "2026-11-20T07:00:00Z",
+    "endAtUtc": "2026-11-21T05:00:00Z",
+    "guestName": "Spoofing Guest",
+    "guestEmail": "spoof@gmail.com",
+    "guestPhone": "{{validPhone}}",
+    "numberOfGuests": 2,
+    "expectedTotalAmount": 3200000,
+    "firebaseIdToken": "{{mismatchedToken}}"
+  }
+}
+
+assert {
+  res.status: eq 400
+  res.body.errorCode: eq ERR_PHONE_MISMATCH
+}

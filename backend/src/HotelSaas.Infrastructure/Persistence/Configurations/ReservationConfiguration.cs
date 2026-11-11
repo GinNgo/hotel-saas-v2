@@ -18,6 +18,8 @@ public class ReservationConfiguration : IEntityTypeConfiguration<Reservation>
         // Concurrency tokens for partition scope mutation guard
         builder.Property(res => res.TenantId).IsConcurrencyToken();
         builder.Property(res => res.PropertyId).IsConcurrencyToken();
+        builder.Property(res => res.PaymentMethodPreference)
+            .HasDefaultValue(HotelSaas.Domain.Enums.PaymentMethodPreference.VNPay);
 
         // Direct foreign key to Property: ON DELETE RESTRICT
         builder.HasOne(res => res.Property)

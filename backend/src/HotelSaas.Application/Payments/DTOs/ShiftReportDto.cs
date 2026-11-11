@@ -29,5 +29,7 @@ public sealed record ShiftReportDto(
     decimal BankTransferCollected,
     decimal CreditCardCollected,
     int CompletedCount,
-    IReadOnlyList<PaymentDto> Payments
+    IReadOnlyList<PaymentDto> Payments,
+    decimal TotalRefunded = 0m,
+    decimal NetCollected = 0m
 );

@@ -333,6 +333,15 @@ public sealed class CancelGuestBookingCommandHandler : IRequestHandler<CancelGue
                     oldStatus.ToString(),
                     ReservationStatus.Cancelled.ToString(),
                     cancellationToken);
+
+                await _notificationDispatcher.NotifyBookingCancellationRequestedAsync(
+                    reservation.PropertyId.ToString(),
+                    reservation.Id.ToString(),
+                    reservation.ConfirmationCode,
+                    reservation.GuestName,
+                    reservation.CancellationReason ?? "Khách tự hủy qua cổng trực tuyến",
+                    estimate.RefundableAmount,
+                    cancellationToken);
             }
             catch
             {
@@ -404,6 +413,7 @@ public sealed class CancelGuestBookingCommandHandler : IRequestHandler<CancelGue
             CreatedAtUtc = reservation.CreatedAtUtc,
             CancelledAtUtc = reservation.CancelledAtUtc,
             CancellationReason = reservation.CancellationReason,
+            IsPhoneVerified = snapshot.IsPhoneVerified,
             Breakdown = snapshot.Breakdown ?? Array.Empty<QuoteBreakdownItemDto>()
         };
     }

@@ -137,6 +137,16 @@ public sealed class ProcessVnpayIpnCommandHandler : IRequestHandler<ProcessVnpay
                         reservation.TotalAmount,
                         verify.Amount,
                         cancellationToken);
+
+                    await _notificationDispatcher.NotifyBookingPaymentConfirmedAsync(
+                        reservation.PropertyId.ToString(),
+                        reservation.Id.ToString(),
+                        reservation.ConfirmationCode,
+                        reservation.GuestName,
+                        reservation.TotalAmount,
+                        verify.Amount,
+                        "VNPay",
+                        cancellationToken);
                 }
                 catch
                 {

@@ -21,7 +21,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
 
 /**
  * Trang Đăng ký tài khoản khách hàng hệ thống LuxeStay Hotel SaaS.
- * Hỗ trợ đầy đủ thông tin: Họ tên, Email, Số điện thoại, Ảnh đại diện Avatar, Mật khẩu bảo mật.
+ * Hỗ trợ: Họ tên, Email, Số điện thoại kèm mã vùng (+84 mặc định), Mật khẩu bảo mật.
  */
 @Component({
   selector: 'app-register',
@@ -88,63 +88,45 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
           }
         </div>
 
-        <!-- Phone Number Field -->
+        <!-- Phone Number Field with Country Code Selection -->
         <div>
           <label for="phoneNumber" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
             Số điện thoại liên hệ <span class="text-rose-500">*</span>
           </label>
-          <input
-            id="phoneNumber"
-            pInputText
-            formControlName="phoneNumber"
-            type="tel"
-            placeholder="Ví dụ: 0912345678 hoặc +84912345678"
-            class="w-full text-sm"
-            [class.ng-invalid]="registerForm.get('phoneNumber')?.invalid && registerForm.get('phoneNumber')?.touched"
-          />
+          <div class="flex gap-2 items-center">
+            <div class="relative shrink-0">
+              <select
+                formControlName="dialCode"
+                class="h-10 pl-3 pr-8 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 cursor-pointer appearance-none shadow-2xs transition-all"
+                title="Chọn mã vùng quốc gia"
+              >
+                @for (c of countryCodes; track c.code) {
+                  <option [value]="c.dialCode">
+                    {{ c.flag }} {{ c.dialCode }}
+                  </option>
+                }
+              </select>
+              <i class="pi pi-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none"></i>
+            </div>
+
+            <div class="flex-1 min-w-0">
+              <input
+                id="phoneNumber"
+                pInputText
+                formControlName="phoneNumber"
+                type="tel"
+                placeholder="Ví dụ: 0912 345 678"
+                class="w-full text-sm"
+                [class.ng-invalid]="registerForm.get('phoneNumber')?.invalid && registerForm.get('phoneNumber')?.touched"
+              />
+            </div>
+          </div>
           @if (registerForm.get('phoneNumber')?.hasError('required') && registerForm.get('phoneNumber')?.touched) {
             <p class="text-xs text-rose-600 mt-1">Số điện thoại không được để trống</p>
           }
           @if (registerForm.get('phoneNumber')?.hasError('pattern') && registerForm.get('phoneNumber')?.touched) {
-            <p class="text-xs text-rose-600 mt-1">Số điện thoại không hợp lệ (từ 9-15 chữ số)</p>
+            <p class="text-xs text-rose-600 mt-1">Số điện thoại không hợp lệ (từ 8-15 chữ số)</p>
           }
-        </div>
-
-        <!-- Avatar Selection Field -->
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-            Ảnh đại diện (Avatar)
-          </label>
-          <div class="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200 bg-slate-50/70">
-            <img
-              [src]="currentAvatarUrl()"
-              alt="Avatar preview"
-              class="w-12 h-12 rounded-full object-cover border-2 border-emerald-500 shadow-sm flex-shrink-0"
-              (error)="onAvatarError($event)"
-            />
-            <div class="flex-1 min-w-0">
-              <input
-                id="avatarUrl"
-                pInputText
-                formControlName="avatarUrl"
-                placeholder="Dán link ảnh hoặc chọn mẫu bên dưới"
-                class="w-full text-xs"
-                (input)="onAvatarInput($any($event.target).value)"
-              />
-              <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                <span class="text-[11px] text-slate-500">Mẫu chọn nhanh:</span>
-                @for (preset of avatarPresets; track preset.url) {
-                  <button
-                    type="button"
-                    (click)="selectPresetAvatar(preset.url)"
-                    class="text-[10px] px-2 py-0.5 rounded-full border border-slate-300 hover:border-emerald-600 hover:text-emerald-700 bg-white transition-colors"
-                  >
-                    {{ preset.label }}
-                  </button>
-                }
-              </div>
-            </div>
-          </div>
         </div>
 
         <!-- Password Field -->
@@ -231,44 +213,32 @@ export class RegisterPage {
   private readonly router = inject(Router);
   private readonly notification = inject(NotificationService);
 
-  readonly defaultAvatar = '/images/avatars/an-ngo-vo-tuan.png';
-  currentAvatarUrl = signal<string>(this.defaultAvatar);
-
-  readonly avatarPresets = [
-    { label: 'An Ngô Võ Tuấn', url: '/images/avatars/an-ngo-vo-tuan.png' },
-    { label: 'Doanh nhân VIP', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150' },
-    { label: 'Khách du lịch', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150' }
+  readonly countryCodes = [
+    { code: 'VN', dialCode: '+84', flag: '🇻🇳', label: 'Việt Nam (+84)' },
+    { code: 'US', dialCode: '+1', flag: '🇺🇸', label: 'Hoa Kỳ / Canada (+1)' },
+    { code: 'KR', dialCode: '+82', flag: '🇰🇷', label: 'Hàn Quốc (+82)' },
+    { code: 'JP', dialCode: '+81', flag: '🇯🇵', label: 'Nhật Bản (+81)' },
+    { code: 'SG', dialCode: '+65', flag: '🇸🇬', label: 'Singapore (+65)' },
+    { code: 'TH', dialCode: '+66', flag: '🇹🇭', label: 'Thái Lan (+66)' },
+    { code: 'CN', dialCode: '+86', flag: '🇨🇳', label: 'Trung Quốc (+86)' },
+    { code: 'GB', dialCode: '+44', flag: '🇬🇧', label: 'Vương quốc Anh (+44)' },
+    { code: 'AU', dialCode: '+61', flag: '🇦🇺', label: 'Úc (+61)' },
+    { code: 'FR', dialCode: '+33', flag: '🇫🇷', label: 'Pháp (+33)' },
+    { code: 'DE', dialCode: '+49', flag: '🇩🇪', label: 'Đức (+49)' },
+    { code: 'RU', dialCode: '+7', flag: '🇷🇺', label: 'Nga (+7)' },
   ];
 
   registerForm = this.fb.group({
     fullName: ['', [Validators.required]],
     email: ['', [Validators.required, Validators.email]],
-    phoneNumber: ['', [Validators.required, Validators.pattern(/^(\+?[0-9]{9,15})$/)]],
-    avatarUrl: [this.defaultAvatar],
+    dialCode: ['+84', [Validators.required]],
+    phoneNumber: ['', [Validators.required, Validators.pattern(/^[0-9\s\-]{8,15}$/)]],
     password: ['', [Validators.required, Validators.minLength(8)]],
     confirmPassword: ['', [Validators.required]]
   }, { validators: passwordMatchValidator });
 
   loading = signal(false);
   errorMessage = signal<string | null>(null);
-
-  selectPresetAvatar(url: string): void {
-    this.currentAvatarUrl.set(url);
-    this.registerForm.get('avatarUrl')?.setValue(url);
-  }
-
-  onAvatarInput(value: string): void {
-    if (value && value.trim().length > 0) {
-      this.currentAvatarUrl.set(value.trim());
-    } else {
-      this.currentAvatarUrl.set(this.defaultAvatar);
-    }
-  }
-
-  onAvatarError(event: Event): void {
-    const img = event.target as HTMLImageElement;
-    img.src = 'https://ui-avatars.com/api/?name=User&background=0D8ABC&color=fff';
-  }
 
   onSubmit(): void {
     if (this.registerForm.invalid) {
@@ -279,13 +249,21 @@ export class RegisterPage {
     this.loading.set(true);
     this.errorMessage.set(null);
 
-    const { fullName, email, phoneNumber, avatarUrl, password } = this.registerForm.getRawValue();
+    const { fullName, email, dialCode, phoneNumber, password } = this.registerForm.getRawValue();
+
+    let formattedPhone: string | undefined = undefined;
+    if (phoneNumber?.trim()) {
+      const digits = phoneNumber.replace(/\D/g, '');
+      if (digits) {
+        const stripped = digits.startsWith('0') ? digits.substring(1) : digits;
+        formattedPhone = `${dialCode || '+84'}${stripped}`;
+      }
+    }
 
     this.authService.register({
       fullName: fullName!.trim(),
       email: email!.trim().toLowerCase(),
-      phoneNumber: phoneNumber?.trim() || undefined,
-      avatarUrl: avatarUrl?.trim() || undefined,
+      phoneNumber: formattedPhone,
       password: password!,
       appUrl: typeof window !== 'undefined' ? window.location.origin : undefined
     }).subscribe({

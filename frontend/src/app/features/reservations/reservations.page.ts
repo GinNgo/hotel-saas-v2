@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef, inject, signal, computed, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { DatePicker } from 'primeng/datepicker';
 import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-time.util';
 import { Subscription } from 'rxjs';
@@ -2069,6 +2070,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
   private readonly authService = inject(AuthService);
   private readonly alertService = inject(AlertService);
   private readonly fb = inject(FormBuilder);
+  private readonly route = inject(ActivatedRoute, { optional: true });
 
   // Constants
   readonly RentalType = RentalType;
@@ -2282,6 +2284,8 @@ export class ReservationsPage implements OnInit, OnDestroy {
   private timelineResSub?: Subscription;
   private provincesSub?: Subscription;
   private wardsSub?: Subscription;
+  private queryParamsSub?: Subscription;
+  private pendingAutoOpenReservation: { code?: string; reservationId?: string } | null = null;
 
   private listRequestId = 0;
   private detailRequestId = 0;
@@ -2311,6 +2315,40 @@ export class ReservationsPage implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    if (this.route?.queryParams) {
+      this.queryParamsSub = this.route.queryParams.subscribe(params => {
+        const view = params['view'];
+        const rawCode = params['code'] ? String(params['code']).trim().replace(/^#/, '') : '';
+        const rawResId = params['reservationId'] ? String(params['reservationId']).trim() : '';
+
+        if (view === 'timeline') {
+          this.viewMode.set('timeline');
+          if (this.activeProperty()?.id) {
+            this.loadTimelineData();
+          }
+        } else if (rawCode || rawResId) {
+          this.viewMode.set('table');
+        }
+
+        if (rawCode || rawResId) {
+          if (rawCode) {
+            this.searchQuery.set(rawCode);
+          }
+          this.selectedStatus.set(null);
+          this.dateFrom.set('');
+          this.dateTo.set('');
+          this.currentPage.set(1);
+          this.pendingAutoOpenReservation = {
+            code: rawCode || undefined,
+            reservationId: rawResId || undefined
+          };
+          if (this.activeProperty()?.id) {
+            this.loadReservations();
+          }
+        }
+      });
+    }
+
     const propId = this.activeProperty()?.id ?? null;
     if (propId) {
       this.loadReservations();
@@ -2320,6 +2358,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.queryParamsSub?.unsubscribe();
     this.cancelPendingRequests();
   }
 
@@ -2485,9 +2524,26 @@ export class ReservationsPage implements OnInit, OnDestroy {
     }).subscribe({
       next: (res) => {
         if (reqId !== this.listRequestId || this.activeProperty()?.id !== propId) return;
-        this.reservations.set(res.items || []);
+        const loadedItems = res.items || [];
+        this.reservations.set(loadedItems);
         this.totalCount.set(res.totalCount || 0);
         this.isLoading.set(false);
+
+        if (this.pendingAutoOpenReservation) {
+          const target = this.pendingAutoOpenReservation;
+          this.pendingAutoOpenReservation = null;
+          const targetCode = target.code?.toUpperCase();
+          const targetId = target.reservationId;
+          const match =
+            (targetId ? loadedItems.find(i => i.id === targetId) : undefined) ||
+            (targetCode ? loadedItems.find(i => i.confirmationCode?.toUpperCase() === targetCode) : undefined) ||
+            (loadedItems.length === 1 ? loadedItems[0] : undefined);
+          if (match) {
+            this.viewDetails(match);
+          } else if (targetId && targetId.length >= 32) {
+            this.viewDetails({ id: targetId } as ReservationDto);
+          }
+        }
       },
       error: (err) => {
         if (reqId !== this.listRequestId || this.activeProperty()?.id !== propId) return;

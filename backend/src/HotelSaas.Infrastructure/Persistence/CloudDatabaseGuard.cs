@@ -80,14 +80,14 @@ public static class CloudDatabaseGuard
     /// <summary>
     /// Validates whether startup database initialization (EF Core MigrateAsync + Seeding) is permitted to run.
     /// </summary>
-    public static void ValidateStartupExecution(string? connectionString, IConfiguration configuration)
+    public static void ValidateStartupExecution(string? connectionString, IConfiguration configuration, bool isStaging = false)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
             return;
 
         if (IsCloudDatabase(connectionString))
         {
-            var allowCloudInit = string.Equals(configuration?["AllowCloudStartupDatabaseInit"], "true", StringComparison.OrdinalIgnoreCase);
+            var allowCloudInit = isStaging || string.Equals(configuration?["AllowCloudStartupDatabaseInit"], "true", StringComparison.OrdinalIgnoreCase);
             if (!allowCloudInit)
             {
                 throw new InvalidOperationException(

@@ -18,7 +18,10 @@ export type NotificationEventType =
   | 'NewReservation'
   | 'ReservationCancelled'
   | 'RoomNeedsCleaning'
-  | 'RoomCleaningCompleted';
+  | 'RoomCleaningCompleted'
+  | 'BookingPaymentConfirmed'
+  | 'BookingCancellationRequested'
+  | 'HoldExpired';
 
 /**
  * Các giá trị enum NotificationType tương ứng từ Backend Domain (`HotelSaas.Domain.Enums.NotificationType`)
@@ -29,6 +32,9 @@ export type BackendDomainNotificationType =
   | 'NewBooking'
   | 'BookingConfirmed'
   | 'BookingCancelled'
+  | 'BookingPaymentConfirmed'
+  | 'BookingCancellationRequested'
+  | 'HoldExpired'
   | 'RoomStatusChanged'
   | 'HousekeepingAssigned'
   | 'HousekeepingCompleted'
@@ -48,6 +54,13 @@ export interface NotificationMetadata {
   roomId?: string;
   roomNumber?: string;
   guestName?: string;
+  amount?: number;
+  paymentMethod?: string;
+  transactionReference?: string;
+  cancellationReason?: string;
+  refundableAmount?: number;
+  holdExpiresAtUtc?: string;
+  targetRoute?: string;
 }
 
 /**
@@ -108,6 +121,27 @@ export const NOTIFICATION_TYPE_VISUALS: Readonly<Record<NotificationEventType, N
     iconClass: 'pi pi-check-circle',
     iconContainerClass: 'bg-sky-50 text-sky-700 border-sky-200/80',
     badgeClass: 'bg-sky-50 text-sky-800 border-sky-200/80'
+  },
+  BookingPaymentConfirmed: {
+    type: 'BookingPaymentConfirmed',
+    categoryLabel: 'Thanh toán đặt phòng',
+    iconClass: 'pi pi-credit-card',
+    iconContainerClass: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
+    badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200/80'
+  },
+  BookingCancellationRequested: {
+    type: 'BookingCancellationRequested',
+    categoryLabel: 'Yêu cầu hủy đặt phòng',
+    iconClass: 'pi pi-calendar-times',
+    iconContainerClass: 'bg-amber-50 text-amber-700 border-amber-200/80',
+    badgeClass: 'bg-amber-50 text-amber-800 border-amber-200/80'
+  },
+  HoldExpired: {
+    type: 'HoldExpired',
+    categoryLabel: 'Hết hạn giữ phòng',
+    iconClass: 'pi pi-clock',
+    iconContainerClass: 'bg-slate-100 text-slate-700 border-slate-300/80',
+    badgeClass: 'bg-slate-100 text-slate-800 border-slate-300/80'
   }
 };
 
@@ -183,6 +217,15 @@ export function normalizeNotificationEventType(
     case 'HousekeepingCompleted':
     case 9:
       return 'RoomCleaningCompleted';
+
+    case 'BookingPaymentConfirmed':
+      return 'BookingPaymentConfirmed';
+
+    case 'BookingCancellationRequested':
+      return 'BookingCancellationRequested';
+
+    case 'HoldExpired':
+      return 'HoldExpired';
 
     default:
       return null;

@@ -171,7 +171,8 @@ public sealed class CheckOutReservationCommandHandler : IRequestHandler<CheckOut
             .Where(p => p.ReservationId == reservation.Id &&
                         p.PropertyId == request.PropertyId &&
                         p.TenantId == tenantId.Value &&
-                        p.Status == PaymentStatus.Completed)
+                        p.Status == PaymentStatus.Completed &&
+                        (p.TransactionRef == null || !p.TransactionRef.Contains("REFUND")))
             .SumAsync(p => (decimal?)p.Amount, cancellationToken) ?? 0m;
 
         var remainingBalance = reservation.TotalAmount - paidAmount;

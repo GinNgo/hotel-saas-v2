@@ -69,8 +69,11 @@ export class NotificationService {
   private reconnectAttempts = 0;
   private currentAccessToken = '';
   private liveMonitorEnabled = false;
+  private persistenceEnabled = false;
+  private realtimeSignalREnabled = false;
 
   private static readonly RECONNECT_DELAYS_MS = [1000, 2000, 5000, 10000];
+  private static readonly MAX_PERSISTED_NOTIFICATIONS = 50;
 
   // ── 1. Standard Toast API (Tương thích ngược 100%, mặc định 2.2s) ──────────
 
@@ -155,9 +158,12 @@ export class NotificationService {
 
   /**
    * Kích hoạt kênh thông báo SignalR thời gian thực kết nối tới `/hubs/notifications`.
+   * Tự động bật lưu trữ bền vững (session/localStorage) theo Tenant + Property để không mất thông báo khi F5.
    * Nếu SignalR gặp sự cố mất kết nối, hệ thống ghi nhận lỗi trung thực và tự động thử lại.
    */
   enableRealtimeNotifications(hubUrl?: string): void {
+    this.persistenceEnabled = true;
+    this.realtimeSignalREnabled = true;
     if (this.transport) {
       return;
     }
@@ -166,6 +172,20 @@ export class NotificationService {
       onApiError: msg => this.errorMessage.set(msg)
     });
     this.registerTransport(signalrTransport);
+
+    const tenantId = this.activeTenantId();
+    const propertyId = this.activePropertyId();
+    if (tenantId && propertyId) {
+      this.restoreNotificationsFromStorage(tenantId, propertyId);
+      void this.hydrateInitialBranchSnapshot(tenantId, propertyId);
+    }
+  }
+
+  /**
+   * Bật/tắt chế độ lưu trữ bền vững thông báo qua F5 theo chi nhánh.
+   */
+  setPersistenceEnabled(enabled: boolean): void {
+    this.persistenceEnabled = enabled;
   }
 
   /**
@@ -177,6 +197,7 @@ export class NotificationService {
       return;
     }
     this.liveMonitorEnabled = true;
+    this.persistenceEnabled = true;
     const monitorTransport = new LivePropertyMonitorTransport(
       this.http,
       (payload, options) => this.receiveRealtimeNotification(payload, options),
@@ -199,6 +220,7 @@ export class NotificationService {
 
     if (!transport) {
       this.liveMonitorEnabled = false;
+      this.realtimeSignalREnabled = false;
       this.connectionState.set('unconfigured');
       return;
     }
@@ -228,9 +250,9 @@ export class NotificationService {
   }
 
   /**
-   * Đồng bộ ngữ cảnh khi người dùng đăng nhập hoặc chuyển đổi chi nhánh làm việc.
-   * Nếu đổi sang chi nhánh khác, toàn bộ thông báo của chi nhánh cũ được dọn sạch ngay lập tức
-   * để đảm bảo không rò rỉ dữ liệu chéo giữa các cơ sở.
+   * Đồng bộ ngữ cảnh khi người dùng đăng nhập, tải lại trang (F5) hoặc chuyển đổi chi nhánh làm việc.
+   * Nếu đổi sang chi nhánh khác, toàn bộ thông báo trên bộ nhớ của chi nhánh cũ được dọn sạch ngay lập tức
+   * và nạp lại cache thông báo của đúng chi nhánh mới để đảm bảo không rò rỉ dữ liệu chéo giữa các cơ sở.
    */
   async syncContext(
     tenantId: string | null | undefined,
@@ -272,15 +294,26 @@ export class NotificationService {
       return;
     }
 
+    if (contextChanged && this.persistenceEnabled) {
+      this.restoreNotificationsFromStorage(normTenant, normProperty);
+      if (this.realtimeSignalREnabled && this.http) {
+        void this.hydrateInitialBranchSnapshot(normTenant, normProperty);
+      }
+    }
+
     if (this.transport && contextChanged) {
       await this.connectTransportForActiveContext();
     }
   }
 
   /**
-   * Dọn dẹp toàn bộ listener, bộ đếm reconnect và danh sách thông báo khi đăng xuất.
+   * Dọn dẹp toàn bộ listener, bộ đếm reconnect, cache lưu trữ và danh sách thông báo khi đăng xuất.
    */
   async cleanupOnLogout(): Promise<void> {
+    const prevTenant = this.activeTenantId();
+    const prevProperty = this.activePropertyId();
+    this.clearPersistedNotifications(prevTenant, prevProperty);
+
     this.clearReconnectTimer();
     this.reconnectAttempts = 0;
     this.currentAccessToken = '';
@@ -308,7 +341,7 @@ export class NotificationService {
    * - Kiểm tra Fail-Closed theo `activeTenantId` và `activePropertyId`.
    * - Kiểm tra loại sự kiện được hỗ trợ.
    * - Chống trùng lặp theo `id` (Deduplication).
-   * - Cập nhật danh sách thông báo, phát âm thanh chuông và hiển thị Toast 5 giây qua `AlertService`.
+   * - Cập nhật danh sách thông báo, lưu bền vững qua F5, phát âm thanh chuông và hiển thị Toast 5 giây qua `AlertService`.
    * Trả về `true` nếu thông báo hợp lệ và được tiếp nhận, `false` nếu bị từ chối hoặc trùng lặp.
    */
   receiveRealtimeNotification(
@@ -336,17 +369,91 @@ export class NotificationService {
     }
 
     const trimmedId = payload.id.trim();
-    if (!trimmedId || this.seenNotificationIds.has(trimmedId)) {
+    if (!trimmedId) {
       return false;
     }
 
     const existing = this.notifications();
-    if (existing.some(item => item.id === trimmedId)) {
-      this.seenNotificationIds.add(trimmedId);
+    const existingIndex = existing.findIndex(item => item.id === trimmedId);
+
+    if (existingIndex >= 0) {
+      const existingItem = existing[existingIndex];
+      // Role priority: If new payload has higher fidelity (financial data) and existing is sanitized, upgrade in place!
+      const newRefund = payload.metadata?.refundableAmount ?? 0;
+      const oldRefund = existingItem.metadata?.refundableAmount ?? 0;
+      const newAmount = payload.metadata?.amount ?? 0;
+      const oldAmount = existingItem.metadata?.amount ?? 0;
+
+      const isHigherFidelity = (newRefund > 0 && oldRefund === 0) || (newAmount > 0 && oldAmount === 0);
+
+      if (isHigherFidelity) {
+        this.notifications.update(items =>
+          items.map((item, idx) =>
+            idx === existingIndex
+              ? {
+                  ...item,
+                  title: payload.title?.trim() || item.title,
+                  message: payload.message?.trim() || item.message,
+                  metadata: { ...item.metadata, ...payload.metadata }
+                }
+              : item
+          )
+        );
+        this.persistNotificationsToStorage();
+      }
+
+      // Deduplication: Drop duplicate payload (no second toast, no second audio chime, no unread badge increment)
+      return false;
+    }
+
+    // Chống trùng lặp sự kiện hủy phòng kép (ReceiveReservationStatusUpdated + ReceiveBookingCancellationRequested) cho cùng 1 đơn
+    const incomingResId = payload.metadata?.reservationId;
+    const incomingCode = payload.metadata?.confirmationCode;
+    if (
+      (normalizedType === 'BookingCancellationRequested' || normalizedType === 'ReservationCancelled') &&
+      (incomingResId || incomingCode)
+    ) {
+      const siblingCancelIndex = existing.findIndex(
+        item =>
+          (item.type === 'BookingCancellationRequested' || item.type === 'ReservationCancelled') &&
+          ((incomingResId && item.metadata?.reservationId === incomingResId) ||
+            (incomingCode && item.metadata?.confirmationCode === incomingCode))
+      );
+
+      if (siblingCancelIndex >= 0) {
+        const siblingItem = existing[siblingCancelIndex];
+        // Nếu sự kiện mới là BookingCancellationRequested (chi tiết hoàn tiền đầy đủ hơn) còn bản cũ là ReservationCancelled chung chung -> nâng cấp tại chỗ
+        if (normalizedType === 'BookingCancellationRequested' && siblingItem.type === 'ReservationCancelled') {
+          this.seenNotificationIds.add(trimmedId);
+          this.notifications.update(items =>
+            items.map((item, idx) =>
+              idx === siblingCancelIndex
+                ? {
+                    ...item,
+                    id: trimmedId,
+                    type: 'BookingCancellationRequested',
+                    title: payload.title?.trim() || item.title,
+                    message: payload.message?.trim() || item.message,
+                    metadata: { ...item.metadata, ...payload.metadata }
+                  }
+                : item
+            )
+          );
+          this.persistNotificationsToStorage();
+        }
+        return false;
+      }
+    }
+
+    if (this.seenNotificationIds.has(trimmedId)) {
       return false;
     }
 
     this.seenNotificationIds.add(trimmedId);
+
+    const readIdsFromStorage = this.persistenceEnabled
+      ? this.loadReadIdsSetFromStorage(expectedTenant, expectedProperty)
+      : new Set<string>();
 
     const newItem: NotificationItem = {
       id: trimmedId,
@@ -356,18 +463,21 @@ export class NotificationService {
       title: payload.title?.trim() || 'Thông báo mới',
       message: payload.message?.trim() || '',
       createdAtUtc: payload.createdAtUtc || new Date().toISOString(),
-      isRead: Boolean(payload.isRead),
+      isRead: Boolean(payload.isRead) || readIdsFromStorage.has(trimmedId),
       metadata: payload.metadata
     };
 
-    const updated = [newItem, ...existing].sort((a, b) => {
-      const timeA = Date.parse(a.createdAtUtc);
-      const timeB = Date.parse(b.createdAtUtc);
-      if (Number.isNaN(timeA) || Number.isNaN(timeB)) return 0;
-      return timeB - timeA;
-    });
+    const updated = [newItem, ...existing]
+      .sort((a, b) => {
+        const timeA = Date.parse(a.createdAtUtc);
+        const timeB = Date.parse(b.createdAtUtc);
+        if (Number.isNaN(timeA) || Number.isNaN(timeB)) return 0;
+        return timeB - timeA;
+      })
+      .slice(0, NotificationService.MAX_PERSISTED_NOTIFICATIONS);
 
     this.notifications.set(updated);
+    this.persistNotificationsToStorage();
 
     // Hiển thị Toast 5 giây (5000ms) và phát âm thanh chuông nhẹ nhàng khi thông báo mới chưa đọc
     if (!newItem.isRead && !options?.silent) {
@@ -393,6 +503,7 @@ export class NotificationService {
         this.notifications.update(items =>
           items.map(item => (item.id === notificationId ? { ...item, isRead: true } : item))
         );
+        this.persistNotificationsToStorage();
         return true;
       }
       return false;
@@ -416,6 +527,7 @@ export class NotificationService {
       const confirmed = await this.transport.markAllAsRead({ tenantId, propertyId });
       if (confirmed) {
         this.notifications.update(items => items.map(item => ({ ...item, isRead: true })));
+        this.persistNotificationsToStorage();
         return true;
       }
       return false;
@@ -427,17 +539,334 @@ export class NotificationService {
   private showRealtimeToast(item: NotificationItem): void {
     switch (item.type) {
       case 'NewReservation':
-        this.alertService.toastSuccess(item.message, item.title, REALTIME_TOAST_DURATION_MS);
-        break;
-      case 'ReservationCancelled':
-        this.alertService.toastWarning(item.message, item.title, REALTIME_TOAST_DURATION_MS);
-        break;
-      case 'RoomNeedsCleaning':
-        this.alertService.toastInfo(item.message, item.title, REALTIME_TOAST_DURATION_MS);
-        break;
+      case 'BookingPaymentConfirmed':
       case 'RoomCleaningCompleted':
         this.alertService.toastSuccess(item.message, item.title, REALTIME_TOAST_DURATION_MS);
         break;
+      case 'ReservationCancelled':
+      case 'BookingCancellationRequested':
+        this.alertService.toastWarning(item.message, item.title, REALTIME_TOAST_DURATION_MS);
+        break;
+      case 'RoomNeedsCleaning':
+      case 'HoldExpired':
+        this.alertService.toastInfo(item.message, item.title, REALTIME_TOAST_DURATION_MS);
+        break;
+    }
+  }
+
+  private getNotificationsStorageKey(tenantId: string, propertyId: string): string {
+    return `hotelsaas_notifications_v1_${tenantId}_${propertyId}`;
+  }
+
+  private getReadIdsStorageKey(tenantId: string, propertyId: string): string {
+    return `hotelsaas_read_notifs_${tenantId}_${propertyId}`;
+  }
+
+  private loadReadIdsSetFromStorage(tenantId: string, propertyId: string): Set<string> {
+    const set = new Set<string>();
+    const key = this.getReadIdsStorageKey(tenantId, propertyId);
+    const readFrom = (storage: Storage | undefined) => {
+      if (!storage) return;
+      try {
+        const raw = storage.getItem(key);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          for (const id of parsed) {
+            if (typeof id === 'string' && id.trim()) {
+              set.add(id.trim());
+            }
+          }
+        }
+      } catch {
+        // Bỏ qua lỗi đọc storage
+      }
+    };
+    if (typeof localStorage !== 'undefined') readFrom(localStorage);
+    if (typeof sessionStorage !== 'undefined') readFrom(sessionStorage);
+    return set;
+  }
+
+  private persistNotificationsToStorage(): void {
+    if (!this.persistenceEnabled) return;
+    const tenantId = this.activeTenantId();
+    const propertyId = this.activePropertyId();
+    if (!tenantId || !propertyId) return;
+
+    const currentItems = this.notifications().filter(
+      item => item.tenantId === tenantId && item.propertyId === propertyId
+    );
+    const toStore = currentItems.slice(0, NotificationService.MAX_PERSISTED_NOTIFICATIONS);
+    const listKey = this.getNotificationsStorageKey(tenantId, propertyId);
+    const readKey = this.getReadIdsStorageKey(tenantId, propertyId);
+
+    const readIds = this.loadReadIdsSetFromStorage(tenantId, propertyId);
+    for (const item of toStore) {
+      if (item.isRead) {
+        readIds.add(item.id);
+      }
+    }
+
+    const serializedList = JSON.stringify(toStore);
+    const serializedReadIds = JSON.stringify(Array.from(readIds));
+
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(listKey, serializedList);
+        localStorage.setItem(readKey, serializedReadIds);
+      }
+    } catch {
+      // Bỏ qua lỗi ghi localStorage
+    }
+
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(listKey, serializedList);
+        sessionStorage.setItem(readKey, serializedReadIds);
+      }
+    } catch {
+      // Bỏ qua lỗi ghi sessionStorage
+    }
+  }
+
+  private restoreNotificationsFromStorage(tenantId: string, propertyId: string): void {
+    if (!this.persistenceEnabled || !tenantId || !propertyId) return;
+
+    const listKey = this.getNotificationsStorageKey(tenantId, propertyId);
+    const readIds = this.loadReadIdsSetFromStorage(tenantId, propertyId);
+
+    let raw: string | null = null;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        raw = localStorage.getItem(listKey);
+      }
+      if (!raw && typeof sessionStorage !== 'undefined') {
+        raw = sessionStorage.getItem(listKey);
+      }
+    } catch {
+      raw = null;
+    }
+
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+
+      const restored: NotificationItem[] = [];
+      for (const candidate of parsed) {
+        if (!candidate || typeof candidate !== 'object') continue;
+        const dto = candidate as Partial<NotificationItem>;
+        if (!dto.id || dto.tenantId !== tenantId || dto.propertyId !== propertyId) {
+          continue;
+        }
+        const normalizedType = normalizeNotificationEventType(dto.type ?? '');
+        if (!normalizedType) continue;
+
+        const trimmedId = String(dto.id).trim();
+        if (!trimmedId || this.seenNotificationIds.has(trimmedId)) continue;
+
+        this.seenNotificationIds.add(trimmedId);
+        restored.push({
+          id: trimmedId,
+          tenantId,
+          propertyId,
+          type: normalizedType,
+          title: dto.title?.trim() || 'Thông báo',
+          message: dto.message?.trim() || '',
+          createdAtUtc: dto.createdAtUtc || new Date().toISOString(),
+          isRead: Boolean(dto.isRead) || readIds.has(trimmedId),
+          metadata: dto.metadata
+        });
+      }
+
+      if (restored.length > 0) {
+        const mergedRaw = [...restored, ...this.notifications()];
+        // Lọc bỏ các bản ghi ReservationCancelled bị trùng với BookingCancellationRequested của cùng 1 đơn đặt phòng
+        const richCancelKeys = new Set<string>();
+        for (const item of mergedRaw) {
+          if (item.type === 'BookingCancellationRequested') {
+            if (item.metadata?.reservationId) richCancelKeys.add(`id:${item.metadata.reservationId}`);
+            if (item.metadata?.confirmationCode) richCancelKeys.add(`code:${item.metadata.confirmationCode}`);
+          }
+        }
+        const deduplicated = mergedRaw.filter(item => {
+          if (item.type === 'ReservationCancelled') {
+            const hasRichById = item.metadata?.reservationId && richCancelKeys.has(`id:${item.metadata.reservationId}`);
+            const hasRichByCode = item.metadata?.confirmationCode && richCancelKeys.has(`code:${item.metadata.confirmationCode}`);
+            if (hasRichById || hasRichByCode) return false;
+          }
+          return true;
+        });
+
+        const merged = deduplicated
+          .sort((a, b) => {
+            const timeA = Date.parse(a.createdAtUtc);
+            const timeB = Date.parse(b.createdAtUtc);
+            if (Number.isNaN(timeA) || Number.isNaN(timeB)) return 0;
+            return timeB - timeA;
+          })
+          .slice(0, NotificationService.MAX_PERSISTED_NOTIFICATIONS);
+        this.notifications.set(merged);
+      }
+    } catch {
+      // Bỏ qua dữ liệu cache không hợp lệ
+    }
+  }
+
+  private clearPersistedNotifications(tenantId: string | null, propertyId: string | null): void {
+    const clearIn = (storage: Storage | undefined) => {
+      if (!storage) return;
+      try {
+        if (tenantId && propertyId) {
+          storage.removeItem(this.getNotificationsStorageKey(tenantId, propertyId));
+          storage.removeItem(this.getReadIdsStorageKey(tenantId, propertyId));
+        }
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < storage.length; i++) {
+          const k = storage.key(i);
+          if (
+            k &&
+            (k.startsWith('hotelsaas_notifications_v1_') || k.startsWith('hotelsaas_read_notifs_'))
+          ) {
+            keysToRemove.push(k);
+          }
+        }
+        for (const k of keysToRemove) {
+          storage.removeItem(k);
+        }
+      } catch {
+        // Bỏ qua lỗi xóa storage
+      }
+    };
+    if (typeof localStorage !== 'undefined') clearIn(localStorage);
+    if (typeof sessionStorage !== 'undefined') clearIn(sessionStorage);
+  }
+
+  /**
+   * Đồng bộ ngầm danh sách đơn đặt phòng và phòng cần dọn mới nhất của chi nhánh khi khởi tạo / F5
+   * để đảm bảo kể cả khi mở trình duyệt mới hoặc sau khi F5, chuông thông báo vẫn hiển thị đầy đủ
+   * các sự kiện quan trọng gần nhất của chi nhánh mà không bị trống rỗng.
+   */
+  private async hydrateInitialBranchSnapshot(tenantId: string, propertyId: string): Promise<void> {
+    if (!this.http || !tenantId || !propertyId) return;
+
+    try {
+      const resParams = new HttpParams()
+        .set('propertyId', propertyId)
+        .set('page', '1')
+        .set('pageSize', '10');
+      const roomParams = new HttpParams()
+        .set('page', '1')
+        .set('pageSize', '50');
+
+      const [resResponse, roomResponse] = await Promise.all([
+        firstValueFrom(
+          this.http.get<Record<string, unknown>>(`${environment.apiUrl}/reservations`, {
+            params: resParams
+          })
+        ).catch(() => null),
+        firstValueFrom(
+          this.http.get<Record<string, unknown>>(`${environment.apiUrl}/rooms`, {
+            params: roomParams
+          })
+        ).catch(() => null)
+      ]);
+
+      // Kiểm tra ngữ cảnh vẫn còn khớp sau khi await
+      if (this.activeTenantId() !== tenantId || this.activePropertyId() !== propertyId) {
+        return;
+      }
+
+      const readIds = this.loadReadIdsSetFromStorage(tenantId, propertyId);
+
+      if (resResponse) {
+        const resData = resResponse['data'] as Record<string, unknown> | undefined;
+        const reservations = (resData?.['items'] ??
+          resResponse['items'] ??
+          []) as MonitoredReservationRow[];
+
+        const ordered = [...reservations].reverse();
+        for (const r of ordered) {
+          if (!r?.id) continue;
+          if (r.propertyId && r.propertyId !== propertyId) continue;
+
+          const isCancelled = r.status === 3 || r.status === 'Cancelled';
+          const code = r.id.substring(0, 8).toUpperCase();
+
+          // Tránh tạo bản ghi snapshot trùng nếu đã có thông báo SignalR tương ứng của cùng đơn đặt phòng
+          const alreadyHasSignalRForRes = this.notifications().some(
+            item =>
+              item.metadata?.reservationId === r.id ||
+              (item.metadata?.confirmationCode === code &&
+                (isCancelled
+                  ? item.type === 'BookingCancellationRequested' ||
+                    item.type === 'ReservationCancelled'
+                  : item.type === 'NewReservation' || item.type === 'BookingPaymentConfirmed'))
+          );
+          if (alreadyHasSignalRForRes) continue;
+
+          const notifId = isCancelled ? `res-cancel-${r.id}` : `res-new-${r.id}`;
+          const guestName = r.guestName?.trim() || 'Khách đặt phòng';
+          const roomLabel = r.roomNumber
+            ? `Phòng ${r.roomNumber}`
+            : r.roomTypeName || 'Phòng lưu trú';
+
+          this.receiveRealtimeNotification(
+            {
+              id: notifId,
+              tenantId,
+              propertyId,
+              type: isCancelled ? 'ReservationCancelled' : 'NewReservation',
+              title: isCancelled ? 'Đơn đặt phòng bị hủy' : 'Có đơn đặt phòng mới',
+              message: isCancelled
+                ? `Đơn đặt ${roomLabel} của khách ${guestName} (Mã: #${code}) đã bị hủy.`
+                : `Khách ${guestName} vừa đặt ${roomLabel} (Mã: #${code}).`,
+              createdAtUtc: r.createdAtUtc || new Date().toISOString(),
+              isRead: readIds.has(notifId),
+              metadata: {
+                reservationId: r.id,
+                confirmationCode: code,
+                guestName,
+                targetRoute: `/reservations?code=${encodeURIComponent(code)}&reservationId=${encodeURIComponent(r.id)}`
+              }
+            },
+            { silent: true }
+          );
+        }
+      }
+
+      if (roomResponse) {
+        const roomData = roomResponse['data'] as Record<string, unknown> | undefined;
+        const rooms = (roomData?.['items'] ?? roomResponse['items'] ?? []) as MonitoredRoomRow[];
+
+        for (const room of rooms) {
+          if (!room?.id) continue;
+          if (room.propertyId && room.propertyId !== propertyId) continue;
+          if (String(room.status || '') !== 'Dirty') continue;
+
+          const notifId = `room-dirty-${room.id}`;
+          this.receiveRealtimeNotification(
+            {
+              id: notifId,
+              tenantId,
+              propertyId,
+              type: 'RoomNeedsCleaning',
+              title: 'Phòng cần dọn',
+              message: `Phòng ${room.roomNumber} (${room.roomTypeName || 'Tiêu chuẩn'}) đang ở trạng thái Cần dọn.`,
+              createdAtUtc: new Date().toISOString(),
+              isRead: readIds.has(notifId),
+              metadata: {
+                roomNumber: room.roomNumber,
+                targetRoute: `/housekeeping?room=${encodeURIComponent(room.roomNumber)}`
+              }
+            },
+            { silent: true }
+          );
+        }
+      }
+    } catch {
+      // Bỏ qua lỗi đồng bộ snapshot phụ trợ
     }
   }
 

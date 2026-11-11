@@ -132,17 +132,29 @@ public sealed class GetShiftReportQueryHandler : IRequestHandler<GetShiftReportQ
             .Where(p =>
                 p.TenantId == tenantId.Value &&
                 p.PropertyId == request.PropertyId &&
-                p.Status == PaymentStatus.Completed &&
+                (p.Status == PaymentStatus.Completed || p.Status == PaymentStatus.Refunded) &&
                 p.PaidAtUtc >= startUtc &&
                 p.PaidAtUtc < endUtc)
             .OrderByDescending(p => p.PaidAtUtc)
             .ToListAsync(cancellationToken);
 
-        var totalCollected = payments.Sum(p => p.Amount);
-        var cashCollected = payments.Where(p => p.Method == PaymentMethod.Cash).Sum(p => p.Amount);
-        var bankTransferCollected = payments.Where(p => p.Method == PaymentMethod.BankTransfer).Sum(p => p.Amount);
-        var creditCardCollected = payments.Where(p => p.Method == PaymentMethod.CreditCard).Sum(p => p.Amount);
-        var completedCount = payments.Count;
+        var collectedPayments = payments
+            .Where(p => p.Status == PaymentStatus.Completed &&
+                        (p.TransactionRef == null || !p.TransactionRef.Contains("REFUND", StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        var refundedPayments = payments
+            .Where(p => p.TransactionRef != null &&
+                        p.TransactionRef.StartsWith("REFUND-COMPLETED-", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var totalCollected = collectedPayments.Sum(p => p.Amount);
+        var cashCollected = collectedPayments.Where(p => p.Method == PaymentMethod.Cash).Sum(p => p.Amount);
+        var bankTransferCollected = collectedPayments.Where(p => p.Method == PaymentMethod.BankTransfer).Sum(p => p.Amount);
+        var creditCardCollected = collectedPayments.Where(p => p.Method == PaymentMethod.CreditCard).Sum(p => p.Amount);
+        var completedCount = collectedPayments.Count;
+        var totalRefunded = refundedPayments.Sum(p => p.Amount);
+        var netCollected = totalCollected - totalRefunded;
 
         var paymentDtos = payments.Select(PaymentDto.FromEntity).ToList();
 
@@ -158,7 +170,9 @@ public sealed class GetShiftReportQueryHandler : IRequestHandler<GetShiftReportQ
             bankTransferCollected,
             creditCardCollected,
             completedCount,
-            paymentDtos
+            paymentDtos,
+            totalRefunded,
+            netCollected
         );
     }
 }

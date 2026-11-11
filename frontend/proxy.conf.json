@@ -1,13 +1,13 @@
 {
   "/api": {
-    "target": "http://localhost:5283",
-    "secure": false,
+    "target": "https://luxustay.duckdns.org",
+    "secure": true,
     "changeOrigin": true,
     "logLevel": "debug"
   },
   "/hubs": {
-    "target": "http://localhost:5283",
-    "secure": false,
+    "target": "https://luxustay.duckdns.org",
+    "secure": true,
     "ws": true,
     "changeOrigin": true,
     "logLevel": "debug"

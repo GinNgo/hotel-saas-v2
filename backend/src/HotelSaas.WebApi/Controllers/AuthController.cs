@@ -135,15 +135,55 @@ public sealed class AuthController : ControllerBase
     /// <summary>
     /// Authenticates or auto-provisions a guest customer account via Google or Facebook Social Identity.
     /// </summary>
+    /// <summary>
+    /// Authenticates or links a user via Google Social Login (Google Identity Services / OAuth).
+    /// Automatically provisions a guest account with verified email (Soft-Gating) or links to an existing account.
+    /// </summary>
+    [HttpPost("google-login")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GoogleLogin(
+        [FromBody] HotelSaas.Application.Auth.Commands.GoogleLogin.GoogleLoginCommand command,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
     [HttpPost("social-login")]
     [AllowAnonymous]
-    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
-    public Task<IActionResult> SocialLogin(
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SocialLogin(
         [FromBody] HotelSaas.Application.Auth.Commands.SocialLogin.SocialLoginCommand command,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult<IActionResult>(StatusCode(StatusCodes.Status503ServiceUnavailable,
-            new { code = "SOCIAL_LOGIN_DISABLED", message = "Social login is disabled until provider token verification is implemented." }));
+        if (_mediator == null)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new { code = "SOCIAL_LOGIN_DISABLED", message = "Social login is disabled until provider token verification is implemented." });
+        }
+
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Authenticates or links a user via Firebase SMS Phone OTP (Google Identity Platform).
+    /// </summary>
+    [HttpPost("verify-phone-firebase")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> VerifyPhoneFirebase(
+        [FromBody] HotelSaas.Application.Auth.Commands.VerifyPhoneFirebase.VerifyPhoneFirebaseCommand command,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
     }
 
     /// <summary>

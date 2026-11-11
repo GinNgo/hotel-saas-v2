@@ -1,0 +1,36 @@
+groups:
+  - name: hotelsaas_security_and_sre_alerts
+    interval: 15s
+    rules:
+      # 1. Cross-Tenant / Cross-Branch Isolation Violation Spike
+      - alert: MultiTenantIsolationViolationSpike
+        expr: increase(hotelsaas_tenant_isolation_blocks_total[5m]) > 10
+        for: 1m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "Phát hiện đột biến truy cập trái phép liên Tenant / liên Chi nhánh"
+          description: "Có hơn 10 request vi phạm ranh giới Tenant/Property bị chặn bởi Fail-Closed Guard trong 5 phút qua."
+
+      # 2. VNPay Checksum Tampering Alert
+      - alert: VnpaySignatureTamperDetected
+        expr: increase(hotelsaas_vnpay_ipn_total{rsp_code="97"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: payment_security
+        annotations:
+          summary: "Cảnh báo giả mạo chữ ký HMAC-SHA512 trên VNPay IPN Webhook"
+          description: "Hệ thống ghi nhận gói tin IPN có chữ ký vnp_SecureHash không hợp lệ (RspCode=97)."
+
+      # 3. Backend HTTP 5xx Error Rate Alert
+      - alert: BackendHigh5xxErrorRate
+        expr: increase(hotelsaas_http_5xx_errors_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          category: availability
+        annotations:
+          summary: "Tỷ lệ lỗi HTTP 5xx trên HotelSaas.WebApi vượt ngưỡng"
+          description: "Ghi nhận hơn 5 lỗi máy chủ nội bộ (5xx) trong vòng 5 phút."

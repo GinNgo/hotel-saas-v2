@@ -178,7 +178,12 @@ export const routes: Routes = [
         data: { permission: 'ROOMS', action: 1 },
         loadComponent: () => import('./features/rooms/rooms.page').then(m => m.RoomsPage)
       },
-      { path: 'room-types', redirectTo: 'dashboard', pathMatch: 'full' },
+      {
+        path: 'room-types',
+        canActivate: [permissionGuard],
+        data: { permission: 'ROOM_TYPES', action: 1 },
+        loadComponent: () => import('./features/room-types/room-types.page').then(m => m.RoomTypesPage)
+      },
 
       {
         path: 'housekeeping',
@@ -221,6 +226,22 @@ export const routes: Routes = [
       {
         path: 'audit-logs',
         loadComponent: () => import('./features/audit-logs/audit-logs.page').then(m => m.AuditLogsPage)
+      },
+      {
+        path: 'ops-readiness',
+        loadComponent: () => import('./features/ops-readiness/ops-readiness.page').then(m => m.OpsReadinessPage)
+      },
+      {
+        path: 'staff',
+        loadComponent: () => import('./features/staff/staff.page').then(m => m.StaffPage)
+      },
+      {
+        path: 'roles',
+        loadComponent: () => import('./features/staff/roles-management.component').then(m => m.RolesManagementComponent)
+      },
+      {
+        path: 'guests',
+        loadComponent: () => import('./features/guests/guests.page').then(m => m.GuestsPage)
       },
       {
         path: 'plans',
@@ -257,7 +278,12 @@ export const routes: Routes = [
         data: { permission: 'ROOMS', action: 1 },
         loadComponent: () => import('./features/rooms/rooms.page').then(m => m.RoomsPage)
       },
-      { path: 'room-types', redirectTo: 'dashboard', pathMatch: 'full' },
+      {
+        path: 'room-types',
+        canActivate: [permissionGuard],
+        data: { permission: 'ROOM_TYPES', action: 1 },
+        loadComponent: () => import('./features/room-types/room-types.page').then(m => m.RoomTypesPage)
+      },
       {
         path: 'housekeeping',
         canActivate: [permissionGuard],
@@ -299,6 +325,22 @@ export const routes: Routes = [
       {
         path: 'audit-logs',
         loadComponent: () => import('./features/audit-logs/audit-logs.page').then(m => m.AuditLogsPage)
+      },
+      {
+        path: 'ops-readiness',
+        loadComponent: () => import('./features/ops-readiness/ops-readiness.page').then(m => m.OpsReadinessPage)
+      },
+      {
+        path: 'staff',
+        loadComponent: () => import('./features/staff/staff.page').then(m => m.StaffPage)
+      },
+      {
+        path: 'roles',
+        loadComponent: () => import('./features/staff/roles-management.component').then(m => m.RolesManagementComponent)
+      },
+      {
+        path: 'guests',
+        loadComponent: () => import('./features/guests/guests.page').then(m => m.GuestsPage)
       },
       {
         path: 'plans',

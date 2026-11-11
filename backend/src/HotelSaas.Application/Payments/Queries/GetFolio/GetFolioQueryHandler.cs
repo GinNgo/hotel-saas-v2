@@ -138,8 +138,17 @@ public sealed class GetFolioQueryHandler : IRequestHandler<GetFolioQuery, FolioD
             .ToList();
 
         var paidAmount = payments
-            .Where(p => p.Status == PaymentStatus.Completed)
+            .Where(p => p.Status == PaymentStatus.Completed &&
+                        (p.TransactionRef == null || !p.TransactionRef.Contains("REFUND", StringComparison.OrdinalIgnoreCase)))
             .Sum(p => p.Amount);
+
+        var totalRefunded = payments
+            .Where(p => (p.Status == PaymentStatus.Completed || p.Status == PaymentStatus.Refunded) &&
+                        !string.IsNullOrEmpty(p.TransactionRef) &&
+                        p.TransactionRef.StartsWith("REFUND-COMPLETED-", StringComparison.OrdinalIgnoreCase))
+            .Sum(p => p.Amount);
+
+        var netCollected = paidAmount - totalRefunded;
 
         var snapshot = ReservationSnapshotHelper.TryDeserialize(reservation.Notes);
         var rentalType = snapshot?.RentalType ?? RentalType.Overnight;
@@ -307,7 +316,9 @@ public sealed class GetFolioQueryHandler : IRequestHandler<GetFolioQuery, FolioD
             refundableAmount,
             refundStatus,
             netCollectibleAmount,
-            financialSettlementStatus
+            financialSettlementStatus,
+            totalRefunded,
+            netCollected
         );
     }
 }

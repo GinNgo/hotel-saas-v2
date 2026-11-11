@@ -1,5 +1,6 @@
 import { Component, EventEmitter, Input, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 import { Dialog } from 'primeng/dialog';
 import { Button } from 'primeng/button';
 import { AuthService } from '../../../core/services/auth.service';
@@ -38,6 +39,36 @@ import { NotificationService } from '../../../core/services/notification.service
           <div class="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-start gap-2.5">
             <i class="pi pi-exclamation-triangle text-base text-rose-500 mt-0.5"></i>
             <span>{{ errorMessage() }}</span>
+          </div>
+        }
+
+        <!-- Tùy chọn xem Tổng quan Cơ sở tổng (Toàn chuỗi HQ) cho Owner / Quản lý chuỗi -->
+        @if (canViewChainHq()) {
+          <div
+            (click)="selectChainHqOverview()"
+            class="group relative flex items-center justify-between p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/70 hover:border-indigo-400 transition-all duration-200 cursor-pointer shadow-2xs"
+          >
+            <div class="flex items-center gap-3.5 min-w-0">
+              <div class="flex items-center justify-center w-11 h-11 rounded-lg bg-indigo-600 text-white text-xs font-bold shrink-0 shadow-xs">
+                HQ
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-sm font-bold text-indigo-950 truncate">
+                    Tổng quan Cơ sở tổng (Toàn chuỗi HQ)
+                  </span>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                    Đa chi nhánh
+                  </span>
+                </div>
+                <div class="text-xs text-indigo-700/80 mt-0.5 truncate">
+                  Xem KPI hợp nhất, doanh thu chuỗi, gói cước SaaS & điều phối các cơ sở
+                </div>
+              </div>
+            </div>
+            <div class="shrink-0 pl-3">
+              <i class="pi pi-chart-bar text-indigo-600 group-hover:translate-x-0.5 transition-all text-base"></i>
+            </div>
           </div>
         }
 
@@ -122,6 +153,7 @@ import { NotificationService } from '../../../core/services/notification.service
 export class ContextSelectorDialogComponent {
   private readonly authService = inject(AuthService);
   private readonly notification = inject(NotificationService);
+  private readonly router = inject(Router);
 
   @Input() visible = false;
   @Input() requireSelection = false;
@@ -134,6 +166,36 @@ export class ContextSelectorDialogComponent {
   /** Lọc các memberships có gắn với một Property cụ thể (bỏ qua tenant-wide không có propertyId) */
   branchMemberships = signal<UserMembershipDto[]>([]);
 
+  canViewChainHq(): boolean {
+    return (
+      this.authService.isTenantWide ||
+      this.branchMemberships().length > 1 ||
+      this.authService.currentUser?.globalRole === 'Owner'
+    );
+  }
+
+  selectChainHqOverview(): void {
+    const branches = this.branchMemberships();
+    if (!this.authService.activePropertyId() && branches.length > 0 && branches[0].propertyId) {
+      this.switchingPropertyId.set(branches[0].propertyId);
+      this.authService.switchContext(branches[0].propertyId).subscribe({
+        next: () => {
+          this.switchingPropertyId.set(null);
+          this.closeDialog();
+          this.router.navigate(['/dashboard'], { queryParams: { mode: 'hq' } });
+        },
+        error: () => {
+          this.switchingPropertyId.set(null);
+          this.closeDialog();
+          this.router.navigate(['/dashboard'], { queryParams: { mode: 'hq' } });
+        }
+      });
+      return;
+    }
+    this.closeDialog();
+    this.router.navigate(['/dashboard'], { queryParams: { mode: 'hq' } });
+  }
+
   ngOnInit(): void {
     this.refreshMemberships();
   }
@@ -143,6 +205,9 @@ export class ContextSelectorDialogComponent {
   }
 
   refreshMemberships(): void {
+    if (!this.visible || !this.authService.isLoggedIn) {
+      return;
+    }
     const list = this.authService.memberships;
     const validBranches = list.filter(m => !!m.propertyId);
     if (validBranches.length === 0) {

@@ -239,7 +239,9 @@ public sealed class PublicController : ControllerBase
             request.ExpectedTotalAmount,
             idempotencyKey,
             request.PointsToRedeem,
-            guestUserId);
+            guestUserId,
+            request.FirebaseIdToken,
+            request.PaymentMethodPreference);
 
         var result = await _mediator.Send(command, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, result);
@@ -473,7 +475,9 @@ public sealed record CreateGuestHoldRequest(
     decimal? ExpectedTotalAmount = null,
     string? IdempotencyKey = null,
     int? PointsToRedeem = null,
-    Guid? GuestUserId = null
+    Guid? GuestUserId = null,
+    string? FirebaseIdToken = null,
+    PaymentMethodPreference PaymentMethodPreference = HotelSaas.Domain.Enums.PaymentMethodPreference.VNPay
 );
 
 public sealed record ConfirmGuestBookingRequest(

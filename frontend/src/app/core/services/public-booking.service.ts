@@ -121,9 +121,16 @@ export class PublicBookingService {
     return this.http.get<any>(`${this.apiUrl}/properties/${encodeURIComponent(slug)}`).pipe(
       map(res => {
         const property = (res.data ?? res) as PublicPropertyDto;
+        const landmarks = (property.nearbyLandmarks ?? []).map((l: any, idx: number) => ({
+          ...l,
+          landmarkId: l.landmarkId || l.slug || l.landmarkSlug || `lm-${idx}-${l.name || l.landmarkName || idx}`,
+          landmarkName: l.landmarkName || l.name || 'Địa danh',
+          landmarkSlug: l.landmarkSlug || l.slug || 'dia-danh',
+          distanceMeters: l.distanceMeters ?? (typeof l.distanceKm === 'number' ? Math.round(l.distanceKm * 1000) : 0),
+        }));
         return { ...property, propertyId: property.propertyId ?? property.id ?? '',
           thumbnailUrl: property.thumbnailUrl ?? property.imageUrl ?? '', galleryUrls: property.galleryUrls ?? [],
-          nearbyLandmarks: property.nearbyLandmarks ?? [], reviewCount: property.reviewCount ?? 0, ratingAverage: property.ratingAverage ?? 0 };
+          nearbyLandmarks: landmarks, reviewCount: property.reviewCount ?? 0, ratingAverage: property.ratingAverage ?? 0 };
       })
     );
   }

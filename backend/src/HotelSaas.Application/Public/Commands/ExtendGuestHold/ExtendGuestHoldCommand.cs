@@ -284,6 +284,7 @@ public sealed class ExtendGuestHoldCommandHandler : IRequestHandler<ExtendGuestH
             SmartLockPin = null,
             SmartLockStatus = reservation.SmartLockStatus,
             CreatedAtUtc = reservation.CreatedAtUtc,
+            IsPhoneVerified = snapshot.IsPhoneVerified,
             Breakdown = snapshot.Breakdown ?? Array.Empty<QuoteBreakdownItemDto>()
         };
     }

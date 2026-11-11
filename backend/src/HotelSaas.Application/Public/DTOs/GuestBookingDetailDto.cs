@@ -45,5 +45,6 @@ public sealed class GuestBookingDetailDto
     public decimal? CancellationFee { get; set; }
     public decimal? RefundableAmount { get; set; }
     public string? RefundStatus { get; set; }
+    public bool IsPhoneVerified { get; set; }
     public IReadOnlyList<QuoteBreakdownItemDto> Breakdown { get; set; } = Array.Empty<QuoteBreakdownItemDto>();
 }

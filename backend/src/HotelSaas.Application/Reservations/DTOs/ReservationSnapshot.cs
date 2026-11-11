@@ -31,4 +31,8 @@ public sealed class ReservationSnapshot
     public DateTime? HoldExtendedAtUtc { get; set; }
     public DateTime? TokenExpiresAtUtc { get; set; }
     public bool IsTokenRevoked { get; set; }
+    public bool IsPhoneVerified { get; set; }
+    public DateTime? PhoneVerifiedAtUtc { get; set; }
+    public DateTime? HoldExpiredNotifiedAtUtc { get; set; }
+    public PaymentMethodPreference PaymentMethodPreference { get; set; } = PaymentMethodPreference.VNPay;
 }

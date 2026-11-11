@@ -13,7 +13,9 @@ public sealed record GuestMeDto(
     string Email,
     string? PhoneNumber,
     bool EmailVerified,
-    GuestCapabilitiesDto Capabilities
+    GuestCapabilitiesDto Capabilities,
+    string? AvatarUrl = null,
+    bool PhoneVerified = false
 );
 
 public sealed record GuestPropertySummaryDto(

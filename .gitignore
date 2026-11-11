@@ -26,6 +26,12 @@ frontend/test-results/
 **/appsettings.*.json
 !**/appsettings.json
 !**/appsettings.Development.json
+appsettings.Local.json
+**/appsettings.Local.json
+*firebase*adminsdk*.json
+*firebase-key*.json
+secrets/
+**/secrets/
 
 # ── Docker ──
 docker/data/
@@ -89,3 +95,11 @@ docs/weekly-reports/
 *CHAM_DIEM*
 *cham-diem*
 *self-assessment*
+
+# ── Studio & Playwright artifacts ──
+.aistudio/
+.playwright-cli/
+.dev.pid
+metadata.json
+*.patch
+*.bundle

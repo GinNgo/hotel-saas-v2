@@ -221,6 +221,31 @@ public sealed class T03A_AuditLoggingTests
         return new ApplicationDbContext(options, tenantService, propertyService);
     }
 
+    private static ApplicationDbContext CreateUnAuditedDbContext(
+        string connString,
+        string testSchema,
+        ICurrentTenantService tenantService,
+        ICurrentPropertyService propertyService)
+    {
+        var builder = new NpgsqlConnectionStringBuilder(connString)
+        {
+            SearchPath = testSchema,
+            Pooling = false
+        };
+
+        var tenantInterceptor = new TenantPropertySaveChangesInterceptor(tenantService, propertyService);
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql(builder.ConnectionString, npgsql =>
+                npgsql.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName))
+            .ConfigureWarnings(w =>
+                w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
+            .AddInterceptors(tenantInterceptor)
+            .Options;
+
+        return new ApplicationDbContext(options, tenantService, propertyService);
+    }
+
     private static async Task<(Guid TenantId, Guid PropertyAId, Guid PropertyBId, Guid RoomTypeAId, Guid RoomTypeBId)> SeedBaselineHierarchyAsync(
         string connString,
         string testSchema)
@@ -233,9 +258,8 @@ public sealed class T03A_AuditLoggingTests
 
         var tenantService = new StubTenantService { TenantId = tenantId };
         var propertyService = new StubPropertyService { IsTenantWide = true };
-        var userContext = new StubUserContext { TenantId = tenantId };
 
-        await using var ctx = CreateAuditedDbContext(connString, testSchema, tenantService, propertyService, userContext);
+        await using var ctx = CreateUnAuditedDbContext(connString, testSchema, tenantService, propertyService);
         await ctx.Database.MigrateAsync();
 
         ctx.Tenants.Add(new Tenant

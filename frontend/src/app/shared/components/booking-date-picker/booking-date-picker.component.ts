@@ -231,6 +231,12 @@ export interface BookingDateRange {
     :host {
       display: block;
     }
+    :host ::ng-deep .p-datepicker-input {
+      padding-left: 2.5rem !important;
+      padding-inline-start: 2.5rem !important;
+      padding-right: 0.875rem !important;
+      padding-inline-end: 0.875rem !important;
+    }
   `]
 })
 export class BookingDatePickerComponent implements OnInit {

@@ -43,7 +43,9 @@ public sealed class GetGuestMeQueryHandler : IRequestHandler<GetGuestMeQuery, Gu
             user.Email,
             user.PhoneNumber,
             user.EmailVerifiedAtUtc.HasValue,
-            new GuestCapabilitiesDto(CanEditName: true, CanViewBookings: true)
+            new GuestCapabilitiesDto(CanEditName: true, CanViewBookings: true),
+            user.AvatarUrl,
+            user.PhoneVerifiedAtUtc.HasValue
         );
     }
 }

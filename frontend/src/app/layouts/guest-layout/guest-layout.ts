@@ -3,35 +3,43 @@ import { CommonModule } from '@angular/common';
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../core/services/auth.service';
+import { ThemeService } from '../../core/services/theme.service';
 import { BrandLogoComponent } from '../../shared/components/brand-logo/brand-logo.component';
+import { AiConciergeChatComponent } from '../../shared/components/ai-concierge-chat/ai-concierge-chat.component';
 
 @Component({
   selector: 'app-guest-layout',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, BrandLogoComponent],
+  imports: [
+    CommonModule,
+    RouterOutlet,
+    RouterLink,
+    BrandLogoComponent,
+    AiConciergeChatComponent
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`
     :host a:focus-visible, :host button:focus-visible {
       outline: 2px solid var(--color-indigo-600, #4f46e5);
       outline-offset: 3px;
     }
-    .skip-link { position: absolute; top: 0; left: 1rem; z-index: 50; padding: 1rem; background: white; transform: translateY(-110%); }
+    .skip-link { position: absolute; top: 0; left: 1rem; z-index: 50; padding: 1rem; background: var(--surface-card); color: var(--text-main); transform: translateY(-110%); }
     .skip-link:focus { transform: translateY(0); }
   `],
   template: `
-    <div class="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans">
+    <div class="min-h-screen flex flex-col bg-[var(--surface-ground)] text-[var(--text-main)] font-sans transition-colors duration-200">
       <a href="#booking-content" class="skip-link">Đến nội dung chính</a>
-      <!-- 2. LIGHT LUXURY ARCHITECTURAL HEADER (CRISP, BRIGHT & PRESTIGIOUS) -->
-      <header class="bg-white/95 text-slate-800 border-b border-slate-200/80 sticky top-0 z-30 shadow-xs backdrop-blur-md">
-        <!-- Top Micro Utility Bar (Breeze Light) -->
-        <div class="border-b border-slate-200/70 bg-slate-50/90">
-          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-8 flex items-center justify-between text-[11px] text-slate-600">
+      <!-- 2. LIGHT/DARK LUXURY ARCHITECTURAL HEADER -->
+      <header class="bg-[var(--surface-card)]/95 text-[var(--text-main)] border-b border-[var(--surface-border)] sticky top-0 z-30 shadow-xs backdrop-blur-md transition-colors duration-200">
+        <!-- Top Micro Utility Bar -->
+        <div class="border-b border-[var(--surface-border)] bg-[var(--surface-subtle)]/80">
+          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-8 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
             <div class="flex items-center gap-4">
               <span class="inline-flex items-center gap-1.5 hover:text-indigo-600 transition-colors">
                 <i class="pi pi-phone text-[10px] text-amber-600"></i>
-                <span>Hotline 24/7: <strong class="text-slate-900 font-bold">1900 6868</strong></span>
+                <span>Hotline 24/7: <strong class="text-[var(--text-main)] font-bold">1900 6868</strong></span>
               </span>
-              <span class="hidden md:inline-flex items-center gap-1.5 text-slate-500">
+              <span class="hidden md:inline-flex items-center gap-1.5 text-[var(--text-muted)]">
                 <i class="pi pi-shield text-[10px] text-emerald-600"></i>
                 <span>Bảo đảm 100% Hoàn tiền &amp; Mở khóa Smart Lock</span>
               </span>
@@ -40,13 +48,13 @@ import { BrandLogoComponent } from '../../shared/components/brand-logo/brand-log
             <div class="flex items-center gap-3.5">
               <a 
                 routerLink="/auth/partner-register" 
-                class="inline-flex items-center gap-1 text-amber-700 hover:text-amber-800 transition-colors font-bold"
+                class="inline-flex items-center gap-1 text-amber-600 hover:text-amber-500 transition-colors font-bold"
               >
                 <i class="pi pi-building text-[10px]"></i>
                 <span>Dành cho Chủ khách sạn: Đăng ký cơ sở</span>
               </a>
-              <span class="text-slate-300">|</span>
-              <span class="inline-flex items-center gap-1 text-slate-600 font-semibold cursor-default">
+              <span class="text-slate-300 dark:text-slate-700">|</span>
+              <span class="inline-flex items-center gap-1 text-[var(--text-muted)] font-semibold cursor-default">
                 <span>🇻🇳 VN &bull; VND</span>
               </span>
             </div>
@@ -55,35 +63,35 @@ import { BrandLogoComponent } from '../../shared/components/brand-logo/brand-log
 
         <!-- Main Navigation Bar -->
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-          <!-- Brand Logo (Dark Variant on Crisp White) -->
-          <app-brand-logo size="md" variant="dark" />
+          <!-- Brand Logo -->
+          <app-brand-logo size="md" [variant]="themeService.isDark() ? 'light' : 'dark'" />
 
           <!-- Center Navigation Links -->
-          <nav class="hidden lg:flex items-center gap-1 text-xs font-semibold tracking-wide text-slate-700">
+          <nav class="hidden lg:flex items-center gap-1 text-xs font-semibold tracking-wide text-[var(--text-secondary)]">
             <a 
               routerLink="/booking/destinations" 
-              class="px-3.5 py-2 rounded-xl hover:text-indigo-600 hover:bg-slate-100/80 transition-all cursor-pointer flex items-center gap-1.5"
+              class="px-3.5 py-2 rounded-xl hover:text-indigo-500 hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5"
             >
               <i class="pi pi-compass text-[11px] text-indigo-500"></i>
               <span>Khám Phá Địa Danh</span>
             </a>
             <a 
               routerLink="/booking/deals" 
-              class="px-3.5 py-2 rounded-xl hover:text-indigo-600 hover:bg-slate-100/80 transition-all cursor-pointer flex items-center gap-1.5"
+              class="px-3.5 py-2 rounded-xl hover:text-indigo-500 hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5"
             >
               <i class="pi pi-tag text-[11px] text-amber-600"></i>
               <span>Ưu Đãi Đặc Quyền</span>
             </a>
             <a 
               routerLink="/booking/brands" 
-              class="px-3.5 py-2 rounded-xl hover:text-indigo-600 hover:bg-slate-100/80 transition-all cursor-pointer flex items-center gap-1.5"
+              class="px-3.5 py-2 rounded-xl hover:text-indigo-500 hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5"
             >
               <i class="pi pi-star text-[11px] text-amber-500"></i>
               <span>Chuỗi Thương Hiệu</span>
             </a>
             <a 
               routerLink="/booking/lookup" 
-              class="px-3.5 py-2 rounded-xl hover:text-indigo-600 hover:bg-slate-100/80 transition-all cursor-pointer flex items-center gap-1.5"
+              class="px-3.5 py-2 rounded-xl hover:text-indigo-500 hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5"
             >
               <i class="pi pi-search text-[11px] text-slate-400"></i>
               <span>Tra Cứu Đặt Phòng</span>
@@ -92,10 +100,22 @@ import { BrandLogoComponent } from '../../shared/components/brand-logo/brand-log
 
           <!-- Right Action Buttons -->
           <div class="flex items-center gap-2.5">
+            <!-- Theme Toggle Button (Light / Dark Mode) -->
+            <button
+              type="button"
+              (click)="themeService.toggleTheme()"
+              class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-[var(--surface-subtle)] hover:opacity-90 text-[var(--text-main)] border border-[var(--surface-border)] transition-all cursor-pointer"
+              [attr.aria-label]="themeService.isDark() ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'"
+              [title]="themeService.isDark() ? 'Chuyển sang chế độ Sáng (Light Mode)' : 'Chuyển sang chế độ Tối (Dark Mode)'"
+              data-testid="theme-toggle-btn"
+            >
+              <i [class]="themeService.isDark() ? 'pi pi-sun text-amber-400 text-sm' : 'pi pi-moon text-slate-700 text-sm'"></i>
+            </button>
+
             <!-- Tra Cứu Quick Button on Mobile -->
             <a 
               routerLink="/booking/lookup" 
-              class="inline-flex lg:hidden items-center justify-center w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all text-xs"
+              class="inline-flex lg:hidden items-center justify-center w-9 h-9 rounded-xl bg-[var(--surface-subtle)] hover:opacity-90 text-[var(--text-main)] border border-[var(--surface-border)] transition-all text-xs"
               title="Tra cứu đặt phòng"
             >
               <i class="pi pi-search"></i>
@@ -238,11 +258,15 @@ import { BrandLogoComponent } from '../../shared/components/brand-logo/brand-log
           <span>Xem phòng trống và giá theo lịch lưu trú bạn chọn</span>
         </div>
       </footer>
+
+      <!-- AI Concierge Floating Chatbot (Gemini + Maps Data) -->
+      <app-ai-concierge-chat />
     </div>
   `,
 })
 export class GuestLayoutComponent {
   private readonly authService = inject(AuthService);
+  readonly themeService = inject(ThemeService);
   @ViewChild('discoveryGroup') private discoveryGroup?: ElementRef<HTMLElement>;
 
   @HostListener('document:pointerdown', ['$event'])
@@ -276,7 +300,8 @@ export class GuestLayoutComponent {
   readonly userFirstName = computed<string>(() => {
     const name = this.currentUser()?.fullName;
     if (!name) return 'Khách';
-    const parts = name.trim().split(' ');
+    const cleaned = name.replace(/\([^)]*\)/g, '').trim();
+    const parts = (cleaned || name.trim()).split(/\s+/);
     return parts[parts.length - 1];
   });
 }

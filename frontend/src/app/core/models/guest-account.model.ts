@@ -10,6 +10,8 @@ export interface GuestMeDto {
   phoneNumber?: string;
   emailVerified: boolean;
   capabilities: GuestCapabilitiesDto;
+  avatarUrl?: string | null;
+  phoneVerified?: boolean;
 }
 
 export interface GuestPropertySummaryDto {
