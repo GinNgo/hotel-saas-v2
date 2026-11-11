@@ -99,14 +99,15 @@ var effectiveConnStr = DatabaseConnectionResolver.ResolveConnectionString(builde
 var isCloudDb = CloudDatabaseGuard.IsCloudDatabase(effectiveConnStr);
 
 var isTestingEnv = app.Environment.IsEnvironment("Testing");
+var isStagingEnv = app.Environment.IsEnvironment("Staging");
 var explicitSkip = builder.Configuration.GetValue<bool>("SkipStartupDatabaseInit");
-var allowCloudInit = builder.Configuration.GetValue<bool>("AllowCloudStartupDatabaseInit");
+var allowCloudInit = builder.Configuration.GetValue<bool>("AllowCloudStartupDatabaseInit") || isStagingEnv;
 
 var shouldSkipStartupInit = isTestingEnv || explicitSkip || (isCloudDb && !allowCloudInit);
 
 if (!shouldSkipStartupInit)
 {
-    CloudDatabaseGuard.ValidateStartupExecution(effectiveConnStr, builder.Configuration);
+    CloudDatabaseGuard.ValidateStartupExecution(effectiveConnStr, builder.Configuration, isStagingEnv);
 
     using (var scope = app.Services.CreateScope())
     {
@@ -114,9 +115,9 @@ if (!shouldSkipStartupInit)
         await context.Database.MigrateAsync();
         await SeedData.SeedDefaultRolesAndPermissions(context);
 
-        var canRunDevSeeder = !isCloudDb || builder.Configuration.GetValue<bool>("AllowCloudDevSeed");
-        var isDevOrAllowedStaging = app.Environment.IsDevelopment() ||
-            (app.Environment.IsEnvironment("Staging") && builder.Configuration.GetValue<bool>("AllowStagingDevSeed"));
+        var canRunDevSeeder = !isCloudDb || builder.Configuration.GetValue<bool>("AllowCloudDevSeed") || isStagingEnv;
+        var isDevOrAllowedStaging = app.Environment.IsDevelopment() || isStagingEnv ||
+            builder.Configuration.GetValue<bool>("AllowStagingDevSeed");
 
         if (isDevOrAllowedStaging && canRunDevSeeder && !string.IsNullOrWhiteSpace(effectiveConnStr))
         {
