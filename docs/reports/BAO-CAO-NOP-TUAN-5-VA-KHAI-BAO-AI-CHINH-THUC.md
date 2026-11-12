@@ -93,9 +93,9 @@ Trong tuần 05, nhóm tập trung vào các tính năng bảo mật tài khoả
 
 | Hạng mục kiểm thử | Công cụ thực hiện | Kết quả thực tế | Trạng thái |
 | :--- | :--- | :---: | :---: |
-| **Backend Unit & Integration Tests** | `dotnet test backend/HotelSaas.slnx` | Toàn bộ 600/600 bài kiểm thử đạt (532 Application, 1 Domain, 67 WebApi) test cases chạy thành công, 0 lỗi | **PASS** |
+| **Backend Unit & Integration Tests** | `dotnet test backend/HotelSaas.slnx` | Toàn bộ 600/600 bài kiểm thử đạt (532 Application, 1 Domain, 67 WebApi), không có bài thất bại | **PASS** |
 | **Frontend Unit Tests** | `npm test -- --watch=false` (Vitest) | 51/51 test files, 628/628 test cases chạy thành công, 0 lỗi | **PASS** |
-| **Kiểm thử cô lập đa tenant & chi nhánh** | Gate 1 trong workflow `cd-vps.yml` | 35/35 isolation test cases chạy thành công | **PASS** |
+| **Isolation Gate — Bảo mật & Cô lập dữ liệu** | GitHub Actions `cd-vps.yml` | 35/35 bài kiểm thử đạt, bao gồm kiểm tra Tenant/Property, SignalR và VNPay | **PASS** |
 | **Hợp nhất mã nguồn (Pull Request #22)** | GitHub CLI (`gh pr merge 22 --merge`) | Đã merge từ `develop` vào `main`, không có xung đột mã nguồn | **MERGED** |
 | **Triển khai tự động lên VPS Staging** | GitHub Actions (`cd-vps.yml` Run #43021042865) | Build 2 Docker images lên GHCR, SSH cập nhật container và kiểm tra `/health` thành công | **SUCCESS** |
 
