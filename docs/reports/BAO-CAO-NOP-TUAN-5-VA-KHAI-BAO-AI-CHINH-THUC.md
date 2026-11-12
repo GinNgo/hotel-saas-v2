@@ -93,7 +93,7 @@ Trong tuần 05, nhóm tập trung vào các tính năng bảo mật tài khoả
 
 | Hạng mục kiểm thử | Công cụ thực hiện | Kết quả thực tế | Trạng thái |
 | :--- | :--- | :---: | :---: |
-| **Backend Unit & Integration Tests** | `dotnet test backend/HotelSaas.slnx` | Toàn bộ 600/600 bài kiểm thử đạt (532 Application, 1 Domain, 67 WebApi), không có bài thất bại | **PASS** |
+| **Backend Unit & Integration Tests** | `dotnet test backend/HotelSaas.slnx` | 600/600 bài kiểm thử đạt (532 Application, 1 Domain, 67 WebApi), không có bài thất bại | **PASS** |
 | **Frontend Unit Tests** | `npm test -- --watch=false` (Vitest) | 51/51 test files, 628/628 test cases chạy thành công, 0 lỗi | **PASS** |
 | **Isolation Gate — Bảo mật & Cô lập dữ liệu** | GitHub Actions `cd-vps.yml` | 35/35 bài kiểm thử đạt, bao gồm kiểm tra Tenant/Property, SignalR và VNPay | **PASS** |
 | **Hợp nhất mã nguồn (Pull Request #22)** | GitHub CLI (`gh pr merge 22 --merge`) | Đã merge từ `develop` vào `main`, không có xung đột mã nguồn | **MERGED** |
@@ -191,7 +191,7 @@ Nhóm khai báo trung thực công cụ AI đã sử dụng trong tuần 05 theo
 
 **2. Tài khoản thử nghiệm PMS bị chặn sau khi bổ sung chính sách xác thực**
 
-Ở phần đăng nhập, em gặp vấn đề khi áp dụng chính sách yêu cầu tài khoản nhân viên phải xác thực email và số điện thoại. Các tài khoản thử nghiệm đã được tạo từ trước như `owner`, `manager` và `staff` chưa có đầy đủ thông tin xác thực nên không thể đăng nhập, mặc dù mật khẩu vẫn chính xác.
+Ở phần đăng nhập, em gặp vấn đề khi áp dụng chính sách yêu cầu tài khoản nhân viên phải xác thực email hoặc số điện thoại. Các tài khoản thử nghiệm đã được tạo từ trước như `owner`, `manager` và `staff` chưa có đầy đủ thông tin xác thực nên không thể đăng nhập, mặc dù mật khẩu vẫn chính xác.
 
 Khi kiểm tra, hệ thống trả về lỗi `ERR_VERIFICATION_REQUIRED`. Nếu bỏ điều kiện xác thực để tài khoản test đăng nhập được thì lại không đúng với yêu cầu bảo mật mới.
 
