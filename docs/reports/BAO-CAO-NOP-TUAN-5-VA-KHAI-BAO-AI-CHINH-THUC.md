@@ -31,7 +31,7 @@
 | :---: | :--- | :---: | :--- | :---: | :--- |
 | 1 | **Ngô Võ Tuấn An** | `24TX810001` | `24tx810001@student.hcmute.edu.vn` | [`GinNgo`](https://github.com/GinNgo) | Xác thực số điện thoại Firebase SMS OTP; chính sách kích hoạt tài khoản Dual-Verification; đăng nhập Google OAuth; sửa lỗi đăng nhập tài khoản test; thiết lập pipeline GitHub Actions deploy tự động lên VPS. |
 | 2 | **Nguyễn Khôi Nguyên** | `24TX810011` | `24tx810011@student.hcmute.edu.vn` | [`khoinguyen1310`](https://github.com/khoinguyen1310) | Nhúng mã QR tra cứu vào hóa đơn PDF; thêm trường lưu phương thức thanh toán ưu tiên `PaymentMethodPreference`; bổ sung bộ lọc báo cáo doanh thu theo kỳ hạn và loại phòng; tối ưu truy vấn Group By tại database. |
-| 3 | **Trần Trọng Tân** | `24TX810025` | `24tx810025@student.hcmute.edu.vn` | [`trantrongtan096`](https://github.com/trantrongtan096) | Màn hình và API duyệt/chi hoàn tiền D23 tại quầy thu ngân (dùng khóa PostgreSQL tránh 2 người chi trùng); mở rộng SignalR Hub thêm 3 sự kiện; tác vụ nền quét giải phóng đơn giữ phòng hết hạn; cập nhật script kiểm chứng E2E. |
+| 3 | **Trần Trọng Tân** | `24TX810025` | `24tx810025@student.hcmute.edu.vn` | [`trantrongtan096`](https://github.com/trantrongtan096) | Màn hình và API duyệt/chi hoàn tiền D23 tại quầy thu ngân (dùng khóa PostgreSQL tránh 2 người chi trùng); mở rộng SignalR Hub thêm 3 sự kiện; tác vụ nền kiểm tra đơn giữ phòng hết hạn và gửi thông báo theo chi nhánh; cập nhật script kiểm chứng E2E. |
 
 ---
 
@@ -156,7 +156,7 @@ Mã nguồn được lưu trữ tại kho GitHub [https://github.com/GinNgo/hote
   * [`frontend/src/app/features/payments/components/refund-approval/refund-approval.component.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/payments/components/refund-approval/refund-approval.component.ts) — Giao diện quản lý hoàn tiền D23 tại quầy.
   * [`backend/src/HotelSaas.Application/Payments/Commands/ConfirmRefundPayout/ConfirmRefundPayoutCommandHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Payments/Commands/ConfirmRefundPayout/ConfirmRefundPayoutCommandHandler.cs) — Xử lý chi hoàn tiền với khóa giao dịch `pg_advisory_xact_lock`.
   * [`backend/src/HotelSaas.Infrastructure/Services/NotificationDispatcher.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Services/NotificationDispatcher.cs) — Phát thông báo SignalR theo chi nhánh.
-  * [`backend/src/HotelSaas.Infrastructure/Services/ExpiredHoldSweepBackgroundService.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Services/ExpiredHoldSweepBackgroundService.cs) — Tác vụ nền dọn dẹp đơn giữ phòng hết hạn định kỳ 15 giây.
+  * [`backend/src/HotelSaas.Infrastructure/Services/ExpiredHoldSweepBackgroundService.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Services/ExpiredHoldSweepBackgroundService.cs) — Tác vụ nền kiểm tra đơn giữ phòng quá hạn định kỳ 15 giây và phát thông báo `HoldExpired`.
   * [`scripts/verify-signalr-e2e.mjs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/scripts/verify-signalr-e2e.mjs) — Script kiểm chứng tự động toàn trình E2E luồng đặt phòng.
 
 ---
