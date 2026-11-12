@@ -62,13 +62,14 @@ Trong tuần 05, nhóm tập trung vào các tính năng bảo mật tài khoả
 ### 2. Phân hệ của Nguyễn Khôi Nguyên (24TX810011)
 
 * **Nhúng mã QR tra cứu vào hóa đơn PDF:**
-  * Sử dụng thư viện `QRCoder` để sinh mã QR dạng vector SVG ngay trong bộ nhớ backend, không gọi qua API bên ngoài để tránh phụ thuộc đường truyền internet.
-  * Mã QR chứa đường dẫn tra cứu thông tin đặt phòng dựa vào mã `LookupToken`.
+  * Sử dụng thư viện `QRCoder` để sinh mã QR dạng ảnh PNG trực tiếp trong bộ nhớ backend, không cần gọi API tạo mã QR từ dịch vụ bên ngoài.
+  * Nội dung QR chứa đường dẫn tra cứu đặt phòng dựa trên `LookupToken` hợp lệ. Mã QR được nhúng vào hóa đơn PDF nhằm giúp khách mở trang tra cứu thông tin đặt phòng và trạng thái liên quan.
 * **Lưu trữ phương thức thanh toán ưu tiên (`PaymentMethodPreference`):**
   * Bổ sung cột `PaymentMethodPreference` vào bảng `Reservations` trong cơ sở dữ liệu để ghi nhận hình thức khách chọn khi đặt (VNPay, VietQR, tiền mặt, chuyển khoản).
 * **Bộ lọc báo cáo doanh thu và tối ưu truy vấn:**
-  * Bổ sung bộ lọc xem báo cáo theo tuần, tháng, quý, năm và lọc theo loại phòng ở từng chi nhánh.
-  * Chuyển cách tính tổng doanh thu từ việc load dữ liệu về RAM sang câu lệnh LINQ gom nhóm (`GroupBy`, `Sum`) trực tiếp trên PostgreSQL để tiết kiệm bộ nhớ và giảm thời gian phản hồi của API.
+  * Bổ sung khả năng lọc báo cáo theo tuần, tháng, quý, năm và theo loại phòng, giúp nhân viên quản lý theo dõi doanh thu theo từng phạm vi cần xem.
+  * Đối với các nhóm số liệu phù hợp, sử dụng LINQ `GroupBy` và `Sum` để PostgreSQL thực hiện tổng hợp trước khi trả kết quả về backend, qua đó giảm lượng dữ liệu cần xử lý trong bộ nhớ ứng dụng.
+  * Một số phép tính doanh thu và thống kê theo ngày vẫn được thực hiện sau khi tải dữ liệu, nên việc tối ưu toàn bộ truy vấn báo cáo tiếp tục được rà soát trong các giai đoạn sau.
 
 ---
 
@@ -77,7 +78,8 @@ Trong tuần 05, nhóm tập trung vào các tính năng bảo mật tài khoả
 * **Quản lý và phê duyệt hoàn tiền D23 tại quầy thu ngân:**
   * Xây dựng giao diện duyệt hoàn tiền: xem danh sách yêu cầu, xem lý do hủy, tỷ lệ phí phạt và số tiền cần hoàn.
   * Xây dựng các API: duyệt yêu cầu, từ chối yêu cầu và xác nhận đã chi tiền cho khách (ghi nhận hình thức chi tiền mặt hoặc chuyển khoản).
-  * Sử dụng khóa `pg_advisory_xact_lock` của PostgreSQL để xử lý tình huống hai thu ngân cùng mở một hồ sơ và bấm xác nhận chi cùng thời điểm, đảm bảo chỉ một người thực hiện được, không bị chi tiền 2 lần.
+  * Bổ sung cơ chế khóa giao dịch PostgreSQL `pg_advisory_xact_lock`, kết hợp `SemaphoreSlim` để kiểm soát các yêu cầu xác nhận chi hoàn đồng thời. Khóa nghiệp vụ được xác định theo phạm vi chi nhánh và khoản thanh toán cần xử lý.
+  * Xây dựng bài kiểm thử sử dụng `Task.WhenAll` với hai DbContext độc lập để mô phỏng hai thu ngân cùng xác nhận chi hoàn cho một hồ sơ. Kết quả kiểm thử cho thấy chỉ một yêu cầu được ghi nhận thành công, hạn chế nguy cơ cập nhật trùng khoản hoàn tiền trong hệ thống.
 * **Mở rộng thông báo thời gian thực SignalR Hub:**
   * Thêm 3 sự kiện gửi qua SignalR: thanh toán thành công, khách gửi yêu cầu hủy phòng, và đơn giữ phòng hết hạn.
   * Phân luồng thông báo theo đúng `TenantId` và `PropertyId` của từng chi nhánh.
@@ -109,8 +111,8 @@ Nhóm đối soát rõ ràng tình trạng thực hiện các yêu cầu nâng c
 
 ### 2. Các Yêu Cầu Đã Chuẩn Bị Xong Nền Tảng Trong Tuần 05 & Chuyển Sang Tuần 06 Hoàn Thiện:
 * **Yêu cầu 2 (Chứng minh cô lập dữ liệu đa tenant giữa các chi nhánh bằng test tự động):**
-  * *Tuần 05 đã làm:* Hoàn thành 35 bài test tự động kiểm tra việc áp dụng `TenantPropertyFilter` và Interceptor chặn dữ liệu chéo chi nhánh ở tầng DbContext / Entity Framework Core (chạy trong Cổng 1 của CI/CD).
-  * *Chuyển sang Tuần 06:* Viết thêm bài test E2E kiểm tra ở mức API HTTP (`CrossBranchSecurityE2ETests.cs`): dùng token của lễ tân chi nhánh này để gọi API đọc/sửa dữ liệu của chi nhánh khác, kiểm tra kết quả trả về `403 Forbidden`.
+  * *Tuần 05 đã làm:* Nhóm hoàn thiện Isolation Gate trong GitHub Actions, lựa chọn các bộ kiểm thử liên quan đến cô lập Tenant/Property, middleware, bảo mật SignalR và một số tình huống tích hợp VNPay. Lượt chạy CI/CD được kiểm tra ghi nhận **35/35 bài kiểm thử đạt yêu cầu**.
+  * *Chuyển sang Tuần 06:* Bổ sung bài kiểm thử E2E ở mức HTTP API (`CrossBranchSecurityE2ETests.cs`). Sử dụng token nhân viên thuộc một chi nhánh để thử truy cập dữ liệu của chi nhánh khác, kiểm tra việc backend từ chối truy cập theo chính sách phân quyền và phạm vi dữ liệu.
 * **Yêu cầu 3 (Chạy load test cho SignalR Hub và luồng thanh toán VNPay):**
   * *Tuần 05 đã làm:* Đã viết xong 2 file k6 script gồm `scripts/load-tests/vnpay-checkout-ipn.k6.js` (test webhook IPN) và `scripts/load-tests/signalr-hub.k6.js` (test kết nối WebSocket).
   * *Chuyển sang Tuần 06:* Chạy trực tiếp k6 lên môi trường VPS Staging với các kịch bản người dùng đồng thời để ghi lại số liệu thời gian phản hồi và độ trễ thực tế để báo cáo thầy.
@@ -147,7 +149,8 @@ Mã nguồn được lưu trữ tại kho GitHub [https://github.com/GinNgo/hote
 * **Nguyễn Khôi Nguyên:**
   * [`backend/src/HotelSaas.Infrastructure/Services/ReportExportService.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Services/ReportExportService.cs) — Xuất hóa đơn PDF nhúng mã QR tra cứu bằng QRCoder.
   * [`backend/src/HotelSaas.Domain/Entities/Reservation.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Domain/Entities/Reservation.cs) — Bổ sung trường `PaymentMethodPreference`.
-  * [`backend/src/HotelSaas.Application/Reports/Queries/GetBranchReport/GetBranchReportQueryHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Reports/Queries/GetBranchReport/GetBranchReportQueryHandler.cs) — Truy vấn báo cáo chi nhánh tối ưu `GroupBy` tại database.
+  * [`backend/src/HotelSaas.WebApi/Controllers/ReportsController.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Controllers/ReportsController.cs) — API báo cáo doanh thu, xử lý điều kiện lọc theo loại phòng và tổng hợp số liệu thanh toán theo phương thức.
+  * [`backend/src/HotelSaas.Application/Reports/Queries/GetGroupAnalytics/GetGroupAnalyticsQueryHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Reports/Queries/GetGroupAnalytics/GetGroupAnalyticsQueryHandler.cs) — Truy vấn thống kê và tổng hợp dữ liệu phục vụ báo cáo phân tích theo nhóm khách sạn.
   * [`frontend/src/app/features/reports/reports.page.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/reports/reports.page.ts) — Màn hình báo cáo với các bộ lọc theo tuần/tháng/quý/năm.
 * **Trần Trọng Tân:**
   * [`frontend/src/app/features/payments/components/refund-approval/refund-approval.component.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/features/payments/components/refund-approval/refund-approval.component.ts) — Giao diện quản lý hoàn tiền D23 tại quầy.
@@ -173,44 +176,134 @@ Nhóm khai báo trung thực công cụ AI đã sử dụng trong tuần 05 theo
 
 #### A. Ngô Võ Tuấn An (24TX810001)
 
-1. **Thiếu kịch bản số điện thoại thử nghiệm khi làm Firebase SMS OTP:**
-   * *Lỗi của AI:* Khi viết hàm xác thực OTP, AI chỉ tạo code gọi dịch vụ gửi tin nhắn thật lên Firebase. Nếu test nhiều lần sẽ bị hết hạn mức (quota) và phát sinh phí SMS.
-   * *Sinh viên phát hiện và sửa lại:* Em đã yêu cầu AI bổ sung cơ chế nhận diện số thử nghiệm sandbox `+84123456789` với OTP cố định `123456` và reCAPTCHA vô hình, giúp nhóm và thầy test thoải mái mà không tốn phí viễn thông.
-   * *Minh chứng:* File [`frontend/src/app/core/services/firebase-auth.service.ts`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/services/firebase-auth.service.ts) (Commit `4f60765`).
+1. **Bổ sung chế độ thử nghiệm cho chức năng Firebase SMS OTP::**
+* **Vấn đề gặp phải:**
+  * Trong quá trình tích hợp xác thực số điện thoại, phương án ban đầu tập trung vào việc gửi OTP thông qua Firebase. Cách này phù hợp với luồng xác thực thực tế nhưng khá bất tiện khi nhóm cần thử nhiều lần các trường hợp nhập mã, gửi lại mã hoặc kiểm tra giao diện.
+  * Nếu liên tục sử dụng SMS thật để test, nhóm có thể gặp giới hạn dịch vụ hoặc phát sinh chi phí không cần thiết.
 
-2. **Chính sách Hard-Gating làm tài khoản test PMS bị chặn đăng nhập:**
-   * *Lỗi của AI:* AI thêm điều kiện bắt buộc tài khoản nhân viên phải có cờ `EmailVerifiedAtUtc` và `PhoneVerifiedAtUtc` mới cho đăng nhập. Nhưng dữ liệu khởi tạo mẫu ban đầu để các trường này là `null`, khiến toàn bộ tài khoản thử nghiệm của nhóm và thầy đều bị báo lỗi `ERR_VERIFICATION_REQUIRED`.
-   * *Sinh viên phát hiện và sửa lại:* Khi đăng nhập thử trên VPS Staging thấy bị chặn, em đã tạo Migration để cập nhật dữ liệu xác thực cho các tài khoản test có sẵn, đồng thời viết thêm hàm tự gán cờ xác thực khi đăng nhập trong `LoginCommandHandler.cs` để các tài khoản demo vào được hệ thống.
-   * *Minh chứng:* File [`LoginCommandHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Auth/Commands/Login/LoginCommandHandler.cs) và Migration [`20261111163000_AutoVerifyPersonnelTestAccounts.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Migrations/20261111163000_AutoVerifyPersonnelTestAccounts.cs) (Commit `8a8ebbe`).
+* **Cách em xử lý:**
+  * Em bổ sung yêu cầu hỗ trợ chế độ OTP mô phỏng, sử dụng mã `123456` trong quá trình phát triển và kiểm thử. Nhờ đó, nhóm có thể kiểm tra luồng nhập OTP mà không cần gửi SMS thật cho mỗi lần chạy.
+  * Phần frontend vẫn tích hợp Firebase Authentication và reCAPTCHA để phục vụ xác thực khi có cấu hình Firebase hợp lệ.
+  * Tuy nhiên, chế độ mô phỏng cần được tách khỏi xác thực thật. Phần backend hiện còn phải giới hạn việc sử dụng `dev-mock-token` theo môi trường, tránh để token thử nghiệm được chấp nhận trên Staging hoặc Production.
 
-3. **Đề xuất quy trình deploy VPS bằng thao tác git pull trực tiếp trên server:**
-   * *Lỗi của AI:* Ban đầu AI hướng dẫn viết script SSH vào VPS rồi chạy `git pull` và `dotnet publish` trực tiếp trên VPS. Cách này tốn tài nguyên CPU/RAM của server nhỏ và dễ gây lỗi môi trường.
-   * *Sinh viên phát hiện và sửa lại:* Em đã yêu cầu AI đổi sang mô hình chuẩn: build Docker image trên máy ảo của GitHub Actions, đẩy image lên GitHub Container Registry (`ghcr.io`), rồi VPS chỉ cần pull image về chạy lại container và kiểm tra kết quả qua route `/health`.
-   * *Minh chứng:* File [`.github/workflows/cd-vps.yml`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/.github/workflows/cd-vps.yml) (Commit `02038cb`).
+* **Minh chứng:** [firebase-auth.service.ts](https://github.com/GinNgo/hotel-saas-v2/blob/develop/frontend/src/app/core/services/firebase-auth.service.ts) và [FirebaseAuthService.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Services/FirebaseAuthService.cs) — Commit [`4f60765`](https://github.com/GinNgo/hotel-saas-v2/commit/4f6076592eae9e7b3527908fc82b43ffd9da186d).
+
+**2. Tài khoản thử nghiệm PMS bị chặn sau khi bổ sung chính sách xác thực**
+
+Ở phần đăng nhập, em gặp vấn đề khi áp dụng chính sách yêu cầu tài khoản nhân viên phải xác thực email và số điện thoại. Các tài khoản thử nghiệm đã được tạo từ trước như `owner`, `manager` và `staff` chưa có đầy đủ thông tin xác thực nên không thể đăng nhập, mặc dù mật khẩu vẫn chính xác.
+
+Khi kiểm tra, hệ thống trả về lỗi `ERR_VERIFICATION_REQUIRED`. Nếu bỏ điều kiện xác thực để tài khoản test đăng nhập được thì lại không đúng với yêu cầu bảo mật mới.
+
+Em xử lý bằng cách bổ sung Migration cập nhật trạng thái xác thực cho các tài khoản thử nghiệm có sẵn. Đồng thời, phần `LoginCommandHandler` được điều chỉnh để nhận diện và bổ sung thông tin xác thực cho những tài khoản seed được chỉ định.
+
+Cách xử lý này giúp nhóm tiếp tục sử dụng các tài khoản demo mà không phải loại bỏ chính sách xác thực đối với người dùng thông thường.
+
+* **Minh chứng:** [LoginCommandHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Auth/Commands/Login/LoginCommandHandler.cs) và [Migration cập nhật tài khoản test](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Migrations/20261111163000_AutoVerifyPersonnelTestAccounts.cs) — Commit [`8a8ebbe`](https://github.com/GinNgo/hotel-saas-v2/commit/8a8ebbe0a5005b099b3fe691aa39779aee331c0d).
+
+**3. Thay đổi cách triển khai ứng dụng lên VPS**
+
+* **Phương án AI đề xuất ban đầu:** SSH vào VPS, sử dụng `git pull` để cập nhật mã nguồn rồi thực hiện build và chạy lại ứng dụng trực tiếp trên máy chủ.
+* **Điểm chưa phù hợp:** VPS của nhóm có tài nguyên giới hạn. Nếu vừa chạy ứng dụng vừa thực hiện build frontend và backend thì có thể làm tăng mức sử dụng CPU, RAM và khiến quá trình triển khai khó kiểm soát.
+* **Phương án em lựa chọn:** Chuyển công đoạn build sang GitHub Actions. Pipeline thực hiện kiểm thử, tạo Docker images và đẩy lên GitHub Container Registry (`ghcr.io`). VPS chỉ cần tải image mới, cập nhật container và kiểm tra tình trạng ứng dụng qua endpoint `/health`.
+* **Kết quả:** Quy trình đã chạy thành công trong đợt triển khai sau khi nhóm merge PR #22 vào `main`. Các bước kiểm thử, build và cập nhật VPS đều có log trên GitHub Actions để theo dõi.
+
+* **Minh chứng:** [cd-vps.yml](https://github.com/GinNgo/hotel-saas-v2/blob/develop/.github/workflows/cd-vps.yml) và [GitHub Actions Run #43021042865](https://github.com/GinNgo/hotel-saas-v2/actions/runs/43021042865).
+
+---
 
 #### B. Nguyễn Khôi Nguyên (24TX810011)
 
-1. **Đề xuất gọi API bên ngoài để tạo mã QR:**
-   * *Lỗi của AI:* Khi làm tính năng nhúng QR vào hóa đơn PDF, AI ban đầu viết code gọi một dịch vụ API online để lấy ảnh QR về nhúng vào PDF. Cách này nếu server mất mạng hoặc API bên thứ ba bị chậm thì việc in hóa đơn sẽ bị lỗi.
-   * *Sinh viên phát hiện và sửa lại:* Em yêu cầu AI sử dụng thư viện `QRCoder` để sinh trực tiếp mã QR dạng vector trong bộ nhớ backend, không gửi dữ liệu ra ngoài và không phụ thuộc mạng internet.
-   * *Minh chứng:* File [`ReportExportService.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Services/ReportExportService.cs) (Commit `96a559a`).
+**1. Điều chỉnh cách tạo mã QR trên hóa đơn PDF**
 
-2. **Truy vấn báo cáo bằng cách tải toàn bộ dữ liệu vào RAM (N+1 Query):**
-   * *Lỗi của AI:* Khi viết logic lọc báo cáo, AI gọi `.ToListAsync()` để lấy toàn bộ danh sách đơn phòng về rồi mới dùng hàm `.Where(...)` của C# để tính tổng.
-   * *Sinh viên phát hiện và sửa lại:* Khi kiểm tra log SQL em thấy số lượng câu truy vấn sinh ra quá nhiều. Em đã yêu cầu viết lại câu lệnh LINQ để PostgreSQL trực tiếp gom nhóm (`GroupBy`) và tính tổng (`Sum`) ngay tại cơ sở dữ liệu trước khi trả về.
-   * *Minh chứng:* File [`GetBranchReportQueryHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Reports/Queries/GetBranchReport/GetBranchReportQueryHandler.cs) (Commit `96a559a`).
+Khi thực hiện chức năng xuất hóa đơn, em cần tạo mã QR để khách có thể quét và truy cập lại thông tin đặt phòng. Phương án AI đưa ra ban đầu là sử dụng một dịch vụ bên ngoài để sinh ảnh QR rồi đưa vào file PDF.
+
+Cách này có thể hoạt động, nhưng em thấy không cần thiết phải phụ thuộc vào một API khác chỉ để tạo mã QR. Nếu dịch vụ phản hồi chậm hoặc đường truyền gặp vấn đề thì chức năng in hóa đơn cũng có thể bị ảnh hưởng.
+
+Em chuyển sang dùng thư viện `QRCoder` để sinh mã QR trực tiếp trong backend. Với phiên bản mã nguồn hiện tại, QR được tạo dưới dạng ảnh PNG trong bộ nhớ, sau đó nhúng vào hóa đơn PDF. Nội dung mã QR chứa đường dẫn tra cứu đặt phòng dựa trên `LookupToken` hợp lệ.
+
+Nhờ vậy, chức năng tạo mã QR không còn phụ thuộc vào API sinh QR bên ngoài. Dữ liệu dùng để tạo QR cũng được xử lý ngay trong hệ thống.
+
+* **Minh chứng:** [ReportExportService.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Infrastructure/Services/ReportExportService.cs) — Commit [`96a559a`](https://github.com/GinNgo/hotel-saas-v2/commit/96a559a252e27c197e8d8bfb21f2362fefb7135a).
+
+**2. Rà soát cách xử lý dữ liệu báo cáo doanh thu**
+
+* **Hạn chế của phương án ban đầu:**
+  * Một số truy vấn lấy danh sách dữ liệu từ cơ sở dữ liệu về backend rồi mới thực hiện lọc hoặc tính tổng bằng C#.
+  * Khi số lượng đơn đặt phòng tăng lên, việc tải nhiều bản ghi chỉ để tính toán có thể làm tăng lượng dữ liệu truyền về ứng dụng và chiếm thêm bộ nhớ.
+
+* **Phần em điều chỉnh:**
+  * Em xem lại những phép tính có thể thực hiện trực tiếp tại cơ sở dữ liệu, sau đó áp dụng `GroupBy` và `Sum` trong truy vấn LINQ ở các trường hợp phù hợp.
+  * Các bộ lọc theo thời gian và loại phòng vẫn được giữ theo yêu cầu. Sau khi thay đổi cách truy vấn, em tiếp tục đối chiếu kết quả tổng hợp để tránh ảnh hưởng đến số liệu báo cáo.
+
+* **Đánh giá sau chỉnh sửa:**
+  * Một số phép tổng hợp đã được thực hiện tại PostgreSQL thay vì phải tải toàn bộ dữ liệu về ứng dụng.
+  * Dù vậy, vẫn còn những phép thống kê xử lý trong bộ nhớ backend. Vì thế, em chưa xem đây là việc đã tối ưu hoàn toàn hệ thống báo cáo và sẽ tiếp tục rà soát khi cần cải thiện hiệu năng.
+
+* **Minh chứng:** [ReportsController.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.WebApi/Controllers/ReportsController.cs) và [GetGroupAnalyticsQueryHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Reports/Queries/GetGroupAnalytics/GetGroupAnalyticsQueryHandler.cs).
+
+---
 
 #### C. Trần Trọng Tân (24TX810025)
 
-1. **Tính nhầm khoản tiền chi hoàn vào doanh thu tổng:**
-   * *Lỗi của AI:* Ban đầu AI viết logic tính tổng doanh thu bằng cách cộng mọi giao dịch có trạng thái `Completed`, dẫn đến số tiền chi hoàn trả lại cho khách lại vô tình làm tăng thêm doanh thu tổng.
-   * *Sinh viên phát hiện và sửa lại:* Khi thử tính toán (ví dụ thu 1.000.000đ, hoàn lại 300.000đ thì thu ròng phải là 700.000đ), em thấy số liệu bị sai. Em đã chỉnh sửa lại prompt yêu cầu tách bạch rõ: Tổng thu, Khoản chi hoàn, và Doanh thu ròng.
-   * *Minh chứng:* File [`ConfirmRefundPayoutCommandHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Payments/Commands/ConfirmRefundPayout/ConfirmRefundPayoutCommandHandler.cs) (Commit `f74bb52`).
+**1. Khoản chi hoàn bị tính chung vào tổng doanh thu**
 
-2. **Dùng khóa trong bộ nhớ máy chủ (in-memory lock) thay vì khóa cơ sở dữ liệu:**
-   * *Lỗi của AI:* Để chống việc 2 thu ngân cùng xác nhận chi tiền cho một yêu cầu, ban đầu AI dùng `SemaphoreSlim` trong bộ nhớ ứng dụng. Nếu sau này chạy nhiều container backend thì khóa này không có tác dụng.
-   * *Sinh viên phát hiện và sửa lại:* Em đã yêu cầu AI đổi sang dùng khóa `pg_advisory_xact_lock` của PostgreSQL dựa theo ID đơn phòng. Khi đó dù request đến từ container nào thì cơ sở dữ liệu cũng sẽ khóa lại, chỉ cho 1 giao dịch thực hiện thành công.
-   * *Minh chứng:* File [`ConfirmRefundPayoutCommandHandler.cs`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Payments/Commands/ConfirmRefundPayout/ConfirmRefundPayoutCommandHandler.cs) (Commit `f74bb52`).
+Trong lúc rà soát chức năng hoàn tiền D23, em tập trung kiểm tra số liệu trên báo cáo thu ngân sau khi khách được hoàn tiền. Em lấy trường hợp quầy đã thu **1.000.000 đồng**, sau đó trả lại khách **300.000 đồng** để đối chiếu.
+
+Theo nghiệp vụ, tổng thu vẫn phải là 1.000.000 đồng, tổng chi hoàn là 300.000 đồng và thu ròng còn 700.000 đồng. Tuy nhiên, phần xử lý ban đầu chưa phân biệt đầy đủ giao dịch thu với giao dịch chi hoàn khi tổng hợp các khoản có trạng thái `Completed`.
+
+Nếu cộng chung tất cả giao dịch, số tiền trả lại khách có thể khiến tổng doanh thu tăng lên, trong khi thực tế khách sạn đang chi tiền ra.
+
+Em sử dụng ví dụ này để điều chỉnh prompt và yêu cầu AI kiểm tra lại cách tính. Sau khi sửa, em đối chiếu trên báo cáo ca, báo cáo ngày và Folio, đồng thời bổ sung bài kiểm thử để bảo đảm ba nơi phản ánh cùng một kết quả.
+
+* **Minh chứng:** [RefundApprovalManagementTests.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/tests/HotelSaas.Application.Tests/Payments/RefundApprovalManagementTests.cs) và [GetShiftReportQueryHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Payments/Queries/GetShiftReport/GetShiftReportQueryHandler.cs).
+
+**2. Kiểm tra tình huống hai thu ngân xác nhận chi hoàn cùng lúc**
+
+Sau khi chức năng duyệt và xác nhận chi hoàn hoạt động, em xem xét thêm một trường hợp có thể xảy ra ở quầy: hai thu ngân cùng mở một hồ sơ hoàn tiền đang chờ xử lý và bấm xác nhận gần như đồng thời.
+
+Cách xử lý ban đầu sử dụng `SemaphoreSlim` để kiểm soát các request trong cùng một tiến trình. Tuy nhiên, nếu sau này hệ thống chạy nhiều backend hoặc nhiều container thì mỗi tiến trình lại có bộ nhớ riêng. Vì vậy, chỉ dùng khóa trong bộ nhớ chưa đủ để kiểm soát trường hợp này.
+
+Em bổ sung yêu cầu sử dụng `pg_advisory_xact_lock` của PostgreSQL, kết hợp kiểm tra trạng thái hồ sơ trước khi xác nhận chi. Phần kiểm thử được mở rộng bằng `Task.WhenAll` với hai DbContext độc lập để mô phỏng hai thu ngân cùng thao tác.
+
+Kết quả kiểm thử local ghi nhận chỉ một yêu cầu xác nhận được xử lý thành công, yêu cầu còn lại bị từ chối do xung đột trạng thái. Bộ kiểm thử backend T01 sau khi cập nhật đạt **15/15 bài**.
+
+Cơ chế này giúp hạn chế việc ghi nhận trùng khoản chi hoàn trong hệ thống. Việc chuyển tiền mặt hoặc chuyển khoản thực tế vẫn được nhân viên thực hiện bên ngoài phần mềm.
+
+* **Minh chứng:** [ConfirmRefundPayoutCommandHandler.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Payments/Commands/ConfirmRefundPayout/ConfirmRefundPayoutCommandHandler.cs) — Commit [`f74bb52`](https://github.com/GinNgo/hotel-saas-v2/commit/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c).
+
+**3. Thông báo hết hạn giữ phòng khi khách đã đóng trình duyệt**
+
+Ở T02, em đặt ra tình huống khách đã giữ phòng nhưng đóng trình duyệt trước khi hết thời gian đếm ngược. Nếu việc kiểm tra chỉ phụ thuộc vào frontend hoặc chờ người dùng thao tác thì lễ tân có thể không nhận được thông báo khi đơn hết hạn.
+
+Vì vậy, em yêu cầu chuyển việc kiểm tra thời hạn giữ phòng về backend. AI hỗ trợ bổ sung `ExpiredHoldSweepBackgroundService` để tự động quét các đơn quá hạn theo chu kỳ, không phụ thuộc vào việc khách còn mở website hay không.
+
+Sau khi có tác vụ nền, em tiếp tục xem xét trường hợp nhiều backend cùng chạy. Nếu hai backend cùng phát hiện một đơn hết hạn thì cần tránh việc xử lý và phát thông báo trùng lặp.
+
+Em bổ sung yêu cầu sử dụng khóa PostgreSQL và xây dựng bài kiểm thử với hai DbContext độc lập để mô phỏng việc quét đồng thời. Ngoài việc kiểm tra chống trùng, bài test còn đối chiếu sự kiện chỉ được gửi về đúng chi nhánh sở hữu đơn.
+
+Theo kết quả kiểm thử local, bộ backend T02 đạt **17/17 bài** sau khi bổ sung các trường hợp mới. Kết quả này chứng minh tình huống đồng thời đã được mô phỏng trong bài kiểm thử, chưa thay thế việc kiểm thử tải trên nhiều máy chủ triển khai thực tế.
+
+* **Minh chứng:** [CheckExpiredHoldsCommand.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/src/HotelSaas.Application/Public/Commands/CheckExpiredHolds/CheckExpiredHoldsCommand.cs) và [NotificationHubSecurityTests.cs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/backend/tests/HotelSaas.Application.Tests/Notifications/NotificationHubSecurityTests.cs).
+
+**4. Script E2E ban đầu chưa đi đúng luồng đặt phòng của khách**
+
+Khi chuẩn bị kịch bản demo T03, em cần kiểm chứng quá trình từ lúc khách tìm phòng trên website cho đến khi lễ tân nhận thông báo và xử lý nghiệp vụ trên PMS.
+
+Trong lúc rà lại script `verify-signalr-e2e.mjs`, em phát hiện bước tìm phòng đã sử dụng API công khai nhưng bước tạo đơn lại gọi `POST /api/reservations` dành cho nghiệp vụ nội bộ.
+
+Dù các bước riêng lẻ có thể chạy thành công, cách này chưa chứng minh được khách hàng có thể tự thực hiện toàn bộ quy trình đặt phòng trên website. Đây cũng là điểm chưa phù hợp với mục tiêu trình diễn hai màn hình của T03.
+
+Em điều chỉnh yêu cầu gửi AI để script sử dụng cùng một đơn qua các bước:
+
+`Availability → Hold → Lookup → Confirm → SignalR → Cancel → D23`
+
+Sau khi sửa, script kiểm tra việc khách tạo giữ chỗ công khai, tra cứu bằng `LookupToken`, xác nhận đặt cọc và gửi yêu cầu hủy phòng. Ở phía PMS, em đối chiếu sự kiện SignalR nhận được giữa tài khoản Manager và Receptionist, sau đó tiếp tục kiểm tra quy trình duyệt và xác nhận chi hoàn D23.
+
+Trong lần kiểm chứng local được ghi nhận, script thực hiện các bước trên cùng một đơn thử nghiệm, với khoản đặt cọc và khoản chi hoàn là **480.000 đồng**.
+
+Riêng thanh toán VNPay, em phân biệt rõ việc xác nhận đặt cọc bằng API local với giao dịch thật trên VNPay Sandbox. Script chạy thành công không có nghĩa cổng thanh toán đã gửi IPN từ Internet. Vì vậy, **TC-06 vẫn được ghi ở trạng thái Chưa kiểm chứng**.
+
+* **Minh chứng:** [verify-signalr-e2e.mjs](https://github.com/GinNgo/hotel-saas-v2/blob/develop/scripts/verify-signalr-e2e.mjs) và [T03-TEST-RESULTS.md](https://github.com/GinNgo/hotel-saas-v2/blob/develop/docs/reports/T03-TEST-RESULTS.md) — Commit [`f74bb52`](https://github.com/GinNgo/hotel-saas-v2/commit/f74bb52fc14b947eebcd2a34bc3d70059eed6f2c).
 
 ---
 
