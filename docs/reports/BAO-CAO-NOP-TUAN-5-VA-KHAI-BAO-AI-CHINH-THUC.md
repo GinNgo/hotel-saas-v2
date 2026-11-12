@@ -46,7 +46,7 @@ Trong tuần 05, nhóm tập trung vào các tính năng bảo mật tài khoả
   * Hỗ trợ số điện thoại sandbox `+84123456789` với mã OTP cố định `123456` để nhóm và thầy có thể test mà không bị trừ tiền SMS viễn thông.
 * **Chính sách kích hoạt tài khoản (Dual-Verification):**
   * Khách đặt phòng: bắt buộc xác thực số điện thoại qua OTP mới được giữ phòng (`POST /api/public/bookings/hold`), tránh tình trạng giữ phòng ảo.
-  * Nhân sự PMS: bắt buộc tài khoản đã xác thực email và số điện thoại mới được cấp token đăng nhập.
+  * Nhân sự PMS: yêu cầu tài khoản đã kích hoạt email hoặc xác thực số điện thoại trước khi đăng nhập. Riêng các tài khoản seed phục vụ kiểm thử được xử lý theo danh sách tài khoản thử nghiệm đã cấu hình.
 * **Sửa lỗi đăng nhập tài khoản test PMS:**
   * Viết Migration cập nhật cờ xác thực cho các tài khoản test có sẵn trong cơ sở dữ liệu (`owner`, `manager`, `staff`).
   * Bổ sung hàm tự gán cờ xác thực khi đăng nhập cho tài khoản seed để đảm bảo người kiểm thử đăng nhập bình thường trên Staging VPS.
@@ -83,7 +83,7 @@ Trong tuần 05, nhóm tập trung vào các tính năng bảo mật tài khoả
 * **Mở rộng thông báo thời gian thực SignalR Hub:**
   * Thêm 3 sự kiện gửi qua SignalR: thanh toán thành công, khách gửi yêu cầu hủy phòng, và đơn giữ phòng hết hạn.
   * Phân luồng thông báo theo đúng `TenantId` và `PropertyId` của từng chi nhánh.
-  * Viết tác vụ nền chạy mỗi 15 giây để tự động quét và giải phóng các phòng giữ chỗ quá hạn, kể cả khi khách đã tắt trình duyệt.
+  * Viết tác vụ nền chạy mỗi 15 giây để kiểm tra các đơn giữ phòng quá hạn và tự động phát thông báo `HoldExpired` về đúng chi nhánh, kể cả khi khách đã đóng trình duyệt.
 * **Script kiểm chứng tự động luồng đặt phòng E2E:**
   * Cập nhật script `scripts/verify-signalr-e2e.mjs` chạy qua các bước: tìm phòng trống $\rightarrow$ giữ chỗ $\rightarrow$ tra cứu đơn $\rightarrow$ nhận thông báo SignalR $\rightarrow$ hủy phòng $\rightarrow$ duyệt hoàn tiền D23.
 
@@ -176,7 +176,8 @@ Nhóm khai báo trung thực công cụ AI đã sử dụng trong tuần 05 theo
 
 #### A. Ngô Võ Tuấn An (24TX810001)
 
-1. **Bổ sung chế độ thử nghiệm cho chức năng Firebase SMS OTP::**
+**1. Bổ sung chế độ thử nghiệm cho chức năng Firebase SMS OTP**
+
 * **Vấn đề gặp phải:**
   * Trong quá trình tích hợp xác thực số điện thoại, phương án ban đầu tập trung vào việc gửi OTP thông qua Firebase. Cách này phù hợp với luồng xác thực thực tế nhưng khá bất tiện khi nhóm cần thử nhiều lần các trường hợp nhập mã, gửi lại mã hoặc kiểm tra giao diện.
   * Nếu liên tục sử dụng SMS thật để test, nhóm có thể gặp giới hạn dịch vụ hoặc phát sinh chi phí không cần thiết.
@@ -319,7 +320,7 @@ Trong tuần 06, nhóm không vội vàng mở rộng tính năng mới mà tậ
 | :--- | :--- | :--- | :--- |
 | **Ngô Võ Tuấn An**<br>`24TX810001`<br>*(Lead & DevOps)* | **Rà soát xác thực & Giám sát tập trung** | 1. **Kiểm tra lại tính năng:** Rà soát toàn bộ luồng khách hàng đặt phòng trên web thật: chọn phòng, điền thông tin, nhận mã OTP SMS qua Firebase (thử cả số sandbox và số điện thoại thật), đăng nhập Google OAuth, và đăng nhập các tài khoản nhân sự PMS.<br>2. **Nhiệm vụ GVHD:** Triển khai cụm Dashboard giám sát tập trung (Prometheus + Grafana) lên VPS để quan sát trực quan lưu lượng request, mã lỗi và độ trễ qua giao diện web.<br>3. Tiếp tục duy trì và kiểm soát pipeline CI/CD `cd-vps.yml` khi nhóm cập nhật code mới. | • Báo cáo biên bản kiểm tra lại luồng xác thực trên web thật.<br>• Dashboard Grafana giám sát hệ thống hoạt động thật trên VPS.<br>• Báo cáo kiểm tra log và độ ổn định hệ thống. |
 | **Trần Trọng Tân**<br>`24TX810025`<br>*(Operations & Realtime)* | **Rà soát thu ngân & Load Test SignalR** | 1. **Kiểm tra lại tính năng:** Rà soát kỹ lưỡng quy trình thu ngân quầy trên web thật: tạo yêu cầu hủy phòng, duyệt hoàn tiền D23, xác nhận chi trả thực tế; kiểm tra chuông thông báo SignalR xem có nổ thông báo về máy lễ tân theo đúng chi nhánh không.<br>2. **Nhiệm vụ GVHD:** Chạy bài test tải k6 cho SignalR Hub (`scripts/load-tests/signalr-hub.k6.js`) lên VPS Staging, đo đạc số lượng kết nối đồng thời và độ trễ nhận thông báo thực tế. | • Báo cáo biên bản kiểm tra nghiệp vụ hoàn tiền D23 và chuông SignalR trên web thật.<br>• File số liệu và biểu đồ đo đạc load test k6 SignalR thực tế trên VPS. |
-| **Nguyễn Khôi Nguyên**<br>`24TX810011`<br>*(Finance & Reporting)* | **Rà soát báo cáo & Test cô lập chi nhánh** | 1. **Kiểm tra lại tính năng:** Rà soát quy trình xuất hóa đơn PDF có nhúng mã QR, dùng ứng dụng ngân hàng trên điện thoại quét thử mã VietQR xem có nhận diện đúng số tài khoản và số tiền không; kiểm tra số liệu trên trang báo cáo doanh thu xem có khớp với cơ sở dữ liệu không.<br>2. **Nhiệm vụ GVHD:** Viết bài test tự động E2E HTTP API chứng minh cô lập chéo chi nhánh (`CrossBranchSecurityE2ETests.cs`): lấy token lễ tân chi nhánh này gọi API chi nhánh khác, khẳng định nhận mã lỗi 403 Forbidden. | • Báo cáo biên bản kiểm tra hóa đơn QR và số liệu báo cáo doanh thu.<br>• Ảnh chụp thực tế kết quả quét mã QR hóa đơn từ app ngân hàng.<br>• File mã nguồn test E2E cô lập chi nhánh chạy pass 100%. |
+| **Nguyễn Khôi Nguyên**<br>`24TX810011`<br>*(Finance & Reporting)* | **Rà soát báo cáo & Test cô lập chi nhánh** | 1. **Kiểm tra lại tính năng:** Rà soát quy trình xuất hóa đơn PDF có nhúng mã QR; sử dụng camera điện thoại quét thử QR để kiểm tra đường dẫn tra cứu, mã đặt phòng và trạng thái đơn có hiển thị chính xác hay không. Đồng thời đối chiếu số liệu trên trang báo cáo doanh thu với dữ liệu thực tế trong cơ sở dữ liệu; kiểm tra số liệu trên trang báo cáo doanh thu xem có khớp với cơ sở dữ liệu không.<br>2. **Nhiệm vụ GVHD:** Viết bài test tự động E2E HTTP API chứng minh cô lập chéo chi nhánh (`CrossBranchSecurityE2ETests.cs`): lấy token lễ tân chi nhánh này gọi API chi nhánh khác, khẳng định nhận mã lỗi 403 Forbidden. | • Báo cáo biên bản kiểm tra hóa đơn QR và số liệu báo cáo doanh thu.<br>• Ảnh chụp thực tế kết quả quét mã QR hóa đơn từ app ngân hàng.<br>• File mã nguồn test E2E cô lập chi nhánh chạy pass 100%. |
 
 ---
 
