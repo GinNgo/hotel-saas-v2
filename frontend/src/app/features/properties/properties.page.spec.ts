@@ -91,6 +91,18 @@ describe('PropertiesPage — PMS Properties & FormField Validation (Task T016)',
       activePropertyId: vi.fn(() => 'prop-01'),
       activePropertyName: vi.fn(() => 'Khách sạn Sài Gòn Phố Cổ'),
       setActivePropertyContext: vi.fn(),
+      fetchMyMemberships: vi.fn(() => of([])),
+      switchContext: vi.fn(() => of({
+        accessToken: 'tok',
+        refreshToken: 'ref',
+        expiresAtUtc: '',
+        currentContext: {
+          tenantId: 't1',
+          propertyId: 'prop-02',
+          scope: 'PropertyScoped',
+          roleName: 'Owner',
+        },
+      })),
     };
 
     mockAlertService = {
@@ -199,6 +211,7 @@ describe('PropertiesPage — PMS Properties & FormField Validation (Task T016)',
         city: 'Huế',
       })
     );
+    expect(mockAuthService.fetchMyMemberships).toHaveBeenCalled();
     expect(component.isModalOpen()).toBe(false);
     expect(mockAlertService.toastSuccess).toHaveBeenCalled();
   });
@@ -221,18 +234,36 @@ describe('PropertiesPage — PMS Properties & FormField Validation (Task T016)',
         name: 'Khách sạn Sài Gòn Phố Cổ Luxury',
       })
     );
+    expect(mockAuthService.fetchMyMemberships).toHaveBeenCalled();
     expect(component.isModalOpen()).toBe(false);
   });
 
-  it('7. should switch active property context and navigate to rooms view', () => {
+  it('7. should switch active property context via API and navigate to rooms view', () => {
     const targetProp = sampleProperties[1];
     component.switchToProperty(targetProp);
 
-    expect(mockAuthService.setActivePropertyContext).toHaveBeenCalledWith(
-      targetProp.id,
-      targetProp.name,
-      targetProp.code
-    );
+    expect(mockAuthService.switchContext).toHaveBeenCalledWith(targetProp.id);
+    expect(mockAlertService.toastSuccess).toHaveBeenCalled();
     expect(mockRouter.navigate).toHaveBeenCalledWith(['/rooms']);
+  });
+
+  it('8. should handle switchContext failure gracefully without navigating and support all 8 backend property types', () => {
+    mockAuthService.switchContext.mockReturnValueOnce(
+      throwError(() => ({ error: { detail: 'Không có quyền truy cập chi nhánh.' } }))
+    );
+
+    const targetProp = sampleProperties[1];
+    component.switchToProperty(targetProp);
+
+    expect(component.switchingPropertyId()).toBeNull();
+    expect(mockAlertService.toastError).toHaveBeenCalledWith(
+      'Không có quyền truy cập chi nhánh.',
+      'Lỗi chuyển ngữ cảnh'
+    );
+    expect(mockRouter.navigate).not.toHaveBeenCalled();
+
+    expect(component.propertyTypeOptions.map((o) => o.value)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(component.getPropertyTypeLabel(8)).toBe('Homestay');
+    expect(component.getPropertyTypeLabel(7)).toBe('Nhà nghỉ / Motel');
   });
 });
