@@ -68,9 +68,19 @@ export interface PartnerRegisterRequest {
   password: string;
   phoneNumber: string;
   propertyName: string;
+  brandName?: string | null;
+  propertyType?: number | null;
+  starRating?: number | null;
   address: string;
   provinceCode: string;
   wardCode?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  allowHourlyBooking?: boolean;
+  allowOvernightBooking?: boolean;
+  allowDailyBooking?: boolean;
+  defaultNightlyPrice?: number | null;
+  defaultHourlyPrice?: number | null;
 }
 
 /** Partner Register response */
@@ -79,6 +89,8 @@ export interface PartnerRegisterResponse {
   tenantId: string;
   propertyId: string;
   propertyName: string;
+  tenantSlug?: string;
+  propertySlug?: string;
   message: string;
 }
 
@@ -90,13 +102,13 @@ export interface RefreshTokenRequest {
 
 /** Switch context request */
 export interface SwitchContextRequest {
-  propertyId: string;
+  propertyId: string | null;
 }
 
 /** DTO thông tin context chi nhánh đang kích hoạt */
 export interface CurrentContextDto {
   tenantId: string;
-  propertyId: string;
+  propertyId: string | null;
   scope: string;
   roleName: string;
 }

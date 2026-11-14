@@ -217,30 +217,44 @@ export const routes: Routes = [
       },
       {
         path: 'reports',
+        canActivate: [permissionGuard],
+        data: { permission: 'REPORTS', action: 1, permissions: 'REPORT:Read' },
         loadComponent: () => import('./features/reports/reports.page').then(m => m.ReportsPage)
       },
       {
         path: 'subscriptions',
+        canActivate: [permissionGuard],
+        data: { permission: 'SUBSCRIPTIONS', action: 1, permissions: 'SETTINGS:Read' },
         loadComponent: () => import('./features/subscriptions/subscriptions.page').then(m => m.SubscriptionsPage)
       },
       {
         path: 'audit-logs',
+        canActivate: [permissionGuard],
+        data: { permission: 'SETTINGS', action: 1, permissions: 'AUDIT:Read' },
         loadComponent: () => import('./features/audit-logs/audit-logs.page').then(m => m.AuditLogsPage)
       },
       {
         path: 'ops-readiness',
+        canActivate: [permissionGuard],
+        data: { permission: 'SETTINGS', action: 1, permissions: 'SETTINGS:Read' },
         loadComponent: () => import('./features/ops-readiness/ops-readiness.page').then(m => m.OpsReadinessPage)
       },
       {
         path: 'staff',
+        canActivate: [permissionGuard],
+        data: { permission: 'STAFF', action: 1, permissions: 'STAFF:Read' },
         loadComponent: () => import('./features/staff/staff.page').then(m => m.StaffPage)
       },
       {
         path: 'roles',
+        canActivate: [permissionGuard],
+        data: { permission: 'ROLES', action: 1, permissions: 'ROLE:Read' },
         loadComponent: () => import('./features/staff/roles-management.component').then(m => m.RolesManagementComponent)
       },
       {
         path: 'guests',
+        canActivate: [permissionGuard],
+        data: { permission: 'GUESTS', action: 1, permissions: 'GUEST:Read' },
         loadComponent: () => import('./features/guests/guests.page').then(m => m.GuestsPage)
       },
       {
@@ -316,30 +330,44 @@ export const routes: Routes = [
       },
       {
         path: 'reports',
+        canActivate: [permissionGuard],
+        data: { permission: 'REPORTS', action: 1, permissions: 'REPORT:Read' },
         loadComponent: () => import('./features/reports/reports.page').then(m => m.ReportsPage)
       },
       {
         path: 'subscriptions',
+        canActivate: [permissionGuard],
+        data: { permission: 'SUBSCRIPTIONS', action: 1, permissions: 'SETTINGS:Read' },
         loadComponent: () => import('./features/subscriptions/subscriptions.page').then(m => m.SubscriptionsPage)
       },
       {
         path: 'audit-logs',
+        canActivate: [permissionGuard],
+        data: { permission: 'SETTINGS', action: 1, permissions: 'AUDIT:Read' },
         loadComponent: () => import('./features/audit-logs/audit-logs.page').then(m => m.AuditLogsPage)
       },
       {
         path: 'ops-readiness',
+        canActivate: [permissionGuard],
+        data: { permission: 'SETTINGS', action: 1, permissions: 'SETTINGS:Read' },
         loadComponent: () => import('./features/ops-readiness/ops-readiness.page').then(m => m.OpsReadinessPage)
       },
       {
         path: 'staff',
+        canActivate: [permissionGuard],
+        data: { permission: 'STAFF', action: 1, permissions: 'STAFF:Read' },
         loadComponent: () => import('./features/staff/staff.page').then(m => m.StaffPage)
       },
       {
         path: 'roles',
+        canActivate: [permissionGuard],
+        data: { permission: 'ROLES', action: 1, permissions: 'ROLE:Read' },
         loadComponent: () => import('./features/staff/roles-management.component').then(m => m.RolesManagementComponent)
       },
       {
         path: 'guests',
+        canActivate: [permissionGuard],
+        data: { permission: 'GUESTS', action: 1, permissions: 'GUEST:Read' },
         loadComponent: () => import('./features/guests/guests.page').then(m => m.GuestsPage)
       },
       {

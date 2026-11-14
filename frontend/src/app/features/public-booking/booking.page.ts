@@ -22,6 +22,7 @@ import { TrustPillarsComponent } from './components/trust-pillars/trust-pillars.
 import { CuratedBentoGridComponent } from './components/curated-bento-grid/curated-bento-grid.component';
 import { HotelierCtaBannerComponent } from './components/hotelier-cta-banner/hotelier-cta-banner.component';
 import {
+  ALL_PROPERTY_TYPES,
   BookingSortOption,
   DestinationSuggestionDto,
   PropertyType,
@@ -45,7 +46,15 @@ import {
 interface TenantBrandFacet {
   tenantId: string;
   tenantBrandName: string;
+  tenantSlug?: string;
   branchCount: number;
+}
+
+interface PropertyTypeTabOption {
+  key: PropertyType | 'ALL';
+  label: string;
+  icon: string;
+  matchTypes: readonly PropertyType[];
 }
 
 @Component({
@@ -249,34 +258,158 @@ interface TenantBrandFacet {
 
         <!-- SECTION 1: BỘ SƯU TẬP CƠ SỞ NGHỈ DƯỠNG NỔI BẬT (FOCUS CHÍNH CỦA KHÁCH HÀNG) -->
         <section id="featuredAccommodationsSection" aria-label="Khách sạn và khu nghỉ dưỡng nổi bật">
-          <div class="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4 border-b border-slate-200/80 pb-4">
+          <div class="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-4 border-b border-slate-200/80 pb-4">
             <div>
               <div class="flex items-center gap-2 mb-1.5">
                 <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-widest uppercase bg-amber-500/10 text-amber-700 border border-amber-500/20">
                   <i class="pi pi-crown text-[10px] text-amber-600"></i>
                   Lựa Chọn Hàng Đầu
                 </span>
-                <span class="text-xs text-slate-500 font-medium">34+ cơ sở lưu trú đã kiểm định phòng trống</span>
+                <span class="text-xs text-slate-500 font-medium">
+                  @if (properties().length > 0) {
+                    {{ properties().length }} cơ sở lưu trú đã kiểm định phòng trống
+                  } @else {
+                    Cơ sở lưu trú toàn quốc đã kiểm định phòng trống
+                  }
+                </span>
               </div>
               <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-serif">
                 Khu Nghỉ Dưỡng &amp; Khách Sạn Nổi Bật
               </h2>
               <p class="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">
-                Các điểm lưu trú được du khách đánh giá cao nhất, phòng ốc tiện nghi và chính sách giữ phòng tức thì 15 phút.
+                Khám phá đa dạng loại hình lưu trú từ Khách sạn, Resort, Homestay đến Villa, Căn hộ dịch vụ và Nhà nghỉ với chính sách giữ phòng tức thì 15 phút.
               </p>
             </div>
 
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-2.5">
+              <a
+                routerLink="/auth/partner-register"
+                class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold transition-all cursor-pointer"
+              >
+                <i class="pi pi-plus-circle text-[11px]"></i>
+                <span>Đăng ký đối tác lưu trú mới</span>
+              </a>
               <a
                 routerLink="/booking/explore"
-                [queryParams]="searchFilter()"
+                [queryParams]="detailQueryParams()"
                 class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
               >
-                <span>Xem tất cả cơ sở</span>
+                <span>Xem tất cả trên bộ lọc &amp; bản đồ</span>
                 <i class="pi pi-arrow-right text-[10px]"></i>
               </a>
             </div>
           </div>
+
+          <!-- Interactive Filter Tabs: Loại hình lưu trú -->
+          <div class="mb-5" role="tablist" aria-label="Lọc theo loại hình lưu trú">
+            <div class="flex items-center justify-between gap-2 mb-2.5">
+              <span class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <i class="pi pi-building text-indigo-600 text-xs"></i>
+                Loại hình lưu trú
+              </span>
+              @if (selectedPropertyType() !== 'ALL' || selectedTenantId() || searchFilter().propertyTypes.length > 0) {
+                <button
+                  type="button"
+                  (click)="resetSidebarFilters()"
+                  class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                >
+                  Đặt lại bộ lọc
+                </button>
+              }
+            </div>
+            <div class="flex flex-wrap gap-2">
+              @for (tab of propertyTypeTabs; track tab.key) {
+                <button
+                  type="button"
+                  role="tab"
+                  [attr.aria-selected]="isPropertyTypeTabActive(tab)"
+                  (click)="selectPropertyTypeTab(tab.key)"
+                  class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer"
+                  [class]="isPropertyTypeTabActive(tab)
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50/40'"
+                >
+                  <i [class]="'pi ' + tab.icon + ' text-[11px]'"></i>
+                  <span>{{ tab.label }}</span>
+                  <span
+                    class="px-1.5 py-0.5 rounded-md text-[10px] font-bold"
+                    [class]="isPropertyTypeTabActive(tab) ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'"
+                  >
+                    {{ getPropertyTypeTabCount(tab) }}
+                  </span>
+                </button>
+              }
+            </div>
+          </div>
+
+          <!-- Chuỗi Thương Hiệu & Hệ Thống Đối Tác -->
+          @if (tenantBrandFacets().length > 0) {
+            <div class="mb-7 bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs">
+              <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <div class="flex items-center gap-2">
+                  <span class="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
+                    <i class="pi pi-verified text-xs"></i>
+                  </span>
+                  <div>
+                    <h3 class="text-sm font-bold text-slate-900">Chuỗi Thương Hiệu &amp; Hệ Thống Đối Tác</h3>
+                    <p class="text-[11px] text-slate-500">Chọn hệ thống khách sạn, homestay hoặc đối tác vận hành để lọc nhanh các cơ sở trực thuộc</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <a
+                    routerLink="/booking/brands"
+                    class="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                  >
+                    <span>Khám phá {{ tenantBrandFacets().length }} thương hiệu</span>
+                    <i class="pi pi-arrow-right text-[10px]"></i>
+                  </a>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  (click)="filterByTenantBrandInline(null)"
+                  class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer"
+                  [class]="!selectedTenantId() && !searchFilter().tenantSlug
+                    ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'"
+                >
+                  Tất cả hệ thống ({{ properties().length }})
+                </button>
+
+                @for (brand of tenantBrandFacets(); track brand.tenantId) {
+                  <div class="inline-flex items-center rounded-xl border overflow-hidden transition-all"
+                    [class]="isBrandFacetActive(brand)
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-amber-300'"
+                  >
+                    <button
+                      type="button"
+                      (click)="filterByTenantBrandInline(brand)"
+                      class="px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span>{{ brand.tenantBrandName }}</span>
+                      <span
+                        class="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                        [class]="isBrandFacetActive(brand) ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'"
+                      >
+                        {{ brand.branchCount }} cơ sở
+                      </span>
+                    </button>
+                    <a
+                      [routerLink]="['/booking/brands', brand.tenantSlug || brand.tenantId]"
+                      class="px-2 py-1.5 border-l text-[10px] font-bold opacity-80 hover:opacity-100"
+                      [class]="isBrandFacetActive(brand) ? 'border-white/20 text-amber-300' : 'border-slate-200 text-indigo-600 hover:bg-indigo-50'"
+                      [title]="'Xem hồ sơ thương hiệu ' + brand.tenantBrandName"
+                    >
+                      <i class="pi pi-external-link text-[10px]"></i>
+                    </a>
+                  </div>
+                }
+              </div>
+            </div>
+          }
 
           <!-- Grid các thẻ khách sạn nổi bật -->
           @if (isLoading()) {
@@ -298,7 +431,7 @@ interface TenantBrandFacet {
             </div>
           } @else if (filteredProperties().length > 0) {
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              @for (property of filteredProperties().slice(0, 6); track property.propertyId) {
+              @for (property of filteredProperties().slice(0, visibleCount()); track property.propertyId) {
                 <article
                   class="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-xs hover:shadow-xl hover:border-amber-300 transition-all duration-300 flex flex-col group"
                 >
@@ -314,8 +447,8 @@ interface TenantBrandFacet {
 
                     <!-- Top Badges -->
                     <div class="absolute top-3 left-3 right-3 flex items-center justify-between">
-                      <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white">
-                        {{ property.propertyTypeName || property.propertyType }}
+                      <span [class]="'px-2.5 py-1 rounded-full text-[10px] font-bold backdrop-blur-xs shadow-2xs ' + getPropertyTypeBadgeClass(property.propertyType)">
+                        {{ property.propertyTypeName || getPropertyTypeLabel(property.propertyType) }}
                       </span>
                       @if (property.starRating && property.starRating >= 4) {
                         <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950 flex items-center gap-1 shadow-2xs">
@@ -326,7 +459,7 @@ interface TenantBrandFacet {
                     </div>
 
                     <!-- Nút mở album ảnh -->
-                    @if (property.galleryUrls.length > 0 || property.thumbnailUrl) {
+                    @if (property.galleryUrls?.length || property.thumbnailUrl) {
                       <button
                         type="button"
                         (click)="openPhotoGallery(property)"
@@ -400,6 +533,48 @@ interface TenantBrandFacet {
                 </article>
               }
             </div>
+
+            <!-- Thanh điều khiển hiển thị thêm / xem tất cả -->
+            <div class="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-2xl border border-slate-200/80 px-5 py-4 shadow-2xs">
+              <p class="text-xs text-slate-600 font-medium">
+                Đang hiển thị
+                <span class="font-bold text-slate-900">{{ filteredProperties().slice(0, visibleCount()).length }}</span>
+                /
+                <span class="font-bold text-slate-900">{{ filteredProperties().length }}</span>
+                cơ sở lưu trú phù hợp
+              </p>
+
+              <div class="flex flex-wrap items-center gap-3">
+                @if (filteredProperties().length > visibleCount()) {
+                  <button
+                    type="button"
+                    (click)="showMoreProperties()"
+                    class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                  >
+                    <i class="pi pi-plus text-[10px]"></i>
+                    <span>Xem thêm cơ sở lưu trú (còn {{ filteredProperties().length - visibleCount() }} cơ sở)</span>
+                  </button>
+                } @else if (visibleCount() > 12 && filteredProperties().length > 12) {
+                  <button
+                    type="button"
+                    (click)="resetVisibleCount()"
+                    class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    <i class="pi pi-chevron-up text-[10px]"></i>
+                    <span>Thu gọn danh sách</span>
+                  </button>
+                }
+
+                <a
+                  routerLink="/booking/explore"
+                  [queryParams]="detailQueryParams()"
+                  class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all cursor-pointer"
+                >
+                  <span>Xem tất cả trên bộ lọc &amp; bản đồ</span>
+                  <i class="pi pi-map text-[11px]"></i>
+                </a>
+              </div>
+            </div>
           } @else {
             <div class="text-center py-12 bg-white rounded-2xl border border-slate-200 p-8 shadow-2xs">
               <i class="pi pi-search text-3xl text-slate-300 mb-2"></i>
@@ -453,7 +628,17 @@ interface TenantBrandFacet {
   `,
 })
 export class BookingPageComponent implements OnInit {
-  readonly stayTypes: readonly PropertyType[] = ['Hotel', 'Resort', 'Homestay', 'Guesthouse'];
+  readonly stayTypes: readonly PropertyType[] = ALL_PROPERTY_TYPES;
+  readonly propertyTypeTabs: readonly PropertyTypeTabOption[] = [
+    { key: 'ALL', label: 'Tất cả', icon: 'pi-th-large', matchTypes: [] },
+    { key: 'Hotel', label: 'Khách sạn (Hotel)', icon: 'pi-building', matchTypes: ['Hotel'] },
+    { key: 'Resort', label: 'Resort', icon: 'pi-sun', matchTypes: ['Resort'] },
+    { key: 'Homestay', label: 'Homestay', icon: 'pi-home', matchTypes: ['Homestay'] },
+    { key: 'Villa', label: 'Biệt thự (Villa)', icon: 'pi-star', matchTypes: ['Villa'] },
+    { key: 'Apartment', label: 'Căn hộ (Apartment)', icon: 'pi-key', matchTypes: ['Apartment'] },
+    { key: 'Motel', label: 'Nhà nghỉ / Motel', icon: 'pi-moon', matchTypes: ['Motel', 'Guesthouse'] },
+    { key: 'Hostel', label: 'Hostel / B&B', icon: 'pi-users', matchTypes: ['Hostel', 'BedAndBreakfast'] },
+  ];
   private readonly publicBookingService = inject(PublicBookingService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -463,6 +648,8 @@ export class BookingPageComponent implements OnInit {
   readonly properties = signal<PublicPropertyDto[]>([]);
   readonly destinationSuggestions = signal<DestinationSuggestionDto[]>([]);
   readonly selectedTenantId = signal<string | null>(null);
+  readonly selectedPropertyType = signal<PropertyType | 'ALL'>('ALL');
+  readonly visibleCount = signal<number>(12);
   readonly maxDistanceMeters = signal<number | null>(null);
   readonly loadError = signal(false);
   readonly selectedPriceRangeKey = signal<string>('all');
@@ -542,10 +729,14 @@ export class BookingPageComponent implements OnInit {
       const existing = map.get(prop.tenantId);
       if (existing) {
         existing.branchCount += 1;
+        if (!existing.tenantSlug && prop.tenantSlug) {
+          existing.tenantSlug = prop.tenantSlug;
+        }
       } else {
         map.set(prop.tenantId, {
           tenantId: prop.tenantId,
           tenantBrandName: prop.tenantBrandName,
+          tenantSlug: prop.tenantSlug,
           branchCount: 1,
         });
       }
@@ -557,25 +748,33 @@ export class BookingPageComponent implements OnInit {
   readonly filteredProperties = computed<PublicPropertyDto[]>(() => {
     const filter = this.searchFilter();
     const tenantId = this.selectedTenantId();
+    const activeTabType = this.selectedPropertyType();
     const maxDist = this.maxDistanceMeters();
     const minP = this.minPrice();
     const maxP = this.maxPrice();
     const sort = this.sortBy();
+
+    const activeTypes: readonly PropertyType[] =
+      filter.propertyTypes.length > 0
+        ? filter.propertyTypes
+        : activeTabType !== 'ALL'
+          ? (this.propertyTypeTabs.find(t => t.key === activeTabType)?.matchTypes ?? [activeTabType])
+          : [];
 
     const list = this.properties().filter((prop) => {
       // 1. Cơ sở phải hỗ trợ chế độ thuê đang chọn (Hourly / Overnight / Daily)
       if (!prop.allowedRentalTypes.includes(filter.rentalType)) {
         return false;
       }
-      // 2. Lọc theo loại hình (Hotel, Motel, Guesthouse/Nhà nghỉ, Homestay, Resort)
-      if (
-        filter.propertyTypes.length > 0 &&
-        !filter.propertyTypes.includes(prop.propertyType)
-      ) {
+      // 2. Lọc theo loại hình (Hotel, Resort, Homestay, Villa, Apartment, Motel, Guesthouse, Hostel, BedAndBreakfast)
+      if (activeTypes.length > 0 && !activeTypes.includes(prop.propertyType)) {
         return false;
       }
       // 3. Lọc theo Chuỗi thương hiệu (Tenant chính)
       if (tenantId && prop.tenantId !== tenantId) {
+        return false;
+      }
+      if (!tenantId && filter.tenantSlug && prop.tenantSlug !== filter.tenantSlug) {
         return false;
       }
       // 4. Lọc theo khoảng cách tới địa danh gần nhất hoặc toạ độ GPS
@@ -634,7 +833,7 @@ export class BookingPageComponent implements OnInit {
           const parsed = Number(value);
           return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
         };
-        this.selectedTenantId.set(typeof params['selectedTenantId'] === 'string' ? params['selectedTenantId'] : null);
+        this.selectedTenantId.set(typeof params['selectedTenantId'] === 'string' && params['selectedTenantId'] ? params['selectedTenantId'] : null);
         this.maxDistanceMeters.set(nonNegative(params['maxDistanceMeters']));
         this.minPrice.set(nonNegative(params['minPrice']));
         this.maxPrice.set(nonNegative(params['maxPrice']));
@@ -645,13 +844,27 @@ export class BookingPageComponent implements OnInit {
         this.selectedPriceRangeKey.set(this.priceRangeOptions.find(range => range.min === this.minPrice() && range.max === this.maxPrice())?.key ?? 'custom');
         const sort = params['sortBy'];
         this.sortBy.set(['recommended', 'price_asc', 'price_desc', 'rating_desc', 'distance_asc'].includes(sort) ? sort : 'recommended');
+        const parsedTypes = String(params['propertyTypes'] ?? '')
+          .split(',')
+          .map(t => t.trim())
+          .filter((type): type is PropertyType => ALL_PROPERTY_TYPES.includes(type as PropertyType));
+        const tenantSlugParam = typeof params['tenantSlug'] === 'string' && params['tenantSlug'] ? params['tenantSlug'] : null;
+
         this.searchFilter.update(filter => ({ ...filter, ...readPublicStay(params), destinationKeyword: String(params['destinationKeyword'] ?? ''),
           maxDistanceMeters: this.maxDistanceMeters(), minPrice: this.minPrice(), maxPrice: this.maxPrice(), sortBy: this.sortBy(),
           touristZoneSlug: params['touristZoneSlug'] || null, landmarkSlug: params['landmarkSlug'] || null,
           provinceCode: params['provinceCode'] || null,
-          propertyTypes: String(params['propertyTypes'] ?? '').split(',').filter((type): type is PropertyType => ['Hotel', 'Motel', 'Guesthouse', 'Homestay', 'Resort'].includes(type)),
+          tenantSlug: tenantSlugParam,
+          propertyTypes: parsedTypes,
           userLatitude: params['userLatitude'] != null && Number.isFinite(Number(params['userLatitude'])) ? Number(params['userLatitude']) : null,
           userLongitude: params['userLongitude'] != null && Number.isFinite(Number(params['userLongitude'])) ? Number(params['userLongitude']) : null }));
+
+        if (parsedTypes.length === 1) {
+          const single = parsedTypes[0];
+          this.selectedPropertyType.set(single === 'Guesthouse' ? 'Motel' : single === 'BedAndBreakfast' ? 'Hostel' : single);
+        } else {
+          this.selectedPropertyType.set('ALL');
+        }
         this.loadPublicProperties();
       } catch {
         ++this.requestGeneration;
@@ -735,13 +948,82 @@ export class BookingPageComponent implements OnInit {
     this.onFilterBarChange(this.searchFilter());
   }
 
+  selectPropertyTypeTab(tabKey: PropertyType | 'ALL'): void {
+    this.selectedPropertyType.set(tabKey);
+    const tab = this.propertyTypeTabs.find(t => t.key === tabKey);
+    const nextTypes = tab ? [...tab.matchTypes] : [];
+    this.searchFilter.update(prev => ({
+      ...prev,
+      propertyTypes: nextTypes,
+      page: 1,
+    }));
+    this.visibleCount.set(12);
+  }
+
+  isPropertyTypeTabActive(tab: PropertyTypeTabOption): boolean {
+    if (this.selectedPropertyType() === tab.key) return true;
+    const active = this.searchFilter().propertyTypes;
+    if (tab.key === 'ALL') {
+      return this.selectedPropertyType() === 'ALL' && active.length === 0;
+    }
+    return active.length > 0 && active.every(t => tab.matchTypes.includes(t)) && tab.matchTypes.some(t => active.includes(t));
+  }
+
+  getPropertyTypeTabCount(tab: PropertyTypeTabOption): number {
+    const rentalMode = this.searchFilter().rentalType;
+    const baseList = this.properties().filter(p => p.allowedRentalTypes.includes(rentalMode));
+    if (tab.key === 'ALL') return baseList.length;
+    return baseList.filter(p => tab.matchTypes.includes(p.propertyType)).length;
+  }
+
+  filterByTenantBrandInline(brand: TenantBrandFacet | null): void {
+    if (!brand) {
+      this.selectedTenantId.set(null);
+      this.searchFilter.update(prev => ({ ...prev, tenantSlug: null, page: 1 }));
+      this.visibleCount.set(12);
+      return;
+    }
+    const isAlreadyActive = this.isBrandFacetActive(brand);
+    if (isAlreadyActive) {
+      this.selectedTenantId.set(null);
+      this.searchFilter.update(prev => ({ ...prev, tenantSlug: null, page: 1 }));
+    } else {
+      this.selectedTenantId.set(brand.tenantId);
+      this.searchFilter.update(prev => ({ ...prev, tenantSlug: brand.tenantSlug || null, page: 1 }));
+    }
+    this.visibleCount.set(12);
+  }
+
+  isBrandFacetActive(brand: TenantBrandFacet): boolean {
+    return (
+      this.selectedTenantId() === brand.tenantId ||
+      (!!brand.tenantSlug && this.searchFilter().tenantSlug === brand.tenantSlug)
+    );
+  }
+
+  showMoreProperties(): void {
+    this.visibleCount.update(c => c + 12);
+  }
+
+  resetVisibleCount(): void {
+    this.visibleCount.set(12);
+  }
+
   resetSidebarFilters(): void {
     this.selectedTenantId.set(null);
+    this.selectedPropertyType.set('ALL');
+    this.visibleCount.set(12);
     this.maxDistanceMeters.set(null);
     this.selectedPriceRangeKey.set('all');
     this.minPrice.set(null);
     this.maxPrice.set(null);
     this.sortBy.set('recommended');
+    this.searchFilter.update(prev => ({
+      ...prev,
+      propertyTypes: [],
+      tenantSlug: null,
+      page: 1,
+    }));
     this.onFilterBarChange(this.searchFilter());
   }
 
@@ -942,8 +1224,8 @@ export class BookingPageComponent implements OnInit {
   }
 
   openPhotoGallery(property: PublicPropertyDto): void {
-    if (!property.galleryUrls.length && !property.thumbnailUrl) return;
-    const photos: GalleryPhotoItem[] = (property.galleryUrls || []).map((url, i) => ({
+    if (!property.galleryUrls?.length && !property.thumbnailUrl) return;
+    const photos: GalleryPhotoItem[] = (property.galleryUrls ?? []).map((url, i) => ({
       url,
       title: `${property.name} - Ảnh ${i + 1}`,
       category: property.propertyType,
@@ -986,14 +1268,24 @@ export class BookingPageComponent implements OnInit {
     switch (type) {
       case 'Hotel':
         return 'Khách sạn';
-      case 'Guesthouse':
-        return 'Nhà nghỉ';
-      case 'Motel':
-        return 'Motel';
-      case 'Homestay':
-        return 'Homestay';
       case 'Resort':
         return 'Resort';
+      case 'Homestay':
+        return 'Homestay';
+      case 'Villa':
+        return 'Biệt thự (Villa)';
+      case 'Apartment':
+        return 'Căn hộ dịch vụ';
+      case 'Motel':
+        return 'Nhà nghỉ / Motel';
+      case 'Guesthouse':
+        return 'Nhà khách';
+      case 'Hostel':
+        return 'Hostel';
+      case 'BedAndBreakfast':
+        return 'Bed & Breakfast';
+      default:
+        return 'Cơ sở lưu trú';
     }
   }
 
@@ -1001,14 +1293,24 @@ export class BookingPageComponent implements OnInit {
     switch (type) {
       case 'Hotel':
         return 'bg-indigo-600 text-white';
-      case 'Guesthouse':
-        return 'bg-emerald-600 text-white';
-      case 'Motel':
-        return 'bg-amber-500 text-slate-950';
-      case 'Homestay':
-        return 'bg-rose-500 text-white';
       case 'Resort':
         return 'bg-cyan-600 text-white';
+      case 'Homestay':
+        return 'bg-rose-500 text-white';
+      case 'Villa':
+        return 'bg-purple-600 text-white';
+      case 'Apartment':
+        return 'bg-sky-600 text-white';
+      case 'Motel':
+        return 'bg-amber-500 text-slate-950';
+      case 'Guesthouse':
+        return 'bg-emerald-600 text-white';
+      case 'Hostel':
+        return 'bg-teal-600 text-white';
+      case 'BedAndBreakfast':
+        return 'bg-orange-500 text-white';
+      default:
+        return 'bg-slate-800 text-white';
     }
   }
 
@@ -1043,6 +1345,9 @@ export class BookingPageComponent implements OnInit {
     const serviceFilter = {
       search: filter.destinationKeyword || undefined,
       destinationKeyword: filter.destinationKeyword || undefined,
+      tenantSlug: filter.tenantSlug || undefined,
+      provinceCode: filter.provinceCode || undefined,
+      propertyTypes: filter.propertyTypes.length > 0 ? filter.propertyTypes : undefined,
       rentalType: filter.rentalType === 'Hourly' ? 1 : filter.rentalType === 'Overnight' ? 2 : 3,
       touristZoneSlug: filter.touristZoneSlug || undefined,
       landmarkSlug: filter.landmarkSlug || undefined,
@@ -1081,7 +1386,7 @@ export class BookingPageComponent implements OnInit {
                 ? p.overnightStartingPrice ?? p.overnightPriceFrom
                 : p.dailyStartingPrice ?? p.dailyPriceFrom) ?? p.startingPriceForSelectedMode ?? p.startingPrice ?? 0;
 
-            const pType: PropertyType = (typeof p.propertyType === 'string'
+            const pType: PropertyType = (typeof p.propertyType === 'string' && ALL_PROPERTY_TYPES.includes(p.propertyType as PropertyType)
               ? p.propertyType
               : (p.propertyTypeName || 'Hotel')) as PropertyType;
 
@@ -1090,6 +1395,7 @@ export class BookingPageComponent implements OnInit {
               id: p.id || p.propertyId,
               tenantId: p.tenantId || '',
               tenantBrandName: p.tenantBrandName || '',
+              ...(p.tenantSlug ? { tenantSlug: p.tenantSlug } : {}),
               name: p.name,
               code: p.code || '',
               slug: p.slug,
@@ -1218,6 +1524,8 @@ export class BookingPageComponent implements OnInit {
   }
 
   selectStayTheme(type: PropertyType): void {
+    this.selectedPropertyType.set(type === 'Guesthouse' ? 'Motel' : type === 'BedAndBreakfast' ? 'Hostel' : type);
+    this.visibleCount.set(12);
     const current = this.searchFilter();
     this.onFilterBarChange({
       ...current,

@@ -13,6 +13,8 @@ import {
   CreateGuestHoldRequest,
   ConfirmGuestBookingRequest,
   PublicPropertiesFilter,
+  PropertyType,
+  ALL_PROPERTY_TYPES,
   TouristZoneDto,
   LandmarkDto,
   TenantBrandDto,
@@ -22,9 +24,48 @@ import {
   SubmitGuestReviewRequest,
   PromotionDealDto,
   GuestCancellationPreviewDto,
-  CancelGuestBookingRequest
+  CancelGuestBookingRequest,
+  NearbyLandmarkBadgeDto,
+  RentalType,
 } from '../models/public-booking.model';
 import { QuoteDto } from '../models/reservation.model';
+
+/** Matches backend C# HotelSaas.Domain.Enums.PropertyType (1-based). */
+const BACKEND_PROPERTY_TYPE_MAP: Readonly<Record<number, PropertyType>> = {
+  1: 'Hotel',
+  2: 'Resort',
+  3: 'Hostel',
+  4: 'BedAndBreakfast',
+  5: 'Villa',
+  6: 'Apartment',
+  7: 'Motel',
+  8: 'Homestay',
+};
+
+const VALID_PROPERTY_TYPE_SET = new Set<string>(ALL_PROPERTY_TYPES);
+
+interface RawLandmarkPayload {
+  landmarkId?: string;
+  landmarkName?: string;
+  name?: string;
+  landmarkSlug?: string;
+  slug?: string;
+  category?: NearbyLandmarkBadgeDto['category'];
+  distanceMeters?: number;
+  distanceKm?: number;
+  walkingMinutes?: number;
+  drivingMinutes?: number;
+  isFeatured?: boolean;
+}
+
+type RawPropertyPayload = Omit<Partial<PublicPropertyDto>, 'propertyType' | 'nearbyLandmarks'> & {
+  propertyType?: PropertyType | number | string;
+  nearbyLandmarks?: RawLandmarkPayload[];
+};
+
+interface ApiDataEnvelope<T> {
+  data?: T;
+}
 
 @Injectable({ providedIn: 'root' })
 export class PublicBookingService {
@@ -48,13 +89,22 @@ export class PublicBookingService {
       if (filter.destinationKeyword?.trim()) {
         params = params.set('destinationKeyword', filter.destinationKeyword.trim());
       }
+      if (filter.tenantSlug?.trim()) {
+        params = params.set('tenantSlug', filter.tenantSlug.trim());
+      }
+      if (filter.provinceCode?.trim()) {
+        params = params.set('provinceCode', filter.provinceCode.trim());
+      }
       if (filter.rentalType !== undefined && filter.rentalType !== null) {
         params = params.set('rentalType', filter.rentalType.toString());
       }
       if (filter.propertyTypes && filter.propertyTypes.length > 0) {
-        filter.propertyTypes.forEach(pt => {
-          params = params.append('propertyTypes', pt.toString());
-        });
+        const serializedTypes = filter.propertyTypes
+          .map(pt => (typeof pt === 'number' ? BACKEND_PROPERTY_TYPE_MAP[pt] : String(pt).trim()))
+          .filter((pt): pt is string => Boolean(pt));
+        if (serializedTypes.length > 0) {
+          params = params.set('propertyTypes', serializedTypes.join(','));
+        }
       }
       if (filter.touristZoneSlug?.trim()) {
         params = params.set('touristZoneSlug', filter.touristZoneSlug.trim());
@@ -65,14 +115,14 @@ export class PublicBookingService {
       if (filter.maxDistanceKm !== undefined && filter.maxDistanceKm !== null) {
         params = params.set('maxDistanceKm', filter.maxDistanceKm.toString());
       }
-      if ((filter as any).maxDistanceMeters !== undefined && (filter as any).maxDistanceMeters !== null) {
-        params = params.set('maxDistanceMeters', (filter as any).maxDistanceMeters.toString());
+      if (filter.maxDistanceMeters !== undefined && filter.maxDistanceMeters !== null) {
+        params = params.set('maxDistanceMeters', filter.maxDistanceMeters.toString());
       }
-      const lat = (filter as any).userLatitude ?? filter.latitude;
+      const lat = filter.userLatitude ?? filter.latitude;
       if (lat !== undefined && lat !== null) {
         params = params.set('userLatitude', lat.toString());
       }
-      const lng = (filter as any).userLongitude ?? filter.longitude;
+      const lng = filter.userLongitude ?? filter.longitude;
       if (lng !== undefined && lng !== null) {
         params = params.set('userLongitude', lng.toString());
       }
@@ -84,9 +134,14 @@ export class PublicBookingService {
       }
     }
 
-    return this.http.get<any>(`${this.apiUrl}/properties`, { params }).pipe(
-      map(res => (res.data ? res.data : res) as PublicPropertyDto[])
-    );
+    return this.http
+      .get<RawPropertyPayload[] | ApiDataEnvelope<RawPropertyPayload[]>>(`${this.apiUrl}/properties`, { params })
+      .pipe(
+        map(res => {
+          const list = Array.isArray(res) ? res : (res?.data ?? []);
+          return list.map(item => this.normalizeProperty(item));
+        })
+      );
   }
 
   /**
@@ -118,21 +173,19 @@ export class PublicBookingService {
    * Retrieves a property by its public slug or ID.
    */
   getPropertyBySlug(slug: string): Observable<PublicPropertyDto> {
-    return this.http.get<any>(`${this.apiUrl}/properties/${encodeURIComponent(slug)}`).pipe(
-      map(res => {
-        const property = (res.data ?? res) as PublicPropertyDto;
-        const landmarks = (property.nearbyLandmarks ?? []).map((l: any, idx: number) => ({
-          ...l,
-          landmarkId: l.landmarkId || l.slug || l.landmarkSlug || `lm-${idx}-${l.name || l.landmarkName || idx}`,
-          landmarkName: l.landmarkName || l.name || 'Địa danh',
-          landmarkSlug: l.landmarkSlug || l.slug || 'dia-danh',
-          distanceMeters: l.distanceMeters ?? (typeof l.distanceKm === 'number' ? Math.round(l.distanceKm * 1000) : 0),
-        }));
-        return { ...property, propertyId: property.propertyId ?? property.id ?? '',
-          thumbnailUrl: property.thumbnailUrl ?? property.imageUrl ?? '', galleryUrls: property.galleryUrls ?? [],
-          nearbyLandmarks: landmarks, reviewCount: property.reviewCount ?? 0, ratingAverage: property.ratingAverage ?? 0 };
-      })
-    );
+    return this.http
+      .get<RawPropertyPayload | ApiDataEnvelope<RawPropertyPayload>>(
+        `${this.apiUrl}/properties/${encodeURIComponent(slug)}`
+      )
+      .pipe(
+        map(res => {
+          const payload =
+            res && typeof res === 'object' && 'data' in res && res.data !== undefined
+              ? res.data
+              : (res as RawPropertyPayload);
+          return this.normalizeProperty(payload ?? {});
+        })
+      );
   }
 
   /**
@@ -316,49 +369,78 @@ export class PublicBookingService {
   /**
    * Retrieves all branches belonging to a tenant brand chain.
    */
-  getPropertiesByTenant(tenantId: string): Observable<PublicPropertyDto[]> {
+  getPropertiesByTenant(tenantIdOrSlug: string): Observable<PublicPropertyDto[]> {
     return this.getProperties().pipe(
-      map(props => props.filter(p => p.tenantId === tenantId))
+      map(props => props.filter(p => p.tenantId === tenantIdOrSlug || p.tenantSlug === tenantIdOrSlug))
     );
   }
 
   /**
-   * Retrieves tenant brand chains aggregated from public properties.
+   * Retrieves tenant brand chains aggregated from public properties (supports 1-branch & multi-branch brands).
    */
   getTenantBrands(): Observable<TenantBrandDto[]> {
     return this.getProperties().pipe(
       map(props => {
-        const brandMap = new Map<string, TenantBrandDto>();
+        const brandMap = new Map<string, { brand: TenantBrandDto; ratedSum: number; ratedCount: number }>();
         for (const p of props) {
-          if (!p.tenantId || !p.tenantBrandName) continue;
-          const tId = p.tenantId;
+          if (!p.tenantBrandName || (!p.tenantId && !p.tenantSlug)) continue;
+          const groupKey = p.tenantSlug || p.tenantId;
+          const tId = p.tenantId || groupKey;
           const tName = p.tenantBrandName;
-          const tSlug = tName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+          const tSlug = p.tenantSlug || this.slugify(tName) || tId;
 
-          if (!brandMap.has(tId)) {
-            brandMap.set(tId, {
-              tenantId: tId,
-              name: tName,
-              slug: tSlug,
-              logoUrl: p.thumbnailUrl || p.imageUrl,
-              description: '',
-              totalProperties: 0,
-              ratingAverage: 0,
-              reviewCount: 0,
-              properties: [],
-              provinces: []
+          if (!brandMap.has(groupKey)) {
+            brandMap.set(groupKey, {
+              brand: {
+                tenantId: tId,
+                name: tName,
+                slug: tSlug,
+                logoUrl: p.thumbnailUrl || p.imageUrl || undefined,
+                description: '',
+                totalProperties: 0,
+                ratingAverage: 0,
+                reviewCount: 0,
+                properties: [],
+                provinces: [],
+                propertyTypes: [],
+              },
+              ratedSum: 0,
+              ratedCount: 0,
             });
           }
 
-          const brand = brandMap.get(tId)!;
+          const entry = brandMap.get(groupKey)!;
+          const { brand } = entry;
           brand.properties.push(p);
           brand.totalProperties++;
+          if (!brand.logoUrl && (p.thumbnailUrl || p.imageUrl)) {
+            brand.logoUrl = p.thumbnailUrl || p.imageUrl;
+          }
+          brand.reviewCount += p.reviewCount ?? 0;
+          if ((p.ratingAverage ?? 0) > 0) {
+            entry.ratedSum += p.ratingAverage;
+            entry.ratedCount++;
+          }
           const prov = p.provinceName || p.city;
           if (prov && !brand.provinces.includes(prov)) {
             brand.provinces.push(prov);
           }
+          if (p.propertyType && !brand.propertyTypes!.includes(p.propertyType)) {
+            brand.propertyTypes!.push(p.propertyType);
+          }
         }
-        return Array.from(brandMap.values());
+
+        return Array.from(brandMap.values()).map(({ brand, ratedSum, ratedCount }) => {
+          brand.ratingAverage = ratedCount > 0 ? Math.round((ratedSum / ratedCount) * 10) / 10 : 0;
+          if (!brand.description) {
+            const provinceText =
+              brand.provinces.length > 0
+                ? ` tại ${brand.provinces.slice(0, 3).join(', ')}${brand.provinces.length > 3 ? ' và nhiều địa phương khác' : ''}`
+                : '';
+            brand.description = `Hệ thống lưu trú gồm ${brand.totalProperties} cơ sở${provinceText}, hỗ trợ đặt phòng linh hoạt trực tuyến.`;
+          }
+          return brand;
+        });
       })
     );
   }
@@ -370,6 +452,93 @@ export class PublicBookingService {
     return this.getTenantBrands().pipe(
       map(brands => brands.find(b => b.slug === slug || b.tenantId === slug) ?? null)
     );
+  }
+
+  private normalizeProperty(raw: RawPropertyPayload): PublicPropertyDto {
+    const propertyId = raw.propertyId ?? raw.id ?? '';
+    const thumbnailUrl = raw.thumbnailUrl ?? raw.imageUrl ?? '';
+    const provinceName = raw.provinceName ?? raw.city ?? '';
+    const addressLine = raw.addressLine ?? raw.address ?? '';
+    const startingPriceForSelectedMode =
+      raw.startingPriceForSelectedMode ??
+      raw.startingPrice ??
+      raw.dailyStartingPrice ??
+      raw.dailyPriceFrom ??
+      raw.overnightStartingPrice ??
+      raw.overnightPriceFrom ??
+      raw.hourlyStartingPrice ??
+      raw.hourlyPriceFrom ??
+      0;
+
+    const landmarks: NearbyLandmarkBadgeDto[] = (raw.nearbyLandmarks ?? []).map((l, idx) => ({
+      landmarkId: l.landmarkId || l.slug || l.landmarkSlug || `lm-${idx}-${l.name || l.landmarkName || idx}`,
+      landmarkName: l.landmarkName || l.name || 'Địa danh',
+      landmarkSlug: l.landmarkSlug || l.slug || 'dia-danh',
+      category: l.category ?? 'Center',
+      distanceMeters: l.distanceMeters ?? (typeof l.distanceKm === 'number' ? Math.round(l.distanceKm * 1000) : 0),
+      walkingMinutes: l.walkingMinutes,
+      drivingMinutes: l.drivingMinutes,
+      isFeatured: l.isFeatured,
+    }));
+
+    const derivedRentalTypes: RentalType[] =
+      Array.isArray(raw.allowedRentalTypes) && raw.allowedRentalTypes.length > 0
+        ? raw.allowedRentalTypes
+        : [
+            ...(raw.allowHourlyBooking ? (['Hourly'] as const) : []),
+            ...(raw.allowOvernightBooking ? (['Overnight'] as const) : []),
+            ...(raw.allowDailyBooking ? (['Daily'] as const) : []),
+          ];
+
+    return {
+      ...(raw as Partial<PublicPropertyDto>),
+      propertyId,
+      id: raw.id ?? propertyId,
+      tenantId: raw.tenantId ?? '',
+      tenantBrandName: raw.tenantBrandName ?? '',
+      tenantSlug: raw.tenantSlug || undefined,
+      name: raw.name ?? '',
+      slug: raw.slug ?? '',
+      propertyType: this.normalizePropertyType(raw.propertyType),
+      addressLine,
+      address: raw.address ?? addressLine,
+      wardName: raw.wardName ?? '',
+      provinceCode: raw.provinceCode ?? '',
+      provinceName,
+      city: raw.city ?? provinceName,
+      thumbnailUrl,
+      imageUrl: raw.imageUrl ?? thumbnailUrl,
+      galleryUrls: Array.isArray(raw.galleryUrls) ? raw.galleryUrls : [],
+      allowedRentalTypes: derivedRentalTypes,
+      overnightCheckInTime: raw.overnightCheckInTime ?? '',
+      overnightCheckOutTime: raw.overnightCheckOutTime ?? '',
+      cleaningBufferMinutes: raw.cleaningBufferMinutes ?? raw.bufferMinutes ?? 0,
+      ratingAverage: typeof raw.ratingAverage === 'number' ? raw.ratingAverage : 0,
+      reviewCount: typeof raw.reviewCount === 'number' ? raw.reviewCount : 0,
+      nearbyLandmarks: landmarks,
+      startingPriceForSelectedMode,
+      availableRoomTypes: Array.isArray(raw.availableRoomTypes) ? raw.availableRoomTypes : [],
+    };
+  }
+
+  private normalizePropertyType(rawType: PropertyType | number | string | undefined): PropertyType {
+    if (typeof rawType === 'number') {
+      return BACKEND_PROPERTY_TYPE_MAP[rawType] ?? 'Hotel';
+    }
+    if (typeof rawType === 'string' && VALID_PROPERTY_TYPE_SET.has(rawType)) {
+      return rawType as PropertyType;
+    }
+    return 'Hotel';
+  }
+
+  private slugify(value: string): string {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[đĐ]/g, 'd')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
   }
 
   /**
