@@ -1,0 +1,98 @@
+================================================================================
+THÔNG TIN KHAI BÁO SỬ DỤNG AI TUẦN 05 - DỰ ÁN HOTEL SAAS PLATFORM V2
+(DÙNG ĐỂ COPY-PASTE TRỰC TIẾP VÀO FORM NỘP BÀI CỦA TRƯỜNG HCMUTE)
+================================================================================
+
+--------------------------------------------------------------------------------
+THÀNH VIÊN 1: NGÔ VÕ TUẤN AN (MSSV: 24TX810001 - LEAD & DEVOPS)
+--------------------------------------------------------------------------------
+
+[Ô 1: Công cụ AI]
+Google Antigravity IDE
+
+[Ô 2: Phiên bản / model]
+Gemini Flash 3.8
+
+[Ô 3: Prompt đã dùng]
+[Prompt 1 - Tích hợp Firebase Phone Authentication SMS OTP]: Tích hợp Firebase Web SDK v13 và Google Identity Platform để xác thực SĐT khách vãng lai khi đặt giữ phòng. Chuẩn hóa số điện thoại chuẩn quốc tế E.164 (+84), gắn reCAPTCHA Invisible bảo vệ chống spam.
+
+[Prompt 2 - Chế độ Sandbox OTP 123456 & Token Dev Mock]: Bổ sung chế độ Sandbox OTP thử nghiệm cho số +84123456789 (mã 123456) và cấp dev-mock-token để nhóm và GVHD kiểm thử luồng đặt phòng không tốn cước SMS viễn thông và không bị cạn hạn ngạch Firebase.
+
+[Prompt 3 - Chính sách kích hoạt Dual-Verification & Self-heal Seed Accounts]: Áp dụng chính sách Dual-Verification (yêu cầu xác thực SĐT khi giữ phòng và kích hoạt email/SĐT khi nhân sự PMS đăng nhập). Viết Migration cập nhật trạng thái xác thực và hàm tự phục hồi (self-heal) cho các tài khoản seed (owner, manager, staff).
+
+[Prompt 4 - Đăng nhập Google OAuth & Facebook OAuth Native]: Xây dựng SocialAuthService tích hợp Google Identity Services và Facebook JS SDK mở popup native của bên thứ 3. Tiếp nhận ID Token, xác thực chữ ký qua Google.Apis.Auth ở backend .NET 10, tự động gán IsEmailVerified = true và cấp JWT đăng nhập.
+
+[Prompt 5 - Pipeline GitHub Actions CI/CD Deploy VPS Staging]: Viết workflow GitHub Actions cd-vps.yml tự động: test cô lập multi-tenant -> build Docker images đẩy lên GitHub Container Registry (ghcr.io) -> SSH pull image và deploy lên VPS luxustay.duckdns.org -> kiểm tra /health.
+
+[Ô 4: Nội dung AI tạo ra]
+AI chỉ viết luồng gửi SMS thật khiến quá trình test liên tục bị cạn hạn ngạch quota Firebase (auth/quota-exceeded). AI áp dụng chính sách Hard-Gating chặn toàn bộ tài khoản test PMS có sẵn (owner, manager, staff) báo lỗi ERR_VERIFICATION_REQUIRED khiến người kiểm thử không thể đăng nhập. AI đề xuất build Docker trực tiếp trên VPS làm tràn RAM và nghẽn CPU máy chủ. Nút đăng nhập Google/Facebook ban đầu dùng modal giả lập thay vì mở popup native OAuth của nhà cung cấp. Form đăng ký ban đầu ép người dùng nhập cả email lẫn SĐT cùng lúc gây rườm rà.
+
+[Ô 5: Phần bạn đã sửa / hoàn thiện]
+Kiểm tra Firebase SMS OTP: Bổ sung chế độ Sandbox OTP 123456 cho số +84123456789 và bẫy lỗi quota-exceeded tự fallback sandbox để không gián đoạn demo; phân tách dev-mock-token trên backend. Sửa lỗi đăng nhập PMS: Viết Migration 20261111163000_AutoVerifyPersonnelTestAccounts cập nhật cờ xác thực trong CSDL và thêm logic tự gán xác thực cho tài khoản seed trong LoginCommandHandler; test 5 tài khoản test đăng nhập thành công 100%. Tối ưu CI/CD VPS: Chuyển toàn bộ công đoạn build Docker sang GitHub Actions runner, đẩy image lên GHCR (ghcr.io), VPS chỉ pull image và restart container; deploy thành công PR #22 lên https://luxustay.duckdns.org. Chuẩn hóa Social & Form: Viết SocialAuthService gọi Google Identity Services và Facebook SDK native popup; chia trang đăng ký thành 2 tab (Email tinh gọn 5 giây và SĐT qua SMS OTP).
+
+Minh chứng Commit GitHub:
+Commit 4f60765 : feat(auth): integrate firebase phone authentication with sms otp and recaptcha
+Commit 894cc4d : fix(auth): auto-verify email and phone timestamps for test personnel accounts
+Commit 8a8ebbe : fix(auth): self-heal dual-verification timestamps during login for seed personnel accounts
+Commit 02038cb : feat(auth): implement dual-verification policy, google oauth login, and staging docker caddy config
+Commit 7e39d93 : fix(tests): resolve past dates and audit log test assertions for week 5 CI pipeline
+Commit ade3a5a : fix(frontend): update unit test runners to vitest and fix mock providers
+Commit 839359a : docs(reports): refine week 5 report header to remove prior grading and align scope
+
+
+--------------------------------------------------------------------------------
+THÀNH VIÊN 2: TRẦN TRỌNG TÂN (MSSV: 24TX810025 - OPERATIONS & REALTIME)
+--------------------------------------------------------------------------------
+
+[Ô 1: Công cụ AI]
+Google Antigravity IDE
+
+[Ô 2: Phiên bản / model]
+Gemini Flash 3.8
+
+[Ô 3: Prompt đã dùng]
+[Prompt 1 - Quản lý duyệt & chi hoàn tiền D23]: Xây dựng giao diện và MediatR command duyệt/chi hoàn tiền D23 tại quầy thu ngân. Áp dụng khóa pg_advisory_xact_lock của PostgreSQL và SemaphoreSlim chống race condition khi 2 thu ngân cùng bấm chi tiền.
+
+[Prompt 2 - Mở rộng SignalR Hub Realtime]: Mở rộng NotificationHub thêm 3 sự kiện (thanh toán thành công, yêu cầu hủy phòng, đơn giữ hết hạn), phân luồng theo TenantId và PropertyId của chi nhánh.
+
+[Prompt 3 - Tác vụ nền quét đơn hết hạn]: Viết BackgroundService ExpiredHoldSweepBackgroundService chạy mỗi 15 giây tự động giải phóng phòng và phát sự kiện SignalR HoldExpired.
+
+[Prompt 4 - Script kiểm chứng tự động E2E]: Viết script verify-signalr-e2e.mjs kiểm chứng toàn trình luồng đặt phòng.
+
+[Ô 4: Nội dung AI tạo ra]
+Báo cáo thu ngân cộng dồn khoản chi hoàn vào tổng doanh thu (thu 1tr, hoàn 300k nhưng tính tổng 1tr3). Chỉ dùng khóa SemaphoreSlim trong RAM không ngăn được chi trùng nếu chạy multi-container. Script E2E ban đầu gọi API nội bộ POST /api/reservations thay vì API công khai.
+
+[Ô 5: Phần bạn đã sửa / hoàn thiện]
+Kiểm tra hoàn tiền D23: Tách biệt công thức thu và hoàn tiền, bảo đảm doanh thu ròng chính xác. Bổ sung pg_advisory_xact_lock và viết test Task.WhenAll với 2 DbContext độc lập chứng minh chống chi trùng 100%. Sửa script E2E chạy đúng chuẩn luồng khách hàng: Availability -> Hold -> Lookup -> Confirm -> SignalR -> Cancel -> D23.
+
+Minh chứng Commit GitHub:
+Commit f74bb52 : feat(cashier): implement D23 refund approval workflow with advisory lock
+Commit b553c9b : merge: integrate feature/tan-week5-refund-realtime-demo into develop
+
+
+--------------------------------------------------------------------------------
+THÀNH VIÊN 3: NGUYỄN KHÔI NGUYÊN (MSSV: 24TX810011 - FINANCE & REPORTING)
+--------------------------------------------------------------------------------
+
+[Ô 1: Công cụ AI]
+OpenAI Codex
+
+[Ô 2: Phiên bản / model]
+GPT-6 Astra
+
+[Ô 3: Prompt đã dùng]
+[Prompt 1 - Nhúng mã QR tra cứu vào hóa đơn PDF]: Sử dụng thư viện QRCoder sinh ảnh QR trong bộ nhớ backend nhúng vào file PDF hóa đơn A4, trỏ link về trang tra cứu đơn qua LookupToken.
+
+[Prompt 2 - Lưu phương thức thanh toán ưu tiên]: Thêm cột PaymentMethodPreference vào bảng Reservations trong PostgreSQL.
+
+[Prompt 3 - Bộ lọc báo cáo & tối ưu Group By]: Thêm bộ lọc doanh thu theo tuần, tháng, quý, năm và loại phòng. Tối ưu truy vấn LINQ GroupBy và Sum tại PostgreSQL.
+
+[Ô 4: Nội dung AI tạo ra]
+AI đề xuất gọi API bên thứ ba sinh mã QR gây rủi ro phụ thuộc mạng ngoài. AI tải toàn bộ đơn phòng về RAM backend rồi mới lọc C# làm chậm hệ thống khi dữ liệu lớn.
+
+[Ô 5: Phần bạn đã sửa / hoàn thiện]
+Kiểm tra hóa đơn QR: Dùng QRCoder sinh ảnh PNG trực tiếp trong memory, test quét camera điện thoại mở link tra cứu thành công. Tối ưu báo cáo: Chuyển các phép tính tổng hợp sang LINQ GroupBy thực thi trực tiếp tại database PostgreSQL, giảm tải RAM máy chủ.
+
+Minh chứng Commit GitHub:
+Commit 96a559a : feat(reporting): embed lookup qr code in pdf invoice using QRCoder
+Commit b8bef69 : merge: pull request #21 from khoinguyen1310/feature/nguyen-week5-invoice-reporting-pref
