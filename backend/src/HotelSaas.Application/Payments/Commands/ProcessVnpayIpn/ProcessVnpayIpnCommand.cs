@@ -57,6 +57,8 @@ public sealed class ProcessVnpayIpnCommandHandler : IRequestHandler<ProcessVnpay
             return new VnpayIpnResponseDto("01", "Order not found");
         }
 
+        await using var tx = await _context.BeginTransactionAsync(cancellationToken);
+
         // 2. Locate reservation by TxnRef (ConfirmationCode or Id)
         var reservation = await _context.Reservations
             .IgnoreQueryFilters()
@@ -122,6 +124,7 @@ public sealed class ProcessVnpayIpnCommandHandler : IRequestHandler<ProcessVnpay
             reservation.SmartLockActivatedAtUtc = DateTime.UtcNow;
 
             await _context.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
 
             // Realtime SignalR notification to hotel reception (Task A03)
             if (_notificationDispatcher != null)
@@ -174,6 +177,7 @@ public sealed class ProcessVnpayIpnCommandHandler : IRequestHandler<ProcessVnpay
 
             _context.Payments.Add(failedPayment);
             await _context.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
 
             return new VnpayIpnResponseDto("00", "Confirm Success");
         }

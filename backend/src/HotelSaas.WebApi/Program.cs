@@ -44,6 +44,7 @@ builder.Services
             ValidAudience = jwtSettings["Audience"] ?? "HotelSaasClient",
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(secretKey)),
+            RoleClaimType = "globalRole",
             ClockSkew = TimeSpan.FromSeconds(30)
         };
 
@@ -87,7 +88,7 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddCors(options =>
     options.AddPolicy("Angular", policy =>
         policy
-            .WithOrigins("http://localhost:4200")
+            .WithOrigins("http://localhost:4200", "http://localhost:3000")
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials()));
@@ -124,10 +125,13 @@ if (!shouldSkipStartupInit)
             try
             {
                 var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+                var currentTenant = scope.ServiceProvider.GetRequiredService<ICurrentTenantService>();
+                var currentProperty = scope.ServiceProvider.GetRequiredService<ICurrentPropertyService>();
                 await LocalDevDataSeeder.SeedAsync(effectiveConnStr, new LocalDevSeedOptions(), hasher);
                 Log.Information("LocalDevDataSeeder executed successfully.");
                 await SeedData.SeedPlatformAdminDataAsync(context);
-                await RealData34ProvincesSeeder.SeedAsync(context);
+                await RealData34ProvincesSeeder.SeedAsync(context, currentTenant, currentProperty);
+                Log.Information("RealData34ProvincesSeeder executed successfully.");
             }
             catch (Exception ex)
             {

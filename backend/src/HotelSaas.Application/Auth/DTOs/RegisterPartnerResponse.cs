@@ -10,4 +10,6 @@ public sealed record RegisterPartnerResponse(
     Guid TenantId,
     Guid PropertyId,
     string PropertyName,
-    string Message);
+    string Message,
+    string? TenantSlug = null,
+    string? PropertySlug = null);

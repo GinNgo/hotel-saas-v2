@@ -92,6 +92,11 @@ public sealed class LocationLookupService : ILocationLookupService
         return _wardsByCompositeKey.ContainsKey($"{provinceCode.Trim()}_{wardCode.Trim()}");
     }
 
+    private static bool ProvinceCodeMatches(string? a, string? b) =>
+        !string.IsNullOrWhiteSpace(a) &&
+        !string.IsNullOrWhiteSpace(b) &&
+        string.Equals(a.Trim().TrimStart('0'), b.Trim().TrimStart('0'), StringComparison.OrdinalIgnoreCase);
+
     /// <inheritdoc />
     public IReadOnlyList<TouristZoneDto> GetTouristZones(string? provinceCode = null)
     {
@@ -101,7 +106,7 @@ public sealed class LocationLookupService : ILocationLookupService
         }
 
         return _touristZones
-            .Where(z => string.Equals(z.ProvinceCode, provinceCode.Trim(), StringComparison.OrdinalIgnoreCase))
+            .Where(z => ProvinceCodeMatches(z.ProvinceCode, provinceCode))
             .ToList();
     }
 
@@ -135,7 +140,7 @@ public sealed class LocationLookupService : ILocationLookupService
 
         if (!string.IsNullOrWhiteSpace(provinceCode))
         {
-            result = result.Where(l => string.Equals(l.ProvinceCode, provinceCode.Trim(), StringComparison.OrdinalIgnoreCase));
+            result = result.Where(l => ProvinceCodeMatches(l.ProvinceCode, provinceCode));
         }
 
         if (!string.IsNullOrWhiteSpace(touristZoneSlug))
@@ -182,7 +187,7 @@ public sealed class LocationLookupService : ILocationLookupService
 
         if (!string.IsNullOrWhiteSpace(provinceCode))
         {
-            list = list.Where(l => string.Equals(l.ProvinceCode, provinceCode.Trim(), StringComparison.OrdinalIgnoreCase));
+            list = list.Where(l => ProvinceCodeMatches(l.ProvinceCode, provinceCode));
         }
 
         if (!string.IsNullOrWhiteSpace(query))

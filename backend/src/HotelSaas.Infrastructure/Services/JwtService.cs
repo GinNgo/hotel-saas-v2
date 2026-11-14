@@ -56,7 +56,8 @@ public sealed class JwtService : IJwtService
             new(JwtRegisteredClaimNames.Email, email),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new("fullName", fullName),
-            new("globalRole", globalRole)
+            new("globalRole", globalRole),
+            new(ClaimTypes.Role, globalRole)
         };
 
         if (tenantId.HasValue)

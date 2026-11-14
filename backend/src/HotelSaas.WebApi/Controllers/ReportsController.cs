@@ -10,6 +10,7 @@ using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Reports.Queries.GetGroupAnalytics;
 using HotelSaas.Domain.Enums;
+using HotelSaas.WebApi.Authorization;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -26,6 +27,7 @@ namespace HotelSaas.WebApi.Controllers;
 [Route("api/reports")]
 [Produces("application/json")]
 [Authorize]
+[RequirePermission("REPORTS", 1)]
 public sealed class ReportsController : ControllerBase
 {
     private readonly IApplicationDbContext _context;

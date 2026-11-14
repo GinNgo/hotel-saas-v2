@@ -55,26 +55,55 @@ public sealed class PublicController : ControllerBase
     [AllowAnonymous]
     [ProducesResponseType(typeof(IReadOnlyList<PublicPropertyDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetProperties(
-        [FromQuery] string? search,
-        [FromQuery] string? destinationKeyword,
-        [FromQuery] string? propertyTypes,
-        [FromQuery] RentalType? rentalType,
-        [FromQuery] string? touristZoneSlug,
-        [FromQuery] string? landmarkSlug,
-        [FromQuery] double? maxDistanceKm,
-        [FromQuery] double? maxDistanceMeters,
-        [FromQuery] double? userLatitude,
-        [FromQuery] double? userLongitude,
-        CancellationToken cancellationToken)
+        [FromQuery] string? search = null,
+        [FromQuery] string? destinationKeyword = null,
+        [FromQuery] string? propertyTypes = null,
+        [FromQuery] RentalType? rentalType = null,
+        [FromQuery] string? touristZoneSlug = null,
+        [FromQuery] string? landmarkSlug = null,
+        [FromQuery] double? maxDistanceKm = null,
+        [FromQuery] double? maxDistanceMeters = null,
+        [FromQuery] double? userLatitude = null,
+        [FromQuery] double? userLongitude = null,
+        [FromQuery] string? tenantSlug = null,
+        [FromQuery] string? provinceCode = null,
+        CancellationToken cancellationToken = default)
     {
         List<PropertyType>? parsedTypes = null;
+        var rawTypeInputs = new List<string>();
+
         if (!string.IsNullOrWhiteSpace(propertyTypes))
         {
-            parsedTypes = propertyTypes.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                .Select(t => Enum.TryParse<PropertyType>(t.Trim(), true, out var pt) ? pt : (PropertyType?)null)
+            rawTypeInputs.Add(propertyTypes);
+        }
+
+        if (HttpContext?.Request?.Query.TryGetValue("propertyTypes", out var queryTypeValues) == true)
+        {
+            foreach (var v in queryTypeValues)
+            {
+                if (!string.IsNullOrWhiteSpace(v))
+                {
+                    rawTypeInputs.Add(v!);
+                }
+            }
+        }
+
+        if (rawTypeInputs.Count > 0)
+        {
+            var parsed = rawTypeInputs
+                .SelectMany(v => v.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                .Select(t => Enum.TryParse<PropertyType>(t, true, out var pt) && Enum.IsDefined(typeof(PropertyType), pt)
+                    ? pt
+                    : (PropertyType?)null)
                 .Where(pt => pt.HasValue)
                 .Select(pt => pt!.Value)
+                .Distinct()
                 .ToList();
+
+            if (parsed.Count > 0)
+            {
+                parsedTypes = parsed;
+            }
         }
 
         var query = new GetPublicPropertiesQuery(
@@ -87,7 +116,9 @@ public sealed class PublicController : ControllerBase
             MaxDistanceKm: maxDistanceKm,
             MaxDistanceMeters: maxDistanceMeters,
             UserLatitude: userLatitude,
-            UserLongitude: userLongitude);
+            UserLongitude: userLongitude,
+            TenantSlug: tenantSlug,
+            ProvinceCode: provinceCode);
 
         var result = await _mediator.Send(query, cancellationToken);
         return Ok(result);

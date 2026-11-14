@@ -91,6 +91,15 @@ public sealed class TenantPropertyContextMiddleware
             return;
         }
 
+        // ── 2b. Pipeline Classification: Print & Document Templates for SuperAdmin ──
+        if (path.StartsWith("/api/print/", StringComparison.OrdinalIgnoreCase) && globalRole == GlobalUserRole.SuperAdmin)
+        {
+            userContext.SetUser(userId, string.Empty, globalRole);
+
+            await _next(context);
+            return;
+        }
+
         // ── 3. Pipeline Classification: Group 3 - Context-Bootstrap & Switching Endpoints ──
         if (path.Equals("/api/auth/switch-context", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/auth/me/memberships", StringComparison.OrdinalIgnoreCase))
@@ -310,7 +319,8 @@ public sealed class TenantPropertyContextMiddleware
 
         if (path.StartsWith("/api/public", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/hubs", StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith("/api/print", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/api/print/invoice", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/api/print/voucher", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/health", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/health/", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/metrics", StringComparison.OrdinalIgnoreCase) ||

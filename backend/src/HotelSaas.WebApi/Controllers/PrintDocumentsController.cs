@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
+using HotelSaas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -20,6 +21,7 @@ namespace HotelSaas.WebApi.Controllers;
 /// 3. Hợp đồng cung cấp dịch vụ phần mềm SaaS (SaaS Subscription Agreement).
 /// 4. Cấu hình thông tin in ấn và thương hiệu (PrintTemplateConfig).
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/print")]
 [Produces("application/json")]
@@ -279,7 +281,10 @@ public sealed class PrintDocumentsController : ControllerBase
     [HttpGet("template-config")]
     public async Task<IActionResult> GetTemplateConfig([FromQuery] Guid? tenantId, CancellationToken cancellationToken)
     {
-        var effectiveTenantId = tenantId ?? _currentUser.TenantId;
+        var effectiveTenantId = _currentUser.GlobalRole == GlobalUserRole.SuperAdmin && tenantId.HasValue
+            ? tenantId
+            : (_currentUser.TenantId ?? tenantId);
+
         PrintTemplateConfig? config = null;
 
         if (effectiveTenantId.HasValue && effectiveTenantId.Value != Guid.Empty)
@@ -340,12 +345,14 @@ public sealed class PrintDocumentsController : ControllerBase
     /// Cập nhật cấu hình in ấn của cơ sở / khách sạn.
     /// </summary>
     [HttpPut("template-config")]
+    [RequirePermission("SETTINGS", PermissionAction.Update)]
     public async Task<IActionResult> SaveTemplateConfig([FromBody] PrintTemplateConfigDto request, CancellationToken cancellationToken)
     {
-        var tenantId = request.TenantId != Guid.Empty ? request.TenantId : (_currentUser.TenantId ?? Guid.Empty);
+        // Fail-Closed: Strictly resolve tenantId from authenticated user context, never blind client payload
+        var tenantId = _currentUser.TenantId ?? (_currentUser.GlobalRole == GlobalUserRole.SuperAdmin && request.TenantId != Guid.Empty ? request.TenantId : Guid.Empty);
         if (tenantId == Guid.Empty)
         {
-            return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu TenantId hợp lệ." });
+            return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu TenantId hợp lệ từ phiên đăng nhập." });
         }
 
         var config = await _context.PrintTemplateConfigs

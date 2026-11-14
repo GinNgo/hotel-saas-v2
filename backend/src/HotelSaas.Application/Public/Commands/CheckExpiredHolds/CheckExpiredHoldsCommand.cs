@@ -23,16 +23,22 @@ public sealed class CheckExpiredHoldsCommandHandler : IRequestHandler<CheckExpir
     private static readonly SemaphoreSlim SweepLock = new(1, 1);
     private readonly IApplicationDbContext _context;
     private readonly INotificationDispatcher? _notificationDispatcher;
+    private readonly ICurrentTenantService? _currentTenantService;
+    private readonly ICurrentPropertyService? _currentPropertyService;
     private readonly bool _useInMemoryLock;
 
     public CheckExpiredHoldsCommandHandler(
         IApplicationDbContext context,
         INotificationDispatcher? notificationDispatcher = null,
-        bool useInMemoryLock = true)
+        bool useInMemoryLock = true,
+        ICurrentTenantService? currentTenantService = null,
+        ICurrentPropertyService? currentPropertyService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _notificationDispatcher = notificationDispatcher;
         _useInMemoryLock = useInMemoryLock;
+        _currentTenantService = currentTenantService;
+        _currentPropertyService = currentPropertyService;
     }
 
     public async Task<int> Handle(CheckExpiredHoldsCommand request, CancellationToken cancellationToken)
@@ -41,6 +47,10 @@ public sealed class CheckExpiredHoldsCommandHandler : IRequestHandler<CheckExpir
         {
             await SweepLock.WaitAsync(cancellationToken);
         }
+
+        var originalTenantId = _currentTenantService?.TenantId;
+        var originalPropertyId = _currentPropertyService?.PropertyId;
+        var originalIsTenantWide = _currentPropertyService?.IsTenantWide ?? false;
 
         try
         {
@@ -69,7 +79,7 @@ public sealed class CheckExpiredHoldsCommandHandler : IRequestHandler<CheckExpir
 
             var candidates = await query.ToListAsync(cancellationToken);
 
-            int count = 0;
+            var expiredItems = new List<(Domain.Entities.Reservation Reservation, ReservationSnapshot Snapshot)>();
             foreach (var r in candidates)
             {
                 var snap = ReservationSnapshotHelper.TryDeserialize(r.Notes);
@@ -78,6 +88,30 @@ public sealed class CheckExpiredHoldsCommandHandler : IRequestHandler<CheckExpir
                     snap.HoldExpiresAtUtc.Value <= nowUtc &&
                     !snap.HoldExpiredNotifiedAtUtc.HasValue)
                 {
+                    expiredItems.Add((r, snap));
+                }
+            }
+
+            int count = 0;
+            foreach (var group in expiredItems.GroupBy(x => new { x.Reservation.TenantId, x.Reservation.PropertyId }))
+            {
+                if (_currentTenantService != null)
+                {
+                    _currentTenantService.TenantId = group.Key.TenantId;
+                }
+
+                if (_currentPropertyService != null)
+                {
+                    _currentPropertyService.PropertyId = group.Key.PropertyId;
+                    _currentPropertyService.IsTenantWide = false;
+                }
+
+                int groupModified = 0;
+                foreach (var item in group)
+                {
+                    var r = item.Reservation;
+                    var snap = item.Snapshot;
+
                     bool dispatched = true;
                     if (_notificationDispatcher != null)
                     {
@@ -102,14 +136,15 @@ public sealed class CheckExpiredHoldsCommandHandler : IRequestHandler<CheckExpir
                     {
                         snap.HoldExpiredNotifiedAtUtc = nowUtc;
                         r.Notes = ReservationSnapshotHelper.Serialize(snap);
+                        groupModified++;
                         count++;
                     }
                 }
-            }
 
-            if (count > 0)
-            {
-                await _context.SaveChangesAsync(cancellationToken);
+                if (groupModified > 0)
+                {
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
             }
 
             if (tx != null)
@@ -121,6 +156,17 @@ public sealed class CheckExpiredHoldsCommandHandler : IRequestHandler<CheckExpir
         }
         finally
         {
+            if (_currentTenantService != null)
+            {
+                _currentTenantService.TenantId = originalTenantId;
+            }
+
+            if (_currentPropertyService != null)
+            {
+                _currentPropertyService.PropertyId = originalPropertyId;
+                _currentPropertyService.IsTenantWide = originalIsTenantWide;
+            }
+
             if (_useInMemoryLock)
             {
                 SweepLock.Release();

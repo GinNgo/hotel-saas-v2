@@ -112,6 +112,13 @@ public sealed class CreatePropertyCommandHandler : IRequestHandler<CreatePropert
         GeoProximityHelper.AutoMatchNearbyLandmarks(property, _locationService);
 
         _context.Properties.Add(property);
+        var starterRoomsCount = TrySeedStarterInventory(
+            _context,
+            tenantId,
+            property.Id,
+            Guid.Empty,
+            changeReason: "Khởi tạo bảng giá chi nhánh mới");
+
         await _context.SaveChangesAsync(cancellationToken);
 
         return new TenantPropertySummaryDto
@@ -137,11 +144,86 @@ public sealed class CreatePropertyCommandHandler : IRequestHandler<CreatePropert
             Latitude = property.Latitude,
             Longitude = property.Longitude,
             NearbyLandmarksJson = property.NearbyLandmarksJson,
-            TotalRooms = 0,
+            TotalRooms = starterRoomsCount,
             OccupiedRooms = 0,
-            AvailableRooms = 0,
+            AvailableRooms = starterRoomsCount,
             TodayRevenue = 0m
         };
+    }
+
+    internal static int TrySeedStarterInventory(
+        IApplicationDbContext context,
+        Guid tenantId,
+        Guid propertyId,
+        Guid createdByUserId,
+        decimal nightlyPrice = 500000m,
+        decimal hourlyPrice = 150000m,
+        string changeReason = "Khởi tạo bảng giá đối tác mới")
+    {
+        try
+        {
+            if (context.RoomTypes == null || context.Rooms == null || context.RoomTypeRates == null)
+            {
+                return 0;
+            }
+
+            var roomTypeId = Guid.NewGuid();
+            var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+
+            context.RoomTypes.Add(new RoomType
+            {
+                Id = roomTypeId,
+                TenantId = tenantId,
+                PropertyId = propertyId,
+                Code = "STD",
+                Name = "Phòng Tiêu Chuẩn",
+                BasePrice = nightlyPrice,
+                MaxOccupancy = 2,
+                BedType = "Queen",
+                SquareMeters = 24m
+            });
+
+            string[] starterRoomNumbers = ["101", "102", "103"];
+            foreach (var roomNumber in starterRoomNumbers)
+            {
+                context.Rooms.Add(new Room
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenantId,
+                    PropertyId = propertyId,
+                    RoomTypeId = roomTypeId,
+                    RoomNumber = roomNumber,
+                    Floor = 1,
+                    Status = RoomStatus.Clean,
+                    IsActive = true
+                });
+            }
+
+            context.RoomTypeRates.Add(new RoomTypeRate
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                PropertyId = propertyId,
+                RoomTypeId = roomTypeId,
+                FirstHours = 2,
+                FirstHoursPrice = hourlyPrice,
+                AdditionalHourPrice = Math.Round(hourlyPrice * 0.35m, 0),
+                NightlyPrice = nightlyPrice,
+                Currency = "VND",
+                EffectiveFrom = today.AddDays(-1),
+                EffectiveTo = today.AddYears(3),
+                CreatedByUserId = createdByUserId,
+                ChangeReason = changeReason,
+                IsActive = true
+            });
+
+            return starterRoomNumbers.Length;
+        }
+        catch (NotImplementedException)
+        {
+            // Optional DbSets may throw NotImplementedException in isolated unit test stubs.
+            return 0;
+        }
     }
 
     private static string GetPropertyTypeName(PropertyType propertyType) => propertyType switch

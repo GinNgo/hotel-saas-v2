@@ -6,6 +6,7 @@ using HotelSaas.Application.Auth.DTOs;
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Utils;
+using HotelSaas.Application.Properties.Commands.CreateProperty;
 using HotelSaas.Application.Public.Services;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
@@ -129,22 +130,35 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
         _currentPropertyService.PropertyId = propertyId;
         _currentPropertyService.IsTenantWide = true;
 
-        var baseSlug = GenerateSlug(request.PropertyName);
-        var tenantSlug = await EnsureUniqueTenantSlugAsync(baseSlug, cancellationToken);
-        var propertySlug = await EnsureUniquePropertySlugAsync(baseSlug, cancellationToken);
+        var trimmedPropertyName = request.PropertyName.Trim();
+        var trimmedBrandName = !string.IsNullOrWhiteSpace(request.BrandName)
+            ? request.BrandName.Trim()
+            : trimmedPropertyName;
+
+        var tenantBaseSlug = GenerateSlug(trimmedBrandName);
+        var propertyBaseSlug = GenerateSlug(trimmedPropertyName);
+        var tenantSlug = await EnsureUniqueTenantSlugAsync(tenantBaseSlug, cancellationToken);
+        var propertySlug = await EnsureUniquePropertySlugAsync(propertyBaseSlug, cancellationToken);
         var tenantCode = "TNT-" + tenantId.ToString("N")[..6].ToUpperInvariant();
+
+        var propertyType = request.PropertyType.HasValue && Enum.IsDefined(typeof(PropertyType), request.PropertyType.Value)
+            ? (PropertyType)request.PropertyType.Value
+            : PropertyType.Hotel;
+        var starRating = Math.Clamp(request.StarRating ?? 3, 1, 5);
 
         // 5. Create Tenant Enterprise
         var tenant = new Tenant
         {
             Id = tenantId,
-            Name = request.PropertyName.Trim(),
+            Name = trimmedBrandName,
             Code = tenantCode,
             Slug = tenantSlug,
             Address = formattedAddress,
             City = province.Name,
             PhoneNumber = request.PhoneNumber.Trim(),
             Email = emailNormalized,
+            PropertyType = propertyType,
+            StarRating = starRating,
             Status = TenantStatus.Active,
             SubscriptionTier = SubscriptionTier.Basic,
             CheckInTime = new TimeOnly(14, 0),
@@ -159,15 +173,20 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
         {
             Id = propertyId,
             TenantId = tenantId,
-            Name = request.PropertyName.Trim(),
+            Name = trimmedPropertyName,
             Code = "MAIN",
             Slug = propertySlug,
             Address = formattedAddress,
             City = province.Name,
             PhoneNumber = request.PhoneNumber.Trim(),
             Email = emailNormalized,
-            PropertyType = PropertyType.Hotel,
-            StarRating = 0,
+            PropertyType = propertyType,
+            StarRating = starRating,
+            Latitude = request.Latitude,
+            Longitude = request.Longitude,
+            AllowHourlyBooking = request.AllowHourlyBooking ?? true,
+            AllowOvernightBooking = request.AllowOvernightBooking ?? true,
+            AllowDailyBooking = request.AllowDailyBooking ?? true,
             CheckInTime = new TimeOnly(14, 0, 0),
             CheckOutTime = new TimeOnly(12, 0, 0),
             BufferMinutes = 30,
@@ -175,7 +194,7 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
             TaxRatePercent = 0m,
             ServiceFeeRatePercent = 0m,
             Status = PropertyStatus.Active,
-            IsPublished = false
+            IsPublished = true
         };
 
         // Auto-match nearest landmarks and tourist zones (3-layer fallback)
@@ -184,6 +203,7 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
         _context.Properties.Add(property);
 
         // 7. Ensure User Account
+        var now = DateTime.UtcNow;
         if (user == null)
         {
             // Scenario C: Create new user
@@ -202,7 +222,9 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
                 PhoneNumber = request.PhoneNumber.Trim(),
                 GlobalRole = GlobalUserRole.TenantStaff,
                 IsActive = true,
-                TenantId = tenantId
+                TenantId = tenantId,
+                EmailVerifiedAtUtc = now,
+                PhoneVerifiedAtUtc = !string.IsNullOrWhiteSpace(request.PhoneNumber) ? now : null
             };
             _context.Users.Add(user);
         }
@@ -220,6 +242,11 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
             if (user.TenantId == null)
             {
                 user.TenantId = tenantId;
+            }
+            user.EmailVerifiedAtUtc ??= now;
+            if (!string.IsNullOrWhiteSpace(user.PhoneNumber) || !string.IsNullOrWhiteSpace(request.PhoneNumber))
+            {
+                user.PhoneVerifiedAtUtc ??= now;
             }
         }
 
@@ -252,14 +279,38 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
         };
         _context.Subscriptions.Add(subscription);
 
+        // 10. Seed Starter RoomType, Physical Rooms, and Active Rate Schedule
+        TrySeedStarterInventory(tenantId, propertyId, user.Id, request);
+
         await _context.SaveChangesAsync(cancellationToken);
 
         return new RegisterPartnerResponse(
             user.Id,
             tenantId,
             propertyId,
-            request.PropertyName.Trim(),
-            "Đăng ký đối tác khách sạn thành công! Bạn có thể bắt đầu thiết lập phòng và nhận khách ngay.");
+            trimmedPropertyName,
+            "Đăng ký đối tác khách sạn thành công! Bạn có thể bắt đầu thiết lập phòng và nhận khách ngay.",
+            tenantSlug,
+            propertySlug);
+    }
+
+    private void TrySeedStarterInventory(
+        Guid tenantId,
+        Guid propertyId,
+        Guid userId,
+        RegisterPartnerCommand request)
+    {
+        var nightlyPrice = request.DefaultNightlyPrice is > 0 ? request.DefaultNightlyPrice.Value : 500000m;
+        var hourlyPrice = request.DefaultHourlyPrice is > 0 ? request.DefaultHourlyPrice.Value : 150000m;
+
+        CreatePropertyCommandHandler.TrySeedStarterInventory(
+            _context,
+            tenantId,
+            propertyId,
+            userId,
+            nightlyPrice,
+            hourlyPrice,
+            "Khởi tạo bảng giá đối tác mới");
     }
 
     private static string GenerateSlug(string text)
