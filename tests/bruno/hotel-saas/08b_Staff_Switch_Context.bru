@@ -1,0 +1,34 @@
+meta {
+  name: 08b Staff Switch Property Context (D23 Scoped JWT)
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/auth/switch-context
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{staffJwt}}
+}
+
+body:json {
+  {
+    "propertyId": "{{propertyId}}"
+  }
+}
+
+vars:post-response {
+  staffJwt: res.body.data.accessToken
+}
+
+tests {
+  test("Switch property context returns scoped JWT (200)", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.success).to.equal(true);
+    expect(res.body.data.accessToken).to.be.a("string").and.not.be.empty;
+    expect(res.body.data.currentContext.propertyId).to.be.a("string").and.not.be.empty;
+  });
+}

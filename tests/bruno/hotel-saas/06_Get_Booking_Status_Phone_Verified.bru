@@ -10,9 +10,17 @@ get {
   auth: none
 }
 
+script:pre-request {
+  const lookupToken = String(bru.getVar("lookupToken") || bru.getEnvVar("lookupToken") || "").trim();
+  if (!lookupToken || lookupToken.startsWith("<") || lookupToken.includes("{{")) {
+    throw new Error("ERR_MISSING_DEPENDENCY: Thieu bien 'lookupToken' (can chay request 05 voi 'validToken' hop le truoc; trang thai Staging: BLOCKED/SKIPPED).");
+  }
+}
+
 assert {
   res.status: eq 200
   res.body.isPhoneVerified: eq true
   res.body.status: eq PendingPayment
-  res.body.propertySlug: isDefined
+  res.body.propertyId: isDefined
+  res.body.propertyName: isDefined
 }

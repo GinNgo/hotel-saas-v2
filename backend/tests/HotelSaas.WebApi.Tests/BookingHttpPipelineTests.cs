@@ -31,10 +31,15 @@ public sealed class BookingHttpPipelineTests
     private static string GetConnectionString()
     {
         var envConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION");
-        if (!string.IsNullOrWhiteSpace(envConn))
-            return envConn;
+        var rawConn = !string.IsNullOrWhiteSpace(envConn)
+            ? envConn
+            : "Host=localhost;Port=5435;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
 
-        return "Host=localhost;Port=5435;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
+        return new NpgsqlConnectionStringBuilder(rawConn)
+        {
+            Pooling = false,
+            PersistSecurityInfo = true
+        }.ConnectionString;
     }
 
     private static void ValidateTestDatabaseTarget(string connStr)
@@ -72,7 +77,8 @@ public sealed class BookingHttpPipelineTests
     {
         var builder = new NpgsqlConnectionStringBuilder(connString)
         {
-            SearchPath = testSchema
+            SearchPath = testSchema,
+            Pooling = false
         };
         var tenantSvc = new MockTenantService { TenantId = tenantId };
         var propSvc = new MockPropertyService();
@@ -105,7 +111,8 @@ public sealed class BookingHttpPipelineTests
         {
             var testConnBuilder = new NpgsqlConnectionStringBuilder(_connectionString)
             {
-                SearchPath = _testSchema
+                SearchPath = _testSchema,
+                Pooling = false
             };
 
             builder.UseEnvironment("Testing");
@@ -163,6 +170,15 @@ public sealed class BookingHttpPipelineTests
             var room1Id = Guid.NewGuid();
             var room2Id = Guid.NewGuid();
             var hasher = new PasswordHasherService();
+            var baseDayUtc = DateTime.UtcNow.Date.AddDays(1);
+            var hourlyDay = baseDayUtc.AddDays(6);
+            var overnightCheckInDay = baseDayUtc;
+            var overnightCheckOutDay = baseDayUtc.AddDays(2);
+            var forbiddenDay = baseDayUtc.AddDays(3);
+            var raceDay = baseDayUtc.AddDays(8);
+            var sameKeyDay = baseDayUtc.AddDays(9);
+            var replayDay = baseDayUtc.AddDays(13);
+            var conflictDay = baseDayUtc.AddDays(14);
 
             // 1. Seed Database Schema and Entities
             await using (var seedCtx = CreateSeedDbContext(baseConnStr, testSchema, tenantId))
@@ -350,8 +366,8 @@ public sealed class BookingHttpPipelineTests
                     AdditionalHourPrice = 100000m,
                     NightlyPrice = 1200000m,
                     Currency = "VND",
-                    EffectiveFrom = new DateOnly(2026, 11, 1),
-                    EffectiveTo = new DateOnly(2026, 11, 30),
+                    EffectiveFrom = DateOnly.FromDateTime(baseDayUtc.AddDays(-2)),
+                    EffectiveTo = DateOnly.FromDateTime(baseDayUtc.AddDays(30)),
                     CreatedByUserId = userId,
                     IsActive = true
                 };
@@ -403,8 +419,8 @@ public sealed class BookingHttpPipelineTests
                 propertyId = propId,
                 roomId = room1Id,
                 rentalType = 1, // Hourly
-                startAtUtc = "2026-11-18T07:00:00Z", // 14:00 VN
-                endAtUtc = "2026-11-18T09:00:00Z",   // 16:00 VN (2 hours)
+                startAtUtc = $"{hourlyDay:yyyy-MM-dd}T07:00:00Z", // 14:00 VN
+                endAtUtc = $"{hourlyDay:yyyy-MM-dd}T09:00:00Z",   // 16:00 VN (2 hours)
                 guestName = "Nguyen Van A",
                 guestEmail = "nguyenvana@gmail.com",
                 guestPhone = "0901234567",
@@ -429,10 +445,10 @@ public sealed class BookingHttpPipelineTests
                 propertyId = propId,
                 roomId = room2Id,
                 rentalType = 2, // Overnight
-                startAtUtc = "2026-11-12T07:00:00Z", // 14:00 VN
-                endAtUtc = "2026-11-14T05:00:00Z",   // 12:00 VN
-                checkInDate = "2026-11-12",
-                checkOutDate = "2026-11-14",
+                startAtUtc = $"{overnightCheckInDay:yyyy-MM-dd}T07:00:00Z", // 14:00 VN
+                endAtUtc = $"{overnightCheckOutDay:yyyy-MM-dd}T05:00:00Z",   // 12:00 VN
+                checkInDate = overnightCheckInDay.ToString("yyyy-MM-dd"),
+                checkOutDate = overnightCheckOutDay.ToString("yyyy-MM-dd"),
                 guestName = "Tran Thi B",
                 guestEmail = "tranthib@gmail.com",
                 guestPhone = "0987654321",
@@ -463,7 +479,7 @@ public sealed class BookingHttpPipelineTests
             // ── STEP 6: GET Availability (200 OK) ──────────────────────────────────────
             // Query interval overlapping Room 101's hourly reservation + buffer
             var getAvailResp = await client.GetAsync(
-                $"/api/reservations/availability?propertyId={propId}&rentalType=1&startAtUtc=2026-11-18T08:00:00Z&endAtUtc=2026-11-18T10:00:00Z");
+                $"/api/reservations/availability?propertyId={propId}&rentalType=1&startAtUtc={hourlyDay:yyyy-MM-dd}T08:00:00Z&endAtUtc={hourlyDay:yyyy-MM-dd}T10:00:00Z");
             Assert.Equal(HttpStatusCode.OK, getAvailResp.StatusCode);
             var availJson = await getAvailResp.Content.ReadFromJsonAsync<JsonElement>();
             Assert.True(availJson.GetArrayLength() >= 2);
@@ -505,8 +521,8 @@ public sealed class BookingHttpPipelineTests
                 propertyId = propId,
                 roomId = room2Id,
                 rentalType = 1,
-                startAtUtc = "2026-11-15T07:00:00Z",
-                endAtUtc = "2026-11-15T09:00:00Z",
+                startAtUtc = $"{forbiddenDay:yyyy-MM-dd}T07:00:00Z",
+                endAtUtc = $"{forbiddenDay:yyyy-MM-dd}T09:00:00Z",
                 guestName = "Intruder",
                 guestEmail = "intruder@gmail.com",
                 expectedTotalAmount = 300000m
@@ -526,8 +542,8 @@ public sealed class BookingHttpPipelineTests
                 propertyId = mismatchedPropId, // Mismatched body property!
                 roomId = room1Id,
                 rentalType = 1,
-                startAtUtc = "2026-11-18T07:00:00Z",
-                endAtUtc = "2026-11-18T09:00:00Z",
+                startAtUtc = $"{hourlyDay:yyyy-MM-dd}T07:00:00Z",
+                endAtUtc = $"{hourlyDay:yyyy-MM-dd}T09:00:00Z",
                 guestName = "Mismatch Tester",
                 guestEmail = "mismatch@gmail.com",
                 expectedTotalAmount = 300000m
@@ -558,8 +574,8 @@ public sealed class BookingHttpPipelineTests
                 propertyId = propId,
                 roomId = room2Id,
                 rentalType = 1,
-                startAtUtc = "2026-11-20T07:00:00Z",
-                endAtUtc = "2026-11-20T09:00:00Z",
+                startAtUtc = $"{raceDay:yyyy-MM-dd}T07:00:00Z",
+                endAtUtc = $"{raceDay:yyyy-MM-dd}T09:00:00Z",
                 guestName = "Racer One",
                 guestEmail = "racer1@gmail.com",
                 expectedTotalAmount = 300000m,
@@ -571,8 +587,8 @@ public sealed class BookingHttpPipelineTests
                 propertyId = propId,
                 roomId = room2Id,
                 rentalType = 1,
-                startAtUtc = "2026-11-20T07:00:00Z",
-                endAtUtc = "2026-11-20T09:00:00Z",
+                startAtUtc = $"{raceDay:yyyy-MM-dd}T07:00:00Z",
+                endAtUtc = $"{raceDay:yyyy-MM-dd}T09:00:00Z",
                 guestName = "Racer Two",
                 guestEmail = "racer2@gmail.com",
                 expectedTotalAmount = 300000m,
@@ -596,8 +612,8 @@ public sealed class BookingHttpPipelineTests
                 propertyId = propId,
                 roomId = room1Id,
                 rentalType = 1,
-                startAtUtc = "2026-11-21T07:00:00Z",
-                endAtUtc = "2026-11-21T09:00:00Z",
+                startAtUtc = $"{sameKeyDay:yyyy-MM-dd}T07:00:00Z",
+                endAtUtc = $"{sameKeyDay:yyyy-MM-dd}T09:00:00Z",
                 guestName = "Same Key Racer 1",
                 guestEmail = "sk1@gmail.com",
                 expectedTotalAmount = 300000m,
@@ -609,8 +625,8 @@ public sealed class BookingHttpPipelineTests
                 propertyId = propId,
                 roomId = room2Id, // Different room!
                 rentalType = 1,
-                startAtUtc = "2026-11-21T07:00:00Z",
-                endAtUtc = "2026-11-21T09:00:00Z",
+                startAtUtc = $"{sameKeyDay:yyyy-MM-dd}T07:00:00Z",
+                endAtUtc = $"{sameKeyDay:yyyy-MM-dd}T09:00:00Z",
                 guestName = "Same Key Racer 2",
                 guestEmail = "sk2@gmail.com",
                 expectedTotalAmount = 300000m,
@@ -638,8 +654,8 @@ public sealed class BookingHttpPipelineTests
                 propertyId = propId,
                 roomId = room1Id,
                 rentalType = 1,
-                startAtUtc = "2026-11-25T07:00:00Z",
-                endAtUtc = "2026-11-25T09:00:00Z",
+                startAtUtc = $"{replayDay:yyyy-MM-dd}T07:00:00Z",
+                endAtUtc = $"{replayDay:yyyy-MM-dd}T09:00:00Z",
                 guestName = "Original Guest",
                 guestEmail = "original@gmail.com",
                 expectedTotalAmount = 300000m,
@@ -674,8 +690,8 @@ public sealed class BookingHttpPipelineTests
                 propertyId = propId,
                 roomId = room2Id, // Different room!
                 rentalType = 1,
-                startAtUtc = "2026-11-26T07:00:00Z", // Different interval!
-                endAtUtc = "2026-11-26T09:00:00Z",
+                startAtUtc = $"{conflictDay:yyyy-MM-dd}T07:00:00Z", // Different interval!
+                endAtUtc = $"{conflictDay:yyyy-MM-dd}T09:00:00Z",
                 guestName = "Tampering Imposter",
                 guestEmail = "imposter@gmail.com",
                 expectedTotalAmount = 300000m,
@@ -693,8 +709,8 @@ public sealed class BookingHttpPipelineTests
                 propertyId = propId,
                 roomId = room1Id, // Same room
                 rentalType = 1,
-                startAtUtc = "2026-11-25T07:00:00Z", // Same interval
-                endAtUtc = "2026-11-25T09:00:00Z",
+                startAtUtc = $"{replayDay:yyyy-MM-dd}T07:00:00Z", // Same interval
+                endAtUtc = $"{replayDay:yyyy-MM-dd}T09:00:00Z",
                 guestName = "Different Guest Name", // Differing guest name!
                 guestEmail = "original@gmail.com",
                 expectedTotalAmount = 300000m,

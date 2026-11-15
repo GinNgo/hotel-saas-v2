@@ -24,10 +24,11 @@ public sealed class LoyaltyLifecycleFsmTests
     private static string GetConnectionString()
     {
         var envConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION");
-        if (!string.IsNullOrWhiteSpace(envConn))
-            return envConn;
+        var rawConn = !string.IsNullOrWhiteSpace(envConn)
+            ? envConn
+            : "Host=localhost;Port=5435;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
 
-        return "Host=localhost;Port=5435;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
+        return new NpgsqlConnectionStringBuilder(rawConn) { Pooling = false }.ConnectionString;
     }
 
     private sealed class MockTenantService : ICurrentTenantService
@@ -90,7 +91,8 @@ public sealed class LoyaltyLifecycleFsmTests
     {
         var builder = new NpgsqlConnectionStringBuilder(connString)
         {
-            SearchPath = testSchema
+            SearchPath = testSchema,
+            Pooling = false
         };
 
         var interceptor = new TenantPropertySaveChangesInterceptor(tenantSvc, propSvc);

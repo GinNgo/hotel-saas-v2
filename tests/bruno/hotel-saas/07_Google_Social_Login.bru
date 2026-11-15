@@ -10,15 +10,28 @@ post {
   auth: none
 }
 
+script:pre-request {
+  const baseUrl = String(bru.getEnvVar("baseUrl") || "").trim().toLowerCase();
+  const isLocal = baseUrl.startsWith("http://127.0.0.1") || baseUrl.startsWith("http://localhost");
+  const token = String(bru.getEnvVar("googleIdToken") || bru.getVar("googleIdToken") || "").trim();
+
+  if (!token || token.startsWith("<")) {
+    throw new Error("ERR_MISSING_STAGING_TOKEN: Thieu bien 'googleIdToken' (yeu cau Google OAuth ID token hop le; trang thai Staging: BLOCKED/SKIPPED do khong co OAuth token thuc).");
+  }
+
+  if (!isLocal && token.startsWith("dev-mock-")) {
+    throw new Error("ERR_MOCK_TOKEN_FORBIDDEN_ON_STAGING: Khong duoc dung dev-mock-google-token tren Staging.");
+  }
+}
+
 body:json {
   {
-    "idToken": "dev-mock-google-token:guest.google@gmail.com:Guest Google Verified"
+    "idToken": "{{googleIdToken}}"
   }
 }
 
 assert {
   res.status: eq 200
   res.body.accessToken: isDefined
-  res.body.user.email: eq guest.google@gmail.com
   res.body.user.globalRole: eq Customer
 }

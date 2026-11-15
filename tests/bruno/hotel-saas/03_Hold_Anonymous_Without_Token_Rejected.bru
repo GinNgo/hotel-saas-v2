@@ -10,18 +10,34 @@ post {
   auth: none
 }
 
+script:pre-request {
+  const vnOffsetMs = 7 * 60 * 60 * 1000;
+  const nowVn = new Date(Date.now() + vnOffsetMs);
+  const checkIn = new Date(nowVn);
+  checkIn.setUTCDate(checkIn.getUTCDate() + 7);
+  const checkOut = new Date(checkIn);
+  checkOut.setUTCDate(checkOut.getUTCDate() + 1);
+
+  const fmtDate = (d) => d.toISOString().slice(0, 10);
+  bru.setVar("startAtUtc", `${fmtDate(checkIn)}T07:00:00Z`);
+  bru.setVar("endAtUtc", `${fmtDate(checkOut)}T05:00:00Z`);
+  if (!bru.getVar("expectedTotalAmount")) {
+    bru.setVar("expectedTotalAmount", 3200000);
+  }
+}
+
 body:json {
   {
     "propertySlug": "{{propertySlug}}",
     "roomTypeId": "{{roomTypeId}}",
     "rentalType": 3,
-    "startAtUtc": "2026-11-20T07:00:00Z",
-    "endAtUtc": "2026-11-21T05:00:00Z",
+    "startAtUtc": "{{startAtUtc}}",
+    "endAtUtc": "{{endAtUtc}}",
     "guestName": "Attacker Ghost",
     "guestEmail": "attacker@ghost.com",
     "guestPhone": "{{validPhone}}",
     "numberOfGuests": 2,
-    "expectedTotalAmount": 3200000,
+    "expectedTotalAmount": {{expectedTotalAmount}},
     "firebaseIdToken": null
   }
 }

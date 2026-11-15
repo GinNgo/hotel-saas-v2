@@ -36,10 +36,10 @@ public sealed class P3_StayLifecycleFsmTests
     private static string GetConnectionString()
     {
         var envConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION");
-        if (!string.IsNullOrWhiteSpace(envConn))
-            return envConn;
-
-        return "Host=localhost;Port=5435;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
+        var rawConn = !string.IsNullOrWhiteSpace(envConn)
+            ? envConn
+            : "Host=localhost;Port=5435;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
+        return new NpgsqlConnectionStringBuilder(rawConn) { Pooling = false, PersistSecurityInfo = true }.ConnectionString;
     }
 
     private static void ValidateTestDatabaseTarget(string connStr)
@@ -118,7 +118,8 @@ public sealed class P3_StayLifecycleFsmTests
     {
         var builder = new NpgsqlConnectionStringBuilder(connString)
         {
-            SearchPath = testSchema
+            SearchPath = testSchema,
+            Pooling = false
         };
 
         var interceptor = new TenantPropertySaveChangesInterceptor(tenantSvc, propSvc);

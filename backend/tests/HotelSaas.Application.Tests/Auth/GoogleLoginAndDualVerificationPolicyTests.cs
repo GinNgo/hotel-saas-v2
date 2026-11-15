@@ -28,14 +28,16 @@ public sealed class GoogleLoginAndDualVerificationPolicyTests
     private static string GetConnectionString()
     {
         var envConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION");
-        if (!string.IsNullOrWhiteSpace(envConn)) return envConn;
         var port = Environment.GetEnvironmentVariable("TEST_POSTGRES_PORT") ?? "5435";
-        return $"Host=localhost;Port={port};Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
+        var rawConn = !string.IsNullOrWhiteSpace(envConn)
+            ? envConn
+            : $"Host=localhost;Port={port};Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
+        return new NpgsqlConnectionStringBuilder(rawConn) { Pooling = false }.ConnectionString;
     }
 
     private static ApplicationDbContext CreateContext(string schema)
     {
-        var builder = new NpgsqlConnectionStringBuilder(GetConnectionString()) { SearchPath = schema };
+        var builder = new NpgsqlConnectionStringBuilder(GetConnectionString()) { SearchPath = schema, Pooling = false };
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(builder.ConnectionString)
             .Options;

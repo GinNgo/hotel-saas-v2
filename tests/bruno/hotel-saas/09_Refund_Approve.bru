@@ -1,0 +1,31 @@
+meta {
+  name: 09 D23 Approve Refund Request
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/payments/refunds/{{refundRequestId}}/approve?propertyId={{propertyId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{staffJwt}}
+}
+
+headers {
+  X-Property-Id: {{propertyId}}
+}
+
+body:json {
+  {
+    "notes": "Verified cancellation policy and folio balance in Bruno Staging QA."
+  }
+}
+
+tests {
+  test("Refund request approved cleanly (200)", function() {
+    expect(res.status).to.equal(200);
+  });
+}

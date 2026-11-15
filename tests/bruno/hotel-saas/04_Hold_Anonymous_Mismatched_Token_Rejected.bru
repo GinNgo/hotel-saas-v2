@@ -10,18 +10,46 @@ post {
   auth: none
 }
 
+script:pre-request {
+  const baseUrl = String(bru.getEnvVar("baseUrl") || "").trim().toLowerCase();
+  const isLocal = baseUrl.startsWith("http://127.0.0.1") || baseUrl.startsWith("http://localhost");
+  const token = String(bru.getEnvVar("mismatchedToken") || bru.getVar("mismatchedToken") || "").trim();
+
+  if (!token || token.startsWith("<")) {
+    throw new Error("ERR_MISSING_STAGING_TOKEN: Thieu bien 'mismatchedToken' (yeu cau Firebase Phone ID token khac so guestPhone; trang thai Staging: BLOCKED/SKIPPED do khong co token OTP thuc).");
+  }
+
+  if (!isLocal && token.startsWith("dev-mock-")) {
+    throw new Error("ERR_MOCK_TOKEN_FORBIDDEN_ON_STAGING: Khong duoc dung dev-mock-token tren Staging.");
+  }
+
+  const vnOffsetMs = 7 * 60 * 60 * 1000;
+  const nowVn = new Date(Date.now() + vnOffsetMs);
+  const checkIn = new Date(nowVn);
+  checkIn.setUTCDate(checkIn.getUTCDate() + 7);
+  const checkOut = new Date(checkIn);
+  checkOut.setUTCDate(checkOut.getUTCDate() + 1);
+
+  const fmtDate = (d) => d.toISOString().slice(0, 10);
+  bru.setVar("startAtUtc", `${fmtDate(checkIn)}T07:00:00Z`);
+  bru.setVar("endAtUtc", `${fmtDate(checkOut)}T05:00:00Z`);
+  if (!bru.getVar("expectedTotalAmount")) {
+    bru.setVar("expectedTotalAmount", 3200000);
+  }
+}
+
 body:json {
   {
     "propertySlug": "{{propertySlug}}",
     "roomTypeId": "{{roomTypeId}}",
     "rentalType": 3,
-    "startAtUtc": "2026-11-20T07:00:00Z",
-    "endAtUtc": "2026-11-21T05:00:00Z",
+    "startAtUtc": "{{startAtUtc}}",
+    "endAtUtc": "{{endAtUtc}}",
     "guestName": "Spoofing Guest",
     "guestEmail": "spoof@gmail.com",
     "guestPhone": "{{validPhone}}",
     "numberOfGuests": 2,
-    "expectedTotalAmount": 3200000,
+    "expectedTotalAmount": {{expectedTotalAmount}},
     "firebaseIdToken": "{{mismatchedToken}}"
   }
 }

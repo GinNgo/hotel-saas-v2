@@ -155,7 +155,8 @@ public sealed class QuoteEngineCalculationTests
     {
         var builder = new NpgsqlConnectionStringBuilder(connString)
         {
-            SearchPath = testSchema
+            SearchPath = testSchema,
+            Pooling = false
         };
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(builder.ConnectionString)

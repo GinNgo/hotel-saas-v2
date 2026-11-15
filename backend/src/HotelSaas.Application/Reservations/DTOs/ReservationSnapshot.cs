@@ -34,5 +34,13 @@ public sealed class ReservationSnapshot
     public bool IsPhoneVerified { get; set; }
     public DateTime? PhoneVerifiedAtUtc { get; set; }
     public DateTime? HoldExpiredNotifiedAtUtc { get; set; }
+    public string? HoldExpiredEventId { get; set; }
+    public DateTime? HoldExpiredClaimedAtUtc { get; set; }
+    public string? HoldExpiredClaimOwner { get; set; }
+    public DateTime? HoldExpiredDispatchLeaseUntilUtc { get; set; }
+    public int HoldExpiredDispatchAttemptCount { get; set; }
+    public DateTime? HoldExpiredLastAttemptAtUtc { get; set; }
+    public string? HoldExpiredLastError { get; set; }
+    public DateTime? HoldExpiredDeadLetteredAtUtc { get; set; }
     public PaymentMethodPreference PaymentMethodPreference { get; set; } = PaymentMethodPreference.VNPay;
 }

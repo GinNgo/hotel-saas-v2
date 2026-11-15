@@ -1015,4 +1015,1076 @@ public sealed class NotificationHubSecurityTests
         Assert.Single(branchClient.HoldExpired);
         Assert.Equal("RES-MULTINODE-01", branchClient.HoldExpired[0].ConfirmationCode);
     }
+
+    private sealed class InspectOnDispatchNotificationDispatcher : INotificationDispatcher
+    {
+        private readonly Func<string, Task> _onDispatch;
+        public int CallCount { get; private set; }
+
+        public InspectOnDispatchNotificationDispatcher(Func<string, Task> onDispatch)
+        {
+            _onDispatch = onDispatch;
+        }
+
+        public Task NotifyNewReservationConfirmedAsync(string propertyId, string reservationId, string confirmationCode, string guestName, string roomTypeName, decimal totalAmount, decimal depositPaid, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task NotifyReservationStatusChangedAsync(string propertyId, string reservationId, string confirmationCode, string previousStatus, string newStatus, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task NotifyHousekeepingAlertAsync(string propertyId, string roomNumber, string roomStatus, string message, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task NotifyBookingPaymentConfirmedAsync(string propertyId, string reservationId, string confirmationCode, string guestName, decimal totalAmount, decimal paidAmount, string paymentMethod, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task NotifyBookingCancellationRequestedAsync(string propertyId, string reservationId, string confirmationCode, string guestName, string reason, decimal refundableAmount, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public async Task<bool> NotifyHoldExpiredAsync(string propertyId, string reservationId, string confirmationCode, string roomTypeName, CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            await _onDispatch(reservationId);
+            return true;
+        }
+    }
+
+    private sealed class CountingFailingNotificationDispatcher : INotificationDispatcher
+    {
+        public int CallCount { get; private set; }
+        public Task NotifyNewReservationConfirmedAsync(string propertyId, string reservationId, string confirmationCode, string guestName, string roomTypeName, decimal totalAmount, decimal depositPaid, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task NotifyReservationStatusChangedAsync(string propertyId, string reservationId, string confirmationCode, string previousStatus, string newStatus, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task NotifyHousekeepingAlertAsync(string propertyId, string roomNumber, string roomStatus, string message, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task NotifyBookingPaymentConfirmedAsync(string propertyId, string reservationId, string confirmationCode, string guestName, decimal totalAmount, decimal paidAmount, string paymentMethod, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task NotifyBookingCancellationRequestedAsync(string propertyId, string reservationId, string confirmationCode, string guestName, string reason, decimal refundableAmount, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<bool> NotifyHoldExpiredAsync(string propertyId, string reservationId, string confirmationCode, string roomTypeName, CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return Task.FromResult(false);
+        }
+    }
+
+    [Fact]
+    public async Task CheckExpiredHoldsCommandHandler_WhenTenantContextMissing_FailsClosed_WithoutDispatching()
+    {
+        await using var fixture = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+        var seedTenant = new P5_GuestBookingTests.MockTenantService { TenantId = fixture.TenantId };
+        var seedProp = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId };
+        await using var seedCtx = fixture.CreateDbContext(seedTenant, seedProp);
+
+        var room = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(seedCtx.Rooms, r => r.PropertyId == fixture.PropertyId);
+        Assert.NotNull(room);
+
+        var expiredSnap = new HotelSaas.Application.Reservations.DTOs.ReservationSnapshot
+        {
+            HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(-5),
+            IsOnlineHold = true,
+            RoomTypeName = "Deluxe Room"
+        };
+        seedCtx.Reservations.Add(new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = room.Id,
+            ConfirmationCode = "RES-NO-TENANT-01",
+            GuestName = "Guest No Tenant",
+            Status = ReservationStatus.PendingPayment,
+            CheckInDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            CheckOutDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)),
+            TotalAmount = 1_200_000m,
+            Notes = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.Serialize(expiredSnap),
+            CreatedAtUtc = DateTime.UtcNow.AddMinutes(-20)
+        });
+        await seedCtx.SaveChangesAsync();
+
+        var nullTenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = null };
+        var nullPropSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = null, IsTenantWide = false };
+        await using var unscopedCtx = fixture.CreateDbContext(nullTenantSvc, nullPropSvc);
+
+        var client = new TestNotificationClient();
+        var dispatcher = new HotelSaas.Infrastructure.Services.NotificationDispatcher(
+            new TestHubContext(new TestHubClients(client), new TestGroupManager()),
+            NullLogger<HotelSaas.Infrastructure.Services.NotificationDispatcher>.Instance);
+
+        var handler = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+            unscopedCtx,
+            dispatcher,
+            useInMemoryLock: true,
+            currentTenantService: nullTenantSvc,
+            currentPropertyService: nullPropSvc);
+
+        var ex = await Assert.ThrowsAsync<HotelSaas.Application.Common.Exceptions.ForbiddenException>(() =>
+            handler.Handle(new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId), CancellationToken.None));
+
+        Assert.Equal("ERR_TENANT_REQUIRED", ex.ErrorCode);
+        Assert.Empty(client.HoldExpired);
+    }
+
+    [Fact]
+    public async Task CheckExpiredHoldsCommandHandler_CommitsClaimToPostgresBeforeEmittingSignalR()
+    {
+        await using var fixture = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+        var tenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId, IsTenantWide = false };
+        await using var ctx = fixture.CreateDbContext(tenantSvc, propSvc);
+
+        var room = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(ctx.Rooms, r => r.PropertyId == fixture.PropertyId);
+        Assert.NotNull(room);
+
+        var resId = Guid.NewGuid();
+        var expiredSnap = new HotelSaas.Application.Reservations.DTOs.ReservationSnapshot
+        {
+            HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(-5),
+            IsOnlineHold = true,
+            RoomTypeName = "Premier Suite"
+        };
+        ctx.Reservations.Add(new Reservation
+        {
+            Id = resId,
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = room.Id,
+            ConfirmationCode = "RES-COMMIT-FIRST-01",
+            GuestName = "Commit First Guest",
+            Status = ReservationStatus.PendingPayment,
+            CheckInDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            CheckOutDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)),
+            TotalAmount = 1_500_000m,
+            Notes = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.Serialize(expiredSnap),
+            CreatedAtUtc = DateTime.UtcNow.AddMinutes(-20)
+        });
+        await ctx.SaveChangesAsync();
+
+        bool committedBeforeDispatch = false;
+        var inspectingDispatcher = new InspectOnDispatchNotificationDispatcher(async idStr =>
+        {
+            await using var observerCtx = fixture.CreateDbContext(tenantSvc, propSvc);
+            var committedRow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+                Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(observerCtx.Reservations),
+                r => r.Id == Guid.Parse(idStr));
+            var committedSnap = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.TryDeserialize(committedRow?.Notes);
+            committedBeforeDispatch = committedSnap != null
+                && committedSnap.HoldExpiredClaimedAtUtc.HasValue
+                && committedSnap.HoldExpiredDispatchAttemptCount == 1
+                && committedSnap.HoldExpiredDispatchLeaseUntilUtc.HasValue
+                && committedSnap.HoldExpiredEventId == "evt-holdexp-RES-COMMIT-FIRST-01"
+                && !committedSnap.HoldExpiredNotifiedAtUtc.HasValue;
+        });
+
+        var handler = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+            ctx,
+            inspectingDispatcher,
+            useInMemoryLock: true,
+            currentTenantService: tenantSvc,
+            currentPropertyService: propSvc);
+
+        var swept = await handler.Handle(new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId), CancellationToken.None);
+
+        Assert.Equal(1, swept);
+        Assert.Equal(1, inspectingDispatcher.CallCount);
+        Assert.True(committedBeforeDispatch, "Database Claim commit MUST be visible to an independent DB connection BEFORE SignalR dispatch occurs.");
+
+        await using var afterCtx = fixture.CreateDbContext(tenantSvc, propSvc);
+        var finalRow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(afterCtx.Reservations),
+            r => r.Id == resId);
+        var finalSnap = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.TryDeserialize(finalRow?.Notes);
+        Assert.NotNull(finalSnap?.HoldExpiredNotifiedAtUtc);
+        Assert.Null(finalSnap?.HoldExpiredDispatchLeaseUntilUtc);
+    }
+
+    [Fact]
+    public async Task CheckExpiredHoldsCommandHandler_WhenSaveChangesFailsAndRollsBack_EmitsZeroNotifications()
+    {
+        await using var fixture = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+        var tenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId, IsTenantWide = false };
+        await using var seedCtx = fixture.CreateDbContext(tenantSvc, propSvc);
+
+        var room = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(seedCtx.Rooms, r => r.PropertyId == fixture.PropertyId);
+        Assert.NotNull(room);
+
+        seedCtx.Reservations.Add(new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = room.Id,
+            ConfirmationCode = "RES-ROLLBACK-01",
+            GuestName = "Rollback Guest",
+            Status = ReservationStatus.PendingPayment,
+            CheckInDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            CheckOutDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)),
+            TotalAmount = 1_500_000m,
+            Notes = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.Serialize(new HotelSaas.Application.Reservations.DTOs.ReservationSnapshot
+            {
+                HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                IsOnlineHold = true,
+                RoomTypeName = "Standard"
+            }),
+            CreatedAtUtc = DateTime.UtcNow.AddMinutes(-20)
+        });
+        await seedCtx.SaveChangesAsync();
+
+        // Simulate cross-tenant / tampered property context triggering TenantPropertySaveChangesInterceptor failure during SaveChangesAsync
+        var wrongTenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = Guid.NewGuid() };
+        var wrongPropSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId, IsTenantWide = true };
+        await using var failingSaveCtx = fixture.CreateDbContext(wrongTenantSvc, wrongPropSvc);
+
+        var client = new TestNotificationClient();
+        var dispatcher = new HotelSaas.Infrastructure.Services.NotificationDispatcher(
+            new TestHubContext(new TestHubClients(client), new TestGroupManager()),
+            NullLogger<HotelSaas.Infrastructure.Services.NotificationDispatcher>.Instance);
+
+        var handler = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+            failingSaveCtx,
+            dispatcher);
+
+        await Assert.ThrowsAsync<HotelSaas.Application.Common.Exceptions.ForbiddenException>(() =>
+            handler.Handle(new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId), CancellationToken.None));
+
+        Assert.Empty(client.HoldExpired);
+    }
+
+    [Fact]
+    public async Task CheckExpiredHoldsCommandHandler_RetryIsBoundedByMaxAttempts_AndDeadLettersAfterLimit()
+    {
+        await using var fixture = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+        var tenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId, IsTenantWide = false };
+        await using var ctx = fixture.CreateDbContext(tenantSvc, propSvc);
+
+        var room = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(ctx.Rooms, r => r.PropertyId == fixture.PropertyId);
+        Assert.NotNull(room);
+
+        var resId = Guid.NewGuid();
+        ctx.Reservations.Add(new Reservation
+        {
+            Id = resId,
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = room.Id,
+            ConfirmationCode = "RES-BOUNDED-RETRY",
+            GuestName = "Retry Limit Guest",
+            Status = ReservationStatus.PendingPayment,
+            CheckInDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            CheckOutDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)),
+            TotalAmount = 1_500_000m,
+            Notes = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.Serialize(new HotelSaas.Application.Reservations.DTOs.ReservationSnapshot
+            {
+                HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                IsOnlineHold = true,
+                RoomTypeName = "Deluxe"
+            }),
+            CreatedAtUtc = DateTime.UtcNow.AddMinutes(-20)
+        });
+        await ctx.SaveChangesAsync();
+
+        var failingDispatcher = new CountingFailingNotificationDispatcher();
+        const int maxAttempts = 3;
+        var handler = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+            ctx,
+            failingDispatcher,
+            useInMemoryLock: true,
+            currentTenantService: tenantSvc,
+            currentPropertyService: propSvc,
+            maxDispatchAttempts: maxAttempts);
+
+        for (int i = 0; i < 5; i++)
+        {
+            var swept = await handler.Handle(new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId), CancellationToken.None);
+            Assert.Equal(0, swept);
+        }
+
+        Assert.Equal(maxAttempts, failingDispatcher.CallCount);
+
+        await using var verifyCtx = fixture.CreateDbContext(tenantSvc, propSvc);
+        var res = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(verifyCtx.Reservations),
+            r => r.Id == resId);
+        var snap = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.TryDeserialize(res?.Notes);
+        Assert.NotNull(snap);
+        Assert.Equal(maxAttempts, snap.HoldExpiredDispatchAttemptCount);
+        Assert.NotNull(snap.HoldExpiredDeadLetteredAtUtc);
+        Assert.Null(snap.HoldExpiredNotifiedAtUtc);
+    }
+
+    [Fact]
+    public async Task CheckExpiredHoldsCommandHandler_WhenReservationConfirmedBetweenClaimAndDispatch_AbortsWithoutEmitting()
+    {
+        await using var fixture = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+        var tenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId, IsTenantWide = false };
+        await using var ctx = fixture.CreateDbContext(tenantSvc, propSvc);
+
+        var room = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(ctx.Rooms, r => r.PropertyId == fixture.PropertyId);
+        Assert.NotNull(room);
+
+        var resId = Guid.NewGuid();
+        ctx.Reservations.Add(new Reservation
+        {
+            Id = resId,
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = room.Id,
+            ConfirmationCode = "RES-PAID-RACE-01",
+            GuestName = "Race Paid Guest",
+            Status = ReservationStatus.PendingPayment,
+            CheckInDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            CheckOutDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)),
+            TotalAmount = 1_500_000m,
+            Notes = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.Serialize(new HotelSaas.Application.Reservations.DTOs.ReservationSnapshot
+            {
+                HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                IsOnlineHold = true,
+                RoomTypeName = "Deluxe"
+            }),
+            CreatedAtUtc = DateTime.UtcNow.AddMinutes(-20)
+        });
+        await ctx.SaveChangesAsync();
+
+        // Dispatch is intercepted only if status wasn't confirmed: here we simulate reservation confirmed right after Claim?
+        // Simulate concurrent confirmation inside an IApplicationDbContext wrapper right after CommitAsync of Claim phase!
+        var confirmOnFirstCommitCtx = new PostFirstCommitActionDbContext(ctx, async () =>
+        {
+            await using var paymentCtx = fixture.CreateDbContext(tenantSvc, propSvc);
+            var paidRow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(paymentCtx.Reservations, r => r.Id == resId);
+            paidRow.Status = ReservationStatus.Confirmed;
+            await paymentCtx.SaveChangesAsync();
+        });
+
+        var client = new TestNotificationClient();
+        var dispatcher = new HotelSaas.Infrastructure.Services.NotificationDispatcher(
+            new TestHubContext(new TestHubClients(client), new TestGroupManager()),
+            NullLogger<HotelSaas.Infrastructure.Services.NotificationDispatcher>.Instance);
+
+        var handler = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+            confirmOnFirstCommitCtx,
+            dispatcher,
+            useInMemoryLock: true,
+            currentTenantService: tenantSvc,
+            currentPropertyService: propSvc);
+
+        var swept = await handler.Handle(new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId), CancellationToken.None);
+
+        Assert.Equal(0, swept);
+        Assert.Empty(client.HoldExpired);
+    }
+
+    private sealed class PostFirstCommitActionDbContext : IApplicationDbContext
+    {
+        private readonly HotelSaas.Infrastructure.Persistence.ApplicationDbContext _inner;
+        private readonly Func<Task> _onFirstSave;
+        private bool _triggered;
+
+        public PostFirstCommitActionDbContext(HotelSaas.Infrastructure.Persistence.ApplicationDbContext inner, Func<Task> onFirstSave)
+        {
+            _inner = inner;
+            _onFirstSave = onFirstSave;
+        }
+
+        public Microsoft.EntityFrameworkCore.DbSet<User> Users => _inner.Users;
+        public Microsoft.EntityFrameworkCore.DbSet<RefreshToken> RefreshTokens => _inner.RefreshTokens;
+        public Microsoft.EntityFrameworkCore.DbSet<Tenant> Tenants => _inner.Tenants;
+        public Microsoft.EntityFrameworkCore.DbSet<Property> Properties => _inner.Properties;
+        public Microsoft.EntityFrameworkCore.DbSet<AccessRole> AccessRoles => _inner.AccessRoles;
+        public Microsoft.EntityFrameworkCore.DbSet<PermissionFunction> PermissionFunctions => _inner.PermissionFunctions;
+        public Microsoft.EntityFrameworkCore.DbSet<RolePermission> RolePermissions => _inner.RolePermissions;
+        public Microsoft.EntityFrameworkCore.DbSet<TenantStaff> TenantStaffMembers => _inner.TenantStaffMembers;
+        public Microsoft.EntityFrameworkCore.DbSet<RoomType> RoomTypes => _inner.RoomTypes;
+        public Microsoft.EntityFrameworkCore.DbSet<Room> Rooms => _inner.Rooms;
+        public Microsoft.EntityFrameworkCore.DbSet<Reservation> Reservations => _inner.Reservations;
+        public Microsoft.EntityFrameworkCore.DbSet<Payment> Payments => _inner.Payments;
+        public Microsoft.EntityFrameworkCore.DbSet<Subscription> Subscriptions => _inner.Subscriptions;
+        public Microsoft.EntityFrameworkCore.DbSet<SubscriptionPlan> SubscriptionPlans => _inner.SubscriptionPlans;
+        public Microsoft.EntityFrameworkCore.DbSet<SystemBanner> SystemBanners => _inner.SystemBanners;
+        public Microsoft.EntityFrameworkCore.DbSet<PropertySurchargePolicy> PropertySurchargePolicies => _inner.PropertySurchargePolicies;
+        public Microsoft.EntityFrameworkCore.DbSet<RoomTypeRate> RoomTypeRates => _inner.RoomTypeRates;
+        public Microsoft.EntityFrameworkCore.DbSet<RoomTypeRateAudit> RoomTypeRateAudits => _inner.RoomTypeRateAudits;
+        public Microsoft.EntityFrameworkCore.DbSet<AuditLog> AuditLogs => _inner.AuditLogs;
+        public Microsoft.EntityFrameworkCore.DbSet<Invoice> Invoices => _inner.Invoices;
+        public Microsoft.EntityFrameworkCore.DbSet<InvoiceItem> InvoiceItems => _inner.InvoiceItems;
+        public Microsoft.EntityFrameworkCore.DbSet<GuestLoyaltyMembership> GuestLoyaltyMemberships => _inner.GuestLoyaltyMemberships;
+        public Microsoft.EntityFrameworkCore.DbSet<LoyaltyPointTransaction> LoyaltyPointTransactions => _inner.LoyaltyPointTransactions;
+        public Microsoft.EntityFrameworkCore.DbSet<TenantContract> TenantContracts => _inner.TenantContracts;
+        public Microsoft.EntityFrameworkCore.DbSet<PrintTemplateConfig> PrintTemplateConfigs => _inner.PrintTemplateConfigs;
+        public Microsoft.EntityFrameworkCore.DbSet<SocialIdentity> SocialIdentities => _inner.SocialIdentities;
+        public Microsoft.EntityFrameworkCore.DbSet<GuestReview> GuestReviews => _inner.GuestReviews;
+        public Microsoft.EntityFrameworkCore.DbSet<AiUsageLog> AiUsageLogs => _inner.AiUsageLogs;
+
+        public async Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
+        {
+            var tx = await _inner.BeginTransactionAsync(cancellationToken);
+            if (!_triggered)
+            {
+                return new InterceptingTransaction(tx, async () =>
+                {
+                    _triggered = true;
+                    await _onFirstSave();
+                });
+            }
+            return tx;
+        }
+
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => _inner.SaveChangesAsync(cancellationToken);
+        public Task LockUserRowAsync(Guid userId, CancellationToken cancellationToken = default) => _inner.LockUserRowAsync(userId, cancellationToken);
+        public Task LockRoomTypeRowAsync(Guid roomTypeId, Guid tenantId, Guid propertyId, CancellationToken cancellationToken = default) => _inner.LockRoomTypeRowAsync(roomTypeId, tenantId, propertyId, cancellationToken);
+        public Task LockRoomRowAsync(Guid roomId, Guid tenantId, Guid propertyId, CancellationToken cancellationToken = default) => _inner.LockRoomRowAsync(roomId, tenantId, propertyId, cancellationToken);
+        public Task LockReservationRowAsync(Guid reservationId, Guid tenantId, Guid propertyId, CancellationToken cancellationToken = default) => _inner.LockReservationRowAsync(reservationId, tenantId, propertyId, cancellationToken);
+        public Task LockIdempotencyKeyAsync(Guid propertyId, string idempotencyKey, CancellationToken cancellationToken = default) => _inner.LockIdempotencyKeyAsync(propertyId, idempotencyKey, cancellationToken);
+        public Task<int> UpdateRoomStatusAtomicAsync(Guid roomId, Guid tenantId, Guid propertyId, RoomStatus expectedOldStatus, RoomStatus newStatus, DateTime updatedAtUtc, CancellationToken cancellationToken = default) =>
+            _inner.UpdateRoomStatusAtomicAsync(roomId, tenantId, propertyId, expectedOldStatus, newStatus, updatedAtUtc, cancellationToken);
+
+        private sealed class InterceptingTransaction : Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction
+        {
+            private readonly Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction _inner;
+            private readonly Func<Task> _afterCommit;
+            public InterceptingTransaction(Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction inner, Func<Task> afterCommit)
+            {
+                _inner = inner;
+                _afterCommit = afterCommit;
+            }
+            public Guid TransactionId => _inner.TransactionId;
+            public void Commit() => _inner.Commit();
+            public async Task CommitAsync(CancellationToken cancellationToken = default)
+            {
+                await _inner.CommitAsync(cancellationToken);
+                await _afterCommit();
+            }
+            public void Rollback() => _inner.Rollback();
+            public Task RollbackAsync(CancellationToken cancellationToken = default) => _inner.RollbackAsync(cancellationToken);
+            public void Dispose() => _inner.Dispose();
+            public ValueTask DisposeAsync() => _inner.DisposeAsync();
+        }
+    }
+
+    private sealed class DelegateNotificationDispatcher : INotificationDispatcher
+    {
+        private readonly Func<string, string, string, string, CancellationToken, Task<bool>> _onHoldExpired;
+        public int CallCount { get; private set; }
+
+        public DelegateNotificationDispatcher(Func<string, string, string, string, CancellationToken, Task<bool>> onHoldExpired)
+        {
+            _onHoldExpired = onHoldExpired;
+        }
+
+        public Task NotifyNewReservationConfirmedAsync(string propertyId, string reservationId, string confirmationCode, string guestName, string roomTypeName, decimal totalAmount, decimal depositPaid, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task NotifyReservationStatusChangedAsync(string propertyId, string reservationId, string confirmationCode, string previousStatus, string newStatus, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task NotifyHousekeepingAlertAsync(string propertyId, string roomNumber, string roomStatus, string message, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task NotifyBookingPaymentConfirmedAsync(string propertyId, string reservationId, string confirmationCode, string guestName, decimal totalAmount, decimal paidAmount, string paymentMethod, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task NotifyBookingCancellationRequestedAsync(string propertyId, string reservationId, string confirmationCode, string guestName, string reason, decimal refundableAmount, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public async Task<bool> NotifyHoldExpiredAsync(string propertyId, string reservationId, string confirmationCode, string roomTypeName, CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return await _onHoldExpired(propertyId, reservationId, confirmationCode, roomTypeName, cancellationToken);
+        }
+    }
+
+    private sealed class FailOnSecondSaveDbContext : IApplicationDbContext
+    {
+        private readonly HotelSaas.Infrastructure.Persistence.ApplicationDbContext _inner;
+        private int _saveCount;
+
+        public FailOnSecondSaveDbContext(HotelSaas.Infrastructure.Persistence.ApplicationDbContext inner)
+        {
+            _inner = inner;
+        }
+
+        public Microsoft.EntityFrameworkCore.DbSet<User> Users => _inner.Users;
+        public Microsoft.EntityFrameworkCore.DbSet<RefreshToken> RefreshTokens => _inner.RefreshTokens;
+        public Microsoft.EntityFrameworkCore.DbSet<Tenant> Tenants => _inner.Tenants;
+        public Microsoft.EntityFrameworkCore.DbSet<Property> Properties => _inner.Properties;
+        public Microsoft.EntityFrameworkCore.DbSet<AccessRole> AccessRoles => _inner.AccessRoles;
+        public Microsoft.EntityFrameworkCore.DbSet<PermissionFunction> PermissionFunctions => _inner.PermissionFunctions;
+        public Microsoft.EntityFrameworkCore.DbSet<RolePermission> RolePermissions => _inner.RolePermissions;
+        public Microsoft.EntityFrameworkCore.DbSet<TenantStaff> TenantStaffMembers => _inner.TenantStaffMembers;
+        public Microsoft.EntityFrameworkCore.DbSet<RoomType> RoomTypes => _inner.RoomTypes;
+        public Microsoft.EntityFrameworkCore.DbSet<Room> Rooms => _inner.Rooms;
+        public Microsoft.EntityFrameworkCore.DbSet<Reservation> Reservations => _inner.Reservations;
+        public Microsoft.EntityFrameworkCore.DbSet<Payment> Payments => _inner.Payments;
+        public Microsoft.EntityFrameworkCore.DbSet<Subscription> Subscriptions => _inner.Subscriptions;
+        public Microsoft.EntityFrameworkCore.DbSet<SubscriptionPlan> SubscriptionPlans => _inner.SubscriptionPlans;
+        public Microsoft.EntityFrameworkCore.DbSet<SystemBanner> SystemBanners => _inner.SystemBanners;
+        public Microsoft.EntityFrameworkCore.DbSet<PropertySurchargePolicy> PropertySurchargePolicies => _inner.PropertySurchargePolicies;
+        public Microsoft.EntityFrameworkCore.DbSet<RoomTypeRate> RoomTypeRates => _inner.RoomTypeRates;
+        public Microsoft.EntityFrameworkCore.DbSet<RoomTypeRateAudit> RoomTypeRateAudits => _inner.RoomTypeRateAudits;
+        public Microsoft.EntityFrameworkCore.DbSet<AuditLog> AuditLogs => _inner.AuditLogs;
+        public Microsoft.EntityFrameworkCore.DbSet<Invoice> Invoices => _inner.Invoices;
+        public Microsoft.EntityFrameworkCore.DbSet<InvoiceItem> InvoiceItems => _inner.InvoiceItems;
+        public Microsoft.EntityFrameworkCore.DbSet<GuestLoyaltyMembership> GuestLoyaltyMemberships => _inner.GuestLoyaltyMemberships;
+        public Microsoft.EntityFrameworkCore.DbSet<LoyaltyPointTransaction> LoyaltyPointTransactions => _inner.LoyaltyPointTransactions;
+        public Microsoft.EntityFrameworkCore.DbSet<TenantContract> TenantContracts => _inner.TenantContracts;
+        public Microsoft.EntityFrameworkCore.DbSet<PrintTemplateConfig> PrintTemplateConfigs => _inner.PrintTemplateConfigs;
+        public Microsoft.EntityFrameworkCore.DbSet<SocialIdentity> SocialIdentities => _inner.SocialIdentities;
+        public Microsoft.EntityFrameworkCore.DbSet<GuestReview> GuestReviews => _inner.GuestReviews;
+        public Microsoft.EntityFrameworkCore.DbSet<AiUsageLog> AiUsageLogs => _inner.AiUsageLogs;
+
+        public Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
+            => _inner.BeginTransactionAsync(cancellationToken);
+
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            _saveCount++;
+            if (_saveCount == 2)
+            {
+                throw new OperationCanceledException("Simulated worker crash right before FinalizeClaimsAsync save.");
+            }
+            return _inner.SaveChangesAsync(cancellationToken);
+        }
+
+        public Task LockUserRowAsync(Guid userId, CancellationToken cancellationToken = default) => _inner.LockUserRowAsync(userId, cancellationToken);
+        public Task LockRoomTypeRowAsync(Guid roomTypeId, Guid tenantId, Guid propertyId, CancellationToken cancellationToken = default) => _inner.LockRoomTypeRowAsync(roomTypeId, tenantId, propertyId, cancellationToken);
+        public Task LockRoomRowAsync(Guid roomId, Guid tenantId, Guid propertyId, CancellationToken cancellationToken = default) => _inner.LockRoomRowAsync(roomId, tenantId, propertyId, cancellationToken);
+        public Task LockReservationRowAsync(Guid reservationId, Guid tenantId, Guid propertyId, CancellationToken cancellationToken = default) => _inner.LockReservationRowAsync(reservationId, tenantId, propertyId, cancellationToken);
+        public Task LockIdempotencyKeyAsync(Guid propertyId, string idempotencyKey, CancellationToken cancellationToken = default) => _inner.LockIdempotencyKeyAsync(propertyId, idempotencyKey, cancellationToken);
+        public Task<int> UpdateRoomStatusAtomicAsync(Guid roomId, Guid tenantId, Guid propertyId, RoomStatus expectedOldStatus, RoomStatus newStatus, DateTime updatedAtUtc, CancellationToken cancellationToken = default)
+            => _inner.UpdateRoomStatusAtomicAsync(roomId, tenantId, propertyId, expectedOldStatus, newStatus, updatedAtUtc, cancellationToken);
+    }
+
+    private static async Task<Guid> SeedExpiredHoldAsync(
+        P5_GuestBookingTests.TestFixture fixture,
+        Guid roomId,
+        string confirmationCode,
+        int attemptCount = 0,
+        DateTime? leaseUntilUtc = null,
+        DateTime? deadLetteredAtUtc = null,
+        string? claimOwner = null)
+    {
+        var tenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId, IsTenantWide = false };
+        await using var ctx = fixture.CreateDbContext(tenantSvc, propSvc);
+        var resId = Guid.NewGuid();
+        ctx.Reservations.Add(new Reservation
+        {
+            Id = resId,
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoomId = roomId,
+            ConfirmationCode = confirmationCode,
+            GuestName = "Hold Stress Guest",
+            Status = ReservationStatus.PendingPayment,
+            CheckInDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            CheckOutDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)),
+            TotalAmount = 1_400_000m,
+            Notes = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.Serialize(new HotelSaas.Application.Reservations.DTOs.ReservationSnapshot
+            {
+                HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                IsOnlineHold = true,
+                RoomTypeName = "Deluxe",
+                HoldExpiredDispatchAttemptCount = attemptCount,
+                HoldExpiredDispatchLeaseUntilUtc = leaseUntilUtc,
+                HoldExpiredDeadLetteredAtUtc = deadLetteredAtUtc,
+                HoldExpiredClaimOwner = claimOwner
+            }),
+            CreatedAtUtc = DateTime.UtcNow.AddMinutes(-20)
+        });
+        await ctx.SaveChangesAsync();
+        return resId;
+    }
+
+    [Fact]
+    public async Task CheckExpiredHoldsCommandHandler_WorkerStopsAfterClaimBeforeDispatch_BlocksInsideLeaseThenRecoversOnceAfterLeaseExpiry()
+    {
+        await using var fixture = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+        var tenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId, IsTenantWide = false };
+
+        Guid roomId;
+        await using (var setupCtx = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var room = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(setupCtx.Rooms, r => r.PropertyId == fixture.PropertyId);
+            roomId = room.Id;
+        }
+
+        var resId = await SeedExpiredHoldAsync(fixture, roomId, "RES-CRASH-BEFORE-DISPATCH");
+
+        var emittedCount = 0;
+        using var worker1Cts = new CancellationTokenSource();
+        var crashingDispatcher = new DelegateNotificationDispatcher((_, _, _, _, ct) =>
+        {
+            worker1Cts.Cancel();
+            ct.ThrowIfCancellationRequested();
+            return Task.FromResult(true);
+        });
+
+        await using var ctxW1 = fixture.CreateDbContext(tenantSvc, propSvc);
+        var handlerW1 = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+            ctxW1,
+            crashingDispatcher,
+            useInMemoryLock: false,
+            currentTenantService: tenantSvc,
+            currentPropertyService: propSvc,
+            dispatchLeaseDuration: TimeSpan.FromMilliseconds(250));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            handlerW1.Handle(new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId), worker1Cts.Token));
+
+        Assert.Equal(1, crashingDispatcher.CallCount);
+        Assert.Equal(0, emittedCount);
+
+        // Immediately check Worker 2 within active 250ms lease -> must skip (0)
+        var liveDispatcher = new DelegateNotificationDispatcher((_, _, _, _, _) =>
+        {
+            Interlocked.Increment(ref emittedCount);
+            return Task.FromResult(true);
+        });
+
+        await using (var ctxDuringLease = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var handlerDuringLease = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+                ctxDuringLease, liveDispatcher, useInMemoryLock: false, currentTenantService: tenantSvc, currentPropertyService: propSvc,
+                dispatchLeaseDuration: TimeSpan.FromMilliseconds(250));
+            var sweptDuringLease = await handlerDuringLease.Handle(
+                new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId), CancellationToken.None);
+            Assert.Equal(0, sweptDuringLease);
+            Assert.Equal(0, emittedCount);
+        }
+
+        await Task.Delay(350);
+
+        // After lease expires, Worker 2 recovers and dispatches once
+        await using (var ctxW2 = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var handlerW2 = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+                ctxW2, liveDispatcher, useInMemoryLock: false, currentTenantService: tenantSvc, currentPropertyService: propSvc,
+                dispatchLeaseDuration: TimeSpan.FromSeconds(5));
+            var recoveredCount = await handlerW2.Handle(
+                new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId), CancellationToken.None);
+            Assert.Equal(1, recoveredCount);
+        }
+
+        Assert.Equal(1, emittedCount);
+
+        await using var verifyCtx = fixture.CreateDbContext(tenantSvc, propSvc);
+        var finalRow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(
+            Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(verifyCtx.Reservations),
+            r => r.Id == resId);
+        var finalSnap = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.TryDeserialize(finalRow.Notes)!;
+        Assert.Equal(2, finalSnap.HoldExpiredDispatchAttemptCount);
+        Assert.NotNull(finalSnap.HoldExpiredNotifiedAtUtc);
+        Assert.Null(finalSnap.HoldExpiredDispatchLeaseUntilUtc);
+    }
+
+    [Fact]
+    public async Task CheckExpiredHoldsCommandHandler_WorkerStopsAfterDispatchBeforeFinalize_BlocksInsideLeaseThenConvergesWithSameEventId()
+    {
+        await using var fixture = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+        var tenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId, IsTenantWide = false };
+
+        Guid roomId;
+        await using (var setupCtx = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var room = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(setupCtx.Rooms, r => r.PropertyId == fixture.PropertyId);
+            roomId = room.Id;
+        }
+
+        var resId = await SeedExpiredHoldAsync(fixture, roomId, "RES-CRASH-AFTER-DISPATCH");
+
+        var client = new TestNotificationClient();
+        var dispatcher = new HotelSaas.Infrastructure.Services.NotificationDispatcher(
+            new TestHubContext(new TestHubClients(client), new TestGroupManager()),
+            NullLogger<HotelSaas.Infrastructure.Services.NotificationDispatcher>.Instance);
+
+        await using var rawCtxW1 = fixture.CreateDbContext(tenantSvc, propSvc);
+        var failFinalizeCtx = new FailOnSecondSaveDbContext(rawCtxW1);
+        var handlerW1 = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+            failFinalizeCtx,
+            dispatcher,
+            useInMemoryLock: false,
+            currentTenantService: tenantSvc,
+            currentPropertyService: propSvc,
+            dispatchLeaseDuration: TimeSpan.FromMilliseconds(250));
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            handlerW1.Handle(new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId), CancellationToken.None));
+
+        Assert.Single(client.HoldExpired);
+        Assert.Equal("evt-holdexp-RES-CRASH-AFTER-DISPATCH", client.HoldExpired[0].EventId);
+
+        // Within active lease, Worker 2 must NOT re-emit
+        await using (var ctxDuringLease = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var handlerDuringLease = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+                ctxDuringLease, dispatcher, useInMemoryLock: false, currentTenantService: tenantSvc, currentPropertyService: propSvc,
+                dispatchLeaseDuration: TimeSpan.FromMilliseconds(250));
+            Assert.Equal(0, await handlerDuringLease.Handle(
+                new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId), CancellationToken.None));
+            Assert.Single(client.HoldExpired);
+        }
+
+        await Task.Delay(350);
+
+        // After lease expiry, Worker 2 converges DB NotifiedAtUtc (at-least-once with identical EventId)
+        await using (var ctxW2 = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var handlerW2 = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+                ctxW2, dispatcher, useInMemoryLock: false, currentTenantService: tenantSvc, currentPropertyService: propSvc);
+            Assert.Equal(1, await handlerW2.Handle(
+                new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId), CancellationToken.None));
+            // Subsequent sweep emits 0 additional events
+            Assert.Equal(0, await handlerW2.Handle(
+                new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId), CancellationToken.None));
+        }
+
+        Assert.Equal(2, client.HoldExpired.Count);
+        Assert.All(client.HoldExpired, evt => Assert.Equal("evt-holdexp-RES-CRASH-AFTER-DISPATCH", evt.EventId));
+
+        await using var verifyCtx = fixture.CreateDbContext(tenantSvc, propSvc);
+        var finalRow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(
+            Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(verifyCtx.Reservations),
+            r => r.Id == resId);
+        var finalSnap = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.TryDeserialize(finalRow.Notes)!;
+        Assert.Equal(2, finalSnap.HoldExpiredDispatchAttemptCount);
+        Assert.NotNull(finalSnap.HoldExpiredNotifiedAtUtc);
+        Assert.Null(finalSnap.HoldExpiredDispatchLeaseUntilUtc);
+    }
+
+    [Fact]
+    public async Task CheckExpiredHoldsCommandHandler_WhenLeaseExpiresDuringSlowDispatch_Worker2TakesOver_AndZombieWorker1IsFenced()
+    {
+        await using var fixture = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+        var tenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId, IsTenantWide = false };
+
+        Guid roomId;
+        await using (var setupCtx = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var room = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(setupCtx.Rooms, r => r.PropertyId == fixture.PropertyId);
+            roomId = room.Id;
+        }
+
+        var resId = await SeedExpiredHoldAsync(fixture, roomId, "RES-LEASE-RACE-01");
+
+        var w1EnteredDispatch = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseW1Dispatch = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var slowDispatcherW1 = new DelegateNotificationDispatcher(async (_, _, _, _, _) =>
+        {
+            w1EnteredDispatch.TrySetResult();
+            return await releaseW1Dispatch.Task;
+        });
+
+        await using var ctxW1 = fixture.CreateDbContext(tenantSvc, propSvc);
+        var handlerW1 = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+            ctxW1,
+            slowDispatcherW1,
+            useInMemoryLock: false,
+            currentTenantService: tenantSvc,
+            currentPropertyService: propSvc,
+            dispatchLeaseDuration: TimeSpan.FromMilliseconds(150));
+
+        var w1Task = handlerW1.Handle(
+            new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId),
+            CancellationToken.None);
+
+        await w1EnteredDispatch.Task;
+        await Task.Delay(250); // 150ms lease expires while W1 is still stalled in NotifyHoldExpiredAsync
+
+        var w2Dispatched = 0;
+        var fastDispatcherW2 = new DelegateNotificationDispatcher((_, _, _, _, _) =>
+        {
+            Interlocked.Increment(ref w2Dispatched);
+            return Task.FromResult(true);
+        });
+
+        string? w2Owner;
+        DateTime? w2NotifiedAt;
+        await using (var ctxW2 = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var handlerW2 = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+                ctxW2,
+                fastDispatcherW2,
+                useInMemoryLock: false,
+                currentTenantService: tenantSvc,
+                currentPropertyService: propSvc,
+                dispatchLeaseDuration: TimeSpan.FromSeconds(10));
+            var sweptW2 = await handlerW2.Handle(
+                new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId),
+                CancellationToken.None);
+            Assert.Equal(1, sweptW2);
+            Assert.Equal(1, w2Dispatched);
+        }
+
+        await using (var midCtx = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var midRow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(
+                Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(midCtx.Reservations),
+                r => r.Id == resId);
+            var midSnap = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.TryDeserialize(midRow.Notes)!;
+            w2Owner = midSnap.HoldExpiredClaimOwner;
+            w2NotifiedAt = midSnap.HoldExpiredNotifiedAtUtc;
+        }
+
+        // Now W1 wakes up and fails late: zombie W1 MUST be fenced out and leave W2's committed record untouched
+        releaseW1Dispatch.TrySetResult(false);
+        var sweptW1 = await w1Task;
+        Assert.Equal(0, sweptW1);
+
+        await using var verifyCtx = fixture.CreateDbContext(tenantSvc, propSvc);
+        var finalRow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(
+            Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(verifyCtx.Reservations),
+            r => r.Id == resId);
+        var finalSnap = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.TryDeserialize(finalRow.Notes)!;
+        Assert.Equal(w2Owner, finalSnap.HoldExpiredClaimOwner);
+        Assert.Equal(w2NotifiedAt, finalSnap.HoldExpiredNotifiedAtUtc);
+        Assert.Equal(2, finalSnap.HoldExpiredDispatchAttemptCount);
+        Assert.Null(finalSnap.HoldExpiredLastError);
+        Assert.Null(finalSnap.HoldExpiredDispatchLeaseUntilUtc);
+        Assert.Null(finalSnap.HoldExpiredDeadLetteredAtUtc);
+    }
+
+    [Fact]
+    public async Task CheckExpiredHoldsCommandHandler_WhenLeaseExpiresBeforeNextBatchItemDispatch_AbortsExpiredLeaseAndRecoversOnNextSweep()
+    {
+        await using var fixture = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+        var tenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId, IsTenantWide = false };
+
+        Guid roomId;
+        await using (var setupCtx = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var room = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(setupCtx.Rooms, r => r.PropertyId == fixture.PropertyId);
+            roomId = room.Id;
+        }
+
+        var h1Id = await SeedExpiredHoldAsync(fixture, roomId, "RES-BATCH-LEASE-1");
+        var h2Id = await SeedExpiredHoldAsync(fixture, roomId, "RES-BATCH-LEASE-2");
+
+        var dispatchedCodes = new List<string>();
+        var batchDispatcher = new DelegateNotificationDispatcher(async (_, _, code, _, _) =>
+        {
+            dispatchedCodes.Add(code);
+            if (code == "RES-BATCH-LEASE-1")
+            {
+                await Task.Delay(250); // 150ms claim lease expires before H2 dispatch begins
+            }
+            return true;
+        });
+
+        await using (var ctx1 = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var handler1 = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+                ctx1, batchDispatcher, useInMemoryLock: false, currentTenantService: tenantSvc, currentPropertyService: propSvc,
+                dispatchLeaseDuration: TimeSpan.FromMilliseconds(150));
+
+            var swept1 = await handler1.Handle(
+                new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId),
+                CancellationToken.None);
+            Assert.Equal(1, swept1);
+            Assert.Single(dispatchedCodes);
+            Assert.Equal("RES-BATCH-LEASE-1", dispatchedCodes[0]);
+        }
+
+        // Verify H2 lease was cleared with error and not marked notified
+        await using (var midCtx = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var h2Row = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(
+                Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(midCtx.Reservations),
+                r => r.Id == h2Id);
+            var h2Snap = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.TryDeserialize(h2Row.Notes)!;
+            Assert.Null(h2Snap.HoldExpiredNotifiedAtUtc);
+            Assert.Null(h2Snap.HoldExpiredDispatchLeaseUntilUtc);
+            Assert.Contains("lease expired", h2Snap.HoldExpiredLastError ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Second sweep immediately recovers H2 cleanly
+        await using (var ctx2 = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var handler2 = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+                ctx2, batchDispatcher, useInMemoryLock: false, currentTenantService: tenantSvc, currentPropertyService: propSvc);
+            var swept2 = await handler2.Handle(
+                new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId),
+                CancellationToken.None);
+            Assert.Equal(1, swept2);
+        }
+
+        Assert.Equal(2, dispatchedCodes.Count);
+        Assert.Contains("RES-BATCH-LEASE-2", dispatchedCodes);
+
+        await using var verifyCtx = fixture.CreateDbContext(tenantSvc, propSvc);
+        var h1Final = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.TryDeserialize(
+            (await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(
+                Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(verifyCtx.Reservations),
+                r => r.Id == h1Id)).Notes)!;
+        var h2Final = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.TryDeserialize(
+            (await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(
+                Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(verifyCtx.Reservations),
+                r => r.Id == h2Id)).Notes)!;
+        Assert.NotNull(h1Final.HoldExpiredNotifiedAtUtc);
+        Assert.NotNull(h2Final.HoldExpiredNotifiedAtUtc);
+        Assert.Equal(2, h2Final.HoldExpiredDispatchAttemptCount);
+    }
+
+    [Fact]
+    public async Task CheckExpiredHoldsCommandHandler_DefaultMax5Attempts_DeadLettersAfterException_AndAbandonedAttempt5SealsCleanly()
+    {
+        await using var fixture = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+        var tenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId, IsTenantWide = false };
+
+        Guid roomId;
+        await using (var setupCtx = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var room = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(setupCtx.Rooms, r => r.PropertyId == fixture.PropertyId);
+            roomId = room.Id;
+        }
+
+        var resMax5Id = await SeedExpiredHoldAsync(fixture, roomId, "RES-MAX5-EX");
+        var resAbandoned5Id = await SeedExpiredHoldAsync(
+            fixture,
+            roomId,
+            "RES-ABANDONED-5",
+            attemptCount: 5,
+            leaseUntilUtc: DateTime.UtcNow.AddSeconds(-5),
+            deadLetteredAtUtc: null,
+            claimOwner: "crashed-worker");
+
+        var throwingDispatcher = new DelegateNotificationDispatcher((_, _, _, _, _) =>
+            throw new InvalidOperationException("Simulated SignalR backplane outage"));
+
+        // Run 7 sweeps using DEFAULT maxDispatchAttempts (= 5)
+        for (int i = 0; i < 7; i++)
+        {
+            await using var ctx = fixture.CreateDbContext(tenantSvc, propSvc);
+            var handler = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+                ctx, throwingDispatcher, useInMemoryLock: false, currentTenantService: tenantSvc, currentPropertyService: propSvc);
+            var swept = await handler.Handle(
+                new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId),
+                CancellationToken.None);
+            Assert.Equal(0, swept);
+        }
+
+        // Must execute strictly 5 attempts on RES-MAX5-EX and 0 on RES-ABANDONED-5
+        Assert.Equal(HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler.DefaultMaxDispatchAttempts, throwingDispatcher.CallCount);
+
+        await using var verifyCtx = fixture.CreateDbContext(tenantSvc, propSvc);
+        var max5Snap = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.TryDeserialize(
+            (await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(
+                Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(verifyCtx.Reservations),
+                r => r.Id == resMax5Id)).Notes)!;
+        Assert.Equal(5, max5Snap.HoldExpiredDispatchAttemptCount);
+        Assert.NotNull(max5Snap.HoldExpiredDeadLetteredAtUtc);
+        Assert.Null(max5Snap.HoldExpiredDispatchLeaseUntilUtc);
+        Assert.Null(max5Snap.HoldExpiredNotifiedAtUtc);
+        Assert.Contains("Simulated SignalR backplane outage", max5Snap.HoldExpiredLastError ?? string.Empty);
+
+        var abandonedSnap = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.TryDeserialize(
+            (await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(
+                Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(verifyCtx.Reservations),
+                r => r.Id == resAbandoned5Id)).Notes)!;
+        Assert.Equal(5, abandonedSnap.HoldExpiredDispatchAttemptCount);
+        Assert.NotNull(abandonedSnap.HoldExpiredDeadLetteredAtUtc);
+        Assert.Null(abandonedSnap.HoldExpiredDispatchLeaseUntilUtc);
+        Assert.Null(abandonedSnap.HoldExpiredNotifiedAtUtc);
+    }
+
+    [Fact]
+    public async Task CheckExpiredHoldsCommandHandler_CrossTenantAndCrossPropertyScopes_FailClosedWithoutDispatching()
+    {
+        await using var fixture1 = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+        await using var fixture2 = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+
+        var wrongTenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = fixture1.TenantId };
+        var tenant1PropSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture1.PropertyId, IsTenantWide = false };
+        await using var ctx = fixture2.CreateDbContext(wrongTenantSvc, tenant1PropSvc);
+
+        var dispatcher = new DelegateNotificationDispatcher((_, _, _, _, _) => Task.FromResult(true));
+
+        // Cross-property when non-TenantWide
+        var crossBranchEx = await Assert.ThrowsAsync<HotelSaas.Application.Common.Exceptions.ForbiddenException>(() =>
+        {
+            var handler = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+                ctx, dispatcher, useInMemoryLock: false, currentTenantService: wrongTenantSvc, currentPropertyService: tenant1PropSvc);
+            return handler.Handle(
+                new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(Guid.NewGuid()),
+                CancellationToken.None);
+        });
+        Assert.Equal("ERR_CROSS_PROPERTY_MUTATION", crossBranchEx.ErrorCode);
+
+        // Cross-tenant when TenantWide attempts to pass PropertyId belonging to Tenant 2
+        var tenantWidePropSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = null, IsTenantWide = true };
+        var crossTenantEx = await Assert.ThrowsAsync<HotelSaas.Application.Common.Exceptions.ForbiddenException>(() =>
+        {
+            var handler = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+                ctx, dispatcher, useInMemoryLock: false, currentTenantService: wrongTenantSvc, currentPropertyService: tenantWidePropSvc);
+            return handler.Handle(
+                new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture2.PropertyId),
+                CancellationToken.None);
+        });
+        Assert.Equal("ERR_CROSS_TENANT_ACCESS", crossTenantEx.ErrorCode);
+        Assert.Equal(0, dispatcher.CallCount);
+    }
+
+    [Fact]
+    public async Task CheckExpiredHoldsCommandHandler_WhenCancelledAfterClaim_OrConfirmedDuringInFlightDispatch_PreservesFinalStatusAndNotNotified()
+    {
+        await using var fixture = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+        var tenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId, IsTenantWide = false };
+
+        Guid roomId;
+        await using (var setupCtx = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var room = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(setupCtx.Rooms, r => r.PropertyId == fixture.PropertyId);
+            roomId = room.Id;
+        }
+
+        // Part A: Cancelled right after Claim commit (between Claim and Dispatch) -> 0 SignalR, clears lease
+        var resCancelId = await SeedExpiredHoldAsync(fixture, roomId, "RES-CANCEL-AFTER-CLAIM");
+        var cancelClient = new TestNotificationClient();
+        var cancelDispatcher = new HotelSaas.Infrastructure.Services.NotificationDispatcher(
+            new TestHubContext(new TestHubClients(cancelClient), new TestGroupManager()),
+            NullLogger<HotelSaas.Infrastructure.Services.NotificationDispatcher>.Instance);
+
+        await using (var rawCtxCancel = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var cancelAfterCommitCtx = new PostFirstCommitActionDbContext(rawCtxCancel, async () =>
+            {
+                await using var mutationCtx = fixture.CreateDbContext(tenantSvc, propSvc);
+                var row = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(mutationCtx.Reservations, r => r.Id == resCancelId);
+                row.Status = ReservationStatus.Cancelled;
+                await mutationCtx.SaveChangesAsync();
+            });
+            var handlerCancel = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+                cancelAfterCommitCtx, cancelDispatcher, useInMemoryLock: false, currentTenantService: tenantSvc, currentPropertyService: propSvc);
+            Assert.Equal(0, await handlerCancel.Handle(
+                new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId), CancellationToken.None));
+            Assert.Empty(cancelClient.HoldExpired);
+        }
+
+        await using (var verifyCancelCtx = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var row = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(
+                Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(verifyCancelCtx.Reservations),
+                r => r.Id == resCancelId);
+            var snap = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.TryDeserialize(row.Notes)!;
+            Assert.Equal(ReservationStatus.Cancelled, row.Status);
+            Assert.Null(snap.HoldExpiredNotifiedAtUtc);
+            Assert.Null(snap.HoldExpiredDispatchLeaseUntilUtc);
+        }
+
+        // Part B: Confirmed mid-flight INSIDE NotifyHoldExpiredAsync -> Finalize sees Confirmed, leaves Status=Confirmed, NotifiedAtUtc=null, Lease=null
+        var resInFlightId = await SeedExpiredHoldAsync(fixture, roomId, "RES-CONFIRM-INFLIGHT");
+        var inFlightDispatcher = new InspectOnDispatchNotificationDispatcher(async idStr =>
+        {
+            var id = Guid.Parse(idStr);
+            await using var payCtx = fixture.CreateDbContext(tenantSvc, propSvc);
+            var row = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(payCtx.Reservations, r => r.Id == id);
+            row.Status = ReservationStatus.Confirmed;
+            await payCtx.SaveChangesAsync();
+        });
+
+        await using (var ctxInFlight = fixture.CreateDbContext(tenantSvc, propSvc))
+        {
+            var handlerInFlight = new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommandHandler(
+                ctxInFlight, inFlightDispatcher, useInMemoryLock: false, currentTenantService: tenantSvc, currentPropertyService: propSvc);
+            Assert.Equal(0, await handlerInFlight.Handle(
+                new HotelSaas.Application.Public.Commands.CheckExpiredHolds.CheckExpiredHoldsCommand(fixture.PropertyId), CancellationToken.None));
+            Assert.Equal(1, inFlightDispatcher.CallCount);
+        }
+
+        await using var verifyConfirmedCtx = fixture.CreateDbContext(tenantSvc, propSvc);
+        var confirmedRow = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(
+            Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(verifyConfirmedCtx.Reservations),
+            r => r.Id == resInFlightId);
+        var confirmedSnap = HotelSaas.Application.Reservations.DTOs.ReservationSnapshotHelper.TryDeserialize(confirmedRow.Notes)!;
+        Assert.Equal(ReservationStatus.Confirmed, confirmedRow.Status);
+        Assert.Null(confirmedSnap.HoldExpiredNotifiedAtUtc);
+        Assert.Null(confirmedSnap.HoldExpiredDispatchLeaseUntilUtc);
+    }
 }
