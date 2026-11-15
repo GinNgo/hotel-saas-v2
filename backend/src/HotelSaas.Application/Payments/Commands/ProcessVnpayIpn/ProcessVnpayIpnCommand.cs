@@ -28,19 +28,22 @@ public sealed class ProcessVnpayIpnCommandHandler : IRequestHandler<ProcessVnpay
     private readonly ICurrentTenantService? _tenantService;
     private readonly ICurrentPropertyService? _propertyService;
     private readonly INotificationDispatcher? _notificationDispatcher;
+    private readonly ISystemMetricsRecorder? _metricsRecorder;
 
     public ProcessVnpayIpnCommandHandler(
         IApplicationDbContext context,
         IVnpayPaymentService vnpayService,
         ICurrentTenantService? tenantService = null,
         ICurrentPropertyService? propertyService = null,
-        INotificationDispatcher? notificationDispatcher = null)
+        INotificationDispatcher? notificationDispatcher = null,
+        ISystemMetricsRecorder? metricsRecorder = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _vnpayService = vnpayService ?? throw new ArgumentNullException(nameof(vnpayService));
         _tenantService = tenantService;
         _propertyService = propertyService;
         _notificationDispatcher = notificationDispatcher;
+        _metricsRecorder = metricsRecorder;
     }
 
     public async Task<VnpayIpnResponseDto> Handle(ProcessVnpayIpnCommand request, CancellationToken cancellationToken)
@@ -49,11 +52,13 @@ public sealed class ProcessVnpayIpnCommandHandler : IRequestHandler<ProcessVnpay
         var verify = _vnpayService.VerifyCallback(request.QueryParams);
         if (!verify.IsSignatureValid || verify.ResponseCode == "97")
         {
+            _metricsRecorder?.RecordVnpayIpnResult("97");
             return new VnpayIpnResponseDto("97", "Invalid Checksum");
         }
 
         if (string.IsNullOrWhiteSpace(verify.TxnRef))
         {
+            _metricsRecorder?.RecordVnpayIpnResult("01");
             return new VnpayIpnResponseDto("01", "Order not found");
         }
 
@@ -66,6 +71,7 @@ public sealed class ProcessVnpayIpnCommandHandler : IRequestHandler<ProcessVnpay
 
         if (reservation == null)
         {
+            _metricsRecorder?.RecordVnpayIpnResult("01");
             return new VnpayIpnResponseDto("01", "Order not found");
         }
 
@@ -87,12 +93,14 @@ public sealed class ProcessVnpayIpnCommandHandler : IRequestHandler<ProcessVnpay
 
         if (existingCompletedPayment != null || reservation.Status == ReservationStatus.Confirmed)
         {
+            _metricsRecorder?.RecordVnpayIpnResult("02");
             return new VnpayIpnResponseDto("02", "Order already confirmed");
         }
 
         // 5. Validate amount (tolerance 100 VND for rounding)
         if (Math.Abs(reservation.TotalAmount - verify.Amount) > 100m && verify.Amount < reservation.TotalAmount * 0.2m)
         {
+            _metricsRecorder?.RecordVnpayIpnResult("04");
             return new VnpayIpnResponseDto("04", "Invalid amount");
         }
 
@@ -157,6 +165,7 @@ public sealed class ProcessVnpayIpnCommandHandler : IRequestHandler<ProcessVnpay
                 }
             }
 
+            _metricsRecorder?.RecordVnpayIpnResult("00");
             return new VnpayIpnResponseDto("00", "Confirm Success");
         }
         else
@@ -179,6 +188,7 @@ public sealed class ProcessVnpayIpnCommandHandler : IRequestHandler<ProcessVnpay
             await _context.SaveChangesAsync(cancellationToken);
             await tx.CommitAsync(cancellationToken);
 
+            _metricsRecorder?.RecordVnpayIpnResult("00");
             return new VnpayIpnResponseDto("00", "Confirm Success");
         }
     }

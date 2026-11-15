@@ -46,10 +46,11 @@ public sealed class RefundApprovalManagementTests
         var envConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION")
                    ?? Environment.GetEnvironmentVariable("TEST_DATABASE_CONNECTION")
                    ?? Environment.GetEnvironmentVariable("HOTEL_SAAS_TEST_CONNECTION_STRING");
-        if (!string.IsNullOrWhiteSpace(envConn)) return envConn;
-
         var port = Environment.GetEnvironmentVariable("TEST_POSTGRES_PORT") ?? "5435";
-        return $"Host=localhost;Port={port};Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
+        var baseConn = !string.IsNullOrWhiteSpace(envConn)
+            ? envConn
+            : $"Host=localhost;Port={port};Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
+        return new NpgsqlConnectionStringBuilder(baseConn) { Pooling = false, PersistSecurityInfo = true }.ConnectionString;
     }
 
     private sealed class MockTenantService : ICurrentTenantService

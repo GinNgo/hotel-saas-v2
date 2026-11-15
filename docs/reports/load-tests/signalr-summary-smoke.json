@@ -1,0 +1,231 @@
+{
+    "metrics": {
+        "http_reqs": {
+            "count": 313,
+            "rate": 17.34562418031881
+        },
+        "http_req_blocked": {
+            "avg": 0.026826198083067097,
+            "min": 0,
+            "med": 0,
+            "max": 2.2412,
+            "p(90)": 0,
+            "p(95)": 0
+        },
+        "vus": {
+            "value": 2,
+            "min": 0,
+            "max": 5
+        },
+        "ws_sessions": {
+            "count": 307,
+            "rate": 17.013120202421327
+        },
+        "ws_msgs_received": {
+            "count": 1227,
+            "rate": 67.99706348003573
+        },
+        "signalr_cross_branch_isolation_blocked": {
+            "passes": 306,
+            "fails": 0,
+            "thresholds": {
+                "rate==1.0": false
+            },
+            "value": 1
+        },
+        "vus_max": {
+            "value": 5,
+            "min": 5,
+            "max": 5
+        },
+        "iterations": {
+            "rate": 16.957702872771748,
+            "count": 306
+        },
+        "http_req_tls_handshaking": {
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "max": 0
+        },
+        "http_req_duration": {
+            "avg": 10.508981789137376,
+            "min": 0,
+            "med": 1.5211,
+            "max": 1190.4493,
+            "p(90)": 3.09004,
+            "p(95)": 5.219959999999997
+        },
+        "ws_session_duration": {
+            "min": 22.0822,
+            "med": 41.6764,
+            "max": 120.8413,
+            "p(90)": 61.28862000000001,
+            "p(95)": 72.41877999999998,
+            "avg": 44.59703811074921
+        },
+        "http_req_duration{expected_response:true}": {
+            "avg": 10.508981789137376,
+            "min": 0,
+            "med": 1.5211,
+            "max": 1190.4493,
+            "p(90)": 3.09004,
+            "p(95)": 5.219959999999997
+        },
+        "iteration_duration": {
+            "avg": 246.8655614379085,
+            "min": 223.6317,
+            "med": 243.40625,
+            "max": 325.7682,
+            "p(90)": 265.2808,
+            "p(95)": 276.3332
+        },
+        "signalr_ws_connection_success": {
+            "passes": 306,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.99": false
+            },
+            "value": 1
+        },
+        "data_sent": {
+            "count": 938146,
+            "rate": 51989.5461414357
+        },
+        "http_req_waiting": {
+            "p(90)": 2.76842,
+            "p(95)": 4.682439999999996,
+            "avg": 10.18156166134186,
+            "min": 0,
+            "med": 1.101,
+            "max": 1188.8619
+        },
+        "checks": {
+            "passes": 1530,
+            "fails": 0,
+            "value": 1
+        },
+        "signalr_negotiate_duration_ms": {
+            "min": 0,
+            "med": 1.50785,
+            "max": 9.158,
+            "p(90)": 2.71405,
+            "p(95)": 4.019025,
+            "avg": 1.7435339869281037,
+            "thresholds": {
+                "p(95)<200": false,
+                "p(99)<400": false
+            }
+        },
+        "ws_connecting": {
+            "p(90)": 3.64764,
+            "p(95)": 4.8961,
+            "avg": 2.562796091205213,
+            "min": 1.0467,
+            "med": 2.2803,
+            "max": 10.6057
+        },
+        "http_req_connecting": {
+            "avg": 0.020007667731629396,
+            "min": 0,
+            "med": 0,
+            "max": 1.6738,
+            "p(90)": 0,
+            "p(95)": 0
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 313,
+            "thresholds": {
+                "rate<0.01": false
+            },
+            "value": 0
+        },
+        "http_req_sending": {
+            "med": 0,
+            "max": 0.5376,
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0.004998722044728434,
+            "min": 0
+        },
+        "ws_msgs_sent": {
+            "count": 1227,
+            "rate": 67.99706348003573
+        },
+        "signalr_join_property_duration_ms": {
+            "max": 99,
+            "p(90)": 29.5,
+            "p(95)": 33,
+            "avg": 20.169934640522875,
+            "min": 6,
+            "med": 18,
+            "thresholds": {
+                "p(95)<150": false,
+                "p(99)<300": false
+            }
+        },
+        "http_req_receiving": {
+            "avg": 0.3224214057507988,
+            "min": 0,
+            "med": 0,
+            "max": 3.3242,
+            "p(90)": 0.9196800000000003,
+            "p(95)": 1.19418
+        },
+        "data_received": {
+            "count": 338546,
+            "rate": 18761.315283547006
+        }
+    },
+    "setup_data": {
+        "authorizedPropertyId": "ab844a74-2323-4b01-8fbe-482b6f25127b",
+        "forbiddenPropertyId": "a9519744-5ead-4b20-9d18-fe78468e1829",
+        "token": "<redacted>"
+    },
+    "root_group": {
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {},
+        "checks": {
+                "negotiate status is 200": {
+                    "id": "e6633742d5a8c49be6314a630518130e",
+                    "passes": 306,
+                    "fails": 0,
+                    "name": "negotiate status is 200",
+                    "path": "::negotiate status is 200"
+                },
+                "negotiate returns connectionToken": {
+                    "name": "negotiate returns connectionToken",
+                    "path": "::negotiate returns connectionToken",
+                    "id": "c1d01af0d73d886159dd9eb0a0d6d31b",
+                    "passes": 306,
+                    "fails": 0
+                },
+                "authorized JoinProperty succeeded without error": {
+                    "name": "authorized JoinProperty succeeded without error",
+                    "path": "::authorized JoinProperty succeeded without error",
+                    "id": "8d93214fe6cc59d7fb993d5aab4efb8b",
+                    "passes": 306,
+                    "fails": 0
+                },
+                "cross-branch JoinProperty blocked by fail-closed Hub guard": {
+                    "name": "cross-branch JoinProperty blocked by fail-closed Hub guard",
+                    "path": "::cross-branch JoinProperty blocked by fail-closed Hub guard",
+                    "id": "1388f2d44a55497a64e1197f8925411d",
+                    "passes": 306,
+                    "fails": 0
+                },
+                "websocket upgraded with HTTP 101": {
+                    "fails": 0,
+                    "name": "websocket upgraded with HTTP 101",
+                    "path": "::websocket upgraded with HTTP 101",
+                    "id": "1866dc43554a0f0329c38f5d51ce9aeb",
+                    "passes": 306
+                }
+            },
+        "name": "",
+        "path": ""
+    }
+}

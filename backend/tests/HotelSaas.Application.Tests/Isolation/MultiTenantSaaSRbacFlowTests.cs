@@ -329,6 +329,15 @@ public sealed class MultiTenantSaaSRbacFlowTests
                 Assert.Equal(3, persistedRooms.Count);
                 Assert.All(persistedRooms, r => Assert.Equal(RoomStatus.Clean, r.Status));
 
+                var branch1Policies = await propCtx.PropertySurchargePolicies.IgnoreQueryFilters()
+                    .Where(sp => sp.PropertyId == branch1Id && sp.IsActive)
+                    .ToListAsync();
+                var branch2Policies = await propCtx.PropertySurchargePolicies.IgnoreQueryFilters()
+                    .Where(sp => sp.PropertyId == branch2Id && sp.IsActive)
+                    .ToListAsync();
+                Assert.Equal(4, branch1Policies.Count);
+                Assert.Equal(4, branch2Policies.Count);
+
                 var membershipsUserCtx = new MutableUserContext(
                     new MutableTenantService { TenantId = partnerAResponse.TenantId },
                     new MutablePropertyService { IsTenantWide = true })

@@ -24,9 +24,11 @@ public sealed class DynamicPricingTests
     private static string GetConnectionString()
     {
         var envConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION");
-        if (!string.IsNullOrWhiteSpace(envConn)) return envConn;
         var port = Environment.GetEnvironmentVariable("TEST_POSTGRES_PORT") ?? "5435";
-        return $"Host=localhost;Port={port};Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
+        var baseConn = !string.IsNullOrWhiteSpace(envConn)
+            ? envConn
+            : $"Host=localhost;Port={port};Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
+        return new NpgsqlConnectionStringBuilder(baseConn) { Pooling = false, PersistSecurityInfo = true }.ConnectionString;
     }
 
     private static ApplicationDbContext CreateContext(string schema)

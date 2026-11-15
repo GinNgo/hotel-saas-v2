@@ -47,7 +47,7 @@ variable "ssh_key_fingerprints" {
 variable "grafana_allowed_cidrs" {
   description = "Restricted office/VPN CIDR blocks allowed to access Grafana port 3001"
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = ["127.0.0.1/32"]
 }
 
 provider "digitalocean" {
@@ -88,8 +88,11 @@ resource "digitalocean_droplet" "hotelsaas_vps" {
     apt-get update -y
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-    # 3. Create application directory
-    mkdir -p /opt/hotel-saas/docker/observability
+    # 3. Create application, deploy, secrets & observability provisioning directories
+    mkdir -p /opt/hotel-saas/deploy \
+             /opt/hotel-saas/secrets \
+             /opt/hotel-saas/docker/observability/grafana/provisioning/dashboards \
+             /opt/hotel-saas/docker/observability/grafana/provisioning/datasources
   EOF
 
   tags = ["hotel-saas", var.environment, "managed-by-terraform"]

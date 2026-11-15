@@ -217,6 +217,75 @@ public sealed class CreatePropertyCommandHandler : IRequestHandler<CreatePropert
                 IsActive = true
             });
 
+            try
+            {
+                if (context.PropertySurchargePolicies != null)
+                {
+                    var nowUtc = DateTime.UtcNow;
+                    context.PropertySurchargePolicies.AddRange(
+                        new PropertySurchargePolicy
+                        {
+                            Id = Guid.NewGuid(),
+                            TenantId = tenantId,
+                            PropertyId = propertyId,
+                            SurchargeType = SurchargeType.EarlyCheckIn,
+                            FromTime = new TimeOnly(6, 0),
+                            ToTime = new TimeOnly(9, 0),
+                            CalculationMethod = SurchargeCalculationMethod.PercentageOfNightly,
+                            Percentage = 50m,
+                            IsActive = true,
+                            CreatedAtUtc = nowUtc,
+                            UpdatedAtUtc = nowUtc
+                        },
+                        new PropertySurchargePolicy
+                        {
+                            Id = Guid.NewGuid(),
+                            TenantId = tenantId,
+                            PropertyId = propertyId,
+                            SurchargeType = SurchargeType.EarlyCheckIn,
+                            FromTime = new TimeOnly(9, 0),
+                            ToTime = new TimeOnly(14, 0),
+                            CalculationMethod = SurchargeCalculationMethod.PercentageOfNightly,
+                            Percentage = 30m,
+                            IsActive = true,
+                            CreatedAtUtc = nowUtc,
+                            UpdatedAtUtc = nowUtc
+                        },
+                        new PropertySurchargePolicy
+                        {
+                            Id = Guid.NewGuid(),
+                            TenantId = tenantId,
+                            PropertyId = propertyId,
+                            SurchargeType = SurchargeType.LateCheckOut,
+                            FromTime = new TimeOnly(12, 0),
+                            ToTime = new TimeOnly(15, 0),
+                            CalculationMethod = SurchargeCalculationMethod.PercentageOfNightly,
+                            Percentage = 30m,
+                            IsActive = true,
+                            CreatedAtUtc = nowUtc,
+                            UpdatedAtUtc = nowUtc
+                        },
+                        new PropertySurchargePolicy
+                        {
+                            Id = Guid.NewGuid(),
+                            TenantId = tenantId,
+                            PropertyId = propertyId,
+                            SurchargeType = SurchargeType.LateCheckOut,
+                            FromTime = new TimeOnly(15, 0),
+                            ToTime = new TimeOnly(18, 0),
+                            CalculationMethod = SurchargeCalculationMethod.PercentageOfNightly,
+                            Percentage = 50m,
+                            IsActive = true,
+                            CreatedAtUtc = nowUtc,
+                            UpdatedAtUtc = nowUtc
+                        });
+                }
+            }
+            catch (NotImplementedException)
+            {
+                // Optional DbSet in isolated unit test stubs.
+            }
+
             return starterRoomNumbers.Length;
         }
         catch (NotImplementedException)

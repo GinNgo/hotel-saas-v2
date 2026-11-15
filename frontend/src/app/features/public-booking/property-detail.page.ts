@@ -585,7 +585,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
 
                 <div class="flex items-center gap-3">
                   <span class="text-2xl sm:text-3xl font-mono font-black text-[#0D2E28]">
-                    {{ (reviewsSummary()?.averageRating || hotel.ratingAverage || 5.0) | number:'1.1-1' }}
+                    {{ (reviewsSummary()?.totalReviews || hotel.reviewCount || 0) > 0 ? ((reviewsSummary()?.averageRating || hotel.ratingAverage || 5.0) | number:'1.1-1') : 'Mới' }}
                   </span>
                   <div class="text-xs">
                     <div class="flex items-center text-amber-500 text-xs">
@@ -601,59 +601,61 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
               </div>
 
               <!-- Sub-ratings Grid -->
-              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Vệ sinh phòng</span>
-                  <div class="flex items-baseline justify-between">
-                    <span class="text-base font-mono font-bold text-[#0D2E28]">
-                      {{ (reviewsSummary()?.cleanlinessAverage || 4.9) | number:'1.1-1' }}/5
-                    </span>
-                    <i class="pi pi-sparkles text-emerald-600 text-xs"></i>
+              @if ((reviewsSummary()?.totalReviews || hotel.reviewCount || 0) > 0) {
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Vệ sinh phòng</span>
+                    <div class="flex items-baseline justify-between">
+                      <span class="text-base font-mono font-bold text-[#0D2E28]">
+                        {{ (reviewsSummary()?.cleanlinessAverage || 4.9) | number:'1.1-1' }}/5
+                      </span>
+                      <i class="pi pi-sparkles text-emerald-600 text-xs"></i>
+                    </div>
+                    <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
+                      <div class="bg-emerald-600 h-1.5 rounded-full" [style.width.%]="((reviewsSummary()?.cleanlinessAverage || 4.9) / 5) * 100"></div>
+                    </div>
                   </div>
-                  <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
-                    <div class="bg-emerald-600 h-1.5 rounded-full" [style.width.%]="((reviewsSummary()?.cleanlinessAverage || 4.9) / 5) * 100"></div>
-                  </div>
-                </div>
 
-                <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Vị trí thuận tiện</span>
-                  <div class="flex items-baseline justify-between">
-                    <span class="text-base font-mono font-bold text-[#0D2E28]">
-                      {{ (reviewsSummary()?.locationAverage || 4.8) | number:'1.1-1' }}/5
-                    </span>
-                    <i class="pi pi-map-marker text-[#C05621] text-xs"></i>
+                  <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Vị trí thuận tiện</span>
+                    <div class="flex items-baseline justify-between">
+                      <span class="text-base font-mono font-bold text-[#0D2E28]">
+                        {{ (reviewsSummary()?.locationAverage || 4.8) | number:'1.1-1' }}/5
+                      </span>
+                      <i class="pi pi-map-marker text-[#C05621] text-xs"></i>
+                    </div>
+                    <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
+                      <div class="bg-[#C05621] h-1.5 rounded-full" [style.width.%]="((reviewsSummary()?.locationAverage || 4.8) / 5) * 100"></div>
+                    </div>
                   </div>
-                  <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
-                    <div class="bg-[#C05621] h-1.5 rounded-full" [style.width.%]="((reviewsSummary()?.locationAverage || 4.8) / 5) * 100"></div>
-                  </div>
-                </div>
 
-                <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Dịch vụ lễ tân</span>
-                  <div class="flex items-baseline justify-between">
-                    <span class="text-base font-mono font-bold text-[#0D2E28]">
-                      {{ (reviewsSummary()?.serviceAverage || 4.9) | number:'1.1-1' }}/5
-                    </span>
-                    <i class="pi pi-heart text-rose-500 text-xs"></i>
+                  <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Dịch vụ lễ tân</span>
+                    <div class="flex items-baseline justify-between">
+                      <span class="text-base font-mono font-bold text-[#0D2E28]">
+                        {{ (reviewsSummary()?.serviceAverage || 4.9) | number:'1.1-1' }}/5
+                      </span>
+                      <i class="pi pi-heart text-rose-500 text-xs"></i>
+                    </div>
+                    <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
+                      <div class="bg-rose-500 h-1.5 rounded-full" [style.width.%]="((reviewsSummary()?.serviceAverage || 4.9) / 5) * 100"></div>
+                    </div>
                   </div>
-                  <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
-                    <div class="bg-rose-500 h-1.5 rounded-full" [style.width.%]="((reviewsSummary()?.serviceAverage || 4.9) / 5) * 100"></div>
-                  </div>
-                </div>
 
-                <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Đáng giá tiền</span>
-                  <div class="flex items-baseline justify-between">
-                    <span class="text-base font-mono font-bold text-[#0D2E28]">
-                      {{ (reviewsSummary()?.valueAverage || 4.8) | number:'1.1-1' }}/5
-                    </span>
-                    <i class="pi pi-tag text-amber-600 text-xs"></i>
-                  </div>
-                  <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
-                    <div class="bg-amber-600 h-1.5 rounded-full" [style.width.%]="((reviewsSummary()?.valueAverage || 4.8) / 5) * 100"></div>
+                  <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Đáng giá tiền</span>
+                    <div class="flex items-baseline justify-between">
+                      <span class="text-base font-mono font-bold text-[#0D2E28]">
+                        {{ (reviewsSummary()?.valueAverage || 4.8) | number:'1.1-1' }}/5
+                      </span>
+                      <i class="pi pi-tag text-amber-600 text-xs"></i>
+                    </div>
+                    <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
+                      <div class="bg-amber-600 h-1.5 rounded-full" [style.width.%]="((reviewsSummary()?.valueAverage || 4.8) / 5) * 100"></div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              }
 
               <!-- Review Cards List -->
               @if (reviewsSummary()?.reviews?.length) {
