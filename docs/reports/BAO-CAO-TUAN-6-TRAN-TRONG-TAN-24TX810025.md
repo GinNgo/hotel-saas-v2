@@ -230,7 +230,7 @@ Tại base `develop` `9f400b6`, luồng `HoldExpired` gặp lỗi ở cả hai �
 
 ### 3. Bàn giao A02 (`dev-mock-token` trên Staging) & Quyết định Hợp nhất một Nhánh
 * **Bàn giao Ngô Võ Tuấn An (A02):** Ghi nhận `POST https://luxustay.duckdns.org/api/public/bookings/hold` với `"firebaseIdToken": "dev-mock-token:+84123456789"` từng trả `201 Created` (`RES-HHCRQH`, `req-aff572e1e4724ddf8e2e575efc89c615`) — đề nghị kiểm tra cấu hình thực tế của Staging environment (`ASPNETCORE_ENVIRONMENT`).
-* **Quyết định tích hợp một nhánh (`feature/tan-week6-security-e2e-d23`):** Theo phê duyệt mở rộng phạm vi của người dùng, toàn bộ `21` file sửa lỗi Backend từ workspace tích hợp (`D:\hotel-saas-v2-integration-fixes`) đã được hợp nhất trực tiếp vào nhánh `feature/tan-week6-security-e2e-d23` (giữ nguyên toàn bộ code T01/T02; không chạm file phân công riêng của An hoặc Nguyên). Các file Backend bổ sung này **không thuộc `ALLOWED FILES` ban đầu** và **chưa được merge vào `develop` hay deploy lên VPS Staging**.
+* **Tích hợp các bản sửa Backend:** Trong quá trình làm Tuần 6, em phát hiện một số lỗi Backend ảnh hưởng đến kết quả kiểm thử chung. Sau khi trao đổi và thống nhất mở rộng phạm vi công việc, em đã tích hợp 21 file sửa lỗi từ workspace `D:\hotel-saas-v2-integration-fixes` vào nhánh `feature/tan-week6-security-e2e-d23`. Các thay đổi này không ảnh hưởng đến những file được phân công riêng cho các thành viên khác trong nhóm. Hiện code đã được push lên GitHub nhưng chưa merge vào `develop` hoặc triển khai trên Staging.
 
 ### 4. Chi tiết `21` File Backend Bổ sung đã Hợp nhất trực tiếp vào Nhánh Tuần 6 *(chưa merge `develop` / chưa deploy Staging)*
 > **Lưu ý phạm vi và trạng thái:** Trong quá trình kiểm thử Tuần 6, em phát hiện thêm một số lỗi Backend ảnh hưởng đến kết quả kiểm thử chung. Sau khi được cho phép mở rộng phạm vi, em đã tích hợp 21 file sửa lỗi Backend vào nhánh `feature/tan-week6-security-e2e-d23`. Các thay đổi này đã được kiểm thử thành công trên môi trường Local và đã được commit, push lên GitHub cùng với các nhiệm vụ T01/T02. Tại thời điểm lập báo cáo, nhánh vẫn chưa được merge vào `develop` và bản sửa chưa được triển khai lên Staging.
@@ -249,7 +249,7 @@ Tại base `develop` `9f400b6`, luồng `HoldExpired` gặp lỗi ở cả hai �
      20. [`backend/tests/HotelSaas.Application.Tests/Notifications/NotificationHubSecurityTests.cs`](../../backend/tests/HotelSaas.Application.Tests/Notifications/NotificationHubSecurityTests.cs) *(bổ sung đầy đủ các ca race/crash/lease/retry 5 lần/dead-letter/status transition/scope)*
      21. [`backend/tests/HotelSaas.WebApi.Tests/Notifications/HoldExpiredPipelineTests.cs`](../../backend/tests/HotelSaas.WebApi.Tests/Notifications/HoldExpiredPipelineTests.cs) *(file mới — E2E WebSocket + PostgreSQL + BackgroundService concurrency + Public lookup read-only)*
 2. **Các lỗi đã được khắc phục và kiểm chứng trên nhánh `feature/tan-week6-security-e2e-d23`:**
-   * Sửa triệt để PostgreSQL `53300` (`0` lỗi pool trong toàn gate `617/617`, không sửa cấu hình Postgres Production).
+   * Đã khắc phục lỗi PostgreSQL `53300` liên quan đến connection pooling trong môi trường kiểm thử. Sau khi sửa, toàn bộ 617 bài kiểm thử Backend đều PASS và không còn ghi nhận lỗi `53300` trong lượt chạy này. Phần cấu hình PostgreSQL Production được giữ nguyên.
    * Sửa `BookingHttpPipelineTests.cs` dùng ngày động UTC (`baseDayUtc`) -> **PASS**.
    * Sửa `HoldExpired`: quét 2 pha theo `(TenantId, PropertyId)` active, quy trình **Claim & Commit DB trước -> Post-Commit SignalR Dispatch -> Finalize Claims** (`pg_advisory_xact_lock` + `FOR UPDATE`, lease `30s`, fencing trước & sau dispatch, `DefaultMaxDispatchAttempts = 5`, dead-lettering + dọn Attempt 5 bị gián đoạn, xử lý `OperationCanceledException`, giữ nguyên trạng thái nếu chuyển `Confirmed`/`Cancelled`, và `GetGuestBookingByTokenQuery` thuần read-only).
    * **Kết quả Full Quality Gate trực tiếp trên `feature/tan-week6-security-e2e-d23`:** Backend **`617/617 PASS`** (`Domain 1/1`, `WebApi 72/72` gồm `CrossBranchSecurityE2ETests 2/2` & `HoldExpiredPipelineTests 3/3`, `Application 544/544`), Build **`0 Warning(s), 0 Error(s)`**, Frontend **`51/51 files, 628/628 PASS`** + build **Exit 0**.
@@ -364,9 +364,7 @@ Tại base `develop` `9f400b6`, luồng `HoldExpired` gặp lỗi ở cả hai �
 
 ## 10. ĐÁNH GIÁ SẴN SÀNG GIT, BÀN GIAO NHÁNH CHO NHÓM TRƯỞNG & KHAI BÁO AI (AI DISCLOSURE)
 
-* **Quy trình Git áp dụng (`feature/tan-week6-security-e2e-d23`):**
-  * Chỉ phát triển, commit và push code lên nhánh cá nhân **`feature/tan-week6-security-e2e-d23`** (tuyệt đối **không** tạo PR, **không** tự merge vào `develop`, **không** tạo nhánh fix riêng và **không** deploy Staging). Nhóm trưởng chịu trách nhiệm review và merge vào `develop`.
-* **Trạng thái Git hiện tại:**
+* **Quy trình Git của nhóm:** Em thực hiện công việc trên nhánh cá nhân `feature/tan-week6-security-e2e-d23` và đã commit, push các thay đổi lên GitHub. Theo phân công của nhóm, em sẽ bàn giao nhánh để nhóm trưởng kiểm tra và merge vào `develop`. Em không trực tiếp thực hiện merge hoặc triển khai lên Staging.
   * Bao gồm trọn vẹn phần việc Tuần 6 ban đầu (`CrossBranchSecurityE2ETests.cs`, `tests/bruno/hotel-saas/**`, `docs/reports/BAO-CAO-TUAN-6-TRAN-TRONG-TAN-24TX810025.md`, `docs/reports/evidence/week6/*.png`) **và** `21` file sửa lỗi Backend đã hợp nhất từ `D:\hotel-saas-v2-integration-fixes` (không chạm file phân công riêng của An hoặc Nguyên).
   * `git diff --check` sạch (0 lỗi trailing whitespace); quét toàn bộ file tracked và untracked (kể cả ảnh minh chứng PNG) xác nhận **0 mật khẩu thật, 0 JWT, 0 API key** (`CrossBranchSecurityE2ETests.cs` chỉ dùng dữ liệu kiểm thử cục bộ tách schema).
   * **Kết quả hoàn thành và bàn giao:** Em đã hoàn thành các công việc kỹ thuật thuộc phạm vi Tuần 6 và đã commit, push toàn bộ thay đổi lên GitHub. Kết quả kiểm thử Local đạt **617/617 Backend Tests PASS**, **628/628 Frontend Tests PASS**; các chức năng D23 và Notification Bell chính đã được kiểm tra trên Chrome Staging. Báo cáo cũng đã bổ sung đầy đủ 9 ảnh minh chứng giao diện. Hiện tại, phần code của em đã được đưa lên nhánh cá nhân để nhóm trưởng review và merge vào `develop`. Một số trường hợp kiểm thử trên Staging vẫn chưa thể thực hiện đầy đủ do thiếu Firebase OTP/OAuth, dữ liệu nhiều chi nhánh cùng Tenant hoặc chưa triển khai bản sửa Backend mới. Em đã ghi rõ những trường hợp này trong báo cáo để nhóm tiếp tục kiểm tra sau.
@@ -385,9 +383,14 @@ Tại base `develop` `9f400b6`, luồng `HoldExpired` gặp lỗi ở cả hai �
     5. **Lưu ý khi merge vào `develop`:** Chưa deploy Staging; các ca Staging phụ thuộc OTP/OAuth (`04`–`07`, `HoldExpired Live`), seed `TNT-C292C0` đa chi nhánh/Lễ tân (`D23-05`, `SIG-02/03`) và toast live giữ nguyên trạng thái `BLOCKED` / `NOT VERIFIED` trong Mục `9`.
 * **Công cụ AI hỗ trợ:** Google Antigravity IDE (`Gemini`), OpenAI Codex.
 * **Các điểm sinh viên đã trực tiếp kiểm chứng & phân tích:**
-  * Xác minh thực tế `GET /api/auth/me/memberships`, `GET /api/properties`, `GET /api/staff` trên Staging cho thấy 3 tài khoản demo (`owner`, `manager.both`, `staff.single`) thuộc 3 Tenant độc lập (`Hotel Owner`), giải thích chính xác lý do giới hạn seed đa chi nhánh trên Staging.
-  * Viết và chạy PASS `CrossBranchSecurityE2ETests` (`2/2 PASS`, gồm HTTP TC01–TC06 và Same-Tenant Multi-Branch SignalR WebSocket + D23 RBAC/2 Cashier đồng thời).
-  * Phân tách nguyên nhân `65` test Backend FAIL ở lượt cuối (`40` ở lượt trước) trên `develop` bằng `git diff develop`, kiểm tra `max_connections=100`, liệt kê đủ 13 fixture thiếu `Pooling=false`, chứng minh `532/532 PASS` với `Pooling=false`, và phát hiện `TenantPropertySaveChangesInterceptor` chặn background sweep `HoldExpired` trên `develop`.
+* **Khai báo sử dụng AI:** Trong quá trình thực hiện Tuần 6, em có sử dụng Google Antigravity IDE (Gemini) và OpenAI Codex để hỗ trợ phân tích mã nguồn, xây dựng các kịch bản kiểm thử, tìm nguyên nhân lỗi và hoàn thiện báo cáo.
 
+* **Quá trình kiểm tra và đối chiếu kết quả:**
+  * Đối chiếu kết quả kiểm thử Security E2E, Bruno và các bài kiểm thử Backend/Frontend với yêu cầu được giao.
+  * Kiểm tra các chức năng D23 và Notification Bell trên môi trường Staging, đồng thời bổ sung 9 ảnh minh chứng giao diện vào báo cáo.
+  * Rà soát các thay đổi Backend, đặc biệt là lỗi PostgreSQL `53300` và cơ chế xử lý `HoldExpired`.
+  * Kiểm tra nội dung báo cáo, các trường hợp chưa thể nghiệm thu và trạng thái commit/push trên GitHub.
+
+* **Trách nhiệm đối với kết quả:** Em sử dụng AI như một công cụ hỗ trợ trong quá trình phát triển và kiểm thử. Những kết quả được ghi trong báo cáo dựa trên mã nguồn, log kiểm thử và minh chứng đã thu thập. Em chịu trách nhiệm về nội dung báo cáo và các phần công việc đã bàn giao.
 **Ngày cập nhật báo cáo:** 15/11/2026  
 **Sinh viên thực hiện:** Trần Trọng Tân (`24TX810025`)
