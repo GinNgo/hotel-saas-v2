@@ -45,7 +45,7 @@ describe('PublicBookingService', () => {
     );
   });
 
-  it('does not invent brands or aggregate review scores', async () => {
+  it('skips entries without tenant identity and builds 1-branch brand fallback description', async () => {
     mockHttp.get.mockReturnValue(of([
       { id: 'unknown', name: 'Independent hotel' },
       { id: 'known', name: 'Branch', tenantId: 'brand-id', tenantBrandName: 'Real Brand' },
@@ -53,9 +53,65 @@ describe('PublicBookingService', () => {
     const brands = await firstValueFrom(service.getTenantBrands());
       expect(brands).toHaveLength(1);
       expect(brands[0].tenantId).toBe('brand-id');
+      expect(brands[0].slug).toBe('real-brand');
+      expect(brands[0].totalProperties).toBe(1);
       expect(brands[0].ratingAverage).toBe(0);
       expect(brands[0].reviewCount).toBe(0);
-      expect(brands[0].description).toBe('');
+      expect(brands[0].description).toContain('Hệ thống lưu trú gồm 1 cơ sở');
+  });
+
+  it('aggregates multi-branch & single-branch brands with tenantSlug, ratings, reviews, provinces, and propertyTypes', async () => {
+    mockHttp.get.mockReturnValue(of([
+      {
+        id: 'b1',
+        name: 'Branch 1',
+        tenantId: 't-1',
+        tenantBrandName: 'Chuỗi Đà Lạt Chill',
+        tenantSlug: 'chuoi-da-lat-chill',
+        propertyType: 'Homestay',
+        provinceName: 'Lâm Đồng',
+        ratingAverage: 4.8,
+        reviewCount: 15,
+        imageUrl: 'https://cdn.example.com/1.jpg',
+      },
+      {
+        id: 'b2',
+        name: 'Branch 2',
+        tenantId: 't-1',
+        tenantBrandName: 'Chuỗi Đà Lạt Chill',
+        tenantSlug: 'chuoi-da-lat-chill',
+        propertyType: 'Villa',
+        city: 'Khánh Hòa',
+        ratingAverage: 4.4,
+        reviewCount: 5,
+      },
+      {
+        id: 'b3',
+        name: 'Solo Boutique',
+        tenantId: 't-2',
+        tenantBrandName: 'Solo Boutique Hotel',
+        tenantSlug: 'solo-boutique-hotel',
+        propertyType: 1,
+        provinceName: 'Hà Nội',
+        ratingAverage: 0,
+        reviewCount: 0,
+      },
+    ]));
+
+    const brands = await firstValueFrom(service.getTenantBrands());
+    expect(brands).toHaveLength(2);
+
+    const dalatBrand = brands.find(b => b.slug === 'chuoi-da-lat-chill')!;
+    expect(dalatBrand.totalProperties).toBe(2);
+    expect(dalatBrand.ratingAverage).toBe(4.6);
+    expect(dalatBrand.reviewCount).toBe(20);
+    expect(dalatBrand.provinces).toEqual(['Lâm Đồng', 'Khánh Hòa']);
+    expect(dalatBrand.propertyTypes).toEqual(['Homestay', 'Villa']);
+    expect(dalatBrand.logoUrl).toBe('https://cdn.example.com/1.jpg');
+
+    const soloBrand = brands.find(b => b.slug === 'solo-boutique-hotel')!;
+    expect(soloBrand.totalProperties).toBe(1);
+    expect(soloBrand.propertyTypes).toEqual(['Hotel']);
   });
 
   it('2. should call GET /public/properties/{slug} for single property details', () => {
@@ -292,8 +348,12 @@ describe('PublicBookingService with HttpTestingController (P7 Contract Regressio
     ];
 
     service.getProperties('Đà Nẵng').subscribe(result => {
-      expect(result).toEqual(mockData);
       expect(Array.isArray(result)).toBe(true);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        ...mockData[0],
+        propertyId: mockData[0].id,
+      });
     });
 
     const req = httpTesting.expectOne((r: any) =>
@@ -301,6 +361,49 @@ describe('PublicBookingService with HttpTestingController (P7 Contract Regressio
     );
     expect(req.request.method).toBe('GET');
     req.flush(mockData);
+  });
+
+  it('1b. should serialize tenantSlug, provinceCode, comma-separated propertyTypes, and normalize list properties', () => {
+    service.getProperties({
+      tenantSlug: 'anantara-group',
+      provinceCode: '48',
+      propertyTypes: ['Hotel', 'Homestay'],
+    }).subscribe(result => {
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        propertyId: 'prop-99',
+        id: 'prop-99',
+        tenantSlug: 'anantara-group',
+        propertyType: 'Homestay',
+        provinceName: 'Đà Nẵng',
+        addressLine: '12 Võ Nguyên Giáp',
+        thumbnailUrl: 'https://cdn.example.com/a.jpg',
+        startingPriceForSelectedMode: 650000,
+        galleryUrls: ['https://cdn.example.com/a.jpg'],
+      });
+    });
+
+    const req = httpTesting.expectOne((r: any) =>
+      r.url === `${environment.apiUrl}/public/properties` &&
+      r.params.get('tenantSlug') === 'anantara-group' &&
+      r.params.get('provinceCode') === '48' &&
+      r.params.get('propertyTypes') === 'Hotel,Homestay'
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush([
+      {
+        id: 'prop-99',
+        name: 'Anantara Homestay',
+        slug: 'anantara-homestay',
+        tenantSlug: 'anantara-group',
+        propertyType: 8,
+        city: 'Đà Nẵng',
+        address: '12 Võ Nguyên Giáp',
+        imageUrl: 'https://cdn.example.com/a.jpg',
+        galleryUrls: ['https://cdn.example.com/a.jpg'],
+        startingPrice: 650000,
+      },
+    ]);
   });
 
   it('2. should send typo / fuzzy query term and receive ranked direct DTO array', () => {
@@ -370,14 +473,16 @@ describe('PublicBookingService with HttpTestingController (P7 Contract Regressio
 
     // Branch A: Direct array
     service.getProperties('testA').subscribe(res => {
-      expect(res).toEqual(rawList);
+      expect(res).toHaveLength(1);
+      expect(res[0]).toMatchObject({ id: 'p1', propertyId: 'p1', name: 'Hotel 1' });
     });
     const reqA = httpTesting.expectOne((r: any) => r.params.get('search') === 'testA');
     reqA.flush(rawList);
 
     // Branch B: Wrapped { data: [...] }
     service.getProperties('testB').subscribe(res => {
-      expect(res).toEqual(rawList);
+      expect(res).toHaveLength(1);
+      expect(res[0]).toMatchObject({ id: 'p1', propertyId: 'p1', name: 'Hotel 1' });
     });
     const reqB = httpTesting.expectOne((r: any) => r.params.get('search') === 'testB');
     reqB.flush({ data: rawList });
@@ -404,12 +509,14 @@ describe('PublicBookingService with HttpTestingController (P7 Contract Regressio
 
     // Responses complete consecutively
     req1.flush(results1);
-    expect(emissions1).toEqual([results1]);
+    expect(emissions1).toHaveLength(1);
+    expect(emissions1[0][0]).toMatchObject(results1[0]);
     expect(emissions2).toEqual([]);
 
     req2.flush(results2);
-    expect(emissions1).toEqual([results1]);
-    expect(emissions2).toEqual([results2]);
+    expect(emissions1).toHaveLength(1);
+    expect(emissions2).toHaveLength(1);
+    expect(emissions2[0][0]).toMatchObject(results2[0]);
   });
 
   it('7. should process independent out-of-order HTTP responses faithfully without internal race suppression (service emits per call; latest-request-wins is coordinated at component level)', () => {
@@ -427,11 +534,11 @@ describe('PublicBookingService with HttpTestingController (P7 Contract Regressio
 
     // Flush newer first, then older to prove service does not silently drop older calls
     newReq.flush(newerData);
-    expect(newerReceived).toEqual(newerData);
+    expect(newerReceived[0]).toMatchObject(newerData[0]);
     expect(olderReceived).toBeNull();
 
     oldReq.flush(olderData);
-    expect(olderReceived).toEqual(olderData);
+    expect(olderReceived[0]).toMatchObject(olderData[0]);
   });
 
   it('8. should propagate HTTP errors gracefully to subscriber', () => {

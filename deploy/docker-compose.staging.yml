@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   caddy:
     image: caddy:2-alpine
@@ -18,14 +16,24 @@ services:
     depends_on:
       - backend
       - frontend
+    mem_limit: 64m
+    cpus: 0.15
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
 
   backend:
-    image: ghcr.io/ginngo/hotel-saas-backend:latest
+    image: ghcr.io/ginngo/hotel-saas-backend:${IMAGE_TAG:-latest}
     container_name: hotelsaas-backend-api
     restart: unless-stopped
     environment:
       - ASPNETCORE_ENVIRONMENT=Staging
       - ASPNETCORE_URLS=http://+:5000
+      - DOTNET_gcServer=0
+      - DOTNET_GCConserveMemory=9
+      - DOTNET_GCHeapHardLimitPercent=70
       - ConnectionStrings__DefaultConnection=${STAGING_DB_CONNECTION}
       - JwtSettings__SecretKey=${JWT_SECRET_KEY}
       - JwtSettings__Issuer=HotelSaas
@@ -42,21 +50,35 @@ services:
       - "5000"
     networks:
       - hotelsaas-network
+    mem_limit: 384m
+    cpus: 0.75
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 15s
       timeout: 5s
       retries: 3
       start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
 
   frontend:
-    image: ghcr.io/ginngo/hotel-saas-frontend:latest
+    image: ghcr.io/ginngo/hotel-saas-frontend:${IMAGE_TAG:-latest}
     container_name: hotelsaas-frontend-spa
     restart: unless-stopped
     expose:
       - "80"
     networks:
       - hotelsaas-network
+    mem_limit: 48m
+    cpus: 0.15
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
 
 networks:
   hotelsaas-network:

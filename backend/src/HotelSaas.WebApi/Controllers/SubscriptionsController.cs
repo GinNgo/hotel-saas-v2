@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
+using HotelSaas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -35,6 +36,7 @@ public sealed class SubscriptionsController : ControllerBase
     /// Retrieves the current tenant's active subscription status, limits, and resource utilization.
     /// </summary>
     [HttpGet("current")]
+    [RequirePermission("SUBSCRIPTIONS", PermissionAction.Read)]
     [ProducesResponseType(typeof(TenantSubscriptionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -47,16 +49,19 @@ public sealed class SubscriptionsController : ControllerBase
         }
 
         var subscription = await _context.Subscriptions
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(s => s.TenantId == tenantId.Value)
             .OrderByDescending(s => s.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
         var currentRoomCount = await _context.Rooms
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .CountAsync(r => r.TenantId == tenantId.Value, cancellationToken);
 
         var currentPropertyCount = await _context.Properties
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .CountAsync(p => p.TenantId == tenantId.Value, cancellationToken);
 
@@ -174,6 +179,7 @@ public sealed class SubscriptionsController : ControllerBase
     /// Upgrades or modifies the tenant's current subscription tier.
     /// </summary>
     [HttpPost("upgrade")]
+    [RequirePermission("SUBSCRIPTIONS", PermissionAction.Update)]
     [ProducesResponseType(typeof(TenantSubscriptionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpgradeSubscription([FromBody] UpgradeSubscriptionRequest request, CancellationToken cancellationToken)
@@ -192,6 +198,7 @@ public sealed class SubscriptionsController : ControllerBase
         var targetTier = (SubscriptionTier)request.TargetTier;
 
         var subscription = await _context.Subscriptions
+            .IgnoreQueryFilters()
             .Where(s => s.TenantId == tenantId.Value)
             .OrderByDescending(s => s.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);

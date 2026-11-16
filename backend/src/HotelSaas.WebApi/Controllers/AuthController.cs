@@ -152,22 +152,19 @@ public sealed class AuthController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Legacy social login endpoint. Permanently disabled to prevent unauthorized account takeover.
+    /// Use /api/auth/google-login with verified OAuth / GSI tokens instead.
+    /// </summary>
     [HttpPost("social-login")]
     [AllowAnonymous]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> SocialLogin(
-        [FromBody] HotelSaas.Application.Auth.Commands.SocialLogin.SocialLoginCommand command,
-        CancellationToken cancellationToken)
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public Task<IActionResult> SocialLogin(
+        [FromBody] HotelSaas.Application.Auth.Commands.SocialLogin.SocialLoginCommand? command = null,
+        CancellationToken cancellationToken = default)
     {
-        if (_mediator == null)
-        {
-            return StatusCode(StatusCodes.Status503ServiceUnavailable,
-                new { code = "SOCIAL_LOGIN_DISABLED", message = "Social login is disabled until provider token verification is implemented." });
-        }
-
-        var result = await _mediator.Send(command, cancellationToken);
-        return Ok(result);
+        return Task.FromResult<IActionResult>(StatusCode(StatusCodes.Status503ServiceUnavailable,
+            new { code = "SOCIAL_LOGIN_DISABLED", message = "Direct social login is permanently disabled for security. Use /api/auth/google-login with a verified provider token." }));
     }
 
     /// <summary>

@@ -21,6 +21,7 @@ builder.Host.UseSerilog((ctx, cfg) =>
 // ── Application & Infrastructure DI ──────────────────────────────────
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddSingleton<ISystemMetricsRecorder, SystemMetricsRecorder>();
 
 // ── JWT Authentication ───────────────────────────────────────────────
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -44,6 +45,7 @@ builder.Services
             ValidAudience = jwtSettings["Audience"] ?? "HotelSaasClient",
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(secretKey)),
+            RoleClaimType = "globalRole",
             ClockSkew = TimeSpan.FromSeconds(30)
         };
 
@@ -87,7 +89,7 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddCors(options =>
     options.AddPolicy("Angular", policy =>
         policy
-            .WithOrigins("http://localhost:4200")
+            .WithOrigins("http://localhost:4200", "http://localhost:3000")
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials()));
@@ -124,10 +126,13 @@ if (!shouldSkipStartupInit)
             try
             {
                 var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+                var currentTenant = scope.ServiceProvider.GetRequiredService<ICurrentTenantService>();
+                var currentProperty = scope.ServiceProvider.GetRequiredService<ICurrentPropertyService>();
                 await LocalDevDataSeeder.SeedAsync(effectiveConnStr, new LocalDevSeedOptions(), hasher);
                 Log.Information("LocalDevDataSeeder executed successfully.");
                 await SeedData.SeedPlatformAdminDataAsync(context);
-                await RealData34ProvincesSeeder.SeedAsync(context);
+                await RealData34ProvincesSeeder.SeedAsync(context, currentTenant, currentProperty);
+                Log.Information("RealData34ProvincesSeeder executed successfully.");
             }
             catch (Exception ex)
             {
@@ -150,14 +155,7 @@ app.UseMiddleware<CorrelationAndStructuredLogMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseSerilogRequestLogging(opts =>
 {
-    opts.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
-    {
-        if (httpContext.Response.Headers.TryGetValue(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, out var corrId))
-        {
-            diagnosticContext.Set("CorrelationId", corrId.ToString());
-        }
-        diagnosticContext.Set("ClientIp", httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown");
-    };
+    opts.EnrichDiagnosticContext = EnrichSerilogDiagnosticContext;
 });
 
 if (app.Environment.IsDevelopment())
@@ -185,4 +183,45 @@ app.MapHub<HotelSaas.Infrastructure.Hubs.NotificationHub>("/hubs/notifications")
 
 app.Run();
 
-public partial class Program { }
+public partial class Program
+{
+    public static void EnrichSerilogDiagnosticContext(IDiagnosticContext diagnosticContext, HttpContext httpContext)
+    {
+        var correlationId = httpContext.Items.TryGetValue(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, out var itemCorrId) &&
+                            itemCorrId is string itemCorrIdStr &&
+                            !string.IsNullOrWhiteSpace(itemCorrIdStr)
+            ? itemCorrIdStr
+            : httpContext.Response.Headers.TryGetValue(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, out var headerCorrId)
+                ? headerCorrId.ToString()
+                : null;
+
+        if (!string.IsNullOrWhiteSpace(correlationId))
+        {
+            diagnosticContext.Set("CorrelationId", correlationId);
+        }
+
+        diagnosticContext.Set("ClientIp", httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+
+        var tenantService = httpContext.RequestServices.GetService<ICurrentTenantService>();
+        var propertyService = httpContext.RequestServices.GetService<ICurrentPropertyService>();
+        var userContext = httpContext.RequestServices.GetService<ICurrentUserContext>();
+
+        var tenantId = tenantService?.TenantId;
+        var propertyId = propertyService?.PropertyId;
+        var isTenantWide = propertyService?.IsTenantWide ?? false;
+        var userId = userContext is { IsAuthenticated: true } && userContext.UserId != Guid.Empty
+            ? userContext.UserId.ToString()
+            : "anonymous";
+
+        diagnosticContext.Set("TenantId", tenantId?.ToString() ?? "anonymous");
+        diagnosticContext.Set("PropertyId", propertyId?.ToString() ?? (isTenantWide ? "tenant-wide" : "unscoped"));
+        diagnosticContext.Set("UserId", userId);
+        diagnosticContext.Set("StatusCode", httpContext.Response.StatusCode);
+
+        if (httpContext.Items.TryGetValue("ErrorCode", out var errorCodeObj) &&
+            errorCodeObj?.ToString() is { Length: > 0 } errorCode)
+        {
+            diagnosticContext.Set("ErrorCode", errorCode);
+        }
+    }
+}

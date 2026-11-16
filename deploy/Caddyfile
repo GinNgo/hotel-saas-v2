@@ -15,9 +15,18 @@ luxustay.duckdns.org {
         -Server
     }
 
-    # ── SignalR Hubs (WebSocket Support) ───────────────────────────────────
+    # ── Block Internal Metrics & Swagger Docs from Public Internet ─────────
+    # Prometheus scrapes backend:5000/metrics internally over Docker network.
+    @blocked {
+        path /metrics /metrics/* /swagger*
+    }
+    handle @blocked {
+        respond 403
+    }
+
+    # ── SignalR Hubs (WebSocket & Negotiate Support) ───────────────────────
     @signalr {
-        path /hub/*
+        path /hubs/*
     }
     handle @signalr {
         reverse_proxy backend:5000 {
@@ -28,9 +37,22 @@ luxustay.duckdns.org {
         }
     }
 
-    # ── WebApi REST Endpoints & Health Probe ───────────────────────────────
+    # ── Grafana Observability Dashboard (Subpath /grafana) ─────────────────
+    @grafana {
+        path /grafana /grafana/*
+    }
+    handle @grafana {
+        reverse_proxy grafana:3000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # ── WebApi REST Endpoints & Health Probes ──────────────────────────────
     @api {
-        path /api/* /health /metrics /swagger*
+        path /api/* /health*
     }
     handle @api {
         reverse_proxy backend:5000 {

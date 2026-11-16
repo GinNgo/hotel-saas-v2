@@ -1,11 +1,19 @@
-import { Component, EventEmitter, Input, Output, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, OnInit, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { Dialog } from 'primeng/dialog';
 import { Button } from 'primeng/button';
 import { AuthService } from '../../../core/services/auth.service';
-import { UserMembershipDto } from '../../../core/models/auth.model';
+import { SwitchContextResponse, UserMembershipDto } from '../../../core/models/auth.model';
 import { NotificationService } from '../../../core/services/notification.service';
+
+interface HttpErrorPayload {
+  error?: {
+    detail?: string;
+    title?: string;
+    message?: string;
+  };
+}
 
 /**
  * Hộp thoại Chọn / Đổi Chi nhánh làm việc (Branch Context Selector).
@@ -15,6 +23,7 @@ import { NotificationService } from '../../../core/services/notification.service
 @Component({
   selector: 'app-context-selector-dialog',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, Dialog, Button],
   template: `
     <p-dialog
@@ -46,10 +55,18 @@ import { NotificationService } from '../../../core/services/notification.service
         @if (canViewChainHq()) {
           <div
             (click)="selectChainHqOverview()"
-            class="group relative flex items-center justify-between p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/70 hover:border-indigo-400 transition-all duration-200 cursor-pointer shadow-2xs"
+            class="group relative flex items-center justify-between p-3.5 rounded-xl border transition-all duration-200 cursor-pointer shadow-2xs"
+            [ngClass]="{
+              'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-500/20': isHqActive(),
+              'border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/70 hover:border-indigo-400': !isHqActive(),
+              'opacity-60 pointer-events-none': switchingPropertyId() !== null
+            }"
           >
             <div class="flex items-center gap-3.5 min-w-0">
-              <div class="flex items-center justify-center w-11 h-11 rounded-lg bg-indigo-600 text-white text-xs font-bold shrink-0 shadow-xs">
+              <div
+                class="flex items-center justify-center w-11 h-11 rounded-lg text-xs font-bold shrink-0 shadow-xs transition-colors"
+                [ngClass]="isHqActive() ? 'bg-indigo-700 text-white' : 'bg-indigo-600 text-white'"
+              >
                 HQ
               </div>
               <div class="min-w-0">
@@ -60,14 +77,25 @@ import { NotificationService } from '../../../core/services/notification.service
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-800 border border-indigo-200">
                     Đa chi nhánh
                   </span>
+                  @if (isHqActive()) {
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                      Đang chọn
+                    </span>
+                  }
                 </div>
                 <div class="text-xs text-indigo-700/80 mt-0.5 truncate">
-                  Xem KPI hợp nhất, doanh thu chuỗi, gói cước SaaS & điều phối các cơ sở
+                  Xem KPI hợp nhất, doanh thu chuỗi, gói cước SaaS &amp; điều phối các cơ sở
                 </div>
               </div>
             </div>
             <div class="shrink-0 pl-3">
-              <i class="pi pi-chart-bar text-indigo-600 group-hover:translate-x-0.5 transition-all text-base"></i>
+              @if (switchingPropertyId() === 'HQ') {
+                <i class="pi pi-spin pi-spinner text-indigo-600 text-lg"></i>
+              } @else if (isHqActive()) {
+                <i class="pi pi-check-circle text-indigo-600 text-lg"></i>
+              } @else {
+                <i class="pi pi-chart-bar text-indigo-600 group-hover:translate-x-0.5 transition-all text-base"></i>
+              }
             </div>
           </div>
         }
@@ -150,7 +178,7 @@ import { NotificationService } from '../../../core/services/notification.service
     </p-dialog>
   `
 })
-export class ContextSelectorDialogComponent {
+export class ContextSelectorDialogComponent implements OnInit, OnChanges {
   private readonly authService = inject(AuthService);
   private readonly notification = inject(NotificationService);
   private readonly router = inject(Router);
@@ -166,34 +194,48 @@ export class ContextSelectorDialogComponent {
   /** Lọc các memberships có gắn với một Property cụ thể (bỏ qua tenant-wide không có propertyId) */
   branchMemberships = signal<UserMembershipDto[]>([]);
 
+  isHqActive(): boolean {
+    return !this.authService.activePropertyId();
+  }
+
   canViewChainHq(): boolean {
     return (
       this.authService.isTenantWide ||
-      this.branchMemberships().length > 1 ||
       this.authService.currentUser?.globalRole === 'Owner'
     );
   }
 
   selectChainHqOverview(): void {
-    const branches = this.branchMemberships();
-    if (!this.authService.activePropertyId() && branches.length > 0 && branches[0].propertyId) {
-      this.switchingPropertyId.set(branches[0].propertyId);
-      this.authService.switchContext(branches[0].propertyId).subscribe({
-        next: () => {
-          this.switchingPropertyId.set(null);
-          this.closeDialog();
-          this.router.navigate(['/dashboard'], { queryParams: { mode: 'hq' } });
-        },
-        error: () => {
-          this.switchingPropertyId.set(null);
-          this.closeDialog();
-          this.router.navigate(['/dashboard'], { queryParams: { mode: 'hq' } });
+    if (this.switchingPropertyId() !== null) return;
+
+    this.switchingPropertyId.set('HQ');
+    this.errorMessage.set(null);
+
+    this.authService.switchToChainHq().subscribe({
+      next: (payload: SwitchContextResponse) => {
+        this.switchingPropertyId.set(null);
+        this.notification.success('Đã chuyển về chế độ Tổng quan Toàn chuỗi (HQ)');
+
+        const hqMembership = this.buildHqMembership(payload);
+        this.contextSwitched.emit(hqMembership);
+        this.closeDialog();
+
+        if (!this.contextSwitched.observed) {
+          const currentPath = this.router.url.split('?')[0];
+          const targetCommands = currentPath === '/dashboard' ? ['/dashboard'] : ['/properties'];
+          void this.router.navigate(targetCommands);
         }
-      });
-      return;
-    }
-    this.closeDialog();
-    this.router.navigate(['/dashboard'], { queryParams: { mode: 'hq' } });
+      },
+      error: (err: HttpErrorPayload) => {
+        this.switchingPropertyId.set(null);
+        this.errorMessage.set(
+          this.extractErrorMessage(
+            err,
+            'Tài khoản của bạn không có quyền truy cập chế độ Tổng quan Toàn chuỗi (HQ).'
+          )
+        );
+      },
+    });
   }
 
   ngOnInit(): void {
@@ -248,10 +290,11 @@ export class ContextSelectorDialogComponent {
         this.contextSwitched.emit(membership);
         this.closeDialog();
       },
-      error: (err) => {
+      error: (err: HttpErrorPayload) => {
         this.switchingPropertyId.set(null);
-        const detail = err?.error?.title || err?.error?.message || 'Không thể chuyển chi nhánh. Vui lòng thử lại.';
-        this.errorMessage.set(detail);
+        this.errorMessage.set(
+          this.extractErrorMessage(err, 'Không thể chuyển chi nhánh. Vui lòng thử lại.')
+        );
       }
     });
   }
@@ -261,6 +304,44 @@ export class ContextSelectorDialogComponent {
       return; // Không cho phép đóng nếu chưa chọn chi nhánh
     }
     this.closeDialog();
+  }
+
+  private buildHqMembership(payload?: SwitchContextResponse): UserMembershipDto {
+    const tenantWide = this.authService.memberships.find(m => m.isTenantWide || !m.propertyId);
+    const fallbackTenant = this.authService.memberships[0];
+    const resolvedRole = payload?.currentContext?.roleName || tenantWide?.roleName || fallbackTenant?.roleName || 'Owner';
+
+    if (tenantWide) {
+      return {
+        ...tenantWide,
+        propertyId: null,
+        propertyName: null,
+        propertyCode: null,
+        isTenantWide: true,
+        roleName: resolvedRole,
+      };
+    }
+
+    return {
+      id: 'tenant-wide-hq',
+      tenantId:
+        payload?.currentContext?.tenantId ||
+        this.authService.currentUser?.tenantId ||
+        fallbackTenant?.tenantId ||
+        '',
+      tenantName: fallbackTenant?.tenantName || 'HQ Chuỗi',
+      tenantCode: fallbackTenant?.tenantCode || 'HQ',
+      propertyId: null,
+      propertyName: null,
+      propertyCode: null,
+      staffRole: resolvedRole,
+      roleName: resolvedRole,
+      isTenantWide: true,
+    };
+  }
+
+  private extractErrorMessage(err: HttpErrorPayload, fallback: string): string {
+    return err?.error?.detail || err?.error?.title || err?.error?.message || fallback;
   }
 
   private closeDialog(): void {

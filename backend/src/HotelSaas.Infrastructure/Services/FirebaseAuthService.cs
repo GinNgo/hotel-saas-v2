@@ -8,6 +8,7 @@ using FirebaseAdmin.Auth;
 using Google.Apis.Auth.OAuth2;
 using HotelSaas.Application.Common.Interfaces;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace HotelSaas.Infrastructure.Services;
@@ -20,13 +21,18 @@ public sealed class FirebaseAuthService : IFirebaseAuthService
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<FirebaseAuthService> _logger;
+    private readonly IHostEnvironment? _environment;
     private static readonly object _initLock = new();
     private static bool _isInitialized;
 
-    public FirebaseAuthService(IConfiguration configuration, ILogger<FirebaseAuthService> logger)
+    public FirebaseAuthService(
+        IConfiguration configuration,
+        ILogger<FirebaseAuthService> logger,
+        IHostEnvironment? environment = null)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _environment = environment;
         EnsureFirebaseInitialized();
     }
 
@@ -118,9 +124,20 @@ public sealed class FirebaseAuthService : IFirebaseAuthService
             return new FirebasePhoneVerificationResult(false, null, null, "Mã xác thực (idToken) không được để trống.");
         }
 
-        // ── 1. Dev / Mock Sandbox Token (For offline unit tests, load tests, or local verification) ──
+        // ── 1. Dev / Mock Sandbox Token (For offline unit tests, load tests, or local verification in non-Prod) ──
         if (idToken.StartsWith("dev-mock-token:", StringComparison.OrdinalIgnoreCase))
         {
+            var envName = _environment?.EnvironmentName ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            var isProdOrStaging = (_environment != null && !_environment.IsDevelopment() && !_environment.IsEnvironment("Testing")) ||
+                                  string.Equals(envName, "Production", StringComparison.OrdinalIgnoreCase) ||
+                                  string.Equals(envName, "Staging", StringComparison.OrdinalIgnoreCase);
+
+            if (isProdOrStaging)
+            {
+                _logger.LogWarning("Rejected sandbox dev-mock-token in {Environment} environment.", envName ?? "Production");
+                return new FirebasePhoneVerificationResult(false, null, null, "Mã xác thực thử nghiệm (dev-mock-token) bị từ chối trên môi trường Production.");
+            }
+
             var raw = idToken.Substring("dev-mock-token:".Length).Trim();
             var phone = !string.IsNullOrWhiteSpace(raw) ? NormalizePhoneNumber(raw) : "+84901234567";
             var mockUid = $"mock-uid-{Math.Abs(phone.GetHashCode())}";

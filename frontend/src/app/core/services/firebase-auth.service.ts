@@ -164,9 +164,9 @@ export class FirebaseAuthService {
   async verifyPhoneOtp(otpCode: string): Promise<VerifyOtpResult> {
     const trimmedOtp = otpCode.trim();
 
-    // Trường hợp mô phỏng Mock Token (hoặc nhập mã dev 123456)
+    // Trường hợp mô phỏng Mock Token (chỉ chấp nhận mã thử nghiệm 123456)
     if (this.isMockMode || !this.confirmationResult) {
-      if (trimmedOtp === '123456' || trimmedOtp.length === 6) {
+      if (trimmedOtp === '123456') {
         return {
           success: true,
           idToken: `dev-mock-token:${this.lastFormattedPhone}`,

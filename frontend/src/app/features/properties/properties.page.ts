@@ -23,6 +23,20 @@ import {
   FormControlDirective
 } from '../../shared';
 
+interface PropertyTypeSelectOption {
+  readonly value: number;
+  readonly label: string;
+  readonly color: 'emerald' | 'amber' | 'blue' | 'purple' | 'rose' | 'slate';
+}
+
+interface HttpErrorPayload {
+  error?: {
+    detail?: string;
+    title?: string;
+    message?: string;
+  };
+}
+
 @Component({
   selector: 'app-properties-page',
   standalone: true,
@@ -133,46 +147,16 @@ import {
           >
             Tất cả ({{ totalProperties() }})
           </button>
-          <button
-            type="button"
-            (click)="selectedType.set(1)"
-            [ngClass]="selectedType() === 1 ? 'bg-emerald-600 text-white font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
-            class="px-3 py-1 rounded-lg transition-colors cursor-pointer"
-          >
-            🏨 Khách sạn (Hotel)
-          </button>
-          <button
-            type="button"
-            (click)="selectedType.set(3)"
-            [ngClass]="selectedType() === 3 ? 'bg-emerald-600 text-white font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
-            class="px-3 py-1 rounded-lg transition-colors cursor-pointer"
-          >
-            🏡 Nhà nghỉ (Guesthouse)
-          </button>
-          <button
-            type="button"
-            (click)="selectedType.set(2)"
-            [ngClass]="selectedType() === 2 ? 'bg-emerald-600 text-white font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
-            class="px-3 py-1 rounded-lg transition-colors cursor-pointer"
-          >
-            ⚡ Motel
-          </button>
-          <button
-            type="button"
-            (click)="selectedType.set(4)"
-            [ngClass]="selectedType() === 4 ? 'bg-emerald-600 text-white font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
-            class="px-3 py-1 rounded-lg transition-colors cursor-pointer"
-          >
-            🌿 Homestay
-          </button>
-          <button
-            type="button"
-            (click)="selectedType.set(5)"
-            [ngClass]="selectedType() === 5 ? 'bg-emerald-600 text-white font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
-            class="px-3 py-1 rounded-lg transition-colors cursor-pointer"
-          >
-            🏖️ Resort
-          </button>
+          @for (opt of propertyTypeOptions; track opt.value) {
+            <button
+              type="button"
+              (click)="selectedType.set(opt.value)"
+              [ngClass]="selectedType() === opt.value ? 'bg-emerald-600 text-white font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
+              class="px-3 py-1 rounded-lg transition-colors cursor-pointer"
+            >
+              {{ opt.label }}
+            </button>
+          }
         </div>
       </div>
 
@@ -205,9 +189,9 @@ import {
                         {{ prop.code }}
                       </span>
                       <app-status-badge
-                        [status]="prop.propertyTypeName"
+                        [status]="prop.propertyTypeName || getPropertyTypeLabel(prop.propertyType)"
                         type="custom"
-                        [customLabel]="prop.propertyTypeName"
+                        [customLabel]="prop.propertyTypeName || getPropertyTypeLabel(prop.propertyType)"
                         [color]="getPropertyTypeColor(prop.propertyType)"
                       />
                       @if (authService.activePropertyId() === prop.id) {
@@ -295,10 +279,17 @@ import {
                 <button
                   type="button"
                   (click)="switchToProperty(prop)"
-                  [ngClass]="authService.activePropertyId() === prop.id ? 'bg-slate-200 text-slate-500 cursor-default' : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'"
+                  [disabled]="switchingPropertyId() === prop.id"
+                  [ngClass]="authService.activePropertyId() === prop.id ? 'bg-slate-200 text-slate-500 cursor-default' : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer disabled:opacity-60'"
                   class="flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold shadow-2xs transition-colors text-center"
                 >
-                  {{ authService.activePropertyId() === prop.id ? 'Đang chọn' : 'Vào quản lý' }}
+                  @if (switchingPropertyId() === prop.id) {
+                    Đang chuyển...
+                  } @else if (authService.activePropertyId() === prop.id) {
+                    Đang chọn
+                  } @else {
+                    Vào quản lý
+                  }
                 </button>
               </div>
             </div>
@@ -388,11 +379,9 @@ import {
                     formControlName="propertyType"
                     class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
                   >
-                    <option [ngValue]="1">🏨 Khách sạn (Hotel)</option>
-                    <option [ngValue]="3">🏡 Nhà nghỉ (Guesthouse)</option>
-                    <option [ngValue]="2">⚡ Motel</option>
-                    <option [ngValue]="4">🌿 Homestay</option>
-                    <option [ngValue]="5">🏖️ Resort</option>
+                    @for (opt of propertyTypeOptions; track opt.value) {
+                      <option [ngValue]="opt.value">{{ opt.label }}</option>
+                    }
                   </select>
                 </app-form-field>
               </div>
@@ -551,8 +540,21 @@ export class PropertiesPage implements OnInit {
   landmarks = signal<LandmarkDto[]>([]);
   isLoading = signal<boolean>(false);
   isSubmitting = signal<boolean>(false);
+  switchingPropertyId = signal<string | null>(null);
   searchQuery = signal<string>('');
   selectedType = signal<number | 'ALL'>('ALL');
+
+  /** Đồng bộ 1-based C# enum PropertyType (1..8). */
+  readonly propertyTypeOptions: readonly PropertyTypeSelectOption[] = [
+    { value: 1, label: '🏨 Khách sạn (Hotel)', color: 'blue' },
+    { value: 2, label: '🏖️ Resort nghỉ dưỡng', color: 'emerald' },
+    { value: 3, label: '🛏️ Hostel / Ký túc xá', color: 'amber' },
+    { value: 4, label: '☕ Bed & Breakfast', color: 'purple' },
+    { value: 5, label: '🏡 Biệt thự / Villa', color: 'rose' },
+    { value: 6, label: '🏢 Căn hộ dịch vụ', color: 'blue' },
+    { value: 7, label: '⚡ Nhà nghỉ / Motel', color: 'amber' },
+    { value: 8, label: '🌿 Homestay', color: 'emerald' },
+  ];
 
   isModalOpen = signal<boolean>(false);
   isEditing = signal<boolean>(false);
@@ -638,21 +640,40 @@ export class PropertiesPage implements OnInit {
     });
   }
 
-  getPropertyTypeColor(type: number): 'emerald' | 'amber' | 'blue' | 'purple' | 'rose' | 'slate' {
+  getPropertyTypeLabel(type: number): string {
     switch (type) {
-      case 1: return 'blue';
-      case 2: return 'amber';
-      case 3: return 'rose';
-      case 4: return 'emerald';
-      case 5: return 'purple';
-      default: return 'slate';
+      case 1: return 'Khách sạn (Hotel)';
+      case 2: return 'Resort nghỉ dưỡng';
+      case 3: return 'Hostel / Ký túc xá';
+      case 4: return 'Bed & Breakfast';
+      case 5: return 'Biệt thự / Villa';
+      case 6: return 'Căn hộ dịch vụ';
+      case 7: return 'Nhà nghỉ / Motel';
+      case 8: return 'Homestay';
+      default: return 'Cơ sở lưu trú';
     }
   }
 
+  getPropertyTypeColor(type: number): 'emerald' | 'amber' | 'blue' | 'purple' | 'rose' | 'slate' {
+    return this.propertyTypeOptions.find(opt => opt.value === type)?.color ?? 'slate';
+  }
+
   switchToProperty(prop: TenantPropertySummaryDto): void {
-    this.authService.setActivePropertyContext(prop.id, prop.name, prop.code);
-    this.alertService.toastSuccess(`Bạn đang làm việc tại: ${prop.name} (${prop.code})`, 'Đã đổi chi nhánh');
-    this.router.navigate(['/rooms']);
+    if (this.switchingPropertyId() !== null) return;
+
+    this.switchingPropertyId.set(prop.id);
+    this.authService.switchContext(prop.id).subscribe({
+      next: () => {
+        this.switchingPropertyId.set(null);
+        this.alertService.toastSuccess(`Bạn đang làm việc tại: ${prop.name} (${prop.code})`, 'Đã đổi chi nhánh');
+        void this.router.navigate(['/rooms']);
+      },
+      error: (err: HttpErrorPayload) => {
+        this.switchingPropertyId.set(null);
+        const detail = err?.error?.detail || err?.error?.title || err?.error?.message || 'Không thể chuyển sang chi nhánh này.';
+        this.alertService.toastError(detail, 'Lỗi chuyển ngữ cảnh');
+      },
+    });
   }
 
   openCreateModal(): void {
@@ -774,6 +795,7 @@ export class PropertiesPage implements OnInit {
           this.isModalOpen.set(false);
           this.alertService.toastSuccess(`Chi nhánh ${formVal.name} đã được cập nhật.`, 'Cập nhật thành công');
           this.loadProperties();
+          this.authService.fetchMyMemberships().subscribe({ error: () => {} });
         },
         error: () => {
           this.isSubmitting.set(false);
@@ -801,6 +823,7 @@ export class PropertiesPage implements OnInit {
           this.isModalOpen.set(false);
           this.alertService.toastSuccess(`Chi nhánh ${formVal.name} đã được khởi tạo.`, 'Thêm mới thành công');
           this.loadProperties();
+          this.authService.fetchMyMemberships().subscribe({ error: () => {} });
         },
         error: () => {
           this.isSubmitting.set(false);

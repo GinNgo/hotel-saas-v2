@@ -96,11 +96,34 @@ public class NotificationHub : Hub<INotificationClient>
 {
     private readonly IApplicationDbContext? _context;
     private readonly ILogger<NotificationHub> _logger;
+    private readonly ISystemMetricsRecorder? _metricsRecorder;
 
-    public NotificationHub(IApplicationDbContext? context = null, ILogger<NotificationHub>? logger = null)
+    public NotificationHub(
+        IApplicationDbContext? context = null,
+        ILogger<NotificationHub>? logger = null,
+        ISystemMetricsRecorder? metricsRecorder = null)
     {
         _context = context;
         _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<NotificationHub>.Instance;
+        _metricsRecorder = metricsRecorder;
+    }
+
+    public override async Task OnConnectedAsync()
+    {
+        await base.OnConnectedAsync();
+        _metricsRecorder?.IncrementSignalRConnection();
+    }
+
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        try
+        {
+            await base.OnDisconnectedAsync(exception);
+        }
+        finally
+        {
+            _metricsRecorder?.DecrementSignalRConnection();
+        }
     }
 
     public static string GetPropertyGroupName(string propertyId) => $"Property_{propertyId.Trim().ToLowerInvariant()}";
@@ -171,6 +194,7 @@ public class NotificationHub : Hub<INotificationClient>
         {
             _logger.LogWarning("Security Guard: User {UserId} from tenant {TokenTenant} attempted cross-tenant join to property {PropertyId} (Tenant {PropTenant})",
                 userId, tokenTenantId, targetPropertyGuid, property.TenantId);
+            _metricsRecorder?.RecordIsolationBlock("ERR_CROSS_TENANT_FORBIDDEN");
             throw new HubException("ERR_CROSS_TENANT_FORBIDDEN: Chi nhánh không thuộc quyền quản lý của khách sạn bạn.");
         }
 
@@ -190,6 +214,7 @@ public class NotificationHub : Hub<INotificationClient>
         {
             _logger.LogWarning("Security Guard: User {UserId} denied access to property {PropertyId} due to lack of active staff membership",
                 userId, targetPropertyGuid);
+            _metricsRecorder?.RecordIsolationBlock("ERR_PROPERTY_FORBIDDEN");
             throw new HubException("ERR_PROPERTY_FORBIDDEN: Bạn không có quyền truy cập thông báo của chi nhánh này.");
         }
 

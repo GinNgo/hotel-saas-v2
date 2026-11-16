@@ -1,4 +1,9 @@
-const { GoogleGenAI } = require('@google/genai');
+let GoogleGenAI = null;
+try {
+  GoogleGenAI = require('@google/genai').GoogleGenAI;
+} catch {
+  // Optional in dev
+}
 
 /**
  * Contextual hospitality knowledge base fallback when GEMINI_API_KEY is not set in local environment
@@ -96,7 +101,7 @@ async function handleChat(req, res) {
       }
 
       const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
+      if (!apiKey || !GoogleGenAI) {
         const fallback = buildSmartHospitalityFallback(userMessage);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(fallback));

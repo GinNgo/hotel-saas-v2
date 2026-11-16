@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -46,12 +47,24 @@ public sealed record RealRoomTypeSeedDefinition(
 /// </summary>
 public static class RealData34ProvincesSeeder
 {
-    public static async Task SeedAsync(ApplicationDbContext context)
+    public static async Task SeedAsync(
+        ApplicationDbContext context,
+        ICurrentTenantService? currentTenant = null,
+        ICurrentPropertyService? currentProperty = null)
     {
-        // ── 1. Ensure 3 Core Authentic Tenants Exist ──────────────────────────
+        // ── 1. Ensure Authentic Tenants Exist (Existing 3 + 3 Specialized Chains) ──
         var tenants = new Dictionary<string, Tenant>();
 
-        async Task<Tenant> EnsureTenantAsync(string code, string name, string slug, string address, string city, string phone, string email)
+        async Task<Tenant> EnsureTenantAsync(
+            string code,
+            string name,
+            string slug,
+            string address,
+            string city,
+            string phone,
+            string email,
+            PropertyType tenantPropertyType = PropertyType.Hotel,
+            int tenantStarRating = 5)
         {
             var existing = await context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Code == code);
             if (existing != null) return existing;
@@ -66,8 +79,8 @@ public static class RealData34ProvincesSeeder
                 City = city,
                 PhoneNumber = phone,
                 Email = email,
-                PropertyType = PropertyType.Hotel,
-                StarRating = 5,
+                PropertyType = tenantPropertyType,
+                StarRating = tenantStarRating,
                 CheckInTime = new TimeOnly(14, 0),
                 CheckOutTime = new TimeOnly(12, 0),
                 Status = TenantStatus.Active,
@@ -83,157 +96,212 @@ public static class RealData34ProvincesSeeder
         }
 
         tenants["GHG"] = await EnsureTenantAsync("GHG", "Grand Hotel Group", "grand-hotel-group",
-            "15 Ngô Quyền, Phường Tràng Tiền, Quận Hoàn Kiếm", "Hà Nội", "02438266919", "contact@grandhotel.vn");
+            "15 Ngô Quyền, Phường Tràng Tiền, Quận Hoàn Kiếm", "Hà Nội", "02438266919", "contact@grandhotel.vn",
+            PropertyType.Hotel, 5);
         tenants["VEH"] = await EnsureTenantAsync("VEH", "Vietnam Eco & Heritage Resorts", "vietnam-eco-heritage",
-            "Khu VII.2 Hồ Tuyền Lâm, Phường 4", "Lâm Đồng", "02633831515", "booking@vietnamecoresorts.vn");
+            "Khu VII.2 Hồ Tuyền Lâm, Phường 4", "Lâm Đồng", "02633831515", "booking@vietnamecoresorts.vn",
+            PropertyType.Resort, 5);
         tenants["SCR"] = await EnsureTenantAsync("SCR", "Sun Coast Hotels & Resorts", "sun-coast-resorts",
-            "Bán đảo Sơn Trà, Phường Thọ Quang, Quận Sơn Trà", "Đà Nẵng", "02363938888", "reservations@suncoastresorts.vn");
+            "Bán đảo Sơn Trà, Phường Thọ Quang, Quận Sơn Trà", "Đà Nẵng", "02363938888", "reservations@suncoastresorts.vn",
+            PropertyType.Resort, 5);
+        tenants["VHG"] = await EnsureTenantAsync("VHG", "Việt Homestay & Boutique Stays", "viet-homestay-boutique",
+            "18 Phan Bội Châu, Phường 1, Đà Lạt", "Lâm Đồng", "02633901234", "hello@viethomestay.vn",
+            PropertyType.Homestay, 4);
+        tenants["MBV"] = await EnsureTenantAsync("MBV", "Mekong & Highland Villas", "mekong-highland-villas",
+            "88 Trần Phú, Phường Lộc Thọ, Nha Trang", "Khánh Hòa", "02583889999", "concierge@mekongvillas.vn",
+            PropertyType.Villa, 5);
+        tenants["UEM"] = await EnsureTenantAsync("UEM", "Urban Express Aparthotel & Motel", "urban-express-stays",
+            "120 Nguyễn Huệ, Phường Bến Nghé, Quận 1", "TP. Hồ Chí Minh", "02838221122", "stay@urbanexpress.vn",
+            PropertyType.Apartment, 3);
 
-        // ── 2. Catalogue of 34 Authentic Properties Across 34 Provinces ───────
+        // ── 2. Catalogue of Authentic Properties Across Vietnam ──────────────
         var catalogue = Get34ProvincesCatalogue();
 
-        foreach (var def in catalogue)
+        var originalTenantId = currentTenant?.TenantId;
+        var originalPropertyId = currentProperty?.PropertyId;
+        var originalIsTenantWide = currentProperty?.IsTenantWide ?? false;
+
+        try
         {
-            var tenant = tenants[def.TenantCode];
-
-            var existingProp = await context.Properties.IgnoreQueryFilters()
-                .FirstOrDefaultAsync(p => p.Slug == def.Slug || (p.TenantId == tenant.Id && p.Code == def.Code));
-
-            Property property;
-            if (existingProp == null)
+            foreach (var def in catalogue)
             {
-                property = new Property
+                var tenant = tenants[def.TenantCode];
+
+                var existingProp = await context.Properties.IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(p => p.Slug == def.Slug || (p.TenantId == tenant.Id && p.Code == def.Code));
+
+                if (currentTenant != null)
                 {
-                    Id = Guid.NewGuid(),
-                    TenantId = tenant.Id,
-                    Code = def.Code,
-                    Name = def.Name,
-                    Slug = def.Slug,
-                    Address = def.Address,
-                    City = def.City,
-                    PhoneNumber = def.PhoneNumber,
-                    Email = def.Email,
-                    PropertyType = def.PropertyType,
-                    StarRating = def.StarRating,
-                    CheckInTime = new TimeOnly(14, 0, 0),
-                    CheckOutTime = new TimeOnly(12, 0, 0),
-                    BufferMinutes = 30,
-                    MaxHourlyHours = 12,
-                    TaxRatePercent = 8.00m,
-                    ServiceFeeRatePercent = 5.00m,
-                    Latitude = def.Latitude,
-                    Longitude = def.Longitude,
-                    TouristZoneSlug = def.TouristZoneSlug,
-                    TouristZoneName = def.TouristZoneName,
-                    NearbyLandmarksJson = def.NearbyLandmarksJson,
-                    AllowHourlyBooking = true,
-                    AllowOvernightBooking = true,
-                    AllowDailyBooking = true,
-                    IsPublished = true,
-                    Status = PropertyStatus.Active,
-                    CreatedAtUtc = DateTime.UtcNow,
-                    UpdatedAtUtc = DateTime.UtcNow
-                };
-                context.Properties.Add(property);
-                await context.SaveChangesAsync();
-            }
-            else
-            {
-                property = existingProp;
-                // Ensure published and active with exact coordinates
-                property.IsPublished = true;
-                property.Status = PropertyStatus.Active;
-                property.Latitude = def.Latitude;
-                property.Longitude = def.Longitude;
-                property.TouristZoneSlug = def.TouristZoneSlug;
-                property.TouristZoneName = def.TouristZoneName;
-                property.NearbyLandmarksJson = def.NearbyLandmarksJson;
-                property.AllowHourlyBooking = true;
-                property.AllowOvernightBooking = true;
-                property.AllowDailyBooking = true;
-                await context.SaveChangesAsync();
-            }
+                    currentTenant.TenantId = existingProp?.TenantId ?? tenant.Id;
+                }
 
-            // ── Seed RoomTypes, Rooms & Rates ───────────────────────────────
-            foreach (var rtDef in def.RoomTypes)
-            {
-                var existingRt = await context.RoomTypes.IgnoreQueryFilters()
-                    .FirstOrDefaultAsync(rt => rt.TenantId == tenant.Id && rt.PropertyId == property.Id && rt.Code == rtDef.Code);
-
-                RoomType roomType;
-                if (existingRt == null)
+                if (currentProperty != null)
                 {
-                    roomType = new RoomType
+                    currentProperty.IsTenantWide = true;
+                    currentProperty.PropertyId = existingProp?.Id;
+                }
+
+                Property property;
+                if (existingProp == null)
+                {
+                    property = new Property
                     {
                         Id = Guid.NewGuid(),
                         TenantId = tenant.Id,
-                        PropertyId = property.Id,
-                        Code = rtDef.Code,
-                        Name = rtDef.Name,
-                        BasePrice = rtDef.NightlyPrice,
-                        MaxOccupancy = rtDef.MaxOccupancy,
+                        Code = def.Code,
+                        Name = def.Name,
+                        Slug = def.Slug,
+                        Address = def.Address,
+                        City = def.City,
+                        PhoneNumber = def.PhoneNumber,
+                        Email = def.Email,
+                        PropertyType = def.PropertyType,
+                        StarRating = def.StarRating,
+                        CheckInTime = new TimeOnly(14, 0, 0),
+                        CheckOutTime = new TimeOnly(12, 0, 0),
+                        BufferMinutes = 30,
+                        MaxHourlyHours = 12,
+                        TaxRatePercent = 8.00m,
+                        ServiceFeeRatePercent = 5.00m,
+                        Latitude = def.Latitude,
+                        Longitude = def.Longitude,
+                        TouristZoneSlug = def.TouristZoneSlug,
+                        TouristZoneName = def.TouristZoneName,
+                        NearbyLandmarksJson = def.NearbyLandmarksJson,
+                        AllowHourlyBooking = true,
+                        AllowOvernightBooking = true,
+                        AllowDailyBooking = true,
+                        IsPublished = true,
+                        Status = PropertyStatus.Active,
                         CreatedAtUtc = DateTime.UtcNow,
                         UpdatedAtUtc = DateTime.UtcNow
                     };
-                    context.RoomTypes.Add(roomType);
+                    context.Properties.Add(property);
                     await context.SaveChangesAsync();
                 }
                 else
                 {
-                    roomType = existingRt;
+                    property = existingProp;
+                    // Keep existing property.TenantId intact to avoid FK breaks; sync published metadata safely
+                    property.PropertyType = def.PropertyType;
+                    property.IsPublished = true;
+                    property.Status = PropertyStatus.Active;
+                    property.Latitude = def.Latitude;
+                    property.Longitude = def.Longitude;
+                    property.TouristZoneSlug = def.TouristZoneSlug;
+                    property.TouristZoneName = def.TouristZoneName;
+                    property.NearbyLandmarksJson = def.NearbyLandmarksJson;
+                    property.AllowHourlyBooking = true;
+                    property.AllowOvernightBooking = true;
+                    property.AllowDailyBooking = true;
+                    await context.SaveChangesAsync();
                 }
 
-                // Physical Rooms
-                int floor = 1;
-                foreach (var roomNum in rtDef.RoomNumbers)
+                if (currentTenant != null)
                 {
-                    var existingRoom = await context.Rooms.IgnoreQueryFilters()
-                        .FirstOrDefaultAsync(r => r.TenantId == tenant.Id && r.PropertyId == property.Id && r.RoomNumber == roomNum);
+                    currentTenant.TenantId = property.TenantId;
+                }
 
-                    if (existingRoom == null)
+                if (currentProperty != null)
+                {
+                    currentProperty.IsTenantWide = false;
+                    currentProperty.PropertyId = property.Id;
+                }
+
+                // ── Seed RoomTypes, Rooms & Rates ───────────────────────────────
+                foreach (var rtDef in def.RoomTypes)
+                {
+                    var existingRt = await context.RoomTypes.IgnoreQueryFilters()
+                        .FirstOrDefaultAsync(rt => rt.TenantId == property.TenantId && rt.PropertyId == property.Id && rt.Code == rtDef.Code);
+
+                    RoomType roomType;
+                    if (existingRt == null)
                     {
-                        context.Rooms.Add(new Room
+                        roomType = new RoomType
                         {
                             Id = Guid.NewGuid(),
-                            TenantId = tenant.Id,
+                            TenantId = property.TenantId,
+                            PropertyId = property.Id,
+                            Code = rtDef.Code,
+                            Name = rtDef.Name,
+                            BasePrice = rtDef.NightlyPrice,
+                            MaxOccupancy = rtDef.MaxOccupancy,
+                            CreatedAtUtc = DateTime.UtcNow,
+                            UpdatedAtUtc = DateTime.UtcNow
+                        };
+                        context.RoomTypes.Add(roomType);
+                        await context.SaveChangesAsync();
+                    }
+                    else
+                    {
+                        roomType = existingRt;
+                    }
+
+                    // Physical Rooms
+                    int floor = 1;
+                    foreach (var roomNum in rtDef.RoomNumbers)
+                    {
+                        var existingRoom = await context.Rooms.IgnoreQueryFilters()
+                            .FirstOrDefaultAsync(r => r.TenantId == property.TenantId && r.PropertyId == property.Id && r.RoomNumber == roomNum);
+
+                        if (existingRoom == null)
+                        {
+                            context.Rooms.Add(new Room
+                            {
+                                Id = Guid.NewGuid(),
+                                TenantId = property.TenantId,
+                                PropertyId = property.Id,
+                                RoomTypeId = roomType.Id,
+                                RoomNumber = roomNum,
+                                Floor = floor++,
+                                Status = RoomStatus.Clean,
+                                CreatedAtUtc = DateTime.UtcNow,
+                                UpdatedAtUtc = DateTime.UtcNow
+                            });
+                        }
+                    }
+                    await context.SaveChangesAsync();
+
+                    // Active Rate Plan
+                    var existingRate = await context.RoomTypeRates.IgnoreQueryFilters()
+                        .FirstOrDefaultAsync(r => r.TenantId == property.TenantId && r.PropertyId == property.Id && r.RoomTypeId == roomType.Id && r.IsActive);
+
+                    if (existingRate == null)
+                    {
+                        context.RoomTypeRates.Add(new RoomTypeRate
+                        {
+                            Id = Guid.NewGuid(),
+                            TenantId = property.TenantId,
                             PropertyId = property.Id,
                             RoomTypeId = roomType.Id,
-                            RoomNumber = roomNum,
-                            Floor = floor++,
-                            Status = RoomStatus.Clean,
+                            FirstHours = 2,
+                            FirstHoursPrice = rtDef.HourlyFirstHoursPrice,
+                            AdditionalHourPrice = rtDef.HourlyExtraHourPrice,
+                            NightlyPrice = rtDef.NightlyPrice,
+                            Currency = "VND",
+                            EffectiveFrom = new DateOnly(2026, 1, 1),
+                            EffectiveTo = new DateOnly(2030, 1, 1),
+                            ChangeReason = "Bảng giá niêm yết chính thức 2026",
+                            IsActive = true,
                             CreatedAtUtc = DateTime.UtcNow,
                             UpdatedAtUtc = DateTime.UtcNow
                         });
+                        await context.SaveChangesAsync();
                     }
                 }
-                await context.SaveChangesAsync();
+            }
+        }
+        finally
+        {
+            if (currentTenant != null)
+            {
+                currentTenant.TenantId = originalTenantId;
+            }
 
-                // Active Rate Plan
-                var existingRate = await context.RoomTypeRates.IgnoreQueryFilters()
-                    .FirstOrDefaultAsync(r => r.TenantId == tenant.Id && r.PropertyId == property.Id && r.RoomTypeId == roomType.Id && r.IsActive);
-
-                if (existingRate == null)
-                {
-                    context.RoomTypeRates.Add(new RoomTypeRate
-                    {
-                        Id = Guid.NewGuid(),
-                        TenantId = tenant.Id,
-                        PropertyId = property.Id,
-                        RoomTypeId = roomType.Id,
-                        FirstHours = 2,
-                        FirstHoursPrice = rtDef.HourlyFirstHoursPrice,
-                        AdditionalHourPrice = rtDef.HourlyExtraHourPrice,
-                        NightlyPrice = rtDef.NightlyPrice,
-                        Currency = "VND",
-                        EffectiveFrom = new DateOnly(2026, 1, 1),
-                        EffectiveTo = new DateOnly(2030, 1, 1),
-                        ChangeReason = "Bảng giá niêm yết chính thức 2026",
-                        IsActive = true,
-                        CreatedAtUtc = DateTime.UtcNow,
-                        UpdatedAtUtc = DateTime.UtcNow
-                    });
-                    await context.SaveChangesAsync();
-                }
+            if (currentProperty != null)
+            {
+                currentProperty.PropertyId = originalPropertyId;
+                currentProperty.IsTenantWide = originalIsTenantWide;
             }
         }
     }
@@ -1071,6 +1139,298 @@ public static class RealData34ProvincesSeeder
                 {
                     new RealRoomTypeSeedDefinition("AL-GAR", "An Lam Garden Suite", 3200000m, 850000m, 280000m, 2, new[] { "G01", "G02" }),
                     new RealRoomTypeSeedDefinition("AL-RIV", "Riverfront Private Pool Villa", 6500000m, 1700000m, 520000m, 3, new[] { "R01", "R02" })
+                }
+            ),
+
+            // ═══════════════════════════════════════════════════════════════════
+            // 4. DIVERSE ACCOMMODATION CHAINS (VHG, MBV, UEM - HOMESTAY/VILLA/APT/MOTEL/HOSTEL/B&B)
+            // ═══════════════════════════════════════════════════════════════════
+            new(
+                TenantCode: "VHG",
+                Code: "HN-LADO-HS",
+                Name: "Lá Đỏ Phố Cổ Homestay",
+                Slug: "la-do-pho-co-homestay",
+                Address: "38 Hàng Bạc, Phường Hàng Bạc, Quận Hoàn Kiếm, Hà Nội",
+                WardName: "Phường Hàng Bạc",
+                City: "Hà Nội",
+                ProvinceCode: "01",
+                Latitude: 21.0332,
+                Longitude: 105.8495,
+                PropertyType: PropertyType.Homestay,
+                StarRating: 4,
+                TouristZoneSlug: "ha-noi-pho-co",
+                TouristZoneName: "Hà Nội - Phố Cổ & Hồ Gươm",
+                PhoneNumber: "02439268888",
+                Email: "lado.hanoi@viethomestay.vn",
+                NearbyLandmarksJson: "[{\"Name\":\"Chợ Đêm Phố Cổ\",\"Category\":\"Phố đi bộ\",\"DistanceKm\":0.2},{\"Name\":\"Hồ Hoàn Kiếm\",\"Category\":\"Danh thắng\",\"DistanceKm\":0.5}]",
+                RoomTypes: new[]
+                {
+                    new RealRoomTypeSeedDefinition("HS-IND", "Phòng Gác Mái Phố Cổ", 680000m, 220000m, 70000m, 2, new[] { "201", "202" }),
+                    new RealRoomTypeSeedDefinition("HS-BAL", "Balcony Heritage Homestay Studio", 950000m, 290000m, 90000m, 3, new[] { "301", "302" })
+                }
+            ),
+            new(
+                TenantCode: "VHG",
+                Code: "DL-THONGXANH-HS",
+                Name: "Thông Xanh Pine Hill Homestay Đà Lạt",
+                Slug: "thong-xanh-pine-hill-homestay-da-lat",
+                Address: "45 Đặng Thái Thân, Phường 3, TP. Đà Lạt, Lâm Đồng",
+                WardName: "Phường 3",
+                City: "Đà Lạt",
+                ProvinceCode: "68",
+                Latitude: 11.9365,
+                Longitude: 108.4412,
+                PropertyType: PropertyType.Homestay,
+                StarRating: 4,
+                TouristZoneSlug: "da-lat",
+                TouristZoneName: "Đà Lạt - Thành Phố Ngàn Hoa",
+                PhoneNumber: "02633902345",
+                Email: "thongxanh.dalat@viethomestay.vn",
+                NearbyLandmarksJson: "[{\"Name\":\"Hồ Xuân Hương\",\"Category\":\"Danh thắng\",\"DistanceKm\":1.4},{\"Name\":\"Quảng Trường Lâm Viên\",\"Category\":\"Trung tâm\",\"DistanceKm\":1.6}]",
+                RoomTypes: new[]
+                {
+                    new RealRoomTypeSeedDefinition("HS-PIN", "Phòng Gỗ View Rừng Thông", 620000m, 200000m, 65000m, 2, new[] { "P01", "P02" }),
+                    new RealRoomTypeSeedDefinition("HS-FAM", "Căn Gác Mái Gia Đình", 1150000m, 340000m, 100000m, 4, new[] { "P03", "P04" })
+                }
+            ),
+            new(
+                TenantCode: "VHG",
+                Code: "HA-LANTERN-BB",
+                Name: "Phố Đèn Lồng Boutique Bed & Breakfast",
+                Slug: "pho-den-long-boutique-bnb-hoi-an",
+                Address: "62 Nguyễn Thái Học, Phường Minh An, TP. Hội An, Quảng Nam",
+                WardName: "Phường Minh An",
+                City: "Hội An",
+                ProvinceCode: "48",
+                Latitude: 15.8774,
+                Longitude: 108.3282,
+                PropertyType: PropertyType.BedAndBreakfast,
+                StarRating: 4,
+                TouristZoneSlug: "hoi-an",
+                TouristZoneName: "Phố Cổ Hội An - Di Sản Văn Hóa",
+                PhoneNumber: "02353915678",
+                Email: "lantern.hoian@viethomestay.vn",
+                NearbyLandmarksJson: "[{\"Name\":\"Chùa Cầu Hội An\",\"Category\":\"Di sản văn hóa\",\"DistanceKm\":0.3},{\"Name\":\"Sông Hoài\",\"Category\":\"Cảnh quan\",\"DistanceKm\":0.2}]",
+                RoomTypes: new[]
+                {
+                    new RealRoomTypeSeedDefinition("BB-STD", "Boutique B&B Kèm Bữa Sáng", 890000m, 260000m, 80000m, 2, new[] { "B101", "B102" }),
+                    new RealRoomTypeSeedDefinition("BB-TER", "River Terrace B&B Suite", 1320000m, 380000m, 110000m, 3, new[] { "B201", "B202" })
+                }
+            ),
+            new(
+                TenantCode: "VHG",
+                Code: "SP-MAYNGAN-HS",
+                Name: "Mây Ngàn Tả Phìn Homestay Sa Pa",
+                Slug: "may-ngan-ta-phin-homestay-sapa",
+                Address: "Thôn Tả Chải, Xã Tả Phìn, Thị xã Sa Pa, Lào Cai",
+                WardName: "Xã Tả Phìn",
+                City: "Sa Pa",
+                ProvinceCode: "15",
+                Latitude: 22.3622,
+                Longitude: 103.8548,
+                PropertyType: PropertyType.Homestay,
+                StarRating: 4,
+                TouristZoneSlug: "sa-pa",
+                TouristZoneName: "Sa Pa - Đỉnh Fansipan & Ruộng Bậc Thang",
+                PhoneNumber: "02143875678",
+                Email: "mayngan.sapa@viethomestay.vn",
+                NearbyLandmarksJson: "[{\"Name\":\"Tu Viện Cổ Tả Phìn\",\"Category\":\"Di tích\",\"DistanceKm\":0.9},{\"Name\":\"Nhà Thờ Đá Sa Pa\",\"Category\":\"Trung tâm\",\"DistanceKm\":7.5}]",
+                RoomTypes: new[]
+                {
+                    new RealRoomTypeSeedDefinition("HS-VAL", "Phòng Săn Mây Thung Lũng", 580000m, 180000m, 60000m, 2, new[] { "S01", "S02" }),
+                    new RealRoomTypeSeedDefinition("HS-BUNG", "Wooden Bungalow Tả Phìn", 980000m, 290000m, 90000m, 4, new[] { "S03", "S04" })
+                }
+            ),
+            new(
+                TenantCode: "MBV",
+                Code: "DL-HIGHLAND-VL",
+                Name: "Highland Pine Sanctuary Villas Đà Lạt",
+                Slug: "highland-pine-sanctuary-villas-da-lat",
+                Address: "12 Khu Biệt Thự Trần Hưng Đạo, Phường 10, TP. Đà Lạt, Lâm Đồng",
+                WardName: "Phường 10",
+                City: "Đà Lạt",
+                ProvinceCode: "68",
+                Latitude: 11.9384,
+                Longitude: 108.4560,
+                PropertyType: PropertyType.Villa,
+                StarRating: 5,
+                TouristZoneSlug: "da-lat",
+                TouristZoneName: "Đà Lạt - Thành Phố Ngàn Hoa",
+                PhoneNumber: "02633899888",
+                Email: "dalat@mekongvillas.vn",
+                NearbyLandmarksJson: "[{\"Name\":\"Dinh Bảo Đại I\",\"Category\":\"Kiến trúc lịch sử\",\"DistanceKm\":1.1},{\"Name\":\"Hồ Xuân Hương\",\"Category\":\"Danh thắng\",\"DistanceKm\":1.9}]",
+                RoomTypes: new[]
+                {
+                    new RealRoomTypeSeedDefinition("VL-2BR", "Pine Garden Villa 2 Phòng Ngủ", 3800000m, 950000m, 290000m, 4, new[] { "V01", "V02" }),
+                    new RealRoomTypeSeedDefinition("VL-4BR", "Heritage Estate Villa Nguyên Căn", 6900000m, 1650000m, 480000m, 8, new[] { "V03", "V04" })
+                }
+            ),
+            new(
+                TenantCode: "MBV",
+                Code: "PQ-PEARL-VL",
+                Name: "Mekong Pearl Sunset Pool Villa Phú Quốc",
+                Slug: "mekong-pearl-sunset-pool-villa-phu-quoc",
+                Address: "Bãi Trường, Phường Dương Tơ, TP. Phú Quốc, Kiên Giang",
+                WardName: "Phường Dương Tơ",
+                City: "Phú Quốc",
+                ProvinceCode: "91",
+                Latitude: 10.1552,
+                Longitude: 103.9725,
+                PropertyType: PropertyType.Villa,
+                StarRating: 5,
+                TouristZoneSlug: "phu-quoc",
+                TouristZoneName: "Đảo Ngọc Phú Quốc",
+                PhoneNumber: "02973996688",
+                Email: "phuquoc@mekongvillas.vn",
+                NearbyLandmarksJson: "[{\"Name\":\"Bãi Trường Phú Quốc\",\"Category\":\"Bãi biển\",\"DistanceKm\":0.1},{\"Name\":\"Chợ Đêm Phú Quốc\",\"Category\":\"Ẩm thực\",\"DistanceKm\":6.8}]",
+                RoomTypes: new[]
+                {
+                    new RealRoomTypeSeedDefinition("VL-POOL", "Private Pool Ocean Villa", 4800000m, 1250000m, 360000m, 4, new[] { "PQ1", "PQ2" }),
+                    new RealRoomTypeSeedDefinition("VL-BF", "Beachfront Grand Pool Villa", 8200000m, 2100000m, 600000m, 6, new[] { "PQ3", "PQ4" })
+                }
+            ),
+            new(
+                TenantCode: "MBV",
+                Code: "VT-CLIFF-VL",
+                Name: "Bãi Sau Cliffside Sanctuary Villa Vũng Tàu",
+                Slug: "bai-sau-cliffside-villa-vung-tau",
+                Address: "102 Thùy Vân, Phường Thắng Tam, TP. Vũng Tàu, Bà Rịa - Vũng Tàu",
+                WardName: "Phường Thắng Tam",
+                City: "Vũng Tàu",
+                ProvinceCode: "79",
+                Latitude: 10.3352,
+                Longitude: 107.0894,
+                PropertyType: PropertyType.Villa,
+                StarRating: 5,
+                TouristZoneSlug: "vung-tau",
+                TouristZoneName: "Biển Vũng Tàu & Bãi Sau",
+                PhoneNumber: "02543855777",
+                Email: "vungtau@mekongvillas.vn",
+                NearbyLandmarksJson: "[{\"Name\":\"Bãi Sau Thùy Vân\",\"Category\":\"Bãi biển\",\"DistanceKm\":0.1},{\"Name\":\"Tượng Chúa Kitô Vua\",\"Category\":\"Danh thắng\",\"DistanceKm\":2.1}]",
+                RoomTypes: new[]
+                {
+                    new RealRoomTypeSeedDefinition("VL-SEA", "Sea Breeze Villa Hồ Bơi Riêng", 4200000m, 1100000m, 330000m, 6, new[] { "VT1", "VT2" }),
+                    new RealRoomTypeSeedDefinition("VL-SKY", "Cliffside Panorama Villa 4BR", 7400000m, 1850000m, 550000m, 8, new[] { "VT3", "VT4" })
+                }
+            ),
+            new(
+                TenantCode: "MBV",
+                Code: "CT-RIVER-VL",
+                Name: "Mekong Riverfront Heritage Villa Cần Thơ",
+                Slug: "mekong-riverfront-villa-can-tho",
+                Address: "16 Hai Bà Trưng, Phường Tân An, Quận Ninh Kiều, TP. Cần Thơ",
+                WardName: "Phường Tân An",
+                City: "Cần Thơ",
+                ProvinceCode: "92",
+                Latitude: 10.0365,
+                Longitude: 105.7885,
+                PropertyType: PropertyType.Villa,
+                StarRating: 4,
+                TouristZoneSlug: "can-tho",
+                TouristZoneName: "Bến Ninh Kiều & Chợ Nổi Cái Răng",
+                PhoneNumber: "02923811999",
+                Email: "cantho@mekongvillas.vn",
+                NearbyLandmarksJson: "[{\"Name\":\"Bến Ninh Kiều\",\"Category\":\"Danh thắng\",\"DistanceKm\":0.4},{\"Name\":\"Chợ Nổi Cái Răng\",\"Category\":\"Văn hóa sông nước\",\"DistanceKm\":6.0}]",
+                RoomTypes: new[]
+                {
+                    new RealRoomTypeSeedDefinition("VL-RVR", "Riverfront Garden Villa", 2650000m, 720000m, 220000m, 4, new[] { "CT1", "CT2" }),
+                    new RealRoomTypeSeedDefinition("VL-FAM", "Mekong Delta Family Villa", 4100000m, 1050000m, 320000m, 6, new[] { "CT3", "CT4" })
+                }
+            ),
+            new(
+                TenantCode: "UEM",
+                Code: "HCM-SUITES-APT",
+                Name: "Urban Express Suites Quận 1 Aparthotel",
+                Slug: "urban-express-suites-quan-1-aparthotel",
+                Address: "78 Tôn Thất Đạm, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
+                WardName: "Phường Bến Nghé",
+                City: "TP. Hồ Chí Minh",
+                ProvinceCode: "79",
+                Latitude: 10.7721,
+                Longitude: 106.7024,
+                PropertyType: PropertyType.Apartment,
+                StarRating: 4,
+                TouristZoneSlug: "quan-1-tphcm",
+                TouristZoneName: "Trung Tâm Quận 1 & Phố Đi Bộ",
+                PhoneNumber: "02838234567",
+                Email: "q1suites@urbanexpress.vn",
+                NearbyLandmarksJson: "[{\"Name\":\"Phố Đi Bộ Nguyễn Huệ\",\"Category\":\"Trung tâm giải trí\",\"DistanceKm\":0.3},{\"Name\":\"Chợ Bến Thành\",\"Category\":\"Mua sắm\",\"DistanceKm\":0.7}]",
+                RoomTypes: new[]
+                {
+                    new RealRoomTypeSeedDefinition("APT-STU", "Studio Căn Hộ Bếp Riêng", 1150000m, 320000m, 100000m, 2, new[] { "501", "502", "503" }),
+                    new RealRoomTypeSeedDefinition("APT-1BR", "Executive 1BR Serviced Apartment", 1680000m, 450000m, 140000m, 3, new[] { "801", "802" })
+                }
+            ),
+            new(
+                TenantCode: "UEM",
+                Code: "DN-MYKHE-APT",
+                Name: "Urban Oceanfront Serviced Apartment Đà Nẵng",
+                Slug: "urban-oceanfront-serviced-apartment-da-nang",
+                Address: "240 Võ Nguyên Giáp, Phường Phước Mỹ, Quận Sơn Trà, Đà Nẵng",
+                WardName: "Phường Phước Mỹ",
+                City: "Đà Nẵng",
+                ProvinceCode: "48",
+                Latitude: 16.0598,
+                Longitude: 108.2455,
+                PropertyType: PropertyType.Apartment,
+                StarRating: 4,
+                TouristZoneSlug: "da-nang",
+                TouristZoneName: "Biển Mỹ Khê & Cầu Rồng Đà Nẵng",
+                PhoneNumber: "02363956789",
+                Email: "danang@urbanexpress.vn",
+                NearbyLandmarksJson: "[{\"Name\":\"Bãi Biển Mỹ Khê\",\"Category\":\"Bãi biển\",\"DistanceKm\":0.1},{\"Name\":\"Cầu Rồng Đà Nẵng\",\"Category\":\"Biểu tượng\",\"DistanceKm\":2.3}]",
+                RoomTypes: new[]
+                {
+                    new RealRoomTypeSeedDefinition("APT-OCN", "Oceanfront Studio Balcony", 1050000m, 290000m, 90000m, 2, new[] { "1101", "1102" }),
+                    new RealRoomTypeSeedDefinition("APT-2BR", "Family Ocean 2BR Apartment", 1850000m, 490000m, 150000m, 4, new[] { "1201", "1202" })
+                }
+            ),
+            new(
+                TenantCode: "UEM",
+                Code: "HN-MYDINH-MTL",
+                Name: "Urban Express Smart Motel Mỹ Đình",
+                Slug: "urban-express-smart-motel-my-dinh",
+                Address: "14 Lê Đức Thọ, Phường Mỹ Đình 2, Quận Nam Từ Liêm, Hà Nội",
+                WardName: "Phường Mỹ Đình 2",
+                City: "Hà Nội",
+                ProvinceCode: "01",
+                Latitude: 21.0285,
+                Longitude: 105.7712,
+                PropertyType: PropertyType.Motel,
+                StarRating: 3,
+                TouristZoneSlug: "ha-noi-pho-co",
+                TouristZoneName: "Hà Nội - Phố Cổ & Trung Tâm",
+                PhoneNumber: "02437951122",
+                Email: "mydinh@urbanexpress.vn",
+                NearbyLandmarksJson: "[{\"Name\":\"Sân Vận Động Quốc Gia Mỹ Đình\",\"Category\":\"Thể thao & Sự kiện\",\"DistanceKm\":0.8},{\"Name\":\"Trung Tâm Hội Nghị Quốc Gia\",\"Category\":\"Hội nghị\",\"DistanceKm\":2.5}]",
+                RoomTypes: new[]
+                {
+                    new RealRoomTypeSeedDefinition("MTL-STD", "Smart Motel Check-in Nhanh", 380000m, 120000m, 40000m, 2, new[] { "101", "102", "103" }),
+                    new RealRoomTypeSeedDefinition("MTL-VIP", "VIP Couple Smart Room", 520000m, 160000m, 50000m, 2, new[] { "201", "202" })
+                }
+            ),
+            new(
+                TenantCode: "UEM",
+                Code: "NB-TRANGAN-HST",
+                Name: "Tràng An Explorer Backpacker Hostel",
+                Slug: "trang-an-explorer-backpacker-hostel",
+                Address: "Xóm 3, Xã Ninh Xuân, Huyện Hoa Lư, Ninh Bình",
+                WardName: "Xã Ninh Xuân",
+                City: "Ninh Bình",
+                ProvinceCode: "37",
+                Latitude: 20.2285,
+                Longitude: 105.9325,
+                PropertyType: PropertyType.Hostel,
+                StarRating: 3,
+                TouristZoneSlug: "ninh-binh",
+                TouristZoneName: "Tràng An - Tam Cốc - Hang Múa",
+                PhoneNumber: "02293884455",
+                Email: "trangan@urbanexpress.vn",
+                NearbyLandmarksJson: "[{\"Name\":\"Hang Múa Ninh Bình\",\"Category\":\"Danh thắng\",\"DistanceKm\":0.7},{\"Name\":\"Khu Du Lịch Sinh Thái Tràng An\",\"Category\":\"Di sản thiên nhiên\",\"DistanceKm\":3.4}]",
+                RoomTypes: new[]
+                {
+                    new RealRoomTypeSeedDefinition("HST-DRM", "Giường Dorm Capsule Máy Lạnh", 220000m, 80000m, 25000m, 1, new[] { "D01", "D02", "D03", "D04" }),
+                    new RealRoomTypeSeedDefinition("HST-PRV", "Phòng Riêng Hostel View Núi Đá", 480000m, 150000m, 45000m, 2, new[] { "H101", "H102" })
                 }
             )
         };

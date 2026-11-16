@@ -27,9 +27,11 @@ public sealed class VerifyPhoneFirebaseTests
     private static string GetConnectionString()
     {
         var envConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION");
-        if (!string.IsNullOrWhiteSpace(envConn)) return envConn;
         var port = Environment.GetEnvironmentVariable("TEST_POSTGRES_PORT") ?? "5435";
-        return $"Host=localhost;Port={port};Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
+        var baseConn = !string.IsNullOrWhiteSpace(envConn)
+            ? envConn
+            : $"Host=localhost;Port={port};Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
+        return new NpgsqlConnectionStringBuilder(baseConn) { Pooling = false, PersistSecurityInfo = true }.ConnectionString;
     }
 
     private static ApplicationDbContext CreateContext(string schema)
@@ -420,5 +422,28 @@ public sealed class VerifyPhoneFirebaseTests
             dropCmd.CommandText = $"DROP SCHEMA IF EXISTS \"{schema}\" CASCADE;";
             await dropCmd.ExecuteNonQueryAsync();
         }
+    }
+
+    private sealed class StubHostEnvironment(string environmentName) : Microsoft.Extensions.Hosting.IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = environmentName;
+        public string ApplicationName { get; set; } = "HotelSaas.Tests";
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
+    }
+
+    [Fact]
+    public async Task VerifyIdTokenAsync_InProductionEnvironment_RejectsDevMockToken()
+    {
+        var dict = new Dictionary<string, string?> { ["Firebase:ProjectId"] = "hotelsaas-platform-test" };
+        var config = new ConfigurationBuilder().AddInMemoryCollection(dict).Build();
+        var prodEnv = new StubHostEnvironment("Production");
+        var service = new FirebaseAuthService(config, NullLogger<FirebaseAuthService>.Instance, prodEnv);
+
+        var result = await service.VerifyIdTokenAsync("dev-mock-token:+84901234567", CancellationToken.None);
+
+        Assert.False(result.IsValid);
+        Assert.Null(result.PhoneNumber);
+        Assert.Contains("Production", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 }

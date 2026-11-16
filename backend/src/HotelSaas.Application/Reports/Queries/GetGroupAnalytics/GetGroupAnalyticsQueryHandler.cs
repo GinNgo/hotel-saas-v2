@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
 using HotelSaas.Domain.Enums;
@@ -19,13 +20,16 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
+    private readonly ICurrentPropertyService? _currentPropertyService;
 
     public GetGroupAnalyticsQueryHandler(
         IApplicationDbContext context,
-        ICurrentTenantService currentTenantService)
+        ICurrentTenantService currentTenantService,
+        ICurrentPropertyService? currentPropertyService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _currentTenantService = currentTenantService ?? throw new ArgumentNullException(nameof(currentTenantService));
+        _currentPropertyService = currentPropertyService;
     }
 
     public async Task<ApiResponse<GroupAnalyticsDto>> Handle(GetGroupAnalyticsQuery request, CancellationToken cancellationToken)
@@ -34,6 +38,13 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
         if (!tenantId.HasValue || tenantId == Guid.Empty)
         {
             throw new UnauthorizedAccessException("Yêu cầu thông tin Tenant hợp lệ để truy vấn phân tích chuỗi khách sạn.");
+        }
+
+        if (_currentPropertyService != null && !_currentPropertyService.IsTenantWide && _currentPropertyService.PropertyId.HasValue)
+        {
+            throw new ForbiddenException(
+                "ERR_PROPERTY_FORBIDDEN",
+                "Chỉ tài khoản cấp Chuỗi/Tập đoàn (Tenant-Wide) mới có quyền truy cập báo cáo hợp nhất đa chi nhánh.");
         }
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -331,18 +342,6 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
                 Percentage = Math.Round((double)paymentCount(PaymentMethod.CreditCard) / totalPayCount * 100, 1)
             }
         };
-
-        // Nếu chuỗi chưa có bản ghi payment độc lập mà có doanh thu đặt phòng, mô phỏng cơ cấu thực tế
-        if (totalPaymentCount == 0 && totalPortfolioRevenue > 0)
-        {
-            payList = new List<GroupPaymentDistributionDto>
-            {
-                new() { Method = "VNPay QR / Thẻ nội địa", Count = (int)Math.Ceiling(validReservations.Count * 0.45), Amount = totalPortfolioRevenue * 0.45m, Percentage = 45.0 },
-                new() { Method = "Chuyển khoản (VietQR / Napas)", Count = (int)Math.Ceiling(validReservations.Count * 0.35), Amount = totalPortfolioRevenue * 0.35m, Percentage = 35.0 },
-                new() { Method = "Tiền mặt tại quầy (Cash)", Count = Math.Max(0, validReservations.Count - (int)Math.Ceiling(validReservations.Count * 0.80)), Amount = totalPortfolioRevenue * 0.20m, Percentage = 20.0 },
-                new() { Method = "Thẻ quốc tế (Visa/Mastercard)", Count = 0, Amount = 0m, Percentage = 0.0 }
-            };
-        }
 
         var result = new GroupAnalyticsDto
         {

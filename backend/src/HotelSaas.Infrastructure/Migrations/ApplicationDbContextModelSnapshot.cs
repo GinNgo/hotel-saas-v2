@@ -2261,14 +2261,16 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.HasOne("HotelSaas.Domain.Entities.Room", "Room")
                         .WithMany("Reservations")
                         .HasForeignKey("RoomId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_Reservations_Rooms_RoomId");
 
                     b.HasOne("HotelSaas.Domain.Entities.Tenant", "Tenant")
                         .WithMany("Reservations")
                         .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_Reservations_Tenants_TenantId");
 
                     b.HasOne("HotelSaas.Domain.Entities.Room", null)
                         .WithMany()

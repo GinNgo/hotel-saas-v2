@@ -43,15 +43,45 @@ public sealed class SwitchContextCommandHandler : IRequestHandler<SwitchContextC
             throw new UnauthorizedAccessException("Yêu cầu xác thực danh tính để chuyển ngữ cảnh.");
         }
 
-        // Verify target property existence (bypassing query filters to find owning tenant)
-        var property = await _context.Properties
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.Id == request.PropertyId, cancellationToken);
+        Guid tenantId;
+        Guid? targetPropertyId = request.PropertyId.HasValue && request.PropertyId.Value != Guid.Empty
+            ? request.PropertyId.Value
+            : null;
 
-        if (property is null)
+        if (!targetPropertyId.HasValue)
         {
-            throw new NotFoundException("Chi nhánh không tồn tại.");
+            // Switching back to Chain HQ (TenantWide) scope
+            tenantId = _userContext.TenantId ?? Guid.Empty;
+            if (tenantId == Guid.Empty)
+            {
+                tenantId = await _context.TenantStaffMembers
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(s => s.UserId == userId && s.PropertyId == null && s.IsActive)
+                    .Select(s => s.TenantId)
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+
+            if (tenantId == Guid.Empty)
+            {
+                throw new ForbiddenException("ERR_PROPERTY_FORBIDDEN",
+                    "Tài khoản của bạn chỉ được phân quyền theo chi nhánh, không có quyền truy cập chế độ Toàn chuỗi (HQ).");
+            }
+        }
+        else
+        {
+            // Verify target property existence (bypassing query filters to find owning tenant)
+            var property = await _context.Properties
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == targetPropertyId.Value, cancellationToken);
+
+            if (property is null)
+            {
+                throw new NotFoundException("Chi nhánh không tồn tại.");
+            }
+
+            tenantId = property.TenantId;
         }
 
         await using var transaction = await _context.BeginTransactionAsync(cancellationToken);
@@ -59,11 +89,11 @@ public sealed class SwitchContextCommandHandler : IRequestHandler<SwitchContextC
         // 1. Root Synchronization Mutex: Lock user row using FOR UPDATE
         await _context.LockUserRowAsync(userId, cancellationToken);
 
-        // 2. Deterministically resolve membership at target property
+        // 2. Deterministically resolve membership at target property or HQ (null)
         var lookupResult = await _membershipLookupService.ResolveMembershipAsync(
-            property.TenantId,
+            tenantId,
             userId,
-            request.PropertyId,
+            targetPropertyId,
             cancellationToken);
 
         if (lookupResult.Status == MembershipLookupStatus.MembershipRevoked)
@@ -74,8 +104,11 @@ public sealed class SwitchContextCommandHandler : IRequestHandler<SwitchContextC
 
         if (lookupResult.Status != MembershipLookupStatus.Success || !lookupResult.RoleId.HasValue)
         {
-            throw new ForbiddenException("ERR_PROPERTY_FORBIDDEN",
-                lookupResult.ErrorMessage ?? "Bạn không có quyền truy cập vào chi nhánh này.");
+            var forbiddenMessage = !targetPropertyId.HasValue
+                ? "Tài khoản của bạn chỉ được phân quyền theo chi nhánh, không có quyền truy cập chế độ Toàn chuỗi (HQ)."
+                : (lookupResult.ErrorMessage ?? "Bạn không có quyền truy cập vào chi nhánh này.");
+
+            throw new ForbiddenException("ERR_PROPERTY_FORBIDDEN", forbiddenMessage);
         }
 
         // 3. Load user profile
@@ -95,7 +128,8 @@ public sealed class SwitchContextCommandHandler : IRequestHandler<SwitchContextC
             .Select(rp => $"{rp.Function!.Code}:{rp.ActionMask}")
             .ToListAsync(cancellationToken);
 
-        var scope = lookupResult.IsTenantWide ? "TenantWide" : "PropertyScoped";
+        var scope = !targetPropertyId.HasValue || lookupResult.IsTenantWide ? "TenantWide" : "PropertyScoped";
+        var roleName = lookupResult.StaffRole?.ToString() ?? (!targetPropertyId.HasValue ? "Owner" : "Staff");
 
         // 5. Generate new scoped tokens with alias claims
         var (accessToken, newRefreshToken, expiresAtUtc) = _jwtService.GenerateTokens(
@@ -103,11 +137,11 @@ public sealed class SwitchContextCommandHandler : IRequestHandler<SwitchContextC
             user.Email,
             user.FullName,
             user.GlobalRole.ToString(),
-            property.TenantId,
+            tenantId,
             permissions,
-            request.PropertyId,
+            targetPropertyId,
             scope,
-            lookupResult.StaffRole?.ToString());
+            roleName);
 
         // 6. Persist new refresh token
         var refreshTokenEntity = new Domain.Entities.RefreshToken
@@ -124,10 +158,10 @@ public sealed class SwitchContextCommandHandler : IRequestHandler<SwitchContextC
         await transaction.CommitAsync(cancellationToken);
 
         var currentContextDto = new CurrentContextDto(
-            property.TenantId,
-            request.PropertyId,
+            tenantId,
+            targetPropertyId,
             scope,
-            lookupResult.StaffRole?.ToString() ?? "Staff");
+            roleName);
 
         return new SwitchContextResponse(
             accessToken,

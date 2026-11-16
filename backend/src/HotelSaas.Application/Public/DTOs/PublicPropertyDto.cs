@@ -20,21 +20,31 @@ public sealed record PublicLandmarkDistanceDto(
 public sealed class PublicPropertyDto
 {
     public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
+    public string TenantBrandName { get; set; } = string.Empty;
+    public string TenantSlug { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
     public string Slug { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
     public string City { get; set; } = string.Empty;
+    public string? ProvinceCode { get; set; }
+    public string? ProvinceName { get; set; }
+    public string? WardName { get; set; }
     public TimeOnly CheckInTime { get; set; }
     public TimeOnly CheckOutTime { get; set; }
     public int BufferMinutes { get; set; }
     public int MaxHourlyHours { get; set; }
     public string? ImageUrl { get; set; }
+    public string? ThumbnailUrl { get; set; }
+    public List<string> GalleryUrls { get; set; } = new();
 
     [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter))]
     public PropertyType PropertyType { get; set; } = PropertyType.Hotel;
     public string PropertyTypeName { get; set; } = "Khách sạn";
     public int StarRating { get; set; }
+    public double RatingAverage { get; set; }
+    public int ReviewCount { get; set; }
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
     public string? TouristZoneSlug { get; set; }

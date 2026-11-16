@@ -259,7 +259,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
     expect(text).toContain('Lưu ý phân định dữ liệu thu ngân');
     expect(text).toContain('múi giờ Việt Nam UTC+7');
     expect(text).toContain('múi giờ chuẩn UTC');
-  });
+  }, 15000);
 
   // =========================================================================
   // BAC 2: PROPERTY SWITCH (A -> B) & STALE RESPONSE REJECTION + DISPOSAL

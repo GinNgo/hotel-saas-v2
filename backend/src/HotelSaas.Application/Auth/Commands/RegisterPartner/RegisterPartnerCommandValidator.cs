@@ -37,5 +37,34 @@ public sealed class RegisterPartnerCommandValidator : AbstractValidator<Register
 
         RuleFor(x => x.ProvinceCode)
             .NotEmpty().WithMessage("Vui lòng chọn Tỉnh/Thành phố.");
+
+        RuleFor(x => x.BrandName)
+            .MaximumLength(200).WithMessage("Tên thương hiệu không được vượt quá 200 ký tự.")
+            .When(x => !string.IsNullOrWhiteSpace(x.BrandName));
+
+        RuleFor(x => x.PropertyType)
+            .Must(pt => System.Enum.IsDefined(typeof(HotelSaas.Domain.Enums.PropertyType), pt!.Value))
+            .WithMessage("Loại hình cơ sở lưu trú không hợp lệ (giá trị hợp lệ từ 1 đến 8).")
+            .When(x => x.PropertyType.HasValue);
+
+        RuleFor(x => x.StarRating)
+            .InclusiveBetween(1, 5).WithMessage("Hạng sao phải nằm trong khoảng từ 1 đến 5.")
+            .When(x => x.StarRating.HasValue);
+
+        RuleFor(x => x.Latitude)
+            .InclusiveBetween(-90.0, 90.0).WithMessage("Vĩ độ phải nằm trong khoảng từ -90 đến 90.")
+            .When(x => x.Latitude.HasValue);
+
+        RuleFor(x => x.Longitude)
+            .InclusiveBetween(-180.0, 180.0).WithMessage("Kinh độ phải nằm trong khoảng từ -180 đến 180.")
+            .When(x => x.Longitude.HasValue);
+
+        RuleFor(x => x.DefaultNightlyPrice)
+            .GreaterThan(0m).WithMessage("Giá phòng theo đêm mặc định phải lớn hơn 0.")
+            .When(x => x.DefaultNightlyPrice.HasValue);
+
+        RuleFor(x => x.DefaultHourlyPrice)
+            .GreaterThan(0m).WithMessage("Giá phòng theo giờ mặc định phải lớn hơn 0.")
+            .When(x => x.DefaultHourlyPrice.HasValue);
     }
 }

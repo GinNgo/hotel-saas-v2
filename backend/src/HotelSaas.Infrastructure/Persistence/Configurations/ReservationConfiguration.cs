@@ -28,6 +28,20 @@ public class ReservationConfiguration : IEntityTypeConfiguration<Reservation>
             .OnDelete(DeleteBehavior.Restrict)
             .HasConstraintName("FK_Reservations_Properties_PropertyId");
 
+        // Direct foreign key to Room: ON DELETE RESTRICT (eliminates dangerous Cascade Delete)
+        builder.HasOne(res => res.Room)
+            .WithMany(rm => rm.Reservations)
+            .HasForeignKey(res => res.RoomId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("FK_Reservations_Rooms_RoomId");
+
+        // Direct foreign key to Tenant: ON DELETE RESTRICT
+        builder.HasOne(res => res.Tenant)
+            .WithMany(t => t.Reservations)
+            .HasForeignKey(res => res.TenantId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("FK_Reservations_Tenants_TenantId");
+
         // Alternate key for composite payment validation
         builder.HasAlternateKey(res => new { res.PropertyId, res.Id })
             .HasName("UX_Reservations_PropertyId_Id");

@@ -16,4 +16,14 @@ public sealed record RegisterPartnerCommand(
     string PropertyName,
     string Address,
     string ProvinceCode,
-    string? WardCode) : IRequest<RegisterPartnerResponse>;
+    string? WardCode,
+    string? BrandName = null,
+    int? PropertyType = null,
+    int? StarRating = null,
+    double? Latitude = null,
+    double? Longitude = null,
+    bool? AllowHourlyBooking = null,
+    bool? AllowOvernightBooking = null,
+    bool? AllowDailyBooking = null,
+    decimal? DefaultNightlyPrice = null,
+    decimal? DefaultHourlyPrice = null) : IRequest<RegisterPartnerResponse>;

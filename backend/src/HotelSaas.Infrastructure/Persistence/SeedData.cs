@@ -114,7 +114,7 @@ public static class SeedData
             Id = ownerId,
             Code = "OWNER",
             Name = "Hotel Owner",
-            Description = "Full property access with read-only subscription visibility.",
+            Description = "Full property and subscription management access for tenant owners.",
             IsSystemRole = true
         };
         var ownerPerms = BuildPermissions(ownerId, permissions,
@@ -122,7 +122,7 @@ public static class SeedData
             ("RESERVATIONS", All), ("GUESTS", All), ("CHECK_IN_OUT", All),
             ("HOUSEKEEPING", All), ("PAYMENTS", All), ("INVOICES", All),
             ("REPORTS", All), ("STAFF", All), ("ROLES", All),
-            ("SETTINGS", All), ("SUBSCRIPTIONS", Read), ("PROMOTIONS", All),
+            ("SETTINGS", All), ("SUBSCRIPTIONS", All), ("PROMOTIONS", All),
             ("REVIEWS", All), ("AI_FEATURES", All));
 
         // ── MANAGER ───────────────────────────────────────────────────────
@@ -136,8 +136,8 @@ public static class SeedData
             IsSystemRole = true
         };
         var managerPerms = BuildPermissions(managerId, permissions,
-            ("PROPERTIES", ReadUpdate), ("ROOMS", All), ("ROOM_TYPES", All), ("RESERVATIONS", All),
-            ("GUESTS", All), ("CHECK_IN_OUT", All), ("HOUSEKEEPING", All),
+            ("DASHBOARD", Read), ("PROPERTIES", ReadUpdate), ("ROOMS", All), ("ROOM_TYPES", All),
+            ("RESERVATIONS", All), ("GUESTS", All), ("CHECK_IN_OUT", All), ("HOUSEKEEPING", All),
             ("PAYMENTS", All), ("INVOICES", All), ("REPORTS", All),
             ("STAFF", ReadCreate), ("ROLES", Read), ("SETTINGS", Read));
 
@@ -363,78 +363,85 @@ public static class SeedData
 
     private static async Task EnsureRolePermissionsUpToDateAsync(ApplicationDbContext context)
     {
-        // Ensure PROPERTIES permission function exists
-        var propertiesFunc = await context.PermissionFunctions.FirstOrDefaultAsync(f => f.Code == "PROPERTIES");
-        if (propertiesFunc == null)
+        const int All = 127;
+        const int Read = 1;
+
+        await UpsertRolePermissionAsync(context, "PROPERTIES", "Property Management", "PROPERTIES",
+            ["OWNER", "SUPER_ADMIN"], All, exactMatch: true);
+        await UpsertRolePermissionAsync(context, "SUBSCRIPTIONS", "Subscription Management", "SUBSCRIPTIONS",
+            ["OWNER", "SUPER_ADMIN"], All, exactMatch: true);
+        await UpsertRolePermissionAsync(context, "DASHBOARD", "Dashboard", "DASHBOARD",
+            ["MANAGER"], Read, exactMatch: false);
+        await UpsertRolePermissionAsync(context, "ROOM_TYPES", "Room Type Management", "ROOMS",
+            ["RECEPTIONIST"], Read, exactMatch: false);
+
+        // Also ensure platform admin data is seeded even if roles already exist
+        await SeedPlatformAdminDataAsync(context);
+        await EnsureTestPersonnelAccountsVerifiedAsync(context);
+    }
+
+    private static async Task UpsertRolePermissionAsync(
+        ApplicationDbContext context,
+        string functionCode,
+        string functionName,
+        string moduleCode,
+        IReadOnlyCollection<string> roleCodes,
+        int mask,
+        bool exactMatch)
+    {
+        var function = await context.PermissionFunctions.FirstOrDefaultAsync(f => f.Code == functionCode);
+        if (function == null)
         {
-            propertiesFunc = new PermissionFunction
+            function = new PermissionFunction
             {
                 Id = Guid.NewGuid(),
-                Code = "PROPERTIES",
-                Name = "Property Management",
-                ModuleCode = "PROPERTIES",
+                Code = functionCode,
+                Name = functionName,
+                ModuleCode = moduleCode,
                 SupportedActionMask = 127,
                 IsActive = true
             };
-            context.PermissionFunctions.Add(propertiesFunc);
+            context.PermissionFunctions.Add(function);
             await context.SaveChangesAsync();
         }
 
-        // Ensure OWNER and SUPER_ADMIN have PROPERTIES:127
-        var fullRoles = await context.AccessRoles
-            .Where(r => r.Code == "OWNER" || r.Code == "SUPER_ADMIN")
+        var roles = await context.AccessRoles
+            .Where(r => roleCodes.Contains(r.Code))
             .ToListAsync();
 
-        foreach (var role in fullRoles)
+        var modified = false;
+        foreach (var role in roles)
         {
             var existing = await context.RolePermissions
-                .FirstOrDefaultAsync(rp => rp.RoleId == role.Id && rp.FunctionId == propertiesFunc.Id);
+                .FirstOrDefaultAsync(rp => rp.RoleId == role.Id && rp.FunctionId == function.Id);
+
             if (existing == null)
             {
                 context.RolePermissions.Add(new RolePermission
                 {
                     Id = Guid.NewGuid(),
                     RoleId = role.Id,
-                    FunctionId = propertiesFunc.Id,
-                    ActionMask = 127
+                    FunctionId = function.Id,
+                    ActionMask = mask
                 });
+                modified = true;
             }
-            else if (existing.ActionMask != 127)
+            else if (exactMatch && existing.ActionMask != mask)
             {
-                existing.ActionMask = 127;
+                existing.ActionMask = mask;
+                modified = true;
+            }
+            else if (!exactMatch && (existing.ActionMask & mask) != mask)
+            {
+                existing.ActionMask |= mask;
+                modified = true;
             }
         }
-        await context.SaveChangesAsync();
-        var receptionistRole = await context.AccessRoles.FirstOrDefaultAsync(r => r.Code == "RECEPTIONIST");
-        if (receptionistRole == null) return;
 
-        var roomTypesFunc = await context.PermissionFunctions.FirstOrDefaultAsync(f => f.Code == "ROOM_TYPES");
-        if (roomTypesFunc == null) return;
-
-        const int Read = 1;
-        var existingPerm = await context.RolePermissions
-            .FirstOrDefaultAsync(rp => rp.RoleId == receptionistRole.Id && rp.FunctionId == roomTypesFunc.Id);
-
-        if (existingPerm == null)
+        if (modified)
         {
-            context.RolePermissions.Add(new RolePermission
-            {
-                Id = Guid.NewGuid(),
-                RoleId = receptionistRole.Id,
-                FunctionId = roomTypesFunc.Id,
-                ActionMask = Read
-            });
             await context.SaveChangesAsync();
         }
-        else if ((existingPerm.ActionMask & Read) != Read)
-        {
-            existingPerm.ActionMask |= Read;
-            await context.SaveChangesAsync();
-        }
-
-        // Also ensure platform admin data is seeded even if roles already exist
-        await SeedPlatformAdminDataAsync(context);
-        await EnsureTestPersonnelAccountsVerifiedAsync(context);
     }
 
     /// <summary>

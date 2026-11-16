@@ -14,12 +14,17 @@ namespace HotelSaas.WebApi.Middleware;
 /// </summary>
 public static class SystemMetricsRegistry
 {
+    private const int MaxMetricCardinality = 256;
+    private static readonly object CardinalityLock = new();
+
     private static long _totalRequests;
     private static long _totalErrors5xx;
     private static long _totalIsolationBlocks;
     private static long _activeSignalRConnections;
     private static long _vnpayIpnSuccessCount;
+    private static long _vnpayIpnOrderNotFoundCount;
     private static long _vnpayIpnDuplicateCount;
+    private static long _vnpayIpnInvalidAmountCount;
     private static long _vnpayIpnInvalidChecksumCount;
 
     private static readonly ConcurrentDictionary<string, long> RouteRequestCounts = new();
@@ -38,8 +43,16 @@ public static class SystemMetricsRegistry
         Interlocked.Increment(ref _totalRequests);
 
         var normalizedRoute = NormalizeRoute(path);
+        if (statusCode == StatusCodes.Status404NotFound &&
+            !normalizedRoute.StartsWith("/api/", StringComparison.Ordinal) &&
+            !normalizedRoute.StartsWith("/hubs/", StringComparison.Ordinal) &&
+            !normalizedRoute.StartsWith("/health", StringComparison.Ordinal))
+        {
+            normalizedRoute = "/_unmatched";
+        }
+
         var key = $"{method}:{normalizedRoute}:{statusCode}";
-        RouteRequestCounts.AddOrUpdate(key, 1, (_, c) => c + 1);
+        IncrementBounded(RouteRequestCounts, key, $"OTHER:/_overflow:{statusCode}", "OTHER:/_overflow:other");
 
         if (statusCode >= 500)
         {
@@ -49,7 +62,7 @@ public static class SystemMetricsRegistry
         if (tenantId.HasValue)
         {
             var tenantKey = $"{tenantId.Value}:{propertyId?.ToString() ?? "tenant-wide"}";
-            TenantActiveRequests.AddOrUpdate(tenantKey, 1, (_, c) => c + 1);
+            IncrementBounded(TenantActiveRequests, tenantKey, "_overflow");
         }
 
         if (statusCode is StatusCodes.Status401Unauthorized or StatusCodes.Status403Forbidden or StatusCodes.Status400BadRequest &&
@@ -60,15 +73,66 @@ public static class SystemMetricsRegistry
              errorCode.Contains("TOKEN_TAMPERED", StringComparison.OrdinalIgnoreCase) ||
              errorCode.Contains("MEMBERSHIP_REVOKED", StringComparison.OrdinalIgnoreCase)))
         {
-            Interlocked.Increment(ref _totalIsolationBlocks);
-            IsolationBlockReasons.AddOrUpdate(errorCode, 1, (_, c) => c + 1);
+            RecordIsolationBlock(errorCode);
+        }
+    }
+
+    public static void RecordIsolationBlock(string errorCode)
+    {
+        var normalizedCode = string.IsNullOrWhiteSpace(errorCode) ? "UNKNOWN_BLOCK" : errorCode.Trim();
+        Interlocked.Increment(ref _totalIsolationBlocks);
+        IncrementBounded(IsolationBlockReasons, normalizedCode, "OTHER_OVERFLOW");
+    }
+
+    public static (int RouteKeys, int IsolationReasonKeys, int TenantActiveKeys) GetCardinalitySnapshot() =>
+        (RouteRequestCounts.Count, IsolationBlockReasons.Count, TenantActiveRequests.Count);
+
+    private static void IncrementBounded(
+        ConcurrentDictionary<string, long> dict,
+        string key,
+        string overflowKey,
+        string? fallbackOverflowKey = null)
+    {
+        if (dict.ContainsKey(key))
+        {
+            dict.AddOrUpdate(key, 1, (_, c) => c + 1);
+            return;
         }
 
-        if (path.Contains("vnpay", StringComparison.OrdinalIgnoreCase) && path.Contains("ipn", StringComparison.OrdinalIgnoreCase))
+        lock (CardinalityLock)
         {
-            if (statusCode == StatusCodes.Status200OK)
+            if (dict.ContainsKey(key))
             {
-                Interlocked.Increment(ref _vnpayIpnSuccessCount);
+                dict.AddOrUpdate(key, 1, (_, c) => c + 1);
+                return;
+            }
+
+            if (dict.Count < MaxMetricCardinality - 1)
+            {
+                dict.AddOrUpdate(key, 1, (_, c) => c + 1);
+                return;
+            }
+
+            if (dict.ContainsKey(overflowKey) || dict.Count < MaxMetricCardinality)
+            {
+                dict.AddOrUpdate(overflowKey, 1, (_, c) => c + 1);
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(fallbackOverflowKey) &&
+                (dict.ContainsKey(fallbackOverflowKey) || dict.Count < MaxMetricCardinality))
+            {
+                dict.AddOrUpdate(fallbackOverflowKey, 1, (_, c) => c + 1);
+                return;
+            }
+
+            foreach (var existing in dict.Keys)
+            {
+                if (existing.StartsWith("OTHER:/_overflow:", StringComparison.Ordinal))
+                {
+                    dict.AddOrUpdate(existing, 1, (_, c) => c + 1);
+                    return;
+                }
             }
         }
     }
@@ -80,8 +144,14 @@ public static class SystemMetricsRegistry
             case "00":
                 Interlocked.Increment(ref _vnpayIpnSuccessCount);
                 break;
+            case "01":
+                Interlocked.Increment(ref _vnpayIpnOrderNotFoundCount);
+                break;
             case "02":
                 Interlocked.Increment(ref _vnpayIpnDuplicateCount);
+                break;
+            case "04":
+                Interlocked.Increment(ref _vnpayIpnInvalidAmountCount);
                 break;
             case "97":
                 Interlocked.Increment(ref _vnpayIpnInvalidChecksumCount);
@@ -90,7 +160,23 @@ public static class SystemMetricsRegistry
     }
 
     public static void IncrementSignalRConnection() => Interlocked.Increment(ref _activeSignalRConnections);
-    public static void DecrementSignalRConnection() => Interlocked.Decrement(ref _activeSignalRConnections);
+
+    public static void DecrementSignalRConnection()
+    {
+        while (true)
+        {
+            var current = Interlocked.Read(ref _activeSignalRConnections);
+            if (current <= 0)
+            {
+                return;
+            }
+
+            if (Interlocked.CompareExchange(ref _activeSignalRConnections, current - 1, current) == current)
+            {
+                return;
+            }
+        }
+    }
 
     public static string ExportPrometheusText()
     {
@@ -107,9 +193,14 @@ public static class SystemMetricsRegistry
         sb.AppendLine("# TYPE hotelsaas_tenant_isolation_blocks_total counter");
         sb.AppendLine($"hotelsaas_tenant_isolation_blocks_total {Interlocked.Read(ref _totalIsolationBlocks)}");
 
-        foreach (var kvp in IsolationBlockReasons)
+        if (!IsolationBlockReasons.IsEmpty)
         {
-            sb.AppendLine($"hotelsaas_tenant_isolation_blocks_by_reason_total{{error_code=\"{kvp.Key}\"}} {kvp.Value}");
+            sb.AppendLine("# HELP hotelsaas_tenant_isolation_blocks_by_reason_total Cross-tenant or cross-branch isolation blocks grouped by error code.");
+            sb.AppendLine("# TYPE hotelsaas_tenant_isolation_blocks_by_reason_total counter");
+            foreach (var kvp in IsolationBlockReasons)
+            {
+                sb.AppendLine($"hotelsaas_tenant_isolation_blocks_by_reason_total{{error_code=\"{EscapeLabelValue(kvp.Key)}\"}} {kvp.Value}");
+            }
         }
 
         sb.AppendLine("# HELP hotelsaas_signalr_active_connections Current active SignalR NotificationHub connections.");
@@ -119,20 +210,30 @@ public static class SystemMetricsRegistry
         sb.AppendLine("# HELP hotelsaas_vnpay_ipn_total Total VNPay IPN webhook callbacks by response code.");
         sb.AppendLine("# TYPE hotelsaas_vnpay_ipn_total counter");
         sb.AppendLine($"hotelsaas_vnpay_ipn_total{{rsp_code=\"00\"}} {Interlocked.Read(ref _vnpayIpnSuccessCount)}");
+        sb.AppendLine($"hotelsaas_vnpay_ipn_total{{rsp_code=\"01\"}} {Interlocked.Read(ref _vnpayIpnOrderNotFoundCount)}");
         sb.AppendLine($"hotelsaas_vnpay_ipn_total{{rsp_code=\"02\"}} {Interlocked.Read(ref _vnpayIpnDuplicateCount)}");
+        sb.AppendLine($"hotelsaas_vnpay_ipn_total{{rsp_code=\"04\"}} {Interlocked.Read(ref _vnpayIpnInvalidAmountCount)}");
         sb.AppendLine($"hotelsaas_vnpay_ipn_total{{rsp_code=\"97\"}} {Interlocked.Read(ref _vnpayIpnInvalidChecksumCount)}");
 
-        foreach (var kvp in RouteRequestCounts)
+        if (!RouteRequestCounts.IsEmpty)
         {
-            var parts = kvp.Key.Split(':');
-            if (parts.Length == 3)
+            sb.AppendLine("# HELP hotelsaas_http_route_requests_total Total HTTP requests grouped by method, normalized route, and status code.");
+            sb.AppendLine("# TYPE hotelsaas_http_route_requests_total counter");
+            foreach (var kvp in RouteRequestCounts)
             {
-                sb.AppendLine($"hotelsaas_http_route_requests_total{{method=\"{parts[0]}\",route=\"{parts[1]}\",status=\"{parts[2]}\"}} {kvp.Value}");
+                var parts = kvp.Key.Split(':');
+                if (parts.Length == 3)
+                {
+                    sb.AppendLine($"hotelsaas_http_route_requests_total{{method=\"{EscapeLabelValue(parts[0])}\",route=\"{EscapeLabelValue(parts[1])}\",status=\"{EscapeLabelValue(parts[2])}\"}} {kvp.Value}");
+                }
             }
         }
 
         return sb.ToString();
     }
+
+    private static string EscapeLabelValue(string value) =>
+        value.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
     private static string NormalizeRoute(string path)
     {
@@ -147,6 +248,17 @@ public static class SystemMetricsRegistry
         }
         return "/" + string.Join("/", segments).ToLowerInvariant();
     }
+}
+
+/// <summary>
+/// Singleton implementation of <see cref="ISystemMetricsRecorder"/> delegating to <see cref="SystemMetricsRegistry"/>.
+/// </summary>
+public sealed class SystemMetricsRecorder : ISystemMetricsRecorder
+{
+    public void RecordVnpayIpnResult(string rspCode) => SystemMetricsRegistry.RecordVnpayIpnResult(rspCode);
+    public void IncrementSignalRConnection() => SystemMetricsRegistry.IncrementSignalRConnection();
+    public void DecrementSignalRConnection() => SystemMetricsRegistry.DecrementSignalRConnection();
+    public void RecordIsolationBlock(string errorCode) => SystemMetricsRegistry.RecordIsolationBlock(errorCode);
 }
 
 /// <summary>
@@ -175,6 +287,11 @@ public sealed class CorrelationAndStructuredLogMiddleware
         ICurrentUserContext userContext)
     {
         var correlationId = ResolveOrGenerateCorrelationId(context);
+        context.Items[CorrelationIdHeaderName] = correlationId;
+        if (!context.Response.Headers.ContainsKey(CorrelationIdHeaderName))
+        {
+            context.Response.Headers[CorrelationIdHeaderName] = correlationId;
+        }
         context.Response.OnStarting(() =>
         {
             if (!context.Response.Headers.ContainsKey(CorrelationIdHeaderName))

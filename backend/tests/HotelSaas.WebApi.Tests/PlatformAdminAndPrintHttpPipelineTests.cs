@@ -200,6 +200,7 @@ public sealed class PlatformAdminAndPrintHttpPipelineTests
                 new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, userId.ToString()),
                 new System.Security.Claims.Claim("sub", userId.ToString()),
                 new System.Security.Claims.Claim("globalRole", "SuperAdmin"),
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, "SuperAdmin"),
                 new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Email, "superadmin@hotelsaas.vn")
             }),
             Expires = DateTime.UtcNow.AddMinutes(30),

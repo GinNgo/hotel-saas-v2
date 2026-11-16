@@ -2,7 +2,28 @@ import { QuoteBreakdownItemDto } from './reservation.model';
 
 export type RentalType = 'Hourly' | 'Overnight' | 'Daily';
 
-export type PropertyType = 'Hotel' | 'Motel' | 'Guesthouse' | 'Homestay' | 'Resort';
+export type PropertyType =
+  | 'Hotel'
+  | 'Resort'
+  | 'Homestay'
+  | 'Villa'
+  | 'Apartment'
+  | 'Motel'
+  | 'Guesthouse'
+  | 'Hostel'
+  | 'BedAndBreakfast';
+
+export const ALL_PROPERTY_TYPES: readonly PropertyType[] = [
+  'Hotel',
+  'Resort',
+  'Homestay',
+  'Villa',
+  'Apartment',
+  'Motel',
+  'Guesthouse',
+  'Hostel',
+  'BedAndBreakfast',
+];
 
 export type DestinationSuggestionType = 'Province' | 'TouristZone' | 'Landmark' | 'Property';
 
@@ -150,6 +171,7 @@ export interface PublicPropertyDto {
   id?: string; // for compatibility
   tenantId: string;
   tenantBrandName: string; // Tên Tenant chính (Chuỗi thương hiệu)
+  tenantSlug?: string;
   name: string; // Tên cơ sở / chi nhánh
   code?: string;
   slug: string;
@@ -201,11 +223,16 @@ export interface PublicPropertyDto {
 export interface PublicPropertiesFilter {
   search?: string;
   destinationKeyword?: string;
-  propertyTypes?: number[];
+  tenantSlug?: string;
+  provinceCode?: string;
+  propertyTypes?: Array<PropertyType | number>;
   rentalType?: number;
   touristZoneSlug?: string;
   landmarkSlug?: string;
   maxDistanceKm?: number;
+  maxDistanceMeters?: number;
+  userLatitude?: number;
+  userLongitude?: number;
   latitude?: number;
   longitude?: number;
   page?: number;
@@ -403,6 +430,7 @@ export interface TenantBrandDto {
   reviewCount: number;
   properties: PublicPropertyDto[];
   provinces: string[];
+  propertyTypes?: PropertyType[];
 }
 
 export interface PropertyPolicyDto {

@@ -175,35 +175,41 @@ import { UserMembershipDto } from '../../core/models/auth.model';
                 </a>
               }
 
-              <a
-                routerLink="/reports"
-                routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                (click)="onNavItemClick()"
-                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
-              >
-                <i class="pi pi-chart-bar text-base text-emerald-700"></i>
-                <span>Báo cáo & Thống kê</span>
-              </a>
+              @if (hasReportsPermission()) {
+                <a
+                  routerLink="/reports"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-chart-bar text-base text-emerald-700"></i>
+                  <span>Báo cáo & Thống kê</span>
+                </a>
+              }
 
-              <a
-                routerLink="/subscriptions"
-                routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                (click)="onNavItemClick()"
-                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
-              >
-                <i class="pi pi-box text-base text-emerald-700"></i>
-                <span>Gói cước SaaS</span>
-              </a>
+              @if (hasSubscriptionsPermission()) {
+                <a
+                  routerLink="/subscriptions"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-box text-base text-emerald-700"></i>
+                  <span>Gói cước SaaS</span>
+                </a>
+              }
 
-              <a
-                routerLink="/guests"
-                routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                (click)="onNavItemClick()"
-                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
-              >
-                <i class="pi pi-id-card text-base text-emerald-700"></i>
-                <span>Khách hàng (CRM)</span>
-              </a>
+              @if (hasGuestsPermission()) {
+                <a
+                  routerLink="/guests"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-id-card text-base text-emerald-700"></i>
+                  <span>Khách hàng (CRM)</span>
+                </a>
+              }
 
               @if (isOwnerOrManager()) {
                 <a
@@ -588,6 +594,18 @@ export class AdminLayoutComponent {
     return this.authService.hasPermission('PAYMENTS', 1);
   }
 
+  hasGuestsPermission(): boolean {
+    return this.authService.hasPermission('GUESTS', 1);
+  }
+
+  hasReportsPermission(): boolean {
+    return this.authService.hasPermission('REPORTS', 1);
+  }
+
+  hasSubscriptionsPermission(): boolean {
+    return this.authService.hasPermission('SUBSCRIPTIONS', 1);
+  }
+
   isSuperAdmin(): boolean {
     return this.authService.currentUser?.globalRole === 'SuperAdmin';
   }
@@ -598,6 +616,7 @@ export class AdminLayoutComponent {
     if (user.globalRole === 'Owner' || user.globalRole === 'SuperAdmin' || user.globalRole === 'PlatformAdmin') return true;
     const activeRole = this.authService.activeRoleName();
     if (activeRole === 'Owner' || activeRole === 'Manager') return true;
+    if (this.authService.hasPermission('STAFF', 1) || this.authService.hasPermission('ROLES', 1)) return true;
     return this.authService.memberships.some(m => m.staffRole === 'Owner' || m.staffRole === 'Manager');
   }
 
@@ -657,8 +676,13 @@ export class AdminLayoutComponent {
     void this.notificationService.syncContext(membership.tenantId, membership.propertyId);
     // Tải lại router view để các component lấy dữ liệu theo context mới
     const currentUrl = this.router.url;
+    const currentPath = currentUrl.split('?')[0];
+    const targetUrl =
+      membership.propertyId === null
+        ? (currentPath === '/dashboard' ? '/dashboard' : '/properties')
+        : currentUrl;
     this.router.navigateByUrl('/', { skipLocationChange: true }).then(() => {
-      this.router.navigateByUrl(currentUrl);
+      void this.router.navigateByUrl(targetUrl);
     });
   }
 

@@ -6,10 +6,12 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Reports.Queries.GetGroupAnalytics;
 using HotelSaas.Domain.Enums;
+using HotelSaas.WebApi.Authorization;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -26,6 +28,7 @@ namespace HotelSaas.WebApi.Controllers;
 [Route("api/reports")]
 [Produces("application/json")]
 [Authorize]
+[RequirePermission("REPORTS", 1)]
 public sealed class ReportsController : ControllerBase
 {
     private readonly IApplicationDbContext _context;
@@ -79,6 +82,8 @@ public sealed class ReportsController : ControllerBase
         {
             return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn / doanh nghiệp hợp lệ." });
         }
+
+        EnsurePropertyAccess(propertyId);
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var effectiveFrom = fromDate ?? today.AddDays(-29);
@@ -137,7 +142,6 @@ public sealed class ReportsController : ControllerBase
             .GroupBy(p => p.Method)
             .Select(group => new { Method = group.Key, Amount = group.Sum(p => p.Amount), Count = group.Count() })
             .ToListAsync(cancellationToken);
-        var totalPaymentCount = paymentTotals.Sum(p => p.Count);
         decimal paymentAmount(PaymentMethod method) => paymentTotals.FirstOrDefault(p => p.Method == method)?.Amount ?? 0m;
         int paymentCount(PaymentMethod method) => paymentTotals.FirstOrDefault(p => p.Method == method)?.Count ?? 0;
 
@@ -148,18 +152,6 @@ public sealed class ReportsController : ControllerBase
             new() { Method = "Chuyển khoản (Bank)", Amount = paymentAmount(PaymentMethod.BankTransfer), Count = paymentCount(PaymentMethod.BankTransfer) },
             new() { Method = "Thẻ tín dụng (Card)", Amount = paymentAmount(PaymentMethod.CreditCard), Count = paymentCount(PaymentMethod.CreditCard) }
         };
-
-        // If no direct payment records yet, simulate distribution from confirmed reservations
-        if (totalPaymentCount == 0 && totalRevenue > 0)
-        {
-            paymentBreakdown = new List<PaymentMethodBreakdownDto>
-            {
-                new() { Method = "VNPay", Amount = totalRevenue * 0.45m, Count = (int)Math.Ceiling(totalBookings * 0.45) },
-                new() { Method = "Chuyển khoản (Bank)", Amount = totalRevenue * 0.35m, Count = (int)Math.Ceiling(totalBookings * 0.35) },
-                new() { Method = "Tiền mặt (Cash)", Amount = totalRevenue * 0.20m, Count = Math.Max(0, totalBookings - (int)Math.Ceiling(totalBookings * 0.45) - (int)Math.Ceiling(totalBookings * 0.35)) },
-                new() { Method = "Thẻ tín dụng (Card)", Amount = 0m, Count = 0 }
-            };
-        }
 
         // Daily revenue series
         var dailySeries = new List<DailyRevenuePointDto>();
@@ -214,6 +206,8 @@ public sealed class ReportsController : ControllerBase
         {
             return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
         }
+
+        EnsurePropertyAccess(propertyId);
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var effectiveFrom = fromDate ?? today.AddDays(-29);
@@ -360,6 +354,8 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
         }
 
+        EnsurePropertyAccess(propertyId);
+
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var effectiveFrom = fromDate ?? today.AddDays(-30);
         var effectiveTo = toDate ?? today;
@@ -441,6 +437,8 @@ public sealed class ReportsController : ControllerBase
         if (!tenantId.HasValue || tenantId == Guid.Empty)
             return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
 
+        EnsurePropertyAccess(propertyId);
+
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var effectiveFrom = fromDate ?? today.AddDays(-30);
         var effectiveTo = toDate ?? today;
@@ -464,6 +462,9 @@ public sealed class ReportsController : ControllerBase
     {
         if (!_currentUser.TenantId.HasValue || _currentUser.TenantId == Guid.Empty)
             return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
+
+        EnsurePropertyAccess(propertyId);
+
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var effectiveFrom = fromDate ?? today.AddDays(-30);
         var effectiveTo = toDate ?? today;
@@ -484,6 +485,19 @@ public sealed class ReportsController : ControllerBase
         return bytes is null
             ? NotFound(new { code = "ERR_INVOICE_NOT_FOUND", message = "Không tìm thấy hóa đơn của đơn đặt phòng." })
             : File(bytes, "application/pdf", $"HoaDon_{reservationId:N}.pdf");
+    }
+
+    private void EnsurePropertyAccess(Guid? propertyId)
+    {
+        if (propertyId.HasValue && propertyId != Guid.Empty &&
+            !_currentUser.IsTenantWide &&
+            _currentUser.PropertyId.HasValue &&
+            propertyId.Value != _currentUser.PropertyId.Value)
+        {
+            throw new ForbiddenException(
+                "ERR_PROPERTY_FORBIDDEN",
+                "Nhân viên chi nhánh không được phép truy cập báo cáo của chi nhánh khác.");
+        }
     }
 
     private static string EscapeCsv(string value)

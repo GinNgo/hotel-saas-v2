@@ -28,9 +28,11 @@ public sealed class GoogleLoginAndDualVerificationPolicyTests
     private static string GetConnectionString()
     {
         var envConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION");
-        if (!string.IsNullOrWhiteSpace(envConn)) return envConn;
         var port = Environment.GetEnvironmentVariable("TEST_POSTGRES_PORT") ?? "5435";
-        return $"Host=localhost;Port={port};Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
+        var baseConn = !string.IsNullOrWhiteSpace(envConn)
+            ? envConn
+            : $"Host=localhost;Port={port};Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;";
+        return new NpgsqlConnectionStringBuilder(baseConn) { Pooling = false, PersistSecurityInfo = true }.ConnectionString;
     }
 
     private static ApplicationDbContext CreateContext(string schema)
@@ -66,10 +68,68 @@ public sealed class GoogleLoginAndDualVerificationPolicyTests
         return new JwtService(config);
     }
 
-    private static IGoogleAuthService CreateGoogleAuthService()
+    private static IGoogleAuthService CreateGoogleAuthService() => new FakeGoogleAuthService();
+
+    /// <summary>
+    /// Deterministic test implementation of <see cref="IGoogleAuthService"/> that supports
+    /// sandbox mock tokens under Release builds without calling external Google endpoints.
+    /// </summary>
+    private sealed class FakeGoogleAuthService : IGoogleAuthService
     {
-        var config = new ConfigurationBuilder().Build();
-        return new GoogleAuthService(config, NullLogger<GoogleAuthService>.Instance);
+        public Task<GoogleTokenVerificationResult> VerifyGoogleTokenAsync(
+            string idToken,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(idToken))
+            {
+                return Task.FromResult(new GoogleTokenVerificationResult(
+                    false,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Mã xác thực Google (IdToken) không được để trống."));
+            }
+
+            if (idToken.StartsWith("dev-mock-google-token:", StringComparison.OrdinalIgnoreCase) ||
+                idToken.Equals("dev-mock-google-token", StringComparison.OrdinalIgnoreCase))
+            {
+                var email = "alex.luxury@gmail.com";
+                var fullName = "Alex Luxury Guest";
+
+                if (idToken.Contains(':'))
+                {
+                    var parts = idToken.Split(':', 3);
+                    if (parts.Length >= 2 && !string.IsNullOrWhiteSpace(parts[1]))
+                    {
+                        email = parts[1].Trim().ToLowerInvariant();
+                    }
+
+                    if (parts.Length >= 3 && !string.IsNullOrWhiteSpace(parts[2]))
+                    {
+                        fullName = parts[2].Trim();
+                    }
+                    else
+                    {
+                        fullName = email.Split('@')[0];
+                    }
+                }
+
+                var mockSub = $"google-mock-{Math.Abs(email.GetHashCode())}";
+                const string mockAvatar =
+                    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80";
+
+                return Task.FromResult(new GoogleTokenVerificationResult(true, mockSub, email, fullName, mockAvatar));
+            }
+
+            return Task.FromResult(new GoogleTokenVerificationResult(
+                false,
+                null,
+                null,
+                null,
+                null,
+                "Mã xác thực Google không hợp lệ hoặc đã hết hạn."));
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────

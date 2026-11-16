@@ -15,6 +15,7 @@ import {
   RefreshTokenRequest,
   UserDto,
   UserMembershipDto,
+  SwitchContextRequest,
   SwitchContextResponse
 } from '../models/auth.model';
 import { TokenStorageService } from './token-storage.service';
@@ -207,25 +208,51 @@ export class AuthService {
    * Cập nhật access token + refresh token mới, lưu active property và reload signal.
    */
   switchContext(propertyId: string): Observable<SwitchContextResponse> {
-    return this.http.post<any>(`${this.apiUrl}/switch-context`, { propertyId }).pipe(
-      map(res => {
-        const payload: SwitchContextResponse = res.data ? res.data : res;
-        return payload;
-      }),
-      tap(payload => {
-        if (payload?.accessToken) {
-          this.tokenStorage.setTokens(payload.accessToken, payload.refreshToken);
+    const request: SwitchContextRequest = { propertyId };
+    return this.http
+      .post<SwitchContextResponse | ApiResponse<SwitchContextResponse>>(`${this.apiUrl}/switch-context`, request)
+      .pipe(
+        map(res => ('accessToken' in res ? res : res.data) as SwitchContextResponse),
+        tap(payload => {
+          if (payload?.accessToken) {
+            this.tokenStorage.setTokens(payload.accessToken, payload.refreshToken);
 
-          // Tìm tên và mã chi nhánh từ memberships
-          const matched = this.memberships.find(m => m.propertyId?.toLowerCase() === propertyId.toLowerCase());
-          const propName = matched?.propertyName || 'Chi nhánh ' + (matched?.propertyCode || '');
-          const propCode = matched?.propertyCode || '';
-          const roleName = payload.currentContext?.roleName || matched?.roleName || '';
+            // Tìm tên và mã chi nhánh từ memberships
+            const matched = this.memberships.find(m => m.propertyId?.toLowerCase() === propertyId.toLowerCase());
+            const propName = matched?.propertyName || 'Chi nhánh ' + (matched?.propertyCode || '');
+            const propCode = matched?.propertyCode || '';
+            const roleName = payload.currentContext?.roleName || matched?.roleName || '';
 
-          this.setActivePropertyContext(propertyId, propName, propCode, roleName);
-        }
-      })
-    );
+            this.setActivePropertyContext(propertyId, propName, propCode, roleName);
+          }
+        })
+      );
+  }
+
+  /**
+   * Chuyển ngữ cảnh về chế độ Tổng quan Toàn chuỗi (Tenant-Wide HQ):
+   * Gọi POST /api/auth/switch-context với { propertyId: null }
+   * Lưu cặp token mới, xóa active property context và cập nhật vai trò nếu có.
+   */
+  switchToChainHq(): Observable<SwitchContextResponse> {
+    const request: SwitchContextRequest = { propertyId: null };
+    return this.http
+      .post<SwitchContextResponse | ApiResponse<SwitchContextResponse>>(`${this.apiUrl}/switch-context`, request)
+      .pipe(
+        map(res => ('accessToken' in res ? res : res.data) as SwitchContextResponse),
+        tap(payload => {
+          if (payload?.accessToken) {
+            const previousRoleName = this.activeRoleName();
+            this.tokenStorage.setTokens(payload.accessToken, payload.refreshToken);
+            this.clearPropertyContext();
+            const tenantWideRole = this.memberships.find(m => m.isTenantWide || !m.propertyId)?.roleName || null;
+            const nextRoleName = payload.currentContext?.roleName || previousRoleName || tenantWideRole;
+            if (nextRoleName) {
+              this.activeRoleName.set(nextRoleName);
+            }
+          }
+        })
+      );
   }
 
   /**
