@@ -145,7 +145,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
-          source: "docker-compose.staging.yml,deploy/Caddyfile,deploy/deploy.sh,deploy/docker-compose.staging.yml,docker/docker-compose.observability.yml,docker/observability"
+          source: "deploy/deploy.sh,docker/docker-compose.observability.yml,docker/observability"
           target: "/opt/hotel-saas"
           overwrite: true
 
@@ -175,7 +175,7 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             PREV_BACKEND_IMG=$(docker inspect --format='{{.Image}}' hotelsaas-backend-api 2>/dev/null || true)
-            PREV_FRONTEND_IMG=$(docker inspect --format='{{.Image}}' hotelsaas-frontend-spa 2>/dev/null || true)
+            PREV_FRONTEND_IMG=$(docker inspect --format='{{.Image}}' hotelsaas-frontend-app 2>/dev/null || docker inspect --format='{{.Image}}' hotelsaas-frontend-spa 2>/dev/null || true)
             PREV_BACKEND_REF=$(docker inspect --format='{{.Config.Image}}' hotelsaas-backend-api 2>/dev/null || true)
             PREV_IMAGE_TAG="${PREV_BACKEND_REF##*:}"
             if [ -z "${PREV_IMAGE_TAG}" ] || [ "${PREV_IMAGE_TAG}" = "${PREV_BACKEND_REF}" ]; then
@@ -194,15 +194,14 @@ jobs:
             echo "[2/5] Pulling latest immutable images from GHCR (IMAGE_TAG=${IMAGE_TAG})..."
             docker compose -f docker-compose.staging.yml pull
 
-            echo "[3/5] Gracefully rolling update backend, frontend & caddy containers..."
+            echo "[3/5] Gracefully rolling update backend & frontend containers..."
             docker compose -f docker-compose.staging.yml up -d --no-deps backend frontend
-            docker compose -f docker-compose.staging.yml up -d caddy
 
             echo "[4/5] Deploying observability stack (if present)..."
             if [ -f docker/docker-compose.observability.yml ]; then
+              sed -i 's/hotelsaas-staging-network/treeseo-production_edge/g' /opt/hotel-saas/docker/docker-compose.observability.yml
               docker compose -f docker/docker-compose.observability.yml up -d
             fi
-            docker exec hotelsaas-caddy caddy reload --config /etc/caddy/Caddyfile || true
 
             echo "[5/5] Verifying /health and /health/ready probes..."
             HEALTHY=0
@@ -229,7 +228,6 @@ jobs:
                   docker tag "${PREV_FRONTEND_IMG}" "ghcr.io/ginngo/hotel-saas-frontend:${IMAGE_TAG}"
                 fi
                 docker compose -f docker-compose.staging.yml up -d --no-deps backend frontend
-                docker exec hotelsaas-caddy caddy reload --config /etc/caddy/Caddyfile || true
                 echo "✅ Automatic rollback containers started for prev_tag=${PREV_IMAGE_TAG}."
               else
                 echo "⚠️ No previous container images found for automatic rollback."
