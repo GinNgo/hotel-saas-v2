@@ -56,7 +56,6 @@ restore_previous_images() {
     docker tag "${frontend_img}" "ghcr.io/ginngo/hotel-saas-frontend:${IMAGE_TAG}"
   fi
   docker compose -f docker-compose.staging.yml up -d --no-deps backend frontend
-  docker exec hotelsaas-caddy caddy reload --config /etc/caddy/Caddyfile || true
 }
 
 echo "=== [1/5] Navigating to deployment directory: ${TARGET_DIR} ==="
@@ -100,7 +99,7 @@ if [ "${ROLLBACK_MODE}" -eq 1 ]; then
 fi
 
 PREV_BACKEND_IMG=$(docker inspect --format='{{.Image}}' hotelsaas-backend-api 2>/dev/null || true)
-PREV_FRONTEND_IMG=$(docker inspect --format='{{.Image}}' hotelsaas-frontend-spa 2>/dev/null || true)
+PREV_FRONTEND_IMG=$(docker inspect --format='{{.Image}}' hotelsaas-frontend-app 2>/dev/null || docker inspect --format='{{.Image}}' hotelsaas-frontend-spa 2>/dev/null || true)
 PREV_BACKEND_REF=$(docker inspect --format='{{.Config.Image}}' hotelsaas-backend-api 2>/dev/null || true)
 PREV_IMAGE_TAG="${PREV_BACKEND_REF##*:}"
 if [ -z "${PREV_IMAGE_TAG}" ] || [ "${PREV_IMAGE_TAG}" = "${PREV_BACKEND_REF}" ]; then
@@ -119,15 +118,14 @@ fi
 echo "=== [2/5] Pulling production images from GHCR (IMAGE_TAG=${IMAGE_TAG}) ==="
 docker compose -f docker-compose.staging.yml pull
 
-echo "=== [3/5] Rolling update backend, frontend & caddy containers ==="
+echo "=== [3/5] Rolling update backend & frontend containers ==="
 docker compose -f docker-compose.staging.yml up -d --no-deps backend frontend
-docker compose -f docker-compose.staging.yml up -d caddy
 
 echo "=== [4/5] Deploying observability stack (if present) ==="
 if [ -f docker/docker-compose.observability.yml ]; then
+  sed -i 's/hotelsaas-staging-network/treeseo-production_edge/g' docker/docker-compose.observability.yml
   docker compose -f docker/docker-compose.observability.yml up -d
 fi
-docker exec hotelsaas-caddy caddy reload --config /etc/caddy/Caddyfile || true
 
 echo "=== [5/5] Verifying /health and /health/ready probes at ${DOMAIN} ==="
 if ! verify_health_probes; then
