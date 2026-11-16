@@ -454,8 +454,8 @@ public sealed class StayLifecycleHttpPipelineTests
                     AdditionalHourPrice = 100000m,
                     NightlyPrice = 1200000m,
                     Currency = "VND",
-                    EffectiveFrom = new DateOnly(2026, 11, 1),
-                    EffectiveTo = new DateOnly(2026, 11, 30),
+                    EffectiveFrom = new DateOnly(2026, 1, 1),
+                    EffectiveTo = new DateOnly(2030, 12, 31),
                     CreatedByUserId = userId,
                     IsActive = true
                 };
@@ -503,13 +503,19 @@ public sealed class StayLifecycleHttpPipelineTests
             client.DefaultRequestHeaders.Add("X-Property-Id", propId.ToString());
 
             // ── STEP 2: Create Confirmed Reservation on Room 201 ───────────────────────
+            var baseDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5));
+            var d1 = baseDate.ToString("yyyy-MM-dd");
+            var d2 = baseDate.AddDays(1).ToString("yyyy-MM-dd");
+            var d3 = baseDate.AddDays(2).ToString("yyyy-MM-dd");
+            var d4 = baseDate.AddDays(3).ToString("yyyy-MM-dd");
+
             var bookingPayload1 = new
             {
                 propertyId = propId,
                 roomId = room1Id,
                 rentalType = 1, // Hourly
-                startAtUtc = "2026-11-18T07:00:00Z",
-                endAtUtc = "2026-11-18T09:00:00Z",
+                startAtUtc = $"{d1}T07:00:00Z",
+                endAtUtc = $"{d1}T09:00:00Z",
                 guestName = "Le Van Stay",
                 guestEmail = "levanstay@gmail.com",
                 expectedTotalAmount = 300000m,
@@ -608,8 +614,8 @@ public sealed class StayLifecycleHttpPipelineTests
                 propertyId = propId,
                 roomId = room1Id,
                 rentalType = 1,
-                startAtUtc = "2026-11-18T11:00:00Z",
-                endAtUtc = "2026-11-18T13:00:00Z",
+                startAtUtc = $"{d1}T11:00:00Z",
+                endAtUtc = $"{d1}T13:00:00Z",
                 guestName = "Pham Thi Next",
                 guestEmail = "next@gmail.com",
                 expectedTotalAmount = 300000m,
@@ -658,8 +664,8 @@ public sealed class StayLifecycleHttpPipelineTests
                 propertyId = propId,
                 roomId = room2Id,
                 rentalType = 1,
-                startAtUtc = "2026-11-15T07:00:00Z",
-                endAtUtc = "2026-11-15T09:00:00Z",
+                startAtUtc = $"{d2}T07:00:00Z",
+                endAtUtc = $"{d2}T09:00:00Z",
                 guestName = "Hoang Van Cancel",
                 guestEmail = "cancel@gmail.com",
                 expectedTotalAmount = 300000m,
@@ -731,8 +737,8 @@ public sealed class StayLifecycleHttpPipelineTests
                 propertyId = propId,
                 roomId = room3Id,
                 rentalType = 1,
-                startAtUtc = "2026-11-20T07:00:00Z",
-                endAtUtc = "2026-11-20T09:00:00Z",
+                startAtUtc = $"{d3}T07:00:00Z",
+                endAtUtc = $"{d3}T09:00:00Z",
                 guestName = "Pham CheckInOut Guard",
                 guestEmail = "cio_guard@gmail.com",
                 expectedTotalAmount = 300000m,
@@ -746,8 +752,8 @@ public sealed class StayLifecycleHttpPipelineTests
                 propertyId = propId,
                 roomId = room4Id,
                 rentalType = 1,
-                startAtUtc = "2026-11-21T07:00:00Z",
-                endAtUtc = "2026-11-21T09:00:00Z",
+                startAtUtc = $"{d4}T07:00:00Z",
+                endAtUtc = $"{d4}T09:00:00Z",
                 guestName = "Vu Reservation Guard",
                 guestEmail = "res_guard@gmail.com",
                 expectedTotalAmount = 300000m,
