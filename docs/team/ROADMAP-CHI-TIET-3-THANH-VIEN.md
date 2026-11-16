@@ -1,213 +1,72 @@
-﻿# LỘ TRÌNH CHI TIẾT TỪNG TUẦN CHO 3 THÀNH VIÊN
-### ĐỀ TÀI: XÂY DỰNG HỆ THỐNG QUẢN LÝ KHÁCH SẠN (HOTEL SAAS PLATFORM)
+﻿# LỘ TRÌNH MASTER 15 TUẦN CHO 3 THÀNH VIÊN (TUẦN 1 $\rightarrow$ TUẦN 15)
+### ĐỀ TÀI 578: NỀN TẢNG QUẢN LÝ KHÁCH SẠN ĐA CHI NHÁNH (HOTEL SAAS PLATFORM V2)
+
+- **Đơn vị:** Khoa CNTT — Bộ môn CNPM — Trường ĐH Sư phạm Kỹ thuật TP.HCM (HCMUTE)
+- **Giảng viên hướng dẫn:** ThS. Huỳnh Xuân Phụng (`phunghx@hcmute.edu.vn`)
 - **Kho lưu trữ GitHub:** [https://github.com/GinNgo/hotel-saas-v2](https://github.com/GinNgo/hotel-saas-v2)
-- **Nhánh tích hợp chính:** [`develop`](https://github.com/GinNgo/hotel-saas-v2/tree/develop)
-- **Phân định vai trò:**
-  1. 👤 **Ngô Võ Tuấn An** (MSSV: **24TX810001**) — Nhóm trưởng / Kiến trúc sư hệ thống & Backend (.NET 10, EF Core, PostgreSQL 17, Docker, AI)
-  2. 👤 **Nguyễn Khôi Nguyên** (MSSV: **24TX810011**) — Lập trình viên Frontend (Angular 22 — Module Danh mục Phòng, Hạng phòng, Bảng giá, Sơ đồ phòng)
-  3. 👤 **Trần Trọng Tân** (MSSV: **24TX810025**) — Lập trình viên Frontend (Angular 22 — Module Buồng phòng, Đơn đặt phòng, Thu ngân, Cổng khách OTA)
+- **Nhánh tích hợp chính:** [`develop`](https://github.com/GinNgo/hotel-saas-v2/tree/develop) | **Phát hành Staging:** [`main`](https://github.com/GinNgo/hotel-saas-v2/tree/main) (`https://luxustay.duckdns.org`)
+- **Công nghệ cốt lõi:** .NET 10 Clean Architecture + PostgreSQL 17 + Angular 22 Standalone Signals + SignalR + Docker / Caddy / PLG Observability
 
 ---
 
-## 1. MA TRẬN PHÂN CÔNG TỔNG HỢP (TUẦN 1 ĐẾN TUẦN 7+)
+## 1. PHÂN ĐỊNH VAI TRÒ CHUẨN XUYÊN SUỐT 15 TUẦN
 
-| Tuần | Mốc Phase | Ngô Võ Tuấn An *(24TX810001)* | Nguyễn Khởi Nguyên *(24TX810011)* | Trần Trọng Tân *(24TX810025)* |
+| STT | Thành viên | MSSV | GitHub | Phân hệ & Trách nhiệm Xuyên suốt |
+|:---:|---|---|---|----|
+| **1** | **Ngô Võ Tuấn An** | `24TX810001` | [`GinNgo`](https://github.com/GinNgo) | **Nhóm trưởng / Kiến trúc & Bảo mật & DevOps & AI**: Multi-Tenancy, RBAC Bitmask, Auth/Dual-Verification/OAuth/Firebase, CI/CD & Caddy/PLG Observability (Prometheus + Grafana + Loki), SaaS Tenant/Subscription Lifecycle, AI Concierge Gemini & Security Hardening. |
+| **2** | **Nguyễn Khôi Nguyên** | `24TX810011` | [`khoinguyen1310`](https://github.com/khoinguyen1310) | **Danh mục, Bảng giá, Hóa đơn, Báo cáo & Hiệu năng (k6)**: Room/RoomType CRUD, Dynamic Pricing Engine, Print PDF + QR (`QRCoder`), VietQR, Báo cáo Doanh thu & Group Analytics (PostgreSQL SQL Aggregation, Chart.js), AI Search UI, Load Testing k6 & SUS Usability Survey. |
+| **3** | **Trần Trọng Tân** | `24TX810025` | [`trantrongtan096`](https://github.com/trantrongtan096) | **Vận hành Khách sạn, Realtime, Thu ngân & Kiểm thử E2E/Bảo mật**: Front Desk Timeline, Reservations & Stay Lifecycle, Housekeeping FSM & Kanban, Cashier Shift & Hoàn tiền D23 (`pg_advisory_xact_lock`), SignalR Realtime Hub, Night Audit, SmartLock PIN, E2E Security (`CrossBranchSecurityE2ETests.cs`) & Playwright/Bruno E2E. |
+
+---
+
+## 2. MA TRẬN TIẾN ĐỘ TỔNG THỂ 15 TUẦN (TUẦN 1 $\rightarrow$ TUẦN 15)
+
+### Giai đoạn 1 — Xây dựng Nền tảng Cốt lõi & Nghiệp vụ Chính (Tuần 1 – Tuần 5: ĐÃ HOÀN THÀNH)
+
+> **Hiện trạng đối soát thực tế từ mã nguồn (`develop`):** Đã có **32** Domain Entities, **25** Enums, **93** CQRS Handlers (**49** Commands / **44** Queries), **20** Controller files, **19** API Controllers, **70/70** Standalone Angular components, **628/628** Frontend Vitest unit tests PASS, **600** Backend tests (**303/303** non-DB unit tests PASS; các test tích hợp cần PostgreSQL `5435`). Còn tồn đọng một số điểm nợ bảo mật/kỹ thuật và các hạng mục NFR của GVHD sẽ xử lý dứt điểm trong Tuần 6–7.
+
+| Tuần | Mốc Phase | Ngô Võ Tuấn An (`24TX810001`) | Nguyễn Khôi Nguyên (`24TX810011`) | Trần Trọng Tân (`24TX810025`) | Trạng thái |
+|:---:|:---:|---|---|---|:---:|
+| **Tuần 1** | **P0 – P1A** *(Kiến trúc & Nền tảng)* | Khởi tạo Clean Architecture .NET 10, Multi-Tenant/Property Interceptor & Global Filters, Auth JWT, Bitmask RBAC, CI Pipeline, LocalDevDataSeeder. | Danh mục Phòng (`rooms.page.ts`) & Loại phòng (`room-types.page.ts`) CRUD, Models/Services Angular, tìm kiếm debounce + phân trang. | Bảng Buồng phòng (`housekeeping.page.ts`), `RoomStatus` FSM, gửi `expectedOldStatus` chống xung đột 409, Pagination & Skeleton UI. | **Đã xong** |
+| **Tuần 2** | **P1B – P2** *(Giá & Lễ tân)* | `PricingCalculator` (giờ/đêm), Chính sách chi nhánh (`PropertySurchargePolicy`), Bảng giá `RoomTypeRates` chống trùng khoảng ngày (409), Unit Tests. | Modal CRUD phòng nâng cao, bắt lỗi trùng số phòng 409, Giao diện Bảng giá chia đoạn ngày (`rates.page.ts`), Sơ đồ lưới phòng (`Room Matrix`). | Nút chuyển trạng thái buồng phòng 1 chạm, xử lý `ERR_STALE_STATE` 409, Quản lý Đặt phòng nội bộ (`reservations.page.ts`) & Check-in/Check-out. | **Đã xong** |
+| **Tuần 3** | **P3 – P4** *(Đặt phòng & Thu ngân)* | Engine Đặt phòng nội bộ (`pg_advisory_xact_lock` + Btree-GiST), Vòng đời lưu trú (Stay FSM), Danh mục hành chính VN 2 cấp, Giao dịch Folio & Payments API. | Bảng kê chi tiết Hóa đơn Folio (`folio-detail`), hiển thị phụ phí & số dư công nợ, Giao diện Đặt phòng công khai (`booking.page.ts`) tìm theo địa danh 2 cấp. | Giao diện Thu ngân (`payments.page.ts`), khối KPI doanh thu UTC+7, thu tiền mặt/chuyển khoản tại quầy, luồng Check-out tự chuyển `Dirty`. | **Đã xong** |
+| **Tuần 4** | **P5 – P6A** *(OTA, VNPay, VietQR)* | Public OTA API (`PublicController`), Giữ phòng 15 phút (`CreateGuestHoldCommand`), `ExpiredHoldSweepBackgroundService`, VNPay HMAC-SHA512 + IPN Webhook, khung `AiController` regex/fallback. | Hoàn thiện Public Marketplace Discovery (`Explore`, `Destinations`, `Brands`, `PropertyDetail`), tích hợp VietQR & xuất báo cáo PDF/Excel (`ClosedXML`/`QuestPDF`). | Trang Giữ phòng 15 phút (`booking-hold.page.ts`) có đếm ngược TTL, Trang Tra cứu đơn bí mật `lookupToken` (`booking-status.page.ts`), SmartLock PIN hiển thị khi `CheckedIn`. | **Đã xong** |
+| **Tuần 5** | **P7A** *(Bảo mật, D23, Realtime, CI/CD)* | Dual-Verification (Email JWT SMTP + Firebase SMS OTP sandbox `+84123456789`/real), Google OAuth + Form Đăng ký 2 Tab, Structured Log (`CorrelationId`), endpoint `/metrics`, `.github/workflows/cd-vps.yml` deploy VPS. | Nhúng mã QR tra cứu vào Hóa đơn PDF bằng `QRCoder`, thêm `PaymentMethodPreference`, bộ lọc Báo cáo theo kỳ hạn & loại phòng, chuẩn bị nền tảng Group Analytics. | Màn hình & API Phê duyệt Hoàn tiền D23 (`pg_advisory_xact_lock` + `Task.WhenAll`), mở rộng `NotificationHub` SignalR (3 sự kiện cô lập theo chi nhánh), script `verify-signalr-e2e.mjs`. | **Đã xong** *(còn nợ Staging evidence & patch Nov 13)* |
+
+---
+
+### Giai đoạn 2 — Hoàn thiện Yêu cầu GVHD, Vá Nợ Bảo mật & Mở rộng Nghiệp vụ (Tuần 6 – Tuần 10)
+
+| Tuần | Mốc Phase | Ngô Võ Tuấn An (`24TX810001`) | Nguyễn Khôi Nguyên (`24TX810011`) | Trần Trọng Tân (`24TX810025`) |
 |:---:|:---:|---|---|---|
-| **Tuần 1** | **P0 - P1A** | Khởi tạo Clean Arch, CI/CD 6 stages, Auth JWT & RBAC, Seeder data mẫu. | Hoàn thành Phân hệ Danh mục Phòng & Hạng phòng (Room & RoomType CRUD CQRS). | Hoàn thành Sơ đồ Buồng phòng FSM (Housekeeping Board, Optimistic Concurrency, KPI). |
-| **Tuần 2** | **P2 - P3** | Pricing Engine đa hình thức, Reservation Engine Core, Stay Lifecycle API (Check-in/Out), Danh mục 2 cấp. | Màn hình Đặt phòng Lễ tân tại quầy (`reservations.page.ts`), Chọn phòng trống trực quan + Sơ đồ Timeline phòng. | Quy trình Lễ tân Check-in / Check-out liên thông buồng phòng + Bảng kê Hóa đơn Folio & Thu ngân (`payments.page.ts`). |
-| **Tuần 3** | **P4 - P5** | Public OTA API tra cứu phòng, Cơ chế Giữ phòng 15 phút (Hold TTL), Tự động nhả tồn, Webhook thanh toán. | Giao diện Đặt phòng công khai (OTA Discovery), Tìm kiếm theo Tỉnh thành & Xã phường (Danh mục 2 cấp). | Giao diện Giữ chỗ 15 phút (`booking-hold.page`), Đồng hồ đếm ngược, Tra cứu đơn đặt phòng bằng mã bí mật `lookupToken`. |
-| **Tuần 4** | **P6** | Tích hợp Google Gemini AI tìm phòng tiếng Việt, Kiểm tra phòng trống thời gian thực, Báo cáo doanh thu tổng hợp. | Giao diện Khung chat / Tìm phòng AI thông minh, Gợi ý phòng tự động, Tối ưu hóa trải nghiệm tìm kiếm. | Màn hình Báo cáo Quản trị Doanh thu chi nhánh, Thống kê tỷ lệ lấp đầy phòng (Occupancy Rate), Bàn giao ca. |
-| **Tuần 5** | **P7A** | Đóng gói Docker Compose toàn hệ thống (Backend, Frontend, PostgreSQL 17), Tối ưu hóa bảo mật và hiệu năng. | Tối ưu hóa UI/UX toàn hệ thống theo chuẩn Enterprise, Thiết kế Responsive Mobile (375px) cho nhân viên. | Kiểm thử tích hợp luồng nghiệp vụ E2E từ Đặt phòng $\to$ Nhận phòng $\to$ Buồng phòng $\to$ Trả phòng $\to$ Thu ngân. |
-| **Tuần 6** | **P7B** | Triển khai Staging Server có HTTPS, Quét lỗ hổng mã nguồn SonarQube, Kiểm thử tải đồng thời. | Thực hiện khảo sát đo lường trải nghiệm người dùng chuẩn SUS ($\ge$ 10 người), Viết tài liệu hướng dẫn sử dụng. | Đo lường độ tin cậy và thời gian phản hồi buồng phòng thực tế, Chuẩn bị dữ liệu demo chạy thật. |
-| **Tuần 7+** | **Nghiệm thu** | Hoàn thiện tài liệu kiến trúc, Báo cáo kỹ thuật tổng kết, Hỗ trợ thành viên bảo vệ đồ án. | Hoàn thiện chương tài liệu giao diện và đánh giá người dùng, Chuẩn bị slide thuyết trình. | Hoàn thiện tài liệu quy trình vận hành và kiểm thử, Diễn tập kịch bản demo trước hội đồng. |
+| **Tuần 6** *(Hiện tại)* | **P7B** *(Nghiệm thu GVHD & Rà soát Audit)* | **1.** Đưa cụm PLG (`docker/docker-compose.observability.yml`) chạy trên Staging (`hotelsaas-staging-network`), bổ sung Grafana Dashboard JSON, sửa `deploy/Caddyfile` (`/hubs/*`, `/grafana/*`, khóa `/metrics` & `/swagger*`).<br>**2.** Tạo `ISystemMetricsRecorder` để ghi đủ metric SignalR & VNPay `rsp_code=97`.<br>**3.** Khóa `dev-mock-token` trong `FirebaseAuthService.cs` + FE chỉ cho non-Prod.<br>**4.** Nghiệm thu B2C OTP/OAuth & 5 PMS accounts trên VPS. | **1.** Tham số hóa & chạy thật k6 Load Test (`scripts/load-tests/`) theo 3 cấp độ `smoke/load/stress` (5–50/100 VUs) lên VPS Staging, lưu JSON + tổng hợp số liệu `docs/reports/load-tests/`.<br>**2.** Rà soát Hóa đơn PDF QR (`QRCoder`), VietQR & đối soát DB Báo cáo.<br>**3.** Loại bỏ tỷ lệ chia phương thức thanh toán giả `0.45/0.35/0.20`, bỏ fallback số liệu cứng ở `reports.page.ts`, gắn `[RequirePermission("REPORTS", ...)]` + `IsTenantWide` guard. | **1.** Viết bộ test HTTP E2E cô lập chi nhánh `CrossBranchSecurityE2ETests.cs` (`WebApplicationFactory` + `JwtService` thật) chứng minh `403 Forbidden` trên Rooms, Check-in, Reports, giả mạo `X-Property-Id`.<br>**2.** Cập nhật bộ `tests/bruno/hotel-saas/` (bỏ ngày quá khứ `2026-11-20`).<br>**3.** Rà soát thực tế D23 `pg_advisory_xact_lock`, `ExpiredHoldSweepBackgroundService` & chuông SignalR `<app-notification-bell>` theo chi nhánh. |
+| **Tuần 7** | **P8** *(Đóng Nợ Bảo mật P0 & Kiến trúc)* | **1.** Merge/commit các bản vá FK/Auth tồn đọng; khóa CI `gitleaks` fail-closed (`continue-on-error: false`).<br>**2.** Băm Refresh Token SHA-256, thêm `BR-SEC03` khóa brute-force login, `RateLimiter` + CORS động + `UseHsts` trong `Program.cs`.<br>**3.** Chặn IDOR `GuestUserId` ở `PublicController.CreateHold`, thêm Tenant guard cho `PrintDocumentsController`, RBAC cho `Subscriptions/AuditLogs`, gating `SeedData` & `login.page.ts` demo buttons. | **1.** Thêm Unique & Performance DB Indexes (`UX_User_Email`, `UX_Reservation_ConfirmCode`, index theo dõi thanh toán/phòng).<br>**2.** Bổ sung các FluentValidation Validator còn thiếu cho Pricing/Catalog/Reports.<br>**3.** Refactor `ReportsController` sang 100% MediatR CQRS + tính toán SQL `GroupBy` hoàn toàn phía PostgreSQL. | **1.** Mở quyền `HOUSEKEEPING:ReadUpdate` cho vai trò `HOUSEKEEPER` trên endpoint chuyển trạng thái dọn phòng (`RoomsController` vs `SeedData`).<br>**2.** Refactor các Fat Operations Controller sang thuần MediatR CQRS và bổ sung validator cho Reservation/Payment.<br>**3.** Mở rộng Ma trận test E2E phủ âm tính RBAC 18 `PermissionFunction`. |
+| **Tuần 8** | **P9** *(Lấp Đầy SRS Core Gaps I)* | **1.** `US-1.0` Quy trình duyệt Publish/Hide chi nhánh & `US-1.0a` `TenantsController` (tạm ngưng/kích hoạt tenant).<br>**2.** `US-1.4` Quên & Đặt lại mật khẩu (`forgot-password`, `reset-password`).<br>**3.** `US-2.2` Mời nhân viên qua Email Token (thay mật khẩu cứng) & `RolesController` CRUD. | **1.** `US-6.2` Xây dựng `InvoicesController` chuyên biệt (xuất hóa đơn chính thức từ Folio, tổng hợp công nợ tháng, chống sửa hóa đơn đã chốt).<br>**2.** `POL-IO01/02` Tự động tính phụ phí Check-in sớm / Check-out muộn theo cấu hình chi nhánh vào Folio. | **1.** `US-5.1/5.2` Kích hoạt thực thể `HousekeepingTask` (DbSet, Migration, CQRS & Controller): tự sinh task dọn phòng khi Check-out.<br>**2.** Xây dựng giao diện Kanban phân công & nhận dọn phòng cho nhân viên buồng phòng, đo thời gian hoàn thành (turnaround time). |
+| **Tuần 9** | **P10** *(Lấp Đầy SRS Core Gaps II & CRM)* | **1.** `POL-SUB01/02` Áp dụng hạn mức gói cước SaaS (số phòng/nhân sự/chi nhánh/bật tắt VNPay-VietQR) & luồng thanh toán nâng cấp gói thực tế ở `SubscriptionsController`.<br>**2.** API + UI `SupportAccessGrant` cho phép SuperAdmin hỗ trợ có sự đồng ý & hết hạn. | **1.** `US-4.5` Tối ưu tìm kiếm OTA công khai lọc phòng trống & sức chứa trực tiếp tại PostgreSQL (`GetPublicPropertiesQuery`).<br>**2.** CRUD Chiến dịch Khuyến mãi / Mã giảm giá (`Promotions` Entity + API + Pricing hook) & UI Quản trị Promotion cho Owner. | **1.** Giao diện áp dụng Mã giảm giá & Quy đổi điểm Loyalty trên `booking-hold.page.ts` + kết nối thật `guest-profile.page.ts` với API (thay dữ liệu mẫu + thêm luồng cập nhật Email cho user đăng ký bằng SĐT).<br>**2.** Bổ sung kiểm tra `BR-R03/R06` (Booking horizon & `MaxOccupancy`). |
+| **Tuần 10** | **P11** *(Night Audit, AI Thật & Biểu đồ)* | **1.** Kết nối Google Gemini API thật cho AI Concierge (Function Calling lấy tồn kho/giá thật + `AiUsageLog` + quota guard chống lạm dụng).<br>**2.** Hợp nhất `AiService` & `AiConciergeService`, sửa `proxy.conf.js` để `/api/ai/smart-search` & `/api/ai/concierge` chạy chuẩn cả Dev và Staging. | **1.** `US-8.2` Hoàn thiện gợi ý giá AI (`POST /api/ai/pricing/apply` 1 chạm) & AI tóm tắt báo cáo doanh thu.<br>**2.** Tích hợp `chart.js` / `ng2-charts` thật vào `DashboardPage` và `ReportsPage` (thay thanh CSS bar thuần). | **1.** Xây dựng Background Worker **Kiểm toán Đêm (Night Audit)** lúc `02:00` UTC+7: tự động đánh dấu `NoShow` đơn quá hạn, chốt doanh thu ngày & đối soát giao dịch.<br>**2.** Giao diện Đóng/Mở ca & đối soát két tiền Thu ngân; gắn SignalR trực tiếp cho `HousekeepingPage`. |
 
 ---
 
-## 2. CHI TIẾT NHIỆM VỤ TỪNG TUẦN CHO TỪNG THÀNH VIÊN
+### Giai đoạn 3 — Tự động hóa Kiểm thử, Chuẩn hóa UX/Security & Bảo vệ Đồ án (Tuần 11 – Tuần 15)
+
+| Tuần | Mốc Phase | Ngô Võ Tuấn An (`24TX810001`) | Nguyễn Khôi Nguyên (`24TX810011`) | Trần Trọng Tân (`24TX810025`) |
+|:---:|:---:|---|---|---|
+| **Tuần 11** | **P12** *(Playwright E2E, i18n & Chuẩn Angular)* | Chuẩn hóa Auth/Admin i18n song ngữ VI/EN, gắn `authGuard` cho `guest-profile`, lọc sidebar theo quyền thực tế (bỏ `showUnimplementedNotice()`), rà soát đồng bộ Swagger `/api/v1/` hoặc cập nhật `SDD-06`. | Chuyển đổi toàn bộ `28` Angular component còn lại sang `ChangeDetectionStrategy.OnPush`, xử lý dứt điểm `121` kiểu `any` ở production code, hoàn thiện i18n Catalog/Pricing/Reports. | Khởi tạo bộ **Playwright E2E** (`frontend/playwright.config.ts` & `frontend/e2e/`), tự động hóa **10 kịch bản cốt lõi** (OTA Search $\rightarrow$ Hold $\rightarrow$ VNPay $\rightarrow$ Check-in $\rightarrow$ Housekeeping $\rightarrow$ Check-out $\rightarrow$ D23) + i18n Operations. |
+| **Tuần 12** | **P13** *(CI Gate, WCAG AA, Mobile 375px & IoT)* | Tích hợp Playwright E2E + `dotnet list --vulnerable` + `npm audit` làm cổng chặn bắt buộc trong `.github/workflows/ci.yml`; kiểm tra Dark/Light mode nhất quán toàn app (`styles.css` vs PrimeNG Aura). | Bổ sung +10 kịch bản Playwright (Pricing/Reports/Promotions/Loyalty), chạy kiểm toán tự động **WCAG 2.1 AA (`axe-core`)** và điều hướng bàn phím đầy đủ. | Tinh chỉnh giao diện **Mobile 375px** (Housekeeping Kanban, Bảng Đặt phòng, Quầy Thu ngân, Đồng hồ Hold), hoàn thiện giao diện Admin cấp/thu hồi/đổi mã **SmartLock PIN** (`BookingStatus` + `Rooms`). |
+| **Tuần 13** | **P14** *(NFR Stress, OWASP ZAP & Disaster Recovery)* | Quét bảo mật tự động **OWASP ZAP Baseline**, kiểm tra **SonarQube / Roslyn Analyzers** (0 Critical/Blocker), diễn tập **PostgreSQL Backup & Restore Disaster Recovery**. | Chạy vòng **k6 Load Test Nghiệm thu** trên Staging (VNPay IPN & Public Search 50–100 VUs, đảm bảo `p95 < 500ms`), lập bảng so sánh Trước/Sau tối ưu tại `docs/reports/load-tests/`. | Chạy **Stress Test SignalR 100+ WebSocket** kéo dài, kiểm thử tiêm lỗi mất kết nối/reconnect & chịu tải đồng thời D23 Confirm Payout. |
+| **Tuần 14** | **P15A** *(UAT, SUS Survey & Đồng bộ Tài liệu)* | Rà soát & đồng bộ toàn bộ `docs/sdd/` (`06-api-design.md`, `08-deployment.md`), sửa link gãy trong `docs/README.md`, chốt số liệu hiệu năng & bảo mật cho cuốn Báo cáo Tổng kết. | Tổ chức khảo sát **Đánh giá Tính khả dụng SUS** với $\ge 10$ người dùng thực tế (mục tiêu điểm $\text{SUS} \ge 80$), hoàn thiện chương Giao diện, Báo cáo & Đánh giá Người dùng. | Tổ chức UAT quy trình vận hành Lễ tân/Buồng phòng/Thu ngân, chuẩn hóa tập **Demo Seed Data sạch 1 chạm**, hoàn thiện chương Quy trình Nghiệp vụ & Kiểm thử. |
+| **Tuần 15** | **P15B** *(Code Freeze, Tổng duyệt & Bảo vệ)* | **Code Freeze** nhánh `main`, gắn tag phát hành v2.0, đóng gói hồ sơ bằng chứng Grafana/CI/CD/AI Disclosure toàn kỳ 15 tuần, điều phối diễn tập bảo vệ. | Kiểm duyệt demo luồng Bảng giá $\rightarrow$ Hóa đơn PDF QR $\rightarrow$ Báo cáo Charts $\rightarrow$ AI Search; hoàn thiện Slide & diễn tập phản biện trước Hội đồng. | Kiểm duyệt demo luồng E2E B2C Hold $\rightarrow$ VNPay $\rightarrow$ SignalR $\rightarrow$ Check-in $\rightarrow$ Housekeeping $\rightarrow$ Check-out $\rightarrow$ D23; hoàn thiện Slide & diễn tập phản biện. |
 
 ---
 
-### PHẦN I: LỘ TRÌNH CHI TIẾT CỦA BẠN NGÔ VÕ TUẤN AN (MSSV: 24TX810001 — LEADER / BACKEND)
+## 3. QUY TẮC PHỐI HỢP NHÁNH GIT & CỔNG CHẤT LƯỢNG
 
-#### 🔹 Tuần 1: Khởi tạo Kiến trúc, CI/CD và Xác thực Phân quyền (Phase 0 – 1A)
-- **Đầu việc:**
-  - Khởi tạo kiến trúc .NET 10 Clean Architecture (`Domain`, `Application`, `Infrastructure`, `WebApi`).
-  - Xây dựng file cấu hình CI/CD [`.github/workflows/ci.yml`](https://github.com/GinNgo/hotel-saas-v2/blob/develop/.github/workflows/ci.yml) gồm 6 stages kiểm thử tự động trên PostgreSQL 17 container.
-  - Định nghĩa các thực thể miền trong `backend/src/HotelSaas.Domain/Entities/`.
-  - Viết `AuthController` (Đăng ký, Đăng nhập, JWT, Refresh Token).
-  - Viết `TenantPropertyContextMiddleware` kiểm soát cách ly chi nhánh và phân quyền RBAC.
-  - Viết `LocalDevDataSeeder` nạp sẵn 2 chi nhánh và dữ liệu mẫu phục vụ team.
-- **Tệp bàn giao:** `backend/`, `.github/workflows/ci.yml`, `docs/srs/`, `docs/sdd/`.
-
-#### 🔹 Tuần 2: Pricing Engine & Quản lý Chính sách Bảng giá (Phase 1B – 2)
-- **Đầu việc:**
-  - Xây dựng `PricingCalculator`: Tính tiền phòng theo giờ (giờ đầu + phụ thu làm tròn 60 phút) và theo đêm (12:00 hôm trước đến 12:00 hôm sau).
-  - Viết API Chính sách chi nhánh: `GET/PUT /api/properties/{id}/policies` (giờ check-in/out, buffer dọn phòng $\ge$ 30 phút, phụ thu sớm/trễ).
-  - Viết API Bảng giá loại phòng: `GET/POST /api/room-types/{id}/rates` (giá theo khoảng ngày, kiểm tra không đè chéo khoảng thời gian - 409 Overlap).
-  - Viết Unit Tests kiểm tra tính đúng đắn của logic tính giá với 100% test cases pass.
-  - Hỗ trợ review và merge Pull Request của Nguyên và Tân.
-- **Tệp bàn giao:** `backend/src/HotelSaas.Application/Pricing/`, `backend/tests/HotelSaas.Application.Tests/`.
-
-#### 🔹 Tuần 3: Đặt phòng Nội bộ & Khóa Phòng Concurrency (Phase 3)
-- **Đầu việc:**
-  - Xây dựng API Đặt phòng trực tiếp tại quầy: `POST /api/reservations`.
-  - Thuật toán khóa chống đặt trùng phòng (Anti-overlap Concurrency): Dùng Database Transaction cách ly kiểm tra khoảng thời gian `[StartAt, EndAt)` trước khi gán phòng.
-  - API Vòng đời lưu trú: `POST /api/reservations/{id}/check-in` (chuyển phòng sang `Occupied`) và `POST /api/reservations/{id}/check-out` (chuyển phòng sang `Dirty`).
-- **Tệp bàn giao:** `backend/src/HotelSaas.Application/Reservations/`, `backend/src/HotelSaas.WebApi/Controllers/ReservationsController.cs`.
-
-#### 🔹 Tuần 4: Thu ngân, Bảng kê Folio & Báo cáo Ca trực (Phase 4)
-- **Đầu việc:**
-  - Xây dựng API Quản lý thanh toán: `POST /api/payments` (thu tiền mặt, chuyển khoản ngân hàng, cọc trước).
-  - API Bảng kê hóa đơn `FolioDto`: Tổng tiền, tiền đã thanh toán, số dư còn nợ.
-  - API Báo cáo tổng thực thu ca trực `PaymentSummaryDto`: Thống kê tổng thu theo ngày địa phương Việt Nam (UTC+7).
-  - Đảm bảo tính bất biến của lịch sử giao dịch (Audit Log).
-- **Tệp bàn giao:** `backend/src/HotelSaas.Application/Payments/`, `backend/src/HotelSaas.WebApi/Controllers/PaymentsController.cs`.
-
-#### 🔹 Tuần 5: Cổng Đặt phòng Online (Guest OTA) & Giữ phòng 15 phút (Phase 5)
-- **Đầu việc:**
-  - Xây dựng Public API không cần đăng nhập: `GET /api/public/properties`, `GET /api/public/properties/{slug}/availability`.
-  - Thuật toán Giữ phòng 15 phút (`POST /api/public/bookings/hold`): Tự động giải phóng phòng nếu sau 15 phút khách không nộp cọc.
-  - Tạo và mã hóa mã tra cứu bí mật `lookupToken` để khách theo dõi đơn phòng ẩn danh.
-- **Tệp bàn giao:** `backend/src/HotelSaas.Application/Public/`, `backend/src/HotelSaas.WebApi/Controllers/PublicController.cs`.
-
-#### 🔹 Tuần 6: Tích hợp Gemini AI & Đóng gói Docker (Phase 6 – 7A)
-- **Đầu việc:**
-  - Tích hợp Google Gemini API: Nhận yêu cầu tìm phòng bằng tiếng Việt từ khách (ví dụ: *"Tìm phòng đôi cho 2 người ở Phú Nhuận vào cuối tuần"*), chuyển thành tham số tìm kiếm có cấu trúc.
-  - Bộ tiền xử lý Backend: Xác thực kết quả từ AI, chỉ trả về phòng và giá thực tế trong hệ thống, tuyệt đối không bịa giá hay số lượng phòng trống.
-  - Viết `Dockerfile` và `docker-compose.yml` đóng gói đồng bộ Backend, Frontend, PostgreSQL 17.
-- **Tệp bàn giao:** `backend/src/HotelSaas.Infrastructure/Ai/`, `docker-compose.yml`.
-
-#### 🔹 Tuần 7+: Triển khai Staging, Quét SonarQube & Báo cáo Luận văn (Phase 7B)
-- **Đầu việc:**
-  - Triển khai toàn bộ hệ thống lên máy chủ thử nghiệm (Staging Server) có tên miền và HTTPS phục vụ demo cho hội đồng.
-  - Quét kiểm tra chất lượng mã nguồn bằng SonarQube / Roslyn Analyzers, đảm bảo 0 lỗi bảo mật nghiêm trọng.
-  - Tổng hợp số liệu kỹ thuật, hoàn thiện tài liệu luận văn và chuẩn bị slide thuyết trình.
-
----
-
-### PHẦN II: LỘ TRÌNH CHI TIẾT CỦA BẠN NGUYỄN KHÔI NGUYÊN (MSSV: 24TX810011 — FRONTEND — DANH MỤC & SƠ ĐỒ)
-
-#### 🔹 Tuần 1: Khung Giao diện Danh mục Phòng & Hạng phòng (Phase 0 – 1A)
-- **Đầu việc:**
-  - Khảo sát giao diện và luồng dữ liệu cho module Quản lý Phòng và Loại phòng.
-  - Xây dựng component `rooms.page.ts` và `room-types.page.ts`.
-  - Định nghĩa models TypeScript: `room.model.ts`, `room-type.model.ts`.
-  - Viết services gọi API: `room.service.ts`, `room-type.service.ts`.
-  - Xây dựng ô tìm kiếm với debounce 300ms + `switchMap` và phân trang.
-- **Tệp bàn giao:** `frontend/src/app/features/rooms/`, `frontend/src/app/features/room-types/`.
-
-#### 🔹 Tuần 2: Hoàn thiện CRUD Phòng & Giao diện Bảng giá (Phase 1B – 2)
-- **Đầu việc:**
-  - Hoàn thiện Modal Form Thêm và Sửa phòng sử dụng `<p-dialog>` của PrimeNG.
-  - Bổ sung Form Validation: Bắt buộc nhập số phòng, kiểm tra số phòng hợp lệ theo tầng.
-  - Bắt mã lỗi `409 Conflict` từ backend khi số phòng bị trùng trong chi nhánh và hiển thị thông báo lỗi rõ ràng.
-  - Xây dựng giao diện xem và cấu hình Bảng giá theo loại phòng (`rates.page.ts`).
-  - Tạo nhánh `feature/nguyen-rooms`, commit code và tạo Pull Request vào `develop`.
-- **Tệp bàn giao:** `frontend/src/app/features/rooms/`, `frontend/src/app/features/rates/`.
-
-#### 🔹 Tuần 3: Sơ đồ Phòng Dạng Lưới (Room Matrix Grid) (Phase 3)
-- **Đầu việc:**
-  - Xây dựng giao diện Sơ đồ phòng trực quan dạng lưới (Grid View) theo tầng lầu.
-  - Thể hiện màu sắc phòng trực quan theo thời gian thực:
-    - 🟩 Màu xanh lá: Phòng sạch, sẵn sàng đón khách.
-    - 🟥 Màu đỏ: Phòng đang có khách lưu trú (`Occupied`).
-    - 🟨 Màu vàng: Phòng đang được dọn dẹp (`Cleaning`).
-    - 🟧 Màu cam: Phòng bẩn, chờ dọn (`Dirty`).
-  - Modal xem nhanh thông tin phòng và tiện ích khi click vào từng ô phòng trên sơ đồ.
-- **Tệp bàn giao:** `frontend/src/app/features/rooms/room-matrix.component.ts`.
-
-#### 🔹 Tuần 4: Bảng kê Hóa đơn Folio & In Phiếu Tính Tiền (Phase 4)
-- **Đầu việc:**
-  - Xây dựng giao diện Chi tiết hóa đơn thanh toán (`Folio`):
-    - Tiền phòng gốc theo số đêm/giờ.
-    - Phụ phí check-in sớm / check-out muộn tự động tính.
-    - Danh sách các khoản tiền khách đã trả (tiền cọc, thanh toán thêm).
-    - Số dư còn phải thanh toán.
-  - Nút bấm xem trước và in phiếu tính tiền cho khách hàng.
-- **Tệp bàn giao:** `frontend/src/app/features/reservations/folio-detail.component.ts`.
-
-#### 🔹 Tuần 5: Giao diện Đặt phòng Trực tuyến Công khai (Guest OTA) (Phase 5)
-- **Đầu việc:**
-  - Xây dựng trang Đặt phòng trực tuyến dành cho khách (`booking.page.ts`):
-    - Thanh tìm kiếm trung tâm: chọn ngày nhận phòng, ngày trả phòng, số lượng khách.
-    - Danh sách thẻ loại phòng: tên phòng, mô tả, sức chứa, giá ước tính.
-    - Đồ họa minh họa phòng và hình ảnh thực tế.
-  - Đảm bảo khi khách chuyển chi nhánh khách sạn, dữ liệu phòng cũ được xóa ngay lập tức (không rò rỉ dữ liệu cũ).
-- **Tệp bàn giao:** `frontend/src/app/features/public-booking/booking.page.ts`.
-
-#### 🔹 Tuần 6: Khung Tìm kiếm Trợ lý AI & Tối ưu Tiếp cận (Accessibility) (Phase 6 – 7A)
-- **Đầu việc:**
-  - Xây dựng hộp thoại / thanh tìm kiếm thông minh tích hợp AI: Cho phép khách gõ câu hỏi ngôn ngữ tự nhiên.
-  - Hiển thị danh sách kết quả gợi ý phòng từ AI một cách trực quan, có thẻ giá và nút "Đặt ngay".
-  - Tối ưu khả năng tiếp cận (Accessibility): Hỗ trợ đầy đủ phím Tab, Enter, Escape cho người dùng khiếm thị hoặc thao tác bằng bàn phím.
-- **Tệp bàn giao:** `frontend/src/app/features/public-booking/ai-search-box.component.ts`.
-
-#### 🔹 Tuần 7+: Thực nghiệm Người dùng (SUS Testing) & Báo cáo Luận văn (Phase 7B)
-- **Đầu việc:**
-  - Soạn thảo bảng câu hỏi đo lường trải nghiệm người dùng theo thang đo SUS (System Usability Scale) gồm 10 câu hỏi tiêu chuẩn.
-  - Phát phiếu khảo sát cho $\ge$ 10 người dùng thực tế thử nghiệm hệ thống và tổng hợp điểm số (mục tiêu $\ge$ 80 điểm).
-  - Hoàn thiện chương tài liệu luận văn: Phân tích thiết kế giao diện và Trải nghiệm người dùng.
-
----
-
-### PHẦN III: LỘ TRÌNH CHI TIẾT CỦA BẠN TRẦN TRỌNG TÂN (MSSV: 24TX810025 — FRONTEND — BUỒNG PHÒNG & VẬN HÀNH)
-
-#### 🔹 Tuần 1: Khung Giao diện Bảng Buồng phòng & Phân trang (Phase 0 – 1A)
-- **Đầu việc:**
-  - Khảo sát máy trạng thái buồng phòng (State Machine): `Dirty` $\to$ `Cleaning` $\to$ `Clean`.
-  - Xây dựng trang giao diện `housekeeping.page.ts`.
-  - Khai báo Enum `RoomStatus` và đối tượng màu sắc `ROOM_STATUS_LABELS` trong `enums.ts`.
-  - Viết hàm gọi API `updateRoomStatus` gửi kèm `expectedOldStatus` chống lỗi 409.
-  - Xây dựng component phân trang `pagination.component.ts` và khung xương `skeleton-table`.
-- **Tệp bàn giao:** `frontend/src/app/features/housekeeping/`, `frontend/src/app/shared/components/`.
-
-#### 🔹 Tuần 2: Nút bấm Chuyển trạng thái 1 chạm & Xử lý Xung đột 409 (Phase 1B – 2)
-- **Đầu việc:**
-  - Hoàn thiện các nút thao tác nhanh trên từng dòng phòng:
-    - Phòng `Dirty`: Nút "Bắt đầu dọn" $\to$ chuyển sang `Cleaning`.
-    - Phòng `Cleaning`: Nút "Hoàn tất dọn" $\to$ chuyển sang `Clean`.
-  - Xử lý lỗi xung đột đồng thời 409 (`ERR_STALE_STATE`): Khi người khác đã đổi trạng thái phòng trước, hiển thị thông báo Toast cảnh báo và tự động nạp lại bảng dữ liệu mới nhất.
-  - Khóa nút bấm (disable) khi request đang gửi để chống nhân viên click đúp liên tục.
-  - Hoàn thiện bộ lọc theo tầng lầu (Tất cả tầng, Tầng 1, Tầng 2, Tầng 3, Tầng 4).
-  - Tạo nhánh `feature/tan-housekeeping`, commit code và tạo Pull Request vào `develop`.
-- **Tệp bàn giao:** `frontend/src/app/features/housekeeping/housekeeping.page.ts`.
-
-#### 🔹 Tuần 3: Giao diện Danh sách Đơn đặt phòng & Check-in/out (Phase 3)
-- **Đầu việc:**
-  - Xây dựng trang Quản lý Đơn đặt phòng (`reservations.page.ts`):
-    - Bảng danh sách đơn đặt phòng theo chi nhánh, tìm kiếm theo tên khách hoặc mã đơn.
-    - Cột trạng thái đơn: Chờ thanh toán, Đã xác nhận, Đang ở (`CheckedIn`), Đã trả phòng (`CheckedOut`), Đã hủy.
-  - Thao tác nhanh của Lễ tân:
-    - Nút "Check-in": Nhận phòng cho khách $\to$ chuyển phòng sang `Occupied`.
-    - Nút "Check-out": Trả phòng $\to$ hệ thống tự động chuyển phòng sang `Dirty` và gửi thông báo cho buồng phòng.
-- **Tệp bàn giao:** `frontend/src/app/features/reservations/reservations.page.ts`.
-
-#### 🔹 Tuần 4: Giao diện Thu ngân & Báo cáo Ca trực (Phase 4)
-- **Đầu việc:**
-  - Xây dựng trang Thu ngân (`payments.page.ts`):
-    - Khối KPI tổng thực thu trong ngày: Tiền mặt, Chuyển khoản, Thẻ tín dụng, Tổng thu.
-    - Bảng lịch sử các giao dịch thanh toán trong ca trực.
-    - Bộ lọc giao dịch theo ngày, phương thức thanh toán và trạng thái.
-  - Form ghi nhận thu tiền trực tiếp tại quầy khi khách trả tiền phòng hoặc thanh toán thêm.
-- **Tệp bàn giao:** `frontend/src/app/features/payments/payments.page.ts`.
-
-#### 🔹 Tuần 5: Trang Giữ chỗ 15 phút & Tra cứu Đơn phòng (Phase 5)
-- **Đầu việc:**
-  - Xây dựng trang Giữ phòng 15 phút (`booking-hold.page.ts`):
-    - Hiển thị đồng hồ đếm ngược 15:00 phút thời gian thực.
-    - Thông tin phòng đã giữ và hướng dẫn thanh toán cọc chuyển khoản ngân hàng (mã QR / số tài khoản).
-    - Cảnh báo: Sau 15 phút không cọc, phòng sẽ tự động được trả lại cho khách khác.
-  - Xây dựng trang Tra cứu trạng thái đơn phòng (`booking-status.page.ts`) qua mã bí mật `lookupToken`.
-- **Tệp bàn giao:** `frontend/src/app/features/public-booking/booking-hold.page.ts`, `booking-status.page.ts`.
-
-#### 🔹 Tuần 6: Kiểm thử Luồng Đặt phòng E2E & Tối ưu Mobile 375px (Phase 6 – 7A)
-- **Đầu việc:**
-  - Thực hiện kiểm thử toàn trình từ đầu đến cuối (End-to-End): Khách đặt online giữ chỗ 15 phút $\to$ Lễ tân xác nhận cọc $\to$ Khách đến Check-in $\to$ Khách trả phòng Check-out $\to$ Phòng chuyển thành Bẩn $\to$ Nhân viên dọn phòng hoàn tất sạch sẽ $\to$ Phòng sẵn sàng đón khách mới.
-  - Tối ưu giao diện trên màn hình điện thoại di động (Mobile 375px) cho nhân viên buồng phòng và lễ tân thao tác thuận tiện.
-- **Tệp bàn giao:** Kịch bản kiểm thử E2E và bản cập nhật CSS Responsive.
-
-#### 🔹 Tuần 7+: Thực nghiệm Nghiệp vụ Buồng phòng, Slide & Demo (Phase 7B)
-- **Đầu việc:**
-  - Khảo sát thực tế nhân viên khách sạn về tính tiện dụng của bảng buồng phòng và quy trình thu ngân.
-  - Hoàn thiện chương tài liệu luận văn: Quy trình Nghiệp vụ Khách sạn và Kiểm thử Phần mềm.
-  - Cùng nhóm chuẩn bị Slide thuyết trình và kịch bản demo chạy thật phục vụ buổi bảo vệ đề tài.
+1. **Quy trình Git 3 người:** Mọi tính năng mới rẽ từ `develop` theo quy ước `feature/<ten>-week<so>-<mo-ta>` (ví dụ `feature/an-week6-observability-auth`), mở Pull Request về `develop` có thành viên khác / Leader review trước khi merge vào `main`.
+2. **Tách biệt file (`ALLOWED FILES`):** Mỗi tuần phân chia danh sách thư mục/file phụ trách không giao nhau giữa An, Nguyên và Tân để loại bỏ xung đột (merge conflict).
+3. **Cổng kiểm định trước khi PR:**
+   ```bash
+   dotnet build backend/HotelSaas.slnx --verbosity minimal
+   dotnet test backend/HotelSaas.slnx --no-build
+   npm --prefix frontend run build
+   npx --prefix frontend ng test --watch=false --progress=false
+   ```

@@ -166,6 +166,31 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
           </div>
         </section>
 
+        <!-- BANNER GỢI Ý BỔ SUNG EMAIL CHO TÀI KHOẢN ĐĂNG KÝ BẰNG SĐT -->
+        @if (isSyntheticEmail()) {
+          <div class="p-4 rounded-2xl bg-amber-50/90 border border-amber-200/90 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-amber-200/70 text-amber-800 flex items-center justify-center shrink-0">
+                <i class="pi pi-envelope text-lg"></i>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-amber-950">Tài khoản được đăng ký bằng Số điện thoại (Chưa liên kết Email cá nhân)</div>
+                <p class="text-[11px] text-amber-800/90 mt-0.5">
+                  Thêm địa chỉ Email để tự động nhận vé phòng PDF, mã QR check-in và hóa đơn VAT điện tử về hộp thư cá nhân.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              (click)="startEditing()"
+              class="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition-colors shrink-0 cursor-pointer self-start sm:self-auto"
+            >
+              <i class="pi pi-plus text-xs mr-1"></i>
+              <span>Cập nhật Email ngay</span>
+            </button>
+          </div>
+        }
+
         <!-- 2. GUEST KPI METRICS STRIP (4 CARDS) -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div class="bg-white rounded-xl border border-slate-200/90 p-4 sm:p-5 shadow-xs">
@@ -580,6 +605,10 @@ export class GuestProfilePageComponent implements OnInit {
 
   readonly user = toSignal(this.auth.currentUser$, { initialValue: this.auth.currentUser });
   readonly isGuest = computed(() => ['Customer', 'Guest'].includes(this.user()?.globalRole ?? ''));
+  readonly isSyntheticEmail = computed(() => {
+    const email = this.user()?.email || '';
+    return email.endsWith('@phone.hotelsaas.local') || email.includes('phone_') || !email.includes('@');
+  });
   readonly activeTab = signal<string>('account');
 
   readonly currentFullName = signal<string>('');

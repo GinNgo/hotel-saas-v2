@@ -57,9 +57,14 @@ public sealed class CreateStaffMemberCommandHandler : IRequestHandler<CreateStaf
         }
 
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        Guid? targetPropertyId = request.PropertyId.HasValue && request.PropertyId.Value != Guid.Empty
+            ? request.PropertyId
+            : null;
+        var now = DateTime.UtcNow;
 
         // Find or create user
         var user = await _context.Users
+            .IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail, cancellationToken);
 
         if (user == null)
@@ -76,26 +81,42 @@ public sealed class CreateStaffMemberCommandHandler : IRequestHandler<CreateStaf
                 GlobalRole = GlobalUserRole.TenantStaff,
                 TenantId = tenantId.Value,
                 IsActive = true,
-                CreatedAtUtc = DateTime.UtcNow
+                EmailVerifiedAtUtc = now,
+                PhoneVerifiedAtUtc = !string.IsNullOrWhiteSpace(request.PhoneNumber) ? now : null,
+                CreatedAtUtc = now
             };
             _context.Users.Add(user);
         }
         else
         {
-            // Update phone / name if missing
+            if (user.GlobalRole == GlobalUserRole.Customer)
+            {
+                user.GlobalRole = GlobalUserRole.TenantStaff;
+            }
+            user.TenantId ??= tenantId.Value;
+
             if (!string.IsNullOrWhiteSpace(request.PhoneNumber) && string.IsNullOrWhiteSpace(user.PhoneNumber))
             {
                 user.PhoneNumber = request.PhoneNumber.Trim();
             }
+
+            user.EmailVerifiedAtUtc ??= now;
+            if (!string.IsNullOrWhiteSpace(user.PhoneNumber) || !string.IsNullOrWhiteSpace(request.PhoneNumber))
+            {
+                user.PhoneVerifiedAtUtc ??= now;
+            }
         }
 
-        // Check if staff already exists in this tenant
+        // Check if staff already exists in this tenant + exact branch/HQ scope (allows multi-branch assignments)
         var existingStaff = await _context.TenantStaffMembers
-            .FirstOrDefaultAsync(s => s.TenantId == tenantId.Value && s.UserId == user.Id, cancellationToken);
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(
+                s => s.TenantId == tenantId.Value && s.UserId == user.Id && s.PropertyId == targetPropertyId,
+                cancellationToken);
 
         if (existingStaff != null)
         {
-            throw new InvalidOperationException($"Nhân viên với email {request.Email} đã thuộc tổ chức này.");
+            throw new InvalidOperationException($"Nhân viên với email {request.Email} đã được phân công tại chi nhánh/phạm vi này.");
         }
 
         // Determine RoleId
@@ -120,13 +141,14 @@ public sealed class CreateStaffMemberCommandHandler : IRequestHandler<CreateStaf
 
         // Verify property exists if property scoped
         string? propertyName = null;
-        if (request.PropertyId.HasValue && request.PropertyId.Value != Guid.Empty)
+        if (targetPropertyId.HasValue)
         {
             var property = await _context.Properties
-                .FirstOrDefaultAsync(p => p.Id == request.PropertyId.Value && p.TenantId == tenantId.Value, cancellationToken);
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(p => p.Id == targetPropertyId.Value && p.TenantId == tenantId.Value, cancellationToken);
             if (property == null)
             {
-                throw new NotFoundException(nameof(Property), request.PropertyId.Value);
+                throw new NotFoundException(nameof(Property), targetPropertyId.Value);
             }
             propertyName = property.Name;
         }
@@ -135,12 +157,12 @@ public sealed class CreateStaffMemberCommandHandler : IRequestHandler<CreateStaf
         {
             Id = Guid.NewGuid(),
             TenantId = tenantId.Value,
-            PropertyId = request.PropertyId,
+            PropertyId = targetPropertyId,
             UserId = user.Id,
             RoleId = roleId,
             StaffRole = request.StaffRole,
             IsActive = true,
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = now
         };
 
         _context.TenantStaffMembers.Add(staff);

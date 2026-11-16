@@ -1,11 +1,11 @@
 namespace HotelSaas.Application.Auth.Commands.SwitchContext;
 
 /// <summary>
-/// Data transfer object describing the newly activated property context.
+/// Data transfer object describing the newly activated working context (branch or chain-wide HQ).
 /// </summary>
 public sealed record CurrentContextDto(
     Guid TenantId,
-    Guid PropertyId,
+    Guid? PropertyId,
     string Scope,
     string RoleName);
 

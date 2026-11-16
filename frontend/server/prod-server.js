@@ -10,7 +10,9 @@ const PORT = process.env.APP_PORT
   ? Number(process.env.APP_PORT)
   : (process.env.PORT && process.env.PORT !== '8080' ? Number(process.env.PORT) : 3000);
 const HOST = '0.0.0.0';
-const BACKEND_TARGET = process.env.BACKEND_API_URL || 'https://luxustay.duckdns.org';
+const BACKEND_TARGET =
+  process.env.BACKEND_API_URL ||
+  (process.env.NODE_ENV === 'production' ? 'https://luxustay.duckdns.org' : 'http://localhost:5283');
 
 // Resolve Angular production build directory (supports both @angular/build:application browser/ and legacy flat dist)
 const distCandidates = [

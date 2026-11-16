@@ -17,6 +17,7 @@ import { resolvePropertyThumbnail } from '../../core/utils/hotel-image.util';
 import { VIETNAM_34_PROVINCES } from '../../core/data/vietnam-provinces.data';
 import { BookingFilterBarComponent } from './components/booking-filter-bar/booking-filter-bar.component';
 import {
+  ALL_PROPERTY_TYPES,
   BookingSortOption,
   DestinationSuggestionDto,
   PropertyType,
@@ -37,6 +38,7 @@ import {
 interface TenantBrandFacet {
   tenantId: string;
   tenantBrandName: string;
+  tenantSlug?: string;
   branchCount: number;
 }
 
@@ -422,7 +424,7 @@ interface TenantBrandFacet {
                         />
                         <div class="absolute top-3 left-3 flex flex-wrap gap-1.5">
                           <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white">
-                            {{ sanitizeVn(property.propertyTypeName || property.propertyType) }}
+                            {{ sanitizeVn(property.propertyTypeName || getPropertyTypeLabel(property.propertyType)) }}
                           </span>
                           @if (property.starRating && property.starRating >= 4) {
                             <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950 flex items-center gap-1">
@@ -793,8 +795,12 @@ export class ExploreSearchPageComponent implements OnInit {
   readonly availablePropertyTypes: { label: string; value: PropertyType }[] = [
     { label: 'Khách sạn (Hotel)', value: 'Hotel' },
     { label: 'Resort nghỉ dưỡng', value: 'Resort' },
-    { label: 'Nhà nghỉ (Motel)', value: 'Motel' },
     { label: 'Homestay', value: 'Homestay' },
+    { label: 'Biệt thự (Villa)', value: 'Villa' },
+    { label: 'Căn hộ dịch vụ (Apartment)', value: 'Apartment' },
+    { label: 'Nhà nghỉ (Motel)', value: 'Motel' },
+    { label: 'Hostel / Dorm', value: 'Hostel' },
+    { label: 'Bed & Breakfast', value: 'BedAndBreakfast' },
     { label: 'Nhà khách (Guesthouse)', value: 'Guesthouse' },
   ];
 
@@ -837,13 +843,19 @@ export class ExploreSearchPageComponent implements OnInit {
   readonly tenantBrandFacets = computed<TenantBrandFacet[]>(() => {
     const map = new Map<string, TenantBrandFacet>();
     for (const p of this.properties()) {
-      const existing = map.get(p.tenantId);
+      if (!p.tenantId && !p.tenantSlug) continue;
+      const key = p.tenantId || p.tenantSlug || '';
+      const existing = map.get(key);
       if (existing) {
         existing.branchCount++;
+        if (!existing.tenantSlug && p.tenantSlug) {
+          existing.tenantSlug = p.tenantSlug;
+        }
       } else {
-        map.set(p.tenantId, {
+        map.set(key, {
           tenantId: p.tenantId,
           tenantBrandName: p.tenantBrandName || 'Thương hiệu độc lập',
+          tenantSlug: p.tenantSlug,
           branchCount: 1,
         });
       }
@@ -853,14 +865,21 @@ export class ExploreSearchPageComponent implements OnInit {
 
   readonly filteredProperties = computed<PublicPropertyDto[]>(() => {
     const raw = this.properties();
+    const filter = this.searchFilter();
     const tenantId = this.selectedTenantId();
+    const selectedTypes = filter.propertyTypes;
+    const filterTenantSlug = filter.tenantSlug;
     const maxDist = this.maxDistanceMeters();
     const minP = this.minPrice();
     const maxP = this.maxPrice();
     const sort = this.sortBy();
 
     const list = raw.filter((prop) => {
+      if (selectedTypes.length > 0 && !selectedTypes.includes(prop.propertyType)) {
+        return false;
+      }
       if (tenantId && prop.tenantId !== tenantId) return false;
+      if (!tenantId && filterTenantSlug && prop.tenantSlug !== filterTenantSlug) return false;
       if (maxDist !== null) {
         if (prop.distanceMeters != null && prop.distanceMeters > maxDist) return false;
       }
@@ -897,6 +916,20 @@ export class ExploreSearchPageComponent implements OnInit {
         const rawKw = String(params['destinationKeyword'] ?? params['destination'] ?? params['search'] ?? '');
         const isGpsText = rawKw.includes('📍') || rawKw.includes('GPS') || rawKw.includes('Vị trí hiện tại');
         const effectiveKw = isGpsText ? '' : rawKw;
+        const selectedTenantParam =
+          typeof params['selectedTenantId'] === 'string' && params['selectedTenantId']
+            ? params['selectedTenantId']
+            : null;
+        const tenantSlugParam =
+          typeof params['tenantSlug'] === 'string' && params['tenantSlug']
+            ? params['tenantSlug']
+            : null;
+        const parsedPropertyTypes = String(params['propertyTypes'] ?? '')
+          .split(',')
+          .map((t) => t.trim())
+          .filter((t): t is PropertyType => ALL_PROPERTY_TYPES.includes(t as PropertyType));
+
+        this.selectedTenantId.set(selectedTenantParam);
 
         this.searchFilter.update((f) => ({
           ...f,
@@ -905,12 +938,11 @@ export class ExploreSearchPageComponent implements OnInit {
           provinceCode: params['provinceCode'] || params['province'] || null,
           touristZoneSlug: params['touristZoneSlug'] || params['zone'] || null,
           landmarkSlug: params['landmarkSlug'] || params['landmark'] || null,
+          tenantSlug: tenantSlugParam,
           userLatitude: params['userLatitude'] != null && Number.isFinite(Number(params['userLatitude'])) ? Number(params['userLatitude']) : (params['lat'] != null ? Number(params['lat']) : null),
           userLongitude: params['userLongitude'] != null && Number.isFinite(Number(params['userLongitude'])) ? Number(params['userLongitude']) : (params['lng'] != null ? Number(params['lng']) : null),
           maxDistanceMeters: params['maxDistanceMeters'] != null && Number.isFinite(Number(params['maxDistanceMeters'])) ? Number(params['maxDistanceMeters']) : (params['maxDistance'] != null ? Number(params['maxDistance']) : null),
-          propertyTypes: String(params['propertyTypes'] ?? '')
-            .split(',')
-            .filter((t): t is PropertyType => ['Hotel', 'Motel', 'Guesthouse', 'Homestay', 'Resort'].includes(t as PropertyType)),
+          propertyTypes: parsedPropertyTypes,
         }));
         this.loadPublicProperties();
       });
@@ -928,10 +960,16 @@ export class ExploreSearchPageComponent implements OnInit {
     const serviceFilter: PublicPropertiesFilter = {
       search: effectiveSearch,
       destinationKeyword: effectiveSearch,
+      tenantSlug: filter.tenantSlug || undefined,
+      provinceCode: filter.provinceCode || undefined,
+      propertyTypes: filter.propertyTypes.length > 0 ? filter.propertyTypes : undefined,
       rentalType: filter.rentalType === 'Hourly' ? 1 : filter.rentalType === 'Overnight' ? 2 : 3,
       touristZoneSlug: filter.touristZoneSlug || undefined,
       landmarkSlug: filter.landmarkSlug || undefined,
       maxDistanceKm: filter.maxDistanceMeters ? filter.maxDistanceMeters / 1000 : undefined,
+      maxDistanceMeters: filter.maxDistanceMeters ?? undefined,
+      userLatitude: filter.userLatitude ?? undefined,
+      userLongitude: filter.userLongitude ?? undefined,
       latitude: filter.userLatitude ?? undefined,
       longitude: filter.userLongitude ?? undefined,
       page: filter.page,
@@ -944,27 +982,22 @@ export class ExploreSearchPageComponent implements OnInit {
       .subscribe({
         next: (props: PublicPropertyDto[]) => {
           this.isLoading.set(false);
-          const mapped: PublicPropertyDto[] = (props || []).map((p: any) => {
-            let price = p.dailyStartingPrice ?? p.startingPrice ?? 0;
+          const mapped: PublicPropertyDto[] = (props || []).map((p) => {
+            let price = p.dailyStartingPrice ?? p.startingPriceForSelectedMode ?? p.startingPrice ?? 0;
             if (filter.rentalType === 'Hourly') price = p.hourlyStartingPrice ?? price;
             if (filter.rentalType === 'Overnight') price = p.overnightStartingPrice ?? price;
 
-            const landmarks = (p.nearbyLandmarks || []).map((l: any, idx: number) => ({
-              ...l,
-              landmarkId: l.landmarkId || l.slug || l.landmarkSlug || `lm-${idx}-${l.name || l.landmarkName || idx}`,
-              landmarkName: l.landmarkName || l.name || 'Địa danh',
-              landmarkSlug: l.landmarkSlug || l.slug || 'dia-danh',
-              distanceMeters: l.distanceMeters ?? (typeof l.distanceKm === 'number' ? Math.round(l.distanceKm * 1000) : 0),
-            }));
-
             return {
               ...p,
-              propertyId: p.id || p.propertyId,
+              propertyId: p.propertyId || p.id || '',
               startingPriceForSelectedMode: price,
-              ratingAverage: p.ratingAverage ?? p.starRating ?? 4.5,
-              reviewCount: p.reviewCount ?? 12,
-              nearbyLandmarks: landmarks,
-              thumbnailUrl: resolvePropertyThumbnail(p.name, `${p.addressLine || p.address || ''} ${p.provinceName || p.city || ''} ${p.touristZoneName || ''}`, p.imageUrl || p.thumbnailUrl),
+              ratingAverage: p.ratingAverage ?? 0,
+              reviewCount: p.reviewCount ?? 0,
+              thumbnailUrl: resolvePropertyThumbnail(
+                p.name,
+                `${p.addressLine || p.address || ''} ${p.provinceName || p.city || ''} ${p.touristZoneName || ''}`,
+                p.thumbnailUrl || p.imageUrl
+              ),
             };
           });
           this.properties.set(mapped);
@@ -983,6 +1016,7 @@ export class ExploreSearchPageComponent implements OnInit {
       relativeTo: this.route,
       queryParams: {
         ...filter,
+        selectedTenantId: this.selectedTenantId(),
         propertyTypes: filter.propertyTypes.join(','),
       },
     });
@@ -990,6 +1024,14 @@ export class ExploreSearchPageComponent implements OnInit {
 
   selectTenantBrand(id: string | null): void {
     this.selectedTenantId.set(id);
+    if (!id) {
+      this.searchFilter.update((f) => ({ ...f, tenantSlug: null }));
+    } else {
+      const facet = this.tenantBrandFacets().find(t => t.tenantId === id);
+      if (facet?.tenantSlug) {
+        this.searchFilter.update((f) => ({ ...f, tenantSlug: facet.tenantSlug ?? null }));
+      }
+    }
     this.currentPage.set(1);
   }
 
@@ -1003,6 +1045,31 @@ export class ExploreSearchPageComponent implements OnInit {
     this.searchFilter.update((f) => ({ ...f, propertyTypes: next }));
     this.currentPage.set(1);
     this.onFilterBarChange(this.searchFilter());
+  }
+
+  getPropertyTypeLabel(type: PropertyType): string {
+    switch (type) {
+      case 'Hotel':
+        return 'Khách sạn';
+      case 'Resort':
+        return 'Resort';
+      case 'Homestay':
+        return 'Homestay';
+      case 'Villa':
+        return 'Biệt thự (Villa)';
+      case 'Apartment':
+        return 'Căn hộ dịch vụ';
+      case 'Motel':
+        return 'Nhà nghỉ / Motel';
+      case 'Guesthouse':
+        return 'Nhà khách';
+      case 'Hostel':
+        return 'Hostel';
+      case 'BedAndBreakfast':
+        return 'Bed & Breakfast';
+      default:
+        return 'Cơ sở lưu trú';
+    }
   }
 
   applyPriceRange(key: string, min: number | null, max: number | null): void {
@@ -1029,7 +1096,7 @@ export class ExploreSearchPageComponent implements OnInit {
     this.minPrice.set(null);
     this.maxPrice.set(null);
     this.sortBy.set('recommended');
-    this.searchFilter.update((f) => ({ ...f, propertyTypes: [] }));
+    this.searchFilter.update((f) => ({ ...f, propertyTypes: [], tenantSlug: null }));
     this.currentPage.set(1);
     this.onFilterBarChange(this.searchFilter());
   }

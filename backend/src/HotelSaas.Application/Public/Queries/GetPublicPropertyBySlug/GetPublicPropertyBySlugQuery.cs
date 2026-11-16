@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Public.DTOs;
+using HotelSaas.Application.Public.Queries.GetPublicProperties;
 using HotelSaas.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -16,10 +17,14 @@ public sealed record GetPublicPropertyBySlugQuery(string Slug) : IRequest<Public
 public sealed class GetPublicPropertyBySlugQueryHandler : IRequestHandler<GetPublicPropertyBySlugQuery, PublicPropertyDto>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ILocationLookupService? _locationService;
 
-    public GetPublicPropertyBySlugQueryHandler(IApplicationDbContext context)
+    public GetPublicPropertyBySlugQueryHandler(
+        IApplicationDbContext context,
+        ILocationLookupService? locationService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
+        _locationService = locationService;
     }
 
     public async Task<PublicPropertyDto> Handle(GetPublicPropertyBySlugQuery request, CancellationToken cancellationToken)
@@ -31,31 +36,32 @@ public sealed class GetPublicPropertyBySlugQueryHandler : IRequestHandler<GetPub
 
         var normalizedSlug = request.Slug.Trim().ToLowerInvariant();
 
-        var property = await _context.Properties
+        var matchingProperties = await _context.Properties
             .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(p => p.Status == PropertyStatus.Active && (p.Slug.ToLower() == normalizedSlug || p.Id.ToString() == normalizedSlug))
-            .Select(p => new PublicPropertyDto
-            {
-                Id = p.Id,
-                Name = p.Name,
-                Code = p.Code,
-                Slug = p.Slug,
-                Address = p.Address,
-                City = p.City,
-                CheckInTime = p.CheckInTime,
-                CheckOutTime = p.CheckOutTime,
-                BufferMinutes = p.BufferMinutes,
-                MaxHourlyHours = p.MaxHourlyHours,
-                ImageUrl = null
-            })
-            .FirstOrDefaultAsync(cancellationToken);
+            .Take(1)
+            .ToListAsync(cancellationToken);
+
+        var property = matchingProperties.FirstOrDefault();
 
         if (property == null)
         {
             throw new NotFoundException("Không tìm thấy cơ sở lưu trú.");
         }
 
-        return property;
+        var propertyIds = new[] { property.Id };
+        var tenant = await PublicPropertyMappingHelper.LoadActiveTenantByIdAsync(_context, property.TenantId, cancellationToken);
+        var rates = await PublicPropertyMappingHelper.LoadActiveRatesAsync(_context, propertyIds, cancellationToken);
+        var reviewStats = await PublicPropertyMappingHelper.LoadPublishedReviewStatsAsync(_context, propertyIds, cancellationToken);
+        reviewStats.TryGetValue(property.Id, out var reviewStat);
+
+        return PublicPropertyMappingHelper.BuildDto(
+            property,
+            tenant,
+            rates,
+            reviewStat,
+            rentalType: null,
+            _locationService);
     }
 }

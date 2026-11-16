@@ -6,6 +6,7 @@ using FirebaseAdmin.Auth;
 using Google.Apis.Auth;
 using HotelSaas.Application.Common.Interfaces;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace HotelSaas.Infrastructure.Services;
@@ -18,11 +19,16 @@ public sealed class GoogleAuthService : IGoogleAuthService
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<GoogleAuthService> _logger;
+    private readonly IHostEnvironment? _environment;
 
-    public GoogleAuthService(IConfiguration configuration, ILogger<GoogleAuthService> logger)
+    public GoogleAuthService(
+        IConfiguration configuration,
+        ILogger<GoogleAuthService> logger,
+        IHostEnvironment? environment = null)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _environment = environment;
     }
 
     public async Task<GoogleTokenVerificationResult> VerifyGoogleTokenAsync(string idToken, CancellationToken cancellationToken = default)
@@ -32,9 +38,17 @@ public sealed class GoogleAuthService : IGoogleAuthService
             return new GoogleTokenVerificationResult(false, null, null, null, null, "Mã xác thực Google (IdToken) không được để trống.");
         }
 
-        // ── 1. Dev / Mock Sandbox Token (For offline unit tests, load tests, or automated verification) ──
-        if (idToken.StartsWith("dev-mock-google-token:", StringComparison.OrdinalIgnoreCase) ||
-            idToken.Equals("dev-mock-google-token", StringComparison.OrdinalIgnoreCase))
+#if DEBUG
+        // ── 1. Dev / Mock Sandbox Token (For offline unit tests, load tests, or automated verification in Development only) ──
+        var isNonProd = _environment == null ||
+                        _environment.IsDevelopment() ||
+                        _environment.IsEnvironment("Testing") ||
+                        string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Development", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Testing", StringComparison.OrdinalIgnoreCase);
+
+        if (isNonProd &&
+            (idToken.StartsWith("dev-mock-google-token:", StringComparison.OrdinalIgnoreCase) ||
+             idToken.Equals("dev-mock-google-token", StringComparison.OrdinalIgnoreCase)))
         {
             string email = "alex.luxury@gmail.com";
             string fullName = "Alex Luxury Guest";
@@ -62,6 +76,7 @@ public sealed class GoogleAuthService : IGoogleAuthService
             _logger.LogInformation("Sandbox Google OAuth accepted for mock user: {Email}", email);
             return new GoogleTokenVerificationResult(true, mockSub, email, fullName, mockAvatar);
         }
+#endif
 
         // ── 2. Standard Google Identity Services (GSI) / OAuth2 Token Verification ──
         try

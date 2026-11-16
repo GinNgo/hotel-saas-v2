@@ -33,7 +33,10 @@ WORKDIR /app
 # Configure default container environment
 ENV ASPNETCORE_URLS=http://+:5000 \
     ASPNETCORE_ENVIRONMENT=Production \
-    DOTNET_RUNNING_IN_CONTAINER=true
+    DOTNET_RUNNING_IN_CONTAINER=true \
+    DOTNET_gcServer=0 \
+    DOTNET_GCConserveMemory=9 \
+    DOTNET_GCHeapHardLimitPercent=70
 
 # Copy published artifacts from build stage
 COPY --from=build /app/publish .

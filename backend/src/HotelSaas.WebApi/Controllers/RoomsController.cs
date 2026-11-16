@@ -199,7 +199,7 @@ public sealed class RoomsController : ControllerBase
     /// <response code="200">Room status updated successfully.</response>
     /// <response code="404">Room not found.</response>
     [HttpPatch("{id:guid}/status")]
-    [RequirePermission("ROOMS", PermissionAction.Update)]
+    [RequirePermission("ROOMS", PermissionAction.Update, "HOUSEKEEPING", PermissionAction.Update)]
     [ProducesResponseType(typeof(RoomDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

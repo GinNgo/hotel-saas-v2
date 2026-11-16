@@ -350,8 +350,8 @@ public sealed class BookingHttpPipelineTests
                     AdditionalHourPrice = 100000m,
                     NightlyPrice = 1200000m,
                     Currency = "VND",
-                    EffectiveFrom = new DateOnly(2026, 11, 1),
-                    EffectiveTo = new DateOnly(2026, 11, 30),
+                    EffectiveFrom = new DateOnly(2026, 1, 1),
+                    EffectiveTo = new DateOnly(2030, 12, 31),
                     CreatedByUserId = userId,
                     IsActive = true
                 };
@@ -424,15 +424,20 @@ public sealed class BookingHttpPipelineTests
             Assert.True(hourlyJson.TryGetProperty("appliedPolicies", out _));
 
             // ── STEP 3: POST Overnight Reservation (201 Created) ───────────────────────
+            var futureCheckInDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1));
+            var futureCheckOutDate = futureCheckInDate.AddDays(2);
+            var overnightStartUtc = DateTime.SpecifyKind(futureCheckInDate.ToDateTime(new TimeOnly(14, 0)), DateTimeKind.Utc).AddHours(-7); // 14:00 VN = 07:00 UTC
+            var overnightEndUtc = DateTime.SpecifyKind(futureCheckOutDate.ToDateTime(new TimeOnly(12, 0)), DateTimeKind.Utc).AddHours(-7);   // 12:00 VN = 05:00 UTC
+
             var overnightPayload = new
             {
                 propertyId = propId,
                 roomId = room2Id,
                 rentalType = 2, // Overnight
-                startAtUtc = "2026-11-12T07:00:00Z", // 14:00 VN
-                endAtUtc = "2026-11-14T05:00:00Z",   // 12:00 VN
-                checkInDate = "2026-11-12",
-                checkOutDate = "2026-11-14",
+                startAtUtc = overnightStartUtc.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                endAtUtc = overnightEndUtc.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                checkInDate = futureCheckInDate.ToString("yyyy-MM-dd"),
+                checkOutDate = futureCheckOutDate.ToString("yyyy-MM-dd"),
                 guestName = "Tran Thi B",
                 guestEmail = "tranthib@gmail.com",
                 guestPhone = "0987654321",

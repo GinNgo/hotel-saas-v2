@@ -194,6 +194,12 @@ public static class GeoProximityHelper
             return;
         }
 
+        if (!string.IsNullOrWhiteSpace(effectiveProvince))
+        {
+            // Province was resolved but has no landmarks in the catalog; do not cross-match landmarks from other provinces.
+            return;
+        }
+
         // ── LAYER 3: Address & Name Text Matching ───────────────────────────
         var fullText = $"{property.Name} {property.Address}";
         var textMatches = allLandmarks

@@ -97,21 +97,29 @@ public sealed class GetPublicPropertiesSerializationTests
         }
     };
 
-    private static readonly HashSet<string> AllowedKeysWhenNullOmitted = new(StringComparer.Ordinal)
+    private static readonly HashSet<string> RequiredKeysWhenNullOmitted = new(StringComparer.Ordinal)
     {
         "id",
+        "tenantId",
+        "tenantBrandName",
+        "tenantSlug",
         "name",
         "code",
         "slug",
         "address",
         "city",
+        "provinceName",
         "checkInTime",
         "checkOutTime",
         "bufferMinutes",
         "maxHourlyHours",
+        "thumbnailUrl",
+        "galleryUrls",
         "propertyType",
         "propertyTypeName",
         "starRating",
+        "ratingAverage",
+        "reviewCount",
         "allowHourlyBooking",
         "allowOvernightBooking",
         "allowDailyBooking",
@@ -119,22 +127,38 @@ public sealed class GetPublicPropertiesSerializationTests
         "isExpandedNearbySuggestion"
     };
 
+    private static readonly HashSet<string> AllowedKeysWhenNullOmitted = new(RequiredKeysWhenNullOmitted, StringComparer.Ordinal)
+    {
+        "provinceCode",
+        "wardName"
+    };
+
     private static readonly HashSet<string> AllowedKeysWhenNullIncluded = new(StringComparer.Ordinal)
     {
         "id",
+        "tenantId",
+        "tenantBrandName",
+        "tenantSlug",
         "name",
         "code",
         "slug",
         "address",
         "city",
+        "provinceCode",
+        "provinceName",
+        "wardName",
         "checkInTime",
         "checkOutTime",
         "bufferMinutes",
         "maxHourlyHours",
         "imageUrl",
+        "thumbnailUrl",
+        "galleryUrls",
         "propertyType",
         "propertyTypeName",
         "starRating",
+        "ratingAverage",
+        "reviewCount",
         "latitude",
         "longitude",
         "touristZoneSlug",
@@ -209,9 +233,9 @@ public sealed class GetPublicPropertiesSerializationTests
         {
             var propNames = element.EnumerateObject().Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
 
-            // Exactly the 10 authorized keys (imageUrl is omitted because null)
-            Assert.Equal(AllowedKeysWhenNullOmitted.Count, propNames.Count);
+            // All returned keys must be authorized, and all non-null required keys must be present
             Assert.Subset(AllowedKeysWhenNullOmitted, propNames);
+            Assert.Subset(propNames, RequiredKeysWhenNullOmitted);
 
             // Zero forbidden fields
             foreach (var forbidden in ForbiddenInternalFieldSubstrings)

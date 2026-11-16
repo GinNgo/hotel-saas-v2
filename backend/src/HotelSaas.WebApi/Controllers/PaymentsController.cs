@@ -362,16 +362,37 @@ public sealed class PaymentsController : ControllerBase
 
     /// <summary>
     /// Return URL endpoint redirecting or confirming transaction status for client browser.
+    /// Strictly read-only verification to prevent race conditions with server IPN webhook.
     /// </summary>
     [HttpGet("vnpay-return")]
     [HttpGet("/api/public/payments/vnpay/return")]
     [AllowAnonymous]
-    public async Task<IActionResult> VnpayReturn(CancellationToken cancellationToken)
+    public IActionResult VnpayReturn([FromServices] IVnpayPaymentService vnpayService)
     {
         var queryDict = Request.Query.ToDictionary(q => q.Key, q => q.Value.ToString());
-        var command = new HotelSaas.Application.Payments.Commands.ProcessVnpayIpn.ProcessVnpayIpnCommand(queryDict);
-        var result = await _mediator.Send(command, cancellationToken);
-        return Ok(new { success = result.RspCode == "00" || result.RspCode == "02", data = result });
+        var verify = vnpayService.VerifyCallback(queryDict);
+
+        var isSuccess = verify.IsSignatureValid && verify.IsSuccess;
+        var responseCode = verify.ResponseCode ?? "99";
+        var message = verify.IsSignatureValid
+            ? (isSuccess ? "Giao dịch thanh toán thành công." : $"Giao dịch không thành công (Mã lỗi: {responseCode}).")
+            : "Chữ ký số không hợp lệ (Invalid Checksum).";
+
+        queryDict.TryGetValue("vnp_BankCode", out var bankCode);
+
+        return Ok(new
+        {
+            success = isSuccess,
+            data = new
+            {
+                rspCode = verify.IsSignatureValid ? (isSuccess ? "00" : responseCode) : "97",
+                message,
+                txnRef = verify.TxnRef,
+                transactionNo = verify.TransactionNo,
+                amount = verify.Amount,
+                bankCode
+            }
+        });
     }
 
     /// <summary>

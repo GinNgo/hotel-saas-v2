@@ -13,6 +13,8 @@ namespace HotelSaas.WebApi.Authorization;
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true)]
 public sealed class RequirePermissionAttribute : AuthorizeAttribute, IAuthorizationRequirementData
 {
+    private readonly (string FunctionCode, int RequiredAction)[]? _alternativePermissions;
+
     /// <summary>
     /// Initializes a new <see cref="RequirePermissionAttribute"/>.
     /// </summary>
@@ -24,6 +26,24 @@ public sealed class RequirePermissionAttribute : AuthorizeAttribute, IAuthorizat
         RequiredAction = requiredAction;
     }
 
+    /// <summary>
+    /// Initializes a new <see cref="RequirePermissionAttribute"/> allowing any one of two alternative permissions (OR semantics).
+    /// </summary>
+    public RequirePermissionAttribute(
+        string functionCode,
+        int requiredAction,
+        string alternativeFunctionCode,
+        int alternativeRequiredAction)
+    {
+        FunctionCode = functionCode;
+        RequiredAction = requiredAction;
+        _alternativePermissions = new[]
+        {
+            (functionCode, requiredAction),
+            (alternativeFunctionCode, alternativeRequiredAction)
+        };
+    }
+
     /// <summary>The permission function code.</summary>
     public string FunctionCode { get; }
 
@@ -33,6 +53,8 @@ public sealed class RequirePermissionAttribute : AuthorizeAttribute, IAuthorizat
     /// <inheritdoc />
     public IEnumerable<IAuthorizationRequirement> GetRequirements()
     {
-        yield return new PermissionRequirement(FunctionCode, RequiredAction);
+        yield return _alternativePermissions is { Length: > 1 }
+            ? new PermissionRequirement(_alternativePermissions)
+            : new PermissionRequirement(FunctionCode, RequiredAction);
     }
 }

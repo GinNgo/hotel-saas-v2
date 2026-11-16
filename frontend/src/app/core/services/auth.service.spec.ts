@@ -49,4 +49,44 @@ describe('Guest session initialization', () => {
     const { service } = create('TenantStaff');
     expect(service.activePropertyId()).toBe('old-staff-property');
   });
+
+  it('switchToChainHq sends { propertyId: null }, stores new tokens, clears activePropertyId, and updates roleName', () => {
+    const { service, http, tokens } = create('TenantStaff');
+    service.activePropertyId.set('branch-1');
+    service.activePropertyName.set('Chi nhánh Đà Nẵng');
+    service.activePropertyCode.set('DN01');
+
+    http.post.mockReturnValue(
+      of({
+        data: {
+          accessToken: 'hq-access-token',
+          refreshToken: 'hq-refresh-token',
+          expiresAtUtc: '2026-12-31T00:00:00Z',
+          currentContext: {
+            tenantId: 'tenant-1',
+            propertyId: null,
+            scope: 'TenantWide',
+            roleName: 'Owner',
+          },
+        },
+      })
+    );
+
+    let receivedPropertyId: string | null | undefined;
+    service.switchToChainHq().subscribe((res) => {
+      receivedPropertyId = res.currentContext.propertyId;
+    });
+
+    expect(http.post).toHaveBeenCalledWith(
+      expect.stringContaining('/auth/switch-context'),
+      { propertyId: null }
+    );
+    expect(tokens.setTokens).toHaveBeenCalledWith('hq-access-token', 'hq-refresh-token');
+    expect(tokens.clearActiveProperty).toHaveBeenCalled();
+    expect(service.activePropertyId()).toBeNull();
+    expect(service.activePropertyName()).toBeNull();
+    expect(service.activePropertyCode()).toBeNull();
+    expect(service.activeRoleName()).toBe('Owner');
+    expect(receivedPropertyId).toBeNull();
+  });
 });

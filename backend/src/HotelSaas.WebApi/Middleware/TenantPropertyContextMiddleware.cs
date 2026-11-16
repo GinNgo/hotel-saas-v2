@@ -6,6 +6,7 @@ using HotelSaas.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using Serilog.Context;
 
 namespace HotelSaas.WebApi.Middleware;
 
@@ -74,6 +75,7 @@ public sealed class TenantPropertyContextMiddleware
 
         var globalRoleClaim = context.User.FindFirst("globalRole")?.Value;
         Enum.TryParse<GlobalUserRole>(globalRoleClaim, ignoreCase: true, out var globalRole);
+        userContext.SetUser(userId, string.Empty, globalRole);
 
         // ── 2. Pipeline Classification: Group 2 - Platform Endpoints ──────────
         if (path.StartsWith("/api/platform/", StringComparison.OrdinalIgnoreCase) ||
@@ -85,6 +87,15 @@ public sealed class TenantPropertyContextMiddleware
                 return;
             }
 
+            userContext.SetUser(userId, string.Empty, globalRole);
+
+            await _next(context);
+            return;
+        }
+
+        // ── 2b. Pipeline Classification: Print & Document Templates for SuperAdmin ──
+        if (path.StartsWith("/api/print/", StringComparison.OrdinalIgnoreCase) && globalRole == GlobalUserRole.SuperAdmin)
+        {
             userContext.SetUser(userId, string.Empty, globalRole);
 
             await _next(context);
@@ -142,6 +153,9 @@ public sealed class TenantPropertyContextMiddleware
                 "Token không chứa thông tin Tenant context hợp lệ.");
             return;
         }
+
+        // Capture verified TenantId early so rejected cross-branch / membership checks also include TenantId in logs & metrics
+        tenantService.TenantId = tenantId;
 
         // Claims Alias Integrity: (propertyId, pid)
         var propertyIdClaim = context.User.FindFirst("propertyId")?.Value;
@@ -291,7 +305,16 @@ public sealed class TenantPropertyContextMiddleware
             lookupResult.RoleId,
             lookupResult.IsTenantWide);
 
-        await _next(context);
+        var logTenantId = tenantId.ToString();
+        var logPropertyId = lookupResult.PropertyId?.ToString() ?? (lookupResult.IsTenantWide ? "tenant-wide" : "unscoped");
+        var logUserId = userId != Guid.Empty ? userId.ToString() : "anonymous";
+
+        using (LogContext.PushProperty("TenantId", logTenantId))
+        using (LogContext.PushProperty("PropertyId", logPropertyId))
+        using (LogContext.PushProperty("UserId", logUserId))
+        {
+            await _next(context);
+        }
     }
 
     private static bool IsPublicEndpoint(HttpContext context, string path)
@@ -310,7 +333,8 @@ public sealed class TenantPropertyContextMiddleware
 
         if (path.StartsWith("/api/public", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/hubs", StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith("/api/print", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/api/print/invoice", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/api/print/voucher", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/health", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/health/", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/metrics", StringComparison.OrdinalIgnoreCase) ||

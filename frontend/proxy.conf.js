@@ -22,6 +22,9 @@ aiServer.on('error', err => {
 aiServer.listen(AI_PROXY_PORT, '127.0.0.1');
 aiServer.unref();
 
+const BACKEND_TARGET = process.env.BACKEND_API_URL || 'http://localhost:5283';
+const isHttpsTarget = BACKEND_TARGET.startsWith('https://');
+
 module.exports = {
   '/api/ai': {
     target: `http://127.0.0.1:${AI_PROXY_PORT}`,
@@ -29,14 +32,14 @@ module.exports = {
     changeOrigin: true
   },
   '/api': {
-    target: 'https://luxustay.duckdns.org',
-    secure: true,
+    target: BACKEND_TARGET,
+    secure: isHttpsTarget,
     changeOrigin: true,
     logLevel: 'debug'
   },
   '/hubs': {
-    target: 'https://luxustay.duckdns.org',
-    secure: true,
+    target: BACKEND_TARGET,
+    secure: isHttpsTarget,
     ws: true,
     changeOrigin: true,
     logLevel: 'debug'

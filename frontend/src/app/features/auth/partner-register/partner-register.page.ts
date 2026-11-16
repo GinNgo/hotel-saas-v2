@@ -1,8 +1,7 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
-import { InputText } from 'primeng/inputtext';
+import { RouterLink } from '@angular/router';
 import { Password } from 'primeng/password';
 import { AuthService } from '../../../core/services/auth.service';
 import { LocationService } from '../../../core/services/location.service';
@@ -10,6 +9,13 @@ import { Province, Ward } from '../../../core/models/location.model';
 import { HttpErrorResponse } from '@angular/common/http';
 import { SearchableSelectComponent, SearchableSelectItem } from '../../../shared/components/searchable-select/searchable-select.component';
 import { GoogleMapPickerComponent, LocationPickerResult } from '../../../shared/components/google-map-picker/google-map-picker.component';
+
+interface PartnerPropertyTypeOption {
+  readonly value: number;
+  readonly label: string;
+  readonly description: string;
+  readonly icon: string;
+}
 
 function passwordMatchValidator(control: AbstractControl): ValidationErrors | null {
   const password = control.get('password')?.value;
@@ -28,6 +34,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
 @Component({
   selector: 'app-partner-register',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     ReactiveFormsModule,
@@ -82,16 +89,34 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
       }
 
       @if (successMessage()) {
-        <div class="mb-5 p-6 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm shadow-sm flex flex-col items-center text-center">
+        <div class="mb-5 p-6 sm:p-8 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm shadow-sm flex flex-col items-center text-center">
           <i class="pi pi-check-circle text-4xl text-emerald-600 mb-2"></i>
           <h2 class="font-bold text-lg text-emerald-900">Chúc mừng bạn đã hoàn tất đăng ký đối tác!</h2>
           <p class="mt-1 text-emerald-700 max-w-lg">{{ successMessage() }}</p>
-          <div class="mt-5 flex gap-3">
-            <a routerLink="/login" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm shadow transition-colors flex items-center gap-2">
+          <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <a
+              [routerLink]="registeredPropertySlug() ? ['/booking/properties', registeredPropertySlug()] : ['/booking/explore']"
+              class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm shadow transition-colors flex items-center gap-2"
+            >
+              <i class="pi pi-external-link"></i>
+              Xem cơ sở vừa đăng ký trên Cổng Đặt Phòng
+            </a>
+            <a
+              routerLink="/login"
+              class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm shadow transition-colors flex items-center gap-2"
+            >
               <i class="pi pi-sign-in"></i>
-              Đăng nhập quản trị khách sạn
+              Đăng nhập trang Quản trị PMS
             </a>
           </div>
+          @if (registeredTenantSlug()) {
+            <a
+              [routerLink]="['/booking/brands', registeredTenantSlug()]"
+              class="mt-3 text-xs font-semibold text-indigo-700 hover:underline"
+            >
+              Xem trang thương hiệu đối tác →
+            </a>
+          }
         </div>
       } @else {
         <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" class="space-y-6">
@@ -248,6 +273,23 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
                 </div>
 
                 <div class="space-y-3.5">
+                  <!-- Brand Name Field -->
+                  <div>
+                    <label for="brandName" class="block text-xs font-semibold text-slate-700 mb-1">
+                      Tên hệ thống / Chuỗi thương hiệu <span class="text-slate-400 font-normal">(Tùy chọn)</span>
+                    </label>
+                    <input
+                      id="brandName"
+                      type="text"
+                      formControlName="brandName"
+                      placeholder="Ví dụ: Anantara Hospitality Group"
+                      class="w-full h-10 sm:h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-slate-300 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-2xs transition-all"
+                    />
+                    <p class="text-[11px] text-slate-400 mt-1">
+                      Nếu là cơ sở độc lập, có thể để trống hoặc trùng tên cơ sở.
+                    </p>
+                  </div>
+
                   <!-- Property Name Field -->
                   <div>
                     <label for="propertyName" class="block text-xs font-semibold text-slate-700 mb-1">
@@ -353,7 +395,141 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
             </div>
           </div>
 
-          <!-- Phần 3: Định vị Google Maps (Trải rộng toàn màn hình, cân đối, thoáng đãng) -->
+          <!-- Phần 3: Loại hình Cơ sở & Hạng sao -->
+          <div class="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm space-y-5">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+              <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-xs">
+                  <i class="pi pi-th-large"></i>
+                </div>
+                <div>
+                  <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wider">3. Loại hình Cơ sở &amp; Hạng sao</h3>
+                  <p class="text-[11px] text-slate-500">Chọn đúng mô hình lưu trú để hiển thị chính xác trên cổng đặt phòng công khai</p>
+                </div>
+              </div>
+
+              <!-- Hạng sao selector -->
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-semibold text-slate-700 mr-1">Hạng sao:</span>
+                @for (star of starRatingOptions; track star) {
+                  <button
+                    type="button"
+                    (click)="selectStarRating(star)"
+                    class="px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center gap-1"
+                    [class]="registerForm.get('starRating')?.value === star
+                      ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-2xs'
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-amber-300'"
+                  >
+                    <span>{{ star }}</span>
+                    <i class="pi pi-star-fill text-[10px]"></i>
+                  </button>
+                }
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" role="radiogroup" aria-label="Chọn loại hình cơ sở lưu trú">
+              @for (opt of propertyTypeOptions; track opt.value) {
+                <button
+                  type="button"
+                  role="radio"
+                  [attr.aria-checked]="registerForm.get('propertyType')?.value === opt.value"
+                  (click)="selectPropertyType(opt.value)"
+                  class="text-left p-3.5 rounded-xl border transition-all cursor-pointer flex items-start gap-2.5"
+                  [class]="registerForm.get('propertyType')?.value === opt.value
+                    ? 'bg-indigo-50/90 border-indigo-600 ring-2 ring-indigo-500/20 shadow-2xs'
+                    : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-slate-50'"
+                >
+                  <div
+                    class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
+                    [class]="registerForm.get('propertyType')?.value === opt.value
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-slate-100 text-slate-600'"
+                  >
+                    <i [class]="'pi ' + opt.icon + ' text-xs'"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-xs font-bold text-slate-900">{{ opt.label }}</div>
+                    <p class="text-[11px] text-slate-500 mt-0.5 leading-snug">{{ opt.description }}</p>
+                  </div>
+                </button>
+              }
+            </div>
+          </div>
+
+          <!-- Phần 4: Cấu hình Giá & Hình thức Đặt phòng ban đầu -->
+          <div class="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+              <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs">
+                  <i class="pi pi-wallet"></i>
+                </div>
+                <div>
+                  <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wider">4. Cấu hình Giá &amp; Hình thức Đặt phòng</h3>
+                  <p class="text-[11px] text-slate-500">Thiết lập mức giá khởi tạo giúp cơ sở hiển thị giá minh bạch ngay sau khi tạo</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <label class="flex items-center gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50/60 cursor-pointer hover:border-indigo-300 transition-colors">
+                <input type="checkbox" formControlName="allowDailyBooking" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500" />
+                <div>
+                  <span class="block text-xs font-bold text-slate-800">Nhận đặt theo ngày</span>
+                  <span class="block text-[11px] text-slate-500">Check-in 14:00, trả 12:00</span>
+                </div>
+              </label>
+
+              <label class="flex items-center gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50/60 cursor-pointer hover:border-indigo-300 transition-colors">
+                <input type="checkbox" formControlName="allowOvernightBooking" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500" />
+                <div>
+                  <span class="block text-xs font-bold text-slate-800">Nhận đặt qua đêm</span>
+                  <span class="block text-[11px] text-slate-500">Nghỉ đêm linh hoạt từ 21:00</span>
+                </div>
+              </label>
+
+              <label class="flex items-center gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50/60 cursor-pointer hover:border-indigo-300 transition-colors">
+                <input type="checkbox" formControlName="allowHourlyBooking" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500" />
+                <div>
+                  <span class="block text-xs font-bold text-slate-800">Nhận đặt theo giờ</span>
+                  <span class="block text-[11px] text-slate-500">Tối ưu công suất phòng trống</span>
+                </div>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div>
+                <label for="defaultNightlyPrice" class="block text-xs font-semibold text-slate-700 mb-1">
+                  Giá khởi điểm theo đêm / ngày (VNĐ)
+                </label>
+                <input
+                  id="defaultNightlyPrice"
+                  type="number"
+                  min="0"
+                  step="10000"
+                  formControlName="defaultNightlyPrice"
+                  placeholder="500000"
+                  class="w-full h-10 sm:h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-slate-300 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-2xs transition-all"
+                />
+              </div>
+
+              <div>
+                <label for="defaultHourlyPrice" class="block text-xs font-semibold text-slate-700 mb-1">
+                  Giá khởi điểm theo giờ (VNĐ)
+                </label>
+                <input
+                  id="defaultHourlyPrice"
+                  type="number"
+                  min="0"
+                  step="10000"
+                  formControlName="defaultHourlyPrice"
+                  placeholder="150000"
+                  class="w-full h-10 sm:h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-slate-300 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-2xs transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Phần 5: Định vị Google Maps (Trải rộng toàn màn hình, cân đối, thoáng đãng) -->
           <div class="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm space-y-4">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
               <div class="flex items-center gap-2">
@@ -361,13 +537,21 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
                   <i class="pi pi-map-marker"></i>
                 </div>
                 <div>
-                  <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wider">3. Định Vị Bản Đồ Google Maps</h3>
+                  <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wider">5. Định Vị Bản Đồ Google Maps</h3>
                   <p class="text-[11px] text-slate-500">Tìm kiếm hoặc chọn địa điểm trên bản đồ để tự động điền địa chỉ &amp; lưu tọa độ GPS chính xác</p>
                 </div>
               </div>
-              <span class="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 shrink-0 inline-flex items-center gap-1">
-                <i class="pi pi-sparkles text-[10px]"></i> Tự động điền biểu mẫu
-              </span>
+              <div class="flex flex-wrap items-center gap-2">
+                @if (selectedLatitude() !== null && selectedLongitude() !== null) {
+                  <span class="text-[11px] text-indigo-700 font-semibold bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200 shrink-0 inline-flex items-center gap-1">
+                    <i class="pi pi-compass text-[10px]"></i>
+                    {{ selectedLatitude() | number:'1.4-4' }}, {{ selectedLongitude() | number:'1.4-4' }}
+                  </span>
+                }
+                <span class="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 shrink-0 inline-flex items-center gap-1">
+                  <i class="pi pi-sparkles text-[10px]"></i> Tự động điền biểu mẫu
+                </span>
+              </div>
             </div>
 
             <app-google-map-picker
@@ -416,11 +600,14 @@ export class PartnerRegisterPage implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly locationService = inject(LocationService);
-  private readonly router = inject(Router);
 
   readonly isLoading = signal(false);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
+  readonly registeredPropertySlug = signal('');
+  readonly registeredTenantSlug = signal('');
+  readonly selectedLatitude = signal<number | null>(null);
+  readonly selectedLongitude = signal<number | null>(null);
   readonly provinces = signal<Province[]>([]);
   readonly wards = signal<Ward[]>([]);
   readonly wardsLoading = signal(false);
@@ -429,16 +616,38 @@ export class PartnerRegisterPage implements OnInit {
   readonly currentEmail = signal('');
   readonly currentFullName = signal('');
 
+  /** Matches backend C# HotelSaas.Domain.Enums.PropertyType (1-based). */
+  readonly propertyTypeOptions: readonly PartnerPropertyTypeOption[] = [
+    { value: 1, label: 'Khách sạn (Hotel)', description: 'Phòng tiêu chuẩn, khách sạn phố, boutique hotel', icon: 'pi-building' },
+    { value: 2, label: 'Resort nghỉ dưỡng', description: 'Khu nghỉ dưỡng biển, núi, sinh thái cao cấp', icon: 'pi-sun' },
+    { value: 8, label: 'Homestay', description: 'Không gian bản địa, lưu trú gần gũi ấm cúng', icon: 'pi-home' },
+    { value: 5, label: 'Biệt thự / Villa', description: 'Villa nguyên căn, nghỉ dưỡng gia đình & nhóm bạn', icon: 'pi-star' },
+    { value: 6, label: 'Căn hộ dịch vụ (Apartment)', description: 'Studio, căn hộ du lịch đầy đủ bếp & tiện nghi', icon: 'pi-key' },
+    { value: 7, label: 'Nhà nghỉ / Motel', description: 'Thuận tiện qua đêm, thuê giờ linh hoạt & dừng chân', icon: 'pi-moon' },
+    { value: 3, label: 'Hostel / Dorm', description: 'Giường tầng cộng đồng, tiết kiệm cho khách trẻ', icon: 'pi-users' },
+    { value: 4, label: 'Bed & Breakfast / Nhà khách', description: 'Lưu trú kèm bữa sáng, nhà khách quy mô vừa', icon: 'pi-coffee' },
+  ];
+
+  readonly starRatingOptions: readonly number[] = [1, 2, 3, 4, 5];
+
   registerForm = this.fb.group({
     fullName: ['', [Validators.required, Validators.maxLength(150)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(200)]],
     phoneNumber: ['', [Validators.required, Validators.maxLength(20)]],
     password: ['', [Validators.required, Validators.minLength(8), Validators.maxLength(100)]],
     confirmPassword: ['', [Validators.required]],
+    brandName: ['', [Validators.maxLength(150)]],
     propertyName: ['', [Validators.required, Validators.maxLength(200)]],
+    propertyType: [1, [Validators.required]],
+    starRating: [3, [Validators.required, Validators.min(1), Validators.max(5)]],
     provinceCode: ['', [Validators.required]],
     wardCode: ['', [Validators.required]],
-    address: ['', [Validators.required, Validators.maxLength(300)]]
+    address: ['', [Validators.required, Validators.maxLength(300)]],
+    allowDailyBooking: [true],
+    allowOvernightBooking: [true],
+    allowHourlyBooking: [true],
+    defaultNightlyPrice: [500000, [Validators.min(0)]],
+    defaultHourlyPrice: [150000, [Validators.min(0)]],
   }, { validators: passwordMatchValidator });
 
   get selectedProvinceCode(): string {
@@ -527,7 +736,20 @@ export class PartnerRegisterPage implements OnInit {
     });
   }
 
+  selectPropertyType(propertyType: number): void {
+    this.registerForm.patchValue({ propertyType });
+  }
+
+  selectStarRating(starRating: number): void {
+    this.registerForm.patchValue({ starRating });
+  }
+
   onGoogleMapLocationSelected(result: LocationPickerResult): void {
+    if (Number.isFinite(result.latitude) && Number.isFinite(result.longitude)) {
+      this.selectedLatitude.set(result.latitude);
+      this.selectedLongitude.set(result.longitude);
+    }
+
     if (result.address) {
       this.registerForm.patchValue({ address: result.address });
     }
@@ -558,21 +780,37 @@ export class PartnerRegisterPage implements OnInit {
     this.isLoading.set(true);
     this.errorMessage.set('');
     this.successMessage.set('');
+    this.registeredPropertySlug.set('');
+    this.registeredTenantSlug.set('');
 
     const formVal = this.registerForm.getRawValue();
+    const nightlyPrice = Number(formVal.defaultNightlyPrice);
+    const hourlyPrice = Number(formVal.defaultHourlyPrice);
 
     this.authService.partnerRegister({
       fullName: formVal.fullName || '',
       email: formVal.email || '',
       password: this.isAuthenticated() ? '' : (formVal.password || ''),
       phoneNumber: formVal.phoneNumber || '',
+      brandName: formVal.brandName?.trim() || null,
       propertyName: formVal.propertyName || '',
+      propertyType: formVal.propertyType ?? 1,
+      starRating: formVal.starRating ?? 3,
       provinceCode: formVal.provinceCode || '',
       wardCode: formVal.wardCode || null,
-      address: formVal.address || ''
+      address: formVal.address || '',
+      latitude: this.selectedLatitude(),
+      longitude: this.selectedLongitude(),
+      allowDailyBooking: formVal.allowDailyBooking ?? true,
+      allowOvernightBooking: formVal.allowOvernightBooking ?? true,
+      allowHourlyBooking: formVal.allowHourlyBooking ?? true,
+      defaultNightlyPrice: Number.isFinite(nightlyPrice) && nightlyPrice > 0 ? nightlyPrice : null,
+      defaultHourlyPrice: Number.isFinite(hourlyPrice) && hourlyPrice > 0 ? hourlyPrice : null,
     }).subscribe({
       next: (res) => {
         this.isLoading.set(false);
+        this.registeredPropertySlug.set(res.data?.propertySlug || '');
+        this.registeredTenantSlug.set(res.data?.tenantSlug || '');
         this.successMessage.set(
           res.data?.message || 'Khách sạn của bạn đã được khởi tạo thành công trên hệ thống!'
         );
