@@ -233,13 +233,44 @@ describe('ReportsPage (Multi-Property Group Analytics & Branch Reports)', () => 
     expect(maxRev).toBe(32000000);
   });
 
-  it('7. should handle graceful fallback data when getGroupAnalytics returns error', () => {
-    mockReportService.getGroupAnalytics.mockReturnValue(throwError(() => new Error('Server error')));
+  it('7. should clear groupAnalytics, show loadError, and allow retry when getGroupAnalytics returns error', () => {
+    fixture.detectChanges();
+    mockReportService.getGroupAnalytics.mockReturnValueOnce(throwError(() => new Error('Server error')));
+
+    component.loadData();
+    fixture.detectChanges();
+
+    expect(component.groupAnalytics()).toBeNull();
+    expect(component.loadError()).toBe(
+      'Không thể tải dữ liệu báo cáo. Vui lòng kiểm tra kết nối hoặc quyền truy cập rồi thử lại.'
+    );
+    expect(component.isLoading()).toBe(false);
+
+    const retryBtn = fixture.nativeElement.querySelector('[role="alert"] button') as HTMLButtonElement | null;
+    expect(retryBtn).not.toBeNull();
+    expect(retryBtn?.textContent).toContain('Thử lại');
+
+    mockReportService.getGroupAnalytics.mockReturnValueOnce(of(sampleGroupAnalytics));
+    retryBtn?.click();
+    fixture.detectChanges();
+
+    expect(component.loadError()).toBeNull();
+    expect(component.groupAnalytics()).toEqual(sampleGroupAnalytics);
+    expect(component.isLoading()).toBe(false);
+  });
+
+  it('7b. should clear branch kpi/revenueSummary and set loadError without fake fallback when branch APIs error', () => {
+    component.activeTab.set('branch');
+    mockReportService.getPmsKpi.mockReturnValueOnce(throwError(() => new Error('KPI error')));
+    mockReportService.getRevenueSummary.mockReturnValueOnce(throwError(() => new Error('Summary error')));
 
     component.loadData();
 
-    expect(component.groupAnalytics()).not.toBeNull();
-    expect(component.groupAnalytics()?.tenantId).toBe('tenant-group');
+    expect(component.kpi()).toBeNull();
+    expect(component.revenueSummary()).toBeNull();
+    expect(component.loadError()).toBe(
+      'Không thể tải dữ liệu báo cáo. Vui lòng kiểm tra kết nối hoặc quyền truy cập rồi thử lại.'
+    );
     expect(component.isLoading()).toBe(false);
   });
 
