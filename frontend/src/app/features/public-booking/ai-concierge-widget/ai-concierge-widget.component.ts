@@ -1,6 +1,7 @@
-import { Component, Input, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { AiService } from '../../../core/services/ai.service';
 import { AiConciergeResponse, SuggestedRoomCardDto } from '../../../core/models/ai.model';
 import { SuggestedFilterChipDto, AiSmartSearchResponseDto } from '../../../core/models/public-booking.model';
@@ -16,7 +17,8 @@ interface ChatMessage {
 @Component({
   selector: 'app-ai-concierge-widget',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [CommonModule, FormsModule, RouterLink],
   template: `
     <!-- Floating Action Trigger Button -->
     <div class="fixed bottom-6 right-6 z-50">
@@ -98,9 +100,13 @@ interface ChatMessage {
                             <p class="text-[10px] text-slate-600 line-clamp-2">{{ room.description }}</p>
                             <div class="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px]">
                               <span class="text-slate-500">Sức chứa: {{ room.maxOccupancy }} khách</span>
-                              <span class="text-emerald-700 font-semibold cursor-pointer hover:underline">
-                                Đã sẵn sàng
-                              </span>
+                              <a
+                                [routerLink]="['/booking/properties', room.propertySlug]"
+                                (click)="isOpen.set(false)"
+                                class="text-emerald-700 font-semibold cursor-pointer hover:underline"
+                              >
+                                Xem phòng →
+                              </a>
                             </div>
                           </div>
                         }

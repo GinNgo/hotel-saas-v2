@@ -57,20 +57,12 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
         if (!string.IsNullOrWhiteSpace(request.LandmarkSlug) && _locationService != null)
         {
             targetLandmark = _locationService.GetLandmarkBySlug(request.LandmarkSlug.Trim());
-            if (targetLandmark != null && string.IsNullOrEmpty(effectiveZoneSlug) && !string.IsNullOrEmpty(targetLandmark.TouristZoneSlug))
-            {
-                effectiveZoneSlug = targetLandmark.TouristZoneSlug;
-            }
         }
 
         if (targetLandmark == null && !string.IsNullOrWhiteSpace(request.DestinationKeyword) && _locationService != null)
         {
             targetLandmark = _locationService.FindLandmark(request.DestinationKeyword.Trim());
-            if (targetLandmark != null && string.IsNullOrEmpty(effectiveZoneSlug) && !string.IsNullOrEmpty(targetLandmark.TouristZoneSlug))
-            {
-                effectiveZoneSlug = targetLandmark.TouristZoneSlug;
-            }
-            else if (string.IsNullOrEmpty(effectiveZoneSlug))
+            if (targetLandmark == null && string.IsNullOrEmpty(effectiveZoneSlug))
             {
                 var zone = _locationService.FindTouristZone(request.DestinationKeyword.Trim());
                 if (zone != null)
@@ -147,8 +139,10 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
             .ThenBy(p => p.Id)
             .ToListAsync(cancellationToken);
 
-        // If filtering by zone returned empty and we had an effectiveZoneSlug, only fallback if user GPS coordinates are active
-        if (rawProperties.Count == 0 && !string.IsNullOrWhiteSpace(effectiveZoneSlug) && request.UserLatitude.HasValue && request.UserLongitude.HasValue)
+        // If filtering by zone returned empty and we had an effectiveZoneSlug, only fallback when GPS coordinates or a landmark are active
+        if (rawProperties.Count == 0 &&
+            !string.IsNullOrWhiteSpace(effectiveZoneSlug) &&
+            ((request.UserLatitude.HasValue && request.UserLongitude.HasValue) || targetLandmark != null))
         {
             var fallbackQuery = _context.Properties
                 .IgnoreQueryFilters()
@@ -326,12 +320,46 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
             if (refLat.HasValue && refLon.HasValue)
             {
                 return resultList
-                    .Where(d => d.DistanceMeters.HasValue && d.DistanceMeters.Value <= 50000.0)
-                    .OrderBy(d => d.IsExpandedNearbySuggestion ? 1 : 0)
+                    .Where(d => (d.DistanceMeters.HasValue && d.DistanceMeters.Value <= 50000.0) ||
+                                (!d.DistanceMeters.HasValue &&
+                                 !string.IsNullOrWhiteSpace(targetLandmark.TouristZoneSlug) &&
+                                 string.Equals(d.TouristZoneSlug, targetLandmark.TouristZoneSlug, StringComparison.OrdinalIgnoreCase)))
+                    .OrderBy(d => d.DistanceMeters.HasValue ? 0 : 1)
+                    .ThenBy(d => d.IsExpandedNearbySuggestion ? 1 : 0)
                     .ThenBy(d => d.DistanceMeters ?? 999999.0)
                     .ToList();
             }
             return resultList;
+        }
+
+        // Province keyword resolution (e.g., "Đà Nẵng", "Hà Nội", "TP. Hồ Chí Minh") when no zone/landmark/code is bound
+        if (string.IsNullOrWhiteSpace(request.ProvinceCode) &&
+            targetLandmark == null &&
+            string.IsNullOrWhiteSpace(effectiveZoneSlug) &&
+            !string.IsNullOrWhiteSpace(effectiveQuery) &&
+            _locationService != null)
+        {
+            var queryProvinceTitle = PublicPropertyMappingHelper.NormalizeProvinceTitle(effectiveQuery);
+            if (!string.IsNullOrEmpty(queryProvinceTitle))
+            {
+                var matchedProv = _locationService.GetProvinces()
+                    .FirstOrDefault(p => string.Equals(
+                        PublicPropertyMappingHelper.NormalizeProvinceTitle(p.Name),
+                        queryProvinceTitle,
+                        StringComparison.OrdinalIgnoreCase));
+
+                if (matchedProv != null)
+                {
+                    var provinceMatches = resultList
+                        .Where(dto => PublicPropertyMappingHelper.MatchesProvinceCode(dto, matchedProv.Code, _locationService))
+                        .ToList();
+
+                    if (provinceMatches.Count > 0)
+                    {
+                        return provinceMatches;
+                    }
+                }
+            }
         }
 
         return FilterAndRank(resultList, effectiveQuery);
@@ -907,7 +935,7 @@ internal static class PublicPropertyMappingHelper
         return string.IsNullOrEmpty(trimmed) ? "0" : trimmed;
     }
 
-    private static string NormalizeProvinceTitle(string? text)
+    internal static string NormalizeProvinceTitle(string? text)
     {
         var norm = VietnameseTextNormalizer.Normalize(text);
         if (string.IsNullOrEmpty(norm)) return string.Empty;

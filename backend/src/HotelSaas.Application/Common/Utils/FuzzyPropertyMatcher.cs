@@ -409,7 +409,7 @@ public static class FuzzyPropertyMatcher
 
     /// <summary>
     /// Searches and scores public property DTOs using fuzzy typo tolerance contract.
-    /// Handles blank query and normalized-empty query bypasses.
+    /// Includes Vietnamese regional aliases, condensed substring matching, and brand/province/ward fields.
     /// Sorts results deterministically: Score DESC, Name ASC (OrdinalIgnoreCase), Id ASC (Guid.CompareTo).
     /// </summary>
     public static List<PublicPropertyMatchResult> SearchProperties(string? query, IEnumerable<PublicPropertyDto>? properties)
@@ -441,10 +441,28 @@ public static class FuzzyPropertyMatcher
             var landmarksText = p.NearbyLandmarks != null && p.NearbyLandmarks.Count > 0
                 ? string.Join(", ", p.NearbyLandmarks.Select(l => l.Name))
                 : null;
-            var (score, bestField, sName, sCity, sAddress) = ScoreProperty(query, p.Name, p.City, p.Address, p.TouristZoneName, landmarksText);
-            if (score > 0)
+
+            int scoreName = ScorePublicField(query, p.Name);
+            int scoreCity = Math.Max(
+                ScorePublicField(query, p.City),
+                Math.Max(ScorePublicField(query, p.ProvinceName), ScorePublicField(query, p.WardName)));
+            int scoreAddress = ScorePublicField(query, p.Address);
+            int scoreZone = Math.Max(
+                ScorePublicField(query, p.TouristZoneName),
+                ScorePublicField(query, p.TenantBrandName));
+            int scoreLandmarks = ScorePublicField(query, landmarksText);
+
+            int maxScore = Math.Max(scoreName, Math.Max(scoreCity, Math.Max(scoreAddress, Math.Max(scoreZone, scoreLandmarks))));
+            if (maxScore > 0)
             {
-                results.Add(new PublicPropertyMatchResult(p, score, bestField, sName, sCity, sAddress));
+                string bestField = "None";
+                if (maxScore == scoreName) bestField = "Name";
+                else if (maxScore == scoreZone) bestField = "TouristZone";
+                else if (maxScore == scoreLandmarks) bestField = "Landmarks";
+                else if (maxScore == scoreCity) bestField = "City";
+                else if (maxScore == scoreAddress) bestField = "Address";
+
+                results.Add(new PublicPropertyMatchResult(p, maxScore, bestField, scoreName, scoreCity, scoreAddress));
             }
         }
 
@@ -460,5 +478,140 @@ public static class FuzzyPropertyMatcher
         });
 
         return results;
+    }
+
+    private static readonly (string[] Aliases, string[] Canonicals)[] RegionalAliasGroups =
+    {
+        (new[] { "hcm", "tphcm", "saigon", "sai gon", "sg" }, new[] { "ho chi minh", "sai gon" }),
+        (new[] { "hn" }, new[] { "ha noi" }),
+        (new[] { "dn" }, new[] { "da nang" }),
+        (new[] { "vt" }, new[] { "vung tau" }),
+        (new[] { "pq" }, new[] { "phu quoc" }),
+        (new[] { "dl" }, new[] { "da lat" }),
+        (new[] { "nt" }, new[] { "nha trang" }),
+        (new[] { "hl" }, new[] { "ha long" })
+    };
+
+    /// <summary>
+    /// Computes enhanced fuzzy relevance score (0..100) for public marketplace discovery fields,
+    /// adding Vietnamese regional aliases (85) and condensed substring matching (78).
+    /// </summary>
+    public static int ScorePublicField(string? rawQuery, string? rawField)
+    {
+        if (string.IsNullOrEmpty(rawField)) return 0;
+        string qNorm = VietnameseTextNormalizer.Normalize(rawQuery);
+        string fNorm = VietnameseTextNormalizer.Normalize(rawField);
+        if (string.IsNullOrEmpty(qNorm)) return 0;
+
+        if (fNorm.Equals(qNorm, StringComparison.Ordinal)) return 100;
+        if (fNorm.StartsWith(qNorm, StringComparison.Ordinal)) return 90;
+
+        string[] qTokens = Tokenize(qNorm);
+        string[] fTokens = Tokenize(fNorm);
+        if (qTokens.Length == 0) return 0;
+
+        if (MatchesRegionalAlias(qNorm, qTokens, fNorm, fTokens)) return 85;
+
+        if (fNorm.Contains(qNorm, StringComparison.Ordinal)) return 80;
+
+        string qCondensed = Condense(qTokens);
+        string fCondensed = Condense(fTokens);
+        if (qCondensed.Length >= 3 && fCondensed.Contains(qCondensed, StringComparison.Ordinal)) return 78;
+
+        if (qTokens.Length >= 2)
+        {
+            bool allExact = true;
+            foreach (var q in qTokens)
+            {
+                if (BestDistance(q, fTokens) != 0)
+                {
+                    allExact = false;
+                    break;
+                }
+            }
+            if (allExact) return 75;
+        }
+
+        bool tokenTier1 = true;
+        foreach (var q in qTokens)
+        {
+            int bd = BestDistance(q, fTokens);
+            if (q.Length <= 2)
+            {
+                if (bd != 0) { tokenTier1 = false; break; }
+            }
+            else
+            {
+                if (bd > 1) { tokenTier1 = false; break; }
+            }
+        }
+
+        bool condensedTier1 = qTokens.Length == 1 &&
+                              qCondensed.Length >= 4 &&
+                              fCondensed.Length > 0 &&
+                              OsaDistance(qCondensed, fCondensed) <= 1;
+
+        if (tokenTier1 || condensedTier1) return 60;
+
+        bool allWithinBudget = true;
+        bool hasDist2LongToken = false;
+        foreach (var q in qTokens)
+        {
+            int bd = BestDistance(q, fTokens);
+            int b = TokenBudget(q);
+            if (bd > b)
+            {
+                allWithinBudget = false;
+                break;
+            }
+            if (q.Length >= 6 && bd == 2)
+            {
+                hasDist2LongToken = true;
+            }
+        }
+        bool tokenTier2 = allWithinBudget && hasDist2LongToken;
+
+        bool condensedTier2 = qTokens.Length == 1 &&
+                              qCondensed.Length >= 6 &&
+                              fCondensed.Length > 0 &&
+                              OsaDistance(qCondensed, fCondensed) == 2;
+
+        if (tokenTier2 || condensedTier2) return 50;
+
+        return 0;
+    }
+
+    private static bool MatchesRegionalAlias(string qNorm, string[] qTokens, string fNorm, string[] fTokens)
+    {
+        foreach (var (aliases, canonicals) in RegionalAliasGroups)
+        {
+            bool qIsAlias = aliases.Any(a => ContainsPhraseOrToken(qNorm, qTokens, a));
+            bool fIsCanonical = canonicals.Any(c => ContainsPhraseOrToken(fNorm, fTokens, c));
+            if (qIsAlias && fIsCanonical) return true;
+
+            bool qIsCanonical = canonicals.Any(c => ContainsPhraseOrToken(qNorm, qTokens, c));
+            bool fIsAlias = aliases.Any(a => ContainsPhraseOrToken(fNorm, fTokens, a));
+            if (qIsCanonical && fIsAlias) return true;
+        }
+
+        return false;
+    }
+
+    private static bool ContainsPhraseOrToken(string norm, string[] tokens, string candidate)
+    {
+        if (candidate.Contains(' ', StringComparison.Ordinal))
+        {
+            return norm.Equals(candidate, StringComparison.Ordinal) ||
+                   norm.Contains(candidate, StringComparison.Ordinal);
+        }
+
+        foreach (var token in tokens)
+        {
+            if (string.Equals(token, candidate, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }

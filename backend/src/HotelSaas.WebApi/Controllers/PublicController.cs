@@ -244,8 +244,8 @@ public sealed class PublicController : ControllerBase
             idempotencyKey = headerKey.ToString();
         }
 
-        Guid? guestUserId = request.GuestUserId;
-        if (!guestUserId.HasValue && User?.Identity?.IsAuthenticated == true)
+        Guid? guestUserId = null;
+        if (User?.Identity?.IsAuthenticated == true)
         {
             var subClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
                 ?? User.FindFirst("sub")?.Value;
