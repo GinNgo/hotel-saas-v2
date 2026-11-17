@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ReportService } from '../../core/services/report.service';
@@ -11,6 +11,7 @@ import { formatCalendarDate } from '../../core/utils/date-time.util';
   selector: 'app-reports-page',
   standalone: true,
   imports: [CommonModule, FormsModule, DateRangeFilterComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="space-y-8 max-w-7xl mx-auto pb-12 font-sans">
       <!-- Header & Action Bar -->
@@ -154,6 +155,32 @@ import { formatCalendarDate } from '../../core/utils/date-time.util';
           </label>
         }
       </div>
+
+      @if (loadError(); as errorMsg) {
+        <div
+          role="alert"
+          aria-live="polite"
+          class="rounded-2xl border border-rose-200 bg-rose-50 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs"
+        >
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+              <i class="pi pi-exclamation-triangle text-base"></i>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-rose-900">Không thể tải dữ liệu báo cáo</h2>
+              <p class="text-xs text-rose-700 mt-0.5">{{ errorMsg }}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            (click)="loadData()"
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-rose-700 hover:bg-rose-800 text-white shadow-2xs transition-colors shrink-0 cursor-pointer self-start sm:self-auto"
+          >
+            <i class="pi pi-refresh text-xs"></i>
+            <span>Thử lại</span>
+          </button>
+        </div>
+      }
 
       <!-- ========================================================================= -->
       <!-- TAB 1: MULTI-PROPERTY GROUP PORTFOLIO ANALYTICS                         -->
@@ -584,6 +611,7 @@ export class ReportsPage implements OnInit {
   activeTab = signal<'group' | 'branch'>('group');
   isLoading = signal(false);
   isExporting = signal(false);
+  loadError = signal<string | null>(null);
   selectedDays = signal(30);
   roomTypes = signal<Array<{ id: string; name: string }>>([]);
   selectedRoomTypeId = signal('');
@@ -651,8 +679,12 @@ export class ReportsPage implements OnInit {
     }
   }
 
+  private static readonly LOAD_ERROR_MESSAGE =
+    'Không thể tải dữ liệu báo cáo. Vui lòng kiểm tra kết nối hoặc quyền truy cập rồi thử lại.';
+
   loadData(): void {
     this.isLoading.set(true);
+    this.loadError.set(null);
 
     if (this.activeTab() === 'group') {
       this.reportService.getGroupAnalytics(this.fromDate, this.toDate).subscribe({
@@ -661,80 +693,8 @@ export class ReportsPage implements OnInit {
           this.isLoading.set(false);
         },
         error: () => {
-          // Graceful fallback for group demonstration
-          this.groupAnalytics.set({
-            tenantId: 'tenant-group',
-            fromDate: this.fromDate,
-            toDate: this.toDate,
-            totalProperties: 2,
-            totalRooms: 45,
-            totalAvailableNights: 1350,
-            totalSoldNights: 980,
-            totalRevenue: 784000000,
-            averageOccupancyRate: 72.6,
-            portfolioAdr: 800000,
-            portfolioRevPar: 580740,
-            totalBookings: 490,
-            totalGuests: 1120,
-            cancelledBookings: 24,
-            cancellationRate: 4.6,
-            properties: [
-              {
-                propertyId: 'p-01',
-                propertyName: 'Khách Sạn Sài Gòn Central Luxury',
-                propertyCode: 'SG-CENTRAL',
-                city: 'TP. Hồ Chí Minh',
-                starRating: 4,
-                totalRooms: 25,
-                availableRooms: 6,
-                occupiedRooms: 19,
-                totalSoldNights: 580,
-                revenue: 493000000,
-                occupancyRate: 77.3,
-                adr: 850000,
-                revPar: 657333,
-                bookingsCount: 290,
-                revenueContributionPercent: 62.9,
-                performanceRank: 'Top Performer',
-                performanceBadge: 'Dẫn đầu doanh thu'
-              },
-              {
-                propertyId: 'p-02',
-                propertyName: 'Khách Sạn Đà Lạt Riverside Retreat',
-                propertyCode: 'DL-RIVER',
-                city: 'Đà Lạt',
-                starRating: 3,
-                totalRooms: 20,
-                availableRooms: 7,
-                occupiedRooms: 13,
-                totalSoldNights: 400,
-                revenue: 291000000,
-                occupancyRate: 66.7,
-                adr: 727500,
-                revPar: 485000,
-                bookingsCount: 200,
-                revenueContributionPercent: 37.1,
-                performanceRank: 'Standard',
-                performanceBadge: 'Đạt chuẩn'
-              }
-            ],
-            dailyTrends: Array.from({ length: 10 }).map((_, i) => ({
-              date: `2026-10-${i + 1}`,
-              displayDate: `${i + 1}/10`,
-              totalRevenue: 14500000 + (i * 750000),
-              revenueByProperty: {}
-            })),
-            channelDistribution: [
-              { channel: 'Trực tuyến (Website B2C / Portal)', bookingsCount: 310, revenue: 512000000, percentage: 63.3 },
-              { channel: 'Doanh nghiệp / Hợp đồng', bookingsCount: 110, revenue: 184000000, percentage: 22.4 },
-              { channel: 'Khách vãng lai / Lễ tân Walk-In', bookingsCount: 70, revenue: 88000000, percentage: 14.3 }
-            ],
-            paymentDistribution: [
-              { method: 'Cổng trực tuyến VNPay', count: 245, amount: 392000000, percentage: 50.0 },
-              { method: 'Chuyển khoản (VietQR / Napas)', count: 170, amount: 274400000, percentage: 35.0 },
-              { method: 'Tiền mặt tại quầy (Cash)', count: 75, amount: 117600000, percentage: 15.0 }
-            ]
-          });
+          this.groupAnalytics.set(null);
+          this.loadError.set(ReportsPage.LOAD_ERROR_MESSAGE);
           this.isLoading.set(false);
         }
       });
@@ -745,21 +705,8 @@ export class ReportsPage implements OnInit {
           this.isLoading.set(false);
         },
         error: () => {
-          this.kpi.set({
-            fromDate: this.fromDate,
-            toDate: this.toDate,
-            totalRooms: 25,
-            totalAvailableNights: 750,
-            totalSoldNights: 580,
-            occupancyRate: 77.3,
-            averageDailyRate: 850000,
-            revPAR: 657333,
-            totalRevenue: 493000000,
-            totalGuests: 680,
-            totalBookings: 290,
-            cancelledBookings: 14,
-            cancellationRate: 4.6
-          });
+          this.kpi.set(null);
+          this.loadError.set(ReportsPage.LOAD_ERROR_MESSAGE);
           this.isLoading.set(false);
         }
       });
@@ -769,25 +716,9 @@ export class ReportsPage implements OnInit {
           this.revenueSummary.set(res);
         },
         error: () => {
-          this.revenueSummary.set({
-            tenantId: 'demo-tenant',
-            fromDate: this.fromDate,
-            toDate: this.toDate,
-            totalRevenue: 493000000,
-            totalBookings: 290,
-            averageBookingValue: 1700000,
-            paymentBreakdown: [
-              { method: 'Cổng trực tuyến VNPay', amount: 246500000, count: 145 },
-              { method: 'Chuyển khoản (Bank)', amount: 172550000, count: 102 },
-              { method: 'Tiền mặt tại quầy (Cash)', amount: 73950000, count: 43 }
-            ],
-            dailySeries: Array.from({ length: 10 }).map((_, i) => ({
-              date: `2026-10-${i + 1}`,
-              displayDate: `${i + 1}/10`,
-              revenue: 5500000 + (i * 350000),
-              bookingsCount: 4 + (i % 3)
-            }))
-          });
+          this.revenueSummary.set(null);
+          this.loadError.set(ReportsPage.LOAD_ERROR_MESSAGE);
+          this.isLoading.set(false);
         }
       });
     }

@@ -15,8 +15,8 @@ body:json {
     "propertySlug": "{{propertySlug}}",
     "roomTypeId": "{{roomTypeId}}",
     "rentalType": 3,
-    "startAtUtc": "2026-11-20T07:00:00Z",
-    "endAtUtc": "2026-11-21T05:00:00Z",
+    "startAtUtc": "{{startAtUtc}}",
+    "endAtUtc": "{{endAtUtc}}",
     "guestName": "Attacker Ghost",
     "guestEmail": "attacker@ghost.com",
     "guestPhone": "{{validPhone}}",
@@ -24,6 +24,18 @@ body:json {
     "expectedTotalAmount": 3200000,
     "firebaseIdToken": null
   }
+}
+
+script:pre-request {
+  const now = new Date();
+  const checkIn = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const checkOut = new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000);
+  const checkInDate = checkIn.toISOString().slice(0, 10);
+  const checkOutDate = checkOut.toISOString().slice(0, 10);
+  bru.setVar("checkInDate", checkInDate);
+  bru.setVar("checkOutDate", checkOutDate);
+  bru.setVar("startAtUtc", `${checkInDate}T07:00:00Z`);
+  bru.setVar("endAtUtc", `${checkOutDate}T05:00:00Z`);
 }
 
 assert {
