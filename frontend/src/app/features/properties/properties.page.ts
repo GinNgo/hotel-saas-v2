@@ -20,8 +20,16 @@ import {
   EmptyStateComponent,
   LoadingSpinnerComponent,
   FormFieldComponent,
-  FormControlDirective
+  FormControlDirective,
+  GoogleMapPickerComponent,
+  LocationPickerResult
 } from '../../shared';
+
+type BranchSummaryWithGeo = TenantPropertySummaryDto & {
+  touristZoneSlug?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+};
 
 interface PropertyTypeSelectOption {
   readonly value: number;
@@ -51,7 +59,8 @@ interface HttpErrorPayload {
     EmptyStateComponent,
     LoadingSpinnerComponent,
     FormFieldComponent,
-    FormControlDirective
+    FormControlDirective,
+    GoogleMapPickerComponent
   ],
   template: `
     <div class="max-w-7xl mx-auto space-y-6 pb-12">
@@ -301,7 +310,7 @@ interface HttpErrorPayload {
     <!-- Create / Edit Property Modal Dialog -->
     @if (isModalOpen()) {
       <div class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
-        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200/80 max-w-2xl w-full p-6 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-150">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200/80 max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-150">
           <div class="flex items-center justify-between pb-3.5 border-b border-slate-100">
             <div>
               <h2 class="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -482,6 +491,27 @@ interface HttpErrorPayload {
               </div>
             </div>
 
+            <!-- Row 4b: Interactive Map Positioning -->
+            <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <i class="pi pi-map text-emerald-600"></i>
+                  <span>Định vị Chi nhánh trên Bản đồ (GPS &amp; Google Maps)</span>
+                </span>
+                @if (propertyForm.get('latitude')?.value != null && propertyForm.get('longitude')?.value != null) {
+                  <span class="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    {{ propertyForm.get('latitude')?.value | number:'1.4-4' }}, {{ propertyForm.get('longitude')?.value | number:'1.4-4' }}
+                  </span>
+                }
+              </div>
+              <app-google-map-picker
+                [initialAddress]="propertyForm.get('address')?.value || ''"
+                [initialLat]="propertyForm.get('latitude')?.value ?? 10.7769"
+                [initialLng]="propertyForm.get('longitude')?.value ?? 106.7009"
+                (locationSelected)="onMapLocationSelected($event)"
+              />
+            </div>
+
             <!-- Row 5: Booking Models Options Checkboxes -->
             <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
               <span class="block text-xs font-bold text-slate-800">Hình thức kinh doanh được phép mở bán Online:</span>
@@ -569,6 +599,8 @@ export class PropertiesPage implements OnInit {
     city: ['', [Validators.required, Validators.maxLength(50)]],
     provinceCode: ['VN-SG'],
     touristZoneSlug: [null],
+    latitude: [null as number | null],
+    longitude: [null as number | null],
     allowHourlyBooking: [true],
     allowOvernightBooking: [true],
     allowDailyBooking: [true],
@@ -688,6 +720,8 @@ export class PropertiesPage implements OnInit {
       city: '',
       provinceCode: 'VN-SG',
       touristZoneSlug: null,
+      latitude: null,
+      longitude: null,
       allowHourlyBooking: true,
       allowOvernightBooking: true,
       allowDailyBooking: true,
@@ -697,6 +731,7 @@ export class PropertiesPage implements OnInit {
   }
 
   openEditModal(prop: TenantPropertySummaryDto): void {
+    const propWithGeo = prop as BranchSummaryWithGeo;
     this.isEditing.set(true);
     this.editingPropertyId.set(prop.id);
     this.propertyForm.patchValue({
@@ -707,13 +742,36 @@ export class PropertiesPage implements OnInit {
       address: prop.address,
       city: prop.city,
       provinceCode: 'VN-SG',
-      touristZoneSlug: null,
+      touristZoneSlug: propWithGeo.touristZoneSlug ?? null,
+      latitude: propWithGeo.latitude ?? null,
+      longitude: propWithGeo.longitude ?? null,
       allowHourlyBooking: prop.allowHourlyBooking,
       allowOvernightBooking: prop.allowOvernightBooking,
       allowDailyBooking: prop.allowDailyBooking,
       isActive: prop.isActive
     });
     this.isModalOpen.set(true);
+  }
+
+  onMapLocationSelected(result: LocationPickerResult): void {
+    const currentAddr = String(this.propertyForm.get('address')?.value ?? '').trim();
+    const isGpsPlaceholder = result.address.startsWith('Vị trí GPS');
+    const patch: {
+      latitude: number;
+      longitude: number;
+      address?: string;
+      provinceCode?: string;
+    } = {
+      latitude: result.latitude,
+      longitude: result.longitude,
+    };
+    if (!isGpsPlaceholder || !currentAddr) {
+      patch.address = result.address;
+    }
+    if (result.provinceCode) {
+      patch.provinceCode = result.provinceCode;
+    }
+    this.propertyForm.patchValue(patch);
   }
 
   closeModal(): void {
@@ -769,6 +827,10 @@ export class PropertiesPage implements OnInit {
 
     this.isSubmitting.set(true);
     const formVal = this.propertyForm.value;
+    const rawLat = formVal.latitude;
+    const rawLng = formVal.longitude;
+    const latitude = typeof rawLat === 'number' && Number.isFinite(rawLat) ? rawLat : undefined;
+    const longitude = typeof rawLng === 'number' && Number.isFinite(rawLng) ? rawLng : undefined;
 
     if (this.isEditing()) {
       const id = this.editingPropertyId();
@@ -783,6 +845,8 @@ export class PropertiesPage implements OnInit {
         city: formVal.city,
         provinceCode: formVal.provinceCode || 'VN-SG',
         touristZoneSlug: formVal.touristZoneSlug || undefined,
+        ...(latitude !== undefined ? { latitude } : {}),
+        ...(longitude !== undefined ? { longitude } : {}),
         allowHourlyBooking: !!formVal.allowHourlyBooking,
         allowOvernightBooking: !!formVal.allowOvernightBooking,
         allowDailyBooking: !!formVal.allowDailyBooking,
@@ -812,6 +876,8 @@ export class PropertiesPage implements OnInit {
         city: formVal.city,
         provinceCode: formVal.provinceCode || 'VN-SG',
         touristZoneSlug: formVal.touristZoneSlug || undefined,
+        ...(latitude !== undefined ? { latitude } : {}),
+        ...(longitude !== undefined ? { longitude } : {}),
         allowHourlyBooking: !!formVal.allowHourlyBooking,
         allowOvernightBooking: !!formVal.allowOvernightBooking,
         allowDailyBooking: !!formVal.allowDailyBooking

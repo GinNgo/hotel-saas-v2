@@ -71,4 +71,26 @@ public sealed class LocationsController : ControllerBase
         var landmarks = _locationService.GetLandmarks(provinceCode, touristZoneSlug);
         return Ok(new { success = true, data = landmarks });
     }
+
+    /// <summary>
+    /// Reverse-geocodes GPS coordinates to the nearest Vietnamese province, tourist zone, or landmark.
+    /// </summary>
+    [HttpGet("reverse")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public IActionResult ReverseGeocode([FromQuery] double lat, [FromQuery] double lng)
+    {
+        if (!double.IsFinite(lat) || lat < -90.0 || lat > 90.0 ||
+            !double.IsFinite(lng) || lng < -180.0 || lng > 180.0)
+        {
+            return BadRequest(new
+            {
+                code = "ERR_INVALID_COORDINATES",
+                message = "Tọa độ GPS không hợp lệ. Vĩ độ phải trong [-90, 90] và kinh độ trong [-180, 180]."
+            });
+        }
+
+        var result = _locationService.ReverseGeocode(lat, lng);
+        return Ok(new { success = true, data = result });
+    }
 }

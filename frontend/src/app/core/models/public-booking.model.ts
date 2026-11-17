@@ -50,6 +50,18 @@ export interface DestinationSuggestionDto {
   distanceMeters?: number;
 }
 
+export interface ReverseGeocodeInfo {
+  provinceCode?: string;
+  provinceName?: string;
+  nearestZoneSlug?: string;
+  nearestZoneName?: string;
+  nearestLandmarkSlug?: string;
+  nearestLandmarkName?: string;
+  distanceMeters?: number;
+  distanceFormatted?: string;
+  displayLabel: string;
+}
+
 
 export interface NearbyLandmarkBadgeDto {
   landmarkId: string;
@@ -249,6 +261,12 @@ export interface TenantPropertySummaryDto {
   propertyType: number;
   propertyTypeName: string;
   touristZoneName?: string;
+  touristZoneSlug?: string;
+  latitude?: number;
+  longitude?: number;
+  starRating?: number;
+  phoneNumber?: string;
+  email?: string;
   totalRooms: number;
   occupiedRooms: number;
   todayRevenue: number;

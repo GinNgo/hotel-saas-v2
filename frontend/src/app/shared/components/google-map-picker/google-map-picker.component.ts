@@ -1,12 +1,12 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  ElementRef,
   EventEmitter,
   Input,
+  OnChanges,
   OnInit,
   Output,
-  ViewChild,
+  SimpleChanges,
   computed,
   inject,
   signal
@@ -15,6 +15,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { removeVietnameseAccents } from '../../../core/models/location.model';
+import { VIETNAM_34_PROVINCES } from '../../../core/data/vietnam-provinces.data';
 
 export interface LocationPickerResult {
   address: string;
@@ -32,7 +33,46 @@ interface PopularLocationPreset {
   address: string;
   lat: number;
   lng: number;
+  keywords?: string;
+  isRawCoord?: boolean;
 }
+
+const PROVINCE_COORDINATES: Readonly<Record<string, { lat: number; lng: number }>> = {
+  hanoi: { lat: 21.0285, lng: 105.8542 },
+  quangninh: { lat: 20.9599, lng: 107.0425 },
+  laocai: { lat: 22.3364, lng: 103.8438 },
+  ninhbinh: { lat: 20.2506, lng: 105.9745 },
+  haiphong: { lat: 20.7278, lng: 107.0482 },
+  hagiang: { lat: 22.8233, lng: 104.9836 },
+  caobang: { lat: 22.8535, lng: 106.7224 },
+  hoabinh: { lat: 20.6606, lng: 105.0725 },
+  yenbai: { lat: 21.8492, lng: 104.0888 },
+  langson: { lat: 21.8537, lng: 106.7615 },
+  danang: { lat: 16.0601, lng: 108.2464 },
+  quangnam: { lat: 15.8801, lng: 108.3380 },
+  khanhhoa: { lat: 12.2388, lng: 109.1967 },
+  hue: { lat: 16.4637, lng: 107.5909 },
+  binhdinh: { lat: 13.7830, lng: 109.2197 },
+  binhthuan: { lat: 10.9333, lng: 108.2833 },
+  phuyen: { lat: 13.0955, lng: 109.3209 },
+  quangbinh: { lat: 17.5526, lng: 106.2835 },
+  quangtri: { lat: 16.9255, lng: 107.1856 },
+  quangngai: { lat: 15.3822, lng: 109.1180 },
+  lamdong: { lat: 11.9404, lng: 108.4452 },
+  daklak: { lat: 12.6667, lng: 108.0500 },
+  kontum: { lat: 14.5968, lng: 108.2932 },
+  gialai: { lat: 13.9833, lng: 108.0000 },
+  hcm: { lat: 10.7725, lng: 106.6980 },
+  vungtau: { lat: 10.3347, lng: 107.0898 },
+  kiengiang: { lat: 10.1698, lng: 103.9930 },
+  cantho: { lat: 10.0452, lng: 105.7469 },
+  angiang: { lat: 10.6976, lng: 105.0682 },
+  bentre: { lat: 10.2434, lng: 106.3756 },
+  dongthap: { lat: 10.2921, lng: 105.7586 },
+  tayninh: { lat: 11.3736, lng: 106.1763 },
+  camau: { lat: 8.6061, lng: 104.7250 },
+  binhduong: { lat: 10.9036, lng: 106.7011 }
+};
 
 @Component({
   selector: 'app-google-map-picker',
@@ -52,8 +92,9 @@ interface PopularLocationPreset {
             type="text"
             [ngModel]="searchQuery()"
             (ngModelChange)="onSearchQueryChange($event)"
+            (keydown.enter)="onSearchEnter($event)"
             [ngModelOptions]="{standalone: true}"
-            placeholder="Tìm kiếm địa chỉ, tên đường hoặc vị trí trên Google Maps..."
+            placeholder="Tìm 34 tỉnh/khu du lịch, dán tọa độ (10.77, 106.69) hoặc link Google Maps..."
             class="w-full pl-9 pr-24 py-2.5 text-xs sm:text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-2xs transition-all"
           />
           <div class="absolute right-2 flex items-center gap-1">
@@ -61,7 +102,7 @@ interface PopularLocationPreset {
               <button
                 type="button"
                 (click)="clearSearch()"
-                class="p-1 text-slate-400 hover:text-slate-600 rounded-full"
+                class="p-1 text-slate-400 hover:text-slate-600 rounded-full cursor-pointer"
                 title="Xóa tìm kiếm"
               >
                 <i class="pi pi-times text-xs"></i>
@@ -78,7 +119,7 @@ interface PopularLocationPreset {
           <div
             class="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden divide-y divide-slate-100 max-h-56 overflow-y-auto"
           >
-            @for (sug of suggestions(); track sug.name) {
+            @for (sug of suggestions(); track sug.name + '-' + sug.lat + '-' + sug.lng) {
               <button
                 type="button"
                 (click)="applySuggestion(sug)"
@@ -98,9 +139,22 @@ interface PopularLocationPreset {
         }
       </div>
 
-      <!-- Quick Location Presets Row -->
+      <!-- Quick Location Presets & GPS Row -->
       <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-        <span class="text-[11px] text-slate-400 shrink-0 font-medium flex items-center gap-1">
+        <button
+          type="button"
+          (click)="useCurrentLocation()"
+          [disabled]="locatingGps()"
+          class="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-semibold shrink-0 transition-colors cursor-pointer disabled:opacity-60 flex items-center gap-1"
+        >
+          @if (locatingGps()) {
+            <i class="pi pi-spin pi-spinner text-[10px]"></i>
+            <span>Đang định vị...</span>
+          } @else {
+            <span>📍 Vị trí hiện tại</span>
+          }
+        </button>
+        <span class="text-[11px] text-slate-400 shrink-0 font-medium flex items-center gap-1 ml-1">
           <i class="pi pi-bolt text-amber-500 text-[10px]"></i> Gợi ý nhanh:
         </span>
         @for (preset of presets; track preset.name) {
@@ -112,6 +166,56 @@ interface PopularLocationPreset {
             {{ preset.name }}
           </button>
         }
+      </div>
+
+      @if (geoError()) {
+        <div role="alert" class="text-[11px] text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-2">
+          <span>{{ geoError() }}</span>
+          <button
+            type="button"
+            (click)="geoError.set(null)"
+            class="text-rose-500 hover:text-rose-700 cursor-pointer"
+            aria-label="Đóng thông báo lỗi vị trí"
+          >
+            <i class="pi pi-times text-[10px]"></i>
+          </button>
+        </div>
+      }
+
+      <!-- Compact Numeric Coordinate Inputs -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 mb-1" for="map-picker-lat">
+            Vĩ độ (Lat)
+          </label>
+          <input
+            id="map-picker-lat"
+            type="number"
+            step="0.0001"
+            min="-90"
+            max="90"
+            [ngModel]="currentLat()"
+            (ngModelChange)="onManualLatChange($event)"
+            [ngModelOptions]="{standalone: true}"
+            class="w-full px-2.5 py-1.5 text-xs font-mono border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 mb-1" for="map-picker-lng">
+            Kinh độ (Lng)
+          </label>
+          <input
+            id="map-picker-lng"
+            type="number"
+            step="0.0001"
+            min="-180"
+            max="180"
+            [ngModel]="currentLng()"
+            (ngModelChange)="onManualLngChange($event)"
+            [ngModelOptions]="{standalone: true}"
+            class="w-full px-2.5 py-1.5 text-xs font-mono border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
       </div>
 
       <!-- Interactive Map Frame & Marker Container -->
@@ -163,7 +267,7 @@ interface PopularLocationPreset {
     </div>
   `
 })
-export class GoogleMapPickerComponent implements OnInit {
+export class GoogleMapPickerComponent implements OnInit, OnChanges {
   @Input() initialAddress = '';
   @Input() initialLat = 10.7769; // TP. Hồ Chí Minh
   @Input() initialLng = 106.7009;
@@ -176,6 +280,8 @@ export class GoogleMapPickerComponent implements OnInit {
   readonly searchQuery = signal('');
   readonly showSuggestions = signal(false);
   readonly suggestions = signal<PopularLocationPreset[]>([]);
+  readonly locatingGps = signal(false);
+  readonly geoError = signal<string | null>(null);
 
   readonly presets: PopularLocationPreset[] = [
     {
@@ -236,18 +342,48 @@ export class GoogleMapPickerComponent implements OnInit {
     }
   ];
 
+  readonly searchableCatalog: PopularLocationPreset[] = [
+    ...this.presets,
+    ...VIETNAM_34_PROVINCES.map((prov): PopularLocationPreset => {
+      const coords = PROVINCE_COORDINATES[prov.id] ?? { lat: 10.7769, lng: 106.7009 };
+      const label =
+        prov.shortName !== prov.name
+          ? `${prov.shortName} (${prov.name})`
+          : `${prov.name} — ${prov.touristZone}`;
+      return {
+        name: label,
+        provinceName: prov.name,
+        provinceCode: prov.code,
+        address: `${prov.touristZone}, ${prov.name}`,
+        lat: coords.lat,
+        lng: coords.lng,
+        keywords: [prov.name, prov.shortName, prov.searchTerm, prov.touristZone, ...prov.hotLandmarks].join(' ')
+      };
+    })
+  ];
+
+  private readonly sanitizer = inject(DomSanitizer);
+
   ngOnInit(): void {
-    if (this.initialLat && this.initialLng) {
-      this.currentLat.set(this.initialLat);
-      this.currentLng.set(this.initialLng);
-    }
+    this.syncInitialCoords();
     if (this.initialAddress) {
       this.currentAddress.set(this.initialAddress);
       this.searchQuery.set(this.initialAddress);
     }
   }
 
-  private readonly sanitizer = inject(DomSanitizer);
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['initialLat'] || changes['initialLng']) {
+      this.syncInitialCoords();
+    }
+    if (changes['initialAddress'] && this.initialAddress !== this.currentAddress()) {
+      const addr = this.initialAddress ?? '';
+      this.currentAddress.set(addr);
+      this.searchQuery.set(addr);
+      this.suggestions.set([]);
+      this.showSuggestions.set(false);
+    }
+  }
 
   readonly mapEmbedUrl = computed<SafeResourceUrl>(() => {
     const lat = this.currentLat();
@@ -271,16 +407,46 @@ export class GoogleMapPickerComponent implements OnInit {
       return;
     }
 
+    const parsedCoords = this.parseCoordinatesFromInput(q);
+    const rawCoordSuggestion: PopularLocationPreset[] = parsedCoords
+      ? [
+          {
+            name: `📌 Ghim tọa độ GPS: ${parsedCoords.lat.toFixed(4)}, ${parsedCoords.lng.toFixed(4)}`,
+            provinceName: 'Tọa độ GPS',
+            provinceCode: '',
+            address: `Vị trí GPS (${parsedCoords.lat.toFixed(4)}, ${parsedCoords.lng.toFixed(4)})`,
+            lat: parsedCoords.lat,
+            lng: parsedCoords.lng,
+            isRawCoord: true
+          }
+        ]
+      : [];
+
     const normQ = removeVietnameseAccents(q);
-    const matched = this.presets.filter(p => {
+    const matched = this.searchableCatalog.filter(p => {
       const normName = removeVietnameseAccents(p.name);
       const normAddr = removeVietnameseAccents(p.address);
       const normProv = removeVietnameseAccents(p.provinceName);
-      return normName.includes(normQ) || normAddr.includes(normQ) || normProv.includes(normQ);
+      const normKeys = p.keywords ? removeVietnameseAccents(p.keywords) : '';
+      return (
+        normName.includes(normQ) ||
+        normAddr.includes(normQ) ||
+        normProv.includes(normQ) ||
+        normKeys.includes(normQ)
+      );
     });
 
-    this.suggestions.set(matched);
-    this.showSuggestions.set(matched.length > 0);
+    const combined = [...rawCoordSuggestion, ...matched].slice(0, 12);
+    this.suggestions.set(combined);
+    this.showSuggestions.set(combined.length > 0);
+  }
+
+  onSearchEnter(event: Event): void {
+    const firstRaw = this.suggestions().find(s => s.isRawCoord);
+    if (firstRaw) {
+      event.preventDefault();
+      this.applySuggestion(firstRaw);
+    }
   }
 
   applySuggestion(item: PopularLocationPreset): void {
@@ -289,6 +455,7 @@ export class GoogleMapPickerComponent implements OnInit {
   }
 
   selectPreset(preset: PopularLocationPreset): void {
+    this.geoError.set(null);
     this.currentLat.set(preset.lat);
     this.currentLng.set(preset.lng);
     this.currentAddress.set(preset.address);
@@ -299,10 +466,70 @@ export class GoogleMapPickerComponent implements OnInit {
       address: preset.address,
       latitude: preset.lat,
       longitude: preset.lng,
-      provinceName: preset.provinceName,
-      provinceCode: preset.provinceCode,
-      placeName: preset.name
+      provinceName: preset.isRawCoord ? undefined : preset.provinceName,
+      provinceCode: preset.provinceCode || undefined,
+      placeName: preset.isRawCoord ? undefined : preset.name
     });
+  }
+
+  onManualLatChange(value: number | string): void {
+    const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value));
+    if (!this.isValidCoord(parsed, this.currentLng())) return;
+    this.updateCoordinates(parsed, this.currentLng());
+  }
+
+  onManualLngChange(value: number | string): void {
+    const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value));
+    if (!this.isValidCoord(this.currentLat(), parsed)) return;
+    this.updateCoordinates(this.currentLat(), parsed);
+  }
+
+  useCurrentLocation(): void {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      this.geoError.set('Trình duyệt không hỗ trợ định vị GPS.');
+      return;
+    }
+
+    this.geoError.set(null);
+    this.locatingGps.set(true);
+
+    const handleSuccess = (pos: GeolocationPosition): void => {
+      this.locatingGps.set(false);
+      const lat = Number(pos.coords.latitude.toFixed(6));
+      const lng = Number(pos.coords.longitude.toFixed(6));
+      if (!this.isValidCoord(lat, lng)) {
+        this.geoError.set('Tọa độ GPS trả về không hợp lệ.');
+        return;
+      }
+      this.updateCoordinates(lat, lng);
+    };
+
+    const handleFinalError = (err: GeolocationPositionError): void => {
+      this.locatingGps.set(false);
+      if (err.code === 1) {
+        this.geoError.set('Quyền truy cập vị trí đã bị từ chối. Vui lòng cấp quyền GPS trên trình duyệt.');
+      } else if (err.code === 3) {
+        this.geoError.set('Hết thời gian chờ định vị GPS. Vui lòng thử lại hoặc nhập tọa độ trực tiếp.');
+      } else {
+        this.geoError.set('Không thể xác định vị trí hiện tại. Vui lòng thử lại hoặc tìm tỉnh/thành trên bản đồ.');
+      }
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      handleSuccess,
+      (err: GeolocationPositionError) => {
+        if (err.code === 2 || err.code === 3) {
+          navigator.geolocation.getCurrentPosition(handleSuccess, handleFinalError, {
+            enableHighAccuracy: false,
+            timeout: 8000,
+            maximumAge: 300000
+          });
+        } else {
+          handleFinalError(err);
+        }
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+    );
   }
 
   clearSearch(): void {
@@ -314,15 +541,79 @@ export class GoogleMapPickerComponent implements OnInit {
   /**
    * Cập nhật vị trí từ địa chỉ người dùng gõ
    */
-  updateLocationFromAddress(address: string, provinceName?: string): void {
+  updateLocationFromAddress(address: string): void {
     if (!address) return;
     this.currentAddress.set(address);
-    // Find if matches any preset
     const norm = removeVietnameseAccents(address);
-    const match = this.presets.find(p => norm.includes(removeVietnameseAccents(p.provinceName)));
+    const match = this.searchableCatalog.find(
+      p =>
+        norm.includes(removeVietnameseAccents(p.provinceName)) ||
+        (p.keywords ? removeVietnameseAccents(p.keywords).split(' ').some(k => k.length > 2 && norm.includes(k)) : false)
+    );
     if (match) {
       this.currentLat.set(match.lat);
       this.currentLng.set(match.lng);
     }
+  }
+
+  private updateCoordinates(lat: number, lng: number): void {
+    this.geoError.set(null);
+    this.currentLat.set(lat);
+    this.currentLng.set(lng);
+    const addr = this.currentAddress().trim() || `Vị trí GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+    this.currentAddress.set(addr);
+    this.locationSelected.emit({
+      address: addr,
+      latitude: lat,
+      longitude: lng
+    });
+  }
+
+  private syncInitialCoords(): void {
+    if (this.isValidCoord(this.initialLat, this.initialLng)) {
+      this.currentLat.set(this.initialLat);
+      this.currentLng.set(this.initialLng);
+    }
+  }
+
+  private parseCoordinatesFromInput(input: string): { lat: number; lng: number } | null {
+    // 1. Direct lat, lng input (e.g., "10.7725, 106.6980")
+    const directMatch = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/.exec(input);
+    if (directMatch) {
+      const lat = Number.parseFloat(directMatch[1]);
+      const lng = Number.parseFloat(directMatch[2]);
+      return this.isValidCoord(lat, lng) ? { lat, lng } : null;
+    }
+
+    // 2. Google Maps URL with @lat,lng
+    const atMatch = /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/.exec(input);
+    if (atMatch) {
+      const lat = Number.parseFloat(atMatch[1]);
+      const lng = Number.parseFloat(atMatch[2]);
+      return this.isValidCoord(lat, lng) ? { lat, lng } : null;
+    }
+
+    // 3. Google Maps URL with q=lat,lng or query=lat,lng or ll=lat,lng
+    const queryMatch = /[?&](?:q|query|ll)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/.exec(input);
+    if (queryMatch) {
+      const lat = Number.parseFloat(queryMatch[1]);
+      const lng = Number.parseFloat(queryMatch[2]);
+      return this.isValidCoord(lat, lng) ? { lat, lng } : null;
+    }
+
+    return null;
+  }
+
+  private isValidCoord(lat: number, lng: number): boolean {
+    return (
+      typeof lat === 'number' &&
+      typeof lng === 'number' &&
+      Number.isFinite(lat) &&
+      Number.isFinite(lng) &&
+      lat >= -90 &&
+      lat <= 90 &&
+      lng >= -180 &&
+      lng <= 180
+    );
   }
 }

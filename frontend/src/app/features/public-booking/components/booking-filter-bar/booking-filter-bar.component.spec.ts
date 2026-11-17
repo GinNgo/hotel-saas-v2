@@ -2,8 +2,11 @@ import '@angular/compiler';
 import { TestBed } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { JSDOM } from 'jsdom';
-import { afterEach, describe, expect, it } from 'vitest';
+import { of } from 'rxjs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BookingFilterBarComponent } from './booking-filter-bar.component';
+import { LocationService } from '../../../../core/services/location.service';
+import { PublicBookingSearchFilter } from '../../../../core/models/public-booking.model';
 
 if (typeof document === 'undefined') {
   const browser = new JSDOM('<html><body></body></html>', { url: 'http://localhost' });
@@ -131,5 +134,111 @@ describe('Destination picker dismissal', () => {
     // Query 'phuquoc' matches 'Phú Quốc'
     comp.onDestinationInput('phuquoc');
     expect(comp.filteredSuggestions().some(s => s.name === 'Phú Quốc')).toBe(true);
+  });
+
+  it('uses LocationService.reverseGeocode on GPS success, strips GPS placeholder on emitSearch, and never calls window.alert', () => {
+    const reverseGeocodeMock = vi.fn().mockReturnValue(
+      of({ displayLabel: 'Gần Chợ Bến Thành, TP. Hồ Chí Minh (250m)' })
+    );
+    TestBed.configureTestingModule({
+      imports: [BookingFilterBarComponent],
+      providers: [{ provide: LocationService, useValue: { reverseGeocode: reverseGeocodeMock } }],
+    });
+    const fixture = TestBed.createComponent(BookingFilterBarComponent);
+    fixture.detectChanges();
+
+    const emitted: PublicBookingSearchFilter[] = [];
+    fixture.componentInstance.filterChange.subscribe(f => emitted.push(f));
+
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    const originalGeolocation = Object.getOwnPropertyDescriptor(navigator, 'geolocation');
+    const getCurrentPosition = vi.fn((success: PositionCallback) => {
+      success({
+        coords: { latitude: 10.7725, longitude: 106.698 } as GeolocationCoordinates,
+        timestamp: Date.now(),
+      } as GeolocationPosition);
+    });
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: { getCurrentPosition },
+    });
+
+    try {
+      fixture.componentInstance.useCurrentLocation();
+      expect(alertSpy).not.toHaveBeenCalled();
+      expect(reverseGeocodeMock).toHaveBeenCalledWith(10.7725, 106.698);
+      expect(fixture.componentInstance.destinationKeyword()).toBe(
+        '📍 Gần Chợ Bến Thành, TP. Hồ Chí Minh (250m)'
+      );
+      expect(fixture.componentInstance.gpsDisplayLabel()).toBe(
+        '📍 Gần Chợ Bến Thành, TP. Hồ Chí Minh (250m)'
+      );
+
+      fixture.componentInstance.emitSearch();
+      const latest = emitted[emitted.length - 1];
+      expect(latest.destinationKeyword).toBe('');
+      expect(latest.userLatitude).toBe(10.7725);
+      expect(latest.userLongitude).toBe(106.698);
+      expect(latest.sortBy).toBe('distance_asc');
+    } finally {
+      alertSpy.mockRestore();
+      if (originalGeolocation) {
+        Object.defineProperty(navigator, 'geolocation', originalGeolocation);
+      } else {
+        Object.defineProperty(navigator, 'geolocation', { configurable: true, value: undefined });
+      }
+    }
+  });
+
+  it('falls back to low-accuracy geolocation on timeout (code 3) and sets inline searchError on failure without alert', () => {
+    const fixture = setup();
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    const originalGeolocation = Object.getOwnPropertyDescriptor(navigator, 'geolocation');
+
+    const callOptions: PositionOptions[] = [];
+    const getCurrentPosition = vi.fn(
+      (_success: PositionCallback, error?: PositionErrorCallback | null, options?: PositionOptions) => {
+        if (options) callOptions.push(options);
+        if (callOptions.length === 1) {
+          error?.({ code: 3, message: 'Timeout' } as GeolocationPositionError);
+        } else {
+          error?.({ code: 1, message: 'Permission denied' } as GeolocationPositionError);
+        }
+      }
+    );
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: { getCurrentPosition },
+    });
+
+    try {
+      fixture.componentInstance.useCurrentLocation();
+      expect(getCurrentPosition).toHaveBeenCalledTimes(2);
+      expect(callOptions[0].enableHighAccuracy).toBe(true);
+      expect(callOptions[1].enableHighAccuracy).toBe(false);
+      expect(alertSpy).not.toHaveBeenCalled();
+      expect(fixture.componentInstance.searchError()).toContain('từ chối quyền định vị');
+    } finally {
+      alertSpy.mockRestore();
+      if (originalGeolocation) {
+        Object.defineProperty(navigator, 'geolocation', originalGeolocation);
+      } else {
+        Object.defineProperty(navigator, 'geolocation', { configurable: true, value: undefined });
+      }
+    }
+  });
+
+  it('preserves gpsDisplayLabel when initialFilter passes coordinates with empty destinationKeyword', () => {
+    const fixture = setup();
+    fixture.componentInstance.gpsDisplayLabel.set('📍 Gần Chợ Bến Thành (250m)');
+    fixture.componentRef.setInput('initialFilter', {
+      destinationKeyword: '',
+      userLatitude: 10.7725,
+      userLongitude: 106.698,
+    });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.destinationKeyword()).toBe('📍 Gần Chợ Bến Thành (250m)');
+    expect(fixture.componentInstance.userCoords()).toEqual({ lat: 10.7725, lng: 106.698 });
   });
 });

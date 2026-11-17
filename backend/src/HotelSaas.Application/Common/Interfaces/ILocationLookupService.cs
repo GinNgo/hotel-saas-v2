@@ -44,6 +44,20 @@ public sealed record LandmarkDto(
     int PopularSearchRank = 0);
 
 /// <summary>
+/// Data transfer object representing reverse-geocoded Vietnamese location context from GPS coordinates.
+/// </summary>
+public sealed record ReverseGeocodeResultDto(
+    string? ProvinceCode,
+    string? ProvinceName,
+    string? NearestZoneSlug,
+    string? NearestZoneName,
+    string? NearestLandmarkSlug,
+    string? NearestLandmarkName,
+    double? DistanceMeters,
+    string? DistanceFormatted,
+    string DisplayLabel);
+
+/// <summary>
 /// Interface for reading and resolving standardized 2-level Vietnamese administrative locations,
 /// as well as prominent tourist zones and landmarks.
 /// </summary>
@@ -114,4 +128,19 @@ public interface ILocationLookupService
     /// Searches prominent landmarks matching query keyword and optional province code.
     /// </summary>
     IReadOnlyList<LandmarkDto> SearchLandmarks(string query, string? provinceCode = null, int maxResults = 10);
+
+    /// <summary>
+    /// Reverse-geocodes GPS coordinates to the nearest Vietnamese province, tourist zone, or landmark.
+    /// </summary>
+    ReverseGeocodeResultDto ReverseGeocode(double latitude, double longitude) =>
+        new(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            $"Vị trí GPS ({latitude.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)}, {longitude.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)})");
 }

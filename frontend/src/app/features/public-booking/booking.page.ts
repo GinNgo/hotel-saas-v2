@@ -12,9 +12,13 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { readPublicStay } from '../../core/models/public-stay-context';
 import { resolvePropertyThumbnail } from '../../core/utils/hotel-image.util';
-import { VIETNAM_34_PROVINCES } from '../../core/data/vietnam-provinces.data';
+import {
+  buildDefaultDestinationSuggestions,
+  mergeLiveDestinationCatalog,
+} from '../../core/utils/destination-suggestions.util';
 import { BookingFilterBarComponent } from './components/booking-filter-bar/booking-filter-bar.component';
 import { PopularDestinationsComponent } from './components/popular-destinations/popular-destinations.component';
 import { FlashDealsBannerComponent } from './components/flash-deals-banner/flash-deals-banner.component';
@@ -25,12 +29,15 @@ import {
   ALL_PROPERTY_TYPES,
   BookingSortOption,
   DestinationSuggestionDto,
+  LandmarkDto,
+  NearbyLandmarkBadgeDto,
   PropertyType,
   PublicBookingSearchFilter,
   PublicPropertyDto,
   PublicRoomTypeAvailabilityDto,
   RentalType,
   SuggestedFilterChipDto,
+  TouristZoneDto,
 } from '../../core/models/public-booking.model';
 import { PublicBookingService } from '../../core/services/public-booking.service';
 import {
@@ -55,6 +62,28 @@ interface PropertyTypeTabOption {
   label: string;
   icon: string;
   matchTypes: readonly PropertyType[];
+}
+
+interface RawBookingLandmarkInput {
+  landmarkId?: string;
+  landmarkName?: string;
+  name?: string;
+  landmarkSlug?: string;
+  slug?: string;
+  category?: NearbyLandmarkBadgeDto['category'];
+  distanceMeters?: number;
+  distanceKm?: number;
+}
+
+interface RawBookingRoomTypeInput extends Partial<PublicRoomTypeAvailabilityDto> {
+  id?: string;
+}
+
+interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'propertyType' | 'nearbyLandmarks' | 'availableRoomTypes'> {
+  propertyType?: PropertyType | number | string;
+  nearbyLandmarks?: RawBookingLandmarkInput[];
+  availableRoomTypes?: RawBookingRoomTypeInput[];
+  bufferMinutes?: number;
 }
 
 @Component({
@@ -646,6 +675,8 @@ export class BookingPageComponent implements OnInit {
   // --- SIGNALS TRẠNG THÁI TRANG ---
   readonly isLoading = signal<boolean>(false);
   readonly properties = signal<PublicPropertyDto[]>([]);
+  readonly liveZones = signal<TouristZoneDto[]>([]);
+  readonly liveLandmarks = signal<LandmarkDto[]>([]);
   readonly destinationSuggestions = signal<DestinationSuggestionDto[]>([]);
   readonly selectedTenantId = signal<string | null>(null);
   readonly selectedPropertyType = signal<PropertyType | 'ALL'>('ALL');
@@ -826,6 +857,7 @@ export class BookingPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.seedDefaultDestinationSuggestions();
+    this.loadLiveDestinationCatalog();
     (this.route.queryParams ?? of(this.route.snapshot.queryParams ?? {})).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
       try {
         const nonNegative = (value: unknown): number | null => {
@@ -1363,22 +1395,27 @@ export class BookingPageComponent implements OnInit {
       next: (props) => {
         if (generation !== this.requestGeneration) return;
         if (props && props.length > 0) {
-          const mappedList: PublicPropertyDto[] = props.map((p: any) => {
+          const rawProps = props as unknown as RawBookingPropertyInput[];
+          const mappedList: PublicPropertyDto[] = rawProps.map((p) => {
             const allowedModes: RentalType[] = p.allowedRentalTypes ?? [
               ...(p.allowDailyBooking === true ? ['Daily' as RentalType] : []),
               ...(p.allowHourlyBooking === true ? ['Hourly' as RentalType] : []),
               ...(p.allowOvernightBooking === true ? ['Overnight' as RentalType] : []),
             ];
 
-            const landmarks = (p.nearbyLandmarks || []).filter((landmark: { distanceMeters?: number; distanceKm?: number }) =>
-              Number.isFinite(landmark.distanceMeters ?? (landmark.distanceKm != null ? landmark.distanceKm * 1000 : undefined)))
-              .map((l: any, idx: number) => ({
-              landmarkId: l.landmarkId || `lm-${idx}`,
-              landmarkName: l.name || l.landmarkName || 'Địa danh',
-              landmarkSlug: l.slug || l.landmarkSlug || 'dia-danh',
-              category: (l.category || 'Center') as any,
-              distanceMeters: l.distanceMeters ?? Math.round(l.distanceKm * 1000),
-            }));
+            const landmarks: NearbyLandmarkBadgeDto[] = (p.nearbyLandmarks || [])
+              .filter((landmark) =>
+                Number.isFinite(
+                  landmark.distanceMeters ?? (landmark.distanceKm != null ? landmark.distanceKm * 1000 : undefined)
+                )
+              )
+              .map((l, idx) => ({
+                landmarkId: l.landmarkId || `lm-${idx}`,
+                landmarkName: l.name || l.landmarkName || 'Địa danh',
+                landmarkSlug: l.slug || l.landmarkSlug || 'dia-danh',
+                category: l.category || 'Center',
+                distanceMeters: l.distanceMeters ?? Math.round((l.distanceKm ?? 0) * 1000),
+              }));
 
             const startPrice = (filter.rentalType === 'Hourly'
               ? p.hourlyStartingPrice ?? p.hourlyPriceFrom
@@ -1396,9 +1433,9 @@ export class BookingPageComponent implements OnInit {
               tenantId: p.tenantId || '',
               tenantBrandName: p.tenantBrandName || '',
               ...(p.tenantSlug ? { tenantSlug: p.tenantSlug } : {}),
-              name: p.name,
+              name: p.name || '',
               code: p.code || '',
-              slug: p.slug,
+              slug: p.slug || '',
               propertyType: pType,
               starRating: p.starRating ?? 0,
               addressLine: p.addressLine || p.address || '',
@@ -1411,9 +1448,9 @@ export class BookingPageComponent implements OnInit {
               touristZoneSlug: p.touristZoneSlug || '',
               latitude: p.latitude,
               longitude: p.longitude,
-              thumbnailUrl: resolvePropertyThumbnail(p.name, `${p.addressLine || p.address || ''} ${p.provinceName || p.city || ''} ${p.touristZoneName || ''}`, p.thumbnailUrl || p.imageUrl),
+              thumbnailUrl: resolvePropertyThumbnail(p.name || '', `${p.addressLine || p.address || ''} ${p.provinceName || p.city || ''} ${p.touristZoneName || ''}`, p.thumbnailUrl || p.imageUrl),
               imageUrl: p.imageUrl || p.thumbnailUrl,
-              galleryUrls: p.galleryUrls?.length ? p.galleryUrls : [resolvePropertyThumbnail(p.name, `${p.addressLine || p.address || ''} ${p.provinceName || p.city || ''} ${p.touristZoneName || ''}`, p.thumbnailUrl || p.imageUrl)],
+              galleryUrls: p.galleryUrls?.length ? p.galleryUrls : [resolvePropertyThumbnail(p.name || '', `${p.addressLine || p.address || ''} ${p.provinceName || p.city || ''} ${p.touristZoneName || ''}`, p.thumbnailUrl || p.imageUrl)],
               allowedRentalTypes: allowedModes,
               allowHourlyBooking: p.allowHourlyBooking,
               allowOvernightBooking: p.allowOvernightBooking,
@@ -1430,7 +1467,7 @@ export class BookingPageComponent implements OnInit {
               distanceFormatted: p.distanceFormatted,
               isExpandedNearbySuggestion: p.isExpandedNearbySuggestion ?? false,
               availableRoomTypes: (p.availableRoomTypes && p.availableRoomTypes.length > 0)
-                ? p.availableRoomTypes.map((rt: any) => ({
+                ? p.availableRoomTypes.map((rt) => ({
                     roomTypeId: rt.roomTypeId || rt.id || '',
                     name: rt.name || rt.roomTypeName || 'Hạng phòng chưa công bố tên',
                     roomTypeName: rt.roomTypeName || rt.name,
@@ -1461,9 +1498,11 @@ export class BookingPageComponent implements OnInit {
           });
           this.properties.set(mappedList);
           this.generateDynamicChips(mappedList);
+          this.refreshDestinationSuggestions(mappedList);
         } else {
           this.properties.set([]);
           this.smartFilterChips.set([]);
+          this.refreshDestinationSuggestions([]);
         }
         this.isLoading.set(false);
       },
@@ -1479,41 +1518,42 @@ export class BookingPageComponent implements OnInit {
 
 
   private seedDefaultDestinationSuggestions(): void {
-    const list: DestinationSuggestionDto[] = [];
-    for (const p of VIETNAM_34_PROVINCES) {
-      list.push({
-        id: `prov-${p.code}`,
-        name: p.name,
-        slug: p.id,
-        type: 'Province',
-        provinceCode: p.code,
-        provinceName: p.name,
-        propertyCount: p.propertyCount,
+    this.destinationSuggestions.set(buildDefaultDestinationSuggestions());
+  }
+
+  private loadLiveDestinationCatalog(): void {
+    this.publicBookingService
+      .getTouristZones?.()
+      ?.pipe(
+        catchError(() => of([] as TouristZoneDto[])),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      ?.subscribe((zones) => {
+        this.liveZones.set(zones ?? []);
+        this.refreshDestinationSuggestions();
       });
-      if (p.touristZone) {
-        list.push({
-          id: `zone-${p.id}`,
-          name: p.touristZone,
-          slug: p.id,
-          type: 'TouristZone',
-          provinceCode: p.code,
-          provinceName: p.name,
-          touristZoneName: p.touristZone,
-        });
-      }
-      for (const lm of p.hotLandmarks) {
-        list.push({
-          id: `lm-${p.code}-${lm.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-          name: lm,
-          slug: lm.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-          type: 'Landmark',
-          provinceCode: p.code,
-          provinceName: p.name,
-          touristZoneName: p.touristZone,
-        });
-      }
-    }
-    this.destinationSuggestions.set(list);
+
+    this.publicBookingService
+      .getLandmarks?.()
+      ?.pipe(
+        catchError(() => of([] as LandmarkDto[])),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      ?.subscribe((landmarks) => {
+        this.liveLandmarks.set(landmarks ?? []);
+        this.refreshDestinationSuggestions();
+      });
+  }
+
+  private refreshDestinationSuggestions(loadedProps: readonly PublicPropertyDto[] = this.properties()): void {
+    this.destinationSuggestions.set(
+      mergeLiveDestinationCatalog(
+        buildDefaultDestinationSuggestions(),
+        this.liveZones(),
+        this.liveLandmarks(),
+        loadedProps
+      )
+    );
   }
 
   selectCategoryQuickTag(tag: string): void {

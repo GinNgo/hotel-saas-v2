@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Utils;
+using HotelSaas.Application.Public.Services;
 
 namespace HotelSaas.Infrastructure.Services;
 
@@ -117,6 +119,46 @@ public sealed class LocationLookupService : ILocationLookupService
         return _touristZonesBySlug.TryGetValue(slug.Trim(), out var zone) ? zone : null;
     }
 
+    private static readonly IReadOnlyDictionary<string, string> ZoneCondensedAliases =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["dalat"] = "da-lat",
+            ["sapa"] = "sa-pa",
+            ["vungtau"] = "vung-tau",
+            ["phuquoc"] = "phu-quoc",
+            ["nhatrang"] = "nha-trang",
+            ["danang"] = "da-nang",
+            ["hoian"] = "hoi-an",
+            ["halong"] = "ha-long",
+            ["quynhon"] = "quy-nhon",
+            ["muine"] = "phan-thiet-mui-ne",
+            ["phanthiet"] = "phan-thiet-mui-ne",
+            ["phanthietmuine"] = "phan-thiet-mui-ne",
+            ["saigon"] = "quan-1-tphcm",
+            ["tphcm"] = "quan-1-tphcm",
+            ["hcm"] = "quan-1-tphcm",
+            ["tphochiminh"] = "quan-1-tphcm",
+            ["hochiminh"] = "quan-1-tphcm",
+            ["sg"] = "quan-1-tphcm",
+            ["hanoi"] = "ha-noi-pho-co"
+        };
+
+    private static string CondenseNormalized(string? input)
+    {
+        var norm = VietnameseTextNormalizer.Normalize(input);
+        if (string.IsNullOrEmpty(norm)) return string.Empty;
+
+        var sb = new StringBuilder(norm.Length);
+        foreach (var ch in norm)
+        {
+            if (char.IsLetterOrDigit(ch))
+            {
+                sb.Append(ch);
+            }
+        }
+        return sb.ToString();
+    }
+
     /// <inheritdoc />
     public TouristZoneDto? FindTouristZone(string query)
     {
@@ -125,12 +167,35 @@ public sealed class LocationLookupService : ILocationLookupService
         var qTrim = query.Trim();
         if (_touristZonesBySlug.TryGetValue(qTrim, out var zone)) return zone;
 
+        var condensedQuery = CondenseNormalized(qTrim);
+        if (!string.IsNullOrEmpty(condensedQuery) &&
+            ZoneCondensedAliases.TryGetValue(condensedQuery, out var aliasedSlug) &&
+            _touristZonesBySlug.TryGetValue(aliasedSlug, out var aliasedZone))
+        {
+            return aliasedZone;
+        }
+
         var normQuery = VietnameseTextNormalizer.Normalize(qTrim);
-        return _touristZones.FirstOrDefault(z =>
+        var directMatch = _touristZones.FirstOrDefault(z =>
             string.Equals(z.Slug, qTrim, StringComparison.OrdinalIgnoreCase) ||
             (!string.IsNullOrEmpty(z.Code) && string.Equals(z.Code, qTrim, StringComparison.OrdinalIgnoreCase)) ||
             VietnameseTextNormalizer.Normalize(z.Name).Contains(normQuery, StringComparison.OrdinalIgnoreCase) ||
             normQuery.Contains(VietnameseTextNormalizer.Normalize(z.Name), StringComparison.OrdinalIgnoreCase));
+
+        if (directMatch != null || condensedQuery.Length < 3)
+        {
+            return directMatch;
+        }
+
+        return _touristZones.FirstOrDefault(z =>
+        {
+            var slugCondensed = CondenseNormalized(z.Slug);
+            var nameCondensed = CondenseNormalized(z.Name);
+            return slugCondensed == condensedQuery ||
+                   nameCondensed == condensedQuery ||
+                   slugCondensed.Contains(condensedQuery, StringComparison.Ordinal) ||
+                   nameCondensed.Contains(condensedQuery, StringComparison.Ordinal);
+        });
     }
 
     /// <inheritdoc />
@@ -167,17 +232,221 @@ public sealed class LocationLookupService : ILocationLookupService
         if (_landmarksBySlug.TryGetValue(qTrim, out var landmark)) return landmark;
 
         var normQuery = VietnameseTextNormalizer.Normalize(qTrim);
-
-        return _landmarks
+        var ordered = _landmarks
             .OrderBy(l => l.PopularSearchRank > 0 ? l.PopularSearchRank : 999)
-            .FirstOrDefault(l =>
-                string.Equals(l.Slug, qTrim, StringComparison.OrdinalIgnoreCase) ||
-                (l.NormalizedName != null && (l.NormalizedName.Contains(normQuery, StringComparison.OrdinalIgnoreCase) || normQuery.Contains(l.NormalizedName, StringComparison.OrdinalIgnoreCase))) ||
-                (l.Aliases != null && l.Aliases.Any(a =>
+            .ToList();
+
+        // Pass 1: Exact name or alias match
+        var exactMatch = ordered.FirstOrDefault(l =>
+            string.Equals(l.NormalizedName, normQuery, StringComparison.Ordinal) ||
+            (l.Aliases != null && l.Aliases.Any(a =>
+                string.Equals(VietnameseTextNormalizer.Normalize(a), normQuery, StringComparison.Ordinal))));
+
+        if (exactMatch != null)
+        {
+            return exactMatch;
+        }
+
+        var condensedQuery = CondenseNormalized(qTrim);
+        if (ZoneCondensedAliases.ContainsKey(condensedQuery))
+        {
+            return null;
+        }
+
+        // Pass 2: Token-boundary name & alias match ranked by specificity (longest match wins)
+        var queryTokens = FuzzyPropertyMatcher.Tokenize(normQuery);
+        LandmarkDto? bestPass2 = null;
+        var bestMatchedLength = 0;
+
+        foreach (var l in ordered)
+        {
+            var candidateBestLen = 0;
+            if (MatchesWithTokenBoundary(normQuery, queryTokens, l.NormalizedName, out var nameLen))
+            {
+                candidateBestLen = Math.Max(candidateBestLen, nameLen);
+            }
+
+            if (l.Aliases != null)
+            {
+                foreach (var alias in l.Aliases)
                 {
-                    var aNorm = VietnameseTextNormalizer.Normalize(a);
-                    return aNorm.Contains(normQuery, StringComparison.OrdinalIgnoreCase) || normQuery.Contains(aNorm, StringComparison.OrdinalIgnoreCase);
-                })));
+                    if (MatchesWithTokenBoundary(normQuery, queryTokens, alias, out var aliasLen))
+                    {
+                        candidateBestLen = Math.Max(candidateBestLen, aliasLen);
+                    }
+                }
+            }
+
+            if (candidateBestLen > bestMatchedLength)
+            {
+                bestMatchedLength = candidateBestLen;
+                bestPass2 = l;
+            }
+        }
+
+        if (bestPass2 != null)
+        {
+            return bestPass2;
+        }
+
+        // Pass 3: Condensed match (e.g., "chobenthanh", "hohoankiem") without stealing city zones
+        if (condensedQuery.Length < 4)
+        {
+            return null;
+        }
+
+        var exactCondensed = ordered.FirstOrDefault(l =>
+            CondenseNormalized(l.Slug) == condensedQuery ||
+            CondenseNormalized(l.NormalizedName ?? l.Name) == condensedQuery ||
+            (l.Aliases != null && l.Aliases.Any(a => CondenseNormalized(a) == condensedQuery)));
+
+        if (exactCondensed != null || condensedQuery.Length < 5)
+        {
+            return exactCondensed;
+        }
+
+        return ordered.FirstOrDefault(l =>
+            CondenseNormalized(l.Slug).Contains(condensedQuery, StringComparison.Ordinal) ||
+            CondenseNormalized(l.NormalizedName ?? l.Name).Contains(condensedQuery, StringComparison.Ordinal) ||
+            (l.Aliases != null && l.Aliases.Any(a => CondenseNormalized(a).Contains(condensedQuery, StringComparison.Ordinal))));
+    }
+
+    private static bool MatchesWithTokenBoundary(
+        string normQuery,
+        string[] queryTokens,
+        string? rawCandidate,
+        out int matchedLength)
+    {
+        matchedLength = 0;
+        var candidateNorm = VietnameseTextNormalizer.Normalize(rawCandidate);
+        if (string.IsNullOrEmpty(candidateNorm))
+        {
+            return false;
+        }
+
+        if (candidateNorm.Length <= 4)
+        {
+            if (Array.IndexOf(queryTokens, candidateNorm) >= 0)
+            {
+                matchedLength = candidateNorm.Length;
+                return true;
+            }
+            return false;
+        }
+
+        var paddedQuery = $" {normQuery} ";
+        var paddedCandidate = $" {candidateNorm} ";
+
+        if (paddedQuery.Contains(paddedCandidate, StringComparison.Ordinal))
+        {
+            matchedLength = candidateNorm.Length;
+            return true;
+        }
+
+        if (normQuery.Length >= 4 && paddedCandidate.Contains(paddedQuery, StringComparison.Ordinal))
+        {
+            matchedLength = normQuery.Length;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <inheritdoc />
+    public ReverseGeocodeResultDto ReverseGeocode(double latitude, double longitude)
+    {
+        var fallbackLabel = $"Vị trí GPS ({latitude.ToString("0.0000", CultureInfo.InvariantCulture)}, {longitude.ToString("0.0000", CultureInfo.InvariantCulture)})";
+        if (!double.IsFinite(latitude) || !double.IsFinite(longitude))
+        {
+            return new ReverseGeocodeResultDto(null, null, null, null, null, null, null, null, fallbackLabel);
+        }
+
+        LandmarkDto? nearestLandmark = null;
+        var nearestLandmarkDist = double.MaxValue;
+        foreach (var lm in _landmarks)
+        {
+            var dist = GeoProximityHelper.CalculateDistanceMeters(latitude, longitude, lm.Latitude, lm.Longitude);
+            if (dist <= 30_000.0 && dist < nearestLandmarkDist)
+            {
+                nearestLandmarkDist = dist;
+                nearestLandmark = lm;
+            }
+        }
+
+        TouristZoneDto? nearestZone = null;
+        var nearestZoneDist = double.MaxValue;
+        foreach (var z in _touristZones)
+        {
+            if (!z.CenterLatitude.HasValue || !z.CenterLongitude.HasValue) continue;
+            var dist = GeoProximityHelper.CalculateDistanceMeters(latitude, longitude, z.CenterLatitude.Value, z.CenterLongitude.Value);
+            if (dist <= 60_000.0 && dist < nearestZoneDist)
+            {
+                nearestZoneDist = dist;
+                nearestZone = z;
+            }
+        }
+
+        var provinceCode = nearestLandmark?.ProvinceCode ?? nearestZone?.ProvinceCode;
+        var province = !string.IsNullOrWhiteSpace(provinceCode)
+            ? (GetProvinceByCode(provinceCode) ?? _provinces.FirstOrDefault(p => ProvinceCodeMatches(p.Code, provinceCode)))
+            : null;
+        var provinceName = province?.Name?.Trim();
+
+        var effectiveZoneSlug = nearestZone?.Slug ?? nearestLandmark?.TouristZoneSlug;
+        var effectiveZoneName = nearestZone?.Name ??
+            (!string.IsNullOrWhiteSpace(effectiveZoneSlug) ? GetTouristZoneBySlug(effectiveZoneSlug)?.Name : null);
+
+        string displayLabel;
+        double? distanceMeters;
+        string? distanceFormatted;
+
+        if (nearestLandmark != null && nearestLandmarkDist <= 3000.0)
+        {
+            distanceMeters = Math.Round(nearestLandmarkDist);
+            distanceFormatted = GeoProximityHelper.FormatDistance(nearestLandmarkDist);
+            displayLabel = string.IsNullOrWhiteSpace(provinceName)
+                ? $"Gần {nearestLandmark.Name} ({distanceFormatted})"
+                : $"Gần {nearestLandmark.Name}, {provinceName} ({distanceFormatted})";
+        }
+        else if (nearestLandmark != null && nearestLandmarkDist <= 15_000.0 && nearestLandmarkDist * 2.0 < nearestZoneDist)
+        {
+            distanceMeters = Math.Round(nearestLandmarkDist);
+            distanceFormatted = GeoProximityHelper.FormatDistance(nearestLandmarkDist);
+            displayLabel = string.IsNullOrWhiteSpace(provinceName)
+                ? $"Quanh {nearestLandmark.Name} ({distanceFormatted})"
+                : $"Quanh {nearestLandmark.Name}, {provinceName} ({distanceFormatted})";
+        }
+        else if (nearestZone != null && nearestZoneDist <= 40_000.0)
+        {
+            distanceMeters = Math.Round(nearestZoneDist);
+            distanceFormatted = GeoProximityHelper.FormatDistance(nearestZoneDist);
+            displayLabel = $"Khu vực {nearestZone.Name} ({distanceFormatted})";
+        }
+        else if (nearestLandmark != null && nearestLandmarkDist <= 30_000.0)
+        {
+            distanceMeters = Math.Round(nearestLandmarkDist);
+            distanceFormatted = GeoProximityHelper.FormatDistance(nearestLandmarkDist);
+            displayLabel = string.IsNullOrWhiteSpace(provinceName)
+                ? $"Quanh {nearestLandmark.Name} ({distanceFormatted})"
+                : $"Quanh {nearestLandmark.Name}, {provinceName} ({distanceFormatted})";
+        }
+        else
+        {
+            distanceMeters = null;
+            distanceFormatted = null;
+            displayLabel = fallbackLabel;
+        }
+
+        return new ReverseGeocodeResultDto(
+            ProvinceCode: province?.Code ?? provinceCode,
+            ProvinceName: string.IsNullOrWhiteSpace(provinceName) ? null : provinceName,
+            NearestZoneSlug: effectiveZoneSlug,
+            NearestZoneName: effectiveZoneName,
+            NearestLandmarkSlug: nearestLandmark?.Slug,
+            NearestLandmarkName: nearestLandmark?.Name,
+            DistanceMeters: distanceMeters,
+            DistanceFormatted: distanceFormatted,
+            DisplayLabel: displayLabel);
     }
 
     /// <inheritdoc />
@@ -192,15 +461,24 @@ public sealed class LocationLookupService : ILocationLookupService
 
         if (!string.IsNullOrWhiteSpace(query))
         {
-            var normQuery = VietnameseTextNormalizer.Normalize(query.Trim());
+            var qTrim = query.Trim();
+            var normQuery = VietnameseTextNormalizer.Normalize(qTrim);
+            var queryTokens = FuzzyPropertyMatcher.Tokenize(normQuery);
+
             list = list.Where(l =>
-                string.Equals(l.Slug, query.Trim(), StringComparison.OrdinalIgnoreCase) ||
-                (l.NormalizedName != null && (l.NormalizedName.Contains(normQuery, StringComparison.OrdinalIgnoreCase) || normQuery.Contains(l.NormalizedName, StringComparison.OrdinalIgnoreCase))) ||
+                string.Equals(l.Slug, qTrim, StringComparison.OrdinalIgnoreCase) ||
+                MatchesWithTokenBoundary(normQuery, queryTokens, l.NormalizedName, out _) ||
+                (l.NormalizedName != null && normQuery.Length >= 4 && l.NormalizedName.Contains(normQuery, StringComparison.OrdinalIgnoreCase)) ||
                 (l.Aliases != null && l.Aliases.Any(a =>
                 {
                     var aNorm = VietnameseTextNormalizer.Normalize(a);
-                    return !string.IsNullOrEmpty(aNorm) &&
-                           (aNorm.Contains(normQuery, StringComparison.OrdinalIgnoreCase) || normQuery.Contains(aNorm, StringComparison.OrdinalIgnoreCase));
+                    if (string.IsNullOrEmpty(aNorm)) return false;
+                    if (aNorm.Length <= 4)
+                    {
+                        return Array.IndexOf(queryTokens, aNorm) >= 0;
+                    }
+                    return aNorm.Contains(normQuery, StringComparison.OrdinalIgnoreCase) ||
+                           normQuery.Contains(aNorm, StringComparison.OrdinalIgnoreCase);
                 })));
         }
 

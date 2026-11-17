@@ -86,10 +86,24 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // ── CORS ─────────────────────────────────────────────────────────────
+var configuredOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? Array.Empty<string>();
+var allowedOrigins = new[]
+    {
+        "http://localhost:4200",
+        "http://localhost:3000",
+        "https://luxustay.duckdns.org"
+    }
+    .Concat(configuredOrigins)
+    .Where(o => !string.IsNullOrWhiteSpace(o))
+    .Select(o => o.Trim())
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
+
 builder.Services.AddCors(options =>
     options.AddPolicy("Angular", policy =>
         policy
-            .WithOrigins("http://localhost:4200", "http://localhost:3000")
+            .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials()));
@@ -162,6 +176,10 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+}
+else if (!isTestingEnv)
+{
+    app.UseHsts();
 }
 
 app.UseCors("Angular");

@@ -14,20 +14,28 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { readPublicStay } from '../../core/models/public-stay-context';
 import { resolvePropertyThumbnail } from '../../core/utils/hotel-image.util';
-import { VIETNAM_34_PROVINCES } from '../../core/data/vietnam-provinces.data';
+import {
+  buildDefaultDestinationSuggestions,
+  mergeLiveDestinationCatalog,
+} from '../../core/utils/destination-suggestions.util';
 import { BookingFilterBarComponent } from './components/booking-filter-bar/booking-filter-bar.component';
 import {
   ALL_PROPERTY_TYPES,
   BookingSortOption,
   DestinationSuggestionDto,
+  LandmarkDto,
   PropertyType,
   PublicBookingSearchFilter,
   PublicPropertiesFilter,
   PublicPropertyDto,
   RentalType,
   SuggestedFilterChipDto,
+  TouristZoneDto,
 } from '../../core/models/public-booking.model';
+import { LocationService } from '../../core/services/location.service';
 import { PublicBookingService } from '../../core/services/public-booking.service';
+import { of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import {
   LoadingSpinnerComponent,
   PaginationComponent,
@@ -304,6 +312,57 @@ interface TenantBrandFacet {
 
           <!-- CỘT PHẢI: KẾT QUẢ TÌM KIẾM & DANH SÁCH KHÁCH SẠN (9 CỘT) -->
           <main class="lg:col-span-9 space-y-5">
+            @if (searchFilter().userLatitude != null && searchFilter().userLongitude != null) {
+              <div
+                data-testid="active-gps-banner"
+                class="bg-indigo-50/90 border border-indigo-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-2xs"
+              >
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                    <i class="pi pi-compass text-sm"></i>
+                  </span>
+                  <div class="min-w-0">
+                    <p class="text-xs font-bold text-indigo-950 truncate">
+                      {{ activeGeoLabel() || '📍 Đang tìm chỗ nghỉ gần vị trí GPS của bạn' }}
+                    </p>
+                    <p class="text-[11px] text-indigo-700">
+                      Ưu tiên sắp xếp theo khoảng cách gần nhất
+                    </p>
+                  </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  @for (distOpt of [
+                    { label: '< 1km', value: 1000 },
+                    { label: '< 3km', value: 3000 },
+                    { label: '< 5km', value: 5000 },
+                    { label: '< 10km', value: 10000 },
+                    { label: 'Tất cả', value: null }
+                  ]; track distOpt.label) {
+                    <button
+                      type="button"
+                      (click)="setMaxDistance(distOpt.value)"
+                      class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer"
+                      [class.bg-indigo-600]="maxDistanceMeters() === distOpt.value"
+                      [class.text-white]="maxDistanceMeters() === distOpt.value"
+                      [class.border-indigo-600]="maxDistanceMeters() === distOpt.value"
+                      [class.bg-white]="maxDistanceMeters() !== distOpt.value"
+                      [class.text-indigo-800]="maxDistanceMeters() !== distOpt.value"
+                      [class.border-indigo-200]="maxDistanceMeters() !== distOpt.value"
+                    >
+                      {{ distOpt.label }}
+                    </button>
+                  }
+                  <button
+                    type="button"
+                    (click)="clearGpsLocation()"
+                    class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors cursor-pointer ml-1"
+                  >
+                    Tắt định vị GPS
+                  </button>
+                </div>
+              </div>
+            }
+
             <!-- THANH ĐIỀU HƯỚNG KẾT QUẢ & SẮP XẾP -->
             <div
               class="bg-white rounded-2xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3 shadow-2xs"
@@ -323,7 +382,7 @@ interface TenantBrandFacet {
                 <div class="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200/80" role="group" aria-label="Chế độ hiển thị">
                   <button
                     type="button"
-                    (click)="viewMode.set('list')"
+                    (click)="switchViewMode('list')"
                     class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
                     [class.bg-white]="viewMode() === 'list'"
                     [class.text-[#0D2E28]]="viewMode() === 'list'"
@@ -336,7 +395,7 @@ interface TenantBrandFacet {
                   </button>
                   <button
                     type="button"
-                    (click)="viewMode.set('map')"
+                    (click)="switchViewMode('map')"
                     class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
                     [class.bg-[#0D2E28]]="viewMode() === 'map'"
                     [class.text-white]="viewMode() === 'map'"
@@ -476,6 +535,24 @@ interface TenantBrandFacet {
 
                           <!-- Huy hiệu Địa danh & Cự ly (Chuẩn UTF-8) -->
                           <div class="flex flex-wrap items-center gap-1.5 mt-2.5">
+                            @if (property.distanceFormatted || property.distanceMeters != null) {
+                              <span
+                                data-testid="property-distance-badge"
+                                class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200"
+                              >
+                                <span>📍 {{ property.distanceFormatted || ('Cách ' + formatDistance(property.distanceMeters)) }}</span>
+                              </span>
+                            }
+
+                            @if (property.isExpandedNearbySuggestion) {
+                              <span
+                                data-testid="expanded-nearby-badge"
+                                class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200"
+                              >
+                                Gợi ý mở rộng lân cận
+                              </span>
+                            }
+
                             @if (property.touristZoneName) {
                               <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 <i class="pi pi-compass text-[10px]"></i>
@@ -516,7 +593,7 @@ interface TenantBrandFacet {
                           <div class="flex items-center gap-2">
                             <button
                               type="button"
-                              (click)="selectPropertyForMap(property); viewMode.set('map')"
+                              (click)="selectPropertyForMap(property); switchViewMode('map')"
                               class="px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-stone-100 hover:bg-stone-200 text-stone-700 transition-colors inline-flex items-center gap-1 cursor-pointer"
                               title="Định vị trên Google Maps"
                             >
@@ -591,6 +668,23 @@ interface TenantBrandFacet {
                               <i class="pi pi-map-marker text-[#C05621] text-[10px]"></i>
                               <span>{{ property.wardName ? property.wardName + ', ' : '' }}{{ property.city || property.provinceName }}</span>
                             </p>
+                            @if (property.distanceFormatted || property.distanceMeters != null || property.isExpandedNearbySuggestion) {
+                              <div class="flex flex-wrap items-center gap-1 mt-1">
+                                @if (property.distanceFormatted || property.distanceMeters != null) {
+                                  <span
+                                    data-testid="map-property-distance-badge"
+                                    class="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200"
+                                  >
+                                    📍 {{ property.distanceFormatted || ('Cách ' + formatDistance(property.distanceMeters)) }}
+                                  </span>
+                                }
+                                @if (property.isExpandedNearbySuggestion) {
+                                  <span class="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                                    Gợi ý mở rộng lân cận
+                                  </span>
+                                }
+                              </div>
+                            }
                             <div class="flex items-center justify-between mt-2">
                               <span class="text-xs font-mono font-bold text-[#C05621]">
                                 {{ property.startingPriceForSelectedMode > 0 ? (property.startingPriceForSelectedMode | number:'1.0-0') + ' ₫' : 'Báo giá' }}
@@ -629,6 +723,15 @@ interface TenantBrandFacet {
                           <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100/70 text-emerald-900 border border-emerald-300">
                             GMP Verified
                           </span>
+                          <button
+                            type="button"
+                            (click)="locateNearbyOnMap()"
+                            [disabled]="isMapLocating()"
+                            class="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-semibold inline-flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            <i class="pi pi-compass text-[10px]" [class.pi-spin]="isMapLocating()"></i>
+                            <span>{{ isMapLocating() ? 'Đang định vị...' : '📍 Gần tôi' }}</span>
+                          </button>
                         </div>
                         @if (selectedMapProperty(); as selected) {
                           <div class="flex items-center gap-2">
@@ -657,6 +760,11 @@ interface TenantBrandFacet {
                           </div>
                         }
                       </div>
+                      @if (mapGeoError()) {
+                        <p role="alert" class="px-3.5 py-2 bg-rose-50 text-rose-700 text-[11px] font-medium border-b border-rose-100">
+                          {{ mapGeoError() }}
+                        </p>
+                      }
 
                       <!-- Iframe Bản đồ Google Maps -->
                       <div class="relative w-full h-[440px] lg:h-[500px] bg-stone-100">
@@ -718,6 +826,7 @@ interface TenantBrandFacet {
 })
 export class ExploreSearchPageComponent implements OnInit {
   private readonly publicBookingService = inject(PublicBookingService);
+  private readonly locationService = inject(LocationService, { optional: true });
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -726,8 +835,13 @@ export class ExploreSearchPageComponent implements OnInit {
   readonly isLoading = signal<boolean>(false);
   readonly loadError = signal<boolean>(false);
   readonly properties = signal<PublicPropertyDto[]>([]);
+  readonly liveZones = signal<TouristZoneDto[]>([]);
+  readonly liveLandmarks = signal<LandmarkDto[]>([]);
   readonly destinationSuggestions = signal<DestinationSuggestionDto[]>([]);
   readonly smartFilterChips = signal<SuggestedFilterChipDto[]>([]);
+  readonly activeGeoLabel = signal<string | null>(null);
+  readonly isMapLocating = signal<boolean>(false);
+  readonly mapGeoError = signal<string | null>(null);
 
   readonly viewMode = signal<'list' | 'map'>('list');
   readonly selectedMapProperty = signal<PublicPropertyDto | null>(null);
@@ -778,6 +892,24 @@ export class ExploreSearchPageComponent implements OnInit {
 
   selectPropertyForMap(property: PublicPropertyDto): void {
     this.selectedMapProperty.set(property);
+  }
+
+  switchViewMode(mode: 'list' | 'map'): void {
+    this.viewMode.set(mode);
+    if (mode === 'map') {
+      this.ensureMapSelection();
+    }
+  }
+
+  private ensureMapSelection(list: readonly PublicPropertyDto[] = this.filteredProperties()): void {
+    const current = this.selectedMapProperty();
+    if (current && list.some(p => p.propertyId === current.propertyId)) {
+      return;
+    }
+    const firstWithCoord = list.find(
+      p => p.latitude != null && p.longitude != null && p.latitude !== 0 && p.longitude !== 0
+    ) ?? list[0] ?? null;
+    this.selectedMapProperty.set(firstWithCoord);
   }
 
   readonly selectedTenantId = signal<string | null>(null);
@@ -835,8 +967,15 @@ export class ExploreSearchPageComponent implements OnInit {
   });
 
   readonly pageTitle = computed<string>(() => {
-    const kw = this.searchFilter().destinationKeyword;
+    const filter = this.searchFilter();
+    const kw = filter.destinationKeyword;
     if (kw) return `Kết quả tìm kiếm cho "${kw}"`;
+    if (filter.userLatitude != null && filter.userLongitude != null) {
+      const label = this.activeGeoLabel();
+      return label
+        ? `Chỗ nghỉ gần ${label.replace(/^📍\s*/, '')}`
+        : 'Chỗ nghỉ gần vị trí của bạn';
+    }
     return 'Khám phá Chỗ Nghỉ & Khách Sạn';
   });
 
@@ -881,19 +1020,36 @@ export class ExploreSearchPageComponent implements OnInit {
       if (tenantId && prop.tenantId !== tenantId) return false;
       if (!tenantId && filterTenantSlug && prop.tenantSlug !== filterTenantSlug) return false;
       if (maxDist !== null) {
-        if (prop.distanceMeters != null && prop.distanceMeters > maxDist) return false;
+        const effectiveDist =
+          prop.distanceMeters ??
+          (prop.nearbyLandmarks?.length
+            ? Math.min(...prop.nearbyLandmarks.map((l) => l.distanceMeters))
+            : null);
+        if (effectiveDist === null || effectiveDist > maxDist) return false;
       }
       const price = prop.startingPriceForSelectedMode;
+      if ((minP !== null || maxP !== null) && !(price > 0)) return false;
       if (minP !== null && price < minP) return false;
       if (maxP !== null && price > maxP) return false;
       return true;
     });
 
     return [...list].sort((a, b) => {
+      if (a.isExpandedNearbySuggestion !== b.isExpandedNearbySuggestion) {
+        return a.isExpandedNearbySuggestion ? 1 : -1;
+      }
       if (sort === 'price_asc') return (a.startingPriceForSelectedMode || 0) - (b.startingPriceForSelectedMode || 0);
       if (sort === 'price_desc') return (b.startingPriceForSelectedMode || 0) - (a.startingPriceForSelectedMode || 0);
       if (sort === 'rating_desc') return (b.ratingAverage || 0) - (a.ratingAverage || 0);
-      if (sort === 'distance_asc') return (a.distanceMeters ?? 999999) - (b.distanceMeters ?? 999999);
+      if (sort === 'distance_asc') {
+        const distA =
+          a.distanceMeters ??
+          (a.nearbyLandmarks?.length ? Math.min(...a.nearbyLandmarks.map((l) => l.distanceMeters)) : 999999);
+        const distB =
+          b.distanceMeters ??
+          (b.nearbyLandmarks?.length ? Math.min(...b.nearbyLandmarks.map((l) => l.distanceMeters)) : 999999);
+        return distA - distB;
+      }
       return 0;
     });
   });
@@ -909,12 +1065,29 @@ export class ExploreSearchPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.seedDefaultDestinationSuggestions();
+    this.loadLiveDestinationCatalog();
     this.route.queryParams
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((params) => {
+        const nonNegative = (value: unknown): number | null => {
+          if (value == null || value === '') return null;
+          const parsed = Number(value);
+          return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+        };
+        const finiteCoord = (value: unknown): number | null => {
+          if (value == null || value === '') return null;
+          const parsed = Number(value);
+          return Number.isFinite(parsed) ? parsed : null;
+        };
+
         const stay = readPublicStay(params);
         const rawKw = String(params['destinationKeyword'] ?? params['destination'] ?? params['search'] ?? '');
-        const isGpsText = rawKw.includes('📍') || rawKw.includes('GPS') || rawKw.includes('Vị trí hiện tại');
+        const isGpsText =
+          rawKw.startsWith('📍 ') ||
+          rawKw.includes('📍') ||
+          rawKw.includes('GPS') ||
+          rawKw.includes('Vị trí hiện tại') ||
+          rawKw.includes('Gần vị trí');
         const effectiveKw = isGpsText ? '' : rawKw;
         const selectedTenantParam =
           typeof params['selectedTenantId'] === 'string' && params['selectedTenantId']
@@ -929,7 +1102,30 @@ export class ExploreSearchPageComponent implements OnInit {
           .map((t) => t.trim())
           .filter((t): t is PropertyType => ALL_PROPERTY_TYPES.includes(t as PropertyType));
 
+        const userLat = finiteCoord(params['userLatitude'] ?? params['lat']);
+        const userLng = finiteCoord(params['userLongitude'] ?? params['lng']);
+        const hasCoords = userLat !== null && userLng !== null;
+
+        const maxDistParam = nonNegative(params['maxDistanceMeters'] ?? params['maxDistance']);
+        let minP = nonNegative(params['minPrice']);
+        let maxP = nonNegative(params['maxPrice']);
+        if (minP !== null && maxP !== null && minP > maxP) {
+          minP = null;
+          maxP = null;
+        }
+        const matchedRange = this.priceRangeOptions.find(r => r.min === minP && r.max === maxP);
+        const rawSort = String(params['sortBy'] ?? '');
+        const validSorts: readonly BookingSortOption[] = ['recommended', 'price_asc', 'price_desc', 'rating_desc', 'distance_asc'];
+        const resolvedSort: BookingSortOption = validSorts.includes(rawSort as BookingSortOption)
+          ? (rawSort as BookingSortOption)
+          : (hasCoords ? 'distance_asc' : 'recommended');
+
         this.selectedTenantId.set(selectedTenantParam);
+        this.maxDistanceMeters.set(maxDistParam);
+        this.minPrice.set(minP);
+        this.maxPrice.set(maxP);
+        this.selectedPriceRangeKey.set(matchedRange ? matchedRange.key : 'custom');
+        this.sortBy.set(resolvedSort);
 
         this.searchFilter.update((f) => ({
           ...f,
@@ -939,12 +1135,39 @@ export class ExploreSearchPageComponent implements OnInit {
           touristZoneSlug: params['touristZoneSlug'] || params['zone'] || null,
           landmarkSlug: params['landmarkSlug'] || params['landmark'] || null,
           tenantSlug: tenantSlugParam,
-          userLatitude: params['userLatitude'] != null && Number.isFinite(Number(params['userLatitude'])) ? Number(params['userLatitude']) : (params['lat'] != null ? Number(params['lat']) : null),
-          userLongitude: params['userLongitude'] != null && Number.isFinite(Number(params['userLongitude'])) ? Number(params['userLongitude']) : (params['lng'] != null ? Number(params['lng']) : null),
-          maxDistanceMeters: params['maxDistanceMeters'] != null && Number.isFinite(Number(params['maxDistanceMeters'])) ? Number(params['maxDistanceMeters']) : (params['maxDistance'] != null ? Number(params['maxDistance']) : null),
+          userLatitude: userLat,
+          userLongitude: userLng,
+          maxDistanceMeters: maxDistParam,
+          minPrice: minP,
+          maxPrice: maxP,
+          sortBy: resolvedSort,
           propertyTypes: parsedPropertyTypes,
         }));
+
+        if (hasCoords) {
+          this.resolveActiveGeoLabel(userLat!, userLng!);
+        } else {
+          this.activeGeoLabel.set(null);
+        }
+
         this.loadPublicProperties();
+      });
+  }
+
+  private resolveActiveGeoLabel(lat: number, lng: number): void {
+    this.activeGeoLabel.set('📍 Đang tìm chỗ nghỉ gần vị trí GPS của bạn');
+    this.locationService
+      ?.reverseGeocode(lat, lng)
+      ?.pipe(takeUntilDestroyed(this.destroyRef))
+      ?.subscribe((info) => {
+        const filter = this.searchFilter();
+        if (filter.userLatitude !== lat || filter.userLongitude !== lng) return;
+        if (info?.displayLabel) {
+          const label = info.displayLabel.startsWith('📍')
+            ? info.displayLabel
+            : `📍 ${info.displayLabel}`;
+          this.activeGeoLabel.set(label);
+        }
       });
   }
 
@@ -954,7 +1177,12 @@ export class ExploreSearchPageComponent implements OnInit {
 
     const filter = this.searchFilter();
     const rawKw = filter.destinationKeyword?.trim() || '';
-    const isGpsText = rawKw.includes('📍') || rawKw.includes('GPS') || rawKw.includes('Vị trí hiện tại');
+    const isGpsText =
+      rawKw.startsWith('📍 ') ||
+      rawKw.includes('📍') ||
+      rawKw.includes('GPS') ||
+      rawKw.includes('Vị trí hiện tại') ||
+      rawKw.includes('Gần vị trí');
     const effectiveSearch = isGpsText ? undefined : (rawKw || undefined);
 
     const serviceFilter: PublicPropertiesFilter = {
@@ -990,6 +1218,8 @@ export class ExploreSearchPageComponent implements OnInit {
             return {
               ...p,
               propertyId: p.propertyId || p.id || '',
+              nearbyLandmarks: p.nearbyLandmarks ?? [],
+              allowedRentalTypes: p.allowedRentalTypes ?? [],
               startingPriceForSelectedMode: price,
               ratingAverage: p.ratingAverage ?? 0,
               reviewCount: p.reviewCount ?? 0,
@@ -1001,6 +1231,11 @@ export class ExploreSearchPageComponent implements OnInit {
             };
           });
           this.properties.set(mapped);
+          this.generateDynamicChips(mapped);
+          this.refreshDestinationSuggestions(mapped);
+          if (this.viewMode() === 'map') {
+            this.ensureMapSelection(this.filteredProperties());
+          }
         },
         error: () => {
           this.isLoading.set(false);
@@ -1010,16 +1245,21 @@ export class ExploreSearchPageComponent implements OnInit {
   }
 
   onFilterBarChange(filter: PublicBookingSearchFilter): void {
-    this.searchFilter.set(filter);
-    this.currentPage.set(1);
-    this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: {
-        ...filter,
-        selectedTenantId: this.selectedTenantId(),
-        propertyTypes: filter.propertyTypes.join(','),
-      },
+    const hasCoords = filter.userLatitude != null && filter.userLongitude != null;
+    const nextSort: BookingSortOption = hasCoords
+      ? (filter.sortBy === 'recommended' ? 'distance_asc' : filter.sortBy)
+      : (this.sortBy() === 'distance_asc' ? 'recommended' : this.sortBy());
+
+    this.sortBy.set(nextSort);
+    this.searchFilter.set({
+      ...filter,
+      maxDistanceMeters: this.maxDistanceMeters(),
+      minPrice: this.minPrice(),
+      maxPrice: this.maxPrice(),
+      sortBy: nextSort,
     });
+    this.currentPage.set(1);
+    this.syncUrlQueryParams();
   }
 
   selectTenantBrand(id: string | null): void {
@@ -1033,6 +1273,7 @@ export class ExploreSearchPageComponent implements OnInit {
       }
     }
     this.currentPage.set(1);
+    this.syncUrlQueryParams();
   }
 
   isPropertyTypeSelected(type: PropertyType): boolean {
@@ -1076,17 +1317,94 @@ export class ExploreSearchPageComponent implements OnInit {
     this.selectedPriceRangeKey.set(key);
     this.minPrice.set(min);
     this.maxPrice.set(max);
+    this.searchFilter.update((f) => ({ ...f, minPrice: min, maxPrice: max }));
     this.currentPage.set(1);
+    this.syncUrlQueryParams();
   }
 
   setMaxDistance(dist: number | null): void {
     this.maxDistanceMeters.set(dist);
+    this.searchFilter.update((f) => ({ ...f, maxDistanceMeters: dist }));
     this.currentPage.set(1);
+    this.syncUrlQueryParams();
   }
 
   onSortChange(sort: BookingSortOption): void {
     this.sortBy.set(sort);
+    this.searchFilter.update((f) => ({ ...f, sortBy: sort }));
     this.currentPage.set(1);
+    this.syncUrlQueryParams();
+  }
+
+  clearGpsLocation(): void {
+    this.activeGeoLabel.set(null);
+    this.maxDistanceMeters.set(null);
+    const nextSort: BookingSortOption = this.sortBy() === 'distance_asc' ? 'recommended' : this.sortBy();
+    this.sortBy.set(nextSort);
+    this.searchFilter.update((f) => ({
+      ...f,
+      userLatitude: null,
+      userLongitude: null,
+      maxDistanceMeters: null,
+      sortBy: nextSort,
+    }));
+    this.currentPage.set(1);
+    this.syncUrlQueryParams();
+  }
+
+  locateNearbyOnMap(): void {
+    this.mapGeoError.set(null);
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      this.mapGeoError.set('Trình duyệt không hỗ trợ định vị GPS.');
+      return;
+    }
+
+    this.isMapLocating.set(true);
+
+    const onSuccess = (pos: GeolocationPosition): void => {
+      this.isMapLocating.set(false);
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      this.sortBy.set('distance_asc');
+      this.searchFilter.update((f) => ({
+        ...f,
+        destinationKeyword: '',
+        provinceCode: null,
+        touristZoneSlug: null,
+        landmarkSlug: null,
+        userLatitude: lat,
+        userLongitude: lng,
+        sortBy: 'distance_asc',
+      }));
+      this.resolveActiveGeoLabel(lat, lng);
+      this.currentPage.set(1);
+      this.syncUrlQueryParams();
+    };
+
+    const onFinalError = (err: GeolocationPositionError): void => {
+      this.isMapLocating.set(false);
+      this.mapGeoError.set(
+        err.code === 1
+          ? 'Bạn đã từ chối quyền định vị GPS.'
+          : 'Không thể lấy vị trí GPS hiện tại. Vui lòng thử lại.'
+      );
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      onSuccess,
+      (stage1Err) => {
+        if (stage1Err.code === 2 || stage1Err.code === 3) {
+          navigator.geolocation.getCurrentPosition(onSuccess, onFinalError, {
+            enableHighAccuracy: false,
+            timeout: 8000,
+            maximumAge: 300000,
+          });
+          return;
+        }
+        onFinalError(stage1Err);
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+    );
   }
 
   resetSidebarFilters(): void {
@@ -1096,14 +1414,37 @@ export class ExploreSearchPageComponent implements OnInit {
     this.minPrice.set(null);
     this.maxPrice.set(null);
     this.sortBy.set('recommended');
-    this.searchFilter.update((f) => ({ ...f, propertyTypes: [], tenantSlug: null }));
+    this.searchFilter.update((f) => ({
+      ...f,
+      propertyTypes: [],
+      tenantSlug: null,
+      maxDistanceMeters: null,
+      minPrice: null,
+      maxPrice: null,
+      sortBy: 'recommended',
+    }));
     this.currentPage.set(1);
-    this.onFilterBarChange(this.searchFilter());
+    this.syncUrlQueryParams();
   }
 
   onSmartChipClick(chip: SuggestedFilterChipDto): void {
     if (chip.filterKey === 'maxDistanceMeters') {
-      this.setMaxDistance(this.maxDistanceMeters() === chip.filterValue ? null : chip.filterValue);
+      const val = typeof chip.filterValue === 'number' ? chip.filterValue : Number(chip.filterValue);
+      this.setMaxDistance(this.maxDistanceMeters() === val ? null : val);
+    } else if (chip.filterKey === 'destinationKeyword') {
+      const kw = String(chip.filterValue ?? '');
+      this.searchFilter.update((f) => ({
+        ...f,
+        destinationKeyword: f.destinationKeyword === kw ? '' : kw,
+      }));
+      this.syncUrlQueryParams();
+    } else if (chip.filterKey === 'maxPrice') {
+      const maxP = typeof chip.filterValue === 'number' ? chip.filterValue : Number(chip.filterValue);
+      this.applyPriceRange(this.maxPrice() === maxP ? 'all' : 'custom', null, this.maxPrice() === maxP ? null : maxP);
+    } else if (chip.filterKey === 'rentalType') {
+      const rt = chip.filterValue as RentalType;
+      this.searchFilter.update((f) => ({ ...f, rentalType: rt }));
+      this.syncUrlQueryParams();
     }
   }
 
@@ -1111,7 +1452,132 @@ export class ExploreSearchPageComponent implements OnInit {
     if (chip.filterKey === 'maxDistanceMeters') {
       return this.maxDistanceMeters() === chip.filterValue;
     }
+    if (chip.filterKey === 'destinationKeyword') {
+      return this.searchFilter().destinationKeyword === chip.filterValue;
+    }
+    if (chip.filterKey === 'maxPrice') {
+      return this.maxPrice() === chip.filterValue;
+    }
+    if (chip.filterKey === 'rentalType') {
+      return this.searchFilter().rentalType === chip.filterValue;
+    }
     return false;
+  }
+
+  private syncUrlQueryParams(): void {
+    const filter = this.searchFilter();
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {
+        ...filter,
+        selectedTenantId: this.selectedTenantId(),
+        maxDistanceMeters: this.maxDistanceMeters(),
+        minPrice: this.minPrice(),
+        maxPrice: this.maxPrice(),
+        sortBy: this.sortBy(),
+        propertyTypes: filter.propertyTypes.join(','),
+      },
+    });
+  }
+
+  private generateDynamicChips(props: readonly PublicPropertyDto[]): void {
+    const chips: SuggestedFilterChipDto[] = [];
+    const filter = this.searchFilter();
+    const keyword = filter.destinationKeyword;
+    const hasCoords = filter.userLatitude != null && filter.userLongitude != null;
+
+    if (keyword || hasCoords) {
+      const areaLabel = keyword || 'vị trí của bạn';
+      chips.push({
+        id: 'chip-near-1km',
+        label: `📍 Gần ${areaLabel} (< 1km)`,
+        category: 'nearby',
+        filterKey: 'maxDistanceMeters',
+        filterValue: 1000,
+      });
+      chips.push({
+        id: 'chip-near-3km',
+        label: `📍 Bán kính ${areaLabel} (< 3km)`,
+        category: 'nearby',
+        filterKey: 'maxDistanceMeters',
+        filterValue: 3000,
+      });
+    }
+
+    const landmarkCounts = new Map<string, number>();
+    for (const p of props) {
+      for (const lm of p.nearbyLandmarks ?? []) {
+        const name = lm.landmarkName || lm.name;
+        if (!name) continue;
+        landmarkCounts.set(name, (landmarkCounts.get(name) ?? 0) + 1);
+      }
+    }
+    const topLandmarks = Array.from(landmarkCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2);
+
+    for (const [name, count] of topLandmarks) {
+      chips.push({
+        id: `chip-lm-${name.toLowerCase().replace(/\s+/g, '-')}`,
+        label: `📍 ${name}`,
+        category: 'nearby',
+        filterKey: 'destinationKeyword',
+        filterValue: name,
+        count,
+      });
+    }
+
+    const validPrices = props
+      .map((p) => p.startingPriceForSelectedMode)
+      .filter((p) => p > 0);
+
+    if (validPrices.length > 0) {
+      if (filter.rentalType === 'Hourly') {
+        chips.push({
+          id: 'chip-price-hourly-200k',
+          label: '💰 Dưới 200k / 2h',
+          category: 'price',
+          filterKey: 'maxPrice',
+          filterValue: 200000,
+        });
+      } else {
+        chips.push({
+          id: 'chip-price-500k',
+          label: '💰 Dưới 500k / đêm',
+          category: 'price',
+          filterKey: 'maxPrice',
+          filterValue: 500000,
+        });
+        chips.push({
+          id: 'chip-price-1000k',
+          label: '💰 Dưới 1 triệu / đêm',
+          category: 'price',
+          filterKey: 'maxPrice',
+          filterValue: 1000000,
+        });
+      }
+    }
+
+    if (filter.rentalType !== 'Hourly' && props.some((p) => p.allowedRentalTypes?.includes('Hourly'))) {
+      chips.push({
+        id: 'chip-mode-hourly',
+        label: '⏰ Có cho thuê theo giờ',
+        category: 'rentalType',
+        filterKey: 'rentalType',
+        filterValue: 'Hourly',
+      });
+    }
+    if (filter.rentalType !== 'Overnight' && props.some((p) => p.allowedRentalTypes?.includes('Overnight'))) {
+      chips.push({
+        id: 'chip-mode-overnight',
+        label: '🌙 Thuê qua đêm',
+        category: 'rentalType',
+        filterKey: 'rentalType',
+        filterValue: 'Overnight',
+      });
+    }
+
+    this.smartFilterChips.set(chips);
   }
 
   onPageChange(page: number): void {
@@ -1181,51 +1647,52 @@ export class ExploreSearchPageComponent implements OnInit {
   }
 
   private getTodayDateString(): string {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
   }
 
   private getNextDayDateString(): string {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const today = this.getTodayDateString();
+    const d = new Date(`${today}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
   }
 
   private seedDefaultDestinationSuggestions(): void {
-    const list: DestinationSuggestionDto[] = [];
-    for (const p of VIETNAM_34_PROVINCES) {
-      list.push({
-        id: `prov-${p.code}`,
-        name: p.name,
-        slug: p.id,
-        type: 'Province',
-        provinceCode: p.code,
-        provinceName: p.name,
-        propertyCount: p.propertyCount,
+    this.destinationSuggestions.set(buildDefaultDestinationSuggestions());
+  }
+
+  private loadLiveDestinationCatalog(): void {
+    this.publicBookingService
+      .getTouristZones?.()
+      ?.pipe(
+        catchError(() => of([] as TouristZoneDto[])),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      ?.subscribe((zones) => {
+        this.liveZones.set(zones ?? []);
+        this.refreshDestinationSuggestions();
       });
-      if (p.touristZone) {
-        list.push({
-          id: `zone-${p.id}`,
-          name: p.touristZone,
-          slug: p.id,
-          type: 'TouristZone',
-          provinceCode: p.code,
-          provinceName: p.name,
-          touristZoneName: p.touristZone,
-        });
-      }
-      for (const lm of p.hotLandmarks) {
-        list.push({
-          id: `lm-${p.code}-${lm.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-          name: lm,
-          slug: lm.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-          type: 'Landmark',
-          provinceCode: p.code,
-          provinceName: p.name,
-          touristZoneName: p.touristZone,
-        });
-      }
-    }
-    this.destinationSuggestions.set(list);
+
+    this.publicBookingService
+      .getLandmarks?.()
+      ?.pipe(
+        catchError(() => of([] as LandmarkDto[])),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      ?.subscribe((landmarks) => {
+        this.liveLandmarks.set(landmarks ?? []);
+        this.refreshDestinationSuggestions();
+      });
+  }
+
+  private refreshDestinationSuggestions(loadedProps: readonly PublicPropertyDto[] = this.properties()): void {
+    this.destinationSuggestions.set(
+      mergeLiveDestinationCatalog(
+        buildDefaultDestinationSuggestions(),
+        this.liveZones(),
+        this.liveLandmarks(),
+        loadedProps
+      )
+    );
   }
 }

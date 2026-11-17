@@ -2,9 +2,11 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   effect,
   ElementRef,
   HostListener,
+  inject,
   input,
   output,
   signal,
@@ -12,6 +14,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { readPublicStay } from '../../../../core/models/public-stay-context';
 import {
   DestinationSuggestionDto,
@@ -19,6 +22,7 @@ import {
   PublicBookingSearchFilter,
   RentalType,
 } from '../../../../core/models/public-booking.model';
+import { LocationService } from '../../../../core/services/location.service';
 import { BookingDatePickerComponent } from '../../../../shared';
 
 interface RentalModeTab {
@@ -430,9 +434,13 @@ export interface RecentSearchItem {
   `,
 })
 export class BookingFilterBarComponent {
+  private readonly locationService = inject(LocationService, { optional: true });
+  private readonly destroyRef = inject(DestroyRef);
+
   readonly activeSuggestion = signal(-1);
   readonly searchError = signal('');
   readonly recentSearches = signal<RecentSearchItem[]>([]);
+  readonly gpsDisplayLabel = signal<string>('');
 
   onDestinationKeydown(event: KeyboardEvent): void {
     const suggestions = this.filteredSuggestions();
@@ -688,8 +696,22 @@ export class BookingFilterBarComponent {
       const init = this.initialFilter();
       if (!init) return;
       if (init.rentalType) this.rentalType.set(init.rentalType);
-      if (init.destinationKeyword !== undefined)
-        this.destinationKeyword.set(init.destinationKeyword);
+      const hasCoords = init.userLatitude != null && init.userLongitude != null;
+      this.userCoords.set(
+        hasCoords ? { lat: init.userLatitude!, lng: init.userLongitude! } : null
+      );
+      if (init.destinationKeyword !== undefined) {
+        if (hasCoords && !init.destinationKeyword) {
+          this.destinationKeyword.set(this.gpsDisplayLabel() || '📍 Gần vị trí của tôi');
+        } else {
+          this.destinationKeyword.set(init.destinationKeyword);
+          if (!hasCoords) {
+            this.gpsDisplayLabel.set('');
+          }
+        }
+      } else if (hasCoords && !this.destinationKeyword()) {
+        this.destinationKeyword.set(this.gpsDisplayLabel() || '📍 Gần vị trí của tôi');
+      }
       if (init.provinceCode !== undefined)
         this.selectedProvinceCode.set(init.provinceCode);
       if (init.touristZoneSlug !== undefined)
@@ -703,8 +725,6 @@ export class BookingFilterBarComponent {
       if (init.checkInTime) this.checkInTime.set(init.checkInTime);
       if (init.durationHours) this.durationHours.set(init.durationHours);
       if (init.guests) this.guests.set(init.guests);
-      this.userCoords.set(init.userLatitude != null && init.userLongitude != null
-        ? { lat: init.userLatitude, lng: init.userLongitude } : null);
     });
   }
 
@@ -727,6 +747,7 @@ export class BookingFilterBarComponent {
   onDestinationInput(value: string): void {
     this.activeSuggestion.set(-1);
     this.userCoords.set(null);
+    this.gpsDisplayLabel.set('');
     this.destinationKeyword.set(value);
     this.selectedProvinceCode.set(null);
     this.selectedTouristZoneSlug.set(null);
@@ -736,6 +757,7 @@ export class BookingFilterBarComponent {
 
   clearDestination(): void {
     this.userCoords.set(null);
+    this.gpsDisplayLabel.set('');
     this.activeSuggestion.set(-1);
     this.destinationKeyword.set('');
     this.selectedProvinceCode.set(null);
@@ -761,7 +783,16 @@ export class BookingFilterBarComponent {
 
   saveSearchToHistory(keyword: string, label?: string, type?: DestinationSuggestionDto['type'], provinceName?: string): void {
     const trimmed = keyword.trim();
-    if (!trimmed || trimmed.toLowerCase().includes('gps') || trimmed.toLowerCase().includes('vị trí hiện tại')) return;
+    const lower = trimmed.toLowerCase();
+    if (
+      !trimmed ||
+      trimmed.startsWith('📍 ') ||
+      lower.includes('gps') ||
+      lower.includes('vị trí hiện tại') ||
+      lower.includes('gần vị trí')
+    ) {
+      return;
+    }
     if (typeof localStorage === 'undefined') return;
 
     try {
@@ -806,8 +837,10 @@ export class BookingFilterBarComponent {
   selectRecentSearch(item: RecentSearchItem): void {
     this.destinationKeyword.set(item.keyword);
     this.userCoords.set(null);
+    this.gpsDisplayLabel.set('');
     this.showSuggestionsDropdown.set(false);
-    this.saveSearchToHistory(item.keyword, item.label, item.type as any, item.provinceName);
+    const suggestionType = item.type && item.type !== 'Keyword' ? item.type : undefined;
+    this.saveSearchToHistory(item.keyword, item.label, suggestionType, item.provinceName);
     this.emitSearch();
   }
 
@@ -910,32 +943,77 @@ export class BookingFilterBarComponent {
   }
 
   useCurrentLocation(): void {
+    this.searchError.set('');
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      alert('Trình duyệt của bạn không hỗ trợ hoặc chưa cấp quyền định vị GPS.');
+      this.searchError.set('Trình duyệt của bạn không hỗ trợ hoặc chưa bật định vị GPS.');
       return;
     }
 
     this.isLocating.set(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        this.isLocating.set(false);
-        this.userCoords.set({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
+
+    const onSuccess = (pos: GeolocationPosition): void => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const defaultLabel = '📍 Gần vị trí của tôi';
+
+      this.isLocating.set(false);
+      this.userCoords.set({ lat, lng });
+      this.gpsDisplayLabel.set(defaultLabel);
+      this.destinationKeyword.set(defaultLabel);
+      this.selectedProvinceCode.set(null);
+      this.selectedTouristZoneSlug.set(null);
+      this.selectedLandmarkSlug.set(null);
+      this.showSuggestionsDropdown.set(false);
+      this.emitSearch();
+
+      this.locationService
+        ?.reverseGeocode(lat, lng)
+        ?.pipe(takeUntilDestroyed(this.destroyRef))
+        ?.subscribe((info) => {
+          const current = this.userCoords();
+          if (!current || current.lat !== lat || current.lng !== lng) return;
+          if (info?.displayLabel) {
+            const enriched = info.displayLabel.startsWith('📍')
+              ? info.displayLabel
+              : `📍 ${info.displayLabel}`;
+            this.gpsDisplayLabel.set(enriched);
+            this.destinationKeyword.set(enriched);
+          }
         });
-        this.destinationKeyword.set('📍 Gần vị trí của tôi');
-        this.selectedProvinceCode.set(null);
-        this.selectedTouristZoneSlug.set(null);
-        this.selectedLandmarkSlug.set(null);
-        this.showSuggestionsDropdown.set(false);
-        this.emitSearch();
+    };
+
+    const onFinalError = (err: GeolocationPositionError): void => {
+      this.isLocating.set(false);
+      console.warn('Geolocation error:', err);
+      if (err.code === 1) {
+        this.searchError.set(
+          'Bạn đã từ chối quyền định vị. Vui lòng cho phép truy cập vị trí trên trình duyệt hoặc nhập điểm đến thủ công.'
+        );
+      } else if (err.code === 3) {
+        this.searchError.set(
+          'Hết thời gian định vị GPS. Vui lòng thử lại hoặc nhập tên thành phố, địa danh.'
+        );
+      } else {
+        this.searchError.set(
+          'Không thể xác định vị trí hiện tại. Vui lòng kiểm tra GPS/mạng hoặc nhập điểm đến.'
+        );
+      }
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      onSuccess,
+      (stage1Err) => {
+        if (stage1Err.code === 2 || stage1Err.code === 3) {
+          navigator.geolocation.getCurrentPosition(onSuccess, onFinalError, {
+            enableHighAccuracy: false,
+            timeout: 8000,
+            maximumAge: 300000,
+          });
+          return;
+        }
+        onFinalError(stage1Err);
       },
-      (err) => {
-        this.isLocating.set(false);
-        console.warn('Geolocation error:', err);
-        alert('Không thể lấy vị trí hiện tại. Vui lòng cấp quyền truy cập vị trí trên trình duyệt.');
-      },
-      { timeout: 10000, enableHighAccuracy: true }
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
     );
   }
 
@@ -951,7 +1029,12 @@ export class BookingFilterBarComponent {
     }
     this.showSuggestionsDropdown.set(false);
     const rawKw = this.destinationKeyword().trim();
-    const isGpsText = rawKw.includes('📍 Gần vị trí') || rawKw.includes('GPS') || rawKw.includes('Vị trí hiện tại');
+    const isGpsText =
+      this.userCoords() !== null &&
+      (rawKw.startsWith('📍 ') ||
+        rawKw.includes('GPS') ||
+        rawKw.includes('Vị trí hiện tại') ||
+        rawKw.includes('Gần vị trí'));
     const effectiveKw = isGpsText ? '' : rawKw;
     if (effectiveKw) {
       this.saveSearchToHistory(effectiveKw);
@@ -1044,7 +1127,7 @@ export class BookingFilterBarComponent {
   }
 
   private getTodayIsoDate(): string {
-    return new Date().toISOString().split('T')[0];
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
   }
 
   private getTomorrowIsoDate(): string {
@@ -1052,9 +1135,9 @@ export class BookingFilterBarComponent {
   }
 
   private addDays(isoDate: string, days: number): string {
-    const d = new Date(isoDate);
-    d.setDate(d.getDate() + days);
-    return d.toISOString().split('T')[0];
+    const d = new Date(`${isoDate}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
   }
 
   private formatVnDate(isoDate: string): string {

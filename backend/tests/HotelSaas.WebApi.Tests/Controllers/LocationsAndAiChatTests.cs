@@ -1,0 +1,661 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Security.Claims;
+using System.Threading;
+using System.Threading.Tasks;
+using HotelSaas.Application.Common.Interfaces;
+using HotelSaas.Application.Pricing.Services;
+using HotelSaas.Application.Public.Commands.CreateGuestHold;
+using HotelSaas.Application.Public.DTOs;
+using HotelSaas.Application.Public.Queries.GetPublicProperties;
+using HotelSaas.Domain.Entities;
+using HotelSaas.Domain.Enums;
+using HotelSaas.Infrastructure.Services;
+using HotelSaas.WebApi.Controllers;
+using MediatR;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Query;
+using Microsoft.EntityFrameworkCore.Storage;
+using Xunit;
+
+namespace HotelSaas.WebApi.Tests.Controllers;
+
+/// <summary>
+/// Controller-level tests verifying GPS reverse geocoding, grounded AI chat with Google Maps chunks,
+/// anonymous IgnoreQueryFilters access on AI endpoints, and PublicController CreateHold IDOR protection.
+/// </summary>
+public sealed class LocationsAndAiChatTests
+{
+    private static readonly LocationLookupService LocationService = new();
+
+    private sealed class CapturingSender : ISender
+    {
+        private readonly Func<object, object?> _responder;
+        public List<object> SentRequests { get; } = new();
+
+        public CapturingSender(Func<object, object?>? responder = null)
+        {
+            _responder = responder ?? (_ => null);
+        }
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            SentRequests.Add(request);
+            var response = _responder(request);
+            return Task.FromResult((TResponse)response!);
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest
+        {
+            SentRequests.Add(request);
+            return Task.CompletedTask;
+        }
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default)
+        {
+            SentRequests.Add(request);
+            return Task.FromResult(_responder(request));
+        }
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+    }
+
+    private static ICurrentUserContext CreateAnonymousUserContext() =>
+        new CurrentUserContext(new CurrentTenantService(), new CurrentPropertyService());
+
+    private sealed class TrackingAsyncQueryProvider<TEntity> : IAsyncQueryProvider where TEntity : class
+    {
+        private readonly IQueryable<TEntity> _source;
+        private readonly Action<Expression> _onExecute;
+
+        public TrackingAsyncQueryProvider(IQueryable<TEntity> source, Action<Expression> onExecute)
+        {
+            _source = source;
+            _onExecute = onExecute;
+        }
+
+        public IQueryable CreateQuery(Expression expression)
+        {
+            var elementType = expression.Type.GetGenericArguments().First();
+            return (IQueryable)Activator.CreateInstance(
+                typeof(TrackingAsyncQueryable<>).MakeGenericType(elementType),
+                expression, this, _onExecute)!;
+        }
+
+        public IQueryable<TElement> CreateQuery<TElement>(Expression expression) =>
+            new TrackingAsyncQueryable<TElement>(expression, this, _onExecute);
+
+        public object? Execute(Expression expression)
+        {
+            _onExecute(expression);
+            var rewritten = TrackingEfExpressionRewriter.StripEfMethods(expression, _source);
+            return _source.Provider.Execute(rewritten);
+        }
+
+        public TResult Execute<TResult>(Expression expression)
+        {
+            _onExecute(expression);
+            var rewritten = TrackingEfExpressionRewriter.StripEfMethods(expression, _source);
+            return _source.Provider.Execute<TResult>(rewritten);
+        }
+
+        public TResult ExecuteAsync<TResult>(Expression expression, CancellationToken cancellationToken = default)
+        {
+            _onExecute(expression);
+            var expectedResultType = typeof(TResult).GetGenericArguments()[0];
+            var rewritten = TrackingEfExpressionRewriter.StripEfMethods(expression, _source);
+            var executionResult = typeof(IQueryProvider)
+                .GetMethod(nameof(IQueryProvider.Execute), 1, new[] { typeof(Expression) })!
+                .MakeGenericMethod(expectedResultType)
+                .Invoke(_source.Provider, new object[] { rewritten });
+
+            return (TResult)typeof(Task).GetMethod(nameof(Task.FromResult))!
+                .MakeGenericMethod(expectedResultType)
+                .Invoke(null, new[] { executionResult })!;
+        }
+    }
+
+    private sealed class TrackingAsyncQueryable<TElement> : IOrderedQueryable<TElement>, IAsyncEnumerable<TElement>
+    {
+        private readonly Expression _expression;
+        private readonly IAsyncQueryProvider _provider;
+        private readonly Action<Expression> _onExecute;
+
+        public TrackingAsyncQueryable(Expression expression, IAsyncQueryProvider provider, Action<Expression> onExecute)
+        {
+            _expression = expression;
+            _provider = provider;
+            _onExecute = onExecute;
+        }
+
+        Type IQueryable.ElementType => typeof(TElement);
+        Expression IQueryable.Expression => _expression;
+        IQueryProvider IQueryable.Provider => _provider;
+
+        public IEnumerator<TElement> GetEnumerator() =>
+            _provider.Execute<IEnumerable<TElement>>(_expression).GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+        public IAsyncEnumerator<TElement> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _onExecute(_expression);
+            return new TrackingAsyncEnumerator<TElement>(GetEnumerator());
+        }
+    }
+
+    private sealed class TrackingEfExpressionRewriter : ExpressionVisitor
+    {
+        private readonly IQueryable _rootQueryable;
+
+        private TrackingEfExpressionRewriter(IQueryable rootQueryable) => _rootQueryable = rootQueryable;
+
+        public static Expression StripEfMethods(Expression expression, IQueryable rootQueryable) =>
+            new TrackingEfExpressionRewriter(rootQueryable).Visit(expression);
+
+        protected override Expression VisitMethodCall(MethodCallExpression node)
+        {
+            if (node.Method.Name is "IgnoreQueryFilters" or "AsNoTracking" or "Include" or "ThenInclude" or "AsSplitQuery")
+            {
+                return Visit(node.Arguments[0]);
+            }
+
+            return base.VisitMethodCall(node);
+        }
+
+        protected override Expression VisitConstant(ConstantExpression node)
+        {
+            if (node.Value != null && node.Value.GetType().IsGenericType)
+            {
+                var genDef = node.Value.GetType().GetGenericTypeDefinition();
+                if (genDef == typeof(TrackingAsyncDbSet<>) || genDef == typeof(TrackingAsyncQueryable<>))
+                {
+                    return _rootQueryable.Expression;
+                }
+            }
+
+            return base.VisitConstant(node);
+        }
+    }
+
+    private sealed class TrackingAsyncEnumerator<T> : IAsyncEnumerator<T>
+    {
+        private readonly IEnumerator<T> _inner;
+        public TrackingAsyncEnumerator(IEnumerator<T> inner) => _inner = inner;
+        public T Current => _inner.Current;
+        public ValueTask DisposeAsync() { _inner.Dispose(); return ValueTask.CompletedTask; }
+        public ValueTask<bool> MoveNextAsync() => new(_inner.MoveNext());
+    }
+
+    private sealed class TrackingAsyncDbSet<T> : DbSet<T>, IQueryable<T>, IAsyncEnumerable<T> where T : class
+    {
+        private readonly IQueryable<T> _queryable;
+        private readonly Action<Expression> _onExecute;
+        private readonly TrackingAsyncQueryProvider<T> _provider;
+
+        public TrackingAsyncDbSet(IEnumerable<T> data, Action<Expression> onExecute)
+        {
+            _onExecute = onExecute;
+            _queryable = data.AsQueryable();
+            _provider = new TrackingAsyncQueryProvider<T>(_queryable, _onExecute);
+        }
+
+        public override IEntityType EntityType => null!;
+        Type IQueryable.ElementType => typeof(T);
+        Expression IQueryable.Expression => _queryable.Expression;
+        IQueryProvider IQueryable.Provider => _provider;
+
+        public override IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+        {
+            _onExecute(_queryable.Expression);
+            return new TrackingAsyncEnumerator<T>(_queryable.GetEnumerator());
+        }
+
+        IEnumerator<T> IEnumerable<T>.GetEnumerator() => _queryable.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => _queryable.GetEnumerator();
+    }
+
+    private sealed class AiFakeDbContext : IApplicationDbContext
+    {
+        public List<string> ExecutedExpressions { get; } = new();
+
+        public AiFakeDbContext(
+            IEnumerable<Property> properties,
+            IEnumerable<RoomType> roomTypes,
+            IEnumerable<Reservation>? reservations = null,
+            IEnumerable<TenantContract>? tenantContracts = null,
+            IEnumerable<PrintTemplateConfig>? printTemplateConfigs = null,
+            IEnumerable<Invoice>? invoices = null,
+            IEnumerable<Room>? rooms = null)
+        {
+            Properties = new TrackingAsyncDbSet<Property>(properties, e => ExecutedExpressions.Add(e.ToString()));
+            RoomTypes = new TrackingAsyncDbSet<RoomType>(roomTypes, e => ExecutedExpressions.Add(e.ToString()));
+            Reservations = new TrackingAsyncDbSet<Reservation>(reservations ?? Array.Empty<Reservation>(), e => ExecutedExpressions.Add(e.ToString()));
+            TenantContracts = new TrackingAsyncDbSet<TenantContract>(tenantContracts ?? Array.Empty<TenantContract>(), e => ExecutedExpressions.Add(e.ToString()));
+            PrintTemplateConfigs = new TrackingAsyncDbSet<PrintTemplateConfig>(printTemplateConfigs ?? Array.Empty<PrintTemplateConfig>(), e => ExecutedExpressions.Add(e.ToString()));
+            Invoices = new TrackingAsyncDbSet<Invoice>(invoices ?? Array.Empty<Invoice>(), e => ExecutedExpressions.Add(e.ToString()));
+            Rooms = new TrackingAsyncDbSet<Room>(rooms ?? Array.Empty<Room>(), e => ExecutedExpressions.Add(e.ToString()));
+        }
+
+        public DbSet<Property> Properties { get; }
+        public DbSet<RoomType> RoomTypes { get; }
+
+        public DbSet<User> Users => throw new NotImplementedException();
+        public DbSet<RefreshToken> RefreshTokens => throw new NotImplementedException();
+        public DbSet<Tenant> Tenants => throw new NotImplementedException();
+        public DbSet<AccessRole> AccessRoles => throw new NotImplementedException();
+        public DbSet<PermissionFunction> PermissionFunctions => throw new NotImplementedException();
+        public DbSet<RolePermission> RolePermissions => throw new NotImplementedException();
+        public DbSet<TenantStaff> TenantStaffMembers => throw new NotImplementedException();
+        public DbSet<Room> Rooms { get; }
+        public DbSet<Reservation> Reservations { get; }
+        public DbSet<Payment> Payments => throw new NotImplementedException();
+        public DbSet<Subscription> Subscriptions => throw new NotImplementedException();
+        public DbSet<SubscriptionPlan> SubscriptionPlans => throw new NotImplementedException();
+        public DbSet<SystemBanner> SystemBanners => throw new NotImplementedException();
+        public DbSet<PropertySurchargePolicy> PropertySurchargePolicies => throw new NotImplementedException();
+        public DbSet<RoomTypeRate> RoomTypeRates => throw new NotImplementedException();
+        public DbSet<RoomTypeRateAudit> RoomTypeRateAudits => throw new NotImplementedException();
+        public DbSet<Invoice> Invoices { get; }
+        public DbSet<InvoiceItem> InvoiceItems => throw new NotImplementedException();
+        public DbSet<GuestLoyaltyMembership> GuestLoyaltyMemberships => throw new NotImplementedException();
+        public DbSet<LoyaltyPointTransaction> LoyaltyPointTransactions => throw new NotImplementedException();
+        public DbSet<TenantContract> TenantContracts { get; }
+        public DbSet<PrintTemplateConfig> PrintTemplateConfigs { get; }
+        public DbSet<SocialIdentity> SocialIdentities => throw new NotImplementedException();
+        public DbSet<GuestReview> GuestReviews => throw new NotImplementedException();
+        public DbSet<AiUsageLog> AiUsageLogs => throw new NotImplementedException();
+
+        public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task LockUserRowAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task LockRoomTypeRowAsync(Guid roomTypeId, Guid tenantId, Guid propertyId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task LockRoomRowAsync(Guid roomId, Guid tenantId, Guid propertyId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task LockReservationRowAsync(Guid reservationId, Guid tenantId, Guid propertyId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task LockIdempotencyKeyAsync(Guid propertyId, string idempotencyKey, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> UpdateRoomStatusAtomicAsync(Guid roomId, Guid tenantId, Guid propertyId, RoomStatus expectedOldStatus, RoomStatus newStatus, DateTime updatedAtUtc, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    private sealed class StubDynamicPricingService : IDynamicPricingService
+    {
+        public Task<DynamicPricingAdjustmentDto?> CalculateDynamicAdjustmentAsync(
+            Guid propertyId, Guid roomTypeId, RentalType rentalType, DateOnly startDate, DateOnly endDate, decimal basePrice, CancellationToken cancellationToken = default)
+            => Task.FromResult<DynamicPricingAdjustmentDto?>(null);
+
+        public Task<DynamicPricingSummaryDto> GetPricingRecommendationsAsync(Guid propertyId, DateOnly targetDate, CancellationToken cancellationToken = default)
+            => Task.FromResult(new DynamicPricingSummaryDto(propertyId, "Test Hotel", targetDate, 0.5, "Normal", Array.Empty<RoomTypePricingRecommendationDto>()));
+    }
+
+    [Fact]
+    public void LocationsController_Reverse_ValidCoordinates_ReturnsOkWithDisplayLabel()
+    {
+        var controller = new LocationsController(LocationService);
+        var result = controller.ReverseGeocode(10.7725, 106.6980);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.NotNull(ok.Value);
+        var dataProp = ok.Value.GetType().GetProperty("data")!;
+        var dto = Assert.IsType<ReverseGeocodeResultDto>(dataProp.GetValue(ok.Value));
+        Assert.Equal("cho-ben-thanh", dto.NearestLandmarkSlug);
+        Assert.StartsWith("Gần Chợ Bến Thành", dto.DisplayLabel, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(-90.1, 106.7)]
+    [InlineData(90.1, 106.7)]
+    [InlineData(10.7, -180.1)]
+    [InlineData(10.7, 180.1)]
+    [InlineData(double.NaN, 106.7)]
+    [InlineData(10.7, double.PositiveInfinity)]
+    public void LocationsController_Reverse_InvalidCoordinates_Returns400BadRequest(double lat, double lng)
+    {
+        var controller = new LocationsController(LocationService);
+        var result = controller.ReverseGeocode(lat, lng);
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task AiController_Chat_EmptyMessage_Returns400BadRequest()
+    {
+        var sender = new CapturingSender();
+        var controller = new AiController(
+            new AiFakeDbContext(Array.Empty<Property>(), Array.Empty<RoomType>()),
+            CreateAnonymousUserContext(),
+            sender,
+            LocationService);
+
+        var result = await controller.ProcessChatQuery(
+            new AiChatRequest { Message = "   " },
+            CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Empty(sender.SentRequests);
+    }
+
+    [Fact]
+    public async Task AiController_Chat_WithLocationAndQuery_ReturnsGroundedPropertiesAndMapsLinks()
+    {
+        var prop = new PublicPropertyDto
+        {
+            Id = Guid.NewGuid(),
+            Name = "Saigon Luxe Boutique",
+            City = "TP. Hồ Chí Minh",
+            ProvinceName = "TP. Hồ Chí Minh",
+            Address = "10 Lê Lợi, Quận 1",
+            Latitude = 10.7731,
+            Longitude = 106.6988,
+            DistanceMeters = 120,
+            DistanceFormatted = "Cách 120m",
+            HourlyStartingPrice = 250000m,
+            OvernightStartingPrice = 950000m,
+            StartingPrice = 950000m
+        };
+
+        var sender = new CapturingSender(req =>
+            req is GetPublicPropertiesQuery ? new[] { prop } : null);
+
+        var controller = new AiController(
+            new AiFakeDbContext(Array.Empty<Property>(), Array.Empty<RoomType>()),
+            CreateAnonymousUserContext(),
+            sender,
+            LocationService);
+
+        var result = await controller.ProcessChatQuery(
+            new AiChatRequest
+            {
+                Message = "Tìm khách sạn gần tôi",
+                Messages = new List<AiChatHistoryMessage>(),
+                Location = new AiChatLocation { Latitude = 10.7725, Longitude = 106.6980 }
+            },
+            CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var body = Assert.IsType<AiChatResponse>(ok.Value);
+        Assert.Contains("Saigon Luxe Boutique", body.Text, StringComparison.Ordinal);
+        Assert.Contains("Check-in", body.Text, StringComparison.Ordinal);
+        Assert.Contains("Gần Chợ Bến Thành", body.Text, StringComparison.Ordinal);
+
+        var chunk = Assert.Single(body.GroundingChunks);
+        Assert.NotNull(chunk.Maps);
+        Assert.Contains("Saigon Luxe Boutique", chunk.Maps!.Title, StringComparison.Ordinal);
+        Assert.Equal("https://www.google.com/maps/search/?api=1&query=10.7731,106.6988", chunk.Maps.Uri);
+    }
+
+    [Fact]
+    public async Task AiController_AnonymousConciergeAndPricing_ApplyIgnoreQueryFilters()
+    {
+        var propId = Guid.NewGuid();
+        var prop = new Property
+        {
+            Id = propId,
+            TenantId = Guid.NewGuid(),
+            Name = "Public Concierge Stay",
+            Slug = "public-concierge-stay",
+            City = "Đà Nẵng",
+            Address = "100 Võ Nguyên Giáp",
+            Status = PropertyStatus.Active
+        };
+        var rt = new RoomType
+        {
+            Id = Guid.NewGuid(),
+            TenantId = prop.TenantId,
+            PropertyId = propId,
+            Name = "Deluxe Sea View",
+            MaxOccupancy = 2,
+            BasePrice = 800000m
+        };
+
+        var db = new AiFakeDbContext(new[] { prop }, new[] { rt });
+        var controller = new AiController(
+            db,
+            CreateAnonymousUserContext(),
+            new CapturingSender(),
+            LocationService,
+            new StubDynamicPricingService());
+
+        var conciergeRes = await controller.ProcessConciergeQuery(
+            new AiConciergeRequest { Message = "Tôi muốn tìm phòng cho 2 người" },
+            CancellationToken.None);
+        var conciergeOk = Assert.IsType<OkObjectResult>(conciergeRes);
+        var conciergeDto = Assert.IsType<AiConciergeResponse>(conciergeOk.Value);
+        Assert.Single(conciergeDto.SuggestedRooms);
+
+        var pricingRes = await controller.GetDynamicPricingRecommendations(null, null, CancellationToken.None);
+        var pricingOk = Assert.IsType<OkObjectResult>(pricingRes);
+        Assert.NotNull(pricingOk.Value);
+
+        Assert.Contains(db.ExecutedExpressions, expr => expr.Contains("Property", StringComparison.Ordinal));
+        Assert.Contains(db.ExecutedExpressions, expr => expr.Contains("RoomType", StringComparison.Ordinal));
+        Assert.Contains(db.ExecutedExpressions, expr => expr.Contains("FirstOrDefault", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task PublicController_CreateHold_AnonymousRequest_IgnoresBodyGuestUserId_PreventingIdor()
+    {
+        var expectedHold = new GuestHoldDto
+        {
+            ReservationId = Guid.NewGuid(),
+            ConfirmationCode = "HOLD-123",
+            LookupToken = "lookup-token",
+            HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(15),
+            TotalAmount = 1_000_000m,
+            Status = "PendingPayment",
+            PropertyName = "Public Stay",
+            AssignedRoomNumber = "101",
+            IsPhoneVerified = true
+        };
+
+        var sender = new CapturingSender(_ => expectedHold);
+        var controller = new PublicController(sender, LocationService)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext()
+            }
+        };
+
+        var spoofedVictimId = Guid.NewGuid();
+        var req = new CreateGuestHoldRequest(
+            PropertySlug: "public-stay",
+            RoomTypeId: Guid.NewGuid(),
+            RentalType: RentalType.Overnight,
+            StartAtUtc: DateTime.UtcNow.AddDays(5),
+            EndAtUtc: DateTime.UtcNow.AddDays(6),
+            GuestName: "Attacker",
+            GuestEmail: "attacker@example.com",
+            GuestPhone: "+84123456789",
+            NumberOfGuests: 1,
+            GuestUserId: spoofedVictimId,
+            FirebaseIdToken: "valid-token");
+
+        var res = await controller.CreateHold(req, CancellationToken.None);
+        var created = Assert.IsType<ObjectResult>(res);
+        Assert.Equal(StatusCodes.Status201Created, created.StatusCode);
+
+        var dispatched = Assert.IsType<CreateGuestHoldCommand>(Assert.Single(sender.SentRequests));
+        Assert.Null(dispatched.GuestUserId);
+    }
+
+    [Fact]
+    public async Task PublicController_CreateHold_AuthenticatedRequest_UsesClaimUserId_IgnoringBodySpoof()
+    {
+        var expectedHold = new GuestHoldDto
+        {
+            ReservationId = Guid.NewGuid(),
+            ConfirmationCode = "HOLD-456",
+            LookupToken = "lookup-token-2",
+            HoldExpiresAtUtc = DateTime.UtcNow.AddMinutes(15),
+            TotalAmount = 1_000_000m,
+            Status = "PendingPayment",
+            PropertyName = "Public Stay",
+            AssignedRoomNumber = "102",
+            IsPhoneVerified = true
+        };
+
+        var sender = new CapturingSender(_ => expectedHold);
+        var authenticatedUserId = Guid.NewGuid();
+        var spoofedVictimId = Guid.NewGuid();
+
+        var identity = new ClaimsIdentity(
+            new[] { new Claim(ClaimTypes.NameIdentifier, authenticatedUserId.ToString()) },
+            authenticationType: "Bearer");
+
+        var controller = new PublicController(sender, LocationService)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(identity)
+                }
+            }
+        };
+
+        var req = new CreateGuestHoldRequest(
+            PropertySlug: "public-stay",
+            RoomTypeId: Guid.NewGuid(),
+            RentalType: RentalType.Overnight,
+            StartAtUtc: DateTime.UtcNow.AddDays(5),
+            EndAtUtc: DateTime.UtcNow.AddDays(6),
+            GuestName: "Real Member",
+            GuestEmail: "member@example.com",
+            GuestPhone: "+84123456789",
+            NumberOfGuests: 1,
+            GuestUserId: spoofedVictimId);
+
+        await controller.CreateHold(req, CancellationToken.None);
+
+        var dispatched = Assert.IsType<CreateGuestHoldCommand>(Assert.Single(sender.SentRequests));
+        Assert.Equal(authenticatedUserId, dispatched.GuestUserId);
+        Assert.NotEqual(spoofedVictimId, dispatched.GuestUserId);
+    }
+
+    [Fact]
+    public async Task PrintDocumentsController_GetPrintableContract_EnforcesTenantIsolationAndAllowsOwnerOrSuperAdmin()
+    {
+        var tenantA = Guid.NewGuid();
+        var tenantB = Guid.NewGuid();
+        var contract = new TenantContract
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantB,
+            ContractNumber = "HD-2026-PRO-009",
+            PlanCode = "PRO",
+            PlanName = "Gói Chuyên Nghiệp",
+            RepresentativeName = "Tran Van B",
+            RepresentativeEmail = "rep@tenantb.vn",
+            RepresentativePhone = "0909998888",
+            StartDate = new DateOnly(2026, 1, 1),
+            EndDate = new DateOnly(2026, 12, 31),
+            ContractValue = 24_000_000m,
+            Status = TenantContractStatus.Active
+        };
+
+        var fakeDb = new AiFakeDbContext(
+            Array.Empty<Property>(),
+            Array.Empty<RoomType>(),
+            tenantContracts: new[] { contract });
+
+        // Cross-tenant user must be rejected with 403 Forbid
+        var crossTenantUser = CreateAnonymousUserContext();
+        crossTenantUser.SetUser(Guid.NewGuid(), "manager@tenanta.vn", GlobalUserRole.TenantStaff);
+        crossTenantUser.SetMembershipContext(tenantA, TenantStatus.Active, null, null, StaffRole.Manager, null, isTenantWide: true);
+        var crossTenantController = new PrintDocumentsController(fakeDb, crossTenantUser);
+
+        var forbiddenResult = await crossTenantController.GetPrintableContract(contract.Id, CancellationToken.None);
+        Assert.IsType<ForbidResult>(forbiddenResult);
+
+        // Same-tenant user succeeds
+        var sameTenantUser = CreateAnonymousUserContext();
+        sameTenantUser.SetUser(Guid.NewGuid(), "owner@tenantb.vn", GlobalUserRole.TenantStaff);
+        sameTenantUser.SetMembershipContext(tenantB, TenantStatus.Active, null, null, StaffRole.Owner, null, isTenantWide: true);
+        var sameTenantController = new PrintDocumentsController(fakeDb, sameTenantUser);
+
+        var sameTenantResult = await sameTenantController.GetPrintableContract(contract.Id, CancellationToken.None);
+        var sameTenantOk = Assert.IsType<OkObjectResult>(sameTenantResult);
+        var sameTenantDto = Assert.IsType<PrintableContractDocumentDto>(sameTenantOk.Value);
+        Assert.Equal("HD-2026-PRO-009", sameTenantDto.ContractNumber);
+
+        // SuperAdmin succeeds across tenants
+        var superAdmin = CreateAnonymousUserContext();
+        superAdmin.SetUser(Guid.NewGuid(), "admin@platform.vn", GlobalUserRole.SuperAdmin);
+        var superAdminController = new PrintDocumentsController(fakeDb, superAdmin);
+
+        var superAdminResult = await superAdminController.GetPrintableContract(contract.Id, CancellationToken.None);
+        var superAdminOk = Assert.IsType<OkObjectResult>(superAdminResult);
+        var superAdminDto = Assert.IsType<PrintableContractDocumentDto>(superAdminOk.Value);
+        Assert.Equal("HD-2026-PRO-009", superAdminDto.ContractNumber);
+    }
+
+    [Fact]
+    public async Task PrintDocumentsController_GetPrintableInvoice_MasksPiiForAnonymous_UnlessAuthorizedOrCodeMatches()
+    {
+        var tenantId = Guid.NewGuid();
+        var otherTenantId = Guid.NewGuid();
+        var guestUserId = Guid.NewGuid();
+        var reservation = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            PropertyId = Guid.NewGuid(),
+            GuestUserId = guestUserId,
+            ConfirmationCode = "LUX8899",
+            GuestName = "Nguyen Van Khach",
+            GuestEmail = "guest.secret@example.com",
+            GuestPhone = "0901234567",
+            CheckInDate = new DateOnly(2026, 6, 1),
+            CheckOutDate = new DateOnly(2026, 6, 3),
+            NumberOfGuests = 2,
+            TotalAmount = 2_400_000m,
+            Payments = new List<Payment>()
+        };
+
+        var fakeDb = new AiFakeDbContext(
+            Array.Empty<Property>(),
+            Array.Empty<RoomType>(),
+            reservations: new[] { reservation });
+
+        // 1. Anonymous without confirmation code -> masked PII
+        var anonController = new PrintDocumentsController(fakeDb, CreateAnonymousUserContext());
+        var anonOk = Assert.IsType<OkObjectResult>(await anonController.GetPrintableInvoice(reservation.Id, null, CancellationToken.None));
+        var anonDto = Assert.IsType<PrintableInvoiceDto>(anonOk.Value);
+        Assert.Equal("g***@example.com", anonDto.GuestEmail);
+        Assert.Equal("090****567", anonDto.GuestPhone);
+
+        // 2. Anonymous with matching confirmation code -> unmasked PII
+        var codeOk = Assert.IsType<OkObjectResult>(await anonController.GetPrintableInvoice(reservation.Id, "lux8899", CancellationToken.None));
+        var codeDto = Assert.IsType<PrintableInvoiceDto>(codeOk.Value);
+        Assert.Equal("guest.secret@example.com", codeDto.GuestEmail);
+        Assert.Equal("0901234567", codeDto.GuestPhone);
+
+        // 3. Authenticated guest owner -> unmasked PII
+        var guestContext = CreateAnonymousUserContext();
+        guestContext.SetUser(guestUserId, "guest.secret@example.com", GlobalUserRole.Customer);
+        var guestController = new PrintDocumentsController(fakeDb, guestContext);
+        var guestOk = Assert.IsType<OkObjectResult>(await guestController.GetPrintableInvoice(reservation.Id, null, CancellationToken.None));
+        var guestDto = Assert.IsType<PrintableInvoiceDto>(guestOk.Value);
+        Assert.Equal("guest.secret@example.com", guestDto.GuestEmail);
+        Assert.Equal("0901234567", guestDto.GuestPhone);
+
+        // 4. Authenticated unrelated user in different tenant without code -> masked PII
+        var outsiderContext = CreateAnonymousUserContext();
+        outsiderContext.SetUser(Guid.NewGuid(), "outsider@other.vn", GlobalUserRole.TenantStaff);
+        outsiderContext.SetMembershipContext(otherTenantId, TenantStatus.Active, null, null, StaffRole.Manager, null, isTenantWide: true);
+        var outsiderController = new PrintDocumentsController(fakeDb, outsiderContext);
+        var outsiderOk = Assert.IsType<OkObjectResult>(await outsiderController.GetPrintableInvoice(reservation.Id, null, CancellationToken.None));
+        var outsiderDto = Assert.IsType<PrintableInvoiceDto>(outsiderOk.Value);
+        Assert.Equal("g***@example.com", outsiderDto.GuestEmail);
+        Assert.Equal("090****567", outsiderDto.GuestPhone);
+    }
+}
