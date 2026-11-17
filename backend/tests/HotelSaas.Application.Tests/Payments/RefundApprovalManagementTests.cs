@@ -1263,7 +1263,16 @@ public sealed class RefundApprovalManagementTests
                 ActionMask = 51 // Has bit 16 (Approve)
             });
 
-            // Use current Vietnam business date and determine active shift so ConfirmRefundPayout (which sets PaidAtUtc = DateTime.UtcNow) lands in the same shift
+            // Use current Vietnam business date and determine active shift so both collectedPayment and ConfirmRefundPayout (PaidAtUtc = DateTime.UtcNow) land in the exact same shift.
+            // If within 5 seconds before a shift boundary (06:00, 14:00, 22:00 VN), wait briefly so the payout handler cannot cross into the next shift.
+            var vnCheck = TimeOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+            if ((vnCheck >= new TimeOnly(5, 59, 55) && vnCheck < new TimeOnly(6, 0)) ||
+                (vnCheck >= new TimeOnly(13, 59, 55) && vnCheck < new TimeOnly(14, 0)) ||
+                (vnCheck >= new TimeOnly(21, 59, 55) && vnCheck < new TimeOnly(22, 0)))
+            {
+                await Task.Delay(TimeSpan.FromSeconds(6));
+            }
+
             var nowUtc = DateTime.UtcNow;
             var vnNow = nowUtc.AddHours(7);
             var vnTime = TimeOnly.FromDateTime(vnNow);
@@ -1320,8 +1329,8 @@ public sealed class RefundApprovalManagementTests
                 Method = PaymentMethod.BankTransfer,
                 Status = PaymentStatus.Completed,
                 TransactionRef = "COLLECT-1000K",
-                PaidAtUtc = nowUtc.AddMinutes(-1),
-                CreatedAtUtc = nowUtc.AddMinutes(-1)
+                PaidAtUtc = nowUtc,
+                CreatedAtUtc = nowUtc
             };
             context.Payments.Add(collectedPayment);
 
