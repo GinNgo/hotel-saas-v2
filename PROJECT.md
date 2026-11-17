@@ -89,12 +89,12 @@ src/app/layouts/    → Admin, Auth, Guest layouts
 
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Schema & Migrations | New entities (SocialIdentity, SmartLockPin, SmartLockAccessLog), new enums (SocialProvider, PinStatus), add IdempotencyKey to Payment. EF Core migrations. | none | PLANNED |
-| M2 | VNPay Payment Gateway | Full VNPay integration: HMAC-SHA512, payment URL, IPN webhook, idempotency, response codes, config, frontend return page. Backend + frontend. | M1 | PLANNED |
-| M3 | Social Login (Google & Facebook) | Google/Facebook OAuth verification, CQRS commands, user provisioning, account linking, frontend social buttons, config. Backend + frontend. | M1 | PLANNED |
-| M4 | AI Dynamic Pricing | Pricing factors service, Gemini API integration, suggest/apply endpoints, quota, seasons, calendar, enhanced quote engine. Backend + frontend. | none | PLANNED |
-| M5 | IoT Smart Lock | PIN generation, lifecycle (create/validate/expire/revoke/regenerate), access logging, security, dashboard, simulation UI. Backend + frontend. | M1 | PLANNED |
-| M6 | Final Integration & Regression | Run full test suite (401 backend + 230 frontend). Fix any regressions. Cross-feature integration testing. | M2, M3, M4, M5 | PLANNED |
+| M1 | Schema & Migrations | New entities (SocialIdentity, SmartLockPin, SmartLockAccessLog), new enums (SocialProvider, PinStatus), add IdempotencyKey to Payment. EF Core migrations. | none | COMPLETED |
+| M2 | VNPay Payment Gateway | Full VNPay integration: HMAC-SHA512, payment URL, IPN webhook, idempotency, response codes, config, frontend return page. Backend + frontend. | M1 | COMPLETED |
+| M3 | Social Login (Google & Facebook) | Google/Facebook OAuth verification, CQRS commands, user provisioning, account linking, frontend social buttons, config. Backend + frontend. | M1 | PARTIAL |
+| M4 | AI Dynamic Pricing | Pricing factors service, Gemini API integration, suggest/apply endpoints, quota, seasons, calendar, enhanced quote engine. Backend + frontend. | none | PARTIAL |
+| M5 | IoT Smart Lock | PIN generation, lifecycle (create/validate/expire/revoke/regenerate), access logging, security, dashboard, simulation UI. Backend + frontend. | M1 | PARTIAL |
+| M6 | Final Integration & Regression | Run full test suite (633 backend + 640 frontend). Fix any regressions. Cross-feature integration testing. | M2, M3, M4, M5 | COMPLETED |
 
 ## Interface Contracts
 
@@ -279,8 +279,8 @@ npm --prefix frontend run build
 ```
 
 ## Critical Constraints
-- ALL 401 backend tests must pass after every milestone
-- ALL 230 frontend tests must pass after every milestone
+- ALL 633 backend tests must pass after every milestone
+- ALL 640 frontend tests must pass after every milestone
 - Clean Architecture / DDD / CQRS patterns (AGENTS.md)
 - Multi-tenant isolation (fail-closed)
 - Schema changes MUST be additive-only (new entities, new nullable fields)
