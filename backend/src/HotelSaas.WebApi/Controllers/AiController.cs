@@ -72,15 +72,21 @@ public sealed class AiController : ControllerBase
         // 2. Extract criteria
         var criteria = ExtractSearchCriteria(lower);
 
-        // 3. Query properties and room types from database
-        var propertiesQuery = _context.Properties
+        var isTenantless = !_currentUser.TenantId.HasValue || _currentUser.TenantId == Guid.Empty;
+        var baseProperties = (isTenantless ? _context.Properties.IgnoreQueryFilters() : _context.Properties)
             .AsNoTracking()
             .Where(p => p.Status == PropertyStatus.Active);
+        var baseRoomTypes = (isTenantless ? _context.RoomTypes.IgnoreQueryFilters() : _context.RoomTypes)
+            .AsNoTracking();
+
+        // 3. Query properties and room types from database
+        var propertiesQuery = baseProperties;
 
         // If a tenant user is authenticated, prioritize/scope to tenant's properties
-        if (_currentUser.TenantId.HasValue && _currentUser.TenantId.Value != Guid.Empty)
+        if (!isTenantless)
         {
-            propertiesQuery = propertiesQuery.Where(p => p.TenantId == _currentUser.TenantId.Value);
+            var currentTenantId = _currentUser.TenantId!.Value;
+            propertiesQuery = propertiesQuery.Where(p => p.TenantId == currentTenantId);
         }
 
         if (!string.IsNullOrWhiteSpace(request.PropertySlug))
@@ -95,28 +101,25 @@ public sealed class AiController : ControllerBase
         var properties = await propertiesQuery.ToListAsync(cancellationToken);
 
         // If no properties match specific criteria, but tenant is logged in, query tenant's active properties
-        if (properties.Count == 0 && _currentUser.TenantId.HasValue && _currentUser.TenantId.Value != Guid.Empty)
+        if (properties.Count == 0 && !isTenantless)
         {
-            properties = await _context.Properties
-                .AsNoTracking()
-                .Where(p => p.TenantId == _currentUser.TenantId.Value && p.Status == PropertyStatus.Active)
+            var currentTenantId = _currentUser.TenantId!.Value;
+            properties = await baseProperties
+                .Where(p => p.TenantId == currentTenantId)
                 .ToListAsync(cancellationToken);
         }
 
         // If still no properties (e.g. anonymous visitor search with no match), fallback to general active properties
         if (properties.Count == 0)
         {
-            properties = await _context.Properties
-                .AsNoTracking()
-                .Where(p => p.Status == PropertyStatus.Active)
+            properties = await baseProperties
                 .Take(5)
                 .ToListAsync(cancellationToken);
         }
 
         var propertyIds = properties.Select(p => p.Id).ToList();
 
-        var roomTypesQuery = _context.RoomTypes
-            .AsNoTracking()
+        var roomTypesQuery = baseRoomTypes
             .Where(rt => propertyIds.Contains(rt.PropertyId));
 
         if (criteria.MinGuests.HasValue)
@@ -129,8 +132,7 @@ public sealed class AiController : ControllerBase
         // Fallback to any room types for these properties if criteria was too strict
         if (roomTypes.Count == 0 && propertyIds.Count > 0)
         {
-            roomTypes = await _context.RoomTypes
-                .AsNoTracking()
+            roomTypes = await baseRoomTypes
                 .Where(rt => propertyIds.Contains(rt.PropertyId))
                 .Take(6)
                 .ToListAsync(cancellationToken);
@@ -139,8 +141,8 @@ public sealed class AiController : ControllerBase
         // Dynamically resolve default property and base price from the database
         var primaryProp = properties.FirstOrDefault();
         var defaultPropertyName = primaryProp?.Name
-            ?? (await _context.Properties.AsNoTracking()
-                .Where(p => p.Status == PropertyStatus.Active && (!_currentUser.TenantId.HasValue || p.TenantId == _currentUser.TenantId.Value))
+            ?? (await baseProperties
+                .Where(p => isTenantless || p.TenantId == _currentUser.TenantId!.Value)
                 .Select(p => p.Name)
                 .FirstOrDefaultAsync(cancellationToken))
             ?? "Cơ sở lưu trú";
@@ -152,15 +154,14 @@ public sealed class AiController : ControllerBase
         decimal fallbackBasePrice = 0m;
         if (roomTypes.Any(rt => rt.BasePrice <= 0))
         {
-            var dbPrice = await _context.RoomTypes
-                .AsNoTracking()
+            var dbPrice = await baseRoomTypes
                 .Where(rt => propertyIds.Contains(rt.PropertyId) && rt.BasePrice > 0)
                 .Select(rt => (decimal?)rt.BasePrice)
                 .FirstOrDefaultAsync(cancellationToken);
 
             fallbackBasePrice = dbPrice
-                ?? await _context.RoomTypes.AsNoTracking()
-                    .Where(rt => rt.BasePrice > 0 && (!_currentUser.TenantId.HasValue || _context.Properties.Any(p => p.Id == rt.PropertyId && p.TenantId == _currentUser.TenantId.Value)))
+                ?? await baseRoomTypes
+                    .Where(rt => rt.BasePrice > 0 && (isTenantless || _context.Properties.Any(p => p.Id == rt.PropertyId && p.TenantId == _currentUser.TenantId!.Value)))
                     .Select(rt => (decimal?)rt.BasePrice)
                     .FirstOrDefaultAsync(cancellationToken)
                 ?? 0m;
@@ -310,8 +311,11 @@ public sealed class AiController : ControllerBase
         }
         else
         {
-            var firstProp = await _context.Properties
-                .AsNoTracking()
+            var isTenantless = !_currentUser.TenantId.HasValue || _currentUser.TenantId == Guid.Empty;
+            var propsQuery = (isTenantless ? _context.Properties.IgnoreQueryFilters() : _context.Properties)
+                .AsNoTracking();
+
+            var firstProp = await propsQuery
                 .FirstOrDefaultAsync(p => p.Status == PropertyStatus.Active, cancellationToken);
 
             if (firstProp == null) return NotFound(new { message = "Không tìm thấy cơ sở lưu trú." });
@@ -487,6 +491,179 @@ public sealed class AiController : ControllerBase
         };
 
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Conversational AI Concierge endpoint grounded in real active properties, prices, and Google Maps links.
+    /// </summary>
+    [HttpPost("chat")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(AiChatResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ProcessChatQuery(
+        [FromBody] AiChatRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var rawMessage = !string.IsNullOrWhiteSpace(request?.Message)
+            ? request.Message.Trim()
+            : request?.Messages?
+                .LastOrDefault(m => string.Equals(m.Role, "user", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(m.Content))
+                ?.Content?.Trim();
+
+        if (string.IsNullOrWhiteSpace(rawMessage))
+        {
+            return BadRequest(new { code = "ERR_EMPTY_MESSAGE", message = "Nội dung câu hỏi không được để trống." });
+        }
+
+        var normQuery = VietnameseTextNormalizer.Normalize(rawMessage);
+        var extracted = ExtractSmartSearchCriteria(rawMessage, normQuery);
+
+        var hasValidLocation = request?.Location != null &&
+                               double.IsFinite(request.Location.Latitude) &&
+                               request.Location.Latitude >= -90.0 &&
+                               request.Location.Latitude <= 90.0 &&
+                               double.IsFinite(request.Location.Longitude) &&
+                               request.Location.Longitude >= -180.0 &&
+                               request.Location.Longitude <= 180.0;
+
+        ReverseGeocodeResultDto? geoContext = hasValidLocation
+            ? _locationService.ReverseGeocode(request!.Location!.Latitude, request.Location.Longitude)
+            : null;
+
+        var hasStructuredPlace = !string.IsNullOrWhiteSpace(extracted.LandmarkSlug) ||
+                                 !string.IsNullOrWhiteSpace(extracted.TouristZoneSlug) ||
+                                 !string.IsNullOrWhiteSpace(extracted.ProvinceCode);
+
+        var effectiveDestination = hasStructuredPlace
+            ? extracted.DestinationKeyword
+            : (hasValidLocation ? null : extracted.DestinationKeyword);
+
+        var properties = await _mediator.Send(
+            new GetPublicPropertiesQuery(
+                Search: null,
+                DestinationKeyword: effectiveDestination,
+                PropertyTypes: extracted.PropertyTypes.Count > 0 ? extracted.PropertyTypes : null,
+                RentalType: extracted.RentalType,
+                TouristZoneSlug: string.IsNullOrWhiteSpace(extracted.LandmarkSlug) ? extracted.TouristZoneSlug : null,
+                LandmarkSlug: extracted.LandmarkSlug,
+                MaxDistanceKm: null,
+                MaxDistanceMeters: extracted.MaxDistanceMeters ?? (hasValidLocation && !hasStructuredPlace ? 15000.0 : null),
+                UserLatitude: hasValidLocation ? request!.Location!.Latitude : null,
+                UserLongitude: hasValidLocation ? request!.Location!.Longitude : null,
+                ProvinceCode: extracted.ProvinceCode),
+            cancellationToken);
+
+        if (properties.Count == 0 && !hasStructuredPlace && !string.IsNullOrWhiteSpace(effectiveDestination))
+        {
+            properties = await _mediator.Send(
+                new GetPublicPropertiesQuery(
+                    PropertyTypes: extracted.PropertyTypes.Count > 0 ? extracted.PropertyTypes : null,
+                    RentalType: extracted.RentalType,
+                    UserLatitude: hasValidLocation ? request!.Location!.Latitude : null,
+                    UserLongitude: hasValidLocation ? request!.Location!.Longitude : null),
+                cancellationToken);
+        }
+
+        if (extracted.MaxPrice.HasValue && extracted.MaxPrice.Value > 0)
+        {
+            var priceFiltered = properties
+                .Where(p => !p.StartingPrice.HasValue || p.StartingPrice.Value <= extracted.MaxPrice.Value)
+                .ToList();
+            if (priceFiltered.Count > 0)
+            {
+                properties = priceFiltered;
+            }
+        }
+
+        var topProperties = properties.Take(3).ToList();
+        var groundingChunks = new List<AiChatGroundingChunk>();
+
+        foreach (var prop in topProperties)
+        {
+            var mapUri = prop.Latitude.HasValue && prop.Longitude.HasValue
+                ? $"https://www.google.com/maps/search/?api=1&query={prop.Latitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)},{prop.Longitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}"
+                : $"https://www.google.com/maps/search/?api=1&query={Uri.EscapeDataString($"{prop.Name}, {prop.Address}, {prop.City}")}";
+
+            var title = string.IsNullOrWhiteSpace(prop.DistanceFormatted)
+                ? prop.Name
+                : $"{prop.Name} ({prop.DistanceFormatted})";
+
+            groundingChunks.Add(new AiChatGroundingChunk
+            {
+                Maps = new AiChatMapsChunk
+                {
+                    Title = title,
+                    Uri = mapUri
+                }
+            });
+        }
+
+        if (groundingChunks.Count == 0 && !string.IsNullOrWhiteSpace(extracted.LandmarkSlug))
+        {
+            var lm = _locationService.GetLandmarkBySlug(extracted.LandmarkSlug);
+            if (lm != null)
+            {
+                groundingChunks.Add(new AiChatGroundingChunk
+                {
+                    Maps = new AiChatMapsChunk
+                    {
+                        Title = lm.Name,
+                        Uri = $"https://www.google.com/maps/search/?api=1&query={lm.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture)},{lm.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}"
+                    }
+                });
+            }
+        }
+
+        var text = BuildChatResponseText(rawMessage, geoContext, topProperties);
+        return Ok(new AiChatResponse
+        {
+            Text = text,
+            GroundingChunks = groundingChunks
+        });
+    }
+
+    private static string BuildChatResponseText(
+        string rawMessage,
+        ReverseGeocodeResultDto? geoContext,
+        IReadOnlyList<PublicPropertyDto> topProperties)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append("Dạ chào Quý khách! ");
+
+        if (geoContext != null && !string.IsNullOrWhiteSpace(geoContext.DisplayLabel))
+        {
+            sb.Append($"Hệ thống ghi nhận vị trí của Quý khách tại {geoContext.DisplayLabel}. ");
+        }
+
+        if (topProperties.Count > 0)
+        {
+            sb.Append($"Dựa trên dữ liệu cơ sở đang mở bán cho \"{rawMessage}\", em gợi ý {topProperties.Count} lựa chọn phù hợp nhất:\n");
+            for (var i = 0; i < topProperties.Count; i++)
+            {
+                var prop = topProperties[i];
+                var area = prop.ProvinceName ?? prop.City;
+                var distanceNote = !string.IsNullOrWhiteSpace(prop.DistanceFormatted) ? $" - {prop.DistanceFormatted}" : "";
+                var dailyPrice = prop.OvernightStartingPrice ?? prop.DailyStartingPrice ?? prop.StartingPrice;
+                var priceParts = new List<string>();
+                if (dailyPrice.HasValue && dailyPrice.Value > 0)
+                {
+                    priceParts.Add($"từ {dailyPrice.Value:N0}đ/đêm");
+                }
+                if (prop.HourlyStartingPrice.HasValue && prop.HourlyStartingPrice.Value > 0)
+                {
+                    priceParts.Add($"từ {prop.HourlyStartingPrice.Value:N0}đ/giờ");
+                }
+                var priceNote = priceParts.Count > 0 ? $" ({string.Join(", ", priceParts)})" : "";
+                sb.Append($"{i + 1}. {prop.Name} — {area}{distanceNote}{priceNote}.\n");
+            }
+        }
+        else
+        {
+            sb.Append("Hiện tại chưa có cơ sở lưu trú đang hoạt động khớp hoàn toàn tiêu chí trên. Quý khách vui lòng mở rộng khu vực hoặc thay đổi bộ lọc ngày/giá nhé.\n");
+        }
+
+        sb.Append("Chính sách nhận phòng tiêu chuẩn (Check-in) từ 14:00 và trả phòng (Check-out) trước 12:00 trưa hôm sau.");
+        return sb.ToString();
     }
 
     private AiSmartExtractedFiltersDto ExtractSmartSearchCriteria(string rawQuery, string normQuery)
@@ -679,4 +856,40 @@ public sealed class AiUsageStatusDto
     public int UsedCount { get; set; }
     public int RemainingCount { get; set; }
     public bool IsLimitReached { get; set; }
+}
+
+public sealed class AiChatRequest
+{
+    public string? Message { get; set; }
+    public List<AiChatHistoryMessage>? Messages { get; set; }
+    public AiChatLocation? Location { get; set; }
+}
+
+public sealed class AiChatHistoryMessage
+{
+    public string? Role { get; set; }
+    public string? Content { get; set; }
+}
+
+public sealed class AiChatLocation
+{
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+}
+
+public sealed class AiChatResponse
+{
+    public string Text { get; set; } = string.Empty;
+    public List<AiChatGroundingChunk> GroundingChunks { get; set; } = new();
+}
+
+public sealed class AiChatGroundingChunk
+{
+    public AiChatMapsChunk? Maps { get; set; }
+}
+
+public sealed class AiChatMapsChunk
+{
+    public string? Title { get; set; }
+    public string? Uri { get; set; }
 }

@@ -44,7 +44,10 @@ public sealed class PrintDocumentsController : ControllerBase
     [AllowAnonymous]
     [ProducesResponseType(typeof(PrintableInvoiceDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetPrintableInvoice(Guid reservationId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetPrintableInvoice(
+        Guid reservationId,
+        [FromQuery] string? code = null,
+        CancellationToken cancellationToken = default)
     {
         var reservation = await _context.Reservations
             .IgnoreQueryFilters()
@@ -60,6 +63,13 @@ public sealed class PrintDocumentsController : ControllerBase
         {
             return NotFound(new { code = "ERR_RESERVATION_NOT_FOUND", message = "Không tìm thấy hồ sơ đặt phòng." });
         }
+
+        bool isAuthorizedFullPii = (_currentUser.IsAuthenticated &&
+            (_currentUser.GlobalRole == GlobalUserRole.SuperAdmin ||
+             (_currentUser.TenantId.HasValue && _currentUser.TenantId.Value == reservation.TenantId) ||
+             (_currentUser.UserId != Guid.Empty && reservation.GuestUserId == _currentUser.UserId))) ||
+            (!string.IsNullOrWhiteSpace(code) &&
+             string.Equals(code.Trim(), reservation.ConfirmationCode, StringComparison.OrdinalIgnoreCase));
 
         var printConfig = await _context.PrintTemplateConfigs
             .IgnoreQueryFilters()
@@ -128,8 +138,8 @@ public sealed class PrintDocumentsController : ControllerBase
             Hotline = hotline,
             LogoUrl = logoUrl,
             GuestName = reservation.GuestName,
-            GuestEmail = reservation.GuestEmail,
-            GuestPhone = reservation.GuestPhone ?? "",
+            GuestEmail = isAuthorizedFullPii ? reservation.GuestEmail : MaskEmail(reservation.GuestEmail),
+            GuestPhone = isAuthorizedFullPii ? (reservation.GuestPhone ?? "") : MaskPhone(reservation.GuestPhone),
             RoomNumber = reservation.Room?.RoomNumber ?? "",
             RoomTypeName = reservation.Room?.RoomType?.Name ?? "",
             CheckInDate = reservation.CheckInDate,
@@ -229,6 +239,12 @@ public sealed class PrintDocumentsController : ControllerBase
         if (contract == null)
         {
             return NotFound(new { code = "ERR_CONTRACT_NOT_FOUND", message = "Không tìm thấy hợp đồng." });
+        }
+
+        if (_currentUser.GlobalRole != GlobalUserRole.SuperAdmin &&
+            (!_currentUser.TenantId.HasValue || _currentUser.TenantId.Value != contract.TenantId))
+        {
+            return Forbid();
         }
 
         var propertiesCount = await _context.Properties
@@ -388,6 +404,44 @@ public sealed class PrintDocumentsController : ControllerBase
         await _context.SaveChangesAsync(cancellationToken);
 
         return Ok(config);
+    }
+
+    private static string MaskEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = email.Trim();
+        var atIndex = trimmed.IndexOf('@');
+        if (atIndex <= 0)
+        {
+            return "***";
+        }
+
+        return $"{trimmed[0]}***{trimmed[atIndex..]}";
+    }
+
+    private static string MaskPhone(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = phone.Trim();
+        if (trimmed.Length <= 4)
+        {
+            return new string('*', trimmed.Length);
+        }
+
+        if (trimmed.Length <= 6)
+        {
+            return $"{trimmed[..2]}***{trimmed[^1..]}";
+        }
+
+        return $"{trimmed[..3]}****{trimmed[^3..]}";
     }
 }
 

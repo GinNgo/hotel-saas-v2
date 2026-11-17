@@ -90,18 +90,50 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
             </div>
           </div>
 
-          <!-- Quick Suggestion Chips -->
-          <div class="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-1.5 overflow-x-auto text-[11px]">
-            <span class="text-slate-400 font-semibold shrink-0">Gợi ý:</span>
-            @for (prompt of quickPrompts; track prompt) {
+          <!-- Quick Suggestion Chips & GPS Toggle -->
+          <div class="px-3 py-2 bg-slate-50 border-b border-slate-100 space-y-1.5">
+            <div class="flex items-center gap-1.5 overflow-x-auto text-[11px]">
               <button
                 type="button"
-                (click)="sendQuickPrompt(prompt)"
-                [disabled]="loading()"
-                class="px-2.5 py-1 rounded-full bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-200/90 hover:border-emerald-300 shrink-0 transition-colors font-medium cursor-pointer disabled:opacity-50"
+                (click)="toggleUserLocation()"
+                [disabled]="locatingGps()"
+                [ngClass]="userLocation()
+                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50'"
+                class="px-2.5 py-1 rounded-full border shrink-0 transition-colors font-semibold cursor-pointer disabled:opacity-50"
               >
-                {{ prompt }}
+                @if (locatingGps()) {
+                  <span>Đang định vị...</span>
+                } @else if (userLocation()) {
+                  <span>📍 Đã bật vị trí</span>
+                } @else {
+                  <span>📍 Định vị gần tôi</span>
+                }
               </button>
+              <span class="text-slate-400 font-semibold shrink-0">Gợi ý:</span>
+              @for (prompt of quickPrompts; track prompt) {
+                <button
+                  type="button"
+                  (click)="sendQuickPrompt(prompt)"
+                  [disabled]="loading()"
+                  class="px-2.5 py-1 rounded-full bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-200/90 hover:border-emerald-300 shrink-0 transition-colors font-medium cursor-pointer disabled:opacity-50"
+                >
+                  {{ prompt }}
+                </button>
+              }
+            </div>
+            @if (locationStatus()) {
+              <div class="text-[10px] text-slate-500 px-1 flex items-center justify-between gap-2">
+                <span>{{ locationStatus() }}</span>
+                <button
+                  type="button"
+                  (click)="locationStatus.set(null)"
+                  class="text-slate-400 hover:text-slate-600 cursor-pointer"
+                  aria-label="Đóng trạng thái định vị"
+                >
+                  <i class="pi pi-times text-[9px]"></i>
+                </button>
+              </div>
             }
           </div>
 
@@ -207,6 +239,9 @@ export class AiConciergeChatComponent {
 
   readonly isOpen = signal<boolean>(false);
   readonly loading = signal<boolean>(false);
+  readonly userLocation = signal<{ latitude: number; longitude: number } | null>(null);
+  readonly locatingGps = signal<boolean>(false);
+  readonly locationStatus = signal<string | null>(null);
   userInput = '';
 
   readonly quickPrompts = [
@@ -249,6 +284,55 @@ export class AiConciergeChatComponent {
     ]);
   }
 
+  toggleUserLocation(): void {
+    if (this.userLocation()) {
+      this.userLocation.set(null);
+      this.locationStatus.set('Đã tắt định vị GPS.');
+      return;
+    }
+
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      this.locationStatus.set('Trình duyệt không hỗ trợ định vị GPS.');
+      return;
+    }
+
+    this.locatingGps.set(true);
+    this.locationStatus.set('Đang lấy tọa độ hiện tại...');
+
+    const onSuccess = (pos: GeolocationPosition): void => {
+      this.locatingGps.set(false);
+      const latitude = Number(pos.coords.latitude.toFixed(6));
+      const longitude = Number(pos.coords.longitude.toFixed(6));
+      this.userLocation.set({ latitude, longitude });
+      this.locationStatus.set(`Đã gắn GPS (${latitude.toFixed(4)}, ${longitude.toFixed(4)}) cho AI.`);
+    };
+
+    const onError = (err: GeolocationPositionError): void => {
+      this.locatingGps.set(false);
+      this.locationStatus.set(
+        err.code === 1
+          ? 'Bạn đã từ chối quyền định vị GPS.'
+          : 'Không thể lấy vị trí hiện tại. Bạn vẫn có thể hỏi theo tên khu vực.'
+      );
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      onSuccess,
+      (err: GeolocationPositionError) => {
+        if (err.code === 2 || err.code === 3) {
+          navigator.geolocation.getCurrentPosition(onSuccess, onError, {
+            enableHighAccuracy: false,
+            timeout: 8000,
+            maximumAge: 300000
+          });
+        } else {
+          onError(err);
+        }
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+    );
+  }
+
   sendQuickPrompt(prompt: string): void {
     this.userInput = prompt;
     this.sendUserMessage();
@@ -280,7 +364,7 @@ export class AiConciergeChatComponent {
     setTimeout(() => this.scrollToBottom(), 50);
 
     // Call server-side Gemini API
-    this.aiService.sendMessage(text, currentHistory).subscribe({
+    this.aiService.sendMessage(text, currentHistory, this.userLocation() ?? undefined).subscribe({
       next: res => {
         this.loading.set(false);
         const links: Array<{ title?: string; uri?: string }> = [];

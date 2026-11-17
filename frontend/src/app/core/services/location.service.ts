@@ -1,9 +1,10 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, catchError, map, of } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { Province, Ward, VIETNAM_63_PROVINCES, removeVietnameseAccents } from '../models/location.model';
 import { ApiResponse } from '../models/api-response.model';
+import { ReverseGeocodeInfo } from '../models/public-booking.model';
 
 @Injectable({
   providedIn: 'root'
@@ -43,6 +44,22 @@ export class LocationService {
         return list.slice().sort((a, b) => a.name.localeCompare(b.name, 'vi'));
       }),
       catchError(() => of([]))
+    );
+  }
+
+  /**
+   * Giải mã tọa độ GPS (lat, lng) thành địa danh / khu du lịch / tỉnh thành gần nhất.
+   */
+  reverseGeocode(lat: number, lng: number): Observable<ReverseGeocodeInfo | null> {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return of(null);
+    }
+    const params = new HttpParams()
+      .set('lat', lat.toString())
+      .set('lng', lng.toString());
+    return this.http.get<ApiResponse<ReverseGeocodeInfo>>(`${this.apiUrl}/reverse`, { params }).pipe(
+      map(res => res?.data ?? null),
+      catchError(() => of(null))
     );
   }
 

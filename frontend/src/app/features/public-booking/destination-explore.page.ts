@@ -1,13 +1,16 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { combineLatest, forkJoin, of } from 'rxjs';
+import { catchError, switchMap, tap } from 'rxjs/operators';
 import { PublicBookingService } from '../../core/services/public-booking.service';
 import {
   TouristZoneDto,
   LandmarkDto,
   PublicPropertyDto,
-  PropertyType
+  PublicPropertiesFilter
 } from '../../core/models/public-booking.model';
 
 @Component({
@@ -217,7 +220,19 @@ import {
               <span>Tìm thấy <b>{{ filteredProperties().length }}</b> cơ sở lưu trú phù hợp:</span>
             </div>
 
-            @if (filteredProperties().length === 0) {
+            @if (isLoading()) {
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                @for (item of [1, 2, 3]; track item) {
+                  <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs animate-pulse">
+                    <div class="h-48 bg-slate-200"></div>
+                    <div class="p-5 space-y-3">
+                      <div class="h-4 bg-slate-200 rounded w-3/4"></div>
+                      <div class="h-3 bg-slate-200 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                }
+              </div>
+            } @else if (filteredProperties().length === 0) {
               <div class="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-3">
                 <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto text-xl">
                   🏨
@@ -236,7 +251,7 @@ import {
               </div>
             } @else {
               <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                @for (prop of filteredProperties(); track prop.id) {
+                @for (prop of filteredProperties(); track (prop.propertyId || prop.id || prop.slug)) {
                   <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col">
                     <div class="h-48 overflow-hidden relative">
                       <img
@@ -270,7 +285,7 @@ import {
                           {{ prop.name }}
                         </h3>
                         <p class="text-xs text-slate-500 mt-1 line-clamp-1">
-                          {{ prop.address }}, {{ prop.city }}
+                          {{ prop.address || prop.addressLine }}, {{ prop.city || prop.provinceName }}
                         </p>
                       </div>
 
@@ -290,9 +305,13 @@ import {
                       <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
                         <div>
                           <span class="text-[10px] text-slate-400 block">Giá khởi điểm từ</span>
-                          <span class="text-base font-extrabold text-indigo-700">
-                            {{ (prop.hourlyStartingPrice || prop.startingPrice || 160000) | number:'1.0-0' }} ₫
-                          </span>
+                          @if ((prop.hourlyStartingPrice || prop.startingPriceForSelectedMode || prop.startingPrice || 0) > 0) {
+                            <span class="text-base font-extrabold text-indigo-700">
+                              {{ (prop.hourlyStartingPrice || prop.startingPriceForSelectedMode || prop.startingPrice) | number:'1.0-0' }} ₫
+                            </span>
+                          } @else {
+                            <span class="text-xs font-semibold text-slate-500">Liên hệ báo giá</span>
+                          }
                         </div>
 
                         <a
@@ -317,14 +336,16 @@ import {
 export class DestinationExplorePageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly publicBookingService = inject(PublicBookingService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly currentSlug = signal<string | null>(null);
+  readonly isLoading = signal<boolean>(false);
   readonly touristZones = signal<TouristZoneDto[]>([]);
   readonly landmarks = signal<LandmarkDto[]>([]);
   readonly allProperties = signal<PublicPropertyDto[]>([]);
 
   readonly selectedRadiusMeters = signal<number | null>(null);
-  readonly sortBy = signal<'distance' | 'price' | 'rating'>('distance');
+  readonly sortBy = signal<'distance' | 'price_asc' | 'rating'>('distance');
 
   readonly activeTitle = computed<string>(() => {
     const slug = this.currentSlug();
@@ -349,36 +370,60 @@ export class DestinationExplorePageComponent implements OnInit {
     const sort = this.sortBy();
     if (sort === 'distance') {
       list.sort((a, b) => (a.distanceMeters ?? 999999) - (b.distanceMeters ?? 999999));
-    } else if (sort === 'price') {
-      list.sort((a, b) => (a.startingPrice ?? 999999) - (b.startingPrice ?? 999999));
+    } else if (sort === 'price_asc') {
+      list.sort(
+        (a, b) =>
+          (a.startingPriceForSelectedMode || a.startingPrice || 999999999) -
+          (b.startingPriceForSelectedMode || b.startingPrice || 999999999)
+      );
     } else if (sort === 'rating') {
-      list.sort((a, b) => (b.starRating ?? 0) - (a.starRating ?? 0));
+      list.sort((a, b) => (b.ratingAverage || b.starRating || 0) - (a.ratingAverage || a.starRating || 0));
     }
 
     return list;
   });
 
   ngOnInit(): void {
-    this.loadCatalog();
+    const catalog$ = forkJoin({
+      zones: this.publicBookingService.getTouristZones().pipe(catchError(() => of([] as TouristZoneDto[]))),
+      landmarks: this.publicBookingService.getLandmarks().pipe(catchError(() => of([] as LandmarkDto[]))),
+    }).pipe(
+      tap(({ zones, landmarks }) => {
+        this.touristZones.set(zones);
+        this.landmarks.set(landmarks);
+      })
+    );
 
-    this.route.paramMap.subscribe(params => {
-      const slug = params.get('slug');
-      this.currentSlug.set(slug);
-      if (slug) {
-        this.loadPropertiesForDestination(slug);
-      }
-    });
-  }
+    combineLatest([catalog$, this.route.paramMap])
+      .pipe(
+        switchMap(([{ zones, landmarks }, params]) => {
+          const slug = params.get('slug');
+          this.currentSlug.set(slug);
+          if (!slug) {
+            this.allProperties.set([]);
+            this.isLoading.set(false);
+            return of(null);
+          }
 
-  loadCatalog(): void {
-    this.publicBookingService.getTouristZones().subscribe(zones => this.touristZones.set(zones));
-    this.publicBookingService.getLandmarks().subscribe(lms => this.landmarks.set(lms));
-  }
+          this.isLoading.set(true);
+          const filter: PublicPropertiesFilter = zones.some(z => z.slug === slug)
+            ? { touristZoneSlug: slug }
+            : landmarks.some(l => l.slug === slug)
+              ? { landmarkSlug: slug }
+              : { destinationKeyword: slug };
 
-  loadPropertiesForDestination(slug: string): void {
-    this.publicBookingService.getProperties({ destinationKeyword: slug }).subscribe(props => {
-      this.allProperties.set(props);
-    });
+          return this.publicBookingService
+            .getProperties(filter)
+            .pipe(catchError(() => of([] as PublicPropertyDto[])));
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((props) => {
+        if (props !== null) {
+          this.allProperties.set(props);
+          this.isLoading.set(false);
+        }
+      });
   }
 
   setRadius(meters: number | null): void {

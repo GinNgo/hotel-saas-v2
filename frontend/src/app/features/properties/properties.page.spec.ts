@@ -266,4 +266,45 @@ describe('PropertiesPage — PMS Properties & FormField Validation (Task T016)',
     expect(component.getPropertyTypeLabel(8)).toBe('Homestay');
     expect(component.getPropertyTypeLabel(7)).toBe('Nhà nghỉ / Motel');
   });
+
+  it('9. should preserve touristZoneSlug and coordinates on openEditModal and send lat/lng from onMapLocationSelected', () => {
+    const propWithGeo: TenantPropertySummaryDto & {
+      touristZoneSlug?: string;
+      latitude?: number;
+      longitude?: number;
+    } = {
+      ...sampleProperties[0],
+      touristZoneSlug: 'trung-tam-quan-1',
+      latitude: 10.7725,
+      longitude: 106.6980,
+    };
+
+    component.openEditModal(propWithGeo);
+
+    expect(component.propertyForm.get('touristZoneSlug')?.value).toBe('trung-tam-quan-1');
+    expect(component.propertyForm.get('latitude')?.value).toBe(10.7725);
+    expect(component.propertyForm.get('longitude')?.value).toBe(106.6980);
+
+    component.onMapLocationSelected({
+      address: 'Đường Võ Nguyên Giáp, Sơn Trà, Đà Nẵng',
+      latitude: 16.0601,
+      longitude: 108.2464,
+      provinceCode: '48',
+    });
+
+    expect(component.propertyForm.get('address')?.value).toBe('Đường Võ Nguyên Giáp, Sơn Trà, Đà Nẵng');
+    expect(component.propertyForm.get('latitude')?.value).toBe(16.0601);
+    expect(component.propertyForm.get('longitude')?.value).toBe(108.2464);
+    expect(component.propertyForm.get('provinceCode')?.value).toBe('48');
+
+    component.saveProperty();
+    expect(mockPropertyService.updateProperty).toHaveBeenCalledWith(
+      propWithGeo.id,
+      expect.objectContaining({
+        touristZoneSlug: 'trung-tam-quan-1',
+        latitude: 16.0601,
+        longitude: 108.2464,
+      })
+    );
+  });
 });
