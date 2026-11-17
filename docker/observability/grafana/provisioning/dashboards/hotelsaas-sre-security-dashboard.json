@@ -323,7 +323,7 @@
     },
     {
       "datasource": "Loki (Structured Logs)",
-      "gridPos": { "h": 11, "w": 24, "x": 0, "y": 19 },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 19 },
       "id": 9,
       "options": {
         "dedupStrategy": "none",
@@ -335,12 +335,37 @@
         "sortOrder": "Descending",
         "wrapLogMessage": true
       },
-      "title": "Structured JSON Application & Security Logs (CorrelationId / TenantId / PropertyId / StatusCode / ElapsedMs)",
+      "title": "⚠️ Log Lỗi & Chặn Bảo Mật (Error / Warning / Status >= 400)",
       "type": "logs",
       "targets": [
         {
           "datasource": "Loki (Structured Logs)",
-          "expr": "{container=~\"hotelsaas.*\"} | json CorrelationId=\"Properties.CorrelationId\", TenantId=\"Properties.TenantId\", PropertyId=\"Properties.PropertyId\", StatusCode=\"Properties.StatusCode\", ElapsedMs=\"Properties.ElapsedMs\"",
+          "expr": "{container=~\"$container\", tenant_id=~\"$tenant_id\", property_id=~\"$property_id\"} |= \"$search\" | json CorrelationId=\"Properties.CorrelationId\", TenantId=\"Properties.TenantId\", PropertyId=\"Properties.PropertyId\", StatusCode=\"Properties.StatusCode\", ElapsedMs=\"Properties.ElapsedMs\", ErrorCode=\"Properties.ErrorCode\", SourceContext=\"Properties.SourceContext\" | level=~\"Error|Warning\" or StatusCode >= 400",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": "Loki (Structured Logs)",
+      "gridPos": { "h": 11, "w": 24, "x": 0, "y": 28 },
+      "id": 10,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": true,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "title": "📋 Toàn Bộ Structured JSON Logs (Lọc theo thanh chọn ở trên)",
+      "type": "logs",
+      "targets": [
+        {
+          "datasource": "Loki (Structured Logs)",
+          "expr": "{container=~\"$container\", level=~\"$level\", tenant_id=~\"$tenant_id\", property_id=~\"$property_id\"} |= \"$search\" | json CorrelationId=\"Properties.CorrelationId\", TenantId=\"Properties.TenantId\", PropertyId=\"Properties.PropertyId\", StatusCode=\"Properties.StatusCode\", ElapsedMs=\"Properties.ElapsedMs\", RequestPath=\"Properties.RequestPath\", ErrorCode=\"Properties.ErrorCode\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -350,11 +375,119 @@
   "refresh": "10s",
   "schemaVersion": 39,
   "tags": ["hotelsaas", "sre", "security", "multi-tenant", "signalr", "vnpay"],
-  "templating": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "allValue": "hotelsaas-.*",
+        "current": {
+          "selected": true,
+          "text": "hotelsaas-backend-api",
+          "value": "hotelsaas-backend-api"
+        },
+        "hide": 0,
+        "includeAll": true,
+        "label": "Dịch vụ",
+        "multi": false,
+        "name": "container",
+        "options": [
+          { "selected": false, "text": "All", "value": "$__all" },
+          { "selected": true, "text": "hotelsaas-backend-api", "value": "hotelsaas-backend-api" },
+          { "selected": false, "text": "hotelsaas-frontend-app", "value": "hotelsaas-frontend-app" },
+          { "selected": false, "text": "hotelsaas-promtail", "value": "hotelsaas-promtail" },
+          { "selected": false, "text": "hotelsaas-grafana", "value": "hotelsaas-grafana" }
+        ],
+        "query": "hotelsaas-backend-api,hotelsaas-frontend-app,hotelsaas-promtail,hotelsaas-grafana",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "includeAll": true,
+        "label": "Mức độ Log",
+        "multi": false,
+        "name": "level",
+        "options": [
+          { "selected": true, "text": "All", "value": "$__all" },
+          { "selected": false, "text": "Information", "value": "Information" },
+          { "selected": false, "text": "Warning", "value": "Warning" },
+          { "selected": false, "text": "Error", "value": "Error" }
+        ],
+        "query": "Information,Warning,Error",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "Loki (Structured Logs)",
+        "definition": "label_values(tenant_id)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Khách sạn (Tenant)",
+        "multi": false,
+        "name": "tenant_id",
+        "options": [],
+        "query": "label_values(tenant_id)",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "Loki (Structured Logs)",
+        "definition": "label_values(property_id)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Chi nhánh (Property)",
+        "multi": false,
+        "name": "property_id",
+        "options": [],
+        "query": "label_values(property_id)",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        },
+        "hide": 0,
+        "label": "Tìm nhanh (API / Mã lỗi / CorrelationId)",
+        "name": "search",
+        "options": [
+          { "selected": false, "text": "", "value": "" }
+        ],
+        "query": "",
+        "skipUrlSync": false,
+        "type": "textbox"
+      }
+    ]
+  },
   "time": { "from": "now-1h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
   "title": "HotelSaaS SRE & Multi-Tenant Security Dashboard",
   "uid": "hotelsaas-sre-security",
-  "version": 1
+  "version": 2
 }
