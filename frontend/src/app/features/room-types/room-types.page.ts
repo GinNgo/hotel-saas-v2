@@ -34,6 +34,11 @@ interface RoomTypeWithProperty extends RoomTypeDto {
   propertyName?: string | null;
 }
 
+interface PresetRoomImage {
+  readonly label: string;
+  readonly url: string;
+}
+
 /**
  * Màn hình Quản lý Loại phòng (Room Types Catalog)
  * - Kết nối trực tiếp tới Backend API: GET / POST / PUT / DELETE /api/room-types
@@ -579,9 +584,35 @@ interface RoomTypeWithProperty extends RoomTypeDto {
               <input
                 type="text"
                 formControlName="imageUrl"
-                placeholder="https://cdn.example.com/rooms/deluxe.jpg"
+                placeholder="/images/deluxe-double-pine.png hoặc https://cdn.example.com/rooms/deluxe.jpg"
                 class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:border-emerald-600 focus:outline-hidden bg-white"
               />
+              <div class="flex flex-wrap gap-1.5 pt-1">
+                @for (preset of presetRoomImages; track preset.url) {
+                  <button
+                    type="button"
+                    (click)="roomTypeForm.patchValue({ imageUrl: preset.url })"
+                    [ngClass]="roomTypeForm.get('imageUrl')?.value === preset.url ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'"
+                    class="min-h-9 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer"
+                  >
+                    {{ preset.label }}
+                  </button>
+                }
+              </div>
+              @if (roomTypeForm.get('imageUrl')?.value?.trim(); as previewImageUrl) {
+                <div class="pt-1.5 flex items-center gap-3">
+                  <img
+                    [src]="previewImageUrl"
+                    alt="Xem trước ảnh hạng phòng"
+                    width="96"
+                    height="64"
+                    loading="lazy"
+                    (error)="onImgError($event)"
+                    class="w-24 h-16 rounded-lg object-cover border border-slate-200 bg-slate-100 shrink-0"
+                  />
+                  <span class="text-[11px] text-slate-500 font-mono truncate">{{ previewImageUrl }}</span>
+                </div>
+              }
             </div>
 
             <!-- Mô tả tiện nghi -->
@@ -737,6 +768,15 @@ export class RoomTypesPage implements OnInit, OnDestroy {
     '2 Giường Đơn Twin',
     '1 Đôi + 1 Đơn Family',
     'Suite Luxury King'
+  ];
+
+  readonly presetRoomImages: ReadonlyArray<PresetRoomImage> = [
+    { label: 'Deluxe Rừng Thông', url: '/images/deluxe-double-pine.png' },
+    { label: 'Suite Hướng Sông', url: '/images/executive-suite-river.png' },
+    { label: 'Family Hướng Biển', url: '/images/family-ocean-suite.png' },
+    { label: 'Penthouse Tổng Thống', url: '/images/presidential-penthouse.png' },
+    { label: 'Twin Phố Cổ', url: '/images/standard-twin-heritage.png' },
+    { label: 'Resort Biển', url: '/images/danang-ocean-suites.png' }
   ];
 
   readonly filteredRoomTypes = computed(() => {
@@ -974,12 +1014,12 @@ export class RoomTypesPage implements OnInit, OnDestroy {
   getFallbackImage(code: string): string {
     const upper = (code || '').toUpperCase();
     if (upper.includes('SUI') || upper.includes('VIP') || upper.includes('VIL')) {
-      return '/images/da-nang-ocean-resort.png';
+      return '/images/danang-ocean-suites.png';
     }
     if (upper.includes('DLX') || upper.includes('FAM')) {
       return '/images/saigon-riverside-tower.png';
     }
-    return '/images/hanoi-old-quarter-boutique.png';
+    return '/images/hanoi-old-quarter-hotel.png';
   }
 
   onImgError(event: Event): void {

@@ -11,6 +11,7 @@ export interface TravelLifestyle {
   icon: string;
   filterType: string;
   destinationHint: string;
+  imageUrl: string;
 }
 
 @Component({
@@ -42,6 +43,9 @@ export interface TravelLifestyle {
             (click)="onSelect(item)"
             [class]="'group relative rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer min-h-[260px] flex flex-col justify-between p-5 border border-slate-200/70 text-left ' + item.cardGradient"
           >
+            <img [src]="item.imageUrl" [alt]="item.title" width="640" height="420" loading="lazy" class="absolute inset-0 w-full h-full object-cover opacity-45 group-hover:scale-105 transition-transform duration-500" />
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/55 to-slate-900/30"></div>
+
             <!-- Top Badge & Subtle Architectural Icon -->
             <div class="relative z-10 flex items-center justify-between gap-2 w-full">
               <span
@@ -91,7 +95,8 @@ export class CuratedBentoGridComponent {
       cardGradient: 'bg-gradient-to-br from-emerald-950 via-teal-900 to-slate-900',
       icon: 'pi-sun',
       filterType: 'Resort',
-      destinationHint: 'Phú Quốc, Đà Nẵng, Nha Trang'
+      destinationHint: 'Phú Quốc, Đà Nẵng, Nha Trang',
+      imageUrl: '/images/danang-ocean-suites.png'
     },
     {
       id: 'homestay-getaway',
@@ -102,7 +107,8 @@ export class CuratedBentoGridComponent {
       cardGradient: 'bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900',
       icon: 'pi-home',
       filterType: 'Homestay',
-      destinationHint: 'Đà Lạt, Sa Pa, Hội An'
+      destinationHint: 'Đà Lạt, Sa Pa, Hội An',
+      imageUrl: '/images/dalat-pine-resort.png'
     },
     {
       id: 'city-hotel',
@@ -113,7 +119,8 @@ export class CuratedBentoGridComponent {
       cardGradient: 'bg-gradient-to-br from-slate-900 via-stone-900 to-amber-950',
       icon: 'pi-building',
       filterType: 'Hotel',
-      destinationHint: 'TP. Hồ Chí Minh, Hà Nội, Đà Nẵng'
+      destinationHint: 'TP. Hồ Chí Minh, Hà Nội, Đà Nẵng',
+      imageUrl: '/images/saigon-riverside-tower.png'
     },
     {
       id: 'villa-group',
@@ -124,7 +131,8 @@ export class CuratedBentoGridComponent {
       cardGradient: 'bg-gradient-to-br from-stone-900 via-rose-950 to-slate-900',
       icon: 'pi-star',
       filterType: 'Villa',
-      destinationHint: 'Vũng Tàu, Đà Lạt, Phú Quốc'
+      destinationHint: 'Vũng Tàu, Đà Lạt, Phú Quốc',
+      imageUrl: '/images/family-ocean-suite.png'
     }
   ];
 

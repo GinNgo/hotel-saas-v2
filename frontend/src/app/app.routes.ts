@@ -178,6 +178,8 @@ export const routes: Routes = [
       { path: 'contracts', redirectTo: '/contracts', pathMatch: 'full' },
       { path: 'platform-tenants', redirectTo: '/platform-tenants', pathMatch: 'full' },
       { path: 'tenants', redirectTo: '/platform-tenants', pathMatch: 'full' },
+      { path: 'platform-users', redirectTo: '/platform-users', pathMatch: 'full' },
+      { path: 'users', redirectTo: '/platform-users', pathMatch: 'full' },
       { path: 'admin-banners', redirectTo: '/admin-banners', pathMatch: 'full' },
       { path: 'banners', redirectTo: '/admin-banners', pathMatch: 'full' },
       { path: 'support-grants', redirectTo: '/support-grants', pathMatch: 'full' },
@@ -319,6 +321,11 @@ export const routes: Routes = [
         path: 'tenants',
         redirectTo: 'platform-tenants',
         pathMatch: 'full'
+      },
+      {
+        path: 'platform-users',
+        canActivate: [platformAdminGuard],
+        loadComponent: () => import('./features/platform-users/platform-users.page').then(m => m.PlatformUsersPage)
       },
       {
         path: 'admin-banners',

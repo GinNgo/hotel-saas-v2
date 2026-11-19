@@ -665,14 +665,21 @@ public static class LocalDevDataSeeder
 
         await context.SaveChangesAsync();
 
-        // ── Step 6: Seed RoomTypes & Rooms for Property 1 ──────────────────
-        async Task<RoomType> EnsureRoomTypeAsync(Guid propertyId, string code, string name, decimal basePrice, int maxOccupancy)
+        // ── Step 6: Seed RoomTypes & Rooms for Property 1 & Property 2 ─────
+        async Task<RoomType> EnsureRoomTypeAsync(Guid propertyId, string code, string name, decimal basePrice, int maxOccupancy, string imageUrl)
         {
             var existing = await context.RoomTypes.IgnoreQueryFilters()
                 .FirstOrDefaultAsync(rt => rt.TenantId == tenant.Id && rt.PropertyId == propertyId && rt.Code == code);
 
             if (existing != null)
+            {
+                if (string.IsNullOrWhiteSpace(existing.ImageUrl))
+                {
+                    existing.ImageUrl = imageUrl;
+                    await context.SaveChangesAsync();
+                }
                 return existing;
+            }
 
             var newRt = new RoomType
             {
@@ -683,6 +690,7 @@ public static class LocalDevDataSeeder
                 Name = name,
                 BasePrice = basePrice,
                 MaxOccupancy = maxOccupancy,
+                ImageUrl = imageUrl,
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             };
@@ -717,16 +725,16 @@ public static class LocalDevDataSeeder
         }
 
         // Property 1 RoomTypes & Rooms
-        var rtDlxQ1 = await EnsureRoomTypeAsync(prop1.Id, "DLX-Q1", "Deluxe Double (Q1)", 1200000m, 2);
-        var rtStdQ1 = await EnsureRoomTypeAsync(prop1.Id, "STD-Q1", "Standard Twin (Q1)", 800000m, 2);
+        var rtDlxQ1 = await EnsureRoomTypeAsync(prop1.Id, "DLX-Q1", "Deluxe Double (Q1)", 1200000m, 2, "/images/executive-suite-river.png");
+        var rtStdQ1 = await EnsureRoomTypeAsync(prop1.Id, "STD-Q1", "Standard Twin (Q1)", 800000m, 2, "/images/saigon-riverside-tower.png");
 
         await EnsureRoomAsync(prop1.Id, rtDlxQ1.Id, "101", 1, RoomStatus.Clean);
         await EnsureRoomAsync(prop1.Id, rtStdQ1.Id, "102", 1, RoomStatus.Dirty);
         await EnsureRoomAsync(prop1.Id, rtDlxQ1.Id, "201", 2, RoomStatus.Clean);
 
         // Property 2 RoomTypes & Rooms
-        var rtSuiPn = await EnsureRoomTypeAsync(prop2.Id, "SUI-PN", "Executive Suite (PN)", 2000000m, 3);
-        var rtSupPn = await EnsureRoomTypeAsync(prop2.Id, "SUP-PN", "Superior King (PN)", 1000000m, 2);
+        var rtSuiPn = await EnsureRoomTypeAsync(prop2.Id, "SUI-PN", "Executive Suite (PN)", 2000000m, 3, "/images/deluxe-double-pine.png");
+        var rtSupPn = await EnsureRoomTypeAsync(prop2.Id, "SUP-PN", "Superior King (PN)", 1000000m, 2, "/images/standard-twin-heritage.png");
 
         await EnsureRoomAsync(prop2.Id, rtSuiPn.Id, "301", 3, RoomStatus.Clean);
         await EnsureRoomAsync(prop2.Id, rtSupPn.Id, "302", 3, RoomStatus.Cleaning);

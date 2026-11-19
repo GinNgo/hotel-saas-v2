@@ -372,6 +372,17 @@ import { UserMembershipDto } from '../../core/models/auth.model';
               </a>
 
               <a
+                routerLink="/platform-users"
+                routerLinkActive="bg-indigo-50 text-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-300 font-semibold border-l-4 border-indigo-600 shadow-2xs"
+                (click)="onNavItemClick()"
+                class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
+              >
+                <i class="pi pi-users text-base text-indigo-600 dark:text-indigo-400" aria-hidden="true"></i>
+                <span>Người dùng &amp; Admin</span>
+                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-800">IAM</span>
+              </a>
+
+              <a
                 routerLink="/plans"
                 routerLinkActive="bg-indigo-50 text-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-300 font-semibold border-l-4 border-indigo-600 shadow-2xs"
                 (click)="onNavItemClick()"

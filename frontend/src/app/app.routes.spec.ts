@@ -84,4 +84,20 @@ describe('Public and management route boundaries', () => {
     await router.navigateByUrl('/ops-readiness');
     expect(router.url).toBe('/ops-readiness');
   });
+
+  it('routes /admin/users and /platform-users exclusively to SuperAdmin', async () => {
+    role = 'TenantStaff';
+    await router.navigateByUrl('/admin/users');
+    expect(router.url).toBe('/forbidden');
+
+    await router.navigateByUrl('/platform-users');
+    expect(router.url).toBe('/forbidden');
+
+    role = 'SuperAdmin';
+    await router.navigateByUrl('/admin/users');
+    expect(router.url).toBe('/platform-users');
+
+    await router.navigateByUrl('/admin/platform-users');
+    expect(router.url).toBe('/platform-users');
+  });
 });

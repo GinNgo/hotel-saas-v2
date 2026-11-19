@@ -55,7 +55,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Thác Nước Hùng Vĩ',
-    imageUrl: '',
+    imageUrl: '/images/dalat-pine-resort.png',
     searchTerm: 'Cao Bằng'
   },
   {
@@ -72,7 +72,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Cực Bắc Hùng Vĩ',
-    imageUrl: '',
+    imageUrl: '/images/deluxe-double-pine.png',
     searchTerm: 'Hà Giang'
   },
   {
@@ -89,7 +89,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Chiến Trường Xưa',
-    imageUrl: '',
+    imageUrl: '/images/standard-twin-heritage.png',
     searchTerm: 'Điện Biên'
   },
   {
@@ -106,7 +106,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Biên Ải Tây Bắc',
-    imageUrl: '',
+    imageUrl: '/images/dalat-pine-resort.png',
     searchTerm: 'Lai Châu'
   },
   {
@@ -123,7 +123,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Thiên Đường Săn Mây',
-    imageUrl: '',
+    imageUrl: '/images/deluxe-double-pine.png',
     searchTerm: 'Mộc Châu'
   },
   {
@@ -140,7 +140,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Săn Mây & Mùa Vàng',
-    imageUrl: '',
+    imageUrl: '/images/dalat-pine-resort.png',
     searchTerm: 'Sa Pa'
   },
   {
@@ -157,7 +157,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Hồ Ngọc Đại Ngàn',
-    imageUrl: '',
+    imageUrl: '/images/deluxe-double-pine.png',
     searchTerm: 'Thái Nguyên'
   },
   {
@@ -174,7 +174,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Xứ Lạng Biên Cương',
-    imageUrl: '',
+    imageUrl: '/images/hanoi-old-quarter-hotel.png',
     searchTerm: 'Lạng Sơn'
   },
   {
@@ -191,7 +191,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Kỳ Quan & Đặc Khu',
-    imageUrl: '',
+    imageUrl: '/images/danang-ocean-suites.png',
     searchTerm: 'Hạ Long'
   },
   {
@@ -208,7 +208,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Kinh Bắc Di Sản',
-    imageUrl: '',
+    imageUrl: '/images/standard-twin-heritage.png',
     searchTerm: 'Bắc Ninh'
   },
   {
@@ -225,7 +225,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Đất Tổ & Nghỉ Dưỡng',
-    imageUrl: '',
+    imageUrl: '/images/dalat-pine-resort.png',
     searchTerm: 'Mai Châu'
   },
   {
@@ -242,7 +242,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Thành Phố Cảng & Đặc Khu',
-    imageUrl: '',
+    imageUrl: '/images/family-ocean-suite.png',
     searchTerm: 'Cát Bà'
   },
   {
@@ -259,7 +259,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Phố Hiến & Đồng Bằng',
-    imageUrl: '',
+    imageUrl: '/images/executive-suite-river.png',
     searchTerm: 'Hưng Yên'
   },
   {
@@ -276,7 +276,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Di Sản Kép UNESCO',
-    imageUrl: '',
+    imageUrl: '/images/hanoi-old-quarter-hotel.png',
     searchTerm: 'Ninh Bình'
   },
 
@@ -295,7 +295,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Biển & Đại Ngàn',
-    imageUrl: '',
+    imageUrl: '/images/danang-ocean-suites.png',
     searchTerm: 'Thanh Hóa'
   },
   {
@@ -312,7 +312,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Xứ Nghệ Nghĩa Tình',
-    imageUrl: '',
+    imageUrl: '/images/nhatrang-grand-hotel.png',
     searchTerm: 'Nghệ An'
   },
   {
@@ -329,7 +329,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Biển Thiên Cầm',
-    imageUrl: '',
+    imageUrl: '/images/family-ocean-suite.png',
     searchTerm: 'Hà Tĩnh'
   },
   {
@@ -346,7 +346,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Hang Động & Đặc Khu',
-    imageUrl: '',
+    imageUrl: '/images/deluxe-double-pine.png',
     searchTerm: 'Phong Nha'
   },
   {
@@ -363,7 +363,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Di Sản Cố Đô',
-    imageUrl: '',
+    imageUrl: '/images/standard-twin-heritage.png',
     searchTerm: 'Huế'
   },
   {
@@ -380,7 +380,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Đô Thị Biển & Di Sản',
-    imageUrl: '',
+    imageUrl: '/images/danang-ocean-suites.png',
     searchTerm: 'Đà Nẵng'
   },
   {
@@ -397,7 +397,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Đặc Khu Biển & Đại Ngàn',
-    imageUrl: '',
+    imageUrl: '/images/family-ocean-suite.png',
     searchTerm: 'Lý Sơn'
   },
   {
@@ -414,7 +414,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Thiên Đường Vịnh Biển',
-    imageUrl: '',
+    imageUrl: '/images/nhatrang-grand-hotel.png',
     searchTerm: 'Nha Trang'
   },
 
@@ -433,7 +433,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Rừng Vàng Biển Bạc',
-    imageUrl: '',
+    imageUrl: '/images/danang-ocean-suites.png',
     searchTerm: 'Quy Nhơn'
   },
   {
@@ -450,7 +450,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Cà Phê & Biển Xanh',
-    imageUrl: '',
+    imageUrl: '/images/deluxe-double-pine.png',
     searchTerm: 'Buôn Ma Thuột'
   },
   {
@@ -467,7 +467,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Ngàn Hoa, Resort & Đảo',
-    imageUrl: '',
+    imageUrl: '/images/dalat-pine-resort.png',
     searchTerm: 'Đà Lạt'
   },
 
@@ -486,7 +486,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Sinh Thái Cận Đô',
-    imageUrl: '',
+    imageUrl: '/images/executive-suite-river.png',
     searchTerm: 'Đồng Nai'
   },
   {
@@ -503,7 +503,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Siêu Đô Thị & Biển Đảo',
-    imageUrl: '',
+    imageUrl: '/images/saigon-riverside-tower.png',
     searchTerm: 'Hồ Chí Minh'
   },
   {
@@ -520,7 +520,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Nóc Nhà Nam Bộ',
-    imageUrl: '',
+    imageUrl: '/images/presidential-penthouse.png',
     searchTerm: 'Tây Ninh'
   },
   {
@@ -537,7 +537,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Đất Sen Hồng',
-    imageUrl: '',
+    imageUrl: '/images/standard-twin-heritage.png',
     searchTerm: 'Sa Đéc'
   },
   {
@@ -554,7 +554,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Xứ Dừa & Miệt Vườn',
-    imageUrl: '',
+    imageUrl: '/images/executive-suite-river.png',
     searchTerm: 'Bến Tre'
   },
   {
@@ -571,7 +571,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Đảo Ngọc & Tâm Linh',
-    imageUrl: '',
+    imageUrl: '/images/nhatrang-grand-hotel.png',
     searchTerm: 'Phú Quốc'
   },
   {
@@ -588,7 +588,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Thủ Phủ Miền Tây',
-    imageUrl: '',
+    imageUrl: '/images/saigon-riverside-tower.png',
     searchTerm: 'Cần Thơ'
   },
   {
@@ -605,7 +605,7 @@ export const VIETNAM_34_PROVINCES: VietnamProvinceDestination[] = [
     propertyCount: 0,
     rating: 0,
     tag: 'Cực Nam Tổ Quốc',
-    imageUrl: '',
+    imageUrl: '/images/family-ocean-suite.png',
     searchTerm: 'Cà Mau'
   }
 ];

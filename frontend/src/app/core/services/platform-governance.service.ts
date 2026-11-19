@@ -191,6 +191,57 @@ export interface CreateSupportGrantRequest {
   expiresAtUtc: string;
 }
 
+export type PlatformGlobalRole = 'SuperAdmin' | 'TenantStaff' | 'Customer';
+
+export interface PlatformUserSummaryDto {
+  totalUsers: number;
+  superAdminCount: number;
+  tenantStaffCount: number;
+  customerCount: number;
+  activeCount: number;
+  lockedCount: number;
+}
+
+export interface PlatformUserDto {
+  id: string;
+  email: string;
+  username: string;
+  fullName: string;
+  phoneNumber?: string | null;
+  globalRole: PlatformGlobalRole | number;
+  globalRoleName: string;
+  isActive: boolean;
+  emailVerified: boolean;
+  phoneVerified: boolean;
+  defaultTenantId?: string | null;
+  defaultTenantName?: string | null;
+  membershipsCount: number;
+  createdAtUtc: string;
+}
+
+export interface PlatformUsersResponseDto {
+  summary: PlatformUserSummaryDto;
+  items: PlatformUserDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface CreatePlatformAdminRequest {
+  email: string;
+  fullName: string;
+  password: string;
+  phoneNumber?: string | null;
+}
+
+export interface PlatformUsersQueryFilters {
+  search?: string;
+  role?: PlatformGlobalRole | 'ALL' | '';
+  isActive?: boolean | null;
+  page?: number;
+  pageSize?: number;
+}
+
 interface ApiEnvelope<T> {
   data?: T;
 }
@@ -336,6 +387,65 @@ export class PlatformGovernanceService {
       .post<ApiEnvelope<SupportAccessGrantDto> | SupportAccessGrantDto>(
         `${this.baseUrl}/tenants/current/support-grants/${grantId}/revoke`,
         { reason }
+      )
+      .pipe(map(res => unwrapPayload(res)));
+  }
+
+  getPlatformUsers(filters?: PlatformUsersQueryFilters): Observable<PlatformUsersResponseDto> {
+    let params = new HttpParams();
+    if (filters?.search?.trim()) {
+      params = params.set('search', filters.search.trim());
+    }
+    if (filters?.role && filters.role !== 'ALL') {
+      params = params.set('role', filters.role);
+    }
+    if (typeof filters?.isActive === 'boolean') {
+      params = params.set('isActive', String(filters.isActive));
+    }
+    if (typeof filters?.page === 'number' && filters.page > 0) {
+      params = params.set('page', String(filters.page));
+    }
+    if (typeof filters?.pageSize === 'number' && filters.pageSize > 0) {
+      params = params.set('pageSize', String(filters.pageSize));
+    }
+
+    return this.http
+      .get<ApiEnvelope<PlatformUsersResponseDto> | PlatformUsersResponseDto>(
+        `${this.baseUrl}/platform/users`,
+        { params }
+      )
+      .pipe(map(res => unwrapPayload(res)));
+  }
+
+  createPlatformAdmin(req: CreatePlatformAdminRequest): Observable<PlatformUserDto> {
+    return this.http
+      .post<ApiEnvelope<PlatformUserDto> | PlatformUserDto>(
+        `${this.baseUrl}/platform/users/admins`,
+        req
+      )
+      .pipe(map(res => unwrapPayload(res)));
+  }
+
+  togglePlatformUserStatus(
+    userId: string,
+    body?: { targetIsActive?: boolean; reason?: string }
+  ): Observable<PlatformUserDto> {
+    return this.http
+      .patch<ApiEnvelope<PlatformUserDto> | PlatformUserDto>(
+        `${this.baseUrl}/platform/users/${userId}/status`,
+        body ?? {}
+      )
+      .pipe(map(res => unwrapPayload(res)));
+  }
+
+  updatePlatformUserRole(
+    userId: string,
+    body: { targetRole: PlatformGlobalRole }
+  ): Observable<PlatformUserDto> {
+    return this.http
+      .patch<ApiEnvelope<PlatformUserDto> | PlatformUserDto>(
+        `${this.baseUrl}/platform/users/${userId}/role`,
+        body
       )
       .pipe(map(res => unwrapPayload(res)));
   }

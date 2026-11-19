@@ -33,6 +33,8 @@ export const ROUTE_SEGMENT_MAP: Record<string, { label: string; icon?: string }>
   contracts: { label: 'Hợp đồng Đối tác', icon: 'pi pi-file-edit' },
   'platform-tenants': { label: 'Đối tác & Chi nhánh', icon: 'pi pi-building' },
   tenants: { label: 'Đối tác & Chi nhánh', icon: 'pi pi-building' },
+  'platform-users': { label: 'Người dùng & Admin', icon: 'pi pi-users' },
+  users: { label: 'Người dùng & Admin', icon: 'pi pi-users' },
   'admin-banners': { label: 'Banner Nền tảng', icon: 'pi pi-megaphone' },
   banners: { label: 'Banner Nền tảng', icon: 'pi pi-megaphone' },
   'support-grants': { label: 'Ủy quyền hỗ trợ', icon: 'pi pi-key' },

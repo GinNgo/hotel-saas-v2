@@ -211,8 +211,11 @@ public static class RealData34ProvincesSeeder
                 }
 
                 // ── Seed RoomTypes, Rooms & Rates ───────────────────────────────
-                foreach (var rtDef in def.RoomTypes)
+                for (var rtIndex = 0; rtIndex < def.RoomTypes.Count; rtIndex++)
                 {
+                    var rtDef = def.RoomTypes[rtIndex];
+                    var seedImg = ResolveSeedRoomImage(def, rtDef, rtIndex);
+
                     var existingRt = await context.RoomTypes.IgnoreQueryFilters()
                         .FirstOrDefaultAsync(rt => rt.TenantId == property.TenantId && rt.PropertyId == property.Id && rt.Code == rtDef.Code);
 
@@ -228,6 +231,7 @@ public static class RealData34ProvincesSeeder
                             Name = rtDef.Name,
                             BasePrice = rtDef.NightlyPrice,
                             MaxOccupancy = rtDef.MaxOccupancy,
+                            ImageUrl = seedImg,
                             CreatedAtUtc = DateTime.UtcNow,
                             UpdatedAtUtc = DateTime.UtcNow
                         };
@@ -237,6 +241,11 @@ public static class RealData34ProvincesSeeder
                     else
                     {
                         roomType = existingRt;
+                        if (string.IsNullOrWhiteSpace(existingRt.ImageUrl))
+                        {
+                            existingRt.ImageUrl = seedImg;
+                            await context.SaveChangesAsync();
+                        }
                     }
 
                     // Physical Rooms
@@ -306,6 +315,141 @@ public static class RealData34ProvincesSeeder
                 currentProperty.IsTenantWide = originalIsTenantWide;
             }
         }
+    }
+
+    private static readonly string[] SeedRoomInteriorImages =
+    {
+        "/images/deluxe-double-pine.png",
+        "/images/executive-suite-river.png",
+        "/images/family-ocean-suite.png",
+        "/images/presidential-penthouse.png",
+        "/images/standard-twin-heritage.png"
+    };
+
+    private static int ComputeStableSeedHash(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return 0;
+
+        int hash = 23;
+        foreach (var ch in value)
+        {
+            hash = unchecked((hash * 31) + char.ToUpperInvariant(ch));
+        }
+        return hash & 0x7FFFFFFF;
+    }
+
+    private static string ResolveSeedRoomImage(
+        RealPropertySeedDefinition def,
+        RealRoomTypeSeedDefinition rtDef,
+        int rtIndex)
+    {
+        var propHash = ComputeStableSeedHash(def.Code);
+
+        if (rtIndex == 0)
+        {
+            var zone = (def.TouristZoneSlug ?? string.Empty).Trim().ToLowerInvariant();
+            var city = (def.City ?? string.Empty).Trim();
+
+            // 1. Mountain / Highlands / Pine / Eco Valleys
+            if (zone is "da-lat" or "sa-pa" or "mu-cang-chai" or "ha-giang" or "cao-bang"
+                     or "mai-chau" or "buon-ma-thuot" or "mang-den" or "pleiku" or "phong-nha" ||
+                city.Contains("Lào Cai", StringComparison.OrdinalIgnoreCase) ||
+                city.Contains("Cao Bằng", StringComparison.OrdinalIgnoreCase) ||
+                city.Contains("Tuyên Quang", StringComparison.OrdinalIgnoreCase) ||
+                city.Contains("Phú Thọ", StringComparison.OrdinalIgnoreCase))
+            {
+                return "/images/dalat-pine-resort.png";
+            }
+
+            // 2. Central & Northern Coast / Islands
+            if (zone is "da-nang" or "ha-long" or "cat-ba" or "quang-tri" or "ly-son" or "quy-nhon" or "phu-yen" ||
+                city.Contains("Quảng Ninh", StringComparison.OrdinalIgnoreCase) ||
+                city.Contains("Hải Phòng", StringComparison.OrdinalIgnoreCase))
+            {
+                if (zone is "quy-nhon" or "phu-yen" || def.PropertyType == PropertyType.Apartment)
+                {
+                    var coastalPair = new[] { "/images/danang-ocean-suites.png", "/images/nhatrang-grand-hotel.png" };
+                    return coastalPair[propHash % coastalPair.Length];
+                }
+                return "/images/danang-ocean-suites.png";
+            }
+
+            // 3. Southern Coast & Tropical Bays
+            if (zone is "nha-trang" or "phu-quoc" or "vung-tau" or "phan-thiet-mui-ne" ||
+                city.Contains("Khánh Hòa", StringComparison.OrdinalIgnoreCase))
+            {
+                if (def.PropertyType == PropertyType.Villa)
+                {
+                    var southCoastPair = new[] { "/images/nhatrang-grand-hotel.png", "/images/danang-ocean-suites.png" };
+                    return southCoastPair[propHash % southCoastPair.Length];
+                }
+                return "/images/nhatrang-grand-hotel.png";
+            }
+
+            // 4. Heritage / Ancient Capital / Northern Culture
+            if (zone is "ha-noi-pho-co" or "ninh-binh" or "hoi-an" or "hue" or "lang-son" ||
+                city.Contains("Hà Nội", StringComparison.OrdinalIgnoreCase) ||
+                city.Contains("Ninh Bình", StringComparison.OrdinalIgnoreCase) ||
+                city.Contains("Huế", StringComparison.OrdinalIgnoreCase))
+            {
+                if (def.PropertyType == PropertyType.Motel)
+                {
+                    return "/images/saigon-riverside-tower.png";
+                }
+                if (zone == "ninh-binh" && def.PropertyType == PropertyType.Resort)
+                {
+                    return "/images/dalat-pine-resort.png";
+                }
+                return "/images/hanoi-old-quarter-hotel.png";
+            }
+
+            // 5. Urban Metropolis & Southern / Mekong Riverfront
+            if (def.PropertyType == PropertyType.Homestay || zone == "chau-doc")
+            {
+                return "/images/dalat-pine-resort.png";
+            }
+
+            var urbanRiverPool = new[]
+            {
+                "/images/saigon-riverside-tower.png",
+                "/images/hanoi-old-quarter-hotel.png"
+            };
+            return zone is "quan-1-tphcm" or "binh-duong" or "can-tho"
+                ? "/images/saigon-riverside-tower.png"
+                : urbanRiverPool[propHash % urbanRiverPool.Length];
+        }
+
+        // For rtIndex >= 1: select distinct room interior assets so GalleryUrls has 2-3 distinct images
+        var rtUpper = $"{rtDef.Code} {rtDef.Name}".ToUpperInvariant();
+        int baseSlot;
+        if (rtUpper.Contains("PEN") || rtUpper.Contains("PRESIDENT") || rtDef.NightlyPrice >= 6000000m)
+        {
+            baseSlot = 3; // presidential-penthouse.png
+        }
+        else if (rtUpper.Contains("OCEAN") || rtUpper.Contains("SEA") || rtUpper.Contains("BCH") || rtUpper.Contains("FAM"))
+        {
+            baseSlot = 2; // family-ocean-suite.png
+        }
+        else if (rtUpper.Contains("PINE") || rtUpper.Contains("MTN") || rtUpper.Contains("BUN") || rtUpper.Contains("VAL"))
+        {
+            baseSlot = 0; // deluxe-double-pine.png
+        }
+        else if (rtUpper.Contains("HERITAGE") || rtUpper.Contains("COL") || rtUpper.Contains("TWIN") || rtUpper.Contains("STD"))
+        {
+            baseSlot = 4; // standard-twin-heritage.png
+        }
+        else if (rtUpper.Contains("RIV") || rtUpper.Contains("SUI") || rtUpper.Contains("EXE"))
+        {
+            baseSlot = 1; // executive-suite-river.png
+        }
+        else
+        {
+            baseSlot = propHash % SeedRoomInteriorImages.Length;
+        }
+
+        var resolvedIndex = (baseSlot + (rtIndex - 1)) % SeedRoomInteriorImages.Length;
+        return SeedRoomInteriorImages[resolvedIndex];
     }
 
     public static IReadOnlyList<RealPropertySeedDefinition> Get34ProvincesCatalogue()
