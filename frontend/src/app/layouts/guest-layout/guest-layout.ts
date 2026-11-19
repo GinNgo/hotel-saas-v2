@@ -66,16 +66,18 @@ import { toSignal } from '@angular/core/rxjs-interop';
         </div>
 
         <!-- Main Navigation Bar -->
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 xl:gap-4">
           <!-- Brand Logo -->
-          <app-brand-logo size="md" [variant]="themeService.isDark() ? 'light' : 'dark'" />
+          <div class="shrink-0">
+            <app-brand-logo size="md" [variant]="themeService.isDark() ? 'light' : 'dark'" />
+          </div>
 
           <!-- Center Navigation Links -->
-          <nav aria-label="Điều hướng chính" class="hidden lg:flex items-center gap-1 text-xs font-semibold tracking-wide text-[var(--text-secondary)]">
+          <nav aria-label="Điều hướng chính" class="hidden lg:flex items-center gap-0.5 xl:gap-1 text-xs font-semibold tracking-wide text-[var(--text-secondary)]">
             <a
               routerLink="/booking/destinations"
               routerLinkActive="bg-[var(--surface-subtle)] text-[var(--brand-primary)] font-bold"
-              class="px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+              class="px-2.5 xl:px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             >
               <i class="pi pi-compass text-xs text-[var(--brand-primary)]" aria-hidden="true"></i>
               <span>Khám Phá Địa Danh</span>
@@ -83,7 +85,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
             <a
               routerLink="/booking/deals"
               routerLinkActive="bg-[var(--surface-subtle)] text-[var(--brand-primary)] font-bold"
-              class="px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+              class="px-2.5 xl:px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             >
               <i class="pi pi-tag text-xs text-amber-600" aria-hidden="true"></i>
               <span>Ưu Đãi Đặc Quyền</span>
@@ -91,7 +93,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
             <a
               routerLink="/booking/brands"
               routerLinkActive="bg-[var(--surface-subtle)] text-[var(--brand-primary)] font-bold"
-              class="px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+              class="px-2.5 xl:px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             >
               <i class="pi pi-star text-xs text-amber-500" aria-hidden="true"></i>
               <span>Chuỗi Thương Hiệu</span>
@@ -99,7 +101,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
             <a
               routerLink="/booking/lookup"
               routerLinkActive="bg-[var(--surface-subtle)] text-[var(--brand-primary)] font-bold"
-              class="px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+              class="px-2.5 xl:px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             >
               <i class="pi pi-search text-xs text-[var(--text-muted)]" aria-hidden="true"></i>
               <span>Tra Cứu Đặt Phòng</span>
@@ -107,7 +109,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
           </nav>
 
           <!-- Right Action Buttons -->
-          <div class="flex items-center gap-2.5">
+          <div class="flex items-center gap-2 xl:gap-2.5 shrink-0">
             <!-- Theme Toggle Button (Light / Dark Mode) -->
             <button
               type="button"
@@ -162,7 +164,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
                 aria-label="Khám phá và danh mục"
               >
                 <i class="pi pi-bars text-sm" aria-hidden="true"></i>
-                <span class="hidden sm:inline">Menu</span>
+                <span class="hidden sm:inline lg:hidden xl:inline">Menu</span>
               </button>
 
               @if (menuOpen()) {

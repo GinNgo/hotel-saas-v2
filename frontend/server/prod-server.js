@@ -132,8 +132,11 @@ const server = http.createServer((req, res) => {
     if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
       const ext = path.extname(filePath).toLowerCase();
       const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+      const isFingerprinted = /[.-][a-zA-Z0-9]{8,}\.(js|mjs|css|woff2?|ttf|eot)$/.test(path.basename(filePath));
       const cacheControl =
-        ext === '.html' ? 'no-cache, no-store, must-revalidate' : 'public, max-age=31536000, immutable';
+        ext === '.html'
+          ? 'no-cache, no-store, must-revalidate'
+          : (isFingerprinted ? 'public, max-age=31536000, immutable' : 'no-cache');
       res.writeHead(200, {
         'Content-Type': contentType,
         'Cache-Control': cacheControl

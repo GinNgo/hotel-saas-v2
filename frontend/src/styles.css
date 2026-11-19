@@ -935,8 +935,20 @@ body.dark-theme .from-stone-100 {
 
 [data-theme="dark"] .bg-slate-100,
 [data-theme="dark"] .bg-slate-100\/80,
+[data-theme="dark"] .bg-stone-100\/80,
+[data-theme="dark"] .bg-stone-100\/70,
+[data-theme="dark"] .bg-stone-100\/60,
+[data-theme="dark"] .bg-stone-50\/80,
+[data-theme="dark"] .bg-stone-200\/60,
+[data-theme="dark"] .bg-stone-200\/70,
 body.dark-theme .bg-slate-100,
-body.dark-theme .bg-slate-100\/80 {
+body.dark-theme .bg-slate-100\/80,
+body.dark-theme .bg-stone-100\/80,
+body.dark-theme .bg-stone-100\/70,
+body.dark-theme .bg-stone-100\/60,
+body.dark-theme .bg-stone-50\/80,
+body.dark-theme .bg-stone-200\/60,
+body.dark-theme .bg-stone-200\/70 {
   background-color: var(--surface-subtle) !important;
 }
 
@@ -1114,6 +1126,9 @@ body.dark-theme .text-gray-400 {
 [data-theme="dark"] .border-slate-300,
 [data-theme="dark"] .border-stone-100,
 [data-theme="dark"] .border-stone-200,
+[data-theme="dark"] .border-stone-200\/70,
+[data-theme="dark"] .border-stone-200\/80,
+[data-theme="dark"] .border-stone-200\/90,
 [data-theme="dark"] .border-stone-300,
 [data-theme="dark"] .border-gray-200,
 [data-theme="dark"] .border-gray-300,
@@ -1125,6 +1140,9 @@ body.dark-theme .border-slate-200\/90,
 body.dark-theme .border-slate-300,
 body.dark-theme .border-stone-100,
 body.dark-theme .border-stone-200,
+body.dark-theme .border-stone-200\/70,
+body.dark-theme .border-stone-200\/80,
+body.dark-theme .border-stone-200\/90,
 body.dark-theme .border-stone-300,
 body.dark-theme .border-gray-200,
 body.dark-theme .border-gray-300 {

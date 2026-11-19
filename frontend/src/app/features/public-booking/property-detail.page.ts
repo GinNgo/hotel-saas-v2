@@ -20,7 +20,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
   imports: [CommonModule, FormsModule, RouterLink, PhotoGalleryModalComponent, DatePicker],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="min-h-screen bg-[var(--surface-canvas)] py-6 sm:py-8 font-sans text-stone-900">
+    <div class="min-h-screen bg-[var(--surface-canvas)] pt-6 sm:pt-8 pb-24 font-sans text-stone-900">
       <main class="max-w-7xl mx-auto px-4 sm:px-6 space-y-6 sm:space-y-8">
       <!-- 1. TOP NAV: BREADCRUMB & RETURN LINK -->
       <nav class="flex items-center justify-between text-xs text-stone-600 pb-3 border-b border-stone-200" aria-label="Điều hướng">
@@ -218,7 +218,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                   >
                     @for (mode of supportedModes(); track mode) {
                       <option [value]="mode">
-                        {{ mode === 'Daily' ? 'Theo ngày (Nhận ' + (hotel.checkInTime || '14:00') + ' - Trả ' + (hotel.checkOutTime || '12:00') + ')' : mode === 'Hourly' ? 'Theo giờ linh hoạt' : 'Qua đêm (' + (hotel.overnightCheckInTime || '21:00') + ' - ' + (hotel.overnightCheckOutTime || '10:00') + ')' }}
+                        {{ mode === 'Daily' ? 'Theo ngày (Nhận ' + formatTimeHm(hotel.checkInTime, '14:00') + ' - Trả ' + formatTimeHm(hotel.checkOutTime, '12:00') + ')' : mode === 'Hourly' ? 'Theo giờ linh hoạt' : 'Qua đêm (' + formatTimeHm(hotel.overnightCheckInTime, '21:00') + ' - ' + formatTimeHm(hotel.overnightCheckOutTime, '10:00') + ')' }}
                       </option>
                     }
                   </select>
@@ -312,7 +312,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
               <!-- Note -->
               <div class="p-3.5 rounded-2xl bg-stone-100/80 border border-stone-200/70 text-xs text-stone-600 flex items-center gap-2">
                 <i class="pi pi-clock text-[var(--brand-cta)]"></i>
-                <span class="tabular-nums">Giờ Việt Nam &bull; nhận {{ hotel.checkInTime || '14:00' }} / trả {{ hotel.checkOutTime || '12:00' }} theo cấu hình cơ sở. Tồn phòng được kiểm tra trực tiếp.</span>
+                <span class="tabular-nums">Giờ Việt Nam &bull; nhận {{ formatTimeHm(hotel.checkInTime, '14:00') }} / trả {{ formatTimeHm(hotel.checkOutTime, '12:00') }} theo cấu hình cơ sở. Tồn phòng được kiểm tra trực tiếp.</span>
               </div>
 
               <!-- Check action -->
@@ -582,7 +582,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                   <span>Chính sách nhận phòng &amp; lưu trú:</span>
                 </div>
                 <span>
-                  Nhận phòng từ <strong>{{ hotel.checkInTime || '14:00' }}</strong> &bull; Trả phòng trước <strong>{{ hotel.checkOutTime || '12:00' }}</strong> theo giờ chuẩn Việt Nam.
+                  Nhận phòng từ <strong>{{ formatTimeHm(hotel.checkInTime, '14:00') }}</strong> &bull; Trả phòng trước <strong>{{ formatTimeHm(hotel.checkOutTime, '12:00') }}</strong> theo giờ chuẩn Việt Nam.
                   Vui lòng xuất trình giấy tờ tùy thân (CCCD / Hộ chiếu) hợp lệ khi làm thủ tục tại quầy tiếp tân.
                 </span>
               </div>
@@ -1185,6 +1185,11 @@ export class PropertyDetailPageComponent implements OnInit {
       this.quoteLoading.set(false);
       this.error.set((error as Error).message);
     }
+  }
+
+  formatTimeHm(value?: string | null, fallback = '14:00'): string {
+    const raw = (value || fallback).trim();
+    return raw.length >= 5 ? raw.slice(0, 5) : raw;
   }
 
   proceedToHold(): void {
