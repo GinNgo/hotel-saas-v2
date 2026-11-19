@@ -128,6 +128,12 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     /// <summary>Banner thông báo và quảng cáo hệ thống.</summary>
     public DbSet<SystemBanner> SystemBanners => Set<SystemBanner>();
 
+    /// <summary>Explicit time-boxed support access grants approved by tenant owners.</summary>
+    public DbSet<SupportAccessGrant> SupportAccessGrants => Set<SupportAccessGrant>();
+
+    /// <summary>Immutable support access audit trail.</summary>
+    public DbSet<SupportAuditLog> SupportAuditLogs => Set<SupportAuditLog>();
+
     /// <inheritdoc />
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -235,6 +241,16 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
                 if (string.Equals(constraintName, "UX_RoomType_PropertyId_Code", StringComparison.OrdinalIgnoreCase))
                 {
                     throw new ConflictException("ERR_CONFLICT", "Mã loại phòng đã tồn tại trong chi nhánh này.");
+                }
+
+                if (string.Equals(constraintName, "UX_User_Email", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new ConflictException("ERR_EMAIL_EXISTS", "Địa chỉ email này đã được đăng ký trong hệ thống.");
+                }
+
+                if (string.Equals(constraintName, "UX_User_Username", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new ConflictException("ERR_USERNAME_EXISTS", "Tên đăng nhập đã tồn tại trong hệ thống.");
                 }
             }
 

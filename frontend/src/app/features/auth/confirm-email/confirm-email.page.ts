@@ -1,11 +1,11 @@
 import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ApiResponse } from '../../../core/models/api-response.model';
-import { ConfirmEmailResponse } from '../../../core/models/auth.model';
 
 export type VerificationState = 'loading' | 'success' | 'error';
 
@@ -16,7 +16,7 @@ export type VerificationState = 'loading' | 'success' | 'error';
 @Component({
   selector: 'app-confirm-email',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="w-full text-center">
@@ -62,7 +62,7 @@ export type VerificationState = 'loading' | 'success' | 'error';
             </div>
             <ul class="list-disc list-inside space-y-1 pl-1 text-[11px] text-slate-500">
               <li>Đặt phòng trực tuyến nhanh chóng & tích lũy điểm thưởng</li>
-              <li>Nhận mã giảm giá & ưu đãi thành viên LuxeStay độc quyền</li>
+              <li>Nhận mã giảm giá & ưu đãi thành viên Hotel SaaS độc quyền</li>
               <li>Bảo mật thông tin đặt chỗ và lịch sử lưu trú</li>
             </ul>
           </div>
@@ -106,6 +106,33 @@ export type VerificationState = 'loading' | 'success' | 'error';
             </p>
           </div>
 
+          <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-left space-y-2.5 max-w-sm mx-auto">
+            <div class="text-xs font-bold text-slate-800">Gửi lại liên kết kích hoạt email</div>
+            <p class="text-[11px] text-slate-500">
+              Nhập email đăng ký để nhận thư kích hoạt mới.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-2">
+              <input
+                type="email"
+                [ngModel]="resendEmail()"
+                (ngModelChange)="resendEmail.set($event)"
+                placeholder="email@example.com"
+                class="flex-1 min-h-11 px-3 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              />
+              <button
+                type="button"
+                (click)="onResendConfirmation()"
+                [disabled]="resending()"
+                class="min-h-11 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+              >
+                {{ resending() ? 'Đang gửi...' : 'Gửi lại email' }}
+              </button>
+            </div>
+            @if (resendStatus()) {
+              <p class="text-[11px] font-medium text-emerald-700">{{ resendStatus() }}</p>
+            }
+          </div>
+
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 max-w-sm mx-auto">
             <a
               routerLink="/register"
@@ -144,8 +171,16 @@ export class ConfirmEmailPage implements OnInit {
   confirmedEmail = signal<string | null>(null);
   successMessage = signal<string>('Tài khoản của bạn đã được kích hoạt thành công.');
   errorMessage = signal<string>('Liên kết kích hoạt không hợp lệ hoặc đã hết hạn.');
+  resendEmail = signal<string>('');
+  resending = signal<boolean>(false);
+  resendStatus = signal<string | null>(null);
 
   ngOnInit(): void {
+    const prefillEmail = this.route.snapshot.queryParamMap.get('email');
+    if (prefillEmail) {
+      this.resendEmail.set(prefillEmail);
+    }
+
     const token = this.route.snapshot.queryParamMap.get('token');
 
     if (!token || !token.trim()) {
@@ -167,6 +202,30 @@ export class ConfirmEmailPage implements OnInit {
         const body = err.error as ApiResponse<unknown>;
         const message = body?.message || err.error?.detail || 'Mã xác thực không hợp lệ hoặc đã hết hạn sau 30 phút.';
         this.errorMessage.set(message);
+      }
+    });
+  }
+
+  onResendConfirmation(): void {
+    const email = this.resendEmail().trim().toLowerCase();
+    if (!email) {
+      this.notification.error('Vui lòng nhập địa chỉ email để gửi lại liên kết kích hoạt.');
+      return;
+    }
+
+    this.resending.set(true);
+    this.resendStatus.set(null);
+    this.authService.resendConfirmation({ email }).subscribe({
+      next: (res) => {
+        this.resending.set(false);
+        const msg = res.message || 'Nếu tài khoản tồn tại và chưa xác thực, email kích hoạt mới đã được gửi.';
+        this.resendStatus.set(msg);
+        this.notification.success(msg);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.resending.set(false);
+        const body = err.error as ApiResponse<unknown> | undefined;
+        this.notification.error(body?.message || 'Không thể gửi lại email xác thực.');
       }
     });
   }

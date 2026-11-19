@@ -219,7 +219,10 @@ public sealed class GoogleLoginCommandHandler : IRequestHandler<GoogleLoginComma
             user.Email,
             user.FullName,
             user.GlobalRole.ToString(),
-            tenantId);
+            tenantId,
+            user.PhoneNumber,
+            user.PhoneVerifiedAtUtc.HasValue,
+            user.EmailVerifiedAtUtc.HasValue);
 
         _logger.LogInformation("Google OAuth login succeeded for user {UserId} ({Email})", user.Id, user.Email);
         return new LoginResponse(accessToken, refreshToken, expiresAtUtc, userDto, validMemberships);

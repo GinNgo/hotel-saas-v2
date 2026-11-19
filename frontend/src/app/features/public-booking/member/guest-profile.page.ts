@@ -14,13 +14,17 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../core/services/auth.service';
 import { GuestAccountService } from '../../../core/services/guest-account.service';
 import { AlertService } from '../../../core/services/alert.service';
+import { SocialAuthService } from '../../../core/services/social-auth.service';
+import { PublicBookingService } from '../../../core/services/public-booking.service';
 import {
   GuestMeDto,
   GuestBookingSummaryDto,
   GuestProfileResponseDto,
   LoyaltyPointLedgerItemDto,
   GuestInvoiceRecordDto,
+  SocialAccountItemDto,
 } from '../../../core/models/guest-account.model';
+import { PublicPropertyDto } from '../../../core/models/public-booking.model';
 import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-modal.component';
 
 @Component({
@@ -145,6 +149,10 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                   <span class="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                     <i class="pi pi-verified text-[11px]"></i> Đã xác thực
                   </span>
+                } @else if (profileLoaded() && !isSyntheticEmail()) {
+                  <span class="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-200 border border-amber-400/30">
+                    <i class="pi pi-exclamation-circle text-[11px]"></i> Email chưa xác thực
+                  </span>
                 }
               </div>
               <h2 class="text-xl sm:text-2xl font-extrabold text-white truncate">
@@ -190,6 +198,37 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
             >
               <i class="pi pi-plus text-xs mr-1"></i>
               <span>Cập nhật Email ngay</span>
+            </button>
+          </div>
+        } @else if (profileLoaded() && !isEmailVerified()) {
+          <div role="status" class="p-4 rounded-2xl bg-amber-50/90 border border-amber-200/90 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-amber-200/70 text-amber-800 flex items-center justify-center shrink-0">
+                <i class="pi pi-envelope text-lg"></i>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-amber-950">Email chưa xác thực</div>
+                <p class="text-[11px] text-amber-800/90 mt-0.5">
+                  Vui lòng xác thực địa chỉ email <strong>{{ user()?.email }}</strong> để bảo vệ tài khoản và nhận hóa đơn điện tử.
+                </p>
+                @if (verificationFeedback()) {
+                  <p class="text-[11px] font-semibold text-emerald-800 mt-1">{{ verificationFeedback() }}</p>
+                }
+              </div>
+            </div>
+            <button
+              type="button"
+              (click)="resendVerificationEmail()"
+              [disabled]="isResendingVerification()"
+              class="min-h-[44px] px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition-colors shrink-0 cursor-pointer disabled:opacity-50 self-start sm:self-auto inline-flex items-center gap-1.5"
+            >
+              @if (isResendingVerification()) {
+                <i class="pi pi-spin pi-spinner text-xs"></i>
+                <span>Đang gửi...</span>
+              } @else {
+                <i class="pi pi-send text-xs"></i>
+                <span>Gửi lại email xác thực</span>
+              }
             </button>
           </div>
         }
@@ -247,15 +286,15 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
 
           <div class="bg-white rounded-xl border border-slate-200/90 p-4 sm:p-5 shadow-xs">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Đặc quyền Smart Lock</span>
+              <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Đặc quyền hội viên</span>
               <div class="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
-                <i class="pi pi-key text-base"></i>
+                <i class="pi pi-shield text-base"></i>
               </div>
             </div>
             <div class="mt-2.5">
               <div class="text-lg font-extrabold text-slate-900">Giữ phòng 15 phút</div>
               <div class="text-xs text-slate-500 mt-1">
-                Cấp mã PIN tự động khi xác nhận
+                Quản lý đơn đặt phòng, đổi lịch &amp; hóa đơn VAT
               </div>
             </div>
           </div>
@@ -325,27 +364,18 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
 
                       <div class="flex-1 min-w-0 w-full space-y-2">
                         <input
-                          type="text"
+                          type="url"
                           [(ngModel)]="editAvatarUrl"
                           name="avatarUrl"
                           class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50/50"
-                          placeholder="Dán link ảnh đại diện (URL) hoặc chọn mẫu..."
+                          placeholder="Dán đường dẫn ảnh đại diện cá nhân (https://...)"
                         />
-                        <div class="flex items-center gap-1.5 flex-wrap">
-                          <span class="text-[11px] text-slate-500">Mẫu có sẵn:</span>
-                          @for (p of avatarPresets; track p.url) {
-                            <button
-                              type="button"
-                              (click)="selectAvatarPreset(p.url)"
-                              class="text-[10px] px-2 py-0.5 rounded-full border border-slate-300 hover:border-indigo-600 hover:text-indigo-700 bg-white cursor-pointer transition-colors"
-                            >
-                              {{ p.label }}
-                            </button>
-                          }
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <span class="text-[11px] text-slate-500">Để trống để dùng ảnh chữ cái viết tắt từ tên của bạn.</span>
                           @if (editAvatarUrl) {
                             <button
                               type="button"
-                              (click)="selectAvatarPreset('')"
+                              (click)="clearAvatarUrl()"
                               class="text-[10px] px-2 py-0.5 rounded-full border border-rose-200 text-rose-600 hover:bg-rose-50 cursor-pointer transition-colors"
                             >
                               Gỡ ảnh
@@ -441,7 +471,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                 @if (bookings().length === 0) {
                   <div class="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div class="text-xs text-slate-600">
-                      Bạn chưa có chuyến lưu trú nào gắn với tài khoản này. Khám phá 34+ khách sạn &amp; resort ngay!
+                      Bạn chưa có chuyến lưu trú nào gắn với tài khoản này. Khám phá các khách sạn &amp; cơ sở lưu trú ngay!
                     </div>
                     <a
                       routerLink="/booking"
@@ -590,13 +620,21 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                             Mã đặt phòng: <span class="font-mono">{{ inv.reservationCode }}</span> • {{ inv.roomName }} • {{ inv.issuedAt }}
                           </p>
                         </div>
-                        <div class="flex items-center justify-between sm:justify-end gap-3">
-                          <span class="font-mono font-extrabold text-emerald-700 text-sm">{{ inv.grandTotal | number:'1.0-0' }}₫</span>
+                        <div class="flex items-center justify-between sm:justify-end gap-2 flex-wrap">
+                          <span class="font-mono font-extrabold text-emerald-700 text-sm mr-1">{{ inv.grandTotal | number:'1.0-0' }}₫</span>
+                          <button
+                            type="button"
+                            (click)="openInvoicePreview(inv)"
+                            class="min-h-[38px] px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                          >
+                            Xem chi tiết
+                          </button>
                           <a
                             [routerLink]="['/print/invoice', inv.reservationId || inv.invoiceId]"
-                            class="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
+                            class="min-h-[38px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-xs font-bold text-indigo-700 hover:bg-indigo-100"
                           >
-                            Xem hóa đơn
+                            <i class="pi pi-print text-[11px]"></i>
+                            <span>In hóa đơn</span>
                           </a>
                         </div>
                       </div>
@@ -659,9 +697,19 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
             }
 
             @case ('loyalty') {
-              <div class="border-b border-slate-100 pb-4">
-                <h2 class="text-xl font-bold text-slate-900">Hội viên và điểm thưởng</h2>
-                <p class="text-xs text-slate-500 mt-0.5">Số dư điểm thưởng thực tế từ hệ thống sổ cái điểm</p>
+              <div class="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 class="text-xl font-bold text-slate-900">Hội viên và điểm thưởng</h2>
+                  <p class="text-xs text-slate-500 mt-0.5">Số dư điểm thưởng thực tế từ hệ thống sổ cái điểm</p>
+                </div>
+                <button
+                  type="button"
+                  (click)="openEnrollModal()"
+                  class="min-h-[44px] px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1.5 self-start sm:self-auto"
+                >
+                  <i class="pi pi-id-card text-xs"></i>
+                  <span>Đăng ký thẻ hội viên</span>
+                </button>
               </div>
 
               @if (loyaltyData(); as loyalty) {
@@ -763,6 +811,149 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                 }
               </div>
             }
+
+            @case ('security') {
+              <div class="border-b border-slate-100 pb-4">
+                <h2 class="text-xl font-bold text-slate-900">Bảo mật tài khoản &amp; Liên kết đăng nhập</h2>
+                <p class="text-xs text-slate-500 mt-0.5">Quản lý mật khẩu đăng nhập và các tài khoản liên kết Google</p>
+              </div>
+
+              <!-- 1. LIÊN KẾT TÀI KHOẢN MẠNG XÃ HỘI (GOOGLE) -->
+              <div class="space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 class="text-base font-bold text-slate-900">Tài khoản liên kết</h3>
+                    <p class="text-xs text-slate-500">Đăng nhập một chạm bằng tài khoản Google đã xác thực</p>
+                  </div>
+                  @if (!hasLinkedGoogle()) {
+                    <button
+                      type="button"
+                      (click)="linkGoogle()"
+                      [disabled]="isLinkingSocial()"
+                      class="min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold shadow-2xs transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-2 self-start sm:self-auto"
+                    >
+                      @if (isLinkingSocial()) {
+                        <i class="pi pi-spin pi-spinner text-xs"></i>
+                        <span>Đang liên kết Google...</span>
+                      } @else {
+                        <i class="pi pi-google text-rose-600 text-xs"></i>
+                        <span>Liên kết tài khoản Google</span>
+                      }
+                    </button>
+                  }
+                </div>
+
+                @if (isLoadingSocialAccounts()) {
+                  <div class="py-4 text-xs text-slate-500">
+                    <i class="pi pi-spin pi-spinner text-indigo-600 mr-1"></i>
+                    <span>Đang tải danh sách liên kết...</span>
+                  </div>
+                } @else if (socialAccounts().length === 0) {
+                  <div class="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-xs text-slate-600">
+                    Bạn chưa liên kết tài khoản mạng xã hội nào. Liên kết Google để đăng nhập nhanh và đồng bộ đặt phòng.
+                  </div>
+                } @else {
+                  <div class="space-y-2.5">
+                    @for (acc of socialAccounts(); track acc.id) {
+                      <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="space-y-0.5 min-w-0">
+                          <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">{{ acc.provider }}</span>
+                            <span class="text-xs font-bold text-slate-900 truncate">{{ acc.providerEmail }}</span>
+                          </div>
+                          <p class="text-[11px] text-slate-500">
+                            Đăng nhập gần nhất: {{ acc.lastLoginAtUtc | date:'dd/MM/yyyy HH:mm':'+0700' }}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          (click)="unlinkSocial(acc.provider)"
+                          [disabled]="unlinkingProvider() === acc.provider || (!hasLocalPassword() && socialAccounts().length <= 1)"
+                          [title]="!hasLocalPassword() && socialAccounts().length <= 1 ? 'Cần có mật khẩu hoặc phương thức khác trước khi hủy liên kết duy nhất' : 'Hủy liên kết tài khoản'"
+                          class="min-h-[44px] px-4 py-2 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 text-xs font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0 self-start sm:self-auto"
+                        >
+                          {{ unlinkingProvider() === acc.provider ? 'Đang hủy...' : 'Hủy liên kết' }}
+                        </button>
+                      </div>
+                    }
+                  </div>
+                }
+
+                @if (!hasLocalPassword() && socialAccounts().length <= 1 && socialAccounts().length > 0) {
+                  <p class="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    Tài khoản của bạn chưa có mật khẩu cục bộ, nên không thể hủy phương thức đăng nhập Google duy nhất.
+                  </p>
+                }
+              </div>
+
+              <!-- 2. ĐỔI MẬT KHẨU (CHANGE PASSWORD) -->
+              <div class="pt-6 border-t border-slate-100 space-y-4">
+                <div>
+                  <h3 class="text-base font-bold text-slate-900">Đổi mật khẩu</h3>
+                  <p class="text-xs text-slate-500">Mật khẩu mới cần tối thiểu 8 ký tự, gồm chữ hoa, chữ thường, chữ số và ký tự đặc biệt</p>
+                </div>
+
+                @if (!hasLocalPassword() && socialAccountsLoaded()) {
+                  <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
+                    Tài khoản hiện đang đăng nhập bằng Google / SMS OTP và chưa thiết lập mật khẩu cục bộ.
+                  </div>
+                } @else {
+                  <form (ngSubmit)="submitChangePassword()" class="max-w-lg space-y-3.5 bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                    <div>
+                      <label for="profile-current-password" class="block text-xs font-bold text-slate-700 mb-1">Mật khẩu hiện tại</label>
+                      <input
+                        id="profile-current-password"
+                        type="password"
+                        [(ngModel)]="currentPassword"
+                        name="currentPassword"
+                        autocomplete="current-password"
+                        required
+                        class="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label for="profile-new-password" class="block text-xs font-bold text-slate-700 mb-1">Mật khẩu mới</label>
+                      <input
+                        id="profile-new-password"
+                        type="password"
+                        [(ngModel)]="newPassword"
+                        name="newPassword"
+                        autocomplete="new-password"
+                        required
+                        minlength="8"
+                        class="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label for="profile-confirm-password" class="block text-xs font-bold text-slate-700 mb-1">Xác nhận mật khẩu mới</label>
+                      <input
+                        id="profile-confirm-password"
+                        type="password"
+                        [(ngModel)]="confirmNewPassword"
+                        name="confirmNewPassword"
+                        autocomplete="new-password"
+                        required
+                        class="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                    </div>
+
+                    @if (changePasswordError()) {
+                      <div role="alert" class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+                        {{ changePasswordError() }}
+                      </div>
+                    }
+
+                    <button
+                      type="submit"
+                      [disabled]="isChangingPassword()"
+                      class="min-h-[44px] px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                    >
+                      {{ isChangingPassword() ? 'Đang cập nhật...' : 'Cập nhật mật khẩu' }}
+                    </button>
+                  </form>
+                }
+              </div>
+            }
           }
         </section>
 
@@ -778,6 +969,172 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
         [mode]="'link'"
         (verified)="onPhoneLinked($event)"
       />
+
+      <!-- Modal Đăng ký thẻ hội viên cơ sở (POST /api/guest/memberships/enroll) -->
+      @if (showEnrollModal()) {
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="enroll-modal-title"
+          (keydown.escape)="closeEnrollModal()"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs"
+        >
+          <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div class="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
+              <div>
+                <h3 id="enroll-modal-title" class="text-base font-black text-slate-900">Đăng ký thẻ hội viên mới</h3>
+                <p class="text-xs text-slate-500">Nhận ngay 50 điểm thưởng chào mừng khi gia nhập</p>
+              </div>
+              <button
+                type="button"
+                (click)="closeEnrollModal()"
+                aria-label="Đóng hộp thoại đăng ký hội viên"
+                class="min-h-[44px] min-w-[44px] rounded-xl text-slate-400 hover:text-slate-600 flex items-center justify-center cursor-pointer"
+              >
+                <i class="pi pi-times text-xs"></i>
+              </button>
+            </div>
+
+            @if (isLoadingEnrollProperties()) {
+              <div class="py-6 text-center text-xs text-slate-500">
+                <i class="pi pi-spin pi-spinner text-indigo-600 mr-1"></i>
+                <span>Đang tải danh sách cơ sở lưu trú...</span>
+              </div>
+            } @else if (enrollProperties().length === 0) {
+              <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
+                Hiện chưa có cơ sở khả dụng hoặc bạn đã gia nhập tất cả các chuỗi hiện có.
+              </div>
+            } @else {
+              <div class="space-y-3">
+                <label for="enroll-property-select" class="block text-xs font-bold text-slate-700">Chọn cơ sở tham gia</label>
+                <select
+                  id="enroll-property-select"
+                  [ngModel]="selectedEnrollPropertyId()"
+                  (ngModelChange)="selectedEnrollPropertyId.set($event)"
+                  name="selectedEnrollPropertyId"
+                  class="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900"
+                >
+                  @for (prop of enrollProperties(); track prop.propertyId) {
+                    <option [value]="prop.propertyId">{{ prop.name }} ({{ prop.tenantBrandName }})</option>
+                  }
+                </select>
+              </div>
+            }
+
+            @if (enrollError()) {
+              <div role="alert" class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+                {{ enrollError() }}
+              </div>
+            }
+
+            <div class="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                (click)="closeEnrollModal()"
+                [disabled]="isEnrolling()"
+                class="min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 cursor-pointer"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                (click)="confirmEnrollMembership()"
+                [disabled]="isEnrolling() || !selectedEnrollPropertyId()"
+                class="min-h-[44px] px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+              >
+                {{ isEnrolling() ? 'Đang đăng ký...' : 'Đăng ký ngay (+50 điểm)' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Modal Chi tiết hóa đơn (GET /api/guest/invoices/{id}/print) -->
+      @if (selectedInvoicePrint(); as inv) {
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="invoice-preview-title"
+          (keydown.escape)="selectedInvoicePrint.set(null)"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs"
+        >
+          <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+            <div class="p-5 border-b border-slate-100 flex items-center justify-between gap-3">
+              <div>
+                <h3 id="invoice-preview-title" class="text-base font-black text-slate-900">Hóa đơn {{ inv.invoiceNumber }}</h3>
+                <p class="text-xs text-slate-500">{{ inv.propertyName }} • Mã đặt phòng {{ inv.reservationCode }}</p>
+              </div>
+              <button
+                type="button"
+                (click)="selectedInvoicePrint.set(null)"
+                aria-label="Đóng xem trước hóa đơn"
+                class="min-h-[44px] min-w-[44px] rounded-xl text-slate-400 hover:text-slate-600 flex items-center justify-center cursor-pointer"
+              >
+                <i class="pi pi-times text-xs"></i>
+              </button>
+            </div>
+            <div class="p-5 overflow-y-auto space-y-4 text-xs">
+              <div class="grid grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <div>
+                  <span class="text-slate-500 block">Phòng:</span>
+                  <strong class="text-slate-900">{{ inv.roomName }} {{ inv.roomNumber ? '(' + inv.roomNumber + ')' : '' }}</strong>
+                </div>
+                <div>
+                  <span class="text-slate-500 block">Thanh toán:</span>
+                  <strong class="text-slate-900">{{ inv.paymentMethod }} ({{ inv.status }})</strong>
+                </div>
+              </div>
+              @if (inv.lineItems && inv.lineItems.length > 0) {
+                <div class="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                  @for (line of inv.lineItems; track line.id) {
+                    <div class="p-3 flex items-center justify-between gap-2">
+                      <span>{{ line.description }} (x{{ line.quantity }})</span>
+                      <span class="font-mono font-bold">{{ line.amount | number:'1.0-0' }}₫</span>
+                    </div>
+                  }
+                </div>
+              }
+              <div class="space-y-1.5 pt-2 border-t border-slate-200">
+                <div class="flex justify-between text-slate-600">
+                  <span>Tạm tính:</span>
+                  <span class="font-mono">{{ inv.subTotal | number:'1.0-0' }}₫</span>
+                </div>
+                @if (inv.discountTotal > 0) {
+                  <div class="flex justify-between text-emerald-700">
+                    <span>Giảm giá:</span>
+                    <span class="font-mono">-{{ inv.discountTotal | number:'1.0-0' }}₫</span>
+                  </div>
+                }
+                <div class="flex justify-between text-slate-600">
+                  <span>Thuế GTGT:</span>
+                  <span class="font-mono">{{ inv.taxAmount | number:'1.0-0' }}₫</span>
+                </div>
+                <div class="flex justify-between font-black text-sm text-indigo-700 pt-1">
+                  <span>Tổng thanh toán:</span>
+                  <span class="font-mono">{{ inv.grandTotal | number:'1.0-0' }}₫</span>
+                </div>
+              </div>
+            </div>
+            <div class="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                (click)="selectedInvoicePrint.set(null)"
+                class="min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 cursor-pointer"
+              >
+                Đóng
+              </button>
+              <a
+                [routerLink]="['/print/invoice', inv.reservationId || inv.invoiceId]"
+                (click)="selectedInvoicePrint.set(null)"
+                class="min-h-[44px] inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold"
+              >
+                <i class="pi pi-print text-xs"></i>
+                <span>In hóa đơn chính thức</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      }
     </main>
   `,
 })
@@ -786,6 +1143,8 @@ export class GuestProfilePageComponent implements OnInit {
   private readonly guestAccountService = inject(GuestAccountService);
   private readonly alert = inject(AlertService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly socialAuth = inject(SocialAuthService, { optional: true });
+  private readonly publicBookingService = inject(PublicBookingService, { optional: true });
 
   readonly user = toSignal(this.auth.currentUser$, { initialValue: this.auth.currentUser });
   readonly isGuest = computed(() => ['Customer', 'Guest'].includes(this.user()?.globalRole ?? ''));
@@ -799,13 +1158,10 @@ export class GuestProfilePageComponent implements OnInit {
   readonly currentAvatarUrl = signal<string>('');
   readonly phoneNumber = signal<string>('');
   readonly isEmailVerified = signal<boolean>(false);
+  readonly profileLoaded = signal<boolean>(false);
   readonly showPhoneOtpModal = signal<boolean>(false);
-
-  readonly avatarPresets = [
-    { label: 'An Ngô Võ Tuấn', url: '/images/avatars/an-ngo-vo-tuan.png' },
-    { label: 'Doanh nhân VIP', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150' },
-    { label: 'Khách du lịch', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150' },
-  ];
+  readonly isResendingVerification = signal<boolean>(false);
+  readonly verificationFeedback = signal<string>('');
 
   readonly userInitials = computed(() => {
     const name = (this.currentFullName() || this.user()?.fullName || 'Khách').trim();
@@ -816,13 +1172,12 @@ export class GuestProfilePageComponent implements OnInit {
     return name.slice(0, 2).toUpperCase();
   });
 
-  onAvatarImgError(event: Event): void {
-    const img = event.target as HTMLImageElement;
-    img.src = 'https://ui-avatars.com/api/?name=User&background=4F46E5&color=fff';
+  onAvatarImgError(_event: Event): void {
+    this.currentAvatarUrl.set('');
   }
 
-  selectAvatarPreset(url: string): void {
-    this.editAvatarUrl = url;
+  clearAvatarUrl(): void {
+    this.editAvatarUrl = '';
   }
 
   onPhoneLinked(event: { success: boolean; phoneNumber: string }): void {
@@ -846,7 +1201,31 @@ export class GuestProfilePageComponent implements OnInit {
   readonly ledgerFilter = signal<string>('');
   readonly invoices = signal<GuestInvoiceRecordDto[]>([]);
   readonly isLoadingInvoices = signal<boolean>(false);
+  readonly selectedInvoicePrint = signal<GuestInvoiceRecordDto | null>(null);
   readonly isSavingVat = signal<boolean>(false);
+
+  readonly showEnrollModal = signal<boolean>(false);
+  readonly isLoadingEnrollProperties = signal<boolean>(false);
+  readonly enrollProperties = signal<PublicPropertyDto[]>([]);
+  readonly selectedEnrollPropertyId = signal<string>('');
+  readonly isEnrolling = signal<boolean>(false);
+  readonly enrollError = signal<string>('');
+
+  readonly socialAccounts = signal<SocialAccountItemDto[]>([]);
+  readonly hasLocalPassword = signal<boolean>(true);
+  readonly socialAccountsLoaded = signal<boolean>(false);
+  readonly isLoadingSocialAccounts = signal<boolean>(false);
+  readonly isLinkingSocial = signal<boolean>(false);
+  readonly unlinkingProvider = signal<string | null>(null);
+  readonly hasLinkedGoogle = computed(() =>
+    this.socialAccounts().some(a => a.provider.toLowerCase() === 'google')
+  );
+
+  currentPassword = '';
+  newPassword = '';
+  confirmNewPassword = '';
+  readonly isChangingPassword = signal<boolean>(false);
+  readonly changePasswordError = signal<string>('');
 
   vatCompanyName = '';
   vatTaxCode = '';
@@ -875,6 +1254,7 @@ export class GuestProfilePageComponent implements OnInit {
     { id: 'account', label: 'Tổng quan & Hồ sơ' },
     { id: 'bookings', label: 'Đặt phòng & Hóa đơn' },
     { id: 'loyalty', label: 'Ví điểm & Hội viên' },
+    { id: 'security', label: 'Bảo mật & Liên kết' },
   ];
 
   ngOnInit(): void {
@@ -883,6 +1263,7 @@ export class GuestProfilePageComponent implements OnInit {
       this.loadBookings();
       this.loadLoyalty();
       this.loadInvoices();
+      this.loadSocialAccounts();
     }
   }
 
@@ -901,6 +1282,8 @@ export class GuestProfilePageComponent implements OnInit {
       } else if (this.loyaltyLedger().length === 0) {
         this.loadLoyaltyLedger();
       }
+    } else if (tabId === 'security') {
+      this.loadSocialAccounts();
     }
   }
 
@@ -910,14 +1293,41 @@ export class GuestProfilePageComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (me: GuestMeDto) => {
+          this.profileLoaded.set(true);
           this.currentFullName.set(me.fullName);
           this.phoneNumber.set(me.phoneNumber || '');
           this.isEmailVerified.set(me.emailVerified);
           this.currentAvatarUrl.set(me.avatarUrl || this.user()?.avatarUrl || '');
         },
         error: () => {
+          this.profileLoaded.set(true);
           this.currentFullName.set(this.user()?.fullName || '');
           this.currentAvatarUrl.set(this.user()?.avatarUrl || '');
+        },
+      });
+  }
+
+  resendVerificationEmail(): void {
+    if (this.isResendingVerification() || typeof this.guestAccountService.resendVerificationEmail !== 'function') {
+      return;
+    }
+    const email = this.user()?.email;
+    this.isResendingVerification.set(true);
+    this.verificationFeedback.set('');
+
+    this.guestAccountService
+      .resendVerificationEmail(email)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.isResendingVerification.set(false);
+          const msg = res?.message || 'Đã gửi lại email xác thực. Vui lòng kiểm tra hộp thư (kể cả thư rác).';
+          this.verificationFeedback.set(msg);
+          this.alert.success(msg);
+        },
+        error: (err) => {
+          this.isResendingVerification.set(false);
+          this.alert.error(err?.error?.message || 'Không thể gửi lại email xác thực lúc này.');
         },
       });
   }
@@ -1063,6 +1473,215 @@ export class GuestProfilePageComponent implements OnInit {
       });
   }
 
+  openInvoicePreview(inv: GuestInvoiceRecordDto): void {
+    if (typeof this.guestAccountService.getInvoicePrintView === 'function') {
+      this.guestAccountService
+        .getInvoicePrintView(inv.reservationId || inv.invoiceId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (detail) => this.selectedInvoicePrint.set(detail || inv),
+          error: () => this.selectedInvoicePrint.set(inv),
+        });
+    } else {
+      this.selectedInvoicePrint.set(inv);
+    }
+  }
+
+  openEnrollModal(): void {
+    this.enrollError.set('');
+    this.selectedEnrollPropertyId.set('');
+    this.showEnrollModal.set(true);
+
+    if (!this.publicBookingService || typeof this.publicBookingService.getProperties !== 'function') {
+      this.enrollProperties.set([]);
+      return;
+    }
+
+    this.isLoadingEnrollProperties.set(true);
+    const enrolledTenantIds = new Set((this.loyaltyData()?.memberships ?? []).map(m => m.tenantId));
+
+    this.publicBookingService
+      .getProperties({ page: 1, pageSize: 50 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (props) => {
+          this.isLoadingEnrollProperties.set(false);
+          const eligible = (props || []).filter(p => !enrolledTenantIds.has(p.tenantId));
+          this.enrollProperties.set(eligible);
+          if (eligible.length > 0) {
+            this.selectedEnrollPropertyId.set(eligible[0].propertyId);
+          }
+        },
+        error: () => {
+          this.isLoadingEnrollProperties.set(false);
+          this.enrollProperties.set([]);
+        },
+      });
+  }
+
+  closeEnrollModal(): void {
+    if (this.isEnrolling()) return;
+    this.showEnrollModal.set(false);
+  }
+
+  confirmEnrollMembership(): void {
+    const propertyId = this.selectedEnrollPropertyId().trim();
+    if (!propertyId || this.isEnrolling() || typeof this.guestAccountService.enrollMembership !== 'function') {
+      return;
+    }
+
+    this.isEnrolling.set(true);
+    this.enrollError.set('');
+
+    this.guestAccountService
+      .enrollMembership(propertyId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (membership) => {
+          this.isEnrolling.set(false);
+          this.showEnrollModal.set(false);
+          this.alert.success(`Đăng ký thành viên ${membership.enrolledPropertyName} thành công!`);
+          this.loadLoyalty();
+        },
+        error: (err) => {
+          this.isEnrolling.set(false);
+          this.enrollError.set(err?.error?.message || 'Không thể đăng ký thẻ hội viên lúc này.');
+        },
+      });
+  }
+
+  loadSocialAccounts(): void {
+    if (typeof this.guestAccountService.getSocialAccounts !== 'function') {
+      return;
+    }
+    this.isLoadingSocialAccounts.set(true);
+    this.guestAccountService
+      .getSocialAccounts()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.isLoadingSocialAccounts.set(false);
+          this.socialAccountsLoaded.set(true);
+          this.hasLocalPassword.set(res.hasPassword);
+          this.socialAccounts.set(res.accounts || []);
+        },
+        error: () => {
+          this.isLoadingSocialAccounts.set(false);
+        },
+      });
+  }
+
+  async linkGoogle(): Promise<void> {
+    if (this.isLinkingSocial() || typeof this.guestAccountService.linkGoogleAccount !== 'function') {
+      return;
+    }
+    if (!this.socialAuth) {
+      this.alert.error('Chức năng liên kết Google chưa được cấu hình.');
+      return;
+    }
+
+    this.isLinkingSocial.set(true);
+    try {
+      const socialUser = await this.socialAuth.signInWithGoogle();
+      const idToken = socialUser.idToken;
+      if (!idToken) {
+        throw new Error('Không nhận được mã xác thực Google.');
+      }
+      this.guestAccountService
+        .linkGoogleAccount(idToken)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => {
+            this.isLinkingSocial.set(false);
+            this.alert.success('Liên kết tài khoản Google thành công.');
+            this.loadSocialAccounts();
+          },
+          error: (err) => {
+            this.isLinkingSocial.set(false);
+            this.alert.error(err?.error?.message || 'Không thể liên kết tài khoản Google.');
+          },
+        });
+    } catch (err) {
+      this.isLinkingSocial.set(false);
+      const msg = err instanceof Error && err.message ? err.message : 'Liên kết Google không thành công.';
+      this.alert.error(msg);
+    }
+  }
+
+  unlinkSocial(provider: string): void {
+    if (!provider || this.unlinkingProvider() || typeof this.guestAccountService.unlinkSocialAccount !== 'function') {
+      return;
+    }
+    this.unlinkingProvider.set(provider);
+    this.guestAccountService
+      .unlinkSocialAccount(provider)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.unlinkingProvider.set(null);
+          this.alert.success(res?.message || `Đã hủy liên kết ${provider}.`);
+          this.loadSocialAccounts();
+        },
+        error: (err) => {
+          this.unlinkingProvider.set(null);
+          this.alert.error(err?.error?.message || `Không thể hủy liên kết ${provider}.`);
+        },
+      });
+  }
+
+  submitChangePassword(): void {
+    if (this.isChangingPassword() || typeof this.guestAccountService.changePassword !== 'function') {
+      return;
+    }
+
+    const currentPwd = this.currentPassword;
+    const nextPwd = this.newPassword;
+    const confirmPwd = this.confirmNewPassword;
+
+    if (!currentPwd || !nextPwd) {
+      this.changePasswordError.set('Vui lòng nhập đầy đủ mật khẩu hiện tại và mật khẩu mới.');
+      return;
+    }
+    if (nextPwd !== confirmPwd) {
+      this.changePasswordError.set('Xác nhận mật khẩu mới không trùng khớp.');
+      return;
+    }
+    if (
+      nextPwd.length < 8 ||
+      !/[A-Z]/.test(nextPwd) ||
+      !/[a-z]/.test(nextPwd) ||
+      !/[0-9]/.test(nextPwd) ||
+      !/[^a-zA-Z0-9]/.test(nextPwd)
+    ) {
+      this.changePasswordError.set('Mật khẩu mới phải từ 8 ký tự, gồm chữ hoa, chữ thường, chữ số và ký tự đặc biệt.');
+      return;
+    }
+    if (nextPwd === currentPwd) {
+      this.changePasswordError.set('Mật khẩu mới phải khác mật khẩu hiện tại.');
+      return;
+    }
+
+    this.isChangingPassword.set(true);
+    this.changePasswordError.set('');
+
+    this.guestAccountService
+      .changePassword({ currentPassword: currentPwd, newPassword: nextPwd })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.isChangingPassword.set(false);
+          this.currentPassword = '';
+          this.newPassword = '';
+          this.confirmNewPassword = '';
+          this.alert.success(res?.message || 'Đổi mật khẩu thành công.');
+        },
+        error: (err) => {
+          this.isChangingPassword.set(false);
+          this.changePasswordError.set(err?.error?.message || 'Không thể đổi mật khẩu lúc này.');
+        },
+      });
+  }
+
   getStatusBadgeClass(status: string): string {
     switch (status) {
       case 'Confirmed':
@@ -1083,10 +1702,25 @@ export class GuestProfilePageComponent implements OnInit {
     this.activeTab.set('account');
     this.currentFullName.set('');
     this.currentAvatarUrl.set('');
+    this.phoneNumber.set('');
+    this.isEmailVerified.set(false);
+    this.profileLoaded.set(false);
+    this.verificationFeedback.set('');
     this.bookings.set([]);
     this.loyaltyData.set(null);
     this.loyaltyLedger.set([]);
     this.invoices.set([]);
+    this.selectedInvoicePrint.set(null);
+    this.showEnrollModal.set(false);
+    this.enrollProperties.set([]);
+    this.enrollError.set('');
+    this.socialAccounts.set([]);
+    this.socialAccountsLoaded.set(false);
+    this.hasLocalPassword.set(true);
+    this.currentPassword = '';
+    this.newPassword = '';
+    this.confirmNewPassword = '';
+    this.changePasswordError.set('');
     this.vatCompanyName = '';
     this.vatTaxCode = '';
     this.vatAddress = '';

@@ -8,13 +8,22 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using ClosedXML.Excel;
+using HotelSaas.Application.Ai.Queries.GetDynamicPricingRecommendations;
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Pricing.Services;
 using HotelSaas.Application.Properties.Commands.CreateProperty;
 using HotelSaas.Application.Properties.Commands.UpdateProperty;
+using HotelSaas.Application.Reports.DTOs;
+using HotelSaas.Application.Reports.Queries.ExportReportCsv;
+using HotelSaas.Application.Reports.Queries.ExportReportExcel;
+using HotelSaas.Application.Reports.Queries.ExportReportPdf;
+using HotelSaas.Application.Reports.Queries.ExportReservationInvoicePdf;
 using HotelSaas.Application.Reports.Queries.GetGroupAnalytics;
+using HotelSaas.Application.Reports.Queries.GetPmsKpi;
+using HotelSaas.Application.Reports.Queries.GetReportRoomTypes;
+using HotelSaas.Application.Reports.Queries.GetRevenueSummary;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using HotelSaas.Infrastructure.Services;
@@ -251,12 +260,22 @@ public sealed class ReportsAndAiSecurityTests
 
     private sealed class StubSender : ISender
     {
+        private readonly Func<object, CancellationToken, Task<object?>>? _responder;
         public List<object> SentRequests { get; } = new();
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        public StubSender(Func<object, CancellationToken, Task<object?>>? responder = null)
+        {
+            _responder = responder;
+        }
+
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             SentRequests.Add(request);
-            return Task.FromResult(default(TResponse)!);
+            if (_responder != null)
+            {
+                return (TResponse)(await _responder(request, cancellationToken))!;
+            }
+            return default!;
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest
@@ -265,10 +284,14 @@ public sealed class ReportsAndAiSecurityTests
             return Task.CompletedTask;
         }
 
-        public Task<object?> Send(object request, CancellationToken cancellationToken = default)
+        public async Task<object?> Send(object request, CancellationToken cancellationToken = default)
         {
             SentRequests.Add(request);
-            return Task.FromResult<object?>(null);
+            if (_responder != null)
+            {
+                return await _responder(request, cancellationToken);
+            }
+            return null;
         }
 
         public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
@@ -276,6 +299,41 @@ public sealed class ReportsAndAiSecurityTests
 
         public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
+    }
+
+    private static ReportsController CreateReportsController(
+        FakeReportsDbContext db,
+        CurrentUserContext userCtx,
+        IReportExportService exportService)
+    {
+        var tenantSvc = new CurrentTenantService { TenantId = userCtx.TenantId };
+        var propSvc = new CurrentPropertyService { PropertyId = userCtx.PropertyId, IsTenantWide = userCtx.IsTenantWide };
+        var sender = new StubSender(async (req, ct) => req switch
+        {
+            GetGroupAnalyticsQuery q => await new GetGroupAnalyticsQueryHandler(db, tenantSvc, propSvc).Handle(q, ct),
+            GetRevenueSummaryQuery q => await new GetRevenueSummaryQueryHandler(db, userCtx).Handle(q, ct),
+            GetPmsKpiQuery q => await new GetPmsKpiQueryHandler(db, userCtx).Handle(q, ct),
+            GetReportRoomTypesQuery q => await new GetReportRoomTypesQueryHandler(db, userCtx).Handle(q, ct),
+            ExportReportCsvQuery q => await new ExportReportCsvQueryHandler(db, userCtx).Handle(q, ct),
+            ExportReportExcelQuery q => await new ExportReportExcelQueryHandler(userCtx, exportService).Handle(q, ct),
+            ExportReportPdfQuery q => await new ExportReportPdfQueryHandler(userCtx, exportService).Handle(q, ct),
+            ExportReservationInvoicePdfQuery q => await new ExportReservationInvoicePdfQueryHandler(userCtx, exportService).Handle(q, ct),
+            _ => throw new NotSupportedException($"Unexpected request: {req.GetType().Name}")
+        });
+        return new ReportsController(sender);
+    }
+
+    private static AiController CreateAiController(
+        FakeReportsDbContext db,
+        CurrentUserContext userCtx,
+        IDynamicPricingService pricingSvc)
+    {
+        var sender = new StubSender(async (req, ct) => req switch
+        {
+            GetDynamicPricingRecommendationsQuery q => await new GetDynamicPricingRecommendationsQueryHandler(db, userCtx, pricingSvc).Handle(q, ct),
+            _ => throw new NotSupportedException($"Unexpected request: {req.GetType().Name}")
+        });
+        return new AiController(sender);
     }
 
     private sealed class StubTenantService : ICurrentTenantService
@@ -457,7 +515,7 @@ public sealed class ReportsAndAiSecurityTests
 
         var userCtx = CreateUserContext(tenantId, propId, isTenantWide: false);
         var exportService = new ReportExportService(db, userCtx);
-        var controller = new ReportsController(db, userCtx, new StubSender(), exportService);
+        var controller = CreateReportsController(db, userCtx, exportService);
 
         var actionResult = await controller.GetRevenueSummary(dayBefore, dayAfter, null, null, CancellationToken.None);
         var ok = Assert.IsType<OkObjectResult>(actionResult);
@@ -558,7 +616,7 @@ public sealed class ReportsAndAiSecurityTests
             });
 
         var userCtx = CreateUserContext(tenantId, propId, isTenantWide: false);
-        var controller = new ReportsController(db, userCtx, new StubSender(), new ReportExportService(db, userCtx));
+        var controller = CreateReportsController(db, userCtx, new ReportExportService(db, userCtx));
 
         var result = await controller.GetPmsKpi(targetDay, targetDay, null, null, CancellationToken.None);
         var ok = Assert.IsType<OkObjectResult>(result);
@@ -638,7 +696,7 @@ public sealed class ReportsAndAiSecurityTests
 
         var branchAUser = CreateUserContext(tenantId, propA.Id, isTenantWide: false);
         var exportSvc = new ReportExportService(db, branchAUser);
-        var controller = new ReportsController(db, branchAUser, new StubSender(), exportSvc);
+        var controller = CreateReportsController(db, branchAUser, exportSvc);
 
         // Passing propertyId: null MUST force propA scope (no chain-wide leak)
         var summaryOk = Assert.IsType<OkObjectResult>(
@@ -690,7 +748,7 @@ public sealed class ReportsAndAiSecurityTests
 
         // Non-tenant-wide user without PropertyId MUST fail closed
         var missingPropUser = CreateUserContext(tenantId, null, isTenantWide: false);
-        var missingPropController = new ReportsController(db, missingPropUser, new StubSender(), new ReportExportService(db, missingPropUser));
+        var missingPropController = CreateReportsController(db, missingPropUser, new ReportExportService(db, missingPropUser));
         var exMissing = await Assert.ThrowsAsync<ForbiddenException>(() =>
             missingPropController.GetRevenueSummary(day, day, null, null, CancellationToken.None));
         Assert.Equal("ERR_PROPERTY_REQUIRED", exMissing.ErrorCode);
@@ -889,13 +947,13 @@ public sealed class ReportsAndAiSecurityTests
 
         // 1. Unauthenticated caller -> 401 Unauthorized
         var anonCtx = CreateUserContext(null, null, isTenantWide: false, authenticated: false);
-        var anonController = new AiController(db, anonCtx, new StubSender(), LocationService, new StubDynamicPricingService());
+        var anonController = CreateAiController(db, anonCtx, new StubDynamicPricingService());
         var anonRes = await anonController.GetDynamicPricingRecommendations(propA.Id, null, CancellationToken.None);
         Assert.IsType<UnauthorizedObjectResult>(anonRes);
 
         // 2. Wrong-branch single-branch staff -> 403 Forbid
         var branchACtx = CreateUserContext(tenantId, propA.Id, isTenantWide: false, authenticated: true);
-        var branchAController = new AiController(db, branchACtx, new StubSender(), LocationService, new StubDynamicPricingService());
+        var branchAController = CreateAiController(db, branchACtx, new StubDynamicPricingService());
         var wrongBranchRes = await branchAController.GetDynamicPricingRecommendations(propB.Id, null, CancellationToken.None);
         Assert.IsType<ForbidResult>(wrongBranchRes);
 

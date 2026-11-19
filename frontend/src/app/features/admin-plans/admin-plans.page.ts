@@ -134,6 +134,10 @@ import { AdminSubscriptionPlanDto, CreateSubscriptionPlanRequest, UpdateSubscrip
                 <div class="text-[11px] text-slate-500 mt-1">
                   Gói năm: <span class="font-semibold text-slate-700">{{ plan.yearlyPrice | number:'1.0-0' }} ₫</span> (Tiết kiệm ~2 tháng)
                 </div>
+                <div class="mt-2 pt-2 border-t border-slate-200/70 flex items-center justify-between text-[11px] text-slate-600">
+                  <span>Tenant đang dùng: <strong class="text-indigo-700">{{ plan.activeTenantsCount ?? 0 }}</strong></span>
+                  <span>MRR ước tính: <strong class="text-emerald-700">{{ (plan.estimatedMonthlyRevenue ?? 0) | number:'1.0-0' }} ₫</strong></span>
+                </div>
               </div>
 
               <!-- Quotas -->
@@ -189,7 +193,7 @@ import { AdminSubscriptionPlanDto, CreateSubscriptionPlanRequest, UpdateSubscrip
               <button
                 type="button"
                 (click)="toggleActive(plan)"
-                class="text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors cursor-pointer"
+                class="min-h-[44px] text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors cursor-pointer"
                 [class.border-slate-200]="plan.isActive"
                 [class.text-slate-600]="plan.isActive"
                 [class.hover:bg-slate-50]="plan.isActive"
@@ -203,7 +207,7 @@ import { AdminSubscriptionPlanDto, CreateSubscriptionPlanRequest, UpdateSubscrip
               <button
                 type="button"
                 (click)="openEditModal(plan)"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors cursor-pointer"
+                class="min-h-[44px] inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors cursor-pointer"
               >
                 <i class="pi pi-pencil text-[11px]"></i> Sửa cấu hình
               </button>

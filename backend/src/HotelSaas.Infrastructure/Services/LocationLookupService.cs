@@ -583,22 +583,22 @@ public sealed class LocationLookupService : ILocationLookupService
     {
         var zones = new List<TouristZoneDto>
         {
-            new("da-lat", "Đà Lạt", "68", "Thành phố ngàn hoa với khí hậu se lạnh và cảnh quan đồi thông thơ mộng", "https://images.unsplash.com/photo-1579202673506-ca3ce28943ef?w=800", 11.9404, 108.4452, null, "DL"),
-            new("vung-tau", "Vũng Tàu", "79", "Thành phố biển sôi động với bãi tắm dài và hải sản tươi ngon", "https://images.unsplash.com/photo-1590523741831-ab7e8b8f9c7f?w=800", 10.3460, 107.0843, null, "VT"),
-            new("nha-trang", "Nha Trang", "56", "Vịnh biển đẹp bậc nhất Việt Nam với dải cát trắng và đảo san hô", "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800", 12.2388, 109.1967, null, "NT"),
-            new("da-nang", "Đà Nẵng", "48", "Thành phố đáng sống với biển Mỹ Khê, cầu Rồng và núi Ngũ Hành Sơn", "https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=800", 16.0544, 108.2022, null, "DN"),
-            new("hoi-an", "Hội An", "48", "Đô thị cổ trầm mặc với đèn lồng lung linh và di sản UNESCO", "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800", 15.8801, 108.3263, null, "HA"),
-            new("phu-quoc", "Phú Quốc", "91", "Đặc khu đảo ngọc thiên đường với biển xanh ngọc bích, hoàng hôn Bãi Trường", "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800", 10.2289, 103.9572, null, "PQ"),
-            new("sa-pa", "Sa Pa", "15", "Xứ sở sương mù Tây Bắc với ruộng bậc thang và đỉnh Fansipan hùng vĩ", "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800", 22.3354, 103.8427, null, "SP"),
-            new("ha-noi-pho-co", "Hà Nội - Phố Cổ & Hồ Gươm", "01", "Trái tim nghìn năm văn hiến, phố cổ 36 phố phường và ẩm thực nức tiếng", "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=800", 21.0285, 105.8542, null, "HN"),
-            new("quan-1-tphcm", "TP. Hồ Chí Minh - Trung Tâm Sài Gòn", "79", "Trung tâm tài chính, mua sắm và giải trí sôi động ngày đêm", "https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=800", 10.7769, 106.7009, null, "SG"),
-            new("ha-long", "Hạ Long", "22", "Kỳ quan thiên nhiên thế giới với hàng nghìn đảo đá vôi kỳ vĩ", "https://images.unsplash.com/photo-1528127269322-539801943592?w=800", 20.9500, 107.0733, null, "HL"),
-            new("phan-thiet-mui-ne", "Phan Thiết - Mũi Né", "68", "Thủ phủ resort với đồi cát bay, làng chài và biển xanh nắng vàng", "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800", 10.9333, 108.1000, null, "PT"),
-            new("quy-nhon", "Quy Nhơn", "52", "Vẻ đẹp hoang sơ tuyệt mỹ của Kỳ Co, Eo Gió và biển trong vắt", "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800", 13.7830, 109.2197, null, "QN"),
-            new("ha-giang", "Hà Giang - Cao nguyên đá Đồng Văn", "08", "Miền cực Bắc hùng vĩ với đèo Mã Pí Lèng, sông Nho Quế và Cổng Trời Quản Bạ", "https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=800", 23.0784, 105.0135, null, "HG"),
-            new("con-dao", "Đặc khu Côn Đảo", "79", "Quần đảo sinh thái biển nguyên sơ, bãi Đầm Trầu và di tích lịch sử linh thiêng", "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800", 8.6833, 106.6000, null, "CD"),
-            new("phu-yen", "Phú Yên - Gành Đá Đĩa & Tuy Hòa", "66", "Xứ sở hoa vàng cỏ xanh với Gành Đá Đĩa kỳ thú và Bãi Xép hoang sơ", "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800", 13.3469, 109.2939, null, "PY"),
-            new("mang-den", "Măng Đen - Rừng thông đại ngàn", "51", "Cao nguyên khí hậu ôn hòa giữa đại ngàn thông xanh và thác Pa Sỹ", "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=800", 14.6042, 108.2845, null, "MD")
+            new("da-lat", "Đà Lạt", "68", "Thành phố ngàn hoa với khí hậu se lạnh và cảnh quan đồi thông thơ mộng", null, 11.9404, 108.4452, null, "DL"),
+            new("vung-tau", "Vũng Tàu", "79", "Thành phố biển sôi động với bãi tắm dài và hải sản tươi ngon", null, 10.3460, 107.0843, null, "VT"),
+            new("nha-trang", "Nha Trang", "56", "Vịnh biển đẹp bậc nhất Việt Nam với dải cát trắng và đảo san hô", null, 12.2388, 109.1967, null, "NT"),
+            new("da-nang", "Đà Nẵng", "48", "Thành phố đáng sống với biển Mỹ Khê, cầu Rồng và núi Ngũ Hành Sơn", null, 16.0544, 108.2022, null, "DN"),
+            new("hoi-an", "Hội An", "48", "Đô thị cổ trầm mặc với đèn lồng lung linh và di sản UNESCO", null, 15.8801, 108.3263, null, "HA"),
+            new("phu-quoc", "Phú Quốc", "91", "Đặc khu đảo ngọc thiên đường với biển xanh ngọc bích, hoàng hôn Bãi Trường", null, 10.2289, 103.9572, null, "PQ"),
+            new("sa-pa", "Sa Pa", "15", "Xứ sở sương mù Tây Bắc với ruộng bậc thang và đỉnh Fansipan hùng vĩ", null, 22.3354, 103.8427, null, "SP"),
+            new("ha-noi-pho-co", "Hà Nội - Phố Cổ & Hồ Gươm", "01", "Trái tim nghìn năm văn hiến, phố cổ 36 phố phường và ẩm thực nức tiếng", null, 21.0285, 105.8542, null, "HN"),
+            new("quan-1-tphcm", "TP. Hồ Chí Minh - Trung Tâm Sài Gòn", "79", "Trung tâm tài chính, mua sắm và giải trí sôi động ngày đêm", null, 10.7769, 106.7009, null, "SG"),
+            new("ha-long", "Hạ Long", "22", "Kỳ quan thiên nhiên thế giới với hàng nghìn đảo đá vôi kỳ vĩ", null, 20.9500, 107.0733, null, "HL"),
+            new("phan-thiet-mui-ne", "Phan Thiết - Mũi Né", "68", "Thủ phủ resort với đồi cát bay, làng chài và biển xanh nắng vàng", null, 10.9333, 108.1000, null, "PT"),
+            new("quy-nhon", "Quy Nhơn", "52", "Vẻ đẹp hoang sơ tuyệt mỹ của Kỳ Co, Eo Gió và biển trong vắt", null, 13.7830, 109.2197, null, "QN"),
+            new("ha-giang", "Hà Giang - Cao nguyên đá Đồng Văn", "08", "Miền cực Bắc hùng vĩ với đèo Mã Pí Lèng, sông Nho Quế và Cổng Trời Quản Bạ", null, 23.0784, 105.0135, null, "HG"),
+            new("con-dao", "Đặc khu Côn Đảo", "79", "Quần đảo sinh thái biển nguyên sơ, bãi Đầm Trầu và di tích lịch sử linh thiêng", null, 8.6833, 106.6000, null, "CD"),
+            new("phu-yen", "Phú Yên - Gành Đá Đĩa & Tuy Hòa", "66", "Xứ sở hoa vàng cỏ xanh với Gành Đá Đĩa kỳ thú và Bãi Xép hoang sơ", null, 13.3469, 109.2939, null, "PY"),
+            new("mang-den", "Măng Đen - Rừng thông đại ngàn", "51", "Cao nguyên khí hậu ôn hòa giữa đại ngàn thông xanh và thác Pa Sỹ", null, 14.6042, 108.2845, null, "MD")
         };
 
         foreach (var z in zones)

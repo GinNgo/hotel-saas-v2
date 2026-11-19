@@ -383,7 +383,14 @@
 
 ## Wave 3 — Cổng Platform Governance, Trải Nghiệm Khách Hàng & Clean Architecture (Gate G3)
 
-### `T019` — Xây Dựng Platform Tenant Lifecycle, Duyệt `IsPublished`, Platform Overview & Tách Menu SuperAdmin
+> **Trạng thái kiểm định nhánh `feature/wave3-governance-guest-experience` (2026-11-19):**
+> - **Backend Build:** `dotnet build backend/HotelSaas.slnx --verbosity minimal` — **0 Warnings, 0 Errors**.
+> - **Backend Non-DB Unit/Controller Suites:** `HotelSaas.Domain.Tests` (**1/1**), `HotelSaas.WebApi.Tests` non-DB (**100/100**, loại trừ 9 class `[Collection("RealDatabaseTests")]`), `HotelSaas.Application.Tests` non-DB (**434/434**, loại trừ 26 class `[Collection("RealDatabaseTests")]` + `NotificationHubSecurityTests` do PostgreSQL local `127.0.0.1:5435` đang offline).
+> - **Frontend Build & Unit Tests:** `npm --prefix frontend run build` (**0 Errors**), `npm --prefix frontend test -- --watch=false` (**53/53 files, 682/682 tests passed**).
+> - **Clean Architecture & Hygiene (`T026` & `T025`):** `0` Controller inject `IApplicationDbContext`, `91/91` Commands có `AbstractValidator<T>`, `0` URL `images.unsplash.com` trong `backend/src` & `frontend/src`, `git diff --check` exit `0`.
+> - **Ghi chú kỹ thuật (`T026`):** `IApplicationDbContext` giữ default `NotImplementedException` trên 7 DbSet mở rộng để tương thích 13 stub unit test cũ; `ReservationConfiguration` giữ composite cross-scope FK theo `P1B01A_MigrationPlanAndFixtureTests`.
+
+### `T019` — Xây Dựng Platform Tenant Lifecycle, Duyệt `IsPublished`, Platform Overview & Tách Menu SuperAdmin `[COMPLETED — Verified on feature/wave3-governance-guest-experience]`
 - **Gap Refs:** `GAP-C04`, `GAP-C05`, `GAP-C12`, `GAP-C22`, `GAP-C23` | **Owner Role:** `backend` + `frontend`
 - **Dependencies:** `T011`, `T018`
 - **Allowed Files:**
@@ -405,7 +412,7 @@
   npm --prefix frontend run build
   ```
 
-### `T020` — Triển Khai `SupportAccessGrant` (`SDD-05 D24`), VNPay SaaS Billing & `ISubscriptionQuotaGuard`
+### `T020` — Triển Khai `SupportAccessGrant` (`SDD-05 D24`), VNPay SaaS Billing & `ISubscriptionQuotaGuard` `[COMPLETED — Verified on feature/wave3-governance-guest-experience]`
 - **Gap Refs:** `GAP-B18`, `GAP-C08`, `GAP-C11`, `ENT-D07`, `ENT-D13` | **Owner Role:** `database` + `backend` + `frontend`
 - **Dependencies:** `T019`
 - **Allowed Files:**
@@ -430,7 +437,7 @@
   npm --prefix frontend run build
   ```
 
-### `T021` — Kích Hoạt `SystemBanner` & `NotificationsController` REST Persistence (`SDD-06 #2.11`)
+### `T021` — Kích Hoạt `SystemBanner` & `NotificationsController` REST Persistence (`SDD-06 #2.11`) `[COMPLETED — Verified on feature/wave3-governance-guest-experience]`
 - **Gap Refs:** `ENT-D06`, `ENT-D08` | **Owner Role:** `backend` + `frontend`
 - **Dependencies:** `T001` (`G0-05`)
 - **Allowed Files:**
@@ -450,7 +457,7 @@
   npm --prefix frontend run build
   ```
 
-### `T022` — Hoàn Thiện Chain HQ Context Persistence (F5), EmptyStates, `PropertyName` & Audit Log Search
+### `T022` — Hoàn Thiện Chain HQ Context Persistence (F5), EmptyStates, `PropertyName` & Audit Log Search `[COMPLETED — Verified on feature/wave3-governance-guest-experience]`
 - **Gap Refs:** `GAP-C16`, `GAP-C17`, `GAP-C21`, `GAP-C25` | **Owner Role:** `backend` + `frontend`
 - **Dependencies:** `T019`
 - **Allowed Files:**
@@ -472,7 +479,7 @@
   npm --prefix frontend run build
   ```
 
-### `T023` — Hoàn Thiện Auth (`Forgot/Reset/ChangePassword`, Resend Email, Social Link) & Staff Invite Token
+### `T023` — Hoàn Thiện Auth (`Forgot/Reset/ChangePassword`, Resend Email, Social Link) & Staff Invite Token `[COMPLETED — Verified on feature/wave3-governance-guest-experience]`
 - **Gap Refs:** `GAP-A09`, `GAP-A18`, `GAP-B19`, `GAP-A23`, `ENT-D10` | **Owner Role:** `backend` + `frontend`
 - **Dependencies:** `T002`, `T006`, `T020` (tuần tự cho `CreateStaffMemberCommand.cs`)
 - **Allowed Files:**
@@ -497,7 +504,7 @@
   npm --prefix frontend run build
   ```
 
-### `T024` — Nối 5 API Guest Portal, Đổi Điểm/Promo tại Checkout, Smart Lock M5 Scope & Đổi Lịch Đặt Phòng
+### `T024` — Nối 5 API Guest Portal, Đổi Điểm/Promo tại Checkout, Smart Lock M5 Scope & Đổi Lịch Đặt Phòng `[COMPLETED — Verified on feature/wave3-governance-guest-experience]`
 - **Gap Refs:** `GAP-A14`, `GAP-A15`, `GAP-A16`, `GAP-A17`, `GAP-A18`, `GAP-A23`, `GAP-A24`, `GAP-B16`, `ENT-D12` | **Owner Role:** `backend` + `frontend`
 - **Dependencies:** `T004`, `T008`, `T014`, `T023` (tuần tự cho `LoginCommandHandler.cs`)
 - **Allowed Files:**
@@ -519,7 +526,7 @@
   npm --prefix frontend run build
   ```
 
-### `T025` — Trung Thực Dữ Liệu Discovery/Detail, Chuẩn Hóa 34 Tỉnh 2 Cấp (`G0-01`), Bulk Search, Multi-Pin Map & AI Concierge
+### `T025` — Trung Thực Dữ Liệu Discovery/Detail, Chuẩn Hóa 34 Tỉnh 2 Cấp (`G0-01`), Bulk Search, Multi-Pin Map & AI Concierge `[COMPLETED — Verified on feature/wave3-governance-guest-experience]`
 - **34-Province 2-Tier Deliverable (`G0-01`):** `[COMPLETED — Verified on feature/wave1-p0-and-34provinces-2cap]` (`DMTinhThanh_2Cap.csv` 34 tỉnh/TP, `DMXaPhuong_2Cap.csv` 10,060 phường/xã + 13 đặc khu + 0 thị trấn, `LocationLookupService` alias 63->34, `GetPublicPropertiesQuery`, `RealData34ProvincesSeeder`, `vietnam-provinces.data.ts`, `destination-suggestions.util.ts`, `popular-destinations.component.ts`, `partner-register.page.ts`, `properties.page.ts`, `booking-filter-bar.component.ts`, `google-map-picker.component.ts`; Discovery/Detail media/rating & AI overflow remain for Wave 3).
 - **Gap Refs:** `GAP-A10`–`GAP-A13`, `GAP-A19`–`GAP-A21`, `GAP-B10` | **Owner Role:** `backend` + `frontend`
 - **Dependencies:** `T016`, `T024` (tuần tự cho `PublicController.cs` & `AiController.cs`)
@@ -547,7 +554,7 @@
   npm --prefix frontend run build
   ```
 
-### `T026` — Chuẩn Hóa Clean Architecture: Tách 6 Fat Controllers, Bổ Sung 27 Validators & DB Indexes
+### `T026` — Chuẩn Hóa Clean Architecture: Tách 6 Fat Controllers, Bổ Sung 27 Validators & DB Indexes `[COMPLETED — Verified on feature/wave3-governance-guest-experience]`
 - **Gap Refs:** `GAP-C13`, `GAP-C14`, `GAP-C19`, `GAP-C23`, `GAP-C24` | **Owner Role:** `backend` + `database`
 - **Dependencies:** `T005`, `T018`, `T019`, `T020`, `T021`, `T022`, `T025`
 - **Allowed Files:**

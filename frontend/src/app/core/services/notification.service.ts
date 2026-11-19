@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
@@ -6,6 +6,7 @@ import { AlertService } from './alert.service';
 import { TokenStorageService } from './token-storage.service';
 import { SignalRNotificationTransport } from './signalr-notification.transport';
 import {
+  BackendDomainNotificationType,
   NotificationItem,
   REALTIME_TOAST_DURATION_MS,
   RealtimeConnectionState,
@@ -13,6 +14,29 @@ import {
   RealtimeNotificationTransport,
   normalizeNotificationEventType
 } from '../../shared/components/notification-bell/notification-bell.model';
+
+export interface PersistedNotificationDto {
+  id: string;
+  tenantId: string;
+  userId: string;
+  type: number | string;
+  typeName: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  readAtUtc?: string | null;
+  data?: string | null;
+  relatedEntityId?: string | null;
+  relatedEntityType?: string | null;
+  createdAtUtc: string;
+}
+
+export interface NotificationPagedResponseDto {
+  items?: PersistedNotificationDto[];
+  totalCount?: number;
+  page?: number;
+  pageSize?: number;
+}
 
 export interface ReceiveNotificationOptions {
   /** Nếu `true`, chỉ nạp vào danh sách chuông mà không bật Toast popup hoặc phát âm thanh */
@@ -44,6 +68,11 @@ export class NotificationService {
   /** Danh sách thông báo thuộc chi nhánh hiện hành */
   readonly notifications = signal<readonly NotificationItem[]>([]);
 
+  /** Số lượng thông báo chưa đọc hiện hành */
+  readonly unreadCount = computed(() =>
+    this.notifications().reduce((sum, item) => sum + (item.isRead ? 0 : 1), 0)
+  );
+
   /** Ngữ cảnh Tenant & Property đang hoạt động */
   readonly activeTenantId = signal<string | null>(null);
   readonly activePropertyId = signal<string | null>(null);
@@ -62,6 +91,7 @@ export class NotificationService {
   readonly isSoundEnabled = signal<boolean>(true);
 
   private readonly seenNotificationIds = new Set<string>();
+  private readonly restNotificationIds = new Set<string>();
   private transport: RealtimeNotificationTransport | null = null;
   private unsubscribeTransportEvent: (() => void) | null = null;
   private unsubscribeTransportState: (() => void) | null = null;
@@ -71,6 +101,7 @@ export class NotificationService {
   private liveMonitorEnabled = false;
   private persistenceEnabled = false;
   private realtimeSignalREnabled = false;
+  private restPersistenceAvailable = false;
 
   private static readonly RECONNECT_DELAYS_MS = [1000, 2000, 5000, 10000];
   private static readonly MAX_PERSISTED_NOTIFICATIONS = 50;
@@ -216,7 +247,9 @@ export class NotificationService {
       void previousTransport.disconnect().catch(() => {});
     }
     this.transport = transport;
-    this.canMarkAsRead.set(Boolean(transport?.markAsRead || transport?.markAllAsRead));
+    this.canMarkAsRead.set(
+      Boolean(transport?.markAsRead || transport?.markAllAsRead || (this.http && this.restPersistenceAvailable))
+    );
 
     if (!transport) {
       this.liveMonitorEnabled = false;
@@ -277,6 +310,7 @@ export class NotificationService {
       this.clearReconnectTimer();
       this.reconnectAttempts = 0;
       this.seenNotificationIds.clear();
+      this.restNotificationIds.clear();
       this.notifications.set([]);
       this.errorMessage.set(null);
 
@@ -292,6 +326,10 @@ export class NotificationService {
     if (!normTenant || !normProperty) {
       this.connectionState.set(this.transport ? 'disconnected' : 'unconfigured');
       return;
+    }
+
+    if (contextChanged && this.http) {
+      void this.hydrateRestNotifications(normTenant, normProperty);
     }
 
     if (contextChanged && this.persistenceEnabled) {
@@ -320,6 +358,9 @@ export class NotificationService {
     this.activeTenantId.set(null);
     this.activePropertyId.set(null);
     this.seenNotificationIds.clear();
+    this.restNotificationIds.clear();
+    this.restPersistenceAvailable = false;
+    this.canMarkAsRead.set(Boolean(this.transport?.markAsRead || this.transport?.markAllAsRead));
     this.notifications.set([]);
     this.errorMessage.set(null);
     this.loading.set(false);
@@ -489,50 +530,194 @@ export class NotificationService {
   }
 
   /**
-   * Yêu cầu đánh dấu 1 thông báo đã đọc qua transport.
+   * Yêu cầu đánh dấu 1 thông báo đã đọc qua REST backend và/hoặc transport.
    * Chỉ cập nhật `isRead = true` khi xác nhận thành công.
    */
   async markAsRead(notificationId: string): Promise<boolean> {
-    if (!this.transport?.markAsRead || !this.canMarkAsRead()) {
+    if (!this.canMarkAsRead()) {
       return false;
     }
 
-    try {
-      const confirmed = await this.transport.markAsRead(notificationId);
-      if (confirmed) {
-        this.notifications.update(items =>
-          items.map(item => (item.id === notificationId ? { ...item, isRead: true } : item))
+    const isRestPersisted = this.restNotificationIds.has(notificationId);
+    let confirmed = false;
+
+    if (isRestPersisted && this.http) {
+      try {
+        await firstValueFrom(
+          this.http.patch(`${environment.apiUrl}/notifications/${notificationId}/read`, {})
         );
-        this.persistNotificationsToStorage();
-        return true;
+        confirmed = true;
+      } catch {
+        return false;
       }
-      return false;
-    } catch {
-      return false;
     }
+
+    if (this.transport?.markAsRead) {
+      try {
+        const transportConfirmed = await this.transport.markAsRead(notificationId);
+        if (!isRestPersisted) {
+          confirmed = transportConfirmed;
+        }
+      } catch {
+        if (!isRestPersisted) {
+          return false;
+        }
+      }
+    }
+
+    if (confirmed) {
+      this.notifications.update(items =>
+        items.map(item => (item.id === notificationId ? { ...item, isRead: true } : item))
+      );
+      this.persistNotificationsToStorage();
+      return true;
+    }
+
+    return false;
   }
 
   /**
-   * Yêu cầu đánh dấu tất cả thông báo trong chi nhánh hiện hành là đã đọc qua transport.
+   * Yêu cầu đánh dấu tất cả thông báo là đã đọc qua REST backend và/hoặc transport.
    * Chỉ cập nhật `isRead = true` khi xác nhận thành công.
    */
   async markAllAsRead(): Promise<boolean> {
     const tenantId = this.activeTenantId();
     const propertyId = this.activePropertyId();
-    if (!tenantId || !propertyId || !this.transport?.markAllAsRead || !this.canMarkAsRead()) {
+    if (!tenantId || !propertyId || !this.canMarkAsRead()) {
       return false;
     }
 
-    try {
-      const confirmed = await this.transport.markAllAsRead({ tenantId, propertyId });
-      if (confirmed) {
-        this.notifications.update(items => items.map(item => ({ ...item, isRead: true })));
-        this.persistNotificationsToStorage();
-        return true;
+    let confirmed = false;
+
+    if (this.http && this.restPersistenceAvailable) {
+      try {
+        await firstValueFrom(
+          this.http.post(`${environment.apiUrl}/notifications/read-all`, {})
+        );
+        confirmed = true;
+      } catch {
+        if (!this.transport?.markAllAsRead) {
+          return false;
+        }
       }
+    }
+
+    if (this.transport?.markAllAsRead) {
+      try {
+        const transportConfirmed = await this.transport.markAllAsRead({ tenantId, propertyId });
+        confirmed = confirmed || transportConfirmed;
+      } catch {
+        if (!confirmed) {
+          return false;
+        }
+      }
+    }
+
+    if (confirmed) {
+      this.notifications.update(items => items.map(item => ({ ...item, isRead: true })));
+      this.persistNotificationsToStorage();
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Xóa một thông báo đã lưu trên backend cho người dùng hiện tại.
+   */
+  async deleteNotification(notificationId: string): Promise<boolean> {
+    if (!this.http || !this.restNotificationIds.has(notificationId)) {
       return false;
+    }
+    try {
+      await firstValueFrom(
+        this.http.delete(`${environment.apiUrl}/notifications/${notificationId}`)
+      );
+      this.restNotificationIds.delete(notificationId);
+      this.notifications.update(items => items.filter(i => i.id !== notificationId));
+      this.persistNotificationsToStorage();
+      return true;
     } catch {
       return false;
+    }
+  }
+
+  private async hydrateRestNotifications(tenantId: string, propertyId: string): Promise<void> {
+    if (!this.http || !tenantId || !propertyId) return;
+
+    try {
+      const params = new HttpParams().set('page', '1').set('pageSize', '30');
+      const res = await firstValueFrom(
+        this.http.get<NotificationPagedResponseDto | { data?: NotificationPagedResponseDto }>(
+          `${environment.apiUrl}/notifications`,
+          { params }
+        )
+      ).catch(() => null);
+
+      if (!res || this.activeTenantId() !== tenantId || this.activePropertyId() !== propertyId) {
+        return;
+      }
+
+      const payload = 'data' in res && res.data ? res.data : (res as NotificationPagedResponseDto);
+      if (!Array.isArray(payload.items)) {
+        return;
+      }
+
+      this.restPersistenceAvailable = true;
+      this.canMarkAsRead.set(true);
+
+      const ordered = [...payload.items].reverse();
+      for (const dto of ordered) {
+        if (!dto?.id) continue;
+        this.restNotificationIds.add(dto.id);
+        this.receiveRealtimeNotification(
+          {
+            id: dto.id,
+            tenantId: dto.tenantId || tenantId,
+            propertyId,
+            type: this.mapBackendNotificationType(dto.typeName || dto.type),
+            title: dto.title,
+            message: dto.message,
+            createdAtUtc: dto.createdAtUtc,
+            isRead: dto.isRead,
+            metadata: dto.relatedEntityId
+              ? { reservationId: dto.relatedEntityId }
+              : undefined
+          },
+          { silent: true }
+        );
+      }
+    } catch {
+      // Bỏ qua lỗi khi endpoint notifications không khả dụng
+    }
+  }
+
+  private mapBackendNotificationType(rawType: number | string): BackendDomainNotificationType {
+    const key = String(rawType ?? '').trim();
+    switch (key) {
+      case 'NewBooking':
+      case '0':
+        return 'NewBooking';
+      case 'BookingConfirmed':
+      case '1':
+        return 'BookingConfirmed';
+      case 'BookingCancelled':
+      case '2':
+        return 'BookingCancelled';
+      case 'PaymentReceived':
+      case '3':
+        return 'BookingPaymentConfirmed';
+      case 'RoomStatusChanged':
+      case '7':
+        return 'RoomStatusChanged';
+      case 'HousekeepingAssigned':
+      case '8':
+        return 'HousekeepingAssigned';
+      case 'HousekeepingCompleted':
+      case '9':
+        return 'HousekeepingCompleted';
+      default:
+        return 'NewBooking';
     }
   }
 

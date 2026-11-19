@@ -238,6 +238,46 @@ export class ReservationService {
     );
   }
 
+  /**
+   * Cấp mới mã PIN Smart Lock 6 số cho đơn Confirmed / CheckedIn (G0-03).
+   */
+  regenerateSmartLockPin(id: string, propertyId: string, reason?: string): Observable<ReservationDetailDto> {
+    let params = new HttpParams().set('propertyId', propertyId);
+    if (reason?.trim()) {
+      params = params.set('reason', reason.trim());
+    }
+    return this.http.post<ApiResponse<ReservationDetailDto> | ReservationDetailDto>(
+      `${this.apiUrl}/${id}/smart-lock/regenerate`,
+      null,
+      { params }
+    ).pipe(
+      map(res => {
+        const dto = 'data' in res && res.data ? res.data : (res as ReservationDetailDto);
+        return normalizeReservation(dto);
+      })
+    );
+  }
+
+  /**
+   * Thu hồi mã PIN Smart Lock hiện tại nhưng vẫn giữ lịch sử kiểm toán (G0-03).
+   */
+  revokeSmartLockPin(id: string, propertyId: string, reason?: string): Observable<ReservationDetailDto> {
+    let params = new HttpParams().set('propertyId', propertyId);
+    if (reason?.trim()) {
+      params = params.set('reason', reason.trim());
+    }
+    return this.http.post<ApiResponse<ReservationDetailDto> | ReservationDetailDto>(
+      `${this.apiUrl}/${id}/smart-lock/revoke`,
+      null,
+      { params }
+    ).pipe(
+      map(res => {
+        const dto = 'data' in res && res.data ? res.data : (res as ReservationDetailDto);
+        return normalizeReservation(dto);
+      })
+    );
+  }
+
   private broadcastLiveReservationPing(action: string, reservationId?: string, propertyId?: string): void {
     try {
       if (typeof BroadcastChannel !== 'undefined') {

@@ -21,6 +21,11 @@ import { SubscriptionService } from '../../core/services/subscription.service';
 import { AuditLogService } from '../../core/services/audit-log.service';
 import { AdminPlansService } from '../../core/services/admin-plans.service';
 import { AdminContractsService } from '../../core/services/admin-contracts.service';
+import {
+  DashboardSummaryDto,
+  PlatformGovernanceService,
+  PlatformOverviewDto
+} from '../../core/services/platform-governance.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { RoomDto } from '../../core/models/room.model';
 import { RoomStatus, ROOM_STATUS_LABELS } from '../../core/models/enums';
@@ -85,21 +90,28 @@ export type DashboardViewMode = 'PLATFORM' | 'HQ' | 'PROPERTY';
             <button
               type="button"
               (click)="loadPlatformDashboard()"
-              class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/15 transition-colors cursor-pointer"
+              class="inline-flex items-center gap-2 min-h-[44px] px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/15 transition-colors cursor-pointer"
             >
               <i class="pi pi-refresh text-xs" [class.animate-spin]="loadingPlatform()"></i>
               <span>Làm mới</span>
             </button>
             <a
+              routerLink="/platform-tenants"
+              class="inline-flex items-center gap-2 min-h-[44px] px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold shadow-xs transition-colors"
+            >
+              <i class="pi pi-building text-xs"></i>
+              <span>Thuê bao & Duyệt KS</span>
+            </a>
+            <a
               routerLink="/plans"
-              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-bold shadow-xs transition-colors"
+              class="inline-flex items-center gap-2 min-h-[44px] px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-bold shadow-xs transition-colors"
             >
               <i class="pi pi-sliders-v text-xs"></i>
               <span>Cấu hình Gói cước</span>
             </a>
             <a
               routerLink="/contracts"
-              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-colors"
+              class="inline-flex items-center gap-2 min-h-[44px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-colors"
             >
               <i class="pi pi-file-edit text-xs"></i>
               <span>Hợp đồng Đối tác</span>
@@ -111,66 +123,72 @@ export type DashboardViewMode = 'PLATFORM' | 'HQ' | 'PROPERTY';
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div class="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng Hợp đồng Đối tác</span>
+              <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Thuê bao & Chi nhánh</span>
               <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center border border-indigo-100">
-                <i class="pi pi-file-edit text-lg"></i>
+                <i class="pi pi-building text-lg"></i>
               </div>
             </div>
             <div class="mt-3">
-              <div class="text-3xl font-extrabold text-slate-900 font-mono">{{ platformMetrics().totalContracts }}</div>
+              <div class="text-3xl font-extrabold text-slate-900 font-mono">
+                {{ platformOverview()?.activeTenants ?? platformMetrics().activeContracts }}
+                <span class="text-base font-normal text-slate-400">/ {{ platformOverview()?.totalTenants ?? platformMetrics().totalContracts }}</span>
+              </div>
               <div class="mt-1.5 text-xs text-slate-500 flex items-center gap-2 flex-wrap">
-                <span class="text-emerald-700 font-semibold">{{ platformMetrics().activeContracts }} hiệu lực</span>
+                <span class="text-emerald-700 font-semibold">{{ platformOverview()?.publishedBranches ?? 0 }} đã xuất bản</span>
                 <span>&bull;</span>
-                <span class="text-amber-700 font-semibold">{{ platformMetrics().pendingContracts }} chờ ký</span>
+                <span class="text-amber-700 font-semibold">{{ platformOverview()?.publishPendingBranches ?? 0 }} chờ duyệt</span>
               </div>
             </div>
           </div>
 
           <div class="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Doanh số Cam kết</span>
+              <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Doanh thu SaaS (MRR / Thực thu)</span>
               <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100">
                 <i class="pi pi-wallet text-lg"></i>
               </div>
             </div>
             <div class="mt-3">
               <div class="text-2xl sm:text-3xl font-extrabold text-emerald-700 font-mono truncate">
-                {{ platformMetrics().totalCommittedValue | number:'1.0-0' }}₫
+                {{ (platformOverview()?.mrrVnd ?? platformMetrics().totalCommittedValue) | number:'1.0-0' }}₫
               </div>
-              <div class="mt-1.5 text-xs text-slate-500">
-                TB: {{ platformMetrics().averageContractValue | number:'1.0-0' }}₫ / hợp đồng
+              <div class="mt-1.5 text-xs text-slate-500 truncate">
+                Đã thu: <strong class="text-slate-700">{{ (platformOverview()?.totalCollectedSaasRevenue ?? 0) | number:'1.0-0' }}₫</strong> &bull;
+                HĐ: {{ (platformOverview()?.totalCommittedContractValue ?? platformMetrics().totalCommittedValue) | number:'1.0-0' }}₫
               </div>
             </div>
           </div>
 
           <div class="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Gói cước SaaS Đang mở</span>
+              <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Quy mô Phòng & Nhân sự</span>
               <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-100">
                 <i class="pi pi-box text-lg"></i>
               </div>
             </div>
             <div class="mt-3">
               <div class="text-3xl font-extrabold text-slate-900 font-mono">
-                {{ platformMetrics().activePlans }}<span class="text-lg text-slate-400 font-normal">/{{ platformMetrics().totalPlans }}</span>
+                {{ platformOverview()?.totalRooms ?? 0 }} <span class="text-base font-normal text-slate-400">phòng</span>
               </div>
               <div class="mt-1.5 text-xs text-slate-500 truncate">
-                Nổi bật: <strong class="text-indigo-700">{{ platformMetrics().popularPlanName }}</strong>
+                {{ platformOverview()?.totalStaff ?? 0 }} nhân sự &bull; Gói nổi bật: <strong class="text-indigo-700">{{ platformMetrics().popularPlanName }}</strong>
               </div>
             </div>
           </div>
 
           <div class="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cô lập Đa Thuê Bao</span>
+              <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tiêu thụ Gemini AI toàn sàn</span>
               <div class="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center border border-teal-100">
-                <i class="pi pi-verified text-lg"></i>
+                <i class="pi pi-sparkles text-lg"></i>
               </div>
             </div>
             <div class="mt-3">
-              <div class="text-xl font-extrabold text-teal-700 tracking-tight">Fail-Closed 100%</div>
+              <div class="text-2xl font-extrabold text-teal-700 tracking-tight font-mono">
+                {{ platformOverview()?.totalAiCalls ?? 0 }} lượt gọi
+              </div>
               <div class="mt-1.5 text-xs text-slate-500">
-                Global Query Filter &bull; VietQR / VNPay Ready
+                Tokens: {{ ((platformOverview()?.totalAiInputTokens ?? 0) + (platformOverview()?.totalAiOutputTokens ?? 0)) | number:'1.0-0' }} &bull; Thành công: {{ platformOverview()?.successfulAiCalls ?? 0 }}
               </div>
             </div>
           </div>
@@ -1090,6 +1108,7 @@ export class DashboardPage implements OnInit {
   private readonly auditLogService = inject(AuditLogService);
   private readonly adminPlansService = inject(AdminPlansService);
   private readonly adminContractsService = inject(AdminContractsService);
+  private readonly platformGovernanceService = inject(PlatformGovernanceService, { optional: true });
 
   readonly currentUser = toSignal(this.authService.currentUser$, {
     initialValue: this.authService.currentUser
@@ -1122,6 +1141,7 @@ export class DashboardPage implements OnInit {
 
   // Platform SuperAdmin state
   readonly loadingPlatform = signal(false);
+  readonly platformOverview = signal<PlatformOverviewDto | null>(null);
   readonly platformPlans = signal<AdminSubscriptionPlanDto[]>([]);
   readonly platformContracts = signal<TenantContractDto[]>([]);
   readonly platformMetrics = computed(() =>
@@ -1136,6 +1156,7 @@ export class DashboardPage implements OnInit {
   readonly chainMetrics = computed(() => computeChainHqMetrics(this.chainProperties()));
 
   // Property Operational state
+  readonly propertySummary = signal<DashboardSummaryDto | null>(null);
   readonly canManageRooms = computed(() => this.authService.hasPermission('ROOMS', 1));
   readonly canManageRoomTypes = computed(() => this.authService.hasPermission('ROOM_TYPES', 1));
 
@@ -1161,6 +1182,8 @@ export class DashboardPage implements OnInit {
   oosRooms = signal(0);
 
   readonly readyRate = computed(() => {
+    const summary = this.propertySummary();
+    if (summary) return Math.round(summary.readyRatePercent);
     const total = this.totalRooms();
     if (total <= 0) return 0;
     return Math.round((this.cleanRooms() / total) * 100);
@@ -1170,21 +1193,27 @@ export class DashboardPage implements OnInit {
   totalReservationsCount = signal(0);
   paymentSummary = signal<PaymentSummaryDto | null>(null);
 
-  readonly checkedInCount = computed(() =>
-    this.recentReservations().filter(r => r.status === ReservationStatus.CheckedIn).length
-  );
+  readonly checkedInCount = computed(() => {
+    const summary = this.propertySummary();
+    if (summary) return summary.checkedInCount;
+    return this.recentReservations().filter(r => r.status === ReservationStatus.CheckedIn).length;
+  });
 
-  readonly upcomingConfirmedCount = computed(() =>
-    this.recentReservations().filter(
+  readonly upcomingConfirmedCount = computed(() => {
+    const summary = this.propertySummary();
+    if (summary) return summary.upcomingConfirmedCount;
+    return this.recentReservations().filter(
       r => r.status === ReservationStatus.Confirmed || r.status === ReservationStatus.PendingPayment
-    ).length
-  );
+    ).length;
+  });
 
-  readonly totalBookingRevenue = computed(() =>
-    this.recentReservations()
+  readonly totalBookingRevenue = computed(() => {
+    const summary = this.propertySummary();
+    if (summary) return summary.totalBookingRevenue;
+    return this.recentReservations()
       .filter(r => r.status !== ReservationStatus.Cancelled && r.status !== ReservationStatus.NoShow)
-      .reduce((sum, r) => sum + (r.totalAmount || 0), 0)
-  );
+      .reduce((sum, r) => sum + (r.totalAmount || 0), 0);
+  });
 
   constructor() {
     effect(() => {
@@ -1270,6 +1299,16 @@ export class DashboardPage implements OnInit {
 
   loadPlatformDashboard(): void {
     this.loadingPlatform.set(true);
+
+    this.platformGovernanceService?.getPlatformOverview().subscribe({
+      next: overview => {
+        this.platformOverview.set(overview);
+      },
+      error: () => {
+        this.platformOverview.set(null);
+      }
+    });
+
     this.adminPlansService.getAllPlans().subscribe({
       next: plans => {
         this.platformPlans.set(plans || []);
@@ -1328,28 +1367,53 @@ export class DashboardPage implements OnInit {
   }
 
   loadRoomsData(): void {
-    if (!this.authService.activePropertyId()) {
+    const propId = this.authService.activePropertyId();
+    if (!propId) {
       this.loading.set(false);
       return;
     }
     this.loading.set(true);
     this.error.set(null);
-    this.roomService.getRooms({ page: 1, pageSize: 100 }).subscribe({
+
+    if (this.platformGovernanceService) {
+      this.platformGovernanceService.getDashboardSummary(propId).subscribe({
+        next: summary => {
+          this.propertySummary.set(summary);
+          this.totalRooms.set(summary.totalRooms);
+          this.cleanRooms.set(summary.cleanRooms);
+          this.occupiedRooms.set(summary.occupiedRooms);
+          this.dirtyRooms.set(summary.dirtyRooms);
+          this.cleaningRooms.set(summary.cleaningRooms);
+          this.oosRooms.set(summary.outOfServiceRooms);
+          this.totalReservationsCount.set(summary.totalActiveReservations);
+          this.loading.set(false);
+        },
+        error: () => {
+          this.propertySummary.set(null);
+        }
+      });
+    }
+
+    this.roomService.getRooms({ page: 1, pageSize: 12 }).subscribe({
       next: res => {
         this.loading.set(false);
         const items = res.items || [];
         this.rooms.set(items);
-        const metrics = computePropertyRoomMetrics(items);
-        this.totalRooms.set(res.totalCount ?? metrics.totalRooms);
-        this.cleanRooms.set(metrics.cleanRooms);
-        this.occupiedRooms.set(metrics.occupiedRooms);
-        this.dirtyRooms.set(metrics.dirtyRooms);
-        this.cleaningRooms.set(metrics.cleaningRooms);
-        this.oosRooms.set(metrics.oosRooms);
+        if (!this.propertySummary()) {
+          const metrics = computePropertyRoomMetrics(items);
+          this.totalRooms.set(res.totalCount ?? metrics.totalRooms);
+          this.cleanRooms.set(metrics.cleanRooms);
+          this.occupiedRooms.set(metrics.occupiedRooms);
+          this.dirtyRooms.set(metrics.dirtyRooms);
+          this.cleaningRooms.set(metrics.cleaningRooms);
+          this.oosRooms.set(metrics.oosRooms);
+        }
       },
       error: err => {
         this.loading.set(false);
-        this.error.set(err?.error?.message || 'Không thể tải dữ liệu phòng. Vui lòng thử lại.');
+        if (!this.propertySummary()) {
+          this.error.set(err?.error?.message || 'Không thể tải dữ liệu phòng. Vui lòng thử lại.');
+        }
       }
     });
   }
@@ -1364,10 +1428,12 @@ export class DashboardPage implements OnInit {
     }
 
     this.loadingOperational.set(true);
-    this.reservationService.getReservations({ propertyId: propId, page: 1, pageSize: 20 }).subscribe({
+    this.reservationService.getReservations({ propertyId: propId, page: 1, pageSize: 6 }).subscribe({
       next: res => {
         this.recentReservations.set(res.items || []);
-        this.totalReservationsCount.set(res.totalCount ?? (res.items?.length || 0));
+        if (!this.propertySummary()) {
+          this.totalReservationsCount.set(res.totalCount ?? (res.items?.length || 0));
+        }
         this.loadingOperational.set(false);
       },
       error: () => {

@@ -24,7 +24,7 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
             Khám Phá Địa Danh &amp; Resort Nghỉ Dưỡng
           </h2>
           <p class="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            Hơn 1.500+ khách sạn, resort 5 sao, homestay săn mây và nhà nghỉ ven biển trải dài từ địa đầu Lũng Cú đến Mũi Cà Mau.
+            Khám phá mạng lưới điểm đến theo chuẩn địa giới 34 tỉnh/thành phố từ địa đầu Lũng Cú đến Mũi Cà Mau.
           </p>
         </div>
 
@@ -113,25 +113,27 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
             <button
               type="button"
               (click)="onSelect(dest)"
-              class="group text-left relative rounded-2xl overflow-hidden bg-slate-900 shadow-sm hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500 border border-slate-200/40 dark:border-slate-800 flex flex-col justify-end aspect-3/4 sm:aspect-4/5 p-3.5 cursor-pointer"
+              class="group text-left relative rounded-2xl overflow-hidden bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 shadow-sm hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500 border border-slate-200/40 dark:border-slate-800 flex flex-col justify-end aspect-3/4 sm:aspect-4/5 p-3.5 cursor-pointer"
             >
-              <!-- High-Res Visual Image with Zoom on Hover -->
-              <img
-                [src]="dest.imageUrl"
-                [alt]="dest.name"
-                (error)="$any($event.target).src = '/images/hanoi-old-quarter-hotel.png'"
-                class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
-                loading="lazy"
-              />
+              <!-- Optional Local Asset Image -->
+              @if (dest.imageUrl) {
+                <img
+                  [src]="dest.imageUrl"
+                  [alt]="dest.name"
+                  (error)="onDestinationImageError($event)"
+                  class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+                  loading="lazy"
+                />
+              }
 
               <!-- Multi-stop Architectural Dark Gradient Overlay -->
               <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-slate-950/20"></div>
 
-              <!-- Top Micro Badges (Rating & Tag) -->
+              <!-- Top Micro Badges (Region & Tag) -->
               <div class="relative z-10 mb-auto flex items-center justify-between w-full gap-1">
                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-black/40 backdrop-blur-md text-amber-300 border border-amber-400/30">
-                  <i class="pi pi-star-fill text-[8px] text-amber-400"></i>
-                  {{ dest.rating }}
+                  <i class="pi pi-compass text-[8px] text-amber-400"></i>
+                  {{ dest.regionName }}
                 </span>
                 <span class="inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold tracking-tight bg-white/20 backdrop-blur-md text-white border border-white/20 truncate max-w-[90px]">
                   {{ dest.tag }}
@@ -144,8 +146,8 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
                   <h3 class="text-sm sm:text-base font-black tracking-tight leading-tight group-hover:text-amber-300 transition-colors truncate font-serif">
                     {{ dest.shortName }}
                   </h3>
-                  <span class="text-[10px] font-semibold text-slate-300 shrink-0">
-                    {{ dest.propertyCount }}+ chỗ nghỉ
+                  <span class="text-[10px] font-mono font-semibold text-slate-300 shrink-0">
+                    #{{ dest.code }}
                   </span>
                 </div>
 
@@ -159,12 +161,9 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
                   <span class="truncate">{{ dest.hotLandmarks[0] }}</span>
                 </div>
 
-                <!-- Price & Action Footer -->
+                <!-- Action Footer -->
                 <div class="mt-2.5 pt-2 border-t border-white/15 flex items-center justify-between gap-1">
-                  <div>
-                    <span class="text-[9px] text-slate-400 block -mb-0.5 font-medium">Từ</span>
-                    <span class="text-xs font-black text-amber-400">{{ dest.startPrice }}</span>
-                  </div>
+                  <span class="text-[11px] font-semibold text-amber-300">Xem cơ sở lưu trú</span>
                   <div class="w-6 h-6 rounded-full bg-white/10 group-hover:bg-amber-500 group-hover:text-slate-950 flex items-center justify-center transition-colors shrink-0">
                     <i class="pi pi-arrow-right text-[10px]"></i>
                   </div>
@@ -257,5 +256,12 @@ export class PopularDestinationsComponent {
 
   onSelect(destination: VietnamProvinceDestination): void {
     this.selectDestination.emit(destination.searchTerm);
+  }
+
+  onDestinationImageError(event: Event): void {
+    const img = event.target as HTMLImageElement | null;
+    if (img) {
+      img.style.display = 'none';
+    }
   }
 }

@@ -22,6 +22,12 @@ import {
   EmptyStateComponent,
   LoadingSpinnerComponent
 } from '../../shared';
+import { ContextSelectorDialogComponent } from '../auth/context-selector/context-selector.dialog';
+
+interface RoomTypeWithProperty extends RoomTypeDto {
+  propertyId?: string;
+  propertyName?: string | null;
+}
 
 /**
  * Màn hình Quản lý Loại phòng (Room Types Catalog)
@@ -42,7 +48,8 @@ import {
     PageHeaderComponent,
     StatCardComponent,
     EmptyStateComponent,
-    LoadingSpinnerComponent
+    LoadingSpinnerComponent,
+    ContextSelectorDialogComponent
   ],
   template: `
     <div class="max-w-7xl mx-auto space-y-6 pb-12">
@@ -94,6 +101,29 @@ import {
           }
         </div>
       </app-page-header>
+
+      <!-- Chain HQ Banner -->
+      @if (!authService.activePropertyId()) {
+        <div class="bg-indigo-50/80 border border-indigo-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-start gap-2.5 text-xs text-indigo-950">
+            <i class="pi pi-building text-indigo-600 text-base mt-0.5 shrink-0"></i>
+            <div>
+              <div class="font-bold">Đang xem chế độ Toàn chuỗi (HQ)</div>
+              <p class="text-indigo-800/90 mt-0.5">
+                Danh mục hiển thị các hạng phòng trên toàn hệ thống kèm nhãn chi nhánh. Vui lòng chọn chi nhánh trước khi tạo mới hạng phòng.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            (click)="openContextSelector()"
+            class="min-h-11 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer shrink-0 inline-flex items-center gap-1.5"
+          >
+            <i class="pi pi-building text-xs"></i>
+            <span>Chọn chi nhánh làm việc</span>
+          </button>
+        </div>
+      }
 
       <!-- 2. KPI SUMMARY STRIP -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -220,13 +250,19 @@ import {
                   <div class="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-900/20 to-transparent"></div>
 
                   <!-- Code Badge Top Left -->
-                  <div class="absolute top-3 left-3 flex items-center gap-1.5">
+                  <div class="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap pr-3">
                     <span class="px-2.5 py-1 rounded-lg bg-slate-900/85 backdrop-blur-xs text-white font-mono font-bold text-xs border border-white/15">
                       {{ rt.code }}
                     </span>
                     <span class="px-2.5 py-1 rounded-lg bg-emerald-600/90 backdrop-blur-xs text-white font-bold text-xs shadow-xs">
                       {{ rt.roomCount }} phòng
                     </span>
+                    @if (!authService.activePropertyId() && getPropertyName(rt); as propName) {
+                      <span class="px-2.5 py-1 rounded-lg bg-indigo-600/90 backdrop-blur-xs text-white font-semibold text-[11px] shadow-xs inline-flex items-center gap-1">
+                        <i class="pi pi-building text-[10px]"></i>
+                        <span>{{ propName }}</span>
+                      </span>
+                    }
                   </div>
 
                   <!-- Price Bottom Left -->
@@ -330,6 +366,12 @@ import {
                     </td>
                     <td class="py-3.5 px-4">
                       <div class="font-bold text-slate-900 text-sm">{{ rt.name }}</div>
+                      @if (!authService.activePropertyId() && getPropertyName(rt); as propName) {
+                        <span class="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/80 text-[10px] font-semibold">
+                          <i class="pi pi-building text-[9px]"></i>
+                          <span>{{ propName }}</span>
+                        </span>
+                      }
                       @if (rt.description) {
                         <div class="text-[11px] text-slate-500 truncate max-w-xs">{{ rt.description }}</div>
                       }
@@ -517,7 +559,7 @@ import {
               <input
                 type="text"
                 formControlName="imageUrl"
-                placeholder="https://images.unsplash.com/..."
+                placeholder="https://cdn.example.com/rooms/deluxe.jpg"
                 class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:border-emerald-600 focus:outline-hidden bg-white"
               />
             </div>
@@ -608,6 +650,13 @@ import {
         </div>
       </div>
     }
+
+    @if (showContextSelector()) {
+      <app-context-selector-dialog
+        [visible]="showContextSelector()"
+        (visibleChange)="showContextSelector.set($event)"
+      />
+    }
   `
 })
 export class RoomTypesPage implements OnInit {
@@ -615,6 +664,26 @@ export class RoomTypesPage implements OnInit {
   readonly authService = inject(AuthService);
   private readonly alertService = inject(AlertService);
   private readonly fb = inject(FormBuilder);
+
+  readonly showContextSelector = signal<boolean>(false);
+
+  openContextSelector(): void {
+    this.showContextSelector.set(true);
+  }
+
+  getPropertyName(rt: RoomTypeDto): string | null {
+    const extended = rt as RoomTypeWithProperty;
+    if (extended.propertyName) return extended.propertyName;
+    const propId = extended.propertyId;
+    if (!propId) return null;
+    const authSvc = this.authService as unknown as {
+      memberships?: Array<{ propertyId?: string | null; propertyName?: string | null }>;
+    };
+    const matched = (authSvc.memberships || []).find(
+      m => m.propertyId?.toLowerCase() === propId.toLowerCase()
+    );
+    return matched?.propertyName || null;
+  }
 
   readonly roomTypes = signal<RoomTypeDto[]>([]);
   readonly loading = signal<boolean>(false);
@@ -715,6 +784,11 @@ export class RoomTypesPage implements OnInit {
   }
 
   openCreateModal(): void {
+    if (!this.authService.activePropertyId()) {
+      this.alertService.toastWarning('Vui lòng chọn chi nhánh làm việc trước khi tạo loại phòng mới.', 'Chế độ Toàn chuỗi');
+      this.openContextSelector();
+      return;
+    }
     this.editingRoomType.set(null);
     this.roomTypeForm.reset({
       code: '',

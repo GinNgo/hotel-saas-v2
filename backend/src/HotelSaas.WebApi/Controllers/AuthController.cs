@@ -1,9 +1,16 @@
+using HotelSaas.Application.Auth.Commands.ChangePassword;
 using HotelSaas.Application.Auth.Commands.ConfirmEmail;
+using HotelSaas.Application.Auth.Commands.ForgotPassword;
+using HotelSaas.Application.Auth.Commands.LinkSocialAccount;
 using HotelSaas.Application.Auth.Commands.Login;
 using HotelSaas.Application.Auth.Commands.RefreshToken;
 using HotelSaas.Application.Auth.Commands.Register;
+using HotelSaas.Application.Auth.Commands.ResendConfirmation;
+using HotelSaas.Application.Auth.Commands.ResetPassword;
 using HotelSaas.Application.Auth.Commands.RevokeToken;
 using HotelSaas.Application.Auth.Commands.SwitchContext;
+using HotelSaas.Application.Auth.Commands.UnlinkSocialAccount;
+using HotelSaas.Application.Auth.Queries.GetSocialIdentities;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -266,5 +273,141 @@ public sealed class AuthController : ControllerBase
     {
         var result = await _mediator.Send(new HotelSaas.Application.Auth.Queries.GetMyMemberships.GetMyMembershipsQuery(), cancellationToken);
         return Ok(new { success = true, data = result });
+    }
+
+    /// <summary>
+    /// Requests a password reset link for an account by email.
+    /// Always returns HTTP 200 to prevent account enumeration.
+    /// </summary>
+    /// <param name="command">Email and optional client origin URL.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Generic acknowledgement.</returns>
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ForgotPassword(
+        [FromBody] ForgotPasswordCommand command,
+        CancellationToken cancellationToken)
+    {
+        var origin = !string.IsNullOrWhiteSpace(command.AppUrl)
+            ? command.AppUrl
+            : Request.Headers.Origin.FirstOrDefault();
+        var result = await _mediator.Send(new ForgotPasswordCommand(command.Email, origin), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Completes password reset or staff invitation password setup using a signed reset token.
+    /// </summary>
+    /// <param name="command">Signed reset token and new strong password.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Password reset confirmation.</returns>
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResetPassword(
+        [FromBody] ResetPasswordCommand command,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Changes the password for the currently authenticated user after verifying the current password.
+    /// </summary>
+    /// <param name="command">Current and new password.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Change password confirmation.</returns>
+    [HttpPost("change-password")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> ChangePassword(
+        [FromBody] ChangePasswordCommand command,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Resends an email verification link either for the authenticated user or anonymously by email.
+    /// </summary>
+    /// <param name="command">Optional email and client origin URL.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Resend confirmation acknowledgement.</returns>
+    [HttpPost("resend-confirmation")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResendConfirmation(
+        [FromBody] ResendConfirmationCommand? command,
+        CancellationToken cancellationToken)
+    {
+        var origin = !string.IsNullOrWhiteSpace(command?.AppUrl)
+            ? command.AppUrl
+            : Request.Headers.Origin.FirstOrDefault();
+        var result = await _mediator.Send(new ResendConfirmationCommand(command?.Email, origin), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Lists external social identities linked to the authenticated user's account.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Linked social accounts and whether the user has a local password.</returns>
+    [HttpGet("social-accounts")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetSocialAccounts(CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(new GetSocialIdentitiesQuery(), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Links a verified Google social account to the authenticated user.
+    /// </summary>
+    /// <param name="command">Verified provider ID token and provider name.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The linked social identity summary.</returns>
+    [HttpPost("social-accounts/link")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> LinkSocialAccount(
+        [FromBody] LinkSocialAccountCommand command,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Unlinks an external social provider from the authenticated user's account.
+    /// Fails if removing the provider would leave the user with no authentication method.
+    /// </summary>
+    /// <param name="provider">Social provider name (e.g., Google).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Unlink confirmation.</returns>
+    [HttpDelete("social-accounts/{provider}")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UnlinkSocialAccount(
+        [FromRoute] string provider,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(new UnlinkSocialAccountCommand(provider), cancellationToken);
+        return Ok(result);
     }
 }

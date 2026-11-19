@@ -462,7 +462,8 @@ public sealed class MultiTenantSaaSRbacFlowTests
                     Email = "customer.multi@example.vn",
                     PhoneNumber = "0911223344",
                     PropertyId = branch1Id,
-                    StaffRole = StaffRole.Manager
+                    StaffRole = StaffRole.Manager,
+                    ConfirmCustomerPromotion = true
                 }, CancellationToken.None);
 
                 var assignB2 = await multiStaffHandler.Handle(new CreateStaffMemberCommand

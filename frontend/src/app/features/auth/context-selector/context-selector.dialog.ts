@@ -180,8 +180,8 @@ interface HttpErrorPayload {
 })
 export class ContextSelectorDialogComponent implements OnInit, OnChanges {
   private readonly authService = inject(AuthService);
-  private readonly notification = inject(NotificationService);
-  private readonly router = inject(Router);
+  private readonly notification = inject(NotificationService, { optional: true });
+  private readonly router = inject(Router, { optional: true });
 
   @Input() visible = false;
   @Input() requireSelection = false;
@@ -214,13 +214,13 @@ export class ContextSelectorDialogComponent implements OnInit, OnChanges {
     this.authService.switchToChainHq().subscribe({
       next: (payload: SwitchContextResponse) => {
         this.switchingPropertyId.set(null);
-        this.notification.success('Đã chuyển về chế độ Tổng quan Toàn chuỗi (HQ)');
+        this.notification?.success('Đã chuyển về chế độ Tổng quan Toàn chuỗi (HQ)');
 
         const hqMembership = this.buildHqMembership(payload);
         this.contextSwitched.emit(hqMembership);
         this.closeDialog();
 
-        if (!this.contextSwitched.observed) {
+        if (!this.contextSwitched.observed && this.router) {
           const currentPath = this.router.url.split('?')[0];
           const targetCommands = currentPath === '/dashboard' ? ['/dashboard'] : ['/properties'];
           void this.router.navigate(targetCommands);
@@ -286,7 +286,7 @@ export class ContextSelectorDialogComponent implements OnInit, OnChanges {
     this.authService.switchContext(membership.propertyId).subscribe({
       next: () => {
         this.switchingPropertyId.set(null);
-        this.notification.success(`Đã chuyển sang chi nhánh: ${membership.propertyName || membership.propertyCode}`);
+        this.notification?.success(`Đã chuyển sang chi nhánh: ${membership.propertyName || membership.propertyCode}`);
         this.contextSwitched.emit(membership);
         this.closeDialog();
       },

@@ -6,9 +6,19 @@ using System.Linq.Expressions;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
+using HotelSaas.Application.Ai.DTOs;
+using HotelSaas.Application.Ai.Queries.GetDynamicPricingRecommendations;
+using HotelSaas.Application.Ai.Queries.ProcessAiChat;
+using HotelSaas.Application.Ai.Queries.ProcessAiConcierge;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
+using HotelSaas.Application.Payments.Queries.GenerateVietQr;
 using HotelSaas.Application.Pricing.Services;
+using HotelSaas.Application.Print.DTOs;
+using HotelSaas.Application.Print.Queries.GetPrintableContract;
+using HotelSaas.Application.Print.Queries.GetPrintableInvoice;
+using HotelSaas.Application.Print.Queries.GetPrintableVoucher;
+using HotelSaas.Application.Print.Queries.GetPrintTemplateConfig;
 using HotelSaas.Application.Public.Commands.CreateGuestHold;
 using HotelSaas.Application.Public.DTOs;
 using HotelSaas.Application.Public.Queries.GetPublicProperties;
@@ -38,19 +48,26 @@ public sealed class LocationsAndAiChatTests
 
     private sealed class CapturingSender : ISender
     {
-        private readonly Func<object, object?> _responder;
+        private readonly Func<object, CancellationToken, Task<object?>> _responder;
         public List<object> SentRequests { get; } = new();
 
         public CapturingSender(Func<object, object?>? responder = null)
         {
-            _responder = responder ?? (_ => null);
+            _responder = responder == null
+                ? (_, _) => Task.FromResult<object?>(null)
+                : (req, _) => Task.FromResult(responder(req));
         }
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        public CapturingSender(Func<object, CancellationToken, Task<object?>> asyncResponder)
+        {
+            _responder = asyncResponder ?? throw new ArgumentNullException(nameof(asyncResponder));
+        }
+
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             SentRequests.Add(request);
-            var response = _responder(request);
-            return Task.FromResult((TResponse)response!);
+            var response = await _responder(request, cancellationToken);
+            return (TResponse)response!;
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest
@@ -62,7 +79,7 @@ public sealed class LocationsAndAiChatTests
         public Task<object?> Send(object request, CancellationToken cancellationToken = default)
         {
             SentRequests.Add(request);
-            return Task.FromResult(_responder(request));
+            return _responder(request, cancellationToken);
         }
 
         public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
@@ -70,6 +87,39 @@ public sealed class LocationsAndAiChatTests
 
         public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
+    }
+
+    private static AiController CreateAiController(
+        IApplicationDbContext db,
+        ICurrentUserContext userCtx,
+        ISender innerSender,
+        ILocationLookupService? locationService = null,
+        IDynamicPricingService? dynamicPricingService = null)
+    {
+        var locSvc = locationService ?? LocationService;
+        var dispatcher = new CapturingSender(async (req, ct) => req switch
+        {
+            ProcessAiConciergeQuery q => await new ProcessAiConciergeQueryHandler(db, userCtx).Handle(q, ct),
+            GetDynamicPricingRecommendationsQuery q => await new GetDynamicPricingRecommendationsQueryHandler(db, userCtx, dynamicPricingService).Handle(q, ct),
+            ProcessAiChatQuery q => await new ProcessAiChatQueryHandler(innerSender, locSvc).Handle(q, ct),
+            _ => await innerSender.Send(req, ct)
+        });
+        return new AiController(dispatcher);
+    }
+
+    private static PrintDocumentsController CreatePrintController(
+        IApplicationDbContext db,
+        ICurrentUserContext userCtx)
+    {
+        var dispatcher = new CapturingSender(async (req, ct) => req switch
+        {
+            GetPrintableInvoiceQuery q => await new GetPrintableInvoiceQueryHandler(db, userCtx).Handle(q, ct),
+            GetPrintableVoucherQuery q => await new GetPrintableVoucherQueryHandler(db, userCtx).Handle(q, ct),
+            GetPrintableContractQuery q => await new GetPrintableContractQueryHandler(db, userCtx).Handle(q, ct),
+            GetPrintTemplateConfigQuery q => await new GetPrintTemplateConfigQueryHandler(db, userCtx).Handle(q, ct),
+            _ => throw new NotSupportedException($"Unexpected request: {req.GetType().Name}")
+        });
+        return new PrintDocumentsController(dispatcher);
     }
 
     private static ICurrentUserContext CreateAnonymousUserContext() =>
@@ -331,7 +381,7 @@ public sealed class LocationsAndAiChatTests
     public async Task AiController_Chat_EmptyMessage_Returns400BadRequest()
     {
         var sender = new CapturingSender();
-        var controller = new AiController(
+        var controller = CreateAiController(
             new AiFakeDbContext(Array.Empty<Property>(), Array.Empty<RoomType>()),
             CreateAnonymousUserContext(),
             sender,
@@ -367,7 +417,7 @@ public sealed class LocationsAndAiChatTests
         var sender = new CapturingSender(req =>
             req is GetPublicPropertiesQuery ? new[] { prop } : null);
 
-        var controller = new AiController(
+        var controller = CreateAiController(
             new AiFakeDbContext(Array.Empty<Property>(), Array.Empty<RoomType>()),
             CreateAnonymousUserContext(),
             sender,
@@ -395,6 +445,86 @@ public sealed class LocationsAndAiChatTests
     }
 
     [Fact]
+    public async Task AiController_ConciergePolicyInquiry_UsesConfiguredPropertyCheckInAndCheckOutTimes()
+    {
+        var prop = new Property
+        {
+            Id = Guid.NewGuid(),
+            TenantId = Guid.NewGuid(),
+            Name = "Custom Hours Boutique",
+            Slug = "custom-hours-boutique",
+            City = "Đà Nẵng",
+            Address = "200 Võ Nguyên Giáp",
+            CheckInTime = new TimeOnly(15, 30),
+            CheckOutTime = new TimeOnly(11, 0),
+            Status = PropertyStatus.Active
+        };
+
+        var db = new AiFakeDbContext(new[] { prop }, Array.Empty<RoomType>());
+        var controller = CreateAiController(
+            db,
+            CreateAnonymousUserContext(),
+            new CapturingSender(),
+            LocationService);
+
+        var res = await controller.ProcessConciergeQuery(
+            new AiConciergeRequest { Message = "Chính sách nhận phòng và trả phòng thế nào?", PropertySlug = "custom-hours-boutique" },
+            CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(res);
+        var dto = Assert.IsType<AiConciergeResponse>(ok.Value);
+        Assert.Equal("PolicyInquiry", dto.Intent);
+        Assert.Contains("15:30", dto.Reply, StringComparison.Ordinal);
+        Assert.Contains("11:00", dto.Reply, StringComparison.Ordinal);
+        Assert.DoesNotContain("14:00", dto.Reply, StringComparison.Ordinal);
+        Assert.DoesNotContain("12:00", dto.Reply, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AiController_Chat_UsesTopPropertyCheckInAndCheckOutTimes_AndFallsBackWhenEmpty()
+    {
+        var prop = new PublicPropertyDto
+        {
+            Id = Guid.NewGuid(),
+            Name = "Early Checkout Villa",
+            City = "Đà Lạt",
+            ProvinceName = "Lâm Đồng",
+            Address = "5 Trần Phú",
+            CheckInTime = new TimeOnly(15, 0),
+            CheckOutTime = new TimeOnly(11, 30),
+            StartingPrice = 1200000m
+        };
+
+        var matchedController = CreateAiController(
+            new AiFakeDbContext(Array.Empty<Property>(), Array.Empty<RoomType>()),
+            CreateAnonymousUserContext(),
+            new CapturingSender(req => req is GetPublicPropertiesQuery ? new[] { prop } : null),
+            LocationService);
+
+        var matchedOk = Assert.IsType<OkObjectResult>(await matchedController.ProcessChatQuery(
+            new AiChatRequest { Message = "Tìm villa ở Đà Lạt" },
+            CancellationToken.None));
+        var matchedBody = Assert.IsType<AiChatResponse>(matchedOk.Value);
+        Assert.Contains("15:00", matchedBody.Text, StringComparison.Ordinal);
+        Assert.Contains("11:30", matchedBody.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("14:00", matchedBody.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("12:00", matchedBody.Text, StringComparison.Ordinal);
+
+        var emptyController = CreateAiController(
+            new AiFakeDbContext(Array.Empty<Property>(), Array.Empty<RoomType>()),
+            CreateAnonymousUserContext(),
+            new CapturingSender(req => req is GetPublicPropertiesQuery ? Array.Empty<PublicPropertyDto>() : null),
+            LocationService);
+
+        var emptyOk = Assert.IsType<OkObjectResult>(await emptyController.ProcessChatQuery(
+            new AiChatRequest { Message = "Tìm khách sạn" },
+            CancellationToken.None));
+        var emptyBody = Assert.IsType<AiChatResponse>(emptyOk.Value);
+        Assert.Contains("14:00", emptyBody.Text, StringComparison.Ordinal);
+        Assert.Contains("12:00", emptyBody.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AiController_AnonymousConciergeAndPricing_ApplyIgnoreQueryFilters()
     {
         var propId = Guid.NewGuid();
@@ -419,7 +549,7 @@ public sealed class LocationsAndAiChatTests
         };
 
         var db = new AiFakeDbContext(new[] { prop }, new[] { rt });
-        var controller = new AiController(
+        var controller = CreateAiController(
             db,
             CreateAnonymousUserContext(),
             new CapturingSender(),
@@ -572,7 +702,7 @@ public sealed class LocationsAndAiChatTests
         var crossTenantUser = CreateAnonymousUserContext();
         crossTenantUser.SetUser(Guid.NewGuid(), "manager@tenanta.vn", GlobalUserRole.TenantStaff);
         crossTenantUser.SetMembershipContext(tenantA, TenantStatus.Active, null, null, StaffRole.Manager, null, isTenantWide: true);
-        var crossTenantController = new PrintDocumentsController(fakeDb, crossTenantUser);
+        var crossTenantController = CreatePrintController(fakeDb, crossTenantUser);
 
         var forbiddenResult = await crossTenantController.GetPrintableContract(contract.Id, CancellationToken.None);
         Assert.IsType<ForbidResult>(forbiddenResult);
@@ -581,7 +711,7 @@ public sealed class LocationsAndAiChatTests
         var sameTenantUser = CreateAnonymousUserContext();
         sameTenantUser.SetUser(Guid.NewGuid(), "owner@tenantb.vn", GlobalUserRole.TenantStaff);
         sameTenantUser.SetMembershipContext(tenantB, TenantStatus.Active, null, null, StaffRole.Owner, null, isTenantWide: true);
-        var sameTenantController = new PrintDocumentsController(fakeDb, sameTenantUser);
+        var sameTenantController = CreatePrintController(fakeDb, sameTenantUser);
 
         var sameTenantResult = await sameTenantController.GetPrintableContract(contract.Id, CancellationToken.None);
         var sameTenantOk = Assert.IsType<OkObjectResult>(sameTenantResult);
@@ -591,7 +721,7 @@ public sealed class LocationsAndAiChatTests
         // SuperAdmin succeeds across tenants
         var superAdmin = CreateAnonymousUserContext();
         superAdmin.SetUser(Guid.NewGuid(), "admin@platform.vn", GlobalUserRole.SuperAdmin);
-        var superAdminController = new PrintDocumentsController(fakeDb, superAdmin);
+        var superAdminController = CreatePrintController(fakeDb, superAdmin);
 
         var superAdminResult = await superAdminController.GetPrintableContract(contract.Id, CancellationToken.None);
         var superAdminOk = Assert.IsType<OkObjectResult>(superAdminResult);
@@ -628,7 +758,7 @@ public sealed class LocationsAndAiChatTests
             reservations: new[] { reservation });
 
         // 1. Anonymous without confirmation code -> masked PII
-        var anonController = new PrintDocumentsController(fakeDb, CreateAnonymousUserContext());
+        var anonController = CreatePrintController(fakeDb, CreateAnonymousUserContext());
         var anonOk = Assert.IsType<OkObjectResult>(await anonController.GetPrintableInvoice(reservation.Id, null, CancellationToken.None));
         var anonDto = Assert.IsType<PrintableInvoiceDto>(anonOk.Value);
         Assert.Equal("g***@example.com", anonDto.GuestEmail);
@@ -643,7 +773,7 @@ public sealed class LocationsAndAiChatTests
         // 3. Authenticated guest owner -> unmasked PII
         var guestContext = CreateAnonymousUserContext();
         guestContext.SetUser(guestUserId, "guest.secret@example.com", GlobalUserRole.Customer);
-        var guestController = new PrintDocumentsController(fakeDb, guestContext);
+        var guestController = CreatePrintController(fakeDb, guestContext);
         var guestOk = Assert.IsType<OkObjectResult>(await guestController.GetPrintableInvoice(reservation.Id, null, CancellationToken.None));
         var guestDto = Assert.IsType<PrintableInvoiceDto>(guestOk.Value);
         Assert.Equal("guest.secret@example.com", guestDto.GuestEmail);
@@ -653,7 +783,7 @@ public sealed class LocationsAndAiChatTests
         var outsiderContext = CreateAnonymousUserContext();
         outsiderContext.SetUser(Guid.NewGuid(), "outsider@other.vn", GlobalUserRole.TenantStaff);
         outsiderContext.SetMembershipContext(otherTenantId, TenantStatus.Active, null, null, StaffRole.Manager, null, isTenantWide: true);
-        var outsiderController = new PrintDocumentsController(fakeDb, outsiderContext);
+        var outsiderController = CreatePrintController(fakeDb, outsiderContext);
         var outsiderOk = Assert.IsType<OkObjectResult>(await outsiderController.GetPrintableInvoice(reservation.Id, null, CancellationToken.None));
         var outsiderDto = Assert.IsType<PrintableInvoiceDto>(outsiderOk.Value);
         Assert.Equal("g***@example.com", outsiderDto.GuestEmail);
@@ -708,20 +838,20 @@ public sealed class LocationsAndAiChatTests
             printTemplateConfigs: new[] { configTenantADefault, configPropA1, configTenantB });
 
         // 1. Anonymous user without tenant -> Forbid
-        var anonController = new PrintDocumentsController(fakeDb, CreateAnonymousUserContext());
+        var anonController = CreatePrintController(fakeDb, CreateAnonymousUserContext());
         Assert.IsType<ForbidResult>(await anonController.GetTemplateConfig(null, null, CancellationToken.None));
 
         // 2. SuperAdmin without tenantId -> Forbid
         var superAdmin = CreateAnonymousUserContext();
         superAdmin.SetUser(Guid.NewGuid(), "admin@platform.vn", GlobalUserRole.SuperAdmin);
-        var superAdminController = new PrintDocumentsController(fakeDb, superAdmin);
+        var superAdminController = CreatePrintController(fakeDb, superAdmin);
         Assert.IsType<ForbidResult>(await superAdminController.GetTemplateConfig(null, null, CancellationToken.None));
 
         // 3. Tenant A user attempting cross-tenant query for Tenant B -> Forbid
         var tenantAUser = CreateAnonymousUserContext();
         tenantAUser.SetUser(Guid.NewGuid(), "owner@tenanta.vn", GlobalUserRole.TenantStaff);
         tenantAUser.SetMembershipContext(tenantA, TenantStatus.Active, null, null, StaffRole.Owner, null, isTenantWide: true);
-        var tenantAController = new PrintDocumentsController(fakeDb, tenantAUser);
+        var tenantAController = CreatePrintController(fakeDb, tenantAUser);
         Assert.IsType<ForbidResult>(await tenantAController.GetTemplateConfig(tenantB, null, CancellationToken.None));
 
         // 4. Tenant A requesting propA1 prefers propA1 config over tenantA default
@@ -740,7 +870,7 @@ public sealed class LocationsAndAiChatTests
         var tenantCUser = CreateAnonymousUserContext();
         tenantCUser.SetUser(Guid.NewGuid(), "owner@tenantc.vn", GlobalUserRole.TenantStaff);
         tenantCUser.SetMembershipContext(tenantC, TenantStatus.Active, null, null, StaffRole.Owner, null, isTenantWide: true);
-        var tenantCController = new PrintDocumentsController(fakeDb, tenantCUser);
+        var tenantCController = CreatePrintController(fakeDb, tenantCUser);
         var tenantCOk = Assert.IsType<OkObjectResult>(await tenantCController.GetTemplateConfig(null, null, CancellationToken.None));
         var tenantCDto = Assert.IsType<PrintTemplateConfigDto>(tenantCOk.Value);
         Assert.Equal(string.Empty, tenantCDto.BankAccountNumber);
@@ -818,7 +948,7 @@ public sealed class LocationsAndAiChatTests
         staffContext.SetUser(Guid.NewGuid(), "cashier@hotel.vn", GlobalUserRole.TenantStaff);
         staffContext.SetMembershipContext(tenantId, TenantStatus.Active, propId, PropertyStatus.Active, StaffRole.Receptionist, null, isTenantWide: false);
 
-        var controller = new PrintDocumentsController(fakeDb, staffContext);
+        var controller = CreatePrintController(fakeDb, staffContext);
         var ok = Assert.IsType<OkObjectResult>(await controller.GetPrintableInvoice(resId, null, CancellationToken.None));
         var dto = Assert.IsType<PrintableInvoiceDto>(ok.Value);
 
@@ -867,7 +997,7 @@ public sealed class LocationsAndAiChatTests
             Array.Empty<RoomType>(),
             reservations: new[] { reservation });
 
-        var anonController = new PrintDocumentsController(fakeDb, CreateAnonymousUserContext());
+        var anonController = CreatePrintController(fakeDb, CreateAnonymousUserContext());
 
         // 1. Anonymous lookup by short ConfirmationCode -> PII masked
         var codeOk = Assert.IsType<OkObjectResult>(await anonController.GetPrintableVoucher("VCH9900", CancellationToken.None));
@@ -915,7 +1045,7 @@ public sealed class LocationsAndAiChatTests
 
         var superAdmin = CreateAnonymousUserContext();
         superAdmin.SetUser(Guid.NewGuid(), "admin@platform.vn", GlobalUserRole.SuperAdmin);
-        var controller = new PrintDocumentsController(fakeDb, superAdmin);
+        var controller = CreatePrintController(fakeDb, superAdmin);
 
         var ok = Assert.IsType<OkObjectResult>(await controller.GetPrintableContract(unsignedContract.Id, CancellationToken.None));
         var dto = Assert.IsType<PrintableContractDocumentDto>(ok.Value);
@@ -965,22 +1095,22 @@ public sealed class LocationsAndAiChatTests
             reservations: new[] { resUnconfigured, resConfigured },
             printTemplateConfigs: new[] { bankConfig });
 
-        var controller = new PaymentsController(new CapturingSender());
         var vietQrService = new VietQrService();
+        var controller = new PaymentsController(new CapturingSender(async (req, ct) => req switch
+        {
+            GenerateVietQrQuery q => await new GenerateVietQrQueryHandler(fakeDb, vietQrService).Handle(q, ct),
+            _ => null
+        }));
 
         // 1. Property without configured bank -> 422 UnprocessableEntity
         var unconfResult = await controller.GenerateVietQr(
             new VietQrApiRequest(500_000m, "RES-NOBANK", resUnconfigured.Id),
-            vietQrService,
-            fakeDb,
             CancellationToken.None);
         Assert.IsType<UnprocessableEntityObjectResult>(unconfResult);
 
         // 2. Property with configured bank -> 200 OK with real bank account (never dummy "0345678910")
         var confResult = await controller.GenerateVietQr(
             new VietQrApiRequest(500_000m, "RES-HASBANK", resConfigured.Id),
-            vietQrService,
-            fakeDb,
             CancellationToken.None);
         var ok = Assert.IsType<OkObjectResult>(confResult);
         var apiResp = Assert.IsType<ApiResponse<VietQrResult>>(ok.Value);

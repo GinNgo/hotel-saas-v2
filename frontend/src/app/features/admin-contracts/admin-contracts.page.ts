@@ -6,7 +6,12 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
 import { Router } from '@angular/router';
 import { AdminContractsService } from '../../core/services/admin-contracts.service';
 import { AdminPlansService } from '../../core/services/admin-plans.service';
+import { PlatformGovernanceService } from '../../core/services/platform-governance.service';
 import { AlertService } from '../../core/services/alert.service';
+import {
+  SearchableSelectComponent,
+  SearchableSelectItem
+} from '../../shared/components/searchable-select/searchable-select.component';
 import {
   TenantContractDto,
   CreateTenantContractRequest,
@@ -17,7 +22,7 @@ import { AdminSubscriptionPlanDto } from '../../core/models/admin-plan.model';
 @Component({
   selector: 'app-admin-contracts-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePicker],
+  imports: [CommonModule, FormsModule, DatePicker, SearchableSelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="space-y-8 max-w-7xl mx-auto pb-12">
@@ -256,12 +261,17 @@ import { AdminSubscriptionPlanDto } from '../../core/models/admin-plan.model';
             <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Mã Định Danh Tenant (TenantId)</label>
-                  <input
-                    type="text"
+                  <label for="contract-tenant-select" class="block text-xs font-semibold text-slate-700 mb-1">
+                    Đối tác khách sạn (Tenant)
+                  </label>
+                  <app-searchable-select
+                    controlId="contract-tenant-select"
+                    label="Chọn đối tác khách sạn (Tenant)"
+                    [items]="tenantOptions()"
                     [(ngModel)]="newTenantId"
-                    placeholder="Nhập GUID của doanh nghiệp đối tác"
-                    class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-hidden focus:border-emerald-500"
+                    [loading]="loadingTenants()"
+                    placeholder="Chọn đối tác khách sạn / chuỗi..."
+                    searchPlaceholder="Tìm theo tên hoặc mã Tenant..."
                   />
                 </div>
                 <div>
@@ -383,11 +393,14 @@ import { AdminSubscriptionPlanDto } from '../../core/models/admin-plan.model';
 export class AdminContractsPage implements OnInit {
   private readonly contractsService = inject(AdminContractsService);
   private readonly plansService = inject(AdminPlansService);
+  private readonly platformGovernanceService = inject(PlatformGovernanceService, { optional: true });
   private readonly alertService = inject(AlertService);
   private readonly router = inject(Router);
 
   readonly contracts = signal<TenantContractDto[]>([]);
   readonly availablePlans = signal<AdminSubscriptionPlanDto[]>([]);
+  readonly tenantOptions = signal<SearchableSelectItem[]>([]);
+  readonly loadingTenants = signal(false);
   readonly isLoading = signal(false);
   readonly isSaving = signal(false);
   readonly showCreateModal = signal(false);
@@ -452,7 +465,31 @@ export class AdminContractsPage implements OnInit {
   ngOnInit(): void {
     this.loadContracts();
     this.loadPlans();
+    this.loadTenants();
     this.initDefaultDates();
+  }
+
+  loadTenants(): void {
+    if (!this.platformGovernanceService) {
+      return;
+    }
+    this.loadingTenants.set(true);
+    this.platformGovernanceService.getPlatformTenants().subscribe({
+      next: list => {
+        this.tenantOptions.set(
+          (list || []).map(t => ({
+            value: t.id,
+            label: `${t.name} (${t.code})`,
+            subLabel: t.email || t.city || t.slug,
+            badge: t.subscriptionTierName
+          }))
+        );
+        this.loadingTenants.set(false);
+      },
+      error: () => {
+        this.loadingTenants.set(false);
+      }
+    });
   }
 
   private initDefaultDates(): void {

@@ -1,4 +1,6 @@
+using System.Security.Cryptography;
 using FluentValidation;
+using HotelSaas.Application.Auth.Commands.ForgotPassword;
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Staff.DTOs;
@@ -18,6 +20,8 @@ public sealed record CreateStaffMemberCommand : IRequest<StaffMemberDto>
     public Guid? PropertyId { get; init; }
     public Guid? RoleId { get; init; }
     public StaffRole StaffRole { get; init; } = StaffRole.Receptionist;
+    public bool ConfirmCustomerPromotion { get; init; } = false;
+    public string? AppUrl { get; init; }
 }
 
 public sealed class CreateStaffMemberCommandValidator : AbstractValidator<CreateStaffMemberCommand>
@@ -27,6 +31,10 @@ public sealed class CreateStaffMemberCommandValidator : AbstractValidator<Create
         RuleFor(x => x.FullName).NotEmpty().MaximumLength(150);
         RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(200);
         RuleFor(x => x.PhoneNumber).MaximumLength(20);
+        RuleFor(x => x.Password)
+            .MinimumLength(8).WithMessage("Mật khẩu phải có ít nhất 8 ký tự.")
+            .MaximumLength(100).WithMessage("Mật khẩu không được vượt quá 100 ký tự.")
+            .When(x => !string.IsNullOrWhiteSpace(x.Password));
     }
 }
 
@@ -35,15 +43,24 @@ public sealed class CreateStaffMemberCommandHandler : IRequestHandler<CreateStaf
     private readonly IApplicationDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly ISubscriptionQuotaGuard? _quotaGuard;
+    private readonly IJwtService? _jwtService;
+    private readonly IEmailService? _emailService;
 
     public CreateStaffMemberCommandHandler(
         IApplicationDbContext context,
         ICurrentTenantService currentTenantService,
-        IPasswordHasher passwordHasher)
+        IPasswordHasher passwordHasher,
+        ISubscriptionQuotaGuard? quotaGuard = null,
+        IJwtService? jwtService = null,
+        IEmailService? emailService = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
         _passwordHasher = passwordHasher;
+        _quotaGuard = quotaGuard;
+        _jwtService = jwtService;
+        _emailService = emailService;
     }
 
     public async Task<StaffMemberDto> Handle(
@@ -67,9 +84,21 @@ public sealed class CreateStaffMemberCommandHandler : IRequestHandler<CreateStaf
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail, cancellationToken);
 
+        string? inviteSetupToken = null;
+        var shouldSendInvite = false;
+
         if (user == null)
         {
-            var rawPassword = !string.IsNullOrWhiteSpace(request.Password) ? request.Password : "Staff@123456";
+            if (_quotaGuard != null)
+            {
+                await _quotaGuard.EnsureCanCreateStaffAsync(tenantId.Value, cancellationToken);
+            }
+
+            var hasExplicitPassword = !string.IsNullOrWhiteSpace(request.Password);
+            var rawPassword = hasExplicitPassword
+                ? request.Password!
+                : Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+
             user = new User
             {
                 Id = Guid.NewGuid(),
@@ -86,13 +115,48 @@ public sealed class CreateStaffMemberCommandHandler : IRequestHandler<CreateStaf
                 CreatedAtUtc = now
             };
             _context.Users.Add(user);
+
+            if (!hasExplicitPassword)
+            {
+                shouldSendInvite = true;
+                if (_jwtService != null)
+                {
+                    var fingerprint = ForgotPasswordCommandHandler.ComputePasswordFingerprint(user.PasswordHash);
+                    inviteSetupToken = _jwtService.GeneratePasswordResetToken(
+                        user.Id,
+                        user.Email,
+                        fingerprint,
+                        TimeSpan.FromHours(24));
+                }
+            }
         }
         else
         {
             if (user.GlobalRole == GlobalUserRole.Customer)
             {
+                if (!request.ConfirmCustomerPromotion)
+                {
+                    throw new ConflictException(
+                        "ERR_CUSTOMER_ACCOUNT_EXISTS",
+                        "Tài khoản email này đang là Khách hàng trên hệ thống. Vui lòng xác nhận trước khi nâng cấp thành Nhân sự PMS.");
+                }
+
                 user.GlobalRole = GlobalUserRole.TenantStaff;
             }
+
+            if (_quotaGuard != null)
+            {
+                var alreadyActiveStaffInTenant = await _context.TenantStaffMembers
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .AnyAsync(s => s.TenantId == tenantId.Value && s.UserId == user.Id && s.IsActive, cancellationToken);
+
+                if (!alreadyActiveStaffInTenant)
+                {
+                    await _quotaGuard.EnsureCanCreateStaffAsync(tenantId.Value, cancellationToken);
+                }
+            }
+
             user.TenantId ??= tenantId.Value;
 
             if (!string.IsNullOrWhiteSpace(request.PhoneNumber) && string.IsNullOrWhiteSpace(user.PhoneNumber))
@@ -168,6 +232,26 @@ public sealed class CreateStaffMemberCommandHandler : IRequestHandler<CreateStaf
         _context.TenantStaffMembers.Add(staff);
         await _context.SaveChangesAsync(cancellationToken);
 
+        var invitedViaEmail = false;
+        if (shouldSendInvite && !string.IsNullOrEmpty(inviteSetupToken) && _emailService != null)
+        {
+            var baseUrl = ForgotPasswordCommandHandler.ResolveSafeAppUrl(request.AppUrl);
+            var setupUrl = $"{baseUrl}/auth/reset-password?token={Uri.EscapeDataString(inviteSetupToken)}&mode=invite";
+            try
+            {
+                invitedViaEmail = await _emailService.SendStaffInvitationEmailAsync(
+                    user.Email,
+                    user.FullName,
+                    setupUrl,
+                    1440,
+                    cancellationToken);
+            }
+            catch
+            {
+                invitedViaEmail = false;
+            }
+        }
+
         return new StaffMemberDto
         {
             Id = staff.Id,
@@ -184,7 +268,8 @@ public sealed class CreateStaffMemberCommandHandler : IRequestHandler<CreateStaf
             StaffRole = staff.StaffRole,
             StaffRoleName = staff.StaffRole.ToString(),
             IsActive = staff.IsActive,
-            CreatedAtUtc = staff.CreatedAtUtc
+            CreatedAtUtc = staff.CreatedAtUtc,
+            InvitedViaEmail = invitedViaEmail
         };
     }
 }

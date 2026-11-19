@@ -1,18 +1,19 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using HotelSaas.Application.Common.Interfaces;
-using HotelSaas.Application.Public.Services;
-using HotelSaas.Application.Reservations.DTOs;
-using HotelSaas.Domain.Entities;
+using HotelSaas.Application.Common.Exceptions;
+using HotelSaas.Application.Print.Commands.SavePrintTemplateConfig;
+using HotelSaas.Application.Print.DTOs;
+using HotelSaas.Application.Print.Queries.GetPrintableContract;
+using HotelSaas.Application.Print.Queries.GetPrintableInvoice;
+using HotelSaas.Application.Print.Queries.GetPrintableVoucher;
+using HotelSaas.Application.Print.Queries.GetPrintTemplateConfig;
 using HotelSaas.Domain.Enums;
 using HotelSaas.WebApi.Authorization;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace HotelSaas.WebApi.Controllers;
 
@@ -29,13 +30,11 @@ namespace HotelSaas.WebApi.Controllers;
 [Produces("application/json")]
 public sealed class PrintDocumentsController : ControllerBase
 {
-    private readonly IApplicationDbContext _context;
-    private readonly ICurrentUserContext _currentUser;
+    private readonly ISender _mediator;
 
-    public PrintDocumentsController(IApplicationDbContext context, ICurrentUserContext currentUser)
+    public PrintDocumentsController(ISender mediator)
     {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
-        _currentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
+        _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
     }
 
     /// <summary>
@@ -51,164 +50,23 @@ public sealed class PrintDocumentsController : ControllerBase
         [FromQuery] string? code = null,
         CancellationToken cancellationToken = default)
     {
-        var reservation = await _context.Reservations
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Include(r => r.Tenant)
-            .Include(r => r.Property)
-            .Include(r => r.Room)
-            .ThenInclude(rm => rm!.RoomType)
-            .Include(r => r.Payments)
-            .FirstOrDefaultAsync(r => r.Id == reservationId, cancellationToken);
-
-        if (reservation == null)
+        try
         {
-            return NotFound(new { code = "ERR_RESERVATION_NOT_FOUND", message = "Không tìm thấy hồ sơ đặt phòng." });
+            var result = await _mediator.Send(new GetPrintableInvoiceQuery(reservationId, code), cancellationToken);
+            return Ok(result);
         }
-
-        var snapshot = ReservationSnapshotHelper.TryDeserialize(reservation.Notes);
-
-        bool isAuthorizedFullPii = (_currentUser.IsAuthenticated &&
-            (_currentUser.GlobalRole == GlobalUserRole.SuperAdmin ||
-             (_currentUser.TenantId.HasValue && _currentUser.TenantId.Value == reservation.TenantId) ||
-             (_currentUser.UserId != Guid.Empty && reservation.GuestUserId == _currentUser.UserId))) ||
-            (!string.IsNullOrWhiteSpace(code) &&
-             (string.Equals(code.Trim(), reservation.ConfirmationCode, StringComparison.OrdinalIgnoreCase) ||
-              (snapshot != null && !snapshot.IsTokenRevoked && !string.IsNullOrWhiteSpace(snapshot.LookupToken) &&
-               string.Equals(code.Trim(), snapshot.LookupToken, StringComparison.OrdinalIgnoreCase))));
-
-        var printConfigs = await _context.PrintTemplateConfigs
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(c => c.TenantId == reservation.TenantId && (c.PropertyId == reservation.PropertyId || c.PropertyId == null))
-            .ToListAsync(cancellationToken);
-
-        var printConfig = printConfigs.FirstOrDefault(c => c.PropertyId == reservation.PropertyId)
-            ?? printConfigs.FirstOrDefault(c => c.PropertyId == null);
-
-        // Lấy hóa đơn chính thức nếu đã tạo
-        var invoice = await _context.Invoices
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Include(i => i.InvoiceItems)
-            .FirstOrDefaultAsync(i => i.ReservationId == reservationId, cancellationToken);
-
-        var propertyName = reservation.Property?.Name ?? reservation.Tenant?.Name ?? "Khách Sạn & Khu Nghỉ Dưỡng";
-        var headerCompany = !string.IsNullOrWhiteSpace(printConfig?.HeaderCompanyName) ? printConfig!.HeaderCompanyName : propertyName;
-        var address = !string.IsNullOrWhiteSpace(printConfig?.HeaderAddress) ? printConfig!.HeaderAddress : (reservation.Property?.Address ?? string.Empty);
-        var taxCode = printConfig?.TaxNumber ?? string.Empty;
-        var hotline = !string.IsNullOrWhiteSpace(printConfig?.Hotline) ? printConfig!.Hotline : (reservation.Property?.PhoneNumber ?? string.Empty);
-        var logoUrl = !string.IsNullOrWhiteSpace(printConfig?.LogoUrl) ? printConfig!.LogoUrl : null;
-
-        var totalAmount = invoice != null && invoice.GrandTotal > 0 ? invoice.GrandTotal : reservation.TotalAmount;
-        var vatRate = invoice != null
-            ? Math.Round(invoice.TaxRate * 100m, 2)
-            : (reservation.Property?.TaxRatePercent > 0 ? reservation.Property!.TaxRatePercent : 8m);
-        var vatAmount = invoice?.TaxAmount ?? Math.Round(totalAmount * (vatRate / 100m), 0);
-        var subTotal = invoice != null && invoice.Subtotal > 0 ? invoice.Subtotal : totalAmount - vatAmount;
-
-        // Exclude REFUND transactions when summing paidAmount
-        var completedNonRefundPayments = reservation.Payments
-            .Where(p => p.Status == PaymentStatus.Completed &&
-                        (p.TransactionRef == null || !p.TransactionRef.Contains("REFUND", StringComparison.OrdinalIgnoreCase)))
-            .ToList();
-        var paidAmount = completedNonRefundPayments.Sum(p => p.Amount);
-        var remainingAmount = Math.Max(0, totalAmount - paidAmount);
-
-        var hasBankConfig = printConfig != null &&
-            !string.IsNullOrWhiteSpace(printConfig.BankName) &&
-            !string.IsNullOrWhiteSpace(printConfig.BankAccountNumber);
-        var bankName = hasBankConfig ? printConfig!.BankName : string.Empty;
-        var bankAcc = hasBankConfig ? printConfig!.BankAccountNumber : string.Empty;
-        var bankHolder = hasBankConfig ? printConfig!.BankAccountHolder : string.Empty;
-        var showVietQr = (printConfig?.ShowVietQrCode ?? false) && hasBankConfig && remainingAmount > 0;
-        var vietQrUrl = showVietQr
-            ? $"https://img.vietqr.io/image/{Uri.EscapeDataString(bankName)}-{Uri.EscapeDataString(bankAcc)}-compact2.png?amount={remainingAmount:0}&addInfo={Uri.EscapeDataString($"THANHTOAN {reservation.ConfirmationCode}")}"
-            : string.Empty;
-
-        var rentalType = snapshot?.RentalType.ToString() ??
-            (reservation.CheckInDate == reservation.CheckOutDate ? RentalType.Hourly.ToString() : RentalType.Overnight.ToString());
-
-        var lineItems = new List<InvoiceLineItemDto>();
-        if (invoice != null && invoice.InvoiceItems.Any())
+        catch (ForbiddenException)
         {
-            lineItems = invoice.InvoiceItems.Select(item => new InvoiceLineItemDto
-            {
-                Description = item.Description,
-                Quantity = item.Quantity,
-                UnitPrice = item.UnitPrice,
-                Amount = item.Amount
-            }).ToList();
+            return Forbid();
         }
-        else
+        catch (NotFoundException ex)
         {
-            var roomTypeName = reservation.Room?.RoomType?.Name ?? snapshot?.RoomTypeName ?? "Phòng Tiêu Chuẩn";
-            var roomNumber = reservation.Room?.RoomNumber ?? "Chưa chỉ định";
-            if (snapshot?.RentalType == RentalType.Hourly)
-            {
-                var hours = Math.Max(1, (int)Math.Ceiling((snapshot.EndAtUtc - snapshot.StartAtUtc).TotalHours));
-                lineItems.Add(new InvoiceLineItemDto
-                {
-                    Description = $"Tiền phòng: {roomTypeName} (Phòng {roomNumber}) - {hours} giờ",
-                    Quantity = hours,
-                    UnitPrice = Math.Round(subTotal / hours, 0),
-                    Amount = subTotal
-                });
-            }
-            else
-            {
-                var nights = Math.Max(1, (reservation.CheckOutDate.ToDateTime(TimeOnly.MinValue) - reservation.CheckInDate.ToDateTime(TimeOnly.MinValue)).Days);
-                lineItems.Add(new InvoiceLineItemDto
-                {
-                    Description = $"Tiền phòng: {roomTypeName} (Phòng {roomNumber}) - {nights} đêm",
-                    Quantity = nights,
-                    UnitPrice = Math.Round(subTotal / nights, 0),
-                    Amount = subTotal
-                });
-            }
+            return NotFound(new { code = "ERR_RESERVATION_NOT_FOUND", message = ex.Message });
         }
-
-        var result = new PrintableInvoiceDto
+        catch (BadRequestException ex)
         {
-            ReservationId = reservation.Id,
-            InvoiceNumber = invoice?.InvoiceNumber ?? $"HD-{DateTime.UtcNow:yyyyMMdd}-{reservation.ConfirmationCode}",
-            ConfirmationCode = reservation.ConfirmationCode,
-            IssuedDate = invoice?.IssuedAtUtc ?? DateTime.UtcNow,
-            HeaderCompanyName = headerCompany,
-            HeaderAddress = address,
-            TaxNumber = taxCode,
-            Hotline = hotline,
-            LogoUrl = logoUrl,
-            PropertyName = propertyName,
-            GuestName = reservation.GuestName,
-            GuestEmail = isAuthorizedFullPii ? reservation.GuestEmail : MaskEmail(reservation.GuestEmail),
-            GuestPhone = isAuthorizedFullPii ? (reservation.GuestPhone ?? "") : MaskPhone(reservation.GuestPhone),
-            RoomNumber = reservation.Room?.RoomNumber ?? "",
-            RoomTypeName = reservation.Room?.RoomType?.Name ?? snapshot?.RoomTypeName ?? "",
-            RentalType = rentalType,
-            CheckInDate = reservation.CheckInDate,
-            CheckOutDate = reservation.CheckOutDate,
-            NumberOfGuests = reservation.NumberOfGuests,
-            SubTotal = subTotal,
-            VatRate = vatRate,
-            VatAmount = vatAmount,
-            TotalAmount = totalAmount,
-            PaidAmount = paidAmount,
-            RemainingAmount = remainingAmount,
-            Status = remainingAmount <= 0 ? "ĐÃ THANH TOÁN ĐỦ" : "CÒN CÔNG NỢ",
-            PaymentMethod = completedNonRefundPayments.OrderByDescending(p => p.CreatedAtUtc).Select(p => p.Method.ToString()).FirstOrDefault()
-                ?? reservation.PaymentMethodPreference.ToString(),
-            VietQrImageUrl = vietQrUrl,
-            ShowVietQrCode = showVietQr,
-            BankAccountNumber = bankAcc,
-            BankAccountHolder = bankHolder,
-            BankName = bankName,
-            CheckInPolicyText = printConfig?.CheckInPolicyText ?? "Nhận phòng từ 14:00 - Trả phòng trước 12:00. Vui lòng xuất trình CCCD/Hộ chiếu khi làm thủ tục.",
-            FooterNote = printConfig?.FooterNote ?? "Cảm ơn Quý khách đã tin tưởng và sử dụng dịch vụ của chúng tôi! Hẹn gặp lại Quý khách.",
-            Items = lineItems
-        };
-
-        return Ok(result);
+            return BadRequest(new { code = ex.ErrorCode, message = ex.Message });
+        }
     }
 
     /// <summary>
@@ -221,118 +79,23 @@ public sealed class PrintDocumentsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetPrintableVoucher(string confirmationCode, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(confirmationCode))
+        try
         {
-            return NotFound(new { code = "ERR_VOUCHER_NOT_FOUND", message = "Không tìm thấy mã đặt phòng." });
+            var result = await _mediator.Send(new GetPrintableVoucherQuery(confirmationCode), cancellationToken);
+            return Ok(result);
         }
-
-        var token = confirmationCode.Trim();
-
-        var candidates = await _context.Reservations
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Include(r => r.Property)
-            .Include(r => r.Tenant)
-            .Include(r => r.Room)
-            .ThenInclude(rm => rm!.RoomType)
-            .Where(r =>
-                (r.ConfirmationCode != null && r.ConfirmationCode.ToUpper() == token.ToUpper()) ||
-                (r.Notes != null && r.Notes.Contains(token)))
-            .Take(10)
-            .ToListAsync(cancellationToken);
-
-        Reservation? reservation = null;
-        ReservationSnapshot? snapshot = null;
-        bool isTokenMatch = false;
-        bool isCodeMatch = false;
-
-        foreach (var candidate in candidates)
+        catch (ForbiddenException)
         {
-            var snap = ReservationSnapshotHelper.TryDeserialize(candidate.Notes);
-            var tokenMatched = snap != null &&
-                !string.IsNullOrWhiteSpace(snap.LookupToken) &&
-                string.Equals(snap.LookupToken, token, StringComparison.OrdinalIgnoreCase);
-            var codeMatched = string.Equals(candidate.ConfirmationCode, token, StringComparison.OrdinalIgnoreCase);
-
-            if (tokenMatched || codeMatched)
-            {
-                reservation = candidate;
-                snapshot = snap;
-                isTokenMatch = tokenMatched;
-                isCodeMatch = codeMatched;
-                if (tokenMatched) break;
-            }
+            return Forbid();
         }
-
-        if (reservation == null)
+        catch (NotFoundException ex)
         {
-            return NotFound(new { code = "ERR_VOUCHER_NOT_FOUND", message = "Không tìm thấy mã đặt phòng." });
+            return NotFound(new { code = "ERR_VOUCHER_NOT_FOUND", message = ex.Message });
         }
-
-        if (isTokenMatch && !isCodeMatch && snapshot != null &&
-            (snapshot.IsTokenRevoked || (snapshot.TokenExpiresAtUtc.HasValue && snapshot.TokenExpiresAtUtc.Value <= DateTime.UtcNow)))
+        catch (BadRequestException ex)
         {
-            return NotFound(new { code = "ERR_VOUCHER_NOT_FOUND", message = "Mã tra cứu đặt phòng đã hết hạn hoặc bị thu hồi." });
+            return BadRequest(new { code = ex.ErrorCode, message = ex.Message });
         }
-
-        bool isAuthenticatedOwnerOrStaff = _currentUser.IsAuthenticated &&
-            (_currentUser.GlobalRole == GlobalUserRole.SuperAdmin ||
-             (_currentUser.TenantId.HasValue && _currentUser.TenantId.Value == reservation.TenantId) ||
-             (_currentUser.UserId != Guid.Empty && reservation.GuestUserId == _currentUser.UserId));
-
-        bool isValidTokenMatch = isTokenMatch && snapshot != null && !snapshot.IsTokenRevoked &&
-            (!snapshot.TokenExpiresAtUtc.HasValue || snapshot.TokenExpiresAtUtc.Value > DateTime.UtcNow);
-
-        bool isAuthorizedFullPii = isAuthenticatedOwnerOrStaff || isValidTokenMatch;
-
-        var voucherConfigs = await _context.PrintTemplateConfigs
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(c => c.TenantId == reservation.TenantId && (c.PropertyId == reservation.PropertyId || c.PropertyId == null))
-            .ToListAsync(cancellationToken);
-
-        var printConfig = voucherConfigs.FirstOrDefault(c => c.PropertyId == reservation.PropertyId)
-            ?? voucherConfigs.FirstOrDefault(c => c.PropertyId == null);
-
-        var property = reservation.Property;
-        var roomType = reservation.Room?.RoomType;
-        var checkInTime = property != null ? property.CheckInTime.ToString("HH:mm") : "14:00";
-        var checkOutTime = property != null ? property.CheckOutTime.ToString("HH:mm") : "12:00";
-        var rentalType = snapshot?.RentalType.ToString() ??
-            (reservation.CheckInDate == reservation.CheckOutDate ? RentalType.Hourly.ToString() : RentalType.Overnight.ToString());
-
-        var result = new PrintableVoucherDto
-        {
-            ConfirmationCode = reservation.ConfirmationCode,
-            CreatedAtUtc = reservation.CreatedAtUtc,
-            PropertyName = property?.Name ?? reservation.Tenant?.Name ?? "Khách Sạn Đối Tác",
-            PropertyAddress = property?.Address ?? string.Empty,
-            PropertyPhone = !string.IsNullOrWhiteSpace(property?.PhoneNumber) ? property!.PhoneNumber : (printConfig?.Hotline ?? string.Empty),
-            PropertyEmail = property?.Email ?? string.Empty,
-            GuestName = isAuthorizedFullPii ? reservation.GuestName : PiiMaskingHelper.MaskName(reservation.GuestName),
-            GuestEmail = isAuthorizedFullPii ? reservation.GuestEmail : MaskEmail(reservation.GuestEmail),
-            GuestPhone = isAuthorizedFullPii ? (reservation.GuestPhone ?? "") : MaskPhone(reservation.GuestPhone),
-            RoomTypeName = roomType?.Name ?? snapshot?.RoomTypeName ?? "Phòng Tiêu Chuẩn",
-            RoomNumber = reservation.Room?.RoomNumber ?? "Lễ tân sắp xếp khi check-in",
-            RentalType = rentalType,
-            CheckInDate = reservation.CheckInDate,
-            CheckInTime = checkInTime,
-            CheckOutDate = reservation.CheckOutDate,
-            CheckOutTime = checkOutTime,
-            NumberOfGuests = reservation.NumberOfGuests,
-            TotalAmount = reservation.TotalAmount,
-            Status = reservation.Status.ToString(),
-            BedType = roomType?.BedType ?? "1 Giường King",
-            SquareMeters = roomType?.SquareMeters ?? 28,
-            PolicyNote = printConfig?.CheckInPolicyText ?? $"Nhận phòng từ {checkInTime} - Trả phòng trước {checkOutTime}. Vui lòng xuất trình CCCD/Hộ chiếu gốc tại quầy lễ tân.",
-            FooterNote = printConfig?.FooterNote ?? "Cảm ơn Quý khách đã tin tưởng và sử dụng dịch vụ của chúng tôi!",
-            SpecialRequests = isAuthorizedFullPii ? ReservationSnapshotHelper.CleanCustomerNotes(reservation.Notes, snapshot) : null,
-            QrCodeData = isAuthorizedFullPii
-                ? $"HOTEL-CHECKIN:{reservation.ConfirmationCode}:{reservation.GuestName}"
-                : $"HOTEL-CHECKIN:{reservation.ConfirmationCode}"
-        };
-
-        return Ok(result);
     }
 
     /// <summary>
@@ -343,74 +106,23 @@ public sealed class PrintDocumentsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetPrintableContract(Guid contractId, CancellationToken cancellationToken = default)
     {
-        var contract = await _context.TenantContracts
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Include(c => c.Tenant)
-            .FirstOrDefaultAsync(c => c.Id == contractId, cancellationToken);
-
-        if (contract == null)
+        try
         {
-            return NotFound(new { code = "ERR_CONTRACT_NOT_FOUND", message = "Không tìm thấy hợp đồng." });
+            var dto = await _mediator.Send(new GetPrintableContractQuery(contractId), cancellationToken);
+            return Ok(MapContractDocumentDto(dto));
         }
-
-        if (_currentUser.GlobalRole != GlobalUserRole.SuperAdmin &&
-            (!_currentUser.TenantId.HasValue || _currentUser.TenantId.Value != contract.TenantId))
+        catch (ForbiddenException)
         {
             return Forbid();
         }
-
-        var propertiesCount = await _context.Properties
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .CountAsync(p => p.TenantId == contract.TenantId, cancellationToken);
-
-        var roomsCount = await _context.Rooms
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .CountAsync(r => r.TenantId == contract.TenantId, cancellationToken);
-
-        var isSigned = contract.SignedAtUtc.HasValue && !string.IsNullOrWhiteSpace(contract.DigitalSignatureHash);
-
-        var result = new PrintableContractDocumentDto
+        catch (NotFoundException ex)
         {
-            ContractId = contract.Id,
-            ContractNumber = contract.ContractNumber,
-            CreatedAtUtc = contract.CreatedAtUtc,
-            SignedDate = contract.SignedAtUtc ?? contract.CreatedAtUtc,
-            SignedAtUtc = contract.SignedAtUtc,
-            Status = contract.Status.ToString(),
-            IsSigned = isSigned,
-            StartDate = contract.StartDate,
-            EndDate = contract.EndDate,
-            // Bên A: Nền tảng Hotel SaaS
-            PlatformCompanyName = "CÔNG TY CỔ PHẦN CÔNG NGHỆ NỀN TẢNG KHÁCH SẠN HOTEL SAAS VIỆT NAM",
-            PlatformAddress = "Tầng 18, Tòa nhà Innovation Hub, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
-            PlatformTaxCode = "0318889999",
-            PlatformHotline = "1900 8899",
-            PlatformRepresentative = "Đại diện Pháp luật Nền tảng Hotel SaaS",
-            // Bên B: Khách sạn / Doanh nghiệp Đối tác
-            TenantCompanyName = contract.Tenant?.Name ?? "Doanh Nghiệp Đối Tác",
-            TenantCode = contract.Tenant?.Code ?? "TENANT",
-            TenantRepresentative = contract.RepresentativeName,
-            TenantEmail = contract.RepresentativeEmail,
-            TenantPhone = contract.RepresentativePhone,
-            TenantAddress = !string.IsNullOrWhiteSpace(contract.Tenant?.Address)
-                ? contract.Tenant!.Address
-                : "Địa chỉ trụ sở chính theo Giấy chứng nhận đăng ký doanh nghiệp",
-            // Chi tiết dịch vụ
-            PlanCode = contract.PlanCode,
-            PlanName = contract.PlanName,
-            ContractType = contract.ContractType,
-            BillingCycle = contract.BillingCycle.ToString(),
-            ContractValue = contract.ContractValue,
-            MaxPropertiesAllowed = propertiesCount > 0 ? propertiesCount : 3,
-            MaxRoomsAllowed = roomsCount > 0 ? roomsCount : 50,
-            DigitalSignatureHash = isSigned ? contract.DigitalSignatureHash! : string.Empty,
-            TermsAndConditions = contract.TermsAndConditions ?? "Toàn bộ điều khoản cam kết mức độ dịch vụ (SLA 99.9%) và chính sách bảo mật dữ liệu khách sạn."
-        };
-
-        return Ok(result);
+            return NotFound(new { code = "ERR_CONTRACT_NOT_FOUND", message = ex.Message });
+        }
+        catch (BadRequestException ex)
+        {
+            return BadRequest(new { code = ex.ErrorCode, message = ex.Message });
+        }
     }
 
     /// <summary>
@@ -425,70 +137,23 @@ public sealed class PrintDocumentsController : ControllerBase
         [FromQuery] Guid? propertyId = null,
         CancellationToken cancellationToken = default)
     {
-        Guid effectiveTenantId;
-        if (_currentUser.GlobalRole == GlobalUserRole.SuperAdmin)
+        try
         {
-            effectiveTenantId = tenantId ?? _currentUser.TenantId ?? Guid.Empty;
+            var dto = await _mediator.Send(new GetPrintTemplateConfigQuery(tenantId, propertyId), cancellationToken);
+            return Ok(MapTemplateConfigDto(dto));
         }
-        else
-        {
-            if (tenantId.HasValue && tenantId.Value != Guid.Empty &&
-                (!_currentUser.TenantId.HasValue || tenantId.Value != _currentUser.TenantId.Value))
-            {
-                return Forbid();
-            }
-            effectiveTenantId = _currentUser.TenantId ?? Guid.Empty;
-        }
-
-        if (effectiveTenantId == Guid.Empty)
+        catch (ForbiddenException)
         {
             return Forbid();
         }
-
-        if (propertyId.HasValue && propertyId.Value != Guid.Empty &&
-            _currentUser.GlobalRole != GlobalUserRole.SuperAdmin &&
-            !_currentUser.IsTenantWide &&
-            _currentUser.PropertyId.HasValue &&
-            propertyId.Value != _currentUser.PropertyId.Value)
+        catch (NotFoundException ex)
         {
-            return Forbid();
+            return NotFound(new { code = ex.ErrorCode, message = ex.Message });
         }
-
-        var targetPropertyId = propertyId.HasValue && propertyId.Value != Guid.Empty
-            ? propertyId
-            : _currentUser.PropertyId;
-
-        var configs = await _context.PrintTemplateConfigs
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(c => c.TenantId == effectiveTenantId)
-            .ToListAsync(cancellationToken);
-
-        var config = targetPropertyId.HasValue && targetPropertyId.Value != Guid.Empty
-            ? configs.FirstOrDefault(c => c.PropertyId == targetPropertyId.Value) ?? configs.FirstOrDefault(c => c.PropertyId == null)
-            : configs.FirstOrDefault(c => c.PropertyId == null);
-
-        if (config == null)
+        catch (BadRequestException ex)
         {
-            return Ok(new PrintTemplateConfigDto
-            {
-                TenantId = effectiveTenantId,
-                PropertyId = targetPropertyId,
-                HeaderCompanyName = string.Empty,
-                HeaderAddress = string.Empty,
-                TaxNumber = string.Empty,
-                Hotline = string.Empty,
-                BankName = string.Empty,
-                BankAccountNumber = string.Empty,
-                BankAccountHolder = string.Empty,
-                FooterNote = "Cảm ơn Quý khách đã tin tưởng và sử dụng dịch vụ của chúng tôi!",
-                CheckInPolicyText = "Nhận phòng: 14:00 - Trả phòng: 12:00. Vui lòng xuất trình CCCD gốc.",
-                ShowVietQrCode = false,
-                DefaultPaperSize = "A4"
-            });
+            return BadRequest(new { code = ex.ErrorCode, message = ex.Message });
         }
-
-        return Ok(MapTemplateConfigDto(config));
     }
 
     /// <summary>
@@ -506,200 +171,92 @@ public sealed class PrintDocumentsController : ControllerBase
             return BadRequest(new { code = "ERR_INVALID_REQUEST", message = "Dữ liệu cấu hình không hợp lệ." });
         }
 
-        if (_currentUser.GlobalRole != GlobalUserRole.SuperAdmin &&
-            request.TenantId != Guid.Empty &&
-            (!_currentUser.TenantId.HasValue || request.TenantId != _currentUser.TenantId.Value))
+        try
+        {
+            var dto = await _mediator.Send(new SavePrintTemplateConfigCommand(
+                request.TenantId,
+                request.PropertyId,
+                propertyId,
+                request.HeaderCompanyName,
+                request.HeaderAddress,
+                request.TaxNumber,
+                request.Hotline,
+                request.LogoUrl,
+                request.BankName,
+                request.BankAccountNumber,
+                request.BankAccountHolder,
+                request.FooterNote,
+                request.CheckInPolicyText,
+                request.ShowVietQrCode,
+                request.DefaultPaperSize), cancellationToken);
+
+            return Ok(MapTemplateConfigDto(dto));
+        }
+        catch (ForbiddenException)
         {
             return Forbid();
         }
-
-        // Fail-Closed: Strictly resolve tenantId from authenticated user context, never blind client payload
-        var tenantId = _currentUser.TenantId ?? (_currentUser.GlobalRole == GlobalUserRole.SuperAdmin && request.TenantId != Guid.Empty ? request.TenantId : Guid.Empty);
-        if (tenantId == Guid.Empty)
+        catch (NotFoundException ex)
         {
-            return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu TenantId hợp lệ từ phiên đăng nhập." });
+            return NotFound(new { code = ex.ErrorCode, message = ex.Message });
         }
-
-        var targetPropertyId = propertyId.HasValue && propertyId.Value != Guid.Empty
-            ? propertyId
-            : (request.PropertyId.HasValue && request.PropertyId.Value != Guid.Empty ? request.PropertyId : null);
-
-        if (targetPropertyId.HasValue &&
-            _currentUser.GlobalRole != GlobalUserRole.SuperAdmin &&
-            !_currentUser.IsTenantWide &&
-            _currentUser.PropertyId.HasValue &&
-            targetPropertyId.Value != _currentUser.PropertyId.Value)
+        catch (BadRequestException ex)
         {
-            return Forbid();
+            return BadRequest(new { code = ex.ErrorCode, message = ex.Message });
         }
-
-        var config = await _context.PrintTemplateConfigs
-            .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.PropertyId == targetPropertyId, cancellationToken);
-
-        if (config == null)
-        {
-            config = new PrintTemplateConfig
-            {
-                Id = Guid.NewGuid(),
-                TenantId = tenantId,
-                PropertyId = targetPropertyId,
-                CreatedAtUtc = DateTime.UtcNow
-            };
-            _context.PrintTemplateConfigs.Add(config);
-        }
-
-        config.HeaderCompanyName = request.HeaderCompanyName.Trim();
-        config.HeaderAddress = request.HeaderAddress.Trim();
-        config.TaxNumber = request.TaxNumber.Trim();
-        config.Hotline = request.Hotline.Trim();
-        config.LogoUrl = request.LogoUrl?.Trim();
-        config.BankName = request.BankName.Trim();
-        config.BankAccountNumber = request.BankAccountNumber.Trim();
-        config.BankAccountHolder = request.BankAccountHolder.Trim().ToUpperInvariant();
-        config.FooterNote = request.FooterNote.Trim();
-        config.CheckInPolicyText = request.CheckInPolicyText.Trim();
-        config.ShowVietQrCode = request.ShowVietQrCode;
-        config.DefaultPaperSize = string.IsNullOrWhiteSpace(request.DefaultPaperSize) ? "A4" : request.DefaultPaperSize.Trim();
-        config.UpdatedAtUtc = DateTime.UtcNow;
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return Ok(MapTemplateConfigDto(config));
     }
 
-    private static PrintTemplateConfigDto MapTemplateConfigDto(PrintTemplateConfig config) => new()
+    private static PrintableContractDocumentDto MapContractDocumentDto(PrintableContractDto dto) => new()
     {
-        Id = config.Id,
-        TenantId = config.TenantId,
-        PropertyId = config.PropertyId,
-        HeaderCompanyName = config.HeaderCompanyName,
-        HeaderAddress = config.HeaderAddress,
-        TaxNumber = config.TaxNumber,
-        Hotline = config.Hotline,
-        LogoUrl = config.LogoUrl,
-        BankName = config.BankName,
-        BankAccountNumber = config.BankAccountNumber,
-        BankAccountHolder = config.BankAccountHolder,
-        FooterNote = config.FooterNote,
-        CheckInPolicyText = config.CheckInPolicyText,
-        ShowVietQrCode = config.ShowVietQrCode,
-        DefaultPaperSize = config.DefaultPaperSize
+        ContractId = dto.ContractId,
+        ContractNumber = dto.ContractNumber,
+        CreatedAtUtc = dto.CreatedAtUtc,
+        SignedDate = dto.SignedDate,
+        SignedAtUtc = dto.SignedAtUtc,
+        Status = dto.Status,
+        IsSigned = dto.IsSigned,
+        StartDate = dto.StartDate,
+        EndDate = dto.EndDate,
+        PlatformCompanyName = dto.PlatformCompanyName,
+        PlatformAddress = dto.PlatformAddress,
+        PlatformTaxCode = dto.PlatformTaxCode,
+        PlatformHotline = dto.PlatformHotline,
+        PlatformRepresentative = dto.PlatformRepresentative,
+        TenantCompanyName = dto.TenantCompanyName,
+        TenantCode = dto.TenantCode,
+        TenantRepresentative = dto.TenantRepresentative,
+        TenantEmail = dto.TenantEmail,
+        TenantPhone = dto.TenantPhone,
+        TenantAddress = dto.TenantAddress,
+        PlanCode = dto.PlanCode,
+        PlanName = dto.PlanName,
+        ContractType = dto.ContractType,
+        BillingCycle = dto.BillingCycle,
+        ContractValue = dto.ContractValue,
+        MaxPropertiesAllowed = dto.MaxPropertiesAllowed,
+        MaxRoomsAllowed = dto.MaxRoomsAllowed,
+        DigitalSignatureHash = dto.DigitalSignatureHash,
+        TermsAndConditions = dto.TermsAndConditions
     };
 
-    private static string MaskEmail(string? email)
+    private static PrintTemplateConfigDto MapTemplateConfigDto(PrintTemplateSettingsDto dto) => new()
     {
-        if (string.IsNullOrWhiteSpace(email))
-        {
-            return string.Empty;
-        }
-
-        var trimmed = email.Trim();
-        var atIndex = trimmed.IndexOf('@');
-        if (atIndex <= 0)
-        {
-            return "***";
-        }
-
-        return $"{trimmed[0]}***{trimmed[atIndex..]}";
-    }
-
-    private static string MaskPhone(string? phone)
-    {
-        if (string.IsNullOrWhiteSpace(phone))
-        {
-            return string.Empty;
-        }
-
-        var trimmed = phone.Trim();
-        if (trimmed.Length <= 4)
-        {
-            return new string('*', trimmed.Length);
-        }
-
-        if (trimmed.Length <= 6)
-        {
-            return $"{trimmed[..2]}***{trimmed[^1..]}";
-        }
-
-        return $"{trimmed[..3]}****{trimmed[^3..]}";
-    }
-}
-
-public sealed class PrintableInvoiceDto
-{
-    public Guid ReservationId { get; set; }
-    public string InvoiceNumber { get; set; } = string.Empty;
-    public string ConfirmationCode { get; set; } = string.Empty;
-    public DateTime IssuedDate { get; set; }
-    public string HeaderCompanyName { get; set; } = string.Empty;
-    public string HeaderAddress { get; set; } = string.Empty;
-    public string TaxNumber { get; set; } = string.Empty;
-    public string Hotline { get; set; } = string.Empty;
-    public string? LogoUrl { get; set; }
-    public string PropertyName { get; set; } = string.Empty;
-    public string GuestName { get; set; } = string.Empty;
-    public string GuestEmail { get; set; } = string.Empty;
-    public string GuestPhone { get; set; } = string.Empty;
-    public string RoomNumber { get; set; } = string.Empty;
-    public string RoomTypeName { get; set; } = string.Empty;
-    public string RentalType { get; set; } = string.Empty;
-    public DateOnly CheckInDate { get; set; }
-    public DateOnly CheckOutDate { get; set; }
-    public int NumberOfGuests { get; set; }
-    public decimal SubTotal { get; set; }
-    public decimal VatRate { get; set; } = 8m;
-    public decimal VatAmount { get; set; }
-    public decimal TotalAmount { get; set; }
-    public decimal PaidAmount { get; set; }
-    public decimal RemainingAmount { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public string PaymentMethod { get; set; } = string.Empty;
-    public string VietQrImageUrl { get; set; } = string.Empty;
-    public bool ShowVietQrCode { get; set; }
-    public string BankAccountNumber { get; set; } = string.Empty;
-    public string BankAccountHolder { get; set; } = string.Empty;
-    public string BankName { get; set; } = string.Empty;
-    public string CheckInPolicyText { get; set; } = string.Empty;
-    public string FooterNote { get; set; } = string.Empty;
-    public List<InvoiceLineItemDto> Items { get; set; } = new();
-}
-
-public sealed class InvoiceLineItemDto
-{
-    public string Description { get; set; } = string.Empty;
-    public int Quantity { get; set; }
-    public decimal UnitPrice { get; set; }
-    public decimal Amount { get; set; }
-}
-
-public sealed class PrintableVoucherDto
-{
-    public string ConfirmationCode { get; set; } = string.Empty;
-    public DateTime CreatedAtUtc { get; set; }
-    public string PropertyName { get; set; } = string.Empty;
-    public string PropertyAddress { get; set; } = string.Empty;
-    public string PropertyPhone { get; set; } = string.Empty;
-    public string PropertyEmail { get; set; } = string.Empty;
-    public string GuestName { get; set; } = string.Empty;
-    public string GuestEmail { get; set; } = string.Empty;
-    public string GuestPhone { get; set; } = string.Empty;
-    public string RoomTypeName { get; set; } = string.Empty;
-    public string RoomNumber { get; set; } = string.Empty;
-    public string RentalType { get; set; } = string.Empty;
-    public DateOnly CheckInDate { get; set; }
-    public string CheckInTime { get; set; } = "14:00";
-    public DateOnly CheckOutDate { get; set; }
-    public string CheckOutTime { get; set; } = "12:00";
-    public int NumberOfGuests { get; set; }
-    public decimal TotalAmount { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public string BedType { get; set; } = string.Empty;
-    public decimal SquareMeters { get; set; }
-    public string PolicyNote { get; set; } = string.Empty;
-    public string FooterNote { get; set; } = string.Empty;
-    public string? SpecialRequests { get; set; }
-    public string QrCodeData { get; set; } = string.Empty;
+        Id = dto.Id,
+        TenantId = dto.TenantId,
+        PropertyId = dto.PropertyId,
+        HeaderCompanyName = dto.HeaderCompanyName,
+        HeaderAddress = dto.HeaderAddress,
+        TaxNumber = dto.TaxNumber,
+        Hotline = dto.Hotline,
+        LogoUrl = dto.LogoUrl,
+        BankName = dto.BankName,
+        BankAccountNumber = dto.BankAccountNumber,
+        BankAccountHolder = dto.BankAccountHolder,
+        FooterNote = dto.FooterNote,
+        CheckInPolicyText = dto.CheckInPolicyText,
+        ShowVietQrCode = dto.ShowVietQrCode,
+        DefaultPaperSize = dto.DefaultPaperSize
+    };
 }
 
 public sealed class PrintableContractDocumentDto

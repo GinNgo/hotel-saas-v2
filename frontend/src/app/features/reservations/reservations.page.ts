@@ -42,6 +42,7 @@ import {
 } from '../../core/models/payment.model';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { DateRangeFilterComponent, DateRangeFilterValue } from '../../shared/components/date-range-filter/date-range-filter.component';
+import { ContextSelectorDialogComponent } from '../auth/context-selector/context-selector.dialog';
 
 /** Helper to get today's date formatted as YYYY-MM-DD in Vietnam timezone (UTC+7) */
 export function getTodayVnDateString(): string {
@@ -79,7 +80,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
 @Component({
   selector: 'app-reservations',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, EmptyStateComponent, DateRangeFilterComponent, DatePicker],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, EmptyStateComponent, DateRangeFilterComponent, DatePicker, ContextSelectorDialogComponent],
   template: `
     <div class="max-w-7xl mx-auto space-y-6">
       <!-- Header -->
@@ -243,6 +244,15 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
             Thử lại
           </button>
         </div>
+      } @else if (!activeProperty()) {
+        <app-empty-state
+          title="Chế độ Tổng quan Toàn chuỗi (HQ)"
+          description="Đơn đặt phòng được quản lý theo từng chi nhánh. Vui lòng chọn một chi nhánh làm việc để xem và thao tác đặt phòng."
+          iconClass="pi pi-building"
+          actionLabel="Chọn chi nhánh làm việc"
+          actionIcon="pi pi-building"
+          (actionClick)="openContextSelector()"
+        ></app-empty-state>
       } @else if (reservations().length === 0) {
         <app-empty-state
           title="Chưa có đơn đặt phòng nào"
@@ -586,6 +596,15 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               <div class="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
               <span class="text-xs text-slate-500">Đang tải dữ liệu sơ đồ phòng...</span>
             </div>
+          } @else if (!activeProperty()) {
+            <app-empty-state
+              title="Chế độ Tổng quan Toàn chuỗi (HQ)"
+              description="Sơ đồ lịch phòng hiển thị theo từng chi nhánh. Vui lòng chọn chi nhánh để xem sơ đồ phòng."
+              iconClass="pi pi-building"
+              actionLabel="Chọn chi nhánh làm việc"
+              actionIcon="pi pi-building"
+              (actionClick)="openContextSelector()"
+            ></app-empty-state>
           } @else if (filteredTimelineRooms().length === 0) {
             <app-empty-state
               title="Không có phòng nào phù hợp"
@@ -1058,6 +1077,53 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   <div class="text-rose-800">Thời gian hủy: <b>{{ formatVietnamFullDateTime(detail.cancelledAtUtc) }}</b></div>
                   @if (detail.cancellationReason) {
                     <div class="text-rose-800">Lý do hủy: <b>{{ detail.cancellationReason }}</b></div>
+                  }
+                </div>
+              }
+
+              <!-- Smart Lock Access PIN Management (M5 - G0-03) -->
+              @if (detail.status === ReservationStatus.Confirmed || detail.status === ReservationStatus.CheckedIn || detail.smartLockStatus) {
+                <div class="bg-slate-50/90 p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div class="space-y-0.5">
+                    <div class="flex items-center gap-2">
+                      <i class="pi pi-key text-indigo-600 text-xs"></i>
+                      <span class="font-bold text-slate-800 text-xs">Mã khóa phòng Smart Lock</span>
+                      <span
+                        class="px-2 py-0.5 rounded-full text-[10px] font-bold border"
+                        [ngClass]="detail.smartLockStatus === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'"
+                      >
+                        {{ detail.smartLockStatus === 'Active' ? 'Đang hoạt động' : (detail.smartLockStatus === 'Revoked' ? 'Đã thu hồi' : (detail.smartLockStatus || 'Chưa cấp')) }}
+                      </span>
+                    </div>
+                    <div class="text-xs text-slate-600">
+                      @if (detail.smartLockPin && detail.smartLockStatus === 'Active') {
+                        <span>Mã PIN hiện tại: <strong class="font-mono tracking-widest text-indigo-700 text-sm">{{ detail.smartLockPin }}</strong></span>
+                      } @else {
+                        <span>Chưa có mã PIN hoạt động cho đơn lưu trú này.</span>
+                      }
+                    </div>
+                  </div>
+                  @if (canCheckInOut() && (detail.status === ReservationStatus.Confirmed || detail.status === ReservationStatus.CheckedIn)) {
+                    <div class="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        [disabled]="isActionLoading()"
+                        (click)="onRegenerateSmartLockPin(detail)"
+                        class="px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50 rounded-lg transition cursor-pointer"
+                      >
+                        <i class="pi pi-refresh mr-1"></i>Cấp mới mã PIN
+                      </button>
+                      @if (detail.smartLockStatus === 'Active' || detail.smartLockPin) {
+                        <button
+                          type="button"
+                          [disabled]="isActionLoading()"
+                          (click)="onRevokeSmartLockPin(detail)"
+                          class="px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 rounded-lg transition cursor-pointer"
+                        >
+                          <i class="pi pi-ban mr-1"></i>Thu hồi PIN
+                        </button>
+                      }
+                    </div>
                   }
                 </div>
               }
@@ -2237,9 +2303,20 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
         </div>
       }
     </div>
+
+    @if (showContextSelector()) {
+      <app-context-selector-dialog
+        [visible]="showContextSelector()"
+        (visibleChange)="showContextSelector.set($event)"
+      />
+    }
   `
 })
 export class ReservationsPage implements OnInit, OnDestroy {
+  readonly showContextSelector = signal(false);
+  openContextSelector(): void {
+    this.showContextSelector.set(true);
+  }
   // Dialogs are controlled via Angular @if state signals with fixed backdrop overlays.
   private readonly reservationService = inject(ReservationService);
   private readonly roomTypeService = inject(RoomTypeService);
@@ -3374,6 +3451,82 @@ export class ReservationsPage implements OnInit, OnDestroy {
         this.isActionLoading.set(false);
         const errMsg = err?.error?.message || 'Đánh dấu No-Show thất bại.';
         this.alertService.toastError(errMsg);
+      }
+    });
+  }
+
+  onRegenerateSmartLockPin(res: ReservationDto | ReservationDetailDto): void {
+    if (!this.canCheckInOut() || this.isActionLoading() || this.actionReservationId() !== null) {
+      return;
+    }
+    const propId = this.activeProperty()?.id;
+    if (!propId || res.propertyId !== propId) {
+      return;
+    }
+
+    const reqId = ++this.lifecycleRequestId;
+    this.actionReservationId.set(res.id);
+    this.isActionLoading.set(true);
+
+    this.lifecycleSub?.unsubscribe();
+    this.lifecycleSub = this.reservationService.regenerateSmartLockPin(res.id, propId).subscribe({
+      next: (updated) => {
+        if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
+          return;
+        }
+        this.actionReservationId.set(null);
+        this.isActionLoading.set(false);
+        this.alertService.toastSuccess(`Đã cấp mới mã PIN Smart Lock cho đơn ${updated.confirmationCode}.`);
+        if (this.selectedReservationDetail()?.id === res.id) {
+          this.selectedReservationDetail.set(updated);
+        }
+        this.loadReservations();
+      },
+      error: (err) => {
+        if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
+          return;
+        }
+        this.actionReservationId.set(null);
+        this.isActionLoading.set(false);
+        this.alertService.toastError(err?.error?.message || 'Cấp mới mã PIN Smart Lock thất bại.');
+      }
+    });
+  }
+
+  onRevokeSmartLockPin(res: ReservationDto | ReservationDetailDto): void {
+    if (!this.canCheckInOut() || this.isActionLoading() || this.actionReservationId() !== null) {
+      return;
+    }
+    const propId = this.activeProperty()?.id;
+    if (!propId || res.propertyId !== propId) {
+      return;
+    }
+
+    const reqId = ++this.lifecycleRequestId;
+    this.actionReservationId.set(res.id);
+    this.isActionLoading.set(true);
+
+    this.lifecycleSub?.unsubscribe();
+    this.lifecycleSub = this.reservationService.revokeSmartLockPin(res.id, propId).subscribe({
+      next: (updated) => {
+        if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
+          return;
+        }
+        this.actionReservationId.set(null);
+        this.isActionLoading.set(false);
+        this.alertService.toastSuccess(`Đã thu hồi mã PIN Smart Lock cho đơn ${updated.confirmationCode}.`);
+        if (this.selectedReservationDetail()?.id === res.id) {
+          this.selectedReservationDetail.set(updated);
+        }
+        this.loadReservations();
+      },
+      error: (err) => {
+        if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
+          return;
+        }
+        this.actionReservationId.set(null);
+        this.isActionLoading.set(false);
+        this.alertService.toastError(err?.error?.message || 'Thu hồi mã PIN Smart Lock thất bại.');
       }
     });
   }

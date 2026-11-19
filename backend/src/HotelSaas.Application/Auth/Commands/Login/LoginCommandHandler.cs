@@ -186,7 +186,10 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
             user.Email,
             user.FullName,
             user.GlobalRole.ToString(),
-            tenantId);
+            tenantId,
+            user.PhoneNumber,
+            user.PhoneVerifiedAtUtc.HasValue,
+            user.EmailVerifiedAtUtc.HasValue);
 
         return new LoginResponse(accessToken, refreshToken, expiresAtUtc, userDto, validMemberships);
     }

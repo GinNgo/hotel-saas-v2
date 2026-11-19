@@ -6,8 +6,21 @@ import { environment } from '../../../environments/environment';
 import {
   TenantSubscriptionDto,
   SubscriptionPackageDto,
-  UpgradeSubscriptionRequest
+  UpgradeSubscriptionRequest,
+  SubscriptionUpgradeInitiationDto,
+  ConfirmSubscriptionPaymentResultDto
 } from '../models/subscription.model';
+
+interface ApiEnvelope<T> {
+  data?: T;
+}
+
+function unwrapPayload<T>(res: ApiEnvelope<T> | T): T {
+  if (res && typeof res === 'object' && 'data' in res && res.data !== undefined) {
+    return res.data;
+  }
+  return res as T;
+}
 
 @Injectable({ providedIn: 'root' })
 export class SubscriptionService {
@@ -15,30 +28,61 @@ export class SubscriptionService {
   private readonly apiUrl = `${environment.apiUrl}/subscriptions`;
 
   /**
-   * Retrieves active subscription details and quota status for the current tenant.
+   * Retrieves active subscription details, quotas, pending payment, and payment history for the current tenant.
    */
   getCurrentSubscription(): Observable<TenantSubscriptionDto> {
-    return this.http.get<any>(`${this.apiUrl}/current`).pipe(
-      map(res => (res.data ? res.data : res) as TenantSubscriptionDto)
-    );
+    return this.http
+      .get<ApiEnvelope<TenantSubscriptionDto> | TenantSubscriptionDto>(`${this.apiUrl}/current`)
+      .pipe(map(res => unwrapPayload(res)));
   }
 
   /**
-   * Retrieves standard subscription packages catalog.
+   * Retrieves active SaaS subscription packages catalog sourced live from SubscriptionPlans.
    */
   getAvailablePlans(): Observable<SubscriptionPackageDto[]> {
-    return this.http.get<any>(`${this.apiUrl}/plans`).pipe(
-      map(res => (res.data ? res.data : res) as SubscriptionPackageDto[])
-    );
+    return this.http
+      .get<ApiEnvelope<SubscriptionPackageDto[]> | SubscriptionPackageDto[]>(`${this.apiUrl}/plans`)
+      .pipe(map(res => unwrapPayload(res)));
   }
 
   /**
-   * Upgrades the tenant to a higher subscription tier.
+   * Initiates a subscription upgrade by creating a Pending SubscriptionPayment and optional VNPay checkout URL.
    */
-  upgradeSubscription(targetTier: number): Observable<TenantSubscriptionDto> {
-    const body: UpgradeSubscriptionRequest = { targetTier };
-    return this.http.post<any>(`${this.apiUrl}/upgrade`, body).pipe(
-      map(res => (res.data ? res.data : res) as TenantSubscriptionDto)
-    );
+  upgradeSubscription(
+    targetTier: number,
+    billingCycle: 0 | 1 = 0,
+    returnUrl?: string
+  ): Observable<SubscriptionUpgradeInitiationDto> {
+    const body: UpgradeSubscriptionRequest = { targetTier, billingCycle, returnUrl };
+    return this.http
+      .post<ApiEnvelope<SubscriptionUpgradeInitiationDto> | SubscriptionUpgradeInitiationDto>(
+        `${this.apiUrl}/upgrade`,
+        body
+      )
+      .pipe(map(res => unwrapPayload(res)));
+  }
+
+  /**
+   * Confirms a pending subscription payment (e.g., sandbox/manual confirmation) and upgrades the tenant subscription.
+   */
+  confirmPayment(paymentId: string, gatewayTransactionNo?: string): Observable<ConfirmSubscriptionPaymentResultDto> {
+    return this.http
+      .post<ApiEnvelope<ConfirmSubscriptionPaymentResultDto> | ConfirmSubscriptionPaymentResultDto>(
+        `${this.apiUrl}/payments/${paymentId}/confirm`,
+        { gatewayTransactionNo }
+      )
+      .pipe(map(res => unwrapPayload(res)));
+  }
+
+  /**
+   * Verifies VNPay browser return query parameters and activates the upgraded tier.
+   */
+  verifyVnpayReturn(vnpayParams: Record<string, string>): Observable<ConfirmSubscriptionPaymentResultDto> {
+    return this.http
+      .post<ApiEnvelope<ConfirmSubscriptionPaymentResultDto> | ConfirmSubscriptionPaymentResultDto>(
+        `${this.apiUrl}/vnpay-return`,
+        vnpayParams
+      )
+      .pipe(map(res => unwrapPayload(res)));
   }
 }

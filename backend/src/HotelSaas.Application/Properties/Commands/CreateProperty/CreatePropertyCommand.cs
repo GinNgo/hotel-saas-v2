@@ -40,21 +40,29 @@ public sealed class CreatePropertyCommandHandler : IRequestHandler<CreatePropert
     private readonly IApplicationDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
     private readonly ILocationLookupService _locationService;
+    private readonly ISubscriptionQuotaGuard? _quotaGuard;
 
     public CreatePropertyCommandHandler(
         IApplicationDbContext context,
         ICurrentTenantService currentTenantService,
-        ILocationLookupService locationService)
+        ILocationLookupService locationService,
+        ISubscriptionQuotaGuard? quotaGuard = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _currentTenantService = currentTenantService ?? throw new ArgumentNullException(nameof(currentTenantService));
         _locationService = locationService ?? throw new ArgumentNullException(nameof(locationService));
+        _quotaGuard = quotaGuard;
     }
 
     public async Task<TenantPropertySummaryDto> Handle(CreatePropertyCommand request, CancellationToken cancellationToken)
     {
         var tenantId = _currentTenantService.TenantId
             ?? throw new UnauthorizedAccessException("Yêu cầu thông tin Tenant hợp lệ để tạo chi nhánh.");
+
+        if (_quotaGuard != null)
+        {
+            await _quotaGuard.EnsureCanCreatePropertyAsync(tenantId, cancellationToken);
+        }
 
         // Check unique code within tenant
         var codeUpper = request.Code.Trim().ToUpperInvariant();

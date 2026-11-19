@@ -31,6 +31,9 @@ export class AuditLogService {
     if (params.entityId) {
       httpParams = httpParams.set('entityId', params.entityId);
     }
+    if (params.search?.trim()) {
+      httpParams = httpParams.set('search', params.search.trim());
+    }
     if (params.fromUtc) {
       httpParams = httpParams.set('fromUtc', params.fromUtc);
     }

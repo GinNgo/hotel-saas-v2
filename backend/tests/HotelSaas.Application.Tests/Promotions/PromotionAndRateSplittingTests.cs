@@ -6,6 +6,10 @@ using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentValidation.TestHelper;
+using HotelSaas.Application.Ai.Commands.ApplyDynamicPricing;
+using HotelSaas.Application.Ai.DTOs;
+using HotelSaas.Application.Ai.Queries.GetAiUsageStatus;
+using HotelSaas.Application.Ai.Queries.GetDynamicPricingRecommendations;
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
@@ -485,11 +489,17 @@ public sealed class PromotionAndRateSplittingTests
     {
         public object? LastSentRequest { get; private set; }
         public object? NextResponse { get; set; }
+        public Func<object, CancellationToken, Task<object?>>? Handler { get; set; }
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             LastSentRequest = request;
-            return Task.FromResult((TResponse)NextResponse!);
+            if (Handler != null)
+            {
+                return (TResponse)(await Handler(request, cancellationToken))!;
+            }
+
+            return (TResponse)NextResponse!;
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest
@@ -498,10 +508,15 @@ public sealed class PromotionAndRateSplittingTests
             return Task.CompletedTask;
         }
 
-        public Task<object?> Send(object request, CancellationToken cancellationToken = default)
+        public async Task<object?> Send(object request, CancellationToken cancellationToken = default)
         {
             LastSentRequest = request;
-            return Task.FromResult(NextResponse);
+            if (Handler != null)
+            {
+                return await Handler(request, cancellationToken);
+            }
+
+            return NextResponse;
         }
 
         public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default)
@@ -1193,6 +1208,25 @@ public sealed class PromotionAndRateSplittingTests
 
     #region T016 AI Controller Hardening & Usage Tracking Tests
 
+    private static AiController CreateAiController(
+        StubApplicationDbContext db,
+        ICurrentUserContext userCtx,
+        StubSender innerSender,
+        IDynamicPricingService? pricingSvc = null)
+    {
+        var dispatcher = new StubSender
+        {
+            Handler = async (req, ct) => req switch
+            {
+                GetAiUsageStatusQuery q => await new GetAiUsageStatusQueryHandler(db, userCtx).Handle(q, ct),
+                GetDynamicPricingRecommendationsQuery q => await new GetDynamicPricingRecommendationsQueryHandler(db, userCtx, pricingSvc).Handle(q, ct),
+                ApplyDynamicPricingCommand c => await new ApplyDynamicPricingCommandHandler(db, userCtx, innerSender).Handle(c, ct),
+                _ => innerSender.NextResponse
+            }
+        };
+        return new AiController(dispatcher);
+    }
+
     [Fact]
     public async Task AiController_GetAiUsageStatus_CountsOnlyRealAiUsageLogs()
     {
@@ -1219,7 +1253,7 @@ public sealed class PromotionAndRateSplittingTests
             });
         }
 
-        var controller = new AiController(db, userCtx, sender, new StubLocationLookupService(), pricingSvc);
+        var controller = CreateAiController(db, userCtx, sender, pricingSvc);
 
         var initialResult = Assert.IsType<OkObjectResult>(await controller.GetAiUsageStatus(CancellationToken.None));
         var initialDto = Assert.IsType<AiUsageStatusDto>(initialResult.Value);
@@ -1271,14 +1305,14 @@ public sealed class PromotionAndRateSplittingTests
 
         // 1. Missing TenantId -> 401
         var unauthUser = new StubUserContext { TenantId = null };
-        var unauthController = new AiController(db, unauthUser, sender, new StubLocationLookupService(), pricingSvc);
+        var unauthController = CreateAiController(db, unauthUser, sender, pricingSvc);
         Assert.IsType<UnauthorizedObjectResult>(
             await unauthController.GetDynamicPricingRecommendations(propertyId, null, CancellationToken.None));
 
         // 2. Branch-scoped user accessing wrong property -> 403 Forbid
         userCtx.IsTenantWide = false;
         userCtx.PropertyId = propertyId;
-        var controller = new AiController(db, userCtx, sender, new StubLocationLookupService(), pricingSvc);
+        var controller = CreateAiController(db, userCtx, sender, pricingSvc);
         Assert.IsType<ForbidResult>(
             await controller.GetDynamicPricingRecommendations(otherPropId, null, CancellationToken.None));
 

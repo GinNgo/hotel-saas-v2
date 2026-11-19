@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, effect, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DatePicker } from 'primeng/datepicker';
 import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-time.util';
@@ -22,6 +22,7 @@ import {
   EmptyStateComponent,
   LoadingSpinnerComponent
 } from '../../shared';
+import { ContextSelectorDialogComponent } from '../auth/context-selector/context-selector.dialog';
 
 function optionalTrimmedEmailValidator(control: AbstractControl): ValidationErrors | null {
   const raw = typeof control.value === 'string' ? control.value.trim() : '';
@@ -64,7 +65,8 @@ export interface QuickMinibarCatalogItem {
     StatusBadgeComponent,
     EmptyStateComponent,
     LoadingSpinnerComponent,
-    DatePicker
+    DatePicker,
+    ContextSelectorDialogComponent
   ],
   template: `
     <div class="max-w-7xl mx-auto space-y-6 pb-12">
@@ -195,6 +197,29 @@ export interface QuickMinibarCatalogItem {
           </div>
         </div>
       </div>
+
+      <!-- Chain HQ Info Banner -->
+      @if (!authService.activePropertyId()) {
+        <div class="bg-indigo-50/80 border border-indigo-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-start gap-2.5 text-xs text-indigo-950">
+            <i class="pi pi-building text-indigo-600 text-base mt-0.5 shrink-0"></i>
+            <div>
+              <div class="font-bold">Đang xem chế độ Toàn chuỗi (HQ)</div>
+              <p class="text-indigo-800/90 mt-0.5">
+                Danh sách hiển thị phòng của tất cả cơ sở kèm nhãn chi nhánh. Để thêm phòng mới hoặc tiếp nhận khách Walk-in, vui lòng chọn một chi nhánh làm việc cụ thể.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            (click)="openContextSelector()"
+            class="min-h-11 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer shrink-0 inline-flex items-center gap-1.5"
+          >
+            <i class="pi pi-building text-xs"></i>
+            <span>Chọn chi nhánh làm việc</span>
+          </button>
+        </div>
+      }
 
       <!-- Filters & Search Bar -->
       <div class="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs space-y-3">
@@ -335,6 +360,12 @@ export interface QuickMinibarCatalogItem {
 
                     <!-- Middle: Room Type & Pricing / Guest Info -->
                     <div class="my-1.5 space-y-0.5">
+                      @if (!authService.activePropertyId() && getRoomPropertyName(room); as propName) {
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/80 text-[10px] font-semibold truncate max-w-full">
+                          <i class="pi pi-building text-[9px]"></i>
+                          <span class="truncate">{{ propName }}</span>
+                        </span>
+                      }
                       <span class="block text-[11px] font-semibold text-slate-700 truncate">
                         {{ room.roomTypeName }}
                       </span>
@@ -401,7 +432,13 @@ export interface QuickMinibarCatalogItem {
                 @for (room of filteredRooms(); track room.id) {
                   <tr class="hover:bg-slate-50/70 transition-colors">
                     <td class="py-3 px-4 font-mono font-bold text-slate-900 text-sm">
-                      {{ room.roomNumber }}
+                      <div>{{ room.roomNumber }}</div>
+                      @if (!authService.activePropertyId() && getRoomPropertyName(room); as propName) {
+                        <span class="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/80 font-sans text-[10px] font-semibold">
+                          <i class="pi pi-building text-[9px]"></i>
+                          <span>{{ propName }}</span>
+                        </span>
+                      }
                     </td>
                     <td class="py-3 px-4 text-slate-700">Tầng {{ room.floor }}</td>
                     <td class="py-3 px-4 font-semibold text-slate-800">{{ room.roomTypeName }}</td>
@@ -597,6 +634,11 @@ export interface QuickMinibarCatalogItem {
                           <div class="text-[10px] text-slate-500 truncate max-w-[120px]" [title]="room.roomTypeName">
                             {{ room.roomTypeName }}
                           </div>
+                          @if (!authService.activePropertyId() && getRoomPropertyName(room); as propName) {
+                            <div class="text-[9px] font-semibold text-indigo-700 truncate max-w-[120px]" [title]="propName">
+                              {{ propName }}
+                            </div>
+                          }
                         </div>
                       </div>
                     </td>
@@ -1250,6 +1292,13 @@ export interface QuickMinibarCatalogItem {
         </div>
       </div>
     }
+
+    @if (showContextSelector()) {
+      <app-context-selector-dialog
+        [visible]="showContextSelector()"
+        (visibleChange)="showContextSelector.set($event)"
+      />
+    }
   `
 })
 export class RoomsPage implements OnInit {
@@ -1261,6 +1310,40 @@ export class RoomsPage implements OnInit {
   private readonly alertService = inject(AlertService);
   private readonly fb = inject(FormBuilder);
   readonly RoomStatus = RoomStatus;
+
+  showContextSelector = signal<boolean>(false);
+
+  constructor() {
+    let initialized = false;
+    try {
+      effect(() => {
+        const _propId = this.authService.activePropertyId();
+        if (!initialized) {
+          initialized = true;
+          return;
+        }
+        untracked(() => this.loadData());
+      });
+    } catch {
+      // Ignore in isolated DI tests without injection effect scheduler
+    }
+  }
+
+  openContextSelector(): void {
+    this.showContextSelector.set(true);
+  }
+
+  getRoomPropertyName(room: ExtendedRoomDto): string | null {
+    if (room.propertyName) return room.propertyName;
+    if (!room.propertyId) return null;
+    const authSvc = this.authService as unknown as {
+      memberships?: Array<{ propertyId?: string | null; propertyName?: string | null }>;
+    };
+    const matched = (authSvc.memberships || []).find(
+      m => m.propertyId?.toLowerCase() === room.propertyId?.toLowerCase()
+    );
+    return matched?.propertyName || null;
+  }
 
   rooms = signal<ExtendedRoomDto[]>([]);
   roomTypes = signal<RoomTypeDto[]>([]);
@@ -1619,6 +1702,11 @@ export class RoomsPage implements OnInit {
   }
 
   openQuickWalkinModal(): void {
+    if (!this.authService.activePropertyId()) {
+      this.alertService.toastWarning('Vui lòng chọn chi nhánh làm việc trước khi tiếp nhận khách Walk-in.', 'Chế độ Toàn chuỗi');
+      this.openContextSelector();
+      return;
+    }
     const firstClean = this.cleanRoomsList()[0];
     this.walkinForm.reset({
       roomId: firstClean ? firstClean.id : '',
@@ -1636,6 +1724,11 @@ export class RoomsPage implements OnInit {
   }
 
   openQuickWalkinForRoom(room: ExtendedRoomDto): void {
+    if (!this.authService.activePropertyId()) {
+      this.alertService.toastWarning('Vui lòng chọn chi nhánh làm việc trước khi tạo đơn Walk-in.', 'Chế độ Toàn chuỗi');
+      this.openContextSelector();
+      return;
+    }
     this.walkinForm.reset({
       roomId: room.id,
       rentalType: 1,
@@ -1972,6 +2065,11 @@ export class RoomsPage implements OnInit {
 
   // --- Physical Room CRUD Methods ---
   openCreateRoomModal(): void {
+    if (!this.authService.activePropertyId()) {
+      this.alertService.toastWarning('Vui lòng chọn chi nhánh làm việc trước khi thêm phòng mới.', 'Chế độ Toàn chuỗi');
+      this.openContextSelector();
+      return;
+    }
     this.editingRoom.set(null);
     const defaultRt = this.roomTypes()[0]?.id || '';
     this.roomCrudForm.reset({

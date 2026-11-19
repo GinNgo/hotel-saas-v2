@@ -35,7 +35,7 @@ import {
 import { LocationService } from '../../core/services/location.service';
 import { PublicBookingService } from '../../core/services/public-booking.service';
 import { of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { catchError, map } from 'rxjs/operators';
 import {
   LoadingSpinnerComponent,
   PaginationComponent,
@@ -81,7 +81,7 @@ interface TenantBrandFacet {
                 {{ pageTitle() }}
               </h1>
               <p class="text-xs sm:text-sm text-slate-300 mt-1">
-                Tìm thấy {{ filteredProperties().length }} cơ sở lưu trú phù hợp với tiêu chí của bạn
+                Tìm thấy {{ totalResultCount() }} cơ sở lưu trú phù hợp với tiêu chí của bạn
               </p>
             </div>
             <a
@@ -370,7 +370,7 @@ interface TenantBrandFacet {
               <div class="flex flex-wrap items-center gap-3">
                 <div class="flex items-center gap-2">
                   <span class="text-sm font-bold text-slate-800">
-                    {{ filteredProperties().length }} cơ sở lưu trú
+                    {{ totalResultCount() }} cơ sở lưu trú
                   </span>
                   <span class="text-xs text-slate-400">|</span>
                   <span class="text-xs text-slate-500">
@@ -475,12 +475,19 @@ interface TenantBrandFacet {
                     >
                       <!-- Ảnh đại diện -->
                       <div class="relative md:w-72 h-52 md:h-auto shrink-0 overflow-hidden bg-slate-100">
-                        <img
-                          [src]="property.thumbnailUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800'"
-                          [alt]="property.name"
-                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          loading="lazy"
-                        />
+                        @if (property.thumbnailUrl) {
+                          <img
+                            [src]="property.thumbnailUrl"
+                            [alt]="property.name"
+                            class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            loading="lazy"
+                          />
+                        } @else {
+                          <div class="w-full h-full min-h-[180px] flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-stone-200 text-slate-400 gap-1.5">
+                            <i class="pi pi-building text-3xl text-slate-400"></i>
+                            <span class="text-[11px] font-semibold text-slate-500">Chưa có ảnh cơ sở</span>
+                          </div>
+                        }
                         <div class="absolute top-3 left-3 flex flex-wrap gap-1.5">
                           <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white">
                             {{ sanitizeVn(property.propertyTypeName || getPropertyTypeLabel(property.propertyType)) }}
@@ -493,15 +500,17 @@ interface TenantBrandFacet {
                           }
                         </div>
 
-                        <button
-                          type="button"
-                          (click)="openGalleryModal(property)"
-                          class="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-900 backdrop-blur-xs text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-                          title="Xem toàn bộ ảnh"
-                        >
-                          <i class="pi pi-images text-xs"></i>
-                          <span>Xem ảnh</span>
-                        </button>
+                        @if (property.galleryUrls?.length || property.thumbnailUrl) {
+                          <button
+                            type="button"
+                            (click)="openGalleryModal(property)"
+                            class="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-900 backdrop-blur-xs text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                            title="Xem toàn bộ ảnh"
+                          >
+                            <i class="pi pi-images text-xs"></i>
+                            <span>Xem ảnh</span>
+                          </button>
+                        }
                       </div>
 
                       <!-- Thông tin chi tiết -->
@@ -524,13 +533,17 @@ interface TenantBrandFacet {
                               </p>
                             </div>
 
-                            @if (property.starRating) {
-                              <div class="flex items-center gap-0.5 text-amber-400 text-xs shrink-0">
-                                @for (s of [1, 2, 3, 4, 5]; track s) {
-                                  <i class="pi" [class.pi-star-fill]="s <= property.starRating" [class.pi-star]="s > property.starRating"></i>
-                                }
-                              </div>
-                            }
+                            <div class="shrink-0 text-right">
+                              @if (property.reviewCount > 0 && property.ratingAverage > 0) {
+                                <span class="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                  <i class="pi pi-star-fill text-amber-500 text-[10px]"></i>
+                                  <span>{{ property.ratingAverage | number:'1.1-1' }}</span>
+                                  <span class="text-[10px] text-slate-500">({{ property.reviewCount }})</span>
+                                </span>
+                              } @else {
+                                <span class="text-[11px] text-slate-400 font-medium">Chưa có đánh giá</span>
+                              }
+                            </div>
                           </div>
 
                           <!-- Huy hiệu Địa danh & Cự ly (Chuẩn UTF-8) -->
@@ -616,13 +629,14 @@ interface TenantBrandFacet {
                 </div>
 
                 <!-- PHÂN TRANG (PAGINATION) -->
-                @if (totalPages() > 1) {
-                  <div class="pt-6">
+                @if (totalResultCount() > 0) {
+                  <div class="pt-6 rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-2xs">
                     <app-pagination
                       [page]="currentPage()"
                       [pageSize]="pageSize()"
-                      [totalCount]="filteredProperties().length"
+                      [totalCount]="totalResultCount()"
                       (pageChange)="onPageChange($event)"
+                      (pageSizeChange)="onPageSizeChange($event)"
                     />
                   </div>
                 }
@@ -644,21 +658,29 @@ interface TenantBrandFacet {
                         [class.border-slate-200]="selectedMapProperty()?.propertyId !== property.propertyId"
                       >
                         <div class="flex gap-3">
-                          <img
-                            [src]="property.thumbnailUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400'"
-                            [alt]="property.name"
-                            class="w-20 h-20 rounded-xl object-cover shrink-0 bg-slate-100"
-                            loading="lazy"
-                          />
+                          @if (property.thumbnailUrl) {
+                            <img
+                              [src]="property.thumbnailUrl"
+                              [alt]="property.name"
+                              class="w-20 h-20 rounded-xl object-cover shrink-0 bg-slate-100"
+                              loading="lazy"
+                            />
+                          } @else {
+                            <div class="w-20 h-20 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+                              <i class="pi pi-building text-xl"></i>
+                            </div>
+                          }
                           <div class="flex-1 min-w-0">
                             <div class="flex items-center justify-between gap-1">
                               <span class="text-[10px] font-extrabold text-[#C05621] uppercase tracking-wider truncate">
                                 {{ property.tenantBrandName }}
                               </span>
-                              @if (property.starRating) {
-                                <span class="text-[10px] font-bold text-amber-500 shrink-0">
-                                  ★ {{ property.starRating }}
+                              @if (property.reviewCount > 0 && property.ratingAverage > 0) {
+                                <span class="text-[10px] font-bold text-emerald-700 shrink-0">
+                                  ★ {{ property.ratingAverage | number:'1.1-1' }} ({{ property.reviewCount }})
                                 </span>
+                              } @else {
+                                <span class="text-[10px] text-slate-400 shrink-0">Chưa có đánh giá</span>
                               }
                             </div>
                             <h4 class="font-serif text-sm font-bold text-slate-900 truncate mt-0.5">
@@ -732,6 +754,28 @@ interface TenantBrandFacet {
                             <i class="pi pi-compass text-[10px]" [class.pi-spin]="isMapLocating()"></i>
                             <span>{{ isMapLocating() ? 'Đang định vị...' : '📍 Gần tôi' }}</span>
                           </button>
+                          <div class="inline-flex rounded-lg bg-stone-200/70 p-0.5 text-[11px]">
+                            <button
+                              type="button"
+                              (click)="mapDisplayMode.set('pins')"
+                              class="px-2 py-0.5 rounded-md font-semibold transition-colors cursor-pointer"
+                              [class.bg-white]="mapDisplayMode() === 'pins'"
+                              [class.text-stone-900]="mapDisplayMode() === 'pins'"
+                              [class.text-stone-600]="mapDisplayMode() !== 'pins'"
+                            >
+                              Đa điểm ({{ mapPins().length }})
+                            </button>
+                            <button
+                              type="button"
+                              (click)="mapDisplayMode.set('embed')"
+                              class="px-2 py-0.5 rounded-md font-semibold transition-colors cursor-pointer"
+                              [class.bg-white]="mapDisplayMode() === 'embed'"
+                              [class.text-stone-900]="mapDisplayMode() === 'embed'"
+                              [class.text-stone-600]="mapDisplayMode() !== 'embed'"
+                            >
+                              Google Maps
+                            </button>
+                          </div>
                         </div>
                         @if (selectedMapProperty(); as selected) {
                           <div class="flex items-center gap-2">
@@ -766,9 +810,66 @@ interface TenantBrandFacet {
                         </p>
                       }
 
-                      <!-- Iframe Bản đồ Google Maps -->
+                      <!-- Multi-Pin Interactive Coordinate Map & Google Maps Embed -->
                       <div class="relative w-full h-[440px] lg:h-[500px] bg-stone-100">
-                        @if (googleMapSplitEmbedUrl(); as embedUrl) {
+                        @if (mapDisplayMode() === 'pins') {
+                          <div
+                            data-testid="multi-pin-map-canvas"
+                            class="relative w-full h-full overflow-hidden bg-gradient-to-br from-emerald-50 via-stone-50 to-sky-50 select-none"
+                          >
+                            <svg class="absolute inset-0 w-full h-full pointer-events-none opacity-35" aria-hidden="true">
+                              <defs>
+                                <pattern id="mapGrid" width="48" height="48" patternUnits="userSpaceOnUse">
+                                  <path d="M 48 0 L 0 0 0 48" fill="none" stroke="#94a3b8" stroke-width="0.6" />
+                                </pattern>
+                              </defs>
+                              <rect width="100%" height="100%" fill="url(#mapGrid)" />
+                            </svg>
+
+                            @if (mapPins().length === 0) {
+                              <div class="relative z-10 h-full flex flex-col items-center justify-center p-6 text-center space-y-2">
+                                <i class="pi pi-map-marker text-3xl text-stone-400"></i>
+                                <p class="text-xs font-bold text-stone-700">Các cơ sở hiện tại chưa có tọa độ GPS</p>
+                                <button
+                                  type="button"
+                                  (click)="mapDisplayMode.set('embed')"
+                                  class="px-3 py-1.5 rounded-lg bg-[#0D2E28] text-white text-xs font-semibold cursor-pointer"
+                                >
+                                  Chuyển sang Google Maps tìm theo địa chỉ
+                                </button>
+                              </div>
+                            } @else {
+                              @for (pin of mapPins(); track pin.property.propertyId) {
+                                <button
+                                  type="button"
+                                  data-testid="map-pin-marker"
+                                  (click)="selectPropertyForMap(pin.property)"
+                                  [style.left.%]="pin.xPercent"
+                                  [style.top.%]="pin.yPercent"
+                                  [attr.aria-label]="pin.property.name"
+                                  class="absolute -translate-x-1/2 -translate-y-1/2 px-2.5 py-1 rounded-full text-[11px] font-bold shadow-md border transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                                  [class.bg-[#0D2E28]]="selectedMapProperty()?.propertyId === pin.property.propertyId"
+                                  [class.text-amber-300]="selectedMapProperty()?.propertyId === pin.property.propertyId"
+                                  [class.border-amber-300]="selectedMapProperty()?.propertyId === pin.property.propertyId"
+                                  [class.scale-110]="selectedMapProperty()?.propertyId === pin.property.propertyId"
+                                  [class.z-20]="selectedMapProperty()?.propertyId === pin.property.propertyId"
+                                  [class.bg-white]="selectedMapProperty()?.propertyId !== pin.property.propertyId"
+                                  [class.text-slate-900]="selectedMapProperty()?.propertyId !== pin.property.propertyId"
+                                  [class.border-stone-300]="selectedMapProperty()?.propertyId !== pin.property.propertyId"
+                                  [class.hover:z-10]="selectedMapProperty()?.propertyId !== pin.property.propertyId"
+                                  [title]="pin.property.name"
+                                >
+                                  <i class="pi pi-map-marker text-[10px]"></i>
+                                  <span>{{ pin.priceLabel }}</span>
+                                </button>
+                              }
+
+                              <div class="absolute bottom-3 left-3 bg-white/90 backdrop-blur-xs px-3 py-1.5 rounded-xl border border-stone-200 text-[11px] text-stone-600 shadow-xs">
+                                Đang hiển thị <strong class="text-stone-900">{{ mapPins().length }}</strong> ghim tọa độ GPS
+                              </div>
+                            }
+                          </div>
+                        } @else if (googleMapSplitEmbedUrl(); as embedUrl) {
                           <iframe
                             [src]="embedUrl"
                             class="w-full h-full border-0"
@@ -844,7 +945,52 @@ export class ExploreSearchPageComponent implements OnInit {
   readonly mapGeoError = signal<string | null>(null);
 
   readonly viewMode = signal<'list' | 'map'>('list');
+  readonly mapDisplayMode = signal<'pins' | 'embed'>('pins');
   readonly selectedMapProperty = signal<PublicPropertyDto | null>(null);
+  readonly serverTotalCount = signal<number | null>(null);
+  readonly usedServerPagination = signal<boolean>(false);
+
+  readonly mapPins = computed<Array<{
+    property: PublicPropertyDto;
+    xPercent: number;
+    yPercent: number;
+    priceLabel: string;
+  }>>(() => {
+    const withCoords = this.filteredProperties().filter(
+      p => p.latitude != null && p.longitude != null && p.latitude !== 0 && p.longitude !== 0
+    );
+    if (withCoords.length === 0) return [];
+
+    const lats = withCoords.map(p => p.latitude!);
+    const lngs = withCoords.map(p => p.longitude!);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+    const latSpan = maxLat - minLat;
+    const lngSpan = maxLng - minLng;
+
+    return withCoords.map((p, idx) => {
+      const xPercent = lngSpan > 0.0001
+        ? 10 + ((p.longitude! - minLng) / lngSpan) * 80
+        : 50 + ((idx % 3) - 1) * 10;
+      const yPercent = latSpan > 0.0001
+        ? 85 - ((p.latitude! - minLat) / latSpan) * 70
+        : 50 + ((Math.floor(idx / 3) % 3) - 1) * 10;
+
+      const price = p.startingPriceForSelectedMode;
+      const priceLabel = price > 0
+        ? (price >= 1000000 ? `${(price / 1000000).toFixed(1).replace(/\.0$/, '')}tr` : `${Math.round(price / 1000)}k`)
+        : p.name.slice(0, 14);
+
+      return {
+        property: p,
+        xPercent: Math.max(8, Math.min(92, xPercent)),
+        yPercent: Math.max(12, Math.min(86, yPercent)),
+        priceLabel,
+      };
+    });
+  });
 
   readonly googleMapSplitEmbedUrl = computed<SafeResourceUrl | null>(() => {
     const selected = this.selectedMapProperty();
@@ -895,9 +1041,15 @@ export class ExploreSearchPageComponent implements OnInit {
   }
 
   switchViewMode(mode: 'list' | 'map'): void {
+    const previous = this.viewMode();
     this.viewMode.set(mode);
     if (mode === 'map') {
       this.ensureMapSelection();
+      if (previous !== 'map' && this.usedServerPagination()) {
+        this.loadPublicProperties();
+      }
+    } else if (previous !== 'list' && typeof this.publicBookingService.getPropertiesPaged === 'function') {
+      this.loadPublicProperties();
     }
   }
 
@@ -930,10 +1082,9 @@ export class ExploreSearchPageComponent implements OnInit {
     { label: 'Homestay', value: 'Homestay' },
     { label: 'Biệt thự (Villa)', value: 'Villa' },
     { label: 'Căn hộ dịch vụ (Apartment)', value: 'Apartment' },
-    { label: 'Nhà nghỉ (Motel)', value: 'Motel' },
+    { label: 'Nhà nghỉ / Nhà khách (Motel)', value: 'Motel' },
     { label: 'Hostel / Dorm', value: 'Hostel' },
     { label: 'Bed & Breakfast', value: 'BedAndBreakfast' },
-    { label: 'Nhà khách (Guesthouse)', value: 'Guesthouse' },
   ];
 
   readonly priceRangeOptions = [
@@ -1054,11 +1205,22 @@ export class ExploreSearchPageComponent implements OnInit {
     });
   });
 
+  readonly totalResultCount = computed<number>(() => {
+    const serverTotal = this.serverTotalCount();
+    if (this.usedServerPagination() && serverTotal !== null) {
+      return serverTotal;
+    }
+    return this.filteredProperties().length;
+  });
+
   readonly totalPages = computed<number>(() => {
-    return Math.ceil(this.filteredProperties().length / this.pageSize());
+    return Math.ceil(this.totalResultCount() / this.pageSize());
   });
 
   readonly paginatedProperties = computed<PublicPropertyDto[]>(() => {
+    if (this.usedServerPagination()) {
+      return this.filteredProperties();
+    }
     const start = (this.currentPage() - 1) * this.pageSize();
     return this.filteredProperties().slice(start, start + this.pageSize());
   });
@@ -1097,10 +1259,15 @@ export class ExploreSearchPageComponent implements OnInit {
           typeof params['tenantSlug'] === 'string' && params['tenantSlug']
             ? params['tenantSlug']
             : null;
-        const parsedPropertyTypes = String(params['propertyTypes'] ?? '')
-          .split(',')
-          .map((t) => t.trim())
-          .filter((t): t is PropertyType => ALL_PROPERTY_TYPES.includes(t as PropertyType));
+        const parsedPropertyTypes = Array.from(
+          new Set(
+            String(params['propertyTypes'] ?? '')
+              .split(',')
+              .map((t) => t.trim())
+              .map((t) => (t === 'Guesthouse' ? 'Motel' : t))
+              .filter((t): t is PropertyType => ALL_PROPERTY_TYPES.includes(t as PropertyType))
+          )
+        );
 
         const userLat = finiteCoord(params['userLatitude'] ?? params['lat']);
         const userLng = finiteCoord(params['userLongitude'] ?? params['lng']);
@@ -1119,6 +1286,10 @@ export class ExploreSearchPageComponent implements OnInit {
         const resolvedSort: BookingSortOption = validSorts.includes(rawSort as BookingSortOption)
           ? (rawSort as BookingSortOption)
           : (hasCoords ? 'distance_asc' : 'recommended');
+        const pageParam = nonNegative(params['page']);
+        const pageSizeParam = nonNegative(params['pageSize']);
+        const resolvedPage = pageParam && pageParam >= 1 ? Math.floor(pageParam) : 1;
+        const resolvedPageSize = pageSizeParam && pageSizeParam >= 1 ? Math.floor(pageSizeParam) : 10;
 
         this.selectedTenantId.set(selectedTenantParam);
         this.maxDistanceMeters.set(maxDistParam);
@@ -1126,6 +1297,8 @@ export class ExploreSearchPageComponent implements OnInit {
         this.maxPrice.set(maxP);
         this.selectedPriceRangeKey.set(matchedRange ? matchedRange.key : 'custom');
         this.sortBy.set(resolvedSort);
+        this.currentPage.set(resolvedPage);
+        this.pageSize.set(resolvedPageSize);
 
         this.searchFilter.update((f) => ({
           ...f,
@@ -1141,6 +1314,8 @@ export class ExploreSearchPageComponent implements OnInit {
           minPrice: minP,
           maxPrice: maxP,
           sortBy: resolvedSort,
+          page: resolvedPage,
+          pageSize: resolvedPageSize,
           propertyTypes: parsedPropertyTypes,
         }));
 
@@ -1185,6 +1360,10 @@ export class ExploreSearchPageComponent implements OnInit {
       rawKw.includes('Gần vị trí');
     const effectiveSearch = isGpsText ? undefined : (rawKw || undefined);
 
+    const isListPaged =
+      this.viewMode() === 'list' &&
+      typeof this.publicBookingService.getPropertiesPaged === 'function';
+
     const serviceFilter: PublicPropertiesFilter = {
       search: effectiveSearch,
       destinationKeyword: effectiveSearch,
@@ -1200,20 +1379,42 @@ export class ExploreSearchPageComponent implements OnInit {
       userLongitude: filter.userLongitude ?? undefined,
       latitude: filter.userLatitude ?? undefined,
       longitude: filter.userLongitude ?? undefined,
-      page: filter.page,
-      pageSize: filter.pageSize,
+      minPrice: this.minPrice() ?? undefined,
+      maxPrice: this.maxPrice() ?? undefined,
+      guests: filter.guests > 0 ? filter.guests : undefined,
+      checkInDate: filter.checkInDate || undefined,
+      checkOutDate: filter.checkOutDate || undefined,
+      sortBy: this.sortBy(),
+      page: isListPaged ? this.currentPage() : undefined,
+      pageSize: isListPaged ? this.pageSize() : undefined,
     };
 
-    this.publicBookingService
-      .getProperties(serviceFilter)
+    const request$ = isListPaged
+      ? this.publicBookingService.getPropertiesPaged(serviceFilter).pipe(
+          map(res => ({ items: res.items, totalCount: res.totalCount, serverPaged: true }))
+        )
+      : this.publicBookingService.getProperties(serviceFilter).pipe(
+          map(items => ({ items: items || [], totalCount: (items || []).length, serverPaged: false }))
+        );
+
+    request$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (props: PublicPropertyDto[]) => {
+        next: ({ items, totalCount, serverPaged }) => {
           this.isLoading.set(false);
-          const mapped: PublicPropertyDto[] = (props || []).map((p) => {
+          const mapped: PublicPropertyDto[] = (items || []).map((p) => {
             let price = p.dailyStartingPrice ?? p.startingPriceForSelectedMode ?? p.startingPrice ?? 0;
             if (filter.rentalType === 'Hourly') price = p.hourlyStartingPrice ?? price;
             if (filter.rentalType === 'Overnight') price = p.overnightStartingPrice ?? price;
+
+            const resolvedThumb = resolvePropertyThumbnail(
+              p.name,
+              `${p.addressLine || p.address || ''} ${p.provinceName || p.city || ''} ${p.touristZoneName || ''}`,
+              p.thumbnailUrl || p.imageUrl
+            );
+            const verifiedGallery = (p.galleryUrls ?? []).filter(
+              url => typeof url === 'string' && url.trim().length > 0 && !url.toLowerCase().includes('images.unsplash.com')
+            );
 
             return {
               ...p,
@@ -1223,13 +1424,12 @@ export class ExploreSearchPageComponent implements OnInit {
               startingPriceForSelectedMode: price,
               ratingAverage: p.ratingAverage ?? 0,
               reviewCount: p.reviewCount ?? 0,
-              thumbnailUrl: resolvePropertyThumbnail(
-                p.name,
-                `${p.addressLine || p.address || ''} ${p.provinceName || p.city || ''} ${p.touristZoneName || ''}`,
-                p.thumbnailUrl || p.imageUrl
-              ),
+              thumbnailUrl: resolvedThumb,
+              galleryUrls: verifiedGallery.length > 0 ? verifiedGallery : (resolvedThumb ? [resolvedThumb] : []),
             };
           });
+          this.usedServerPagination.set(serverPaged);
+          this.serverTotalCount.set(serverPaged ? totalCount : null);
           this.properties.set(mapped);
           this.generateDynamicChips(mapped);
           this.refreshDestinationSuggestions(mapped);
@@ -1475,6 +1675,8 @@ export class ExploreSearchPageComponent implements OnInit {
         minPrice: this.minPrice(),
         maxPrice: this.maxPrice(),
         sortBy: this.sortBy(),
+        page: this.currentPage(),
+        pageSize: this.pageSize(),
         propertyTypes: filter.propertyTypes.join(','),
       },
     });
@@ -1582,17 +1784,31 @@ export class ExploreSearchPageComponent implements OnInit {
 
   onPageChange(page: number): void {
     this.currentPage.set(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    this.searchFilter.update(f => ({ ...f, page }));
+    this.syncUrlQueryParams();
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
+  onPageSizeChange(size: number): void {
+    const nextSize = Number(size) > 0 ? Number(size) : 10;
+    this.pageSize.set(nextSize);
+    this.currentPage.set(1);
+    this.searchFilter.update(f => ({ ...f, page: 1, pageSize: nextSize }));
+    this.syncUrlQueryParams();
   }
 
   openGalleryModal(property: PublicPropertyDto): void {
-    const photos: GalleryPhotoItem[] = [
-      {
-        url: property.thumbnailUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800',
-        title: property.name,
-        category: 'Exterior',
-      }
-    ];
+    const urls = (property.galleryUrls?.length ? property.galleryUrls : (property.thumbnailUrl ? [property.thumbnailUrl] : []))
+      .filter(u => typeof u === 'string' && u.trim().length > 0 && !u.toLowerCase().includes('images.unsplash.com'));
+    if (urls.length === 0) return;
+
+    const photos: GalleryPhotoItem[] = urls.map((url, idx) => ({
+      url,
+      title: `${property.name} - Ảnh ${idx + 1}`,
+      category: 'Exterior',
+    }));
     this.selectedGalleryModal.set({
       title: property.name,
       photos,

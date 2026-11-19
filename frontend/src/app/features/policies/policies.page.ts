@@ -19,12 +19,13 @@ import { AlertService } from '../../core/services/alert.service';
 import { PrintDocumentsService } from '../../core/services/print-documents.service';
 import { PrintTemplateConfigDto } from '../../core/models/print-document.model';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { ContextSelectorDialogComponent } from '../auth/context-selector/context-selector.dialog';
 
 @Component({
   selector: 'app-policies',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ReactiveFormsModule, EmptyStateComponent],
+  imports: [CommonModule, ReactiveFormsModule, EmptyStateComponent, ContextSelectorDialogComponent],
   template: `
     <div class="max-w-6xl mx-auto space-y-6">
       <!-- Page Header -->
@@ -93,7 +94,10 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
         <app-empty-state
           iconClass="pi pi-building"
           title="Chưa chọn chi nhánh làm việc"
-          description="Vui lòng bấm vào bộ chuyển chi nhánh ở thanh tiêu đề trên cùng để chọn chi nhánh cần quản lý chính sách."
+          description="Vui lòng chọn chi nhánh làm việc để xem và cấu hình chính sách vận hành của cơ sở."
+          actionLabel="Chọn chi nhánh làm việc"
+          actionIcon="pi pi-building"
+          (actionClick)="openContextSelector()"
         />
       } @else if (isLoading()) {
         <!-- Skeleton Loading State -->
@@ -698,6 +702,13 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
         }
       }
     </div>
+
+    @if (showContextSelector()) {
+      <app-context-selector-dialog
+        [visible]="showContextSelector()"
+        (visibleChange)="showContextSelector.set($event)"
+      />
+    }
   `
 })
 export class PoliciesPage implements OnInit, OnDestroy {
@@ -706,6 +717,11 @@ export class PoliciesPage implements OnInit, OnDestroy {
   private readonly policyService = inject(PolicyService);
   private readonly alertService = inject(AlertService);
   private readonly printService = inject(PrintDocumentsService, { optional: true });
+
+  readonly showContextSelector = signal(false);
+  openContextSelector(): void {
+    this.showContextSelector.set(true);
+  }
 
   readonly isLoading = signal(false);
   readonly isSaving = signal(false);

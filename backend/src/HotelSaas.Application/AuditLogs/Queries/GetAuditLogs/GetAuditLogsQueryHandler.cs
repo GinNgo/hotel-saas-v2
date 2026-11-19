@@ -208,14 +208,69 @@ public sealed class GetAuditLogsQueryHandler
         var page = request.Page < 1 ? 1 : request.Page;
         var pageSize = request.PageSize < 1 ? 20 : (request.PageSize > 100 ? 100 : request.PageSize);
 
-        var totalCount = await query.CountAsync(cancellationToken);
+        var trimmedSearch = string.IsNullOrWhiteSpace(request.Search) ? null : request.Search.Trim();
 
-        var pageRows = await query
-            .OrderByDescending(a => a.CreatedAtUtc)
-            .ThenByDescending(a => a.Id)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
+        int totalCount;
+        List<AuditLog> pageRows;
+        Dictionary<Guid, AuditPayloadSanitizer.SanitizedAuditPayload>? precomputedSanitized = null;
+
+        if (trimmedSearch is null)
+        {
+            totalCount = await query.CountAsync(cancellationToken);
+
+            pageRows = await query
+                .OrderByDescending(a => a.CreatedAtUtc)
+                .ThenByDescending(a => a.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
+        }
+        else
+        {
+            // Filter in-memory after SQL tenant/property/date predicates so jsonb columns
+            // (OldValues/NewValues) are searched safely without PostgreSQL lower(jsonb) errors
+            // and only read-time sanitized payloads are searchable (no inference on redacted secrets).
+            var candidates = await query
+                .OrderByDescending(a => a.CreatedAtUtc)
+                .ThenByDescending(a => a.Id)
+                .Take(5000)
+                .ToListAsync(cancellationToken);
+
+            precomputedSanitized = new Dictionary<Guid, AuditPayloadSanitizer.SanitizedAuditPayload>();
+            var matched = new List<AuditLog>();
+
+            foreach (var candidate in candidates)
+            {
+                var sanitized = AuditPayloadSanitizer.SanitizeAndSummarize(
+                    candidate.Action,
+                    candidate.EntityName,
+                    candidate.OldValues,
+                    candidate.NewValues);
+
+                var isMatch =
+                    candidate.Action.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase) ||
+                    candidate.EntityName.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase) ||
+                    candidate.EntityId.ToString().Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase) ||
+                    (!string.IsNullOrEmpty(sanitized.SanitizedOldValuesJson) &&
+                     sanitized.SanitizedOldValuesJson.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(sanitized.SanitizedNewValuesJson) &&
+                     sanitized.SanitizedNewValuesJson.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(candidate.IpAddress) &&
+                     candidate.IpAddress.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase));
+
+                if (isMatch)
+                {
+                    matched.Add(candidate);
+                    precomputedSanitized[candidate.Id] = sanitized;
+                }
+            }
+
+            totalCount = matched.Count;
+            pageRows = matched
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+        }
 
         if (pageRows.Count == 0)
         {
@@ -260,11 +315,13 @@ public sealed class GetAuditLogsQueryHandler
         // 7. Map to safe DTOs with read-time sanitization
         var items = pageRows.Select(a =>
         {
-            var sanitized = AuditPayloadSanitizer.SanitizeAndSummarize(
-                a.Action,
-                a.EntityName,
-                a.OldValues,
-                a.NewValues);
+            var sanitized = precomputedSanitized != null && precomputedSanitized.TryGetValue(a.Id, out var cached)
+                ? cached
+                : AuditPayloadSanitizer.SanitizeAndSummarize(
+                    a.Action,
+                    a.EntityName,
+                    a.OldValues,
+                    a.NewValues);
 
             var userMeta = a.UserId.HasValue && userLookup.TryGetValue(a.UserId.Value, out var u) ? u : null;
             var propMeta = a.PropertyId.HasValue && propertyLookup.TryGetValue(a.PropertyId.Value, out var p) ? p : null;

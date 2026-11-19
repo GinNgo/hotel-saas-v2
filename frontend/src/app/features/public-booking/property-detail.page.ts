@@ -98,7 +98,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
               </span>
               <i class="pi pi-external-link text-[10px] text-stone-400 group-hover:text-[#C05621]"></i>
             </a>
-            @if (hotel.reviewCount > 0) {
+            @if (hotel.reviewCount > 0 && hotel.ratingAverage > 0) {
               <span class="text-stone-300 hidden sm:inline">&bull;</span>
               <p class="flex items-center gap-1 text-stone-800 font-semibold">
                 <i class="pi pi-star-fill text-amber-500 text-xs"></i>
@@ -107,63 +107,72 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
               </p>
             } @else {
               <span class="text-stone-300 hidden sm:inline">&bull;</span>
-              <p class="text-xs text-stone-400">Được quản lý trên nền tảng Hotel SaaS</p>
+              <p class="text-xs text-stone-500">Chưa có đánh giá</p>
             }
           </div>
         </header>
 
-        <!-- 3. ASYMMETRIC 5-PHOTO EDITORIAL GALLERY MOSAIC -->
+        <!-- 3. HONEST EDITORIAL GALLERY MOSAIC (NO STOCK PLACEHOLDERS) -->
         <section aria-label="Bộ sưu tập ảnh chỗ nghỉ" class="rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm border border-stone-200/90 bg-stone-100">
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-2 sm:gap-2.5 p-2 sm:p-2.5">
-            <!-- Hero Photo: Spans 2 cols, 2 rows on desktop -->
-            <button
-              type="button"
-              (click)="openGallery()"
-              class="relative md:col-span-2 md:row-span-2 h-72 sm:h-96 md:h-[420px] rounded-xl sm:rounded-2xl overflow-hidden group cursor-pointer text-left focus-visible:outline-[#C05621]"
-              aria-label="Xem ảnh chính cơ sở"
-            >
-              <img
-                [src]="getPhotoUrl(hotel, 0)"
-                [alt]="hotel.name"
-                class="w-full h-full object-cover group-hover:scale-104 transition-transform duration-500"
-              />
-              <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent"></div>
-              <div class="absolute bottom-4 left-4 right-4 flex items-center justify-between text-white">
-                <span class="px-3 py-1.5 rounded-xl bg-black/50 backdrop-blur-md text-xs font-semibold flex items-center gap-1.5 border border-white/20">
-                  <i class="pi pi-camera text-amber-300 text-xs"></i>
-                  <span>Ảnh chính khuôn viên</span>
-                </span>
-                <span class="hidden sm:inline-flex text-[11px] text-stone-200 bg-black/40 px-2.5 py-1 rounded-lg">
-                  Nhấn để phóng to
-                </span>
-              </div>
-            </button>
-
-            <!-- 4 Auxiliary Mosaic Photos -->
-            @for (idx of [1, 2, 3, 4]; track idx) {
-              <button
-                type="button"
-                (click)="openGallery()"
-                class="relative hidden sm:block h-[205px] rounded-xl sm:rounded-2xl overflow-hidden group cursor-pointer text-left focus-visible:outline-[#C05621]"
-                [attr.aria-label]="'Xem ảnh ' + (idx + 1)"
-              >
-                <img
-                  [src]="getPhotoUrl(hotel, idx)"
-                  [alt]="hotel.name + ' - Ảnh ' + (idx + 1)"
-                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  loading="lazy"
-                />
-                @if (idx === 4) {
-                  <!-- Tinted Overlay on 4th thumbnail to view entire album -->
-                  <div class="absolute inset-0 bg-slate-950/70 backdrop-blur-[2px] flex flex-col items-center justify-center text-white p-2 text-center group-hover:bg-slate-950/80 transition-colors">
-                    <i class="pi pi-images text-2xl mb-1 text-amber-300"></i>
-                    <span class="text-xs font-bold uppercase tracking-wider">Xem tất cả ảnh</span>
-                    <span class="text-[11px] text-stone-300 mt-0.5">{{ totalPhotosCount(hotel) }} ảnh chi tiết</span>
+          @if (propertyGalleryUrls(hotel); as galleryUrls) {
+            @if (galleryUrls.length > 0) {
+              <div class="grid grid-cols-1 md:grid-cols-4 gap-2 sm:gap-2.5 p-2 sm:p-2.5">
+                <button
+                  type="button"
+                  (click)="openGallery()"
+                  [class]="galleryUrls.length === 1
+                    ? 'relative md:col-span-4 h-72 sm:h-96 md:h-[420px] rounded-xl sm:rounded-2xl overflow-hidden group cursor-pointer text-left focus-visible:outline-[#C05621]'
+                    : 'relative md:col-span-2 md:row-span-2 h-72 sm:h-96 md:h-[420px] rounded-xl sm:rounded-2xl overflow-hidden group cursor-pointer text-left focus-visible:outline-[#C05621]'"
+                  aria-label="Xem ảnh chính cơ sở"
+                >
+                  <img
+                    [src]="galleryUrls[0]"
+                    [alt]="hotel.name"
+                    class="w-full h-full object-cover group-hover:scale-104 transition-transform duration-500"
+                  />
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent"></div>
+                  <div class="absolute bottom-4 left-4 right-4 flex items-center justify-between text-white">
+                    <span class="px-3 py-1.5 rounded-xl bg-black/50 backdrop-blur-md text-xs font-semibold flex items-center gap-1.5 border border-white/20">
+                      <i class="pi pi-camera text-amber-300 text-xs"></i>
+                      <span>Ảnh thực tế từ cơ sở</span>
+                    </span>
+                    <span class="hidden sm:inline-flex text-[11px] text-stone-200 bg-black/40 px-2.5 py-1 rounded-lg">
+                      Nhấn để xem {{ galleryUrls.length }} ảnh
+                    </span>
                   </div>
+                </button>
+
+                @for (auxUrl of galleryUrls.slice(1, 5); track auxUrl; let auxIdx = $index) {
+                  <button
+                    type="button"
+                    (click)="openGallery()"
+                    class="relative hidden sm:block h-[205px] rounded-xl sm:rounded-2xl overflow-hidden group cursor-pointer text-left focus-visible:outline-[#C05621]"
+                    [attr.aria-label]="'Xem ảnh ' + (auxIdx + 2)"
+                  >
+                    <img
+                      [src]="auxUrl"
+                      [alt]="hotel.name + ' - Ảnh ' + (auxIdx + 2)"
+                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
+                    />
+                    @if (auxIdx === galleryUrls.slice(1, 5).length - 1 && galleryUrls.length > 2) {
+                      <div class="absolute inset-0 bg-slate-950/65 backdrop-blur-[2px] flex flex-col items-center justify-center text-white p-2 text-center group-hover:bg-slate-950/80 transition-colors">
+                        <i class="pi pi-images text-2xl mb-1 text-amber-300"></i>
+                        <span class="text-xs font-bold uppercase tracking-wider">Xem tất cả ảnh</span>
+                        <span class="text-[11px] text-stone-300 mt-0.5">{{ galleryUrls.length }} ảnh chi tiết</span>
+                      </div>
+                    }
+                  </button>
                 }
-              </button>
+              </div>
+            } @else {
+              <div class="h-56 sm:h-64 flex flex-col items-center justify-center bg-gradient-to-br from-stone-100 to-slate-200 text-stone-500 p-6 text-center gap-2">
+                <i class="pi pi-building text-4xl text-stone-400"></i>
+                <p class="text-sm font-semibold text-stone-700">Cơ sở chưa tải lên hình ảnh thực tế</p>
+                <p class="text-xs text-stone-500">Thông tin hạng phòng, lịch trống và báo giá bên dưới được đồng bộ trực tiếp từ hệ thống.</p>
+              </div>
             }
-          </div>
+          }
         </section>
 
         <!-- 4. MAIN CONTENT (2 COLUMNS: LEFT ROOMS & POLICIES / RIGHT STICKY QUOTE) -->
@@ -356,12 +365,19 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                 >
                   <div class="flex flex-col sm:flex-row items-start gap-4">
                     <div class="w-full sm:w-44 h-32 rounded-2xl overflow-hidden shrink-0 bg-stone-100 shadow-inner border border-stone-200/80">
-                      <img
-                        [src]="getRoomPhoto(room, $index)"
-                        [alt]="room.name || room.roomTypeName"
-                        class="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
-                        loading="lazy"
-                      />
+                      @if (getRoomPhoto(room, $index); as roomPhotoUrl) {
+                        <img
+                          [src]="roomPhotoUrl"
+                          [alt]="room.name || room.roomTypeName"
+                          class="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                          loading="lazy"
+                        />
+                      } @else {
+                        <div class="w-full h-full flex flex-col items-center justify-center text-stone-400 gap-1">
+                          <i class="pi pi-image text-2xl"></i>
+                          <span class="text-[11px] font-medium">Chưa có ảnh phòng</span>
+                        </div>
+                      }
                     </div>
                     <div class="flex-1 flex flex-col sm:flex-row sm:items-start justify-between gap-3 w-full">
                     <div class="space-y-1">
@@ -584,76 +600,90 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                 </div>
 
                 <div class="flex items-center gap-3">
-                  <span class="text-2xl sm:text-3xl font-mono font-black text-[#0D2E28]">
-                    {{ (reviewsSummary()?.totalReviews || hotel.reviewCount || 0) > 0 ? ((reviewsSummary()?.averageRating || hotel.ratingAverage || 5.0) | number:'1.1-1') : 'Mới' }}
-                  </span>
-                  <div class="text-xs">
-                    <div class="flex items-center text-amber-500 text-xs">
-                      <i class="pi pi-star-fill"></i>
-                      <i class="pi pi-star-fill"></i>
-                      <i class="pi pi-star-fill"></i>
-                      <i class="pi pi-star-fill"></i>
-                      <i class="pi pi-star-fill"></i>
+                  @if ((reviewsSummary()?.totalReviews ?? hotel.reviewCount ?? 0) > 0 && (reviewsSummary()?.averageRating ?? hotel.ratingAverage ?? 0) > 0) {
+                    <span class="text-2xl sm:text-3xl font-mono font-black text-[#0D2E28]">
+                      {{ (reviewsSummary()?.averageRating ?? hotel.ratingAverage) | number:'1.1-1' }}
+                    </span>
+                    <div class="text-xs">
+                      <div class="flex items-center text-amber-500 text-xs">
+                        @for (star of [1, 2, 3, 4, 5]; track star) {
+                          <i class="pi" [class.pi-star-fill]="star <= Math.round(reviewsSummary()?.averageRating ?? hotel.ratingAverage ?? 0)" [class.pi-star]="star > Math.round(reviewsSummary()?.averageRating ?? hotel.ratingAverage ?? 0)"></i>
+                        }
+                      </div>
+                      <span class="text-stone-500 font-medium">({{ reviewsSummary()?.totalReviews ?? hotel.reviewCount }} đánh giá)</span>
                     </div>
-                    <span class="text-stone-500 font-medium">({{ reviewsSummary()?.totalReviews || hotel.reviewCount || 0 }} đánh giá)</span>
-                  </div>
+                  } @else {
+                    <div class="text-right">
+                      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-stone-100 text-stone-600 text-xs font-semibold border border-stone-200">
+                        Chưa có đánh giá
+                      </span>
+                    </div>
+                  }
                 </div>
               </div>
 
-              <!-- Sub-ratings Grid -->
-              @if ((reviewsSummary()?.totalReviews || hotel.reviewCount || 0) > 0) {
+              <!-- Sub-ratings Grid (only displayed when real sub-ratings exist) -->
+              @if ((reviewsSummary()?.totalReviews ?? hotel.reviewCount ?? 0) > 0) {
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Vệ sinh phòng</span>
-                    <div class="flex items-baseline justify-between">
-                      <span class="text-base font-mono font-bold text-[#0D2E28]">
-                        {{ (reviewsSummary()?.cleanlinessAverage || 4.9) | number:'1.1-1' }}/5
-                      </span>
-                      <i class="pi pi-sparkles text-emerald-600 text-xs"></i>
+                  @if ((reviewsSummary()?.cleanlinessAverage ?? 0) > 0) {
+                    <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
+                      <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Vệ sinh phòng</span>
+                      <div class="flex items-baseline justify-between">
+                        <span class="text-base font-mono font-bold text-[#0D2E28]">
+                          {{ reviewsSummary()!.cleanlinessAverage | number:'1.1-1' }}/5
+                        </span>
+                        <i class="pi pi-sparkles text-emerald-600 text-xs"></i>
+                      </div>
+                      <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
+                        <div class="bg-emerald-600 h-1.5 rounded-full" [style.width.%]="(reviewsSummary()!.cleanlinessAverage / 5) * 100"></div>
+                      </div>
                     </div>
-                    <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
-                      <div class="bg-emerald-600 h-1.5 rounded-full" [style.width.%]="((reviewsSummary()?.cleanlinessAverage || 4.9) / 5) * 100"></div>
-                    </div>
-                  </div>
+                  }
 
-                  <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Vị trí thuận tiện</span>
-                    <div class="flex items-baseline justify-between">
-                      <span class="text-base font-mono font-bold text-[#0D2E28]">
-                        {{ (reviewsSummary()?.locationAverage || 4.8) | number:'1.1-1' }}/5
-                      </span>
-                      <i class="pi pi-map-marker text-[#C05621] text-xs"></i>
+                  @if ((reviewsSummary()?.locationAverage ?? 0) > 0) {
+                    <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
+                      <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Vị trí thuận tiện</span>
+                      <div class="flex items-baseline justify-between">
+                        <span class="text-base font-mono font-bold text-[#0D2E28]">
+                          {{ reviewsSummary()!.locationAverage | number:'1.1-1' }}/5
+                        </span>
+                        <i class="pi pi-map-marker text-[#C05621] text-xs"></i>
+                      </div>
+                      <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
+                        <div class="bg-[#C05621] h-1.5 rounded-full" [style.width.%]="(reviewsSummary()!.locationAverage / 5) * 100"></div>
+                      </div>
                     </div>
-                    <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
-                      <div class="bg-[#C05621] h-1.5 rounded-full" [style.width.%]="((reviewsSummary()?.locationAverage || 4.8) / 5) * 100"></div>
-                    </div>
-                  </div>
+                  }
 
-                  <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Dịch vụ lễ tân</span>
-                    <div class="flex items-baseline justify-between">
-                      <span class="text-base font-mono font-bold text-[#0D2E28]">
-                        {{ (reviewsSummary()?.serviceAverage || 4.9) | number:'1.1-1' }}/5
-                      </span>
-                      <i class="pi pi-heart text-rose-500 text-xs"></i>
+                  @if ((reviewsSummary()?.serviceAverage ?? 0) > 0) {
+                    <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
+                      <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Dịch vụ lễ tân</span>
+                      <div class="flex items-baseline justify-between">
+                        <span class="text-base font-mono font-bold text-[#0D2E28]">
+                          {{ reviewsSummary()!.serviceAverage | number:'1.1-1' }}/5
+                        </span>
+                        <i class="pi pi-heart text-rose-500 text-xs"></i>
+                      </div>
+                      <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
+                        <div class="bg-rose-500 h-1.5 rounded-full" [style.width.%]="(reviewsSummary()!.serviceAverage / 5) * 100"></div>
+                      </div>
                     </div>
-                    <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
-                      <div class="bg-rose-500 h-1.5 rounded-full" [style.width.%]="((reviewsSummary()?.serviceAverage || 4.9) / 5) * 100"></div>
-                    </div>
-                  </div>
+                  }
 
-                  <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Đáng giá tiền</span>
-                    <div class="flex items-baseline justify-between">
-                      <span class="text-base font-mono font-bold text-[#0D2E28]">
-                        {{ (reviewsSummary()?.valueAverage || 4.8) | number:'1.1-1' }}/5
-                      </span>
-                      <i class="pi pi-tag text-amber-600 text-xs"></i>
+                  @if ((reviewsSummary()?.valueAverage ?? 0) > 0) {
+                    <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
+                      <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Đáng giá tiền</span>
+                      <div class="flex items-baseline justify-between">
+                        <span class="text-base font-mono font-bold text-[#0D2E28]">
+                          {{ reviewsSummary()!.valueAverage | number:'1.1-1' }}/5
+                        </span>
+                        <i class="pi pi-tag text-amber-600 text-xs"></i>
+                      </div>
+                      <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
+                        <div class="bg-amber-600 h-1.5 rounded-full" [style.width.%]="(reviewsSummary()!.valueAverage / 5) * 100"></div>
+                      </div>
                     </div>
-                    <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
-                      <div class="bg-amber-600 h-1.5 rounded-full" [style.width.%]="((reviewsSummary()?.valueAverage || 4.8) / 5) * 100"></div>
-                    </div>
-                  </div>
+                  }
                 </div>
               }
 
@@ -759,7 +789,13 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                 <div class="p-4 rounded-2xl bg-[#0D2E28] text-white space-y-1">
                   <span class="text-[10px] uppercase font-bold text-stone-300 tracking-wider block">Tổng thanh toán dự kiến</span>
                   <div class="text-2xl font-mono font-black text-amber-300">{{ price.totalAmount | number:'1.0-0' }} ₫</div>
-                  <p class="text-[10px] text-stone-300">Đã bao gồm 10% VAT &amp; phí dịch vụ cơ sở</p>
+                  @if ((hotel.taxRatePercent ?? 0) > 0 || (hotel.serviceFeeRatePercent ?? 0) > 0) {
+                    <p class="text-[10px] text-stone-300">
+                      Chính sách cơ sở: thuế VAT {{ hotel.taxRatePercent ?? 0 }}%, phí dịch vụ {{ hotel.serviceFeeRatePercent ?? 0 }}%
+                    </p>
+                  } @else {
+                    <p class="text-[10px] text-stone-300">Báo giá tính theo biểu giá niêm yết của cơ sở</p>
+                  }
                 </div>
 
                 <!-- Live SignalR & Payment Guarantees -->
@@ -794,7 +830,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
               [disabled]="!quote() || quoteLoading() || availabilityLoading()"
               class="w-full h-12 rounded-xl bg-[#C05621] hover:bg-[#a34315] active:bg-[#823510] text-white font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <span>Tiếp Tục Giữ Phòng &amp; Nhận Mã PIN</span>
+              <span>Tiếp Tục Giữ Phòng &amp; Đặt Ngay</span>
               <i class="pi pi-arrow-right text-xs"></i>
             </button>
           </aside>
@@ -812,6 +848,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
   `,
 })
 export class PropertyDetailPageComponent implements OnInit {
+  protected readonly Math = Math;
   readonly checkInDateValue = computed(() => parseCalendarDate(this.stay().checkInDate));
   readonly checkOutDateValue = computed(() => parseCalendarDate(this.stay().checkOutDate));
 
@@ -827,7 +864,7 @@ export class PropertyDetailPageComponent implements OnInit {
     }
   }
   getRoomPhoto(room: PublicRoomTypeAvailabilityDto, index: number = 0): string {
-    return resolveRoomThumbnail(room.name || room.roomTypeName, index, room.imageUrl);
+    return resolveRoomThumbnail(room.name || room.roomTypeName, index, room.imageUrl || room.images?.[0]);
   }
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -920,6 +957,10 @@ export class PropertyDetailPageComponent implements OnInit {
     return typeof price === 'number' && Number.isFinite(price) && price > 0 ? price : null;
   }
 
+  propertyGalleryUrls(hotel: PublicPropertyDto): string[] {
+    return resolvePropertyGallery(hotel.name, hotel.thumbnailUrl, hotel.galleryUrls);
+  }
+
   galleryPhotos(): GalleryPhotoItem[] {
     const hotel = this.property();
     if (!hotel) return [];
@@ -929,11 +970,11 @@ export class PropertyDetailPageComponent implements OnInit {
 
   getPhotoUrl(hotel: PublicPropertyDto, index: number): string {
     const urls = resolvePropertyGallery(hotel.name, hotel.thumbnailUrl, hotel.galleryUrls);
-    return urls[index % urls.length];
+    return urls[index] ?? '';
   }
 
   totalPhotosCount(hotel: PublicPropertyDto): number {
-    return Math.max(1, hotel.galleryUrls?.length || (hotel.thumbnailUrl ? 1 : 0));
+    return resolvePropertyGallery(hotel.name, hotel.thumbnailUrl, hotel.galleryUrls).length;
   }
 
   returnQueryParams(): Record<string, unknown> {

@@ -1169,6 +1169,9 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.HasAlternateKey("PropertyId", "Id")
                         .HasName("UX_Reservations_PropertyId_Id");
 
+                    b.HasIndex("ConfirmationCode")
+                        .HasDatabaseName("IX_Reservations_ConfirmationCode");
+
                     b.HasIndex("GuestUserId");
 
                     b.HasIndex("RoomId");
@@ -1690,6 +1693,108 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.ToTable("SubscriptionPlans");
                 });
 
+            modelBuilder.Entity("HotelSaas.Domain.Entities.SupportAccessGrant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("GrantedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RevokedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("TargetSupportUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TargetSupportUserId", "TenantId")
+                        .HasDatabaseName("IX_SupportAccessGrants_TargetUser_Tenant");
+
+                    b.HasIndex("TenantId", "ExpiresAtUtc", "RevokedAtUtc")
+                        .HasDatabaseName("IX_SupportAccessGrants_Tenant_Expiry");
+
+                    b.ToTable("SupportAccessGrants", (string)null);
+                });
+
+            modelBuilder.Entity("HotelSaas.Domain.Entities.SupportAuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DetailsJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ResourcePath")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<Guid>("SupportAccessGrantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SupportAccessGrantId", "CreatedAtUtc")
+                        .HasDatabaseName("IX_SupportAuditLogs_Grant_CreatedAt");
+
+                    b.HasIndex("TenantId", "CreatedAtUtc")
+                        .HasDatabaseName("IX_SupportAuditLogs_Tenant_CreatedAt");
+
+                    b.ToTable("SupportAuditLogs", (string)null);
+                });
+
             modelBuilder.Entity("HotelSaas.Domain.Entities.SystemBanner", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2011,9 +2116,17 @@ namespace HotelSaas.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasDatabaseName("UX_User_Email");
+
                     b.HasIndex("TenantId");
 
-                    b.ToTable("Users");
+                    b.HasIndex("Username")
+                        .IsUnique()
+                        .HasDatabaseName("UX_User_Username");
+
+                    b.ToTable("Users", (string)null);
                 });
 
             modelBuilder.Entity("HotelSaas.Domain.Entities.AccessRole", b =>
@@ -2569,6 +2682,30 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.Navigation("Subscription");
                 });
 
+            modelBuilder.Entity("HotelSaas.Domain.Entities.SupportAccessGrant", b =>
+                {
+                    b.HasOne("HotelSaas.Domain.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_SupportAccessGrants_Tenants_TenantId");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("HotelSaas.Domain.Entities.SupportAuditLog", b =>
+                {
+                    b.HasOne("HotelSaas.Domain.Entities.SupportAccessGrant", "SupportAccessGrant")
+                        .WithMany("AuditLogs")
+                        .HasForeignKey("SupportAccessGrantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_SupportAuditLogs_Grants_SupportAccessGrantId");
+
+                    b.Navigation("SupportAccessGrant");
+                });
+
             modelBuilder.Entity("HotelSaas.Domain.Entities.TenantContract", b =>
                 {
                     b.HasOne("HotelSaas.Domain.Entities.Tenant", "Tenant")
@@ -2695,6 +2832,11 @@ namespace HotelSaas.Infrastructure.Migrations
             modelBuilder.Entity("HotelSaas.Domain.Entities.Subscription", b =>
                 {
                     b.Navigation("SubscriptionPayments");
+                });
+
+            modelBuilder.Entity("HotelSaas.Domain.Entities.SupportAccessGrant", b =>
+                {
+                    b.Navigation("AuditLogs");
                 });
 
             modelBuilder.Entity("HotelSaas.Domain.Entities.Tenant", b =>

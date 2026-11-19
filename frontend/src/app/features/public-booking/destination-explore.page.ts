@@ -65,14 +65,18 @@ import {
                   [routerLink]="['/booking/destinations', zone.slug]"
                   class="group bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md hover:border-indigo-300 transition-all flex flex-col cursor-pointer"
                 >
-                  <div class="h-40 overflow-hidden relative">
-                    <img
-                      [src]="getZoneImage(zone.slug)"
-                      [alt]="zone.name"
-                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div class="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end p-3.5">
-                      <span class="text-white font-extrabold text-base">{{ zone.name }}</span>
+                  <div class="h-40 overflow-hidden relative bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-800 flex flex-col justify-between p-4">
+                    <div class="flex items-center justify-between">
+                      <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/10 text-indigo-200 border border-white/15">
+                        {{ zone.provinceName || 'Điểm đến' }}
+                      </span>
+                      <i class="pi pi-compass text-indigo-300/80 text-lg"></i>
+                    </div>
+                    <div>
+                      <span class="text-white font-extrabold text-base block leading-snug">{{ zone.name }}</span>
+                      @if (zone.landmarksCount) {
+                        <span class="text-[11px] text-indigo-200/80 mt-0.5 block">{{ zone.landmarksCount }} địa danh nổi bật</span>
+                      }
                     </div>
                   </div>
 
@@ -253,12 +257,19 @@ import {
               <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 @for (prop of filteredProperties(); track (prop.propertyId || prop.id || prop.slug)) {
                   <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col">
-                    <div class="h-48 overflow-hidden relative">
-                      <img
-                        [src]="prop.imageUrl || prop.thumbnailUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800'"
-                        [alt]="prop.name"
-                        class="w-full h-full object-cover"
-                      />
+                    <div class="h-48 overflow-hidden relative bg-slate-100">
+                      @if (prop.thumbnailUrl || prop.imageUrl) {
+                        <img
+                          [src]="prop.thumbnailUrl || prop.imageUrl"
+                          [alt]="prop.name"
+                          class="w-full h-full object-cover"
+                        />
+                      } @else {
+                        <div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400">
+                          <i class="pi pi-building text-3xl mb-1.5"></i>
+                          <span class="text-xs font-medium text-slate-500">Chưa có ảnh đại diện</span>
+                        </div>
+                      }
                       <div class="absolute top-3 left-3 flex flex-wrap gap-1.5">
                         <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white">
                           {{ prop.propertyTypeName || 'Khách sạn' }}
@@ -287,6 +298,17 @@ import {
                         <p class="text-xs text-slate-500 mt-1 line-clamp-1">
                           {{ prop.address || prop.addressLine }}, {{ prop.city || prop.provinceName }}
                         </p>
+                        <div class="mt-2 flex items-center gap-1.5 text-xs">
+                          @if (prop.reviewCount && prop.reviewCount > 0 && prop.ratingAverage > 0) {
+                            <span class="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                              <i class="pi pi-star-fill text-amber-500 text-[10px]"></i>
+                              <span>{{ prop.ratingAverage.toFixed(1) }}</span>
+                            </span>
+                            <span class="text-slate-500">({{ prop.reviewCount }} đánh giá)</span>
+                          } @else {
+                            <span class="text-slate-500 italic">Chưa có đánh giá</span>
+                          }
+                        </div>
                       </div>
 
                       <!-- Rental modes -->
@@ -430,20 +452,4 @@ export class DestinationExplorePageComponent implements OnInit {
     this.selectedRadiusMeters.set(meters);
   }
 
-  getZoneImage(slug: string): string {
-    const map: Record<string, string> = {
-      'da-lat': 'https://images.unsplash.com/photo-1579202673506-ca3ce28943ef?w=800',
-      'vung-tau': 'https://images.unsplash.com/photo-1590523741831-ab7e8b8f9c7f?w=800',
-      'da-nang': 'https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=800',
-      'hoi-an': 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800',
-      'phu-quoc': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800',
-      'sa-pa': 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800',
-      'ha-noi-pho-co': 'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=800',
-      'quan-1-tphcm': 'https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=800',
-      'ha-long': 'https://images.unsplash.com/photo-1528127269322-539801943592?w=800',
-      'phan-thiet-mui-ne': 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800',
-      'quy-nhon': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800'
-    };
-    return map[slug] || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800';
-  }
 }

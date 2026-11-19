@@ -23,6 +23,9 @@ function passwordComplexityValidator(control: AbstractControl): ValidationErrors
   if (!/[A-Z]/.test(value)) {
     errors['requiresUppercase'] = true;
   }
+  if (!/[a-z]/.test(value)) {
+    errors['requiresLowercase'] = true;
+  }
   if (!/[0-9]/.test(value)) {
     errors['requiresDigit'] = true;
   }
@@ -167,7 +170,7 @@ export type RegisterTab = 'email' | 'phone';
               formControlName="password"
               [feedback]="true"
               [toggleMask]="true"
-              placeholder="Tối thiểu 8 ký tự (hoa, số, ký tự đặc biệt)"
+              placeholder="Tối thiểu 8 ký tự (hoa, thường, số, ký tự đặc biệt)"
               promptLabel="Nhập mật khẩu an toàn"
               weakLabel="Yếu"
               mediumLabel="Trung bình"
@@ -183,6 +186,9 @@ export type RegisterTab = 'email' | 'phone';
             }
             @if (emailRegisterForm.get('password')?.hasError('requiresUppercase') && emailRegisterForm.get('password')?.touched) {
               <p class="text-xs text-rose-600 mt-1">Mật khẩu cần ít nhất 1 chữ hoa (A-Z)</p>
+            }
+            @if (emailRegisterForm.get('password')?.hasError('requiresLowercase') && emailRegisterForm.get('password')?.touched) {
+              <p class="text-xs text-rose-600 mt-1">Mật khẩu cần ít nhất 1 chữ thường (a-z)</p>
             }
             @if (emailRegisterForm.get('password')?.hasError('requiresDigit') && emailRegisterForm.get('password')?.touched) {
               <p class="text-xs text-rose-600 mt-1">Mật khẩu cần ít nhất 1 chữ số (0-9)</p>

@@ -128,7 +128,7 @@ import { DateRangeFilterComponent, DateRangeFilterValue } from '../../shared/com
                 type="text"
                 [(ngModel)]="searchKeyword"
                 (keyup.enter)="onFilterChange()"
-                placeholder="Tìm theo Mã bản ghi hoặc ID đối tượng..."
+                placeholder="Tìm theo hành động, đối tượng, ID, payload hoặc IP..."
                 class="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-indigo-500 transition-all"
               />
             </div>
@@ -716,9 +716,11 @@ export class AuditLogsPage implements OnInit {
     }
     if (this.searchKeyword.trim()) {
       const kw = this.searchKeyword.trim();
-      // Nếu là GUID thì gán EntityId
+      // Nếu là GUID thì lọc trực tiếp theo EntityId; ngược lại tìm toàn văn không phân biệt hoa/thường
       if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(kw)) {
         params.entityId = kw;
+      } else {
+        params.search = kw;
       }
     }
 
@@ -815,6 +817,8 @@ export class AuditLogsPage implements OnInit {
       const kw = this.searchKeyword.trim();
       if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(kw)) {
         params.entityId = kw;
+      } else {
+        params.search = kw;
       }
     }
 

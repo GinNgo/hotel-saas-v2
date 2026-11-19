@@ -251,7 +251,10 @@ public sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCom
             user.Email,
             user.FullName,
             user.GlobalRole.ToString(),
-            effectiveTenantId);
+            effectiveTenantId,
+            user.PhoneNumber,
+            user.PhoneVerifiedAtUtc.HasValue,
+            user.EmailVerifiedAtUtc.HasValue);
 
         return new LoginResponse(accessToken, newRefreshToken, expiresAtUtc, userDto);
     }

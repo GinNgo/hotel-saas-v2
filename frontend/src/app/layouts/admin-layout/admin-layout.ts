@@ -8,6 +8,7 @@ import { ThemeService } from '../../core/services/theme.service';
 import { ContextSelectorDialogComponent } from '../../features/auth/context-selector/context-selector.dialog';
 import { NotificationBellComponent } from '../../shared/components/notification-bell/notification-bell.component';
 import { BreadcrumbComponent } from '../../shared/components/breadcrumb/breadcrumb.component';
+import { SystemBannerBarComponent } from '../../shared/components/system-banner-bar/system-banner-bar.component';
 import { NotificationItem } from '../../shared/components/notification-bell/notification-bell.model';
 import { UserMembershipDto } from '../../core/models/auth.model';
 
@@ -30,7 +31,8 @@ import { UserMembershipDto } from '../../core/models/auth.model';
     AsyncPipe,
     ContextSelectorDialogComponent,
     NotificationBellComponent,
-    BreadcrumbComponent
+    BreadcrumbComponent,
+    SystemBannerBarComponent
   ],
   template: `
     <div class="flex h-screen w-full overflow-hidden bg-[#fbfbfa]">
@@ -268,6 +270,16 @@ import { UserMembershipDto } from '../../core/models/auth.model';
                   <span>Nhật ký kiểm toán</span>
                   <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">Audit</span>
                 </a>
+
+                <a
+                  routerLink="/support-grants"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-key text-base text-indigo-700"></i>
+                  <span>Ủy quyền hỗ trợ</span>
+                </a>
               }
             </div>
           }
@@ -293,6 +305,17 @@ import { UserMembershipDto } from '../../core/models/auth.model';
               </a>
 
               <a
+                routerLink="/platform-tenants"
+                routerLinkActive="bg-indigo-50 text-indigo-800 font-semibold border-l-4 border-indigo-600 shadow-2xs"
+                (click)="onNavItemClick()"
+                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+              >
+                <i class="pi pi-building text-base text-indigo-600"></i>
+                <span>Đối tác &amp; Chi nhánh</span>
+                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800">Tenant</span>
+              </a>
+
+              <a
                 routerLink="/plans"
                 routerLinkActive="bg-indigo-50 text-indigo-800 font-semibold border-l-4 border-indigo-600 shadow-2xs"
                 (click)="onNavItemClick()"
@@ -312,6 +335,17 @@ import { UserMembershipDto } from '../../core/models/auth.model';
                 <i class="pi pi-file-edit text-base text-indigo-600"></i>
                 <span>Hợp đồng Đối tác</span>
                 <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800">Admin</span>
+              </a>
+
+              <a
+                routerLink="/admin-banners"
+                routerLinkActive="bg-indigo-50 text-indigo-800 font-semibold border-l-4 border-indigo-600 shadow-2xs"
+                (click)="onNavItemClick()"
+                class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+              >
+                <i class="pi pi-megaphone text-base text-indigo-600"></i>
+                <span>Banner Nền tảng</span>
+                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800">CMS</span>
               </a>
 
               <a
@@ -473,6 +507,7 @@ import { UserMembershipDto } from '../../core/models/auth.model';
 
         <!-- Main Page View Container -->
         <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[var(--surface-ground)]">
+          <app-system-banner-bar />
           <app-breadcrumb class="block mb-4 sm:mb-6" />
           <router-outlet></router-outlet>
         </main>
@@ -578,45 +613,6 @@ export class AdminLayoutComponent {
     if (activeRole === 'Owner' || activeRole === 'Manager') return true;
     if (this.authService.hasPermission('STAFF', 1) || this.authService.hasPermission('ROLES', 1)) return true;
     return this.authService.memberships.some(m => m.staffRole === 'Owner' || m.staffRole === 'Manager');
-  }
-
-  showUnimplementedNotice(key: string): void {
-    this.isMobileSidebarOpen.set(false);
-    switch (key) {
-      case 'pricing':
-        this.alertService.showNotice(
-          'Bảng giá phòng & Lịch sử (Task tiếp theo)',
-          'Chức năng Quản lý Bảng giá phòng (Rates) và Lịch sử giá sẽ được triển khai ở task P2-RATES-UI-01 ngay sau khi hoàn thành Chính sách chi nhánh.'
-        );
-        break;
-      case 'reservations':
-        this.alertService.showNotice(
-          'Đặt phòng (Chưa triển khai)',
-          'Chức năng Đặt phòng & Check-in đang ở giai đoạn thiết kế đặc tả P3A (chờ PO phê duyệt 6 quyết định sản phẩm). Chưa có API và cơ sở dữ liệu.'
-        );
-        break;
-      case 'guests':
-        this.alertService.showNotice(
-          'Quản lý Khách hàng (Chưa triển khai)',
-          'Module Khách hàng chưa được phát triển hoặc chưa có API backend được phê duyệt.'
-        );
-        break;
-      case 'staff':
-        this.alertService.showNotice(
-          'Nhân sự & Phân quyền (Chưa triển khai)',
-          'Module Quản lý Nhân sự & Phân quyền (RBAC) chưa có API backend được phê duyệt.'
-        );
-        break;
-      case 'payments':
-        this.alertService.showNotice(
-          'Thanh toán & Thu chi (Lộ trình P4-P7)',
-          'Module Cổng thanh toán VNPay/VietQR và Folio nằm trong lộ trình các phase tiếp theo.'
-        );
-        break;
-      default:
-        this.alertService.showNotice('Chưa triển khai', 'Tính năng đang trong quá trình phát triển.');
-        break;
-    }
   }
 
   toggleMobileSidebar(): void {

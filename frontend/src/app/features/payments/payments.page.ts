@@ -22,6 +22,7 @@ import {
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { RefundApprovalComponent } from './components/refund-approval/refund-approval.component';
+import { ContextSelectorDialogComponent } from '../auth/context-selector/context-selector.dialog';
 
 /**
  * Helper: Lấy chuỗi ngày YYYY-MM-DD theo múi giờ Việt Nam (UTC+7).
@@ -73,7 +74,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
 @Component({
   selector: 'app-payments',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePicker, EmptyStateComponent, PaginationComponent, RefundApprovalComponent],
+  imports: [CommonModule, FormsModule, DatePicker, EmptyStateComponent, PaginationComponent, RefundApprovalComponent, ContextSelectorDialogComponent],
   template: `
     <div class="max-w-7xl mx-auto space-y-6 pb-12">
       <!-- Page Header -->
@@ -157,7 +158,10 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
         <app-empty-state
           [iconClass]="'pi pi-building'"
           [title]="'Vui lòng chọn cơ sở hoạt động'"
-          [description]="'Hệ thống yêu cầu xác định chi nhánh hoạt động để tra cứu dữ liệu thu ngân. Hãy chọn chi nhánh từ bộ chuyển ngữ cảnh ở thanh điều hướng trên cùng.'"
+          [description]="'Hệ thống yêu cầu xác định chi nhánh hoạt động để tra cứu dữ liệu thu ngân. Vui lòng chọn một chi nhánh để tiếp tục.'"
+          [actionLabel]="'Chọn chi nhánh làm việc'"
+          [actionIcon]="'pi pi-building'"
+          (actionClick)="openContextSelector()"
         ></app-empty-state>
       } @else {
         @if (activeTab() === 'cashier') {
@@ -1226,6 +1230,13 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
           </div>
         </div>
       }
+
+      @if (showContextSelector()) {
+        <app-context-selector-dialog
+          [visible]="showContextSelector()"
+          (visibleChange)="showContextSelector.set($event)"
+        />
+      }
   `
 })
 export class PaymentsPage implements OnInit, OnDestroy {
@@ -1233,6 +1244,11 @@ export class PaymentsPage implements OnInit, OnDestroy {
   private readonly paymentService = inject(PaymentService);
   private readonly route = inject(ActivatedRoute, { optional: true });
   private readonly router = inject(Router, { optional: true });
+
+  readonly showContextSelector = signal(false);
+  openContextSelector(): void {
+    this.showContextSelector.set(true);
+  }
 
   readonly PaymentMethod = PaymentMethod;
   readonly PaymentStatus = PaymentStatus;

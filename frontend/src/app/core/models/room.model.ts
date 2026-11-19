@@ -13,6 +13,8 @@ export interface RoomDto {
   roomTypeCode: string;
   basePrice: number;
   createdAtUtc: string;
+  propertyId?: string;
+  propertyName?: string | null;
 }
 
 export interface CreateRoomRequest {

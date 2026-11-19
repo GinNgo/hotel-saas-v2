@@ -133,3 +133,42 @@ export interface UpdateGuestVatProfileRequest {
   companyTaxCode?: string | null;
   companyAddress?: string | null;
 }
+
+export interface EnrollMembershipRequest {
+  propertyId: string;
+}
+
+export interface ResendConfirmationRequest {
+  email?: string | null;
+  appUrl?: string | null;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface SocialAccountItemDto {
+  id: string;
+  provider: string;
+  providerEmail: string;
+  avatarUrl?: string | null;
+  lastLoginAtUtc: string;
+  createdAtUtc: string;
+}
+
+export interface SocialAccountsResponseDto {
+  hasPassword: boolean;
+  accounts: SocialAccountItemDto[];
+}
+
+export interface LinkSocialAccountRequest {
+  idToken: string;
+  provider?: string;
+}
+
+export interface AuthActionResponseDto {
+  success: boolean;
+  message?: string | null;
+  errorCode?: string | null;
+}

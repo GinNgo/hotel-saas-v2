@@ -411,21 +411,34 @@ export type PortalType = 'guest' | 'admin';
           </div>
 
           <div class="space-y-3 text-xs text-slate-600 leading-relaxed">
+            <div class="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200 text-indigo-950 space-y-2">
+              <div class="font-bold">Đặt lại mật khẩu tự động qua Email:</div>
+              <p>
+                Bạn có thể yêu cầu gửi liên kết đặt lại mật khẩu an toàn trực tiếp tới email đã đăng ký tài khoản.
+              </p>
+              <a
+                routerLink="/auth/forgot-password"
+                (click)="closeForgotPasswordModal()"
+                class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-2xs transition-colors"
+              >
+                <i class="pi pi-envelope text-xs"></i>
+                <span>Khôi phục mật khẩu qua Email →</span>
+              </a>
+            </div>
             @if (portal() === 'guest') {
-              <div class="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200 text-indigo-950 space-y-1.5">
-                <div class="font-bold">Đối với Khách hàng Lưu trú (Guest):</div>
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 space-y-1.5">
+                <div class="font-bold">Lựa chọn nhanh khác cho Khách lưu trú:</div>
                 <ul class="list-disc list-inside space-y-1">
-                  <li>Bạn có thể đăng nhập nhanh bằng <strong>Google</strong> hoặc <strong>Số điện thoại (SMS OTP)</strong> nếu đã liên kết với tài khoản.</li>
-                  <li>Nếu chỉ nhớ email đăng ký, vui lòng liên hệ bộ phận Hỗ trợ khách hàng để được cấp lại quyền truy cập an toàn.</li>
-                  <li>Nếu chỉ cần xem đơn đặt phòng hiện tại, hãy dùng mục <strong>Tra cứu mã giữ chỗ / SĐT</strong> ở cuối trang.</li>
+                  <li>Đăng nhập nhanh bằng <strong>Google</strong> hoặc <strong>Số điện thoại (SMS OTP)</strong> nếu đã liên kết tài khoản.</li>
+                  <li>Hoặc tra cứu nhanh đơn giữ chỗ ở mục <strong>Tra cứu mã giữ chỗ / SĐT</strong> bên dưới.</li>
                 </ul>
               </div>
             } @else {
               <div class="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-emerald-950 space-y-1.5">
-                <div class="font-bold">Đối với Nhân sự &amp; Chủ khách sạn (PMS):</div>
+                <div class="font-bold">Lưu ý cho Nhân sự &amp; Chủ khách sạn (PMS):</div>
                 <ul class="list-disc list-inside space-y-1">
-                  <li>Nhân sự chi nhánh vui lòng liên hệ <strong>Chủ cơ sở (Owner)</strong> hoặc <strong>Quản lý</strong> để đặt lại mật khẩu trong mục Quản lý Nhân sự.</li>
-                  <li>Chủ doanh nghiệp (Tenant Owner) vui lòng liên hệ bộ phận vận hành nền tảng kèm email quản trị và mã hợp đồng để xác minh danh tính.</li>
+                  <li>Sử dụng liên kết khôi phục qua email công việc ở trên nếu tự quên mật khẩu.</li>
+                  <li>Nhân sự chi nhánh cũng có thể nhờ <strong>Chủ cơ sở (Owner)</strong> hoặc <strong>Quản lý</strong> cấp lại tài khoản khi cần.</li>
                 </ul>
               </div>
             }

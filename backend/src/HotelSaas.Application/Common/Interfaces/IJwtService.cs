@@ -45,4 +45,16 @@ public interface IJwtService
     /// Validates an email verification token and extracts the userId and email.
     /// </summary>
     (bool isValid, Guid userId, string email) ValidateEmailVerificationToken(string token);
+
+    /// <summary>
+    /// Generates a short-lived signed password reset token bound to a password-hash fingerprint.
+    /// </summary>
+    string GeneratePasswordResetToken(Guid userId, string email, string passwordHashFingerprint, TimeSpan validity)
+        => GenerateEmailVerificationToken(userId, email, validity);
+
+    /// <summary>
+    /// Validates a password reset token and extracts the userId, email, and bound password-hash fingerprint.
+    /// </summary>
+    (bool isValid, Guid userId, string email, string passwordHashFingerprint) ValidatePasswordResetToken(string token)
+        => (false, Guid.Empty, string.Empty, string.Empty);
 }

@@ -167,7 +167,7 @@ export function buildDefaultDestinationSuggestions(): DestinationSuggestionDto[]
       provinceCode: p.code,
       provinceName: p.name,
       touristZoneName: p.shortName !== p.name ? p.shortName : undefined,
-      propertyCount: p.propertyCount,
+      propertyCount: p.propertyCount > 0 ? p.propertyCount : undefined,
       latitude: centroid?.latitude,
       longitude: centroid?.longitude,
     });

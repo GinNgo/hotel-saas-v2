@@ -503,13 +503,16 @@ interface PermissionMatrixRow {
                   />
                 </div>
                 <div>
-                  <label class="block font-semibold text-slate-700 mb-1">Mật khẩu ban đầu</label>
+                  <label class="block font-semibold text-slate-700 mb-1">Mật khẩu ban đầu (tùy chọn)</label>
                   <input
                     type="password"
                     [(ngModel)]="createForm.password"
-                    placeholder="Mặc định: Staff@123456"
+                    placeholder="Bỏ trống để gửi email mời thiết lập"
                     class="w-full h-10 px-3 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />
+                  <p class="text-[11px] text-slate-500 mt-1">
+                    Nếu bỏ trống, hệ thống sẽ tạo mật khẩu ngẫu nhiên an toàn và gửi liên kết kích hoạt qua email.
+                  </p>
                 </div>
               </div>
 
@@ -868,23 +871,68 @@ export class StaffPage implements OnInit {
       return;
     }
 
-    this.createForm.roleId = this.selectedCreateRoleId;
+    const trimmedPassword = (this.createForm.password || '').trim();
+    if (trimmedPassword.length > 0 && trimmedPassword.length < 8) {
+      this.alertService.toastError('Mật khẩu tùy chỉnh phải có ít nhất 8 ký tự.');
+      return;
+    }
 
+    const payload: CreateStaffMemberRequest = {
+      ...this.createForm,
+      fullName: this.createForm.fullName.trim(),
+      email: this.createForm.email.trim().toLowerCase(),
+      phoneNumber: this.createForm.phoneNumber?.trim() || undefined,
+      password: trimmedPassword || undefined,
+      roleId: this.selectedCreateRoleId,
+      confirmCustomerPromotion: false,
+      appUrl: typeof window !== 'undefined' ? window.location.origin : undefined
+    };
+
+    this.dispatchCreateStaff(payload);
+  }
+
+  private dispatchCreateStaff(payload: CreateStaffMemberRequest): void {
     this.submitting.set(true);
-    this.staffService.createStaffMember(this.createForm).subscribe({
-      next: () => {
+    this.staffService.createStaffMember(payload).subscribe({
+      next: created => {
         this.submitting.set(false);
         this.closeCreateModal();
-        this.alertService.toastSuccess('Thêm nhân sự mới thành công.');
+        const successMsg = created?.invitedViaEmail
+          ? `Đã thêm nhân sự và gửi email mời thiết lập mật khẩu đến ${created.email}.`
+          : 'Thêm nhân sự mới thành công.';
+        this.alertService.toastSuccess(successMsg);
         this.loadStaff();
         this.loadRolesAndFunctions();
       },
       error: err => {
         this.submitting.set(false);
+        if (err.error?.errorCode === 'ERR_CUSTOMER_ACCOUNT_EXISTS' && !payload.confirmCustomerPromotion) {
+          void this.confirmCustomerPromotion(payload, err.error?.message);
+          return;
+        }
         const msg = err.error?.message || 'Không thể tạo nhân viên mới.';
         this.alertService.toastError(msg);
       }
     });
+  }
+
+  private async confirmCustomerPromotion(
+    payload: CreateStaffMemberRequest,
+    serverMessage?: string
+  ): Promise<void> {
+    const confirmed = await this.alertService.confirmAction({
+      title: 'Tài khoản Khách hàng đã tồn tại',
+      text:
+        serverMessage ||
+        'Tài khoản email này đang là Khách hàng trên hệ thống. Bạn có chắc muốn nâng cấp thành Nhân sự PMS không?',
+      confirmButtonText: 'Nâng cấp thành Nhân sự',
+      cancelButtonText: 'Hủy bỏ',
+      icon: 'warning'
+    });
+
+    if (confirmed) {
+      this.dispatchCreateStaff({ ...payload, confirmCustomerPromotion: true });
+    }
   }
 
   openEditModal(member: StaffMemberDto): void {

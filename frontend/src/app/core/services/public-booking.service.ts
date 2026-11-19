@@ -12,6 +12,7 @@ import {
   CalculatePublicQuoteRequest,
   CreateGuestHoldRequest,
   ConfirmGuestBookingRequest,
+  RescheduleGuestBookingRequest,
   PublicPropertiesFilter,
   PropertyType,
   ALL_PROPERTY_TYPES,
@@ -77,6 +78,44 @@ export class PublicBookingService {
    * Retrieves all active properties available for public booking with rich multi-criteria filters.
    */
   getProperties(filter?: string | PublicPropertiesFilter): Observable<PublicPropertyDto[]> {
+    const params = this.buildPropertiesParams(filter);
+
+    return this.http
+      .get<RawPropertyPayload[] | ApiDataEnvelope<RawPropertyPayload[]>>(`${this.apiUrl}/properties`, { params })
+      .pipe(
+        map(res => {
+          const list = Array.isArray(res) ? res : (res?.data ?? []);
+          return list.map(item => this.normalizeProperty(item));
+        })
+      );
+  }
+
+  /**
+   * Retrieves properties with server-side pagination total count from X-Total-Count response header.
+   */
+  getPropertiesPaged(
+    filter?: string | PublicPropertiesFilter
+  ): Observable<{ items: PublicPropertyDto[]; totalCount: number }> {
+    const params = this.buildPropertiesParams(filter);
+
+    return this.http
+      .get<RawPropertyPayload[] | ApiDataEnvelope<RawPropertyPayload[]>>(`${this.apiUrl}/properties`, {
+        params,
+        observe: 'response',
+      })
+      .pipe(
+        map(resp => {
+          const body = resp.body;
+          const list = Array.isArray(body) ? body : (body?.data ?? []);
+          const items = list.map(item => this.normalizeProperty(item));
+          const headerTotal = Number(resp.headers.get('X-Total-Count'));
+          const totalCount = Number.isFinite(headerTotal) && headerTotal >= 0 ? headerTotal : items.length;
+          return { items, totalCount };
+        })
+      );
+  }
+
+  private buildPropertiesParams(filter?: string | PublicPropertiesFilter): HttpParams {
     let params = new HttpParams();
 
     if (typeof filter === 'string') {
@@ -100,9 +139,17 @@ export class PublicBookingService {
         params = params.set('rentalType', filter.rentalType.toString());
       }
       if (filter.propertyTypes && filter.propertyTypes.length > 0) {
-        const serializedTypes = filter.propertyTypes
-          .map(pt => (typeof pt === 'number' ? BACKEND_PROPERTY_TYPE_MAP[pt] : String(pt).trim()))
-          .filter((pt): pt is string => Boolean(pt));
+        const serializedTypes = Array.from(
+          new Set(
+            filter.propertyTypes
+              .map(pt => {
+                if (typeof pt === 'number') return BACKEND_PROPERTY_TYPE_MAP[pt];
+                const raw = String(pt).trim();
+                return raw === 'Guesthouse' ? 'Motel' : raw;
+              })
+              .filter((pt): pt is string => Boolean(pt))
+          )
+        );
         if (serializedTypes.length > 0) {
           params = params.set('propertyTypes', serializedTypes.join(','));
         }
@@ -127,6 +174,27 @@ export class PublicBookingService {
       if (lng !== undefined && lng !== null) {
         params = params.set('userLongitude', lng.toString());
       }
+      if (filter.minPrice !== undefined && filter.minPrice !== null) {
+        params = params.set('minPrice', filter.minPrice.toString());
+      }
+      if (filter.maxPrice !== undefined && filter.maxPrice !== null) {
+        params = params.set('maxPrice', filter.maxPrice.toString());
+      }
+      if (filter.guests !== undefined && filter.guests !== null && filter.guests > 0) {
+        params = params.set('guests', filter.guests.toString());
+      }
+      if (filter.checkInDate?.trim()) {
+        params = params.set('checkInDate', filter.checkInDate.trim());
+      }
+      if (filter.checkOutDate?.trim()) {
+        params = params.set('checkOutDate', filter.checkOutDate.trim());
+      }
+      if (filter.onlyPublished !== undefined && filter.onlyPublished !== null) {
+        params = params.set('onlyPublished', String(filter.onlyPublished));
+      }
+      if (filter.sortBy?.trim()) {
+        params = params.set('sortBy', filter.sortBy.trim());
+      }
       if (filter.page) {
         params = params.set('page', filter.page.toString());
       }
@@ -135,14 +203,7 @@ export class PublicBookingService {
       }
     }
 
-    return this.http
-      .get<RawPropertyPayload[] | ApiDataEnvelope<RawPropertyPayload[]>>(`${this.apiUrl}/properties`, { params })
-      .pipe(
-        map(res => {
-          const list = Array.isArray(res) ? res : (res?.data ?? []);
-          return list.map(item => this.normalizeProperty(item));
-        })
-      );
+    return params;
   }
 
   /**
@@ -328,6 +389,16 @@ export class PublicBookingService {
   }
 
   /**
+   * Reschedules a held or confirmed guest booking to a new interval under row lock.
+   */
+  rescheduleBooking(lookupToken: string, request: RescheduleGuestBookingRequest): Observable<GuestBookingDetailDto> {
+    return this.http.post<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/reschedule`, request).pipe(
+      map(res => (res.data ? res.data : res) as GuestBookingDetailDto),
+      tap(detail => this.broadcastLiveBookingPing('reschedule', detail?.reservationId, detail?.propertyId, lookupToken))
+    );
+  }
+
+  /**
    * Sinh URL thanh toán trực tuyến qua Cổng VNPay Sandbox cho đơn đặt phòng.
    */
   createVnpayPaymentUrl(
@@ -492,10 +563,41 @@ export class PublicBookingService {
   }
 
   /**
+   * Retrieves active partner brand profiles directly from /api/public/brands.
+   */
+  getPublicBrands(onlyPublished = false): Observable<TenantBrandDto[]> {
+    let params = new HttpParams();
+    if (onlyPublished) {
+      params = params.set('onlyPublished', 'true');
+    }
+
+    return this.http
+      .get<TenantBrandDto[] | ApiDataEnvelope<TenantBrandDto[]>>(`${this.apiUrl}/brands`, { params })
+      .pipe(
+        map(res => {
+          const list = Array.isArray(res) ? res : (res?.data ?? []);
+          return list.map(brand => ({
+            ...brand,
+            ratingAverage: typeof brand.ratingAverage === 'number' ? brand.ratingAverage : 0,
+            reviewCount: typeof brand.reviewCount === 'number' ? brand.reviewCount : 0,
+            provinces: Array.isArray(brand.provinces) ? brand.provinces : [],
+            propertyTypes: Array.isArray(brand.propertyTypes)
+              ? brand.propertyTypes.map(pt => this.normalizePropertyType(pt))
+              : [],
+            properties: Array.isArray(brand.properties)
+              ? brand.properties.map(prop => this.normalizeProperty(prop as unknown as RawPropertyPayload))
+              : [],
+          }));
+        }),
+        catchError(() => this.getTenantBrands())
+      );
+  }
+
+  /**
    * Retrieves a tenant brand profile by slug or tenantId.
    */
   getTenantBrandBySlug(slug: string): Observable<TenantBrandDto | null> {
-    return this.getTenantBrands().pipe(
+    return this.getPublicBrands().pipe(
       map(brands => brands.find(b => b.slug === slug || b.tenantId === slug) ?? null)
     );
   }
@@ -561,6 +663,8 @@ export class PublicBookingService {
       cleaningBufferMinutes: raw.cleaningBufferMinutes ?? raw.bufferMinutes ?? 0,
       ratingAverage: typeof raw.ratingAverage === 'number' ? raw.ratingAverage : 0,
       reviewCount: typeof raw.reviewCount === 'number' ? raw.reviewCount : 0,
+      taxRatePercent: typeof raw.taxRatePercent === 'number' ? raw.taxRatePercent : 0,
+      serviceFeeRatePercent: typeof raw.serviceFeeRatePercent === 'number' ? raw.serviceFeeRatePercent : 0,
       nearbyLandmarks: landmarks,
       startingPriceForSelectedMode,
       availableRoomTypes: Array.isArray(raw.availableRoomTypes) ? raw.availableRoomTypes : [],
@@ -571,8 +675,13 @@ export class PublicBookingService {
     if (typeof rawType === 'number') {
       return BACKEND_PROPERTY_TYPE_MAP[rawType] ?? 'Hotel';
     }
-    if (typeof rawType === 'string' && VALID_PROPERTY_TYPE_SET.has(rawType)) {
-      return rawType as PropertyType;
+    if (typeof rawType === 'string') {
+      if (rawType === 'Guesthouse') {
+        return 'Motel';
+      }
+      if (VALID_PROPERTY_TYPE_SET.has(rawType)) {
+        return rawType as PropertyType;
+      }
     }
     return 'Hotel';
   }

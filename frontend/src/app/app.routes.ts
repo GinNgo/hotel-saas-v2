@@ -31,6 +31,14 @@ export const routes: Routes = [
       {
         path: 'partner-register',
         loadComponent: () => import('./features/auth/partner-register/partner-register.page').then(m => m.PartnerRegisterPage)
+      },
+      {
+        path: 'forgot-password',
+        loadComponent: () => import('./features/auth/forgot-password/forgot-password.page').then(m => m.ForgotPasswordPage)
+      },
+      {
+        path: 'reset-password',
+        loadComponent: () => import('./features/auth/reset-password/reset-password.page').then(m => m.ResetPasswordPage)
       }
     ]
   },
@@ -55,6 +63,14 @@ export const routes: Routes = [
       {
         path: 'partner-register',
         loadComponent: () => import('./features/auth/partner-register/partner-register.page').then(m => m.PartnerRegisterPage)
+      },
+      {
+        path: 'forgot-password',
+        loadComponent: () => import('./features/auth/forgot-password/forgot-password.page').then(m => m.ForgotPasswordPage)
+      },
+      {
+        path: 'reset-password',
+        loadComponent: () => import('./features/auth/reset-password/reset-password.page').then(m => m.ResetPasswordPage)
       }
     ]
   },
@@ -277,6 +293,38 @@ export const routes: Routes = [
         path: 'contracts',
         canActivate: [platformAdminGuard],
         loadComponent: () => import('./features/admin-contracts/admin-contracts.page').then(m => m.AdminContractsPage)
+      },
+      {
+        path: 'platform-tenants',
+        canActivate: [platformAdminGuard],
+        loadComponent: () => import('./features/platform-tenants/platform-tenants.page').then(m => m.PlatformTenantsPage)
+      },
+      {
+        path: 'tenants',
+        canActivate: [platformAdminGuard],
+        loadComponent: () => import('./features/platform-tenants/platform-tenants.page').then(m => m.PlatformTenantsPage)
+      },
+      {
+        path: 'admin-banners',
+        canActivate: [platformAdminGuard],
+        loadComponent: () => import('./features/admin-banners/admin-banners.page').then(m => m.AdminBannersPage)
+      },
+      {
+        path: 'banners',
+        canActivate: [platformAdminGuard],
+        loadComponent: () => import('./features/admin-banners/admin-banners.page').then(m => m.AdminBannersPage)
+      },
+      {
+        path: 'support-grants',
+        canActivate: [permissionGuard],
+        data: { permission: 'SUBSCRIPTIONS', action: 1, permissions: 'SETTINGS:Read' },
+        loadComponent: () => import('./features/support-grants/support-grants.page').then(m => m.SupportGrantsPage)
+      },
+      {
+        path: 'support-access',
+        canActivate: [permissionGuard],
+        data: { permission: 'SUBSCRIPTIONS', action: 1, permissions: 'SETTINGS:Read' },
+        loadComponent: () => import('./features/support-grants/support-grants.page').then(m => m.SupportGrantsPage)
       }
     ]
   },
@@ -401,6 +449,38 @@ export const routes: Routes = [
         path: 'contracts',
         canActivate: [platformAdminGuard],
         loadComponent: () => import('./features/admin-contracts/admin-contracts.page').then(m => m.AdminContractsPage)
+      },
+      {
+        path: 'platform-tenants',
+        canActivate: [platformAdminGuard],
+        loadComponent: () => import('./features/platform-tenants/platform-tenants.page').then(m => m.PlatformTenantsPage)
+      },
+      {
+        path: 'tenants',
+        canActivate: [platformAdminGuard],
+        loadComponent: () => import('./features/platform-tenants/platform-tenants.page').then(m => m.PlatformTenantsPage)
+      },
+      {
+        path: 'admin-banners',
+        canActivate: [platformAdminGuard],
+        loadComponent: () => import('./features/admin-banners/admin-banners.page').then(m => m.AdminBannersPage)
+      },
+      {
+        path: 'banners',
+        canActivate: [platformAdminGuard],
+        loadComponent: () => import('./features/admin-banners/admin-banners.page').then(m => m.AdminBannersPage)
+      },
+      {
+        path: 'support-grants',
+        canActivate: [permissionGuard],
+        data: { permission: 'SUBSCRIPTIONS', action: 1, permissions: 'SETTINGS:Read' },
+        loadComponent: () => import('./features/support-grants/support-grants.page').then(m => m.SupportGrantsPage)
+      },
+      {
+        path: 'support-access',
+        canActivate: [permissionGuard],
+        data: { permission: 'SUBSCRIPTIONS', action: 1, permissions: 'SETTINGS:Read' },
+        loadComponent: () => import('./features/support-grants/support-grants.page').then(m => m.SupportGrantsPage)
       }
     ]
   },

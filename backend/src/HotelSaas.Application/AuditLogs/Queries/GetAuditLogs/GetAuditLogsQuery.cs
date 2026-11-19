@@ -18,6 +18,7 @@ public sealed record GetAuditLogsQuery(
     DateTime? FromUtc = null,
     DateTime? ToUtc = null,
     int Page = 1,
-    int PageSize = 20
+    int PageSize = 20,
+    string? Search = null
 ) : IRequest<ApiResponse<PagedResult<AuditLogListItemDto>>>;
 

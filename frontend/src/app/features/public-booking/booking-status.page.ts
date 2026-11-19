@@ -11,8 +11,14 @@ import {
   GuestBookingReviewSummaryDto,
   GuestCancellationPreviewDto,
   CancelGuestBookingRequest,
+  RescheduleGuestBookingRequest,
   VnpayReturnVerificationDto
 } from '../../core/models/public-booking.model';
+
+export interface PolicyTextPart {
+  text: string;
+  variant: 'plain' | 'penalty' | 'window' | 'free';
+}
 
 export interface StatusErrorState {
   title: string;
@@ -1248,6 +1254,17 @@ export interface StatusErrorState {
               </div>
 
               <div class="flex flex-wrap items-center gap-3">
+                @if (canReschedule(detail)) {
+                  <button
+                    type="button"
+                    (click)="openRescheduleModal()"
+                    class="min-h-[44px] px-4 py-2.5 rounded-xl text-xs font-semibold border border-indigo-200 bg-white hover:bg-indigo-50 text-indigo-700 transition-colors cursor-pointer shadow-2xs flex items-center gap-1.5"
+                  >
+                    <i class="pi pi-calendar text-xs"></i>
+                    <span>Đổi lịch lưu trú</span>
+                  </button>
+                }
+
                 @if (canRequestCancellation(detail)) {
                   <button
                     type="button"
@@ -1613,7 +1630,19 @@ export interface StatusErrorState {
                   [ngClass]="prev.isFreeCancellation ? 'bg-emerald-50 text-emerald-900 border border-emerald-200' : 'bg-rose-50 text-rose-900 border border-rose-200'"
                 >
                   <i class="pi text-sm shrink-0" [ngClass]="prev.isFreeCancellation ? 'pi-check-circle text-emerald-600' : 'pi-info-circle text-rose-600'"></i>
-                  <span class="leading-relaxed" [innerHTML]="getCancellationTimelineFormattedHtml(prev)"></span>
+                  <span class="leading-relaxed">
+                    @if (isUnpaidHold()) {
+                      Lượt giữ phòng chưa phát sinh thanh toán — <strong class="font-bold text-emerald-800">Miễn phí hủy 100%</strong>.
+                    } @else if (prev.hoursUntilCheckIn > 0) {
+                      @if (prev.isFreeCancellation) {
+                        Còn <strong class="font-bold underline decoration-emerald-400 underline-offset-2">{{ prev.hoursUntilCheckIn }} giờ trước nhận phòng</strong> — Áp dụng <strong class="font-bold text-emerald-800">Miễn phí hủy 100%</strong>.
+                      } @else {
+                        Còn <strong class="font-bold text-rose-950 underline decoration-rose-300 underline-offset-2">{{ prev.hoursUntilCheckIn }} giờ trước nhận phòng</strong> — Áp dụng <strong class="font-bold text-rose-700 bg-rose-100/80 px-1.5 py-0.5 rounded border border-rose-200">phí hủy {{ getCancellationFeePercent(prev) }}%</strong>.
+                      }
+                    } @else {
+                      <strong class="font-bold text-rose-950">Đã qua thời điểm nhận phòng</strong> — Áp dụng <strong class="font-bold text-rose-700 bg-rose-100/80 px-1.5 py-0.5 rounded border border-rose-200">phí hủy {{ getCancellationFeePercent(prev) }}%</strong>.
+                    }
+                  </span>
                 </div>
               </div>
 
@@ -1680,7 +1709,9 @@ export interface StatusErrorState {
                   <i class="pi pi-info-circle text-blue-600"></i>
                   <span>Chính sách hủy áp dụng:</span>
                 </div>
-                <p class="leading-relaxed text-[11px] text-blue-950" [innerHTML]="formatPolicyDescription(prev.policyDescription)"></p>
+                <p class="leading-relaxed text-[11px] text-blue-950">
+                  @for (part of getPolicyDescriptionParts(prev.policyDescription); track $index) {@if (part.variant === 'penalty') {<strong class="font-bold text-rose-700 bg-rose-100/80 px-1.5 py-0.5 rounded border border-rose-200/80">{{ part.text }}</strong>} @else if (part.variant === 'window') {<strong class="font-bold text-slate-900 underline decoration-amber-400 underline-offset-2">{{ part.text }}</strong>} @else if (part.variant === 'free') {<strong class="font-bold text-slate-900 underline decoration-blue-400 underline-offset-2">{{ part.text }}</strong>} @else {<ng-container>{{ part.text }}</ng-container>}}
+                </p>
                 @if (prev.refundableAmount > 0) {
                   <p class="text-[11px] font-semibold text-blue-950 pt-1 border-t border-blue-200/50">
                     * Lưu ý: Khoản hoàn dự kiến sẽ được khách sạn đối soát và xử lý theo phương thức hoàn tiền được xác nhận.
@@ -1757,6 +1788,151 @@ export interface StatusErrorState {
         </div>
       </div>
     }
+
+    <!-- MODAL ĐỔI LỊCH LƯU TRÚ (G0-05 RESCHEDULE) -->
+    @if (isRescheduleModalOpen()) {
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reschedule-modal-title"
+        (keydown.escape)="closeRescheduleModal()"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150 print:hidden"
+      >
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh]">
+          <div class="p-5 sm:p-6 bg-indigo-50/60 border-b border-indigo-100 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                <i class="pi pi-calendar text-base"></i>
+              </div>
+              <div>
+                <h3 id="reschedule-modal-title" class="text-base font-black text-slate-900">Đổi lịch lưu trú</h3>
+                <p class="text-xs text-slate-500">Hệ thống sẽ kiểm tra phòng trống và tính lại báo giá tự động</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              (click)="closeRescheduleModal()"
+              [disabled]="isRescheduling()"
+              aria-label="Đóng hộp thoại đổi lịch"
+              class="min-h-[44px] min-w-[44px] rounded-xl text-slate-400 hover:text-slate-600 hover:bg-white/80 flex items-center justify-center cursor-pointer transition-colors"
+            >
+              <i class="pi pi-times text-sm"></i>
+            </button>
+          </div>
+
+          <div class="p-5 sm:p-6 overflow-y-auto space-y-4 text-xs">
+            @if (booking()?.rentalType === 'Hourly') {
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label for="reschedule-hourly-date" class="block font-bold text-slate-700 mb-1">Ngày lưu trú</label>
+                  <input
+                    id="reschedule-hourly-date"
+                    type="date"
+                    [(ngModel)]="rescheduleDate"
+                    name="rescheduleDate"
+                    class="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label for="reschedule-hourly-time" class="block font-bold text-slate-700 mb-1">Giờ nhận phòng</label>
+                  <input
+                    id="reschedule-hourly-time"
+                    type="time"
+                    [(ngModel)]="rescheduleStartTime"
+                    name="rescheduleStartTime"
+                    class="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label for="reschedule-hourly-hours" class="block font-bold text-slate-700 mb-1">Số giờ thuê</label>
+                  <input
+                    id="reschedule-hourly-hours"
+                    type="number"
+                    min="1"
+                    max="12"
+                    [(ngModel)]="rescheduleHours"
+                    name="rescheduleHours"
+                    class="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900 font-mono"
+                  />
+                </div>
+              </div>
+            } @else {
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label for="reschedule-checkin-date" class="block font-bold text-slate-700 mb-1">Ngày nhận phòng mới</label>
+                  <input
+                    id="reschedule-checkin-date"
+                    type="date"
+                    [(ngModel)]="rescheduleCheckInDate"
+                    name="rescheduleCheckInDate"
+                    class="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label for="reschedule-checkout-date" class="block font-bold text-slate-700 mb-1">Ngày trả phòng mới</label>
+                  <input
+                    id="reschedule-checkout-date"
+                    type="date"
+                    [(ngModel)]="rescheduleCheckOutDate"
+                    name="rescheduleCheckOutDate"
+                    class="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900"
+                  />
+                </div>
+              </div>
+            }
+
+            <div class="space-y-1">
+              <label for="reschedule-reason-input" class="block font-bold text-slate-700">Lý do đổi lịch (tùy chọn)</label>
+              <textarea
+                id="reschedule-reason-input"
+                rows="2"
+                maxlength="500"
+                [(ngModel)]="rescheduleReason"
+                name="rescheduleReason"
+                placeholder="Ví dụ: Thay đổi lịch trình công tác, dời chuyến bay..."
+                class="w-full p-3 rounded-xl border border-slate-300 bg-white text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
+              ></textarea>
+            </div>
+
+            <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
+              Lưu ý: Chỉ hỗ trợ đổi lịch trong phạm vi 365 ngày kể từ hôm nay và tùy thuộc tình trạng trống của phòng hiện tại. Tổng tiền và mức đặt cọc (30%) sẽ được tính lại theo bảng giá ngày mới.
+            </div>
+
+            @if (rescheduleError()) {
+              <div role="alert" class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+                <i class="pi pi-exclamation-circle text-rose-600 mt-0.5 shrink-0"></i>
+                <span>{{ rescheduleError() }}</span>
+              </div>
+            }
+          </div>
+
+          <div class="p-4 sm:p-5 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              (click)="closeRescheduleModal()"
+              [disabled]="isRescheduling()"
+              class="min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer disabled:opacity-50"
+            >
+              Đóng
+            </button>
+            <button
+              type="button"
+              (click)="submitReschedule()"
+              [disabled]="isRescheduling()"
+              class="min-h-[44px] px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50 inline-flex items-center gap-2"
+            >
+              @if (isRescheduling()) {
+                <i class="pi pi-spin pi-spinner text-xs"></i>
+                <span>Đang cập nhật lịch...</span>
+              } @else {
+                <i class="pi pi-check text-xs"></i>
+                <span>Xác nhận đổi lịch</span>
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+    }
       </div>
     </div>
   `
@@ -1809,6 +1985,17 @@ export class BookingStatusPage implements OnInit {
   cancelVerification: string = '';
   readonly isCancelling = signal<boolean>(false);
   readonly cancelError = signal<string>('');
+
+  // G0-05: Reschedule modal signals
+  readonly isRescheduleModalOpen = signal<boolean>(false);
+  readonly isRescheduling = signal<boolean>(false);
+  readonly rescheduleError = signal<string>('');
+  rescheduleCheckInDate = '';
+  rescheduleCheckOutDate = '';
+  rescheduleDate = '';
+  rescheduleStartTime = '14:00';
+  rescheduleHours = 2;
+  rescheduleReason = '';
 
   readonly isExpiringSoon = computed(() => {
     const b = this.booking();
@@ -2069,7 +2256,7 @@ export class BookingStatusPage implements OnInit {
     this.reviewError.set('');
     this.submittedReview.set(null);
 
-    // Reset cancel modal state
+    // Reset cancel & reschedule modal state
     this.isCancelModalOpen.set(false);
     this.cancelPreview.set(null);
     this.cancelPreviewError.set('');
@@ -2077,6 +2264,10 @@ export class BookingStatusPage implements OnInit {
     this.cancelReason = '';
     this.cancelVerification = '';
     this.isCancelling.set(false);
+    this.isRescheduleModalOpen.set(false);
+    this.isRescheduling.set(false);
+    this.rescheduleError.set('');
+    this.rescheduleReason = '';
   }
 
   onSearch(): void {
@@ -2241,16 +2432,6 @@ export class BookingStatusPage implements OnInit {
         this.isHoldExpired.set(false);
       }
     };
-    const unusedTick = () => {
-      const diff = 0;
-      if (diff <= 0) {
-        this.isHoldExpired.set(true);
-        this.clearTimer();
-        this.stopPolling();
-      } else {
-        this.isHoldExpired.set(false);
-      }
-    };
 
     tick();
     if (this.remainingSeconds() > 0 && !this.isHoldExpired()) {
@@ -2282,7 +2463,6 @@ export class BookingStatusPage implements OnInit {
             this.isHoldExpired.set(updated.status === 'Expired');
           } else if (
             updated.paidAmount !== b.paidAmount ||
-            updated.paidAmount !== b.paidAmount ||
             updated.remainingBalance !== b.remainingBalance ||
             updated.holdExpiresAtUtc !== b.holdExpiresAtUtc ||
             updated.holdExtensionCount !== b.holdExtensionCount
@@ -2291,9 +2471,6 @@ export class BookingStatusPage implements OnInit {
             if (updated.holdExpiresAtUtc && updated.holdExpiresAtUtc !== b.holdExpiresAtUtc) {
               this.startHoldCountdown(updated.holdExpiresAtUtc, updated.status);
             }
-          } else if (false
-          ) {
-            this.booking.set(updated);
           }
         },
         error: () => {
@@ -2924,7 +3101,7 @@ export class BookingStatusPage implements OnInit {
           const current = this.booking();
           if (!data || !current?.lookupToken) return;
           if (
-            (data.action === 'extend-hold' || data.action === 'confirm') &&
+            (data.action === 'extend-hold' || data.action === 'confirm' || data.action === 'reschedule') &&
             (data.lookupToken === current.lookupToken || (data.reservationId && data.reservationId === current.reservationId))
           ) {
             this.syncHoldStateFromServer(current.lookupToken);
@@ -2947,6 +3124,174 @@ export class BookingStatusPage implements OnInit {
     if (detail.status !== 'PendingPayment' && detail.status !== 'Confirmed') return false;
     if (detail.status === 'PendingPayment' && this.isHoldExpired()) return false;
     return true;
+  }
+
+  canReschedule(detail?: GuestBookingDetailDto | null): boolean {
+    if (!detail) return false;
+    if (detail.status !== 'PendingPayment' && detail.status !== 'Confirmed') return false;
+    if (detail.status === 'PendingPayment' && this.isHoldExpired()) return false;
+    return true;
+  }
+
+  openRescheduleModal(): void {
+    const detail = this.booking();
+    if (!detail || !this.canReschedule(detail)) return;
+
+    this.rescheduleError.set('');
+    this.rescheduleReason = '';
+
+    const startDate = detail.startAtUtc ? new Date(detail.startAtUtc) : null;
+    const endDate = detail.endAtUtc ? new Date(detail.endAtUtc) : null;
+
+    if (detail.rentalType === 'Hourly') {
+      if (startDate && Number.isFinite(startDate.getTime())) {
+        const vnParts = this.toVietnamDateAndTime(startDate);
+        this.rescheduleDate = vnParts.date;
+        this.rescheduleStartTime = vnParts.time;
+      }
+      if (startDate && endDate && Number.isFinite(startDate.getTime()) && Number.isFinite(endDate.getTime())) {
+        const diffH = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 3600000));
+        this.rescheduleHours = Math.min(12, diffH);
+      } else {
+        this.rescheduleHours = 2;
+      }
+    } else {
+      this.rescheduleCheckInDate = detail.checkInDate || (startDate ? this.toVietnamDateAndTime(startDate).date : '');
+      this.rescheduleCheckOutDate = detail.checkOutDate || (endDate ? this.toVietnamDateAndTime(endDate).date : '');
+    }
+
+    this.isRescheduleModalOpen.set(true);
+  }
+
+  closeRescheduleModal(): void {
+    if (this.isRescheduling()) return;
+    this.isRescheduleModalOpen.set(false);
+  }
+
+  submitReschedule(): void {
+    const detail = this.booking();
+    if (!detail?.lookupToken || this.isRescheduling()) return;
+    if (typeof this.publicBookingService.rescheduleBooking !== 'function') {
+      this.rescheduleError.set('Chức năng đổi lịch chưa sẵn sàng.');
+      return;
+    }
+
+    let request: RescheduleGuestBookingRequest;
+    const nowMs = Date.now();
+    const maxFutureMs = nowMs + 365 * 24 * 60 * 60 * 1000;
+
+    if (detail.rentalType === 'Hourly') {
+      if (!this.rescheduleDate || !this.rescheduleStartTime || !this.rescheduleHours || this.rescheduleHours < 1) {
+        this.rescheduleError.set('Vui lòng chọn ngày, giờ nhận phòng và số giờ thuê hợp lệ.');
+        return;
+      }
+      const start = new Date(`${this.rescheduleDate}T${this.rescheduleStartTime}:00+07:00`);
+      if (!Number.isFinite(start.getTime())) {
+        this.rescheduleError.set('Ngày hoặc giờ nhận phòng mới không hợp lệ.');
+        return;
+      }
+      const end = new Date(start.getTime() + this.rescheduleHours * 3600000);
+      if (start.getTime() <= nowMs) {
+        this.rescheduleError.set('Thời gian nhận phòng mới phải nằm ở tương lai.');
+        return;
+      }
+      if (start.getTime() > maxFutureMs) {
+        this.rescheduleError.set('Chỉ hỗ trợ đổi lịch lưu trú trong phạm vi 365 ngày tới.');
+        return;
+      }
+      request = {
+        newStartAtUtc: start.toISOString(),
+        newEndAtUtc: end.toISOString(),
+        reason: this.rescheduleReason.trim() || undefined
+      };
+    } else {
+      if (!this.rescheduleCheckInDate || !this.rescheduleCheckOutDate || this.rescheduleCheckOutDate <= this.rescheduleCheckInDate) {
+        this.rescheduleError.set('Ngày trả phòng mới phải sau ngày nhận phòng mới.');
+        return;
+      }
+      const startClock = detail.startAtUtc && Number.isFinite(new Date(detail.startAtUtc).getTime())
+        ? this.toVietnamDateAndTime(new Date(detail.startAtUtc)).time
+        : '14:00';
+      const endClock = detail.endAtUtc && Number.isFinite(new Date(detail.endAtUtc).getTime())
+        ? this.toVietnamDateAndTime(new Date(detail.endAtUtc)).time
+        : '12:00';
+
+      const start = new Date(`${this.rescheduleCheckInDate}T${startClock}:00+07:00`);
+      const end = new Date(`${this.rescheduleCheckOutDate}T${endClock}:00+07:00`);
+      if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) {
+        this.rescheduleError.set('Khoảng thời gian lưu trú mới không hợp lệ.');
+        return;
+      }
+      if (start.getTime() <= nowMs) {
+        this.rescheduleError.set('Ngày nhận phòng mới phải nằm ở tương lai.');
+        return;
+      }
+      if (start.getTime() > maxFutureMs) {
+        this.rescheduleError.set('Chỉ hỗ trợ đổi lịch lưu trú trong phạm vi 365 ngày tới.');
+        return;
+      }
+
+      request = {
+        newStartAtUtc: start.toISOString(),
+        newEndAtUtc: end.toISOString(),
+        newCheckInDate: this.rescheduleCheckInDate,
+        newCheckOutDate: this.rescheduleCheckOutDate,
+        reason: this.rescheduleReason.trim() || undefined
+      };
+    }
+
+    this.isRescheduling.set(true);
+    this.rescheduleError.set('');
+
+    this.publicBookingService.rescheduleBooking(detail.lookupToken, request).pipe(
+      take(1)
+    ).subscribe({
+      next: (updated) => {
+        this.isRescheduling.set(false);
+        this.isRescheduleModalOpen.set(false);
+        this.applyBookingDetail(updated);
+        if (updated.status === 'PendingPayment') {
+          this.loadVietQr(updated);
+          if (updated.holdExpiresAtUtc) {
+            this.startHoldCountdown(updated.holdExpiresAtUtc, updated.status);
+          }
+        }
+        this.alertService.toastSuccess('Đã cập nhật lịch lưu trú mới thành công.');
+      },
+      error: (err) => {
+        this.isRescheduling.set(false);
+        const serverMsg = typeof err?.error?.message === 'string' && !/exception|stacktrace/i.test(err.error.message)
+          ? err.error.message
+          : 'Không thể đổi lịch lưu trú cho khung thời gian đã chọn. Vui lòng thử lại.';
+        this.rescheduleError.set(serverMsg);
+      }
+    });
+  }
+
+  private toVietnamDateAndTime(date: Date): { date: string; time: string } {
+    try {
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      const parts = formatter.formatToParts(date);
+      const y = parts.find(p => p.type === 'year')?.value ?? '2026';
+      const m = parts.find(p => p.type === 'month')?.value ?? '01';
+      const d = parts.find(p => p.type === 'day')?.value ?? '01';
+      const hh = parts.find(p => p.type === 'hour')?.value ?? '14';
+      const mm = parts.find(p => p.type === 'minute')?.value ?? '00';
+      return { date: `${y}-${m}-${d}`, time: `${hh === '24' ? '00' : hh}:${mm}` };
+    } catch {
+      return {
+        date: date.toISOString().slice(0, 10),
+        time: date.toISOString().slice(11, 16)
+      };
+    }
   }
 
   openCancelModal(): void {
@@ -3138,7 +3483,12 @@ export class BookingStatusPage implements OnInit {
 
   formatPolicyDescription(text?: string | null): string {
     if (!text) return '';
-    let res = text;
+    const escaped = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+    let res = escaped;
     // 1. Mức phí phạt (in đậm có nền nhẹ và viền)
     res = res.replace(
       /(phí phạt 30% tổng giá trị đơn đặt phòng|phí phạt \d+%|phí hủy \d+%|phí hủy [\d.,]+\s*₫?)/gi,
@@ -3155,6 +3505,35 @@ export class BookingStatusPage implements OnInit {
       '<strong class="font-bold text-slate-900 underline decoration-blue-400 underline-offset-2">$1</strong>'
     );
     return res;
+  }
+
+  getPolicyDescriptionParts(text?: string | null): PolicyTextPart[] {
+    if (!text) return [];
+    const combinedPattern =
+      /(phí phạt 30% tổng giá trị đơn đặt phòng|phí phạt \d+%|phí hủy \d+%|phí hủy [\d.,]+\s*₫?|trong vòng \d+\s*(?:giờ|h)(?:\s*trước giờ nhận phòng)?|trước (?:ngày|giờ) nhận phòng ít nhất \d+\s*(?:giờ|h)|trước \d+\s*(?:giờ|h) nhận phòng)/gi;
+    const parts: PolicyTextPart[] = [];
+    let lastIndex = 0;
+
+    for (const match of text.matchAll(combinedPattern)) {
+      const idx = match.index ?? 0;
+      if (idx > lastIndex) {
+        parts.push({ text: text.slice(lastIndex, idx), variant: 'plain' });
+      }
+      const matchedText = match[0];
+      let variant: PolicyTextPart['variant'] = 'free';
+      if (/^phí/i.test(matchedText)) {
+        variant = 'penalty';
+      } else if (/^trong vòng/i.test(matchedText)) {
+        variant = 'window';
+      }
+      parts.push({ text: matchedText, variant });
+      lastIndex = idx + matchedText.length;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push({ text: text.slice(lastIndex), variant: 'plain' });
+    }
+    return parts;
   }
 
   ngOnDestroy(): void {

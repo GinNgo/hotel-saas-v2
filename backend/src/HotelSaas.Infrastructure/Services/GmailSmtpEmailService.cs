@@ -101,6 +101,81 @@ public sealed class GmailSmtpEmailService : IEmailService
         return await SendMimeMessageAsync(targetEmail, customerName, subject, htmlBody, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<bool> SendPasswordResetEmailAsync(
+        string targetEmail,
+        string customerName,
+        string resetUrl,
+        long expiresInMinutes = 30,
+        CancellationToken cancellationToken = default)
+    {
+        var subject = "Đặt lại mật khẩu tài khoản - Hotel SaaS Platform";
+        var safeName = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(customerName) ? "Quý khách" : customerName.Trim());
+        var safeUrl = WebUtility.HtmlEncode(resetUrl);
+
+        var htmlBody = $"""
+        <!doctype html>
+        <html lang="vi">
+          <body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:36px 14px;background:#f8fafc">
+              <tr><td align="center">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden">
+                  <tr><td style="padding:18px 28px;background:#0f172a;color:#ffffff;font-size:14px;font-weight:700">Hotel SaaS Platform · Khôi phục mật khẩu</td></tr>
+                  <tr><td style="padding:28px">
+                    <p>Xin chào <strong>{safeName}</strong>,</p>
+                    <p style="line-height:1.6;color:#334155">Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn. Nhấn vào nút bên dưới trong vòng <strong>{expiresInMinutes} phút</strong> để thiết lập mật khẩu mới:</p>
+                    <div style="margin:26px 0;text-align:center">
+                      <a href="{safeUrl}" style="display:inline-block;padding:12px 28px;border-radius:10px;background:#059669;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px">Đặt lại mật khẩu</a>
+                    </div>
+                    <p style="font-size:13px;color:#64748b">Nếu bạn không gửi yêu cầu này, vui lòng bỏ qua email này — mật khẩu hiện tại của bạn vẫn an toàn.</p>
+                  </td></tr>
+                </table>
+              </td></tr>
+            </table>
+          </body>
+        </html>
+        """;
+
+        return await SendMimeMessageAsync(targetEmail, customerName, subject, htmlBody, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> SendStaffInvitationEmailAsync(
+        string targetEmail,
+        string staffName,
+        string setupPasswordUrl,
+        long expiresInMinutes = 1440,
+        CancellationToken cancellationToken = default)
+    {
+        var subject = "Lời mời tham gia hệ thống quản lý khách sạn - Hotel SaaS Platform";
+        var safeName = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(staffName) ? "Nhân viên" : staffName.Trim());
+        var safeUrl = WebUtility.HtmlEncode(setupPasswordUrl);
+
+        var htmlBody = $"""
+        <!doctype html>
+        <html lang="vi">
+          <body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:36px 14px;background:#f8fafc">
+              <tr><td align="center">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden">
+                  <tr><td style="padding:18px 28px;background:#0f172a;color:#ffffff;font-size:14px;font-weight:700">Hotel SaaS Platform · Lời mời nhân sự PMS</td></tr>
+                  <tr><td style="padding:28px">
+                    <p>Xin chào <strong>{safeName}</strong>,</p>
+                    <p style="line-height:1.6;color:#334155">Bạn vừa được mời tham gia vận hành PMS trên Hotel SaaS Platform. Vui lòng thiết lập mật khẩu đăng nhập riêng của bạn trong vòng <strong>{expiresInMinutes / 60} giờ</strong>:</p>
+                    <div style="margin:26px 0;text-align:center">
+                      <a href="{safeUrl}" style="display:inline-block;padding:12px 28px;border-radius:10px;background:#059669;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px">Thiết lập mật khẩu nhân sự</a>
+                    </div>
+                  </td></tr>
+                </table>
+              </td></tr>
+            </table>
+          </body>
+        </html>
+        """;
+
+        return await SendMimeMessageAsync(targetEmail, staffName, subject, htmlBody, cancellationToken);
+    }
+
     private async Task<bool> SendMimeMessageAsync(
         string targetEmail,
         string customerName,

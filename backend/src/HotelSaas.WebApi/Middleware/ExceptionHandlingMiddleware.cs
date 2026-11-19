@@ -75,8 +75,7 @@ public sealed class ExceptionHandlingMiddleware
                 ex.Message.Contains("đã được sử dụng", StringComparison.OrdinalIgnoreCase) ||
                 ex.Message.Contains("đã tồn tại", StringComparison.OrdinalIgnoreCase) ||
                 ex.Message.Contains("đang có", StringComparison.OrdinalIgnoreCase) ||
-                ex.Message.Contains("chi nhánh", StringComparison.OrdinalIgnoreCase) ||
-                ex.Message.Contains("property", StringComparison.OrdinalIgnoreCase)) => (StatusCodes.Status409Conflict, ApiResponse.Fail("ERR_CONFLICT", ex.Message)),
+                ex.Message.Contains("chi nhánh", StringComparison.OrdinalIgnoreCase)) => (StatusCodes.Status409Conflict, ApiResponse.Fail("ERR_CONFLICT", ex.Message)),
             ForbiddenException ex => (StatusCodes.Status403Forbidden, ApiResponse.Fail(ex.ErrorCode, ex.Message)),
             UnauthorizedAccessException ex => (
                 StatusCodes.Status401Unauthorized,

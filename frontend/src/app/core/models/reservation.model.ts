@@ -88,6 +88,8 @@ export interface ReservationDto {
   currency: string;
   status: ReservationStatus;
   confirmationCode: string;
+  smartLockPin?: string | null;
+  smartLockStatus?: string | null;
   notes?: string;
   createdAtUtc: string;
 }

@@ -168,16 +168,14 @@ interface BrandPropertyTypeFilterOption {
 
                     <div class="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
                       <div class="flex items-center gap-1.5 text-xs">
-                        @if (brand.ratingAverage > 0) {
+                        @if (brand.reviewCount > 0 && brand.ratingAverage > 0) {
                           <span class="inline-flex items-center gap-1 font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                             <i class="pi pi-star-fill text-amber-500 text-[10px]"></i>
                             <span>{{ brand.ratingAverage | number:'1.1-1' }}</span>
                           </span>
-                          @if (brand.reviewCount > 0) {
-                            <span class="text-slate-500">({{ brand.reviewCount }} đánh giá)</span>
-                          }
+                          <span class="text-slate-500">({{ brand.reviewCount }} đánh giá)</span>
                         } @else {
-                          <span class="text-slate-500 italic">Đối tác mới trên hệ thống</span>
+                          <span class="text-slate-500 italic">Chưa có đánh giá</span>
                         }
                       </div>
 
@@ -220,14 +218,14 @@ interface BrandPropertyTypeFilterOption {
                       <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
                         {{ (activeBrand()?.totalProperties ?? 0) === 1 ? 'Cơ sở đối tác xác thực' : 'Chuỗi thương hiệu xác thực' }}
                       </span>
-                      @if ((activeBrand()?.ratingAverage ?? 0) > 0) {
+                      @if ((activeBrand()?.reviewCount ?? 0) > 0 && (activeBrand()?.ratingAverage ?? 0) > 0) {
                         <span class="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 font-bold flex items-center gap-1">
                           <i class="pi pi-star-fill text-amber-500 text-[10px]"></i>
                           <span>{{ activeBrand()?.ratingAverage | number:'1.1-1' }}</span>
-                          @if ((activeBrand()?.reviewCount ?? 0) > 0) {
-                            <span class="text-slate-500 font-medium">({{ activeBrand()?.reviewCount }} đánh giá)</span>
-                          }
+                          <span class="text-slate-500 font-medium">({{ activeBrand()?.reviewCount }} đánh giá)</span>
                         </span>
+                      } @else {
+                        <span class="text-xs text-slate-500 italic px-2 py-0.5">Chưa có đánh giá</span>
                       }
                       @for (pt of activeBrand()?.propertyTypes ?? []; track pt) {
                         <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
@@ -328,11 +326,18 @@ interface BrandPropertyTypeFilterOption {
                 @for (prop of filteredProperties(); track prop.propertyId || prop.id || prop.slug) {
                   <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col">
                     <div class="h-48 overflow-hidden relative bg-slate-100">
-                      <img
-                        [src]="prop.thumbnailUrl || prop.imageUrl || '/images/danang-ocean-suites.png'"
-                        [alt]="prop.name"
-                        class="w-full h-full object-cover"
-                      />
+                      @if (prop.thumbnailUrl || prop.imageUrl) {
+                        <img
+                          [src]="prop.thumbnailUrl || prop.imageUrl"
+                          [alt]="prop.name"
+                          class="w-full h-full object-cover"
+                        />
+                      } @else {
+                        <div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400">
+                          <i class="pi pi-building text-3xl mb-1.5"></i>
+                          <span class="text-xs font-medium text-slate-500">Chưa có ảnh đại diện</span>
+                        </div>
+                      }
                       <div class="absolute top-3 left-3 flex flex-wrap gap-1.5">
                         <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white">
                           {{ prop.propertyTypeName || getPropertyTypeLabel(prop.propertyType) }}
@@ -433,7 +438,6 @@ export class TenantBrandPageComponent implements OnInit {
       'Motel',
       'Hostel',
       'BedAndBreakfast',
-      'Guesthouse',
     ];
     return [
       { value: 'ALL', label: 'Tất cả' },
@@ -468,8 +472,11 @@ export class TenantBrandPageComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.publicBookingService
-      .getTenantBrands()
+    const brands$ = this.publicBookingService.getPublicBrands
+      ? this.publicBookingService.getPublicBrands()
+      : this.publicBookingService.getTenantBrands();
+
+    brands$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: list => {
@@ -505,9 +512,8 @@ export class TenantBrandPageComponent implements OnInit {
       case 'Apartment':
         return 'Căn hộ dịch vụ';
       case 'Motel':
-        return 'Nhà nghỉ / Motel';
       case 'Guesthouse':
-        return 'Nhà khách';
+        return 'Nhà nghỉ / Motel';
       case 'Hostel':
         return 'Hostel';
       case 'BedAndBreakfast':

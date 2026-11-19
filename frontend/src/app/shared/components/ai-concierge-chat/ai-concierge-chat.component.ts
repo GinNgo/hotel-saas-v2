@@ -18,25 +18,22 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
   imports: [CommonModule, FormsModule],
   template: `
     <!-- Floating Trigger Button -->
-    <div class="fixed bottom-5 right-5 z-50 flex flex-col items-end">
+    <div class="fixed bottom-4 right-3 sm:bottom-5 sm:right-6 z-50 flex flex-col items-end max-w-[calc(100vw-1.5rem)]">
       @if (!isOpen()) {
         <button
           type="button"
           (click)="toggleOpen()"
-          class="group relative flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-700 hover:to-indigo-700 text-white rounded-full shadow-lg shadow-emerald-900/20 hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer"
-          aria-label="Mở Trợ lý AI Concierge"
+          class="group relative flex items-center gap-2.5 px-3.5 sm:px-4 py-3 max-w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-700 hover:to-indigo-700 text-white rounded-full shadow-lg shadow-emerald-900/20 hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer"
+          aria-label="Mở Trợ lý AI Hotel SaaS"
         >
-          <div class="relative flex items-center justify-center w-7 h-7 rounded-full bg-white/20 backdrop-blur-xs">
+          <div class="relative flex items-center justify-center w-7 h-7 rounded-full bg-white/20 backdrop-blur-xs shrink-0">
             <i class="pi pi-sparkles text-sm text-amber-300 animate-pulse"></i>
           </div>
-          <div class="text-left">
+          <div class="text-left min-w-0">
             <div class="text-xs font-bold tracking-wide flex items-center gap-1.5">
-              <span>AI Concierge</span>
-              <span class="inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] bg-amber-400 text-slate-900 font-extrabold uppercase">
-                Gemini
-              </span>
+              <span class="truncate">Trợ lý AI Hotel SaaS</span>
             </div>
-            <div class="text-[10px] text-emerald-100 font-medium">Hỏi phòng, địa điểm & ăn uống</div>
+            <div class="text-[10px] text-emerald-100 font-medium truncate">Hỏi phòng, địa điểm &amp; ăn uống</div>
           </div>
         </button>
       }
@@ -44,26 +41,23 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
       <!-- Chat Drawer / Modal Box -->
       @if (isOpen()) {
         <div
-          class="w-[360px] sm:w-[420px] h-[560px] max-h-[85vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+          class="w-[calc(100vw-1.5rem)] max-w-[380px] sm:w-[400px] sm:max-w-[400px] h-[520px] sm:h-[560px] max-h-[85vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
           role="dialog"
-          aria-label="Khung trò chuyện với Trợ lý AI Concierge"
+          aria-label="Khung trò chuyện với Trợ lý AI Hotel SaaS"
         >
           <!-- Chat Header -->
-          <div class="p-3.5 bg-gradient-to-r from-emerald-700 via-teal-700 to-slate-900 text-white flex items-center justify-between shadow-xs">
-            <div class="flex items-center gap-2.5">
-              <div class="w-9 h-9 rounded-xl bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-inner">
+          <div class="p-3.5 bg-gradient-to-r from-emerald-700 via-teal-700 to-slate-900 text-white flex items-center justify-between gap-2 shadow-xs">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-9 h-9 rounded-xl bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-inner shrink-0">
                 <i class="pi pi-sparkles text-amber-300 text-base"></i>
               </div>
-              <div>
+              <div class="min-w-0">
                 <div class="flex items-center gap-1.5 font-bold text-sm">
-                  <span>AI Hotel Concierge</span>
-                  <span class="px-1.5 py-0.2 text-[9px] font-extrabold bg-emerald-400 text-emerald-950 rounded uppercase">
-                    3.8 Flash
-                  </span>
+                  <span class="truncate">Trợ lý AI Hotel SaaS</span>
                 </div>
-                <div class="text-[11px] text-emerald-100 flex items-center gap-1">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-ping"></span>
-                  <span>Tích hợp Google Maps Data & Đặt phòng</span>
+                <div class="text-[11px] text-emerald-100 flex items-center gap-1 truncate">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-ping shrink-0"></span>
+                  <span class="truncate">Tích hợp Google Maps Data &amp; Đặt phòng</span>
                 </div>
               </div>
             </div>
@@ -91,8 +85,8 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
           </div>
 
           <!-- Quick Suggestion Chips & GPS Toggle -->
-          <div class="px-3 py-2 bg-slate-50 border-b border-slate-100 space-y-1.5">
-            <div class="flex items-center gap-1.5 overflow-x-auto text-[11px]">
+          <div class="px-3 py-2 bg-slate-50 border-b border-slate-100 space-y-1.5 min-w-0">
+            <div class="flex items-center gap-1.5 overflow-x-auto max-w-full text-[11px]">
               <button
                 type="button"
                 (click)="toggleUserLocation()"
@@ -175,10 +169,10 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
                               [href]="link.uri"
                               target="_blank"
                               rel="noopener noreferrer"
-                              class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 underline hover:no-underline"
+                              class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 underline hover:no-underline break-all"
                             >
-                              <i class="pi pi-external-link text-[9px]"></i>
-                              <span>{{ link.title || link.uri }}</span>
+                              <i class="pi pi-external-link text-[9px] shrink-0"></i>
+                              <span class="break-words">{{ link.title || link.uri }}</span>
                             </a>
                           }
                         </div>
@@ -255,7 +249,7 @@ export class AiConciergeChatComponent {
     {
       id: 'welcome-msg',
       role: 'assistant',
-      content: 'Dạ chào Quý khách! Em là Trợ lý AI Concierge của Hotel SaaS. Em có thể hỗ trợ tư vấn chọn phòng, chính sách khách sạn và gợi ý các địa điểm ăn uống, du lịch nổi bật quanh khách sạn qua dữ liệu Google Maps ạ.',
+      content: 'Dạ chào Quý khách! Em là Trợ lý AI Hotel SaaS. Em có thể hỗ trợ tư vấn chọn phòng, chính sách khách sạn và gợi ý các địa điểm ăn uống, du lịch nổi bật quanh khách sạn qua dữ liệu Google Maps ạ.',
       timestamp: new Date()
     }
   ]);
@@ -402,7 +396,7 @@ export class AiConciergeChatComponent {
         const errorMsg: ChatMessage = {
           id: `err-${Date.now()}`,
           role: 'assistant',
-          content: 'Dạ xin lỗi quý khách, hệ thống đang bận. Quý khách vui lòng thử lại sau ít phút hoặc liên hệ Hotline 1900 6868 ạ.',
+          content: 'Dạ xin lỗi quý khách, hệ thống đang bận. Quý khách vui lòng thử lại sau ít phút ạ.',
           timestamp: new Date()
         };
         this.messages.set([...this.messages(), errorMsg]);

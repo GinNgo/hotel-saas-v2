@@ -24,6 +24,7 @@ export class TokenStorageService {
   private readonly ACTIVE_PROPERTY_NAME_KEY = 'hotel_saas_active_property_name';
   private readonly ACTIVE_PROPERTY_CODE_KEY = 'hotel_saas_active_property_code';
   private readonly MEMBERSHIPS_KEY = 'hotel_saas_memberships';
+  private readonly CONTEXT_MODE_KEY = 'hotelsaas_context_mode';
 
   getAccessToken(): string | null {
     return localStorage.getItem(this.ACCESS_TOKEN_KEY);
@@ -45,9 +46,26 @@ export class TokenStorageService {
     localStorage.removeItem(this.ACTIVE_PROPERTY_NAME_KEY);
     localStorage.removeItem(this.ACTIVE_PROPERTY_CODE_KEY);
     localStorage.removeItem(this.MEMBERSHIPS_KEY);
+    localStorage.removeItem(this.CONTEXT_MODE_KEY);
+  }
+
+  getContextMode(): 'hq' | 'branch' | null {
+    const mode = localStorage.getItem(this.CONTEXT_MODE_KEY);
+    return mode === 'hq' || mode === 'branch' ? mode : null;
+  }
+
+  setContextMode(mode: 'hq' | 'branch'): void {
+    localStorage.setItem(this.CONTEXT_MODE_KEY, mode);
+  }
+
+  clearContextMode(): void {
+    localStorage.removeItem(this.CONTEXT_MODE_KEY);
   }
 
   getActivePropertyId(): string | null {
+    if (this.getContextMode() === 'hq') {
+      return null;
+    }
     const stored = localStorage.getItem(this.ACTIVE_PROPERTY_ID_KEY);
     if (stored) return stored;
     // Fallback to token claim if present
@@ -65,6 +83,7 @@ export class TokenStorageService {
 
   setActiveProperty(propertyId: string, propertyName?: string | null, propertyCode?: string | null): void {
     localStorage.setItem(this.ACTIVE_PROPERTY_ID_KEY, propertyId);
+    this.setContextMode('branch');
     if (propertyName) {
       localStorage.setItem(this.ACTIVE_PROPERTY_NAME_KEY, propertyName);
     }

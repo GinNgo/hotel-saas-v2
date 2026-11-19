@@ -15,6 +15,7 @@ import { RoomTypeRateDto, RoomTypeRateAuditDto, CreateRoomTypeRateRequest } from
 import { RoomTypeDto } from '../../core/models/room-type.model';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { SkeletonTableComponent } from '../../shared/components/skeleton-table/skeleton-table.component';
+import { ContextSelectorDialogComponent } from '../auth/context-selector/context-selector.dialog';
 
 /** Helper to get today's date formatted as YYYY-MM-DD in Vietnam timezone (UTC+7) */
 export function getTodayVnDateString(): string {
@@ -43,7 +44,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
   selector: 'app-rates',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, EmptyStateComponent, SkeletonTableComponent, DatePicker],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, EmptyStateComponent, SkeletonTableComponent, DatePicker, ContextSelectorDialogComponent],
   template: `
     <div class="max-w-6xl mx-auto space-y-6">
       <!-- Page Header -->
@@ -121,7 +122,10 @@ export function addDaysToDateString(dateStr: string, days: number): string {
         <app-empty-state
           iconClass="pi pi-building"
           title="Chưa chọn chi nhánh làm việc"
-          description="Vui lòng bấm vào bộ chuyển chi nhánh ở thanh tiêu đề trên cùng để chọn chi nhánh cần quản lý bảng giá."
+          description="Vui lòng chọn chi nhánh làm việc để xem và thiết lập bảng giá theo giờ/đêm của cơ sở."
+          actionLabel="Chọn chi nhánh làm việc"
+          actionIcon="pi pi-building"
+          (actionClick)="openContextSelector()"
         />
       } @else {
         <!-- AI Dynamic Pricing Panel -->
@@ -838,6 +842,13 @@ export function addDaysToDateString(dateStr: string, days: number): string {
           </div>
         </div>
       }
+
+      @if (showContextSelector()) {
+        <app-context-selector-dialog
+          [visible]="showContextSelector()"
+          (visibleChange)="showContextSelector.set($event)"
+        />
+      }
   `
 })
 export class RatesPage implements OnInit, OnDestroy {
@@ -849,6 +860,11 @@ export class RatesPage implements OnInit, OnDestroy {
   private readonly roomTypeService = inject(RoomTypeService);
   private readonly alertService = inject(AlertService);
   private readonly aiService = inject(AiService, { optional: true });
+
+  readonly showContextSelector = signal(false);
+  openContextSelector(): void {
+    this.showContextSelector.set(true);
+  }
 
   readonly isLoadingRates = signal(false);
   readonly isLoadingHistory = signal(false);

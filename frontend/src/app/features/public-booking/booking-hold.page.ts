@@ -13,6 +13,14 @@ import { PublicStayContext, publicStayInterval, readPublicStay } from '../../cor
 import { FormFieldComponent, FormControlDirective } from '../../shared/components/form-field/form-field.component';
 import { PhoneOtpModalComponent } from '../auth/phone-otp-modal/phone-otp-modal.component';
 import { AuthService } from '../../core/services/auth.service';
+import { GuestAccountService } from '../../core/services/guest-account.service';
+import { GuestLoyaltyMembershipDto, GuestMeDto } from '../../core/models/guest-account.model';
+import { UserDto } from '../../core/models/auth.model';
+
+type UserDtoWithVerification = UserDto & {
+  isPhoneVerified?: boolean;
+  isEmailVerified?: boolean;
+};
 
 export interface HoldErrorState {
   title: string;
@@ -448,10 +456,28 @@ type QuoteWithPromo = QuoteDto & {
                       class="w-full px-3 py-2 text-xs text-slate-800 outline-none bg-transparent"
                     />
                   </div>
-                  @if (isPhoneOtpVerified()) {
-                    <div class="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold mt-1">
+                  @if (isPhoneOtpVerified() || isAccountPhoneVerified()) {
+                    <div class="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold mt-1.5">
                       <i class="pi pi-check-circle text-xs text-emerald-600"></i>
-                      <span>Số điện thoại đã xác thực an toàn qua SMS OTP</span>
+                      <span>
+                        {{ isPhoneOtpVerified() ? 'Số điện thoại đã xác thực an toàn qua SMS OTP' : 'Số điện thoại tài khoản đã được xác thực' }}
+                      </span>
+                    </div>
+                  } @else {
+                    <div class="flex items-center justify-between gap-2 flex-wrap mt-1.5">
+                      <span class="text-[11px] text-amber-800 flex items-center gap-1">
+                        <i class="pi pi-shield text-[11px] text-amber-600"></i>
+                        <span>Cần xác thực SMS OTP trước khi giữ chỗ</span>
+                      </span>
+                      <button
+                        type="button"
+                        (click)="openPhoneVerifyModal()"
+                        [disabled]="isSubmitting() || loading()"
+                        class="min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <i class="pi pi-mobile text-[11px] mr-1"></i>
+                        <span>Xác thực SĐT (OTP)</span>
+                      </button>
                     </div>
                   }
                 </app-form-field>
@@ -474,6 +500,26 @@ type QuoteWithPromo = QuoteDto & {
                     [class.focus:!ring-rose-100]="fieldError('email', emailControl.touched)"
                   />
                 </app-form-field>
+
+                <div class="space-y-1.5">
+                  <div class="flex items-center justify-between">
+                    <label for="hold-special-requests" class="block text-xs font-bold text-slate-700">
+                      Yêu cầu đặc biệt <span class="text-slate-400 font-normal">(tùy chọn)</span>
+                    </label>
+                    <span class="text-[11px] font-mono text-slate-400">{{ specialRequests().length }}/500</span>
+                  </div>
+                  <textarea
+                    id="hold-special-requests"
+                    name="specialRequests"
+                    rows="3"
+                    maxlength="500"
+                    [ngModel]="specialRequests()"
+                    (ngModelChange)="specialRequests.set($event)"
+                    [disabled]="isSubmitting() || loading()"
+                    placeholder="Ví dụ: Nhận phòng trễ sau 21:00, phòng tầng cao yên tĩnh, chuẩn bị thêm gối..."
+                    class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y"
+                  ></textarea>
+                </div>
               </div>
 
               <section class="space-y-3" aria-labelledby="payment-method-label">
@@ -703,12 +749,76 @@ type QuoteWithPromo = QuoteDto & {
                     }
                   </div>
 
+                  <!-- Điểm thưởng thành viên (Loyalty Points Redemption) -->
+                  @if (activeMembershipForProperty(); as membership) {
+                    @if (availableLoyaltyPoints() > 0 && maxRedeemablePoints() > 0) {
+                      <div class="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/90 space-y-2.5">
+                        <div class="flex items-center justify-between gap-2">
+                          <label for="hold-use-points" class="flex items-center gap-2 text-xs font-bold text-amber-950 cursor-pointer">
+                            <input
+                              id="hold-use-points"
+                              type="checkbox"
+                              [ngModel]="useLoyaltyPoints()"
+                              (ngModelChange)="toggleUseLoyaltyPoints($event)"
+                              [disabled]="isSubmitting() || loading()"
+                              class="w-4 h-4 rounded border-amber-400 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            />
+                            <span>Dùng điểm thưởng thành viên</span>
+                          </label>
+                          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                            {{ membership.tier }} • {{ availableLoyaltyPoints() | number }} điểm
+                          </span>
+                        </div>
+
+                        @if (useLoyaltyPoints()) {
+                          <div class="space-y-2 pt-1">
+                            <div class="flex items-center gap-2">
+                              <input
+                                type="range"
+                                aria-label="Chọn số điểm thưởng quy đổi"
+                                [min]="0"
+                                [max]="maxRedeemablePoints()"
+                                [ngModel]="effectivePointsToRedeem()"
+                                (ngModelChange)="onPointsToRedeemChange($event)"
+                                class="flex-1 accent-indigo-600 cursor-pointer"
+                              />
+                              <input
+                                id="hold-points-input"
+                                type="number"
+                                aria-label="Số điểm thưởng quy đổi"
+                                [min]="0"
+                                [max]="maxRedeemablePoints()"
+                                [ngModel]="effectivePointsToRedeem()"
+                                (ngModelChange)="onPointsToRedeemChange($event)"
+                                class="w-24 min-h-[38px] px-2.5 py-1 rounded-lg border border-amber-300 bg-white text-xs font-mono font-bold text-slate-900 text-right"
+                              />
+                            </div>
+                            <div class="flex items-center justify-between text-[11px] text-amber-900">
+                              <span>Tối đa {{ maxRedeemablePoints() | number }} điểm (50% đơn)</span>
+                              <span class="font-bold text-emerald-700">-{{ estimatedPointsDiscount() | number:'1.0-0' }} ₫</span>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    }
+                  }
+
                   <!-- Tổng tiền & Cọc -->
                   <div class="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100 space-y-2">
+                    @if (estimatedPointsDiscount() > 0) {
+                      <div class="flex items-center justify-between text-xs text-slate-600">
+                        <span>Tạm tính trước điểm thưởng:</span>
+                        <span class="font-mono">{{ price.totalAmount | number:'1.0-0' }} ₫</span>
+                      </div>
+                      <div class="flex items-center justify-between text-xs text-emerald-700 font-semibold">
+                        <span>Quy đổi {{ effectivePointsToRedeem() | number }} điểm thưởng:</span>
+                        <span class="font-mono">-{{ estimatedPointsDiscount() | number:'1.0-0' }} ₫</span>
+                      </div>
+                    }
                     <div class="flex items-baseline justify-between">
                       <span class="text-xs font-bold text-indigo-950 uppercase tracking-wide">Tổng tiền lưu trú:</span>
                       <strong class="text-xl sm:text-2xl font-black text-indigo-700">
-                        {{ price.totalAmount | number:'1.0-0' }} ₫
+                        {{ estimatedFinalTotal() | number:'1.0-0' }} ₫
                       </strong>
                     </div>
                     @if (priceAny()?.depositRequired !== undefined && priceAny()?.depositRequired !== null) {
@@ -792,7 +902,8 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly element: ElementRef<HTMLElement> = inject(ElementRef);
-  private readonly authService = inject(AuthService);
+  private readonly authService = inject(AuthService, { optional: true });
+  private readonly guestAccountService = inject(GuestAccountService, { optional: true });
 
   readonly submitted = signal(false);
   readonly booking = signal<GuestBookingDetailDto | null>(null);
@@ -817,6 +928,12 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   readonly appliedPromoCode = signal<string | null>(null);
   readonly isApplyingPromo = signal<boolean>(false);
   readonly promoError = signal<string>('');
+  readonly specialRequests = signal<string>('');
+  readonly guestMe = signal<GuestMeDto | null>(null);
+  readonly guestMemberships = signal<GuestLoyaltyMembershipDto[]>([]);
+  readonly useLoyaltyPoints = signal<boolean>(false);
+  readonly pointsToRedeemInput = signal<number>(0);
+  private readonly guestPhoneSignal = signal<string>('');
 
   readonly countryCodes = [
     { code: '+84', name: 'Vietnam (+84)', flag: '🇻🇳' },
@@ -846,9 +963,50 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
 
   private broadcastChannel?: BroadcastChannel;
 
-  readonly finalGrandTotal = computed(() => this.quote()?.totalAmount ?? this.booking()?.totalAmount ?? 0);
+  readonly finalGrandTotal = computed(() => this.estimatedFinalTotal() || this.booking()?.totalAmount || 0);
   readonly quoteWithPromo = computed<QuoteWithPromo | null>(() => this.quote() as QuoteWithPromo | null);
   readonly priceAny = computed<QuoteWithPromo | null>(() => this.quote() as QuoteWithPromo | null);
+
+  readonly activeMembershipForProperty = computed<GuestLoyaltyMembershipDto | null>(() => {
+    const tenantId = this.property()?.tenantId;
+    if (!tenantId) return null;
+    return this.guestMemberships().find(m => m.tenantId === tenantId) ?? null;
+  });
+
+  readonly availableLoyaltyPoints = computed<number>(() => this.activeMembershipForProperty()?.pointsBalance ?? 0);
+
+  readonly maxRedeemablePoints = computed<number>(() => {
+    const balance = this.availableLoyaltyPoints();
+    const quoteTotal = this.quote()?.totalAmount ?? 0;
+    if (balance <= 0 || quoteTotal <= 0) return 0;
+    const maxByHalfTotal = Math.floor(Math.round(quoteTotal * 0.5) / 1000);
+    return Math.max(0, Math.min(balance, maxByHalfTotal));
+  });
+
+  readonly effectivePointsToRedeem = computed<number>(() => {
+    if (!this.useLoyaltyPoints()) return 0;
+    const maxPts = this.maxRedeemablePoints();
+    const raw = Math.floor(Number(this.pointsToRedeemInput()) || 0);
+    return Math.max(0, Math.min(raw, maxPts));
+  });
+
+  readonly estimatedPointsDiscount = computed<number>(() => this.effectivePointsToRedeem() * 1000);
+
+  readonly estimatedFinalTotal = computed<number>(() =>
+    Math.max(0, (this.quote()?.totalAmount ?? 0) - this.estimatedPointsDiscount())
+  );
+
+  readonly isAccountPhoneVerified = computed<boolean>(() => {
+    const normalizedInput = this.normalizePhoneInput(this.guestPhoneSignal(), this.selectedCountryCode());
+    if (!normalizedInput) return false;
+    const currentUser = this.authService?.currentUser as UserDtoWithVerification | null | undefined;
+    const me = this.guestMe();
+    const verifiedPhone = (currentUser?.isPhoneVerified && currentUser.phoneNumber)
+      ? currentUser.phoneNumber
+      : (me?.phoneVerified && me.phoneNumber ? me.phoneNumber : null);
+    if (!verifiedPhone) return false;
+    return this.normalizePhoneSimple(verifiedPhone) === normalizedInput;
+  });
 
   readonly numberOfNights = computed(() => {
     const s = this.stay();
@@ -860,7 +1018,14 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   });
 
   guestName = '';
-  guestPhone = '';
+  private _guestPhone = '';
+  get guestPhone(): string {
+    return this._guestPhone;
+  }
+  set guestPhone(value: string) {
+    this._guestPhone = value;
+    this.guestPhoneSignal.set(value);
+  }
   guestEmail = '';
   selectedPaymentMethod: 'VNPay' | 'VietQR' | 'PayAtHotel' | 'BankTransfer' = 'VNPay';
 
@@ -925,6 +1090,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.loadAuthenticatedGuestContext();
     const queryParamMap$ = this.route.queryParamMap ?? of(this.route.snapshot?.queryParamMap ?? { get: () => null });
     queryParamMap$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
       this.selectPaymentMethod(params.get('paymentMethod'));
@@ -1396,13 +1562,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
     }
 
     // ── Option A (Strict Gate) Verification Check ──
-    const normalizedPhone = this.getNormalizedPhone();
-    const currentUser = this.authService.currentUser;
-    const isUserPreVerified = Boolean(
-      currentUser &&
-      currentUser.phoneNumber &&
-      this.normalizePhoneSimple(currentUser.phoneNumber) === normalizedPhone
-    );
+    const isUserPreVerified = this.isAccountPhoneVerified();
 
     // If not verified in current session AND not a pre-verified logged-in user matching phone:
     if (!this.verifiedFirebaseIdToken() && !isUserPreVerified) {
@@ -1411,6 +1571,69 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
     }
 
     this.executeCreateHold(this.verifiedFirebaseIdToken() ?? undefined);
+  }
+
+  openPhoneVerifyModal(): void {
+    this.submitted.set(true);
+    if (this.fieldError('phone', true)) {
+      this.element.nativeElement.querySelector<HTMLInputElement>('#hold-phone')?.focus();
+      return;
+    }
+    this.showPhoneOtpModal.set(true);
+  }
+
+  toggleUseLoyaltyPoints(enabled: boolean): void {
+    this.useLoyaltyPoints.set(enabled);
+    if (enabled && this.pointsToRedeemInput() <= 0) {
+      this.pointsToRedeemInput.set(this.maxRedeemablePoints());
+    } else if (!enabled) {
+      this.pointsToRedeemInput.set(0);
+    }
+  }
+
+  onPointsToRedeemChange(value: number | string): void {
+    const parsed = Math.floor(Number(value) || 0);
+    const clamped = Math.max(0, Math.min(parsed, this.maxRedeemablePoints()));
+    this.pointsToRedeemInput.set(clamped);
+  }
+
+  private loadAuthenticatedGuestContext(): void {
+    if (!this.authService?.isLoggedIn) return;
+    const currentUser = this.authService.currentUser as UserDtoWithVerification | null | undefined;
+    if (currentUser) {
+      if (!this.guestName && currentUser.fullName) this.guestName = currentUser.fullName;
+      if (!this.guestEmail && currentUser.email && !currentUser.email.endsWith('@phone.hotelsaas.local')) {
+        this.guestEmail = currentUser.email;
+      }
+      if (!this.guestPhone && currentUser.phoneNumber) {
+        this.guestPhone = currentUser.phoneNumber;
+      }
+    }
+
+    if (this.guestAccountService && typeof this.guestAccountService.getMe === 'function') {
+      this.guestAccountService.getMe().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+        next: (me) => {
+          this.guestMe.set(me);
+          if (!this.guestName && me.fullName) this.guestName = me.fullName;
+          if (!this.guestEmail && me.email && !me.email.endsWith('@phone.hotelsaas.local')) {
+            this.guestEmail = me.email;
+          }
+          if (!this.guestPhone && me.phoneNumber) {
+            this.guestPhone = me.phoneNumber;
+          }
+        },
+        error: () => {}
+      });
+    }
+
+    if (this.guestAccountService && typeof this.guestAccountService.getLoyaltyProfile === 'function') {
+      this.guestAccountService.getLoyaltyProfile().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+        next: (profile) => {
+          this.guestMemberships.set(profile?.memberships ?? []);
+        },
+        error: () => {}
+      });
+    }
   }
 
   onPhoneVerifiedForHold(event: { success: boolean; phoneNumber: string; firebaseIdToken?: string }): void {
@@ -1422,16 +1645,19 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   }
 
   getNormalizedPhone(): string {
-    const raw = this.guestPhone.trim().replace(/[\s.\-]/g, '');
+    return this.normalizePhoneInput(this.guestPhone, this.selectedCountryCode());
+  }
+
+  private normalizePhoneInput(phone: string, countryCode: string): string {
+    const raw = phone.trim().replace(/[\s.\-]/g, '');
     if (!raw) return '';
     if (raw.startsWith('+')) return raw;
-    const code = this.selectedCountryCode();
-    if (code === '+84') {
+    if (countryCode === '+84') {
       if (raw.startsWith('0')) return '+84' + raw.substring(1);
       return '+84' + raw;
     }
-    if (raw.startsWith('0')) return code + raw.substring(1);
-    return code + raw;
+    if (raw.startsWith('0')) return countryCode + raw.substring(1);
+    return countryCode + raw;
   }
 
   private normalizePhoneSimple(phone: string): string {
@@ -1455,11 +1681,13 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
 
       const interval = publicStayInterval(stay, property);
       const normalizedPhone = this.getNormalizedPhone();
-      const currentUser = this.authService.currentUser;
+      const currentUser = this.authService?.currentUser;
 
       const activePromo = this.quoteWithPromo()?.promoCode?.trim().toUpperCase()
         || this.appliedPromoCode()?.trim().toUpperCase()
         || '';
+      const trimmedSpecialRequests = this.specialRequests().trim();
+      const pointsToRedeem = this.effectivePointsToRedeem();
 
       const requestPayload: CreateGuestHoldRequest = {
         propertySlug: params['propertySlug'],
@@ -1475,7 +1703,9 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
         firebaseIdToken: firebaseIdToken,
         guestUserId: currentUser?.id,
         paymentMethodPreference: this.selectedPaymentMethod === 'PayAtHotel' ? 'Cash' : this.selectedPaymentMethod,
-        ...(activePromo ? { promoCode: activePromo } : {})
+        ...(activePromo ? { promoCode: activePromo } : {}),
+        ...(pointsToRedeem > 0 ? { pointsToRedeem } : {}),
+        ...(trimmedSpecialRequests ? { specialRequests: trimmedSpecialRequests } : {})
       };
 
       const payloadSig = JSON.stringify({
@@ -1490,7 +1720,9 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
         numberOfGuests: requestPayload.numberOfGuests,
         expectedTotalAmount: requestPayload.expectedTotalAmount,
         paymentMethodPreference: requestPayload.paymentMethodPreference,
-        promoCode: requestPayload.promoCode ?? null
+        promoCode: requestPayload.promoCode ?? null,
+        pointsToRedeem: requestPayload.pointsToRedeem ?? 0,
+        specialRequests: requestPayload.specialRequests ?? null
       });
 
       if (this.lastSubmittedPayloadSig && this.lastSubmittedPayloadSig !== payloadSig) {

@@ -16,7 +16,14 @@ import {
   UserDto,
   UserMembershipDto,
   SwitchContextRequest,
-  SwitchContextResponse
+  SwitchContextResponse,
+  ForgotPasswordRequest,
+  ResetPasswordRequest,
+  ChangePasswordRequest,
+  ResendConfirmationRequest,
+  SocialAccountsResponseDto,
+  SocialIdentityDto,
+  LinkSocialAccountRequest
 } from '../models/auth.model';
 import { TokenStorageService } from './token-storage.service';
 
@@ -184,18 +191,24 @@ export class AuthService {
           if (propId) {
             const matched = memberships.find(m => m.propertyId?.toLowerCase() === propId.toLowerCase());
             this.setActivePropertyContext(propId, matched?.propertyName, matched?.propertyCode, matched?.roleName);
-          } else if (!memberships.some(m => !!m.propertyId)) {
-            // Tải danh sách chi nhánh mở rộng (cho tài khoản Tenant-Wide)
-            this.fetchMyMemberships().subscribe({
-              next: (fullList) => {
-                const branchMembers = fullList.filter(m => !!m.propertyId);
-                if (branchMembers.length > 0 && !this.activePropertyId()) {
-                  const defaultBranch = branchMembers[0];
-                  this.setActivePropertyContext(defaultBranch.propertyId!, defaultBranch.propertyName, defaultBranch.propertyCode, defaultBranch.roleName);
-                }
-              },
-              error: () => {}
-            });
+          } else {
+            this.tokenStorage.clearContextMode?.();
+            if (!memberships.some(m => !!m.propertyId)) {
+              // Tải danh sách chi nhánh mở rộng (cho tài khoản Tenant-Wide)
+              this.fetchMyMemberships().subscribe({
+                next: (fullList) => {
+                  if (this.tokenStorage.getContextMode?.() === 'hq') {
+                    return;
+                  }
+                  const branchMembers = fullList.filter(m => !!m.propertyId);
+                  if (branchMembers.length > 0 && !this.activePropertyId()) {
+                    const defaultBranch = branchMembers[0];
+                    this.setActivePropertyContext(defaultBranch.propertyId!, defaultBranch.propertyName, defaultBranch.propertyCode, defaultBranch.roleName);
+                  }
+                },
+                error: () => {}
+              });
+            }
           }
         }
       })
@@ -245,6 +258,7 @@ export class AuthService {
             const previousRoleName = this.activeRoleName();
             this.tokenStorage.setTokens(payload.accessToken, payload.refreshToken);
             this.clearPropertyContext();
+            this.tokenStorage.setContextMode?.('hq');
             const tenantWideRole = this.memberships.find(m => m.isTenantWide || !m.propertyId)?.roleName || null;
             const nextRoleName = payload.currentContext?.roleName || previousRoleName || tenantWideRole;
             if (nextRoleName) {
@@ -333,6 +347,17 @@ export class AuthService {
       const cachedMemberships = this.tokenStorage.getMemberships();
       this.membershipsSubject.next(cachedMemberships);
 
+      const savedContextMode = this.tokenStorage.getContextMode?.();
+      if (savedContextMode === 'hq') {
+        this.clearPropertyContext();
+        this.tokenStorage.setContextMode?.('hq');
+        const tenantWideRole = cachedMemberships.find(m => m.isTenantWide || !m.propertyId)?.roleName || null;
+        if (tenantWideRole) {
+          this.activeRoleName.set(tenantWideRole);
+        }
+        return;
+      }
+
       const savedPropId = this.tokenStorage.getActivePropertyId();
       if (savedPropId) {
         const matched = cachedMemberships.find(m => m.propertyId?.toLowerCase() === savedPropId.toLowerCase());
@@ -348,6 +373,9 @@ export class AuthService {
       if (!cachedMemberships.some(m => !!m.propertyId)) {
         this.fetchMyMemberships().subscribe({
           next: (fullList) => {
+            if (this.tokenStorage.getContextMode?.() === 'hq') {
+              return;
+            }
             const branchMembers = fullList.filter(m => !!m.propertyId);
             if (branchMembers.length > 0 && !this.activePropertyId()) {
               const defaultBranch = branchMembers[0];
@@ -374,11 +402,55 @@ export class AuthService {
 
   setActivePropertyContext(propertyId: string, propertyName?: string | null, propertyCode?: string | null, roleName?: string | null): void {
     this.tokenStorage.setActiveProperty(propertyId, propertyName, propertyCode);
+    this.tokenStorage.setContextMode?.('branch');
     this.activePropertyId.set(propertyId);
     this.activePropertyName.set(propertyName || null);
     this.activePropertyCode.set(propertyCode || null);
     if (roleName) {
       this.activeRoleName.set(roleName);
     }
+  }
+
+  forgotPassword(request: ForgotPasswordRequest): Observable<ApiResponse<unknown>> {
+    const payload: ForgotPasswordRequest = {
+      ...request,
+      appUrl: request.appUrl || (typeof window !== 'undefined' ? window.location.origin : undefined)
+    };
+    return this.http.post<ApiResponse<unknown>>(`${this.apiUrl}/forgot-password`, payload);
+  }
+
+  resetPassword(request: ResetPasswordRequest): Observable<ApiResponse<unknown>> {
+    return this.http.post<ApiResponse<unknown>>(`${this.apiUrl}/reset-password`, request);
+  }
+
+  changePassword(request: ChangePasswordRequest): Observable<ApiResponse<unknown>> {
+    return this.http.post<ApiResponse<unknown>>(`${this.apiUrl}/change-password`, request);
+  }
+
+  resendConfirmation(request: ResendConfirmationRequest): Observable<ApiResponse<unknown>> {
+    const payload: ResendConfirmationRequest = {
+      ...request,
+      appUrl: request.appUrl || (typeof window !== 'undefined' ? window.location.origin : undefined)
+    };
+    return this.http.post<ApiResponse<unknown>>(`${this.apiUrl}/resend-confirmation`, payload);
+  }
+
+  getSocialAccounts(): Observable<SocialAccountsResponseDto> {
+    return this.http
+      .get<ApiResponse<SocialAccountsResponseDto>>(`${this.apiUrl}/social-accounts`)
+      .pipe(map(res => res.data ?? { hasPassword: true, accounts: [] }));
+  }
+
+  linkSocialAccount(request: LinkSocialAccountRequest): Observable<SocialIdentityDto> {
+    return this.http
+      .post<ApiResponse<SocialIdentityDto>>(`${this.apiUrl}/social-accounts/link`, {
+        idToken: request.idToken,
+        provider: request.provider || 'Google'
+      })
+      .pipe(map(res => res.data as SocialIdentityDto));
+  }
+
+  unlinkSocialAccount(provider: string): Observable<ApiResponse<unknown>> {
+    return this.http.delete<ApiResponse<unknown>>(`${this.apiUrl}/social-accounts/${encodeURIComponent(provider)}`);
   }
 }

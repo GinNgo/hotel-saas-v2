@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using FluentValidation;
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Utils;
@@ -36,8 +37,19 @@ public sealed record CreateGuestHoldCommand(
     Guid? GuestUserId = null,
     string? FirebaseIdToken = null,
     PaymentMethodPreference PaymentMethodPreference = HotelSaas.Domain.Enums.PaymentMethodPreference.VNPay,
-    string? PromoCode = null
+    string? PromoCode = null,
+    string? SpecialRequests = null
 ) : IRequest<GuestHoldDto>;
+
+public sealed class CreateGuestHoldCommandValidator : AbstractValidator<CreateGuestHoldCommand>
+{
+    public CreateGuestHoldCommandValidator()
+    {
+        RuleFor(x => x.SpecialRequests)
+            .Must(s => s == null || s.Trim().Length <= 500)
+            .WithMessage("Yêu cầu đặc biệt không được vượt quá 500 ký tự.");
+    }
+}
 
 public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestHoldCommand, GuestHoldDto>
 {
@@ -81,6 +93,16 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
 
         if (!Enum.IsDefined(request.PaymentMethodPreference))
             throw new BadRequestException("ERR_INVALID_PAYMENT_METHOD", "Phương thức thanh toán đã chọn không hợp lệ.");
+
+        var trimmedSpecialRequests = string.IsNullOrWhiteSpace(request.SpecialRequests)
+            ? null
+            : request.SpecialRequests.Trim();
+
+        if (trimmedSpecialRequests != null && trimmedSpecialRequests.Length > 500)
+        {
+            throw new BadRequestException("ERR_SPECIAL_REQUESTS_TOO_LONG",
+                "Yêu cầu đặc biệt không được vượt quá 500 ký tự.");
+        }
 
         if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
         {
@@ -278,6 +300,7 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
                         string.Equals(ex.GuestPhone?.Trim() ?? string.Empty, request.GuestPhone?.Trim() ?? string.Empty, StringComparison.OrdinalIgnoreCase) &&
                         ex.NumberOfGuests == request.NumberOfGuests &&
                         string.Equals(snap.PromoCode ?? string.Empty, request.PromoCode?.Trim() ?? string.Empty, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(snap.CustomerNotes ?? string.Empty, trimmedSpecialRequests ?? string.Empty, StringComparison.Ordinal) &&
                         (!request.ExpectedTotalAmount.HasValue || ex.TotalAmount == request.ExpectedTotalAmount.Value);
 
                     if (isMatch)
@@ -544,7 +567,7 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
             Currency = quote.Currency,
             Breakdown = quote.Breakdown,
             AppliedPolicies = quote.AppliedPolicies,
-            CustomerNotes = null,
+            CustomerNotes = trimmedSpecialRequests,
             IdempotencyKey = request.IdempotencyKey?.Trim(),
             HoldExpiresAtUtc = holdExpiresAtUtc,
             LookupToken = lookupToken,

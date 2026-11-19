@@ -6,6 +6,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { BrandLogoComponent } from '../../shared/components/brand-logo/brand-logo.component';
 import { AiConciergeChatComponent } from '../../shared/components/ai-concierge-chat/ai-concierge-chat.component';
+import { SystemBannerBarComponent } from '../../shared/components/system-banner-bar/system-banner-bar.component';
 
 @Component({
   selector: 'app-guest-layout',
@@ -15,7 +16,8 @@ import { AiConciergeChatComponent } from '../../shared/components/ai-concierge-c
     RouterOutlet,
     RouterLink,
     BrandLogoComponent,
-    AiConciergeChatComponent
+    AiConciergeChatComponent,
+    SystemBannerBarComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`
@@ -41,7 +43,7 @@ import { AiConciergeChatComponent } from '../../shared/components/ai-concierge-c
               </span>
               <span class="hidden md:inline-flex items-center gap-1.5 text-[var(--text-muted)]">
                 <i class="pi pi-shield text-[10px] text-emerald-600"></i>
-                <span>Bảo đảm 100% Hoàn tiền &amp; Mở khóa Smart Lock</span>
+                <span>Chính sách hủy &amp; hoàn tiền minh bạch theo từng cơ sở</span>
               </span>
             </div>
 
@@ -200,6 +202,9 @@ import { AiConciergeChatComponent } from '../../shared/components/ai-concierge-c
 
       <!-- 3. NỘI DUNG TRANG CON -->
       <div id="booking-content" tabindex="-1" class="flex-1">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 empty:hidden">
+          <app-system-banner-bar />
+        </div>
         <router-outlet />
       </div>
 

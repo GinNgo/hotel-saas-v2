@@ -21,6 +21,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { SkeletonTableComponent } from '../../shared/components/skeleton-table/skeleton-table.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { ContextSelectorDialogComponent } from '../auth/context-selector/context-selector.dialog';
 
 /**
  * Màn hình Quản lý Buồng phòng (Housekeeping Board).
@@ -41,7 +42,8 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
     FormsModule,
     SkeletonTableComponent,
     EmptyStateComponent,
-    PaginationComponent
+    PaginationComponent,
+    ContextSelectorDialogComponent
   ],
   template: `
     <div class="max-w-7xl mx-auto space-y-6">
@@ -215,6 +217,17 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
         <!-- Task Queue List -->
         @if (tasksLoading() && tasks().length === 0) {
           <app-skeleton-table [rows]="5" />
+        } @else if (!authService.activePropertyId()) {
+          <div class="bg-white rounded-2xl border border-slate-200/80 p-10 shadow-2xs">
+            <app-empty-state
+              iconClass="pi pi-building"
+              title="Vui lòng chọn chi nhánh làm việc"
+              description="Hàng đợi buồng phòng được quản lý theo từng cơ sở. Vui lòng chọn một chi nhánh để xem và phân công công việc."
+              actionLabel="Chọn chi nhánh làm việc"
+              actionIcon="pi pi-building"
+              (actionClick)="openContextSelector()"
+            />
+          </div>
         } @else if (tasks().length === 0) {
           <div class="bg-white rounded-2xl border border-slate-200/80 p-10 shadow-2xs">
             <app-empty-state
@@ -488,6 +501,17 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
               <span>Thử lại</span>
             </button>
           </div>
+        </div>
+      } @else if (!authService.activePropertyId()) {
+        <div class="bg-white rounded-2xl border border-slate-200/80 p-10 shadow-2xs">
+          <app-empty-state
+            iconClass="pi pi-building"
+            title="Vui lòng chọn chi nhánh làm việc"
+            description="Sơ đồ buồng phòng hiển thị theo từng cơ sở. Vui lòng chọn một chi nhánh để theo dõi và cập nhật trạng thái phòng."
+            actionLabel="Chọn chi nhánh làm việc"
+            actionIcon="pi pi-building"
+            (actionClick)="openContextSelector()"
+          />
         </div>
       } @else if (rooms().length === 0) {
         <app-empty-state
@@ -765,6 +789,13 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
         </div>
       }
     </div>
+
+    @if (showContextSelector()) {
+      <app-context-selector-dialog
+        [visible]="showContextSelector()"
+        (visibleChange)="showContextSelector.set($event)"
+      />
+    }
   `
 })
 export class HousekeepingPage implements OnInit, OnDestroy {
@@ -772,6 +803,11 @@ export class HousekeepingPage implements OnInit, OnDestroy {
   private readonly housekeepingService = inject(HousekeepingService, { optional: true });
   private readonly alertService = inject(AlertService);
   readonly authService = inject(AuthService);
+
+  showContextSelector = signal<boolean>(false);
+  openContextSelector(): void {
+    this.showContextSelector.set(true);
+  }
 
   readonly RoomStatus = RoomStatus;
   readonly HousekeepingTaskStatus = HousekeepingTaskStatus;
@@ -905,6 +941,11 @@ export class HousekeepingPage implements OnInit, OnDestroy {
         if (this.trackedPropertyId !== propId) {
           this.trackedPropertyId = propId;
           this.invalidatePolling();
+          if (propId && this.autoSyncEnabled()) {
+            this.startAutoSync();
+          } else if (!propId) {
+            this.stopAutoSync();
+          }
           this.currentPage.set(1);
           this.rooms.set([]);
           this.totalCount.set(0);
@@ -1208,6 +1249,9 @@ export class HousekeepingPage implements OnInit, OnDestroy {
 
   startAutoSync(intervalMs = 10000): void {
     this.stopAutoSync();
+    if (!this.authService.activePropertyId()) {
+      return;
+    }
     if (typeof window !== 'undefined') {
       this.autoSyncTimer = setInterval(() => {
         this.pollServerSync();

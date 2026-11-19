@@ -9,6 +9,7 @@ export type PropertyType =
   | 'Villa'
   | 'Apartment'
   | 'Motel'
+  /** @deprecated Legacy alias mapped cleanly to 'Motel'. */
   | 'Guesthouse'
   | 'Hostel'
   | 'BedAndBreakfast';
@@ -20,10 +21,17 @@ export const ALL_PROPERTY_TYPES: readonly PropertyType[] = [
   'Villa',
   'Apartment',
   'Motel',
-  'Guesthouse',
   'Hostel',
   'BedAndBreakfast',
 ];
+
+export function normalizeCanonicalPropertyType(type: PropertyType | string | undefined): PropertyType {
+  if (type === 'Guesthouse') return 'Motel';
+  if (type && ALL_PROPERTY_TYPES.includes(type as PropertyType)) {
+    return type as PropertyType;
+  }
+  return 'Hotel';
+}
 
 export type DestinationSuggestionType = 'Province' | 'TouristZone' | 'Landmark' | 'Property';
 
@@ -226,6 +234,8 @@ export interface PublicPropertyDto {
   hourlyPriceFrom?: number;
   overnightPriceFrom?: number;
   dailyPriceFrom?: number;
+  taxRatePercent?: number;
+  serviceFeeRatePercent?: number;
   availableRoomTypes: PublicRoomTypeAvailabilityDto[];
   distanceMeters?: number;
   distanceFormatted?: string;
@@ -247,6 +257,13 @@ export interface PublicPropertiesFilter {
   userLongitude?: number;
   latitude?: number;
   longitude?: number;
+  minPrice?: number;
+  maxPrice?: number;
+  guests?: number;
+  checkInDate?: string;
+  checkOutDate?: string;
+  onlyPublished?: boolean;
+  sortBy?: BookingSortOption;
   page?: number;
   pageSize?: number;
 }
@@ -446,9 +463,18 @@ export interface CreateGuestHoldRequest {
   idempotencyKey?: string;
   pointsToRedeem?: number;
   promoCode?: string | null;
+  specialRequests?: string | null;
   guestUserId?: string;
   firebaseIdToken?: string;
   paymentMethodPreference?: 'Cash' | 'VietQR' | 'VNPay' | 'BankTransfer';
+}
+
+export interface RescheduleGuestBookingRequest {
+  newStartAtUtc: string;
+  newEndAtUtc: string;
+  newCheckInDate?: string;
+  newCheckOutDate?: string;
+  reason?: string;
 }
 
 export interface ConfirmGuestBookingRequest {
@@ -467,6 +493,7 @@ export interface TenantBrandDto {
   totalProperties: number;
   ratingAverage: number;
   reviewCount: number;
+  startingPrice?: number | null;
   properties: PublicPropertyDto[];
   provinces: string[];
   propertyTypes?: PropertyType[];
