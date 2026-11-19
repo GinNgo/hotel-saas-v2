@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { of, switchMap } from 'rxjs';
 import { PublicBookingService } from '../../core/services/public-booking.service';
 import { AlertService } from '../../core/services/alert.service';
-import { CreateGuestHoldRequest, GuestBookingDetailDto, PublicPropertyDto } from '../../core/models/public-booking.model';
+import { CalculatePublicQuoteRequest, CreateGuestHoldRequest, GuestBookingDetailDto, PublicPropertyDto } from '../../core/models/public-booking.model';
 import { QuoteDto } from '../../core/models/reservation.model';
 import { PublicStayContext, publicStayInterval, readPublicStay } from '../../core/models/public-stay-context';
 import { FormFieldComponent, FormControlDirective } from '../../shared/components/form-field/form-field.component';
@@ -20,6 +21,12 @@ export interface HoldErrorState {
   isRetryable: boolean;
   note?: string;
 }
+
+type QuoteWithPromo = QuoteDto & {
+  promoCode?: string | null;
+  promoDiscountAmount?: number | null;
+  depositRequired?: number | null;
+};
 
 @Component({
   selector: 'app-booking-hold-page',
@@ -330,6 +337,12 @@ export interface HoldErrorState {
               <div>
                 <div class="text-xs text-indigo-900 font-medium">Tổng tiền lưu trú dự tính</div>
                 <div class="text-2xl sm:text-3xl font-black text-indigo-700">{{ detail.totalAmount | number:'1.0-0' }} ₫</div>
+                @if (detail.promoCode) {
+                  <div class="mt-1 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                    <i class="pi pi-ticket text-[10px]" aria-hidden="true"></i>
+                    <span>Mã {{ detail.promoCode }} (Giảm {{ (detail.promoDiscountAmount ?? 0) | number:'1.0-0' }} ₫)</span>
+                  </div>
+                }
               </div>
               <div class="sm:text-right">
                 <div class="text-xs text-amber-800 font-bold uppercase tracking-wide">Đặt cọc yêu cầu theo quy định</div>
@@ -496,7 +509,7 @@ export interface HoldErrorState {
                 </div>
                 @if (selectedPaymentMethod === 'PayAtHotel') {
                   <div role="note" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-950">
-                    Tiền cọc dự kiến: <strong>{{ ((priceAny()?.depositRequired ?? (priceAny()?.totalAmount * 0.3)) | number:'1.0-0') }} ₫</strong>.
+                    Tiền cọc dự kiến: <strong>{{ ((priceAny()?.depositRequired ?? ((priceAny()?.totalAmount ?? 0) * 0.3)) | number:'1.0-0') }} ₫</strong>.
                     Đến quầy lễ tân và nộp cọc trước khi giữ phòng hết hạn. Nhân viên sẽ ghi nhận tiền mặt và xác nhận đặt phòng; nếu chưa nộp kịp, giữ phòng sẽ tự hết hạn.
                   </div>
                 }
@@ -622,10 +635,71 @@ export interface HoldErrorState {
                   <div class="space-y-2 pt-1 border-t border-slate-100 text-xs">
                     <div class="font-bold uppercase tracking-wider text-slate-400 text-[10px]">Khoản phí mục vụ</div>
                     @for (line of price.breakdown; track $index) {
-                      <div class="flex items-center justify-between text-slate-700 py-0.5">
+                      <div
+                        class="flex items-center justify-between py-0.5"
+                        [class.text-emerald-700]="line.amount < 0 || line.category === 'Discount'"
+                        [class.font-semibold]="line.amount < 0 || line.category === 'Discount'"
+                        [class.text-slate-700]="line.amount >= 0 && line.category !== 'Discount'"
+                      >
                         <span class="truncate pr-2">{{ line.description }}</span>
                         <span class="font-semibold shrink-0">{{ line.amount | number:'1.0-0' }} ₫</span>
                       </div>
+                    }
+                  </div>
+
+                  <!-- Mã khuyến mãi (Promo Code) -->
+                  <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2.5">
+                    <div class="flex items-center justify-between gap-2">
+                      <label for="hold-promo-input" class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <i class="pi pi-ticket text-indigo-600 text-xs" aria-hidden="true"></i>
+                        <span>Mã khuyến mãi</span>
+                      </label>
+                      @if (appliedPromoCode(); as applied) {
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-mono font-bold text-[11px]">
+                          {{ applied }}
+                        </span>
+                      }
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                      <input
+                        id="hold-promo-input"
+                        type="text"
+                        [ngModel]="promoCodeInput()"
+                        (ngModelChange)="promoCodeInput.set($event)"
+                        (keyup.enter)="applyPromoCode()"
+                        name="promoCode"
+                        placeholder="Nhập mã ưu đãi (VD: SUMMER20)"
+                        class="min-h-[44px] flex-1 min-w-0 px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono uppercase focus:outline-hidden focus:border-indigo-500"
+                      />
+                      @if (appliedPromoCode()) {
+                        <button
+                          type="button"
+                          (click)="clearPromoCode()"
+                          [disabled]="isApplyingPromo() || isSubmitting()"
+                          class="min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                        >
+                          Bỏ mã
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        (click)="applyPromoCode()"
+                        [disabled]="isApplyingPromo() || isSubmitting()"
+                        class="min-h-[44px] px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                      >
+                        {{ isApplyingPromo() ? 'Đang kiểm tra...' : 'Áp dụng' }}
+                      </button>
+                    </div>
+
+                    @if (promoError()) {
+                      <p role="alert" class="text-[11px] font-medium text-rose-700">
+                        {{ promoError() }}
+                      </p>
+                    } @else if (quoteWithPromo()?.promoDiscountAmount) {
+                      <p class="text-[11px] font-semibold text-emerald-700">
+                        Đã giảm {{ quoteWithPromo()?.promoDiscountAmount | number:'1.0-0' }} ₫ từ mã {{ quoteWithPromo()?.promoCode }}.
+                      </p>
                     }
                   </div>
 
@@ -637,10 +711,10 @@ export interface HoldErrorState {
                         {{ price.totalAmount | number:'1.0-0' }} ₫
                       </strong>
                     </div>
-                    @if ((priceAny().depositRequired) !== undefined && (priceAny().depositRequired) !== null) {
+                    @if (priceAny()?.depositRequired !== undefined && priceAny()?.depositRequired !== null) {
                       <div class="flex items-center justify-between text-xs text-amber-800 pt-1.5 border-t border-indigo-100/80 font-medium">
                         <span>Đặt cọc giữ chỗ:</span>
-                        <span class="font-bold text-amber-600">{{ priceAny().depositRequired | number:'1.0-0' }} ₫</span>
+                        <span class="font-bold text-amber-600">{{ priceAny()?.depositRequired | number:'1.0-0' }} ₫</span>
                       </div>
                     } @else {
                       <div class="pt-2 border-t border-indigo-100/80 space-y-1 text-xs">
@@ -739,6 +813,10 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   readonly showPhoneOtpModal = signal<boolean>(false);
   readonly verifiedFirebaseIdToken = signal<string | null>(null);
   readonly isPhoneOtpVerified = signal<boolean>(false);
+  readonly promoCodeInput = signal<string>('');
+  readonly appliedPromoCode = signal<string | null>(null);
+  readonly isApplyingPromo = signal<boolean>(false);
+  readonly promoError = signal<string>('');
 
   readonly countryCodes = [
     { code: '+84', name: 'Vietnam (+84)', flag: '🇻🇳' },
@@ -769,7 +847,8 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   private broadcastChannel?: BroadcastChannel;
 
   readonly finalGrandTotal = computed(() => this.quote()?.totalAmount ?? this.booking()?.totalAmount ?? 0);
-  readonly priceAny = computed<any>(() => this.quote());
+  readonly quoteWithPromo = computed<QuoteWithPromo | null>(() => this.quote() as QuoteWithPromo | null);
+  readonly priceAny = computed<QuoteWithPromo | null>(() => this.quote() as QuoteWithPromo | null);
 
   readonly numberOfNights = computed(() => {
     const s = this.stay();
@@ -948,13 +1027,25 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
         this.holdError.set(null);
       }
 
+      const incomingPromo = typeof queryParams?.['promoCode'] === 'string'
+        ? queryParams['promoCode'].trim().toUpperCase()
+        : '';
+      if (incomingPromo) {
+        this.promoCodeInput.set(incomingPromo);
+        this.appliedPromoCode.set(incomingPromo);
+      } else if (wasTokenActive) {
+        this.promoCodeInput.set('');
+        this.appliedPromoCode.set(null);
+      }
+
       const previewSig = JSON.stringify([
         queryParams?.['propertySlug'], queryParams?.['roomTypeId'],
         queryParams?.['checkInDate'], queryParams?.['checkOutDate'],
         queryParams?.['rentalType'], queryParams?.['guests'],
         queryParams?.['checkInTime'],
         queryParams?.['durationHours'] ?? queryParams?.['hours'],
-        queryParams?.['roomsCount']
+        queryParams?.['roomsCount'],
+        incomingPromo || null
       ]);
       if (wasTokenActive || (isFirstRun && previewSig) || (previewSig && previewSig !== this.lastPreviewParamsSig)) {
         this.lastPreviewParamsSig = previewSig;
@@ -967,6 +1058,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
     if (this.isSubmitting()) return;
     const generation = ++this.requestGeneration;
     this.error.set('');
+    this.promoError.set('');
     this.quote.set(null);
     this.isQuoteExpired.set(false);
     this.quoteRemainingSeconds.set(0);
@@ -981,16 +1073,19 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
       if (!params['propertySlug'] || !params['roomTypeId']) {
         throw new Error('Vui lòng chọn cơ sở và hạng phòng trước.');
       }
+      const activePromo = this.appliedPromoCode()?.trim().toUpperCase() || null;
       this.loading.set(true);
       this.publicBookingService.getPropertyBySlug(params['propertySlug']).pipe(
         switchMap(property => {
           if (generation !== this.requestGeneration) throw new Error('Yêu cầu đã thay đổi.');
           this.property.set(property);
-          return this.publicBookingService.calculateQuote({
+          const quotePayload: CalculatePublicQuoteRequest = {
             propertySlug: params['propertySlug'],
             roomTypeId: params['roomTypeId'],
-            ...publicStayInterval(stay, property)
-          });
+            ...publicStayInterval(stay, property),
+            ...(activePromo ? { promoCode: activePromo } : {})
+          };
+          return this.publicBookingService.calculateQuote(quotePayload);
         }),
         takeUntilDestroyed(this.destroyRef),
       ).subscribe({
@@ -999,13 +1094,46 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
             this.loading.set(false);
             return;
           }
+          const typedPrice = price as QuoteWithPromo;
+          if (typedPrice.promoCode) {
+            this.appliedPromoCode.set(typedPrice.promoCode);
+            this.promoCodeInput.set(typedPrice.promoCode);
+          }
           this.quote.set(price);
           this.loading.set(false);
           this.startQuoteCountdown(price.expiresAtUtc);
         },
-        error: () => {
+        error: err => {
+          if (generation !== this.requestGeneration) {
+            this.loading.set(false);
+            return;
+          }
+          if (activePromo && err instanceof HttpErrorResponse && err.status === 400) {
+            const msg = this.extractPromoErrorMessage(err);
+            this.appliedPromoCode.set(null);
+            this.promoError.set(msg);
+            const property = this.property();
+            if (property) {
+              this.publicBookingService.calculateQuote({
+                propertySlug: params['propertySlug'],
+                roomTypeId: params['roomTypeId'],
+                ...publicStayInterval(stay, property)
+              }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+                next: fallbackPrice => {
+                  if (generation !== this.requestGeneration) return;
+                  this.quote.set(fallbackPrice);
+                  this.loading.set(false);
+                  this.startQuoteCountdown(fallbackPrice.expiresAtUtc);
+                },
+                error: () => {
+                  this.loading.set(false);
+                  this.error.set('Chưa kiểm tra được giá. Vui lòng thử lại hoặc chọn lại phòng.');
+                }
+              });
+              return;
+            }
+          }
           this.loading.set(false);
-          if (generation !== this.requestGeneration) return;
           this.error.set('Chưa kiểm tra được giá. Vui lòng thử lại hoặc chọn lại phòng.');
         },
       });
@@ -1013,6 +1141,88 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
       this.loading.set(false);
       this.error.set(error instanceof Error ? error.message : 'Lựa chọn không hợp lệ.');
     }
+  }
+
+  applyPromoCode(): void {
+    const candidate = this.promoCodeInput().trim().toUpperCase();
+    if (!candidate) {
+      this.promoError.set('Vui lòng nhập mã khuyến mãi trước khi áp dụng.');
+      return;
+    }
+
+    this.requoteWithPromo(candidate);
+  }
+
+  clearPromoCode(): void {
+    this.promoCodeInput.set('');
+    this.appliedPromoCode.set(null);
+    this.promoError.set('');
+    this.requoteWithPromo(null);
+  }
+
+  private requoteWithPromo(promoCode: string | null): void {
+    const property = this.property();
+    const stay = this.stay();
+    const params = Object.keys(this.currentQueryParams || {}).length > 0
+      ? this.currentQueryParams
+      : (this.route.snapshot?.queryParams ?? {});
+
+    if (!property || !stay || !params['propertySlug'] || !params['roomTypeId']) {
+      this.promoError.set('Chưa có đủ thông tin phòng để kiểm tra mã khuyến mãi.');
+      return;
+    }
+
+    const generation = this.requestGeneration;
+    this.isApplyingPromo.set(true);
+    this.promoError.set('');
+
+    const payload: CalculatePublicQuoteRequest = {
+      propertySlug: params['propertySlug'],
+      roomTypeId: params['roomTypeId'],
+      ...publicStayInterval(stay, property),
+      ...(promoCode ? { promoCode } : {})
+    };
+
+    this.publicBookingService.calculateQuote(payload).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: price => {
+        if (generation !== this.requestGeneration) {
+          this.isApplyingPromo.set(false);
+          return;
+        }
+        const typedPrice = price as QuoteWithPromo;
+        const resolvedCode = promoCode ? (typedPrice.promoCode || promoCode) : null;
+        this.appliedPromoCode.set(resolvedCode);
+        if (resolvedCode) {
+          this.promoCodeInput.set(resolvedCode);
+        }
+        this.quote.set(price);
+        this.isApplyingPromo.set(false);
+        this.isQuoteExpired.set(false);
+        this.startQuoteCountdown(price.expiresAtUtc);
+        if (resolvedCode) {
+          this.showToast(
+            'Đã áp dụng mã khuyến mãi',
+            `Mã ${resolvedCode} đã được áp dụng vào báo giá chính thức.`,
+            'info'
+          );
+        }
+      },
+      error: err => {
+        this.isApplyingPromo.set(false);
+        this.promoError.set(this.extractPromoErrorMessage(err));
+      }
+    });
+  }
+
+  private extractPromoErrorMessage(err: unknown): string {
+    if (err instanceof HttpErrorResponse) {
+      const body = err.error as { message?: string; title?: string } | null;
+      if (body?.message) return body.message;
+      if (body?.title) return body.title;
+    }
+    return 'Mã khuyến mãi không hợp lệ, đã hết hạn hoặc không đủ điều kiện áp dụng.';
   }
 
   startQuoteCountdown(expiresAtUtc?: string): void {
@@ -1247,6 +1457,10 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
       const normalizedPhone = this.getNormalizedPhone();
       const currentUser = this.authService.currentUser;
 
+      const activePromo = this.quoteWithPromo()?.promoCode?.trim().toUpperCase()
+        || this.appliedPromoCode()?.trim().toUpperCase()
+        || '';
+
       const requestPayload: CreateGuestHoldRequest = {
         propertySlug: params['propertySlug'],
         roomTypeId: params['roomTypeId'],
@@ -1260,7 +1474,8 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
         expectedTotalAmount: price.totalAmount,
         firebaseIdToken: firebaseIdToken,
         guestUserId: currentUser?.id,
-        paymentMethodPreference: this.selectedPaymentMethod === 'PayAtHotel' ? 'Cash' : this.selectedPaymentMethod
+        paymentMethodPreference: this.selectedPaymentMethod === 'PayAtHotel' ? 'Cash' : this.selectedPaymentMethod,
+        ...(activePromo ? { promoCode: activePromo } : {})
       };
 
       const payloadSig = JSON.stringify({
@@ -1274,7 +1489,8 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
         guestPhone: requestPayload.guestPhone,
         numberOfGuests: requestPayload.numberOfGuests,
         expectedTotalAmount: requestPayload.expectedTotalAmount,
-        paymentMethodPreference: requestPayload.paymentMethodPreference
+        paymentMethodPreference: requestPayload.paymentMethodPreference,
+        promoCode: requestPayload.promoCode ?? null
       });
 
       if (this.lastSubmittedPayloadSig && this.lastSubmittedPayloadSig !== payloadSig) {

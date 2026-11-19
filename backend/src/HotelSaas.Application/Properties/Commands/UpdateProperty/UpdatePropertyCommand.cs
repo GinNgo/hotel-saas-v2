@@ -1,5 +1,4 @@
 using System;
-using System.ComponentModel.DataAnnotations;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Exceptions;
@@ -28,10 +27,12 @@ public sealed record UpdatePropertyCommand(
     bool AllowHourlyBooking = true,
     bool AllowOvernightBooking = true,
     bool AllowDailyBooking = true,
-    bool IsPublished = true,
+    bool? IsPublished = null,
     PropertyStatus Status = PropertyStatus.Active,
     double? Latitude = null,
-    double? Longitude = null
+    double? Longitude = null,
+    TimeOnly? CheckInTime = null,
+    TimeOnly? CheckOutTime = null
 ) : IRequest<TenantPropertySummaryDto>;
 
 public sealed class UpdatePropertyCommandHandler : IRequestHandler<UpdatePropertyCommand, TenantPropertySummaryDto>
@@ -80,7 +81,18 @@ public sealed class UpdatePropertyCommandHandler : IRequestHandler<UpdatePropert
         property.AllowHourlyBooking = request.AllowHourlyBooking;
         property.AllowOvernightBooking = request.AllowOvernightBooking;
         property.AllowDailyBooking = request.AllowDailyBooking;
-        property.IsPublished = request.IsPublished;
+        if (request.IsPublished.HasValue)
+        {
+            property.IsPublished = request.IsPublished.Value;
+        }
+        if (request.CheckInTime.HasValue)
+        {
+            property.CheckInTime = request.CheckInTime.Value;
+        }
+        if (request.CheckOutTime.HasValue)
+        {
+            property.CheckOutTime = request.CheckOutTime.Value;
+        }
         property.Status = request.Status;
         property.Latitude = request.Latitude;
         property.Longitude = request.Longitude;

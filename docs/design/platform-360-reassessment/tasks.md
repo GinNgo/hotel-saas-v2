@@ -236,7 +236,7 @@
 
 ## Wave 2 — Hoàn Thiện Nghiệp Vụ PMS Cốt Lõi & Toàn Vẹn Doanh Thu (Gate G2)
 
-### `T012` — Kích Hoạt `HousekeepingTask` End-to-End (`DbContext` -> Auto Check-out -> Mobile Task Queue)
+### `T012` — Kích Hoạt `HousekeepingTask` End-to-End (`DbContext` -> Auto Check-out -> Mobile Task Queue) `[COMPLETED — Verified on feature/wave2-pms-revenue-integrity]`
 - **Gap Refs:** `GAP-B05`, `GAP-B22`, `ENT-D01` | **Owner Role:** `database` + `backend` + `frontend`
 - **Dependencies:** `T010`
 - **Allowed Files:**
@@ -259,7 +259,7 @@
   npm --prefix frontend run build
   ```
 
-### `T013` — Sinh Bản Ghi `Invoice` + `InvoiceItem` Khi Check-out & Gắn Nút In Hóa Đơn Tại PMS
+### `T013` — Sinh Bản Ghi `Invoice` + `InvoiceItem` Khi Check-out & Gắn Nút In Hóa Đơn Tại PMS `[COMPLETED — Verified on feature/wave2-pms-revenue-integrity]`
 - **Gap Refs:** `GAP-B04`, `ENT-D03` | **Owner Role:** `backend` + `frontend`
 - **Dependencies:** `T012` (chia sẻ `CheckOutReservationCommandHandler.cs` tuần tự sau T012)
 - **Allowed Files:**
@@ -276,7 +276,7 @@
   npm --prefix frontend run build
   ```
 
-### `T014` — Xây Dựng Trọn Bộ `Promotion` (B2B Management + B2C Deals API + Quote Engine)
+### `T014` — Xây Dựng Trọn Bộ `Promotion` (B2B Management + B2C Deals API + Quote Engine) `[COMPLETED — Verified on feature/wave2-pms-revenue-integrity]`
 - **Gap Refs:** `GAP-A14`, `GAP-B02`, `ENT-D02` | **Owner Role:** `backend` + `frontend`
 - **Dependencies:** `T004`
 - **Allowed Files:**
@@ -300,7 +300,7 @@
   npm --prefix frontend run build
   ```
 
-### `T015` — Xây Dựng Quản Lý Đánh Giá B2B (`GuestReview`) & Đồng Bộ Trạng Thái Review B2C
+### `T015` — Xây Dựng Quản Lý Đánh Giá B2B (`GuestReview`) & Đồng Bộ Trạng Thái Review B2C `[COMPLETED — Verified on feature/wave2-pms-revenue-integrity]`
 - **Gap Refs:** `GAP-A17`, `GAP-B17`, `ENT-D05` | **Owner Role:** `backend` + `frontend`
 - **Dependencies:** `T006`
 - **Allowed Files:**
@@ -319,7 +319,7 @@
   npm --prefix frontend run build
   ```
 
-### `T016` — Sửa Thuật Toán Interval Splitting Bảng Giá & Hoàn Thiện AI Dynamic Pricing
+### `T016` — Sửa Thuật Toán Interval Splitting Bảng Giá & Hoàn Thiện AI Dynamic Pricing `[COMPLETED — Verified on feature/wave2-pms-revenue-integrity]`
 - **Gap Refs:** `GAP-B12`, `GAP-B13`, `ENT-D09` | **Owner Role:** `backend` + `frontend`
 - **Dependencies:** `T001`
 - **Allowed Files:**
@@ -337,7 +337,7 @@
   npm --prefix frontend run build
   ```
 
-### `T017` — Phụ Thu 24/24, Auto Phụ Thu Check-out, Night Audit / `NoShow`, Rules Đặt Phòng & Chính Sách `POL-C03`
+### `T017` — Phụ Thu 24/24, Auto Phụ Thu Check-out, Night Audit / `NoShow`, Rules Đặt Phòng & Chính Sách `POL-C03` `[COMPLETED — Verified on feature/wave2-pms-revenue-integrity]`
 - **Gap Refs:** `GAP-B11`, `GAP-B14`, `GAP-B15`, `GAP-C22` | **Owner Role:** `backend` + `frontend`
 - **Dependencies:** `T013`, `T014` (tuần tự cho `PricingCalculator.cs`)
 - **Allowed Files:**
@@ -361,7 +361,7 @@
   npm --prefix frontend run build
   ```
 
-### `T018` — Sửa Báo Cáo Doanh Thu (`Hourly`/Refund/`EnsurePropertyAccess`) & Lỗi Chi Nhánh `/properties`
+### `T018` — Sửa Báo Cáo Doanh Thu (`Hourly`/Refund/`EnsurePropertyAccess`) & Lỗi Chi Nhánh `/properties` `[COMPLETED — Verified on feature/wave2-pms-revenue-integrity]`
 - **Gap Refs:** `GAP-B08`, `GAP-B09`, `GAP-B10`, `GAP-B20`, `GAP-C12`, `GAP-C15` | **Owner Role:** `backend` + `frontend`
 - **Dependencies:** `T017` (tuần tự cho `CreatePropertyCommand.cs`)
 - **Allowed Files:**

@@ -9,6 +9,7 @@ import { RateService } from '../../core/services/rate.service';
 import { RoomTypeService } from '../../core/services/room-type.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
+import { AiService } from '../../core/services/ai.service';
 import { RoomTypeRateDto, RoomTypeRateAuditDto } from '../../core/models/rate.model';
 import { RoomTypeDto } from '../../core/models/room-type.model';
 
@@ -17,6 +18,7 @@ describe('RatesPage Logic, Interval Splitting, Modal Snapshot & Context Guards',
   let mockRoomTypeService: any;
   let mockAuthService: any;
   let mockAlertService: any;
+  let mockAiService: any;
   let mockRoute: any;
   let mockRouter: any;
   let queryParamsSubject: Subject<any>;
@@ -128,9 +130,48 @@ describe('RatesPage Logic, Interval Splitting, Modal Snapshot & Context Guards',
       activePropertyId: activePropertyIdSignal,
       activePropertyName: activePropertyNameSignal,
       hasPermission: vi.fn((code: string, mask: number) => {
-        if (code === 'ROOM_TYPES') return true;
+        if (code === 'ROOM_TYPES' || code === 'AI_FEATURES') return true;
         return false;
       })
+    };
+
+    mockAiService = {
+      getDynamicPricingRecommendations: vi.fn().mockReturnValue(of({
+        propertyId: 'prop-123',
+        propertyName: 'Khách sạn Biển Đông',
+        targetDate: todayStr,
+        overallOccupancyRate: 85,
+        marketDemandLevel: 'High',
+        recommendations: [
+          {
+            roomTypeId: 'rt-1111',
+            roomTypeName: 'Phòng Deluxe Hướng Biển',
+            totalRooms: 10,
+            bookedRooms: 8,
+            occupancyRate: 80,
+            basePrice: 500000,
+            recommendedPrice: 600000,
+            surgeMultiplier: 1.2,
+            strategy: 'Surge',
+            rationale: 'Công suất đặt phòng đạt 80%, đề xuất tăng 20% giá đêm.'
+          }
+        ]
+      })),
+      applyDynamicPricing: vi.fn().mockReturnValue(of({
+        id: 'rate-ai-1',
+        propertyId: 'prop-123',
+        roomTypeId: 'rt-1111',
+        firstHours: 2,
+        firstHoursPrice: 240000,
+        additionalHourPrice: 72000,
+        nightlyPrice: 600000,
+        currency: 'VND',
+        effectiveFrom: todayStr,
+        effectiveTo: addDaysToDateString(todayStr, 1),
+        changeReason: 'Áp dụng AI Dynamic Pricing (Surge)',
+        isActive: true,
+        createdAtUtc: '2026-10-10T10:00:00Z'
+      }))
     };
 
     mockAlertService = {
@@ -156,6 +197,7 @@ describe('RatesPage Logic, Interval Splitting, Modal Snapshot & Context Guards',
         { provide: RoomTypeService, useValue: mockRoomTypeService },
         { provide: AuthService, useValue: mockAuthService },
         { provide: AlertService, useValue: mockAlertService },
+        { provide: AiService, useValue: mockAiService },
         { provide: ActivatedRoute, useValue: mockRoute },
         { provide: Router, useValue: mockRouter }
       ]
@@ -543,5 +585,49 @@ describe('RatesPage Logic, Interval Splitting, Modal Snapshot & Context Guards',
     expect(comp.getActionBadgeClass('Split_Shortened')).toContain('amber');
     expect(comp.getActionBadgeClass('Replaced')).toContain('purple');
     expect(comp.getActionBadgeClass('Replaced_Created')).toContain('indigo');
+    expect(comp.getActionLabel('Split_TailCreated')).toBe('Chia khoảng (Phần đuôi)');
+    expect(comp.getActionLabel('Trimmed_Head')).toBe('Cắt đầu khoảng giá');
+    expect(comp.getActionBadgeClass('Split_TailCreated')).toContain('teal');
+    expect(comp.getActionBadgeClass('Trimmed_Head')).toContain('orange');
+  });
+
+  it('17. should load AI Dynamic Pricing recommendations and support 1-click Apply', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+
+    comp.toggleAiPricingPanel();
+    expect(comp.showAiPanel()).toBe(true);
+    expect(mockAiService.getDynamicPricingRecommendations).toHaveBeenCalledWith('prop-123', todayStr);
+    expect(comp.aiPricingSummary()?.recommendations.length).toBe(1);
+
+    const rec = comp.aiPricingSummary()!.recommendations[0];
+    comp.applyAiRecommendation(rec);
+
+    expect(mockAiService.applyDynamicPricing).toHaveBeenCalledWith({
+      roomTypeId: 'rt-1111',
+      propertyId: 'prop-123',
+      nightlyPrice: 600000,
+      effectiveFrom: todayStr,
+      effectiveTo: addDaysToDateString(todayStr, 1),
+      changeReason: 'Áp dụng AI Dynamic Pricing (Surge)'
+    });
+    expect(mockAlertService.toastSuccess).toHaveBeenCalled();
+    expect(mockRateService.getRates).toHaveBeenCalledTimes(2);
+  });
+
+  it('18. should show error toast if 1-click AI Apply fails', () => {
+    mockAiService.applyDynamicPricing.mockReturnValueOnce(
+      throwError(() => ({ error: { message: 'Khoảng ngày bị khóa.' } }))
+    );
+
+    const comp = createComponent();
+    comp.ngOnInit();
+    comp.toggleAiPricingPanel();
+
+    const rec = comp.aiPricingSummary()!.recommendations[0];
+    comp.applyAiRecommendation(rec);
+
+    expect(comp.applyingAiRoomTypeId()).toBeNull();
+    expect(mockAlertService.toastError).toHaveBeenCalledWith('Khoảng ngày bị khóa.', 'Lỗi áp dụng giá AI');
   });
 });

@@ -338,4 +338,95 @@ describe('PropertiesPage — PMS Properties & FormField Validation (Task T016)',
     component.openEditModal({ ...sampleProperties[0], provinceCode: '77' } as TenantPropertySummaryDto);
     expect(component.propertyForm.get('provinceCode')?.value).toBe('79');
   });
+
+  it('11. should wire phoneNumber, email, starRating, checkInTime/checkOutTime, and isPublished in create/edit and togglePublishStatus', () => {
+    component.openCreateModal();
+    expect(component.propertyForm.get('checkInTime')?.value).toBe('14:00');
+    expect(component.propertyForm.get('checkOutTime')?.value).toBe('12:00');
+    expect(component.propertyForm.get('isPublished')?.value).toBe(false);
+
+    component.propertyForm.patchValue({
+      name: 'Khách sạn Biển Ngọc',
+      code: 'BN01',
+      slug: 'khach-san-bien-ngoc',
+      propertyType: 2,
+      starRating: 4,
+      phoneNumber: '0908111222',
+      email: 'booking@bienngoc.vn',
+      address: '88 Trần Phú',
+      city: 'Khánh Hòa',
+      checkInTime: '14:30',
+      checkOutTime: '11:30',
+      isPublished: true,
+    });
+
+    component.saveProperty();
+    expect(mockPropertyService.createProperty).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phoneNumber: '0908111222',
+        email: 'booking@bienngoc.vn',
+        starRating: 4,
+        checkInTime: '14:30:00',
+        checkOutTime: '11:30:00',
+        isPublished: true,
+      })
+    );
+
+    const unpublishedProp = {
+      ...sampleProperties[0],
+      phoneNumber: '0901234567',
+      email: 'sg@hotel.vn',
+      starRating: 5,
+      isPublished: false,
+      checkInTime: '14:00:00',
+      checkOutTime: '12:00:00',
+    } as TenantPropertySummaryDto & { isPublished?: boolean; checkInTime?: string; checkOutTime?: string };
+
+    component.properties.set([unpublishedProp]);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Chưa công khai');
+    expect(fixture.nativeElement.textContent).toContain('0901234567');
+    expect(fixture.nativeElement.textContent).toContain('sg@hotel.vn');
+    expect(fixture.nativeElement.textContent).toContain('5 sao');
+
+    component.togglePublishStatus(unpublishedProp);
+    expect(mockPropertyService.updateProperty).toHaveBeenCalledWith(
+      unpublishedProp.id,
+      expect.objectContaining({
+        name: unpublishedProp.name,
+        phoneNumber: '0901234567',
+        email: 'sg@hotel.vn',
+        starRating: 5,
+        isPublished: true,
+      })
+    );
+    expect(component.isPropertyPublished(component.properties()[0])).toBe(true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Đang công khai');
+  });
+
+  it('12. should surface backend 409 conflict message and normalize string PropertyType enums', () => {
+    mockPropertyService.createProperty.mockReturnValueOnce(
+      throwError(() => ({ error: { message: "Mã chi nhánh 'SG01' đã tồn tại trong chuỗi." } }))
+    );
+
+    component.openCreateModal();
+    component.propertyForm.patchValue({
+      name: 'Trùng Mã',
+      code: 'SG01',
+      slug: 'trung-ma',
+      address: '10 Lê Lợi',
+      city: 'TP. Hồ Chí Minh',
+    });
+    component.saveProperty();
+
+    expect(mockAlertService.toastError).toHaveBeenCalledWith(
+      "Mã chi nhánh 'SG01' đã tồn tại trong chuỗi.",
+      'Lỗi tạo mới'
+    );
+
+    expect(component.normalizePropertyType('Homestay')).toBe(8);
+    expect(component.normalizePropertyType('Hotel')).toBe(1);
+    expect(component.getPropertyTypeLabel('Homestay')).toBe('Homestay');
+  });
 });

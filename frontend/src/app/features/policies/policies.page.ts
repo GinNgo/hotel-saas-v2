@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, effect, untracked } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, inject, signal, computed, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, FormArray, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Subscription } from 'rxjs';
@@ -11,7 +11,8 @@ import {
   SurchargeCalculationMethod,
   SURCHARGE_CALCULATION_METHOD_LABELS,
   UpdatePropertyPoliciesRequest,
-  UpdateSurchargeItemRequest
+  UpdateSurchargeItemRequest,
+  POL_C03_CANCELLATION_TIERS
 } from '../../core/models/policy.model';
 import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
@@ -22,6 +23,7 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
 @Component({
   selector: 'app-policies',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, ReactiveFormsModule, EmptyStateComponent],
   template: `
     <div class="max-w-6xl mx-auto space-y-6">
@@ -237,6 +239,48 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
                 </div>
                 <p class="text-[10px] text-slate-400">Quyết định D14: Từ 1 đến 24 giờ</p>
               </div>
+
+              <!-- Thuế VAT (%) -->
+              <div class="space-y-1.5">
+                <label class="block text-xs font-semibold text-slate-700">
+                  Thuế VAT (%) <span class="text-rose-500">*</span>
+                </label>
+                <div class="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    formControlName="taxRatePercent"
+                    [readonly]="!canUpdate()"
+                    aria-label="Thuế VAT phần trăm"
+                    title="Thuế VAT (%)"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-xs text-slate-800 transition-all"
+                  />
+                </div>
+                <p class="text-[10px] text-slate-400">Áp dụng xuất hóa đơn điện tử / in hóa đơn (0% – 100%)</p>
+              </div>
+
+              <!-- Phí dịch vụ (%) -->
+              <div class="space-y-1.5">
+                <label class="block text-xs font-semibold text-slate-700">
+                  Phí dịch vụ (%) <span class="text-rose-500">*</span>
+                </label>
+                <div class="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    formControlName="serviceFeeRatePercent"
+                    [readonly]="!canUpdate()"
+                    aria-label="Phí dịch vụ phần trăm"
+                    title="Phí dịch vụ (%)"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-xs text-slate-800 transition-all"
+                  />
+                </div>
+                <p class="text-[10px] text-slate-400">Service charge trích trên hóa đơn thanh toán (0% – 100%)</p>
+              </div>
             </div>
           </div>
 
@@ -249,21 +293,33 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
                 </div>
                 <div>
                   <h2 class="text-sm font-bold text-slate-800">Quy tắc Phụ thu (Early Check-In & Late Check-Out)</h2>
-                  <p class="text-[11px] text-slate-400">Tự động cộng thêm phụ thu khi khách check-in sớm hoặc check-out muộn</p>
+                  <p class="text-[11px] text-slate-400">Tự động cộng thêm phụ thu khi khách check-in sớm hoặc check-out muộn (hỗ trợ đủ khung 24/24)</p>
                 </div>
               </div>
 
               @if (canUpdate()) {
-                <button
-                  type="button"
-                  (click)="addSurcharge()"
-                  aria-label="Thêm khung phụ thu"
-                  title="Thêm khung phụ thu"
-                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
-                >
-                  <i class="pi pi-plus text-xs"></i>
-                  <span>Thêm khung phụ thu</span>
-                </button>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    (click)="applyFull24hSurchargePreset()"
+                    aria-label="Nạp nhanh biểu phí phụ thu 24/24 tiêu chuẩn"
+                    title="Tự động điền 6 khung phụ thu nhận sớm / trả muộn phủ đủ 24/24"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    <i class="pi pi-bolt text-xs"></i>
+                    <span>Nạp chuẩn 24/24</span>
+                  </button>
+                  <button
+                    type="button"
+                    (click)="addSurcharge()"
+                    aria-label="Thêm khung phụ thu"
+                    title="Thêm khung phụ thu"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    <i class="pi pi-plus text-xs"></i>
+                    <span>Thêm khung phụ thu</span>
+                  </button>
+                </div>
               }
             </div>
 
@@ -422,6 +478,37 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
                 }
               </div>
             }
+          </div>
+
+          <!-- Block 2b: Chính sách hủy phòng bậc thang POL-C03 & Tiền cọc 30% -->
+          <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-rose-50 text-rose-700 flex items-center justify-center font-bold text-sm">
+                  <i class="pi pi-shield"></i>
+                </div>
+                <div>
+                  <h2 class="text-sm font-bold text-slate-800">Chính sách Hủy phòng bậc thang (POL-C03) & Đặt cọc 30%</h2>
+                  <p class="text-[11px] text-slate-400">Hệ thống áp dụng tỷ lệ giữ chỗ tối thiểu 30% tổng giá trị đơn và tự động tính phí hủy theo mốc thời gian trước giờ Check-in</p>
+                </div>
+              </div>
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Cọc chuẩn: 30%
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              @for (tier of cancellationTiers; track tier.windowLabel) {
+                <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                  <div class="text-xs font-bold text-slate-800">{{ tier.windowLabel }}</div>
+                  <div class="flex items-center justify-between text-[11px]">
+                    <span class="font-semibold text-rose-700">{{ tier.feeRateLabel }}</span>
+                    <span class="font-semibold text-emerald-700">{{ tier.refundRateLabel }}</span>
+                  </div>
+                  <p class="text-[11px] text-slate-500 leading-relaxed">{{ tier.description }}</p>
+                </div>
+              }
+            </div>
           </div>
 
           <!-- Bottom Save Actions -->
@@ -630,6 +717,7 @@ export class PoliciesPage implements OnInit, OnDestroy {
   readonly propertyId = computed(() => this.authService.activePropertyId());
   readonly canRead = computed(() => this.authService.hasPermission('PROPERTIES', 1));
   readonly canUpdate = computed(() => this.authService.hasPermission('PROPERTIES', 4));
+  readonly cancellationTiers = POL_C03_CANCELLATION_TIERS;
 
   policyForm!: FormGroup;
   printConfigForm!: FormGroup;
@@ -671,6 +759,8 @@ export class PoliciesPage implements OnInit, OnDestroy {
       checkOutTime: ['12:00', [Validators.required]],
       bufferMinutes: [30, [Validators.required, Validators.min(30)]],
       maxHourlyHours: [12, [Validators.required, Validators.min(1), Validators.max(24)]],
+      taxRatePercent: [0, [Validators.required, Validators.min(0), Validators.max(100)]],
+      serviceFeeRatePercent: [0, [Validators.required, Validators.min(0), Validators.max(100)]],
       surcharges: this.fb.array([])
     });
 
@@ -695,7 +785,9 @@ export class PoliciesPage implements OnInit, OnDestroy {
       checkInTime: '12:00',
       checkOutTime: '12:00',
       bufferMinutes: 30,
-      maxHourlyHours: 12
+      maxHourlyHours: 12,
+      taxRatePercent: 0,
+      serviceFeeRatePercent: 0
     });
     this.surchargesArray.clear();
     this.policyForm.markAsPristine();
@@ -813,7 +905,9 @@ export class PoliciesPage implements OnInit, OnDestroy {
       checkInTime: checkIn,
       checkOutTime: checkOut,
       bufferMinutes: data.bufferMinutes ?? 30,
-      maxHourlyHours: data.maxHourlyHours ?? 12
+      maxHourlyHours: data.maxHourlyHours ?? 12,
+      taxRatePercent: data.taxRatePercent ?? 0,
+      serviceFeeRatePercent: data.serviceFeeRatePercent ?? 0
     });
 
     this.surchargesArray.clear();
@@ -853,6 +947,22 @@ export class PoliciesPage implements OnInit, OnDestroy {
     }));
   }
 
+  applyFull24hSurchargePreset(): void {
+    if (!this.canUpdate()) return;
+    const preset: Array<Partial<SurchargePolicyDto>> = [
+      { surchargeType: SurchargeType.EarlyCheckIn, fromTime: '00:00', toTime: '06:00', calculationMethod: SurchargeCalculationMethod.PercentageOfNightly, percentage: 100, isActive: true },
+      { surchargeType: SurchargeType.EarlyCheckIn, fromTime: '06:00', toTime: '09:00', calculationMethod: SurchargeCalculationMethod.PercentageOfNightly, percentage: 50, isActive: true },
+      { surchargeType: SurchargeType.EarlyCheckIn, fromTime: '09:00', toTime: '14:00', calculationMethod: SurchargeCalculationMethod.PercentageOfNightly, percentage: 30, isActive: true },
+      { surchargeType: SurchargeType.LateCheckOut, fromTime: '12:00', toTime: '15:00', calculationMethod: SurchargeCalculationMethod.PercentageOfNightly, percentage: 30, isActive: true },
+      { surchargeType: SurchargeType.LateCheckOut, fromTime: '15:00', toTime: '18:00', calculationMethod: SurchargeCalculationMethod.PercentageOfNightly, percentage: 50, isActive: true },
+      { surchargeType: SurchargeType.LateCheckOut, fromTime: '18:00', toTime: '23:59', calculationMethod: SurchargeCalculationMethod.PercentageOfNightly, percentage: 100, isActive: true }
+    ];
+    this.surchargesArray.clear();
+    preset.forEach(item => this.surchargesArray.push(this.createSurchargeGroup(item)));
+    this.policyForm.markAsDirty();
+    this.clientErrors.set([]);
+  }
+
   removeSurcharge(index: number): void {
     if (!this.canUpdate()) return;
     this.surchargesArray.removeAt(index);
@@ -873,6 +983,14 @@ export class PoliciesPage implements OnInit, OnDestroy {
     }
     if (val.maxHourlyHours === null || val.maxHourlyHours === undefined || val.maxHourlyHours < 1 || val.maxHourlyHours > 24) {
       errors.push('Giới hạn thời gian thuê theo giờ phải từ 1 đến 24 giờ (Quyết định D14).');
+    }
+    const taxRate = Number(val.taxRatePercent ?? 0);
+    if (Number.isNaN(taxRate) || taxRate < 0 || taxRate > 100) {
+      errors.push('Thuế VAT (%) phải nằm trong khoảng 0% đến 100%.');
+    }
+    const serviceFeeRate = Number(val.serviceFeeRatePercent ?? 0);
+    if (Number.isNaN(serviceFeeRate) || serviceFeeRate < 0 || serviceFeeRate > 100) {
+      errors.push('Phí dịch vụ (%) phải nằm trong khoảng 0% đến 100%.');
     }
 
     const surcharges = (val.surcharges || []) as Array<{
@@ -975,6 +1093,8 @@ export class PoliciesPage implements OnInit, OnDestroy {
       checkOutTime: formatTime(val.checkOutTime),
       bufferMinutes: Number(val.bufferMinutes),
       maxHourlyHours: Number(val.maxHourlyHours),
+      taxRatePercent: Number(val.taxRatePercent ?? 0),
+      serviceFeeRatePercent: Number(val.serviceFeeRatePercent ?? 0),
       surcharges: surchargesPayload
     };
 

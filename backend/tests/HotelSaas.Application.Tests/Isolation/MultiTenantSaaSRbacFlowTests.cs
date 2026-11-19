@@ -335,8 +335,8 @@ public sealed class MultiTenantSaaSRbacFlowTests
                 var branch2Policies = await propCtx.PropertySurchargePolicies.IgnoreQueryFilters()
                     .Where(sp => sp.PropertyId == branch2Id && sp.IsActive)
                     .ToListAsync();
-                Assert.Equal(4, branch1Policies.Count);
-                Assert.Equal(4, branch2Policies.Count);
+                Assert.Equal(6, branch1Policies.Count);
+                Assert.Equal(6, branch2Policies.Count);
 
                 var membershipsUserCtx = new MutableUserContext(
                     new MutableTenantService { TenantId = partnerAResponse.TenantId },

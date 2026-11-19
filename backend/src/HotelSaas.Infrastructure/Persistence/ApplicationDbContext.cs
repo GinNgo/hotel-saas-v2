@@ -116,6 +116,9 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     /// <summary>Guest reviews and ratings for properties.</summary>
     public DbSet<GuestReview> GuestReviews => Set<GuestReview>();
 
+    /// <summary>Room cleaning and inspection tasks for housekeeping operations.</summary>
+    public DbSet<HousekeepingTask> HousekeepingTasks => Set<HousekeepingTask>();
+
     /// <summary>AI feature usage tracking logs.</summary>
     public DbSet<AiUsageLog> AiUsageLogs => Set<AiUsageLog>();
 

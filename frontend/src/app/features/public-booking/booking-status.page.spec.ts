@@ -2078,5 +2078,104 @@ describe('T04-B — Guest Booking Cancellation Workflow & Preview UI', () => {
       expect(voucherLink?.getAttribute('href')).toContain('/print/voucher/tok-token-bbb');
     });
   });
+
+  describe('T015 — B2C Review State Synchronization (CheckedIn/CheckedOut & F5 Hydration)', () => {
+    it('should hydrate hasReviewed and existingReview including ownerReply on reload and hide duplicate submit form', () => {
+      const reviewedBooking: GuestBookingDetailDto = {
+        ...sampleBookingB,
+        status: 'CheckedOut',
+        hasReviewed: true,
+        existingReview: {
+          id: 'rev-existing-1',
+          rating: 4,
+          cleanlinessRating: 5,
+          locationRating: 4,
+          serviceRating: 4,
+          valueRating: 4,
+          comment: 'Phòng sạch, nhân viên thân thiện.',
+          ownerReply: 'Cảm ơn quý khách đã ghé thăm LuxeStay!',
+          repliedAtUtc: '2026-11-18T10:00:00Z',
+          createdAtUtc: '2026-11-18T08:00:00Z'
+        }
+      };
+
+      mockBookingService.getBookingByToken.mockReturnValue(of(reviewedBooking));
+      component.fetchBooking('tok-token-bbb');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(component.reviewSubmitted()).toBe(true);
+      expect(component.isAlreadyReviewed()).toBe(true);
+      expect(compiled.textContent).toContain('Cảm ơn bạn đã gửi đánh giá!');
+      expect(compiled.textContent).toContain('4/5 sao');
+      expect(compiled.textContent).toContain('Phòng sạch, nhân viên thân thiện.');
+      expect(compiled.textContent).toContain('Phản hồi từ cơ sở lưu trú');
+      expect(compiled.textContent).toContain('Cảm ơn quý khách đã ghé thăm LuxeStay!');
+      expect(compiled.textContent).not.toContain('Gửi đánh giá xác thực');
+
+      // Guard prevents duplicate API submission
+      mockBookingService.submitReview = vi.fn();
+      component.submitGuestReview();
+      expect(mockBookingService.submitReview).not.toHaveBeenCalled();
+    });
+
+    it('should render guest review form when status is CheckedIn and not yet reviewed (G0-06)', () => {
+      const checkedInBooking: GuestBookingDetailDto = {
+        ...sampleBookingB,
+        status: 'CheckedIn',
+        hasReviewed: false,
+        existingReview: null
+      };
+
+      mockBookingService.getBookingByToken.mockReturnValue(of(checkedInBooking));
+      component.fetchBooking('tok-token-bbb');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('#review-section')).not.toBeNull();
+      expect(compiled.textContent).toContain('Đánh giá kỳ nghỉ của bạn');
+      expect(compiled.textContent).toContain('Gửi đánh giá xác thực');
+    });
+
+    it('should sync booking state when submitGuestReview fails with ERR_ALREADY_REVIEWED', () => {
+      const unreviewedBooking: GuestBookingDetailDto = {
+        ...sampleBookingB,
+        status: 'CheckedOut',
+        hasReviewed: false
+      };
+      const syncedBooking: GuestBookingDetailDto = {
+        ...unreviewedBooking,
+        hasReviewed: true,
+        existingReview: {
+          id: 'rev-server-99',
+          rating: 5,
+          comment: 'Đã gửi từ tab khác',
+          createdAtUtc: '2026-11-18T09:00:00Z'
+        }
+      };
+
+      mockBookingService.getBookingByToken.mockReturnValue(of(unreviewedBooking));
+      component.fetchBooking('tok-token-bbb');
+      fixture.detectChanges();
+
+      mockBookingService.submitReview = vi.fn().mockReturnValue(
+        throwError(() => ({
+          status: 400,
+          error: {
+            errorCode: 'ERR_ALREADY_REVIEWED',
+            message: 'Đơn đặt phòng này đã được gửi đánh giá xác thực.'
+          }
+        }))
+      );
+      mockBookingService.getBookingByToken.mockReturnValue(of(syncedBooking));
+
+      component.submitGuestReview();
+      fixture.detectChanges();
+
+      expect(component.isAlreadyReviewed()).toBe(true);
+      expect(component.booking()?.existingReview?.comment).toBe('Đã gửi từ tab khác');
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Đã gửi từ tab khác');
+    });
+  });
 });
 });

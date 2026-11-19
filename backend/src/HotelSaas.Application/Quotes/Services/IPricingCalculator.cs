@@ -23,5 +23,6 @@ public interface IPricingCalculator
         DateTime endAtUtc,
         DateOnly? checkInDate,
         DateOnly? checkOutDate,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        string? promoCode = null);
 }

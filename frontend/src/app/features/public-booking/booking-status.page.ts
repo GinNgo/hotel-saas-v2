@@ -8,6 +8,7 @@ import { PublicBookingService } from '../../core/services/public-booking.service
 import { AlertService } from '../../core/services/alert.service';
 import {
   GuestBookingDetailDto,
+  GuestBookingReviewSummaryDto,
   GuestCancellationPreviewDto,
   CancelGuestBookingRequest,
   VnpayReturnVerificationDto
@@ -487,204 +488,6 @@ export interface StatusErrorState {
                     </p>
                   </div>
                 </div>
-
-                <!-- KHU VỰC ĐÁNH GIÁ TRỰC TUYẾN DÀNH CHO KHÁCH LƯU TRÚ -->
-                @if (reviewSubmitted()) {
-                  <!-- ĐÃ GỬI ĐÁNH GIÁ THÀNH CÔNG -->
-                  <div class="p-6 rounded-2xl bg-gradient-to-br from-emerald-50 via-teal-50 to-green-50 border border-emerald-200 text-emerald-950 space-y-3">
-                    <div class="flex items-center gap-3">
-                      <div class="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
-                        <i class="pi pi-check"></i>
-                      </div>
-                      <div>
-                        <h3 class="text-sm sm:text-base font-bold text-emerald-950">Cảm ơn bạn đã gửi đánh giá!</h3>
-                        <p class="text-xs text-emerald-700">Đánh giá của bạn đã được đối soát xác thực và hiển thị công khai trên hồ sơ của {{ detail.propertyName }}.</p>
-                      </div>
-                    </div>
-                    <div class="flex items-center gap-2 pt-2 border-t border-emerald-200/60 text-xs text-emerald-800">
-                      <span class="font-semibold">Điểm bạn đã đánh giá:</span>
-                      <div class="flex items-center text-amber-500">
-                        @for (s of [1,2,3,4,5]; track s) {
-                          <i class="pi" [ngClass]="s <= reviewRating() ? 'pi-star-fill' : 'pi-star text-stone-200'"></i>
-                        }
-                      </div>
-                      <span class="font-bold">({{ reviewRating() }}/5 sao - {{ getRatingLabel(reviewRating()) }})</span>
-                    </div>
-                  </div>
-                } @else {
-                  <!-- FORM NHẬP ĐÁNH GIÁ -->
-                  <section aria-label="Đánh giá kỳ nghỉ" class="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-5">
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                      <div class="space-y-0.5">
-                        <h3 class="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2">
-                          <i class="pi pi-star-fill text-amber-500"></i>
-                          <span>Đánh giá kỳ nghỉ của bạn</span>
-                        </h3>
-                        <p class="text-xs text-slate-500">
-                          Chia sẻ cảm nhận thực tế để hỗ trợ cơ sở hoàn thiện chất lượng và giúp cộng đồng du khách.
-                        </p>
-                      </div>
-                      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 self-start sm:self-auto">
-                        <i class="pi pi-shield text-[10px]"></i>
-                        <span>Đánh giá xác thực 100%</span>
-                      </span>
-                    </div>
-
-                    <!-- 1. Overall Rating -->
-                    <div class="space-y-2">
-                      <label class="block text-xs font-bold text-slate-700">
-                        Đánh giá tổng quan <span class="text-rose-500">*</span>
-                      </label>
-                      <div class="flex flex-wrap items-center gap-3">
-                        <div class="flex items-center gap-1 text-2xl cursor-pointer" role="radiogroup" aria-label="Số sao">
-                          @for (star of [1,2,3,4,5]; track star) {
-                            <button
-                              type="button"
-                              (click)="setReviewRating(star)"
-                              class="text-amber-400 hover:text-amber-500 hover:scale-110 active:scale-95 transition-all p-1 cursor-pointer focus:outline-none"
-                              [title]="star + ' sao'"
-                              [attr.aria-label]="star + ' sao'"
-                            >
-                              <i class="pi text-2xl" [ngClass]="star <= reviewRating() ? 'pi-star-fill text-amber-500' : 'pi-star text-slate-200'"></i>
-                            </button>
-                          }
-                        </div>
-                        <span class="text-xs font-bold px-3 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-200">
-                          {{ reviewRating() }}/5 sao — {{ getRatingLabel(reviewRating()) }}
-                        </span>
-                      </div>
-                    </div>
-
-                    <!-- 2. Sub-criteria Ratings Grid -->
-                    <div class="space-y-2">
-                      <span class="block text-xs font-bold text-slate-700">Chi tiết từng hạng mục dịch vụ</span>
-                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <!-- Cleanliness -->
-                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-                          <div class="text-xs">
-                            <span class="font-bold text-slate-800 block">Vệ sinh & Sạch sẽ</span>
-                            <span class="text-[10px] text-slate-500">Phòng ốc, drap giường, phòng tắm</span>
-                          </div>
-                          <div class="flex items-center gap-1">
-                            @for (s of [1,2,3,4,5]; track s) {
-                              <button
-                                type="button"
-                                (click)="reviewCleanliness.set(s)"
-                                class="text-xs p-1 cursor-pointer hover:scale-110 transition-transform focus:outline-none"
-                              >
-                                <i class="pi text-xs" [ngClass]="s <= reviewCleanliness() ? 'pi-star-fill text-emerald-600' : 'pi-star text-slate-200'"></i>
-                              </button>
-                            }
-                          </div>
-                        </div>
-
-                        <!-- Location -->
-                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-                          <div class="text-xs">
-                            <span class="font-bold text-slate-800 block">Vị trí & Cảnh quan</span>
-                            <span class="text-[10px] text-slate-500">Thuận tiện đi lại, gần điểm đến</span>
-                          </div>
-                          <div class="flex items-center gap-1">
-                            @for (s of [1,2,3,4,5]; track s) {
-                              <button
-                                type="button"
-                                (click)="reviewLocation.set(s)"
-                                class="text-xs p-1 cursor-pointer hover:scale-110 transition-transform focus:outline-none"
-                              >
-                                <i class="pi text-xs" [ngClass]="s <= reviewLocation() ? 'pi-star-fill text-[#C05621]' : 'pi-star text-slate-200'"></i>
-                              </button>
-                            }
-                          </div>
-                        </div>
-
-                        <!-- Service -->
-                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-                          <div class="text-xs">
-                            <span class="font-bold text-slate-800 block">Dịch vụ & Nhân viên</span>
-                            <span class="text-[10px] text-slate-500">Thái độ tiếp đón, hỗ trợ lễ tân</span>
-                          </div>
-                          <div class="flex items-center gap-1">
-                            @for (s of [1,2,3,4,5]; track s) {
-                              <button
-                                type="button"
-                                (click)="reviewService.set(s)"
-                                class="text-xs p-1 cursor-pointer hover:scale-110 transition-transform focus:outline-none"
-                              >
-                                <i class="pi text-xs" [ngClass]="s <= reviewService() ? 'pi-star-fill text-rose-500' : 'pi-star text-slate-200'"></i>
-                              </button>
-                            }
-                          </div>
-                        </div>
-
-                        <!-- Value -->
-                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-                          <div class="text-xs">
-                            <span class="font-bold text-slate-800 block">Đáng giá tiền</span>
-                            <span class="text-[10px] text-slate-500">Mức giá so với chất lượng nhận được</span>
-                          </div>
-                          <div class="flex items-center gap-1">
-                            @for (s of [1,2,3,4,5]; track s) {
-                              <button
-                                type="button"
-                                (click)="reviewValue.set(s)"
-                                class="text-xs p-1 cursor-pointer hover:scale-110 transition-transform focus:outline-none"
-                              >
-                                <i class="pi text-xs" [ngClass]="s <= reviewValue() ? 'pi-star-fill text-amber-600' : 'pi-star text-slate-200'"></i>
-                              </button>
-                            }
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- 3. Review Comment Textarea -->
-                    <div class="space-y-1.5">
-                      <div class="flex justify-between items-center text-xs">
-                        <label for="review-comment-textarea" class="font-bold text-slate-700">
-                          Nhận xét chi tiết (tùy chọn)
-                        </label>
-                        <span class="text-slate-400 font-mono text-[11px]">
-                          {{ reviewComment().length }}/1500 ký tự
-                        </span>
-                      </div>
-                      <textarea
-                        id="review-comment-textarea"
-                        rows="3"
-                        maxlength="1500"
-                        [ngModel]="reviewComment()"
-                        (ngModelChange)="reviewComment.set($event)"
-                        placeholder="Hãy chia sẻ điều bạn ưng ý nhất hoặc góp ý chân thành để cơ sở cải thiện tốt hơn..."
-                        class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 bg-slate-50 focus:bg-white focus:outline-indigo-500 transition-all resize-y"
-                      ></textarea>
-                    </div>
-
-                    <!-- Error Alert -->
-                    @if (reviewError()) {
-                      <div role="alert" class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
-                        <i class="pi pi-exclamation-circle text-rose-600 mt-0.5 shrink-0"></i>
-                        <span>{{ reviewError() }}</span>
-                      </div>
-                    }
-
-                    <!-- Submit Action Button -->
-                    <div class="flex items-center justify-end gap-3 pt-1">
-                      <button
-                        type="button"
-                        (click)="submitGuestReview()"
-                        [disabled]="reviewSubmitting()"
-                        class="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-xs transition-colors cursor-pointer flex items-center gap-2"
-                      >
-                        @if (reviewSubmitting()) {
-                          <i class="pi pi-spin pi-spinner text-xs"></i>
-                          <span>Đang gửi đánh giá...</span>
-                        } @else {
-                          <i class="pi pi-send text-xs"></i>
-                          <span>Gửi đánh giá xác thực</span>
-                        }
-                      </button>
-                    </div>
-                  </section>
-                }
               </div>
             } @else if (detail.status === 'Expired') {
               <!-- ĐÃ HẾT HẠN GIỮ PHÒNG -->
@@ -867,6 +670,270 @@ export interface StatusErrorState {
 
                 </div>
               </section>
+            }
+
+            <!-- B3. KHU VỰC ĐÁNH GIÁ TRỰC TUYẾN (CHECKED-IN HOẶC CHECKED-OUT — ĐỒNG BỘ F5/RELOAD) -->
+            @if (detail.status === 'CheckedIn' || detail.status === 'CheckedOut') {
+              <div id="review-section" class="mx-6 sm:mx-8 mb-6 print:hidden">
+                @if (isAlreadyReviewed()) {
+                  @let existing = activeExistingReview();
+                  @let displayRating = existing?.rating ?? reviewRating();
+                  <section aria-label="Đánh giá đã gửi" class="p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-50 via-teal-50 to-green-50 border border-emerald-200 text-emerald-950 space-y-4 shadow-xs">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0">
+                          <i class="pi pi-check"></i>
+                        </div>
+                        <div>
+                          <h3 class="text-sm sm:text-base font-bold text-emerald-950">Cảm ơn bạn đã gửi đánh giá!</h3>
+                          <p class="text-xs text-emerald-700">
+                            Đánh giá của bạn đã được đối soát xác thực cho kỳ lưu trú tại {{ detail.propertyName }}.
+                          </p>
+                        </div>
+                      </div>
+                      @if (existing?.createdAtUtc) {
+                        <span class="text-[11px] font-mono text-emerald-800 bg-white/80 px-2.5 py-1 rounded-lg border border-emerald-200 self-start sm:self-center">
+                          {{ formatVietnamFullDateTime(existing?.createdAtUtc) }}
+                        </span>
+                      }
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2 pt-3 border-t border-emerald-200/60 text-xs text-emerald-900">
+                      <span class="font-semibold">Điểm bạn đã đánh giá:</span>
+                      <div class="flex items-center text-amber-500">
+                        @for (s of [1,2,3,4,5]; track s) {
+                          <i class="pi" [ngClass]="s <= displayRating ? 'pi-star-fill' : 'pi-star text-stone-300'"></i>
+                        }
+                      </div>
+                      <span class="font-bold">({{ displayRating }}/5 sao - {{ getRatingLabel(displayRating) }})</span>
+                    </div>
+
+                    @if (existing && (existing.cleanlinessRating || existing.locationRating || existing.serviceRating || existing.valueRating)) {
+                      <div class="flex flex-wrap items-center gap-2 text-[11px]">
+                        @if (existing.cleanlinessRating) {
+                          <span class="px-2.5 py-1 rounded-lg bg-white/80 border border-emerald-200 text-emerald-900 font-semibold">
+                            Vệ sinh: {{ existing.cleanlinessRating }}/5
+                          </span>
+                        }
+                        @if (existing.locationRating) {
+                          <span class="px-2.5 py-1 rounded-lg bg-white/80 border border-emerald-200 text-emerald-900 font-semibold">
+                            Vị trí: {{ existing.locationRating }}/5
+                          </span>
+                        }
+                        @if (existing.serviceRating) {
+                          <span class="px-2.5 py-1 rounded-lg bg-white/80 border border-emerald-200 text-emerald-900 font-semibold">
+                            Dịch vụ: {{ existing.serviceRating }}/5
+                          </span>
+                        }
+                        @if (existing.valueRating) {
+                          <span class="px-2.5 py-1 rounded-lg bg-white/80 border border-emerald-200 text-emerald-900 font-semibold">
+                            Đáng giá: {{ existing.valueRating }}/5
+                          </span>
+                        }
+                      </div>
+                    }
+
+                    @if (existing?.comment) {
+                      <div class="p-3.5 rounded-xl bg-white/85 border border-emerald-200/80 text-xs sm:text-sm text-slate-800 leading-relaxed whitespace-pre-line">
+                        {{ existing?.comment }}
+                      </div>
+                    }
+
+                    @if (existing?.ownerReply) {
+                      <div class="p-4 rounded-xl bg-white border border-indigo-200/90 shadow-2xs space-y-1.5">
+                        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <span class="font-bold text-indigo-900 flex items-center gap-1.5">
+                            <i class="pi pi-reply text-indigo-600"></i>
+                            <span>Phản hồi từ cơ sở lưu trú</span>
+                          </span>
+                          @if (existing?.repliedAtUtc) {
+                            <span class="text-[11px] font-mono text-slate-500">
+                              {{ formatVietnamFullDateTime(existing?.repliedAtUtc ?? undefined) }}
+                            </span>
+                          }
+                        </div>
+                        <p class="text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line">{{ existing?.ownerReply }}</p>
+                      </div>
+                    }
+                  </section>
+                } @else {
+                  <section aria-label="Đánh giá kỳ nghỉ" class="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-slate-200 shadow-2xs space-y-5">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                      <div class="space-y-0.5">
+                        <h3 class="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2">
+                          <i class="pi pi-star-fill text-amber-500"></i>
+                          <span>Đánh giá kỳ nghỉ của bạn</span>
+                        </h3>
+                        <p class="text-xs text-slate-500">
+                          Chia sẻ cảm nhận thực tế để hỗ trợ cơ sở hoàn thiện chất lượng và giúp cộng đồng du khách.
+                        </p>
+                      </div>
+                      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 self-start sm:self-auto">
+                        <i class="pi pi-shield text-[10px]"></i>
+                        <span>Đánh giá xác thực 100%</span>
+                      </span>
+                    </div>
+
+                    <!-- 1. Overall Rating -->
+                    <div class="space-y-2">
+                      <label class="block text-xs font-bold text-slate-700">
+                        Đánh giá tổng quan <span class="text-rose-500">*</span>
+                      </label>
+                      <div class="flex flex-wrap items-center gap-3">
+                        <div class="flex items-center gap-1 text-2xl cursor-pointer" role="radiogroup" aria-label="Số sao">
+                          @for (star of [1,2,3,4,5]; track star) {
+                            <button
+                              type="button"
+                              (click)="setReviewRating(star)"
+                              class="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-amber-400 hover:text-amber-500 hover:scale-110 active:scale-95 transition-all p-1 cursor-pointer focus:outline-none"
+                              [title]="star + ' sao'"
+                              [attr.aria-label]="star + ' sao'"
+                            >
+                              <i class="pi text-2xl" [ngClass]="star <= reviewRating() ? 'pi-star-fill text-amber-500' : 'pi-star text-slate-200'"></i>
+                            </button>
+                          }
+                        </div>
+                        <span class="text-xs font-bold px-3 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-200">
+                          {{ reviewRating() }}/5 sao — {{ getRatingLabel(reviewRating()) }}
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- 2. Sub-criteria Ratings Grid -->
+                    <div class="space-y-2">
+                      <span class="block text-xs font-bold text-slate-700">Chi tiết từng hạng mục dịch vụ</span>
+                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <!-- Cleanliness -->
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
+                          <div class="text-xs">
+                            <span class="font-bold text-slate-800 block">Vệ sinh &amp; Sạch sẽ</span>
+                            <span class="text-[10px] text-slate-500">Phòng ốc, drap giường, phòng tắm</span>
+                          </div>
+                          <div class="flex items-center gap-1">
+                            @for (s of [1,2,3,4,5]; track s) {
+                              <button
+                                type="button"
+                                (click)="reviewCleanliness.set(s)"
+                                [attr.aria-label]="'Vệ sinh ' + s + ' sao'"
+                                class="text-xs p-1 cursor-pointer hover:scale-110 transition-transform focus:outline-none"
+                              >
+                                <i class="pi text-xs" [ngClass]="s <= reviewCleanliness() ? 'pi-star-fill text-emerald-600' : 'pi-star text-slate-200'"></i>
+                              </button>
+                            }
+                          </div>
+                        </div>
+
+                        <!-- Location -->
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
+                          <div class="text-xs">
+                            <span class="font-bold text-slate-800 block">Vị trí &amp; Cảnh quan</span>
+                            <span class="text-[10px] text-slate-500">Thuận tiện đi lại, gần điểm đến</span>
+                          </div>
+                          <div class="flex items-center gap-1">
+                            @for (s of [1,2,3,4,5]; track s) {
+                              <button
+                                type="button"
+                                (click)="reviewLocation.set(s)"
+                                [attr.aria-label]="'Vị trí ' + s + ' sao'"
+                                class="text-xs p-1 cursor-pointer hover:scale-110 transition-transform focus:outline-none"
+                              >
+                                <i class="pi text-xs" [ngClass]="s <= reviewLocation() ? 'pi-star-fill text-[#C05621]' : 'pi-star text-slate-200'"></i>
+                              </button>
+                            }
+                          </div>
+                        </div>
+
+                        <!-- Service -->
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
+                          <div class="text-xs">
+                            <span class="font-bold text-slate-800 block">Dịch vụ &amp; Nhân viên</span>
+                            <span class="text-[10px] text-slate-500">Thái độ tiếp đón, hỗ trợ lễ tân</span>
+                          </div>
+                          <div class="flex items-center gap-1">
+                            @for (s of [1,2,3,4,5]; track s) {
+                              <button
+                                type="button"
+                                (click)="reviewService.set(s)"
+                                [attr.aria-label]="'Dịch vụ ' + s + ' sao'"
+                                class="text-xs p-1 cursor-pointer hover:scale-110 transition-transform focus:outline-none"
+                              >
+                                <i class="pi text-xs" [ngClass]="s <= reviewService() ? 'pi-star-fill text-rose-500' : 'pi-star text-slate-200'"></i>
+                              </button>
+                            }
+                          </div>
+                        </div>
+
+                        <!-- Value -->
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
+                          <div class="text-xs">
+                            <span class="font-bold text-slate-800 block">Đáng giá tiền</span>
+                            <span class="text-[10px] text-slate-500">Mức giá so với chất lượng nhận được</span>
+                          </div>
+                          <div class="flex items-center gap-1">
+                            @for (s of [1,2,3,4,5]; track s) {
+                              <button
+                                type="button"
+                                (click)="reviewValue.set(s)"
+                                [attr.aria-label]="'Đáng giá ' + s + ' sao'"
+                                class="text-xs p-1 cursor-pointer hover:scale-110 transition-transform focus:outline-none"
+                              >
+                                <i class="pi text-xs" [ngClass]="s <= reviewValue() ? 'pi-star-fill text-amber-600' : 'pi-star text-slate-200'"></i>
+                              </button>
+                            }
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 3. Review Comment Textarea -->
+                    <div class="space-y-1.5">
+                      <div class="flex justify-between items-center text-xs">
+                        <label for="review-comment-textarea" class="font-bold text-slate-700">
+                          Nhận xét chi tiết (tùy chọn)
+                        </label>
+                        <span class="text-slate-400 font-mono text-[11px]">
+                          {{ reviewComment().length }}/1500 ký tự
+                        </span>
+                      </div>
+                      <textarea
+                        id="review-comment-textarea"
+                        rows="3"
+                        maxlength="1500"
+                        [ngModel]="reviewComment()"
+                        (ngModelChange)="reviewComment.set($event)"
+                        placeholder="Hãy chia sẻ điều bạn ưng ý nhất hoặc góp ý chân thành để cơ sở cải thiện tốt hơn..."
+                        class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 bg-slate-50 focus:bg-white focus:outline-indigo-500 transition-all resize-y"
+                      ></textarea>
+                    </div>
+
+                    <!-- Error Alert -->
+                    @if (reviewError()) {
+                      <div role="alert" class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+                        <i class="pi pi-exclamation-circle text-rose-600 mt-0.5 shrink-0"></i>
+                        <span>{{ reviewError() }}</span>
+                      </div>
+                    }
+
+                    <!-- Submit Action Button -->
+                    <div class="flex items-center justify-end gap-3 pt-1">
+                      <button
+                        type="button"
+                        (click)="submitGuestReview()"
+                        [disabled]="reviewSubmitting()"
+                        class="min-h-[44px] px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-xs transition-colors cursor-pointer flex items-center gap-2"
+                      >
+                        @if (reviewSubmitting()) {
+                          <i class="pi pi-spin pi-spinner text-xs"></i>
+                          <span>Đang gửi đánh giá...</span>
+                        } @else {
+                          <i class="pi pi-send text-xs"></i>
+                          <span>Gửi đánh giá xác thực</span>
+                        }
+                      </button>
+                    </div>
+                  </section>
+                }
+              </div>
             }
 
             <!-- C. KHÓA PHÒNG ĐIỆN TỬ SMART LOCK PIN (HIỂN THỊ KHI CONFIRMED HOẶC CHECKEDIN & CÓ PIN THẬT ACTIVE - ẨN KHI CHƯA XÁC NHẬN & KHI IN) -->
@@ -1763,6 +1830,14 @@ export class BookingStatusPage implements OnInit {
   readonly reviewSubmitting = signal<boolean>(false);
   readonly reviewSubmitted = signal<boolean>(false);
   readonly reviewError = signal<string>('');
+  readonly submittedReview = signal<GuestBookingReviewSummaryDto | null>(null);
+  readonly activeExistingReview = computed<GuestBookingReviewSummaryDto | null>(
+    () => this.submittedReview() ?? this.booking()?.existingReview ?? null
+  );
+  readonly isAlreadyReviewed = computed<boolean>(() => {
+    const b = this.booking();
+    return this.reviewSubmitted() || Boolean(b?.hasReviewed) || Boolean(b?.existingReview);
+  });
 
   private fetchGeneration = 0;
   private timerInterval?: ReturnType<typeof setInterval>;
@@ -1787,7 +1862,7 @@ export class BookingStatusPage implements OnInit {
         ).subscribe({
           next: (fresh) => {
             if (this.isDestroyed || gen !== this.fetchGeneration) return;
-            this.booking.set(fresh);
+            this.applyBookingDetail(fresh);
             if (fresh.status === 'PendingPayment' && fresh.holdExpiresAtUtc && !this.isHoldExpired()) {
               this.startHoldCountdown(fresh.holdExpiresAtUtc, fresh.status);
               this.startPolling(token);
@@ -1874,6 +1949,18 @@ export class BookingStatusPage implements OnInit {
         this.searchToken = token;
         this.fetchBooking(token);
       }
+    }
+
+    if (this.route.fragment) {
+      this.route.fragment.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(frag => {
+        if (frag === 'review-section' && typeof document !== 'undefined' && !this.isDestroyed) {
+          setTimeout(() => {
+            if (!this.isDestroyed) {
+              document.getElementById('review-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+          }, 100);
+        }
+      });
     }
   }
 
@@ -1980,6 +2067,7 @@ export class BookingStatusPage implements OnInit {
     this.reviewSubmitting.set(false);
     this.reviewSubmitted.set(false);
     this.reviewError.set('');
+    this.submittedReview.set(null);
 
     // Reset cancel modal state
     this.isCancelModalOpen.set(false);
@@ -2035,6 +2123,7 @@ export class BookingStatusPage implements OnInit {
     this.reviewSubmitting.set(false);
     this.reviewSubmitted.set(false);
     this.reviewError.set('');
+    this.submittedReview.set(null);
 
     const currentGen = ++this.fetchGeneration;
 
@@ -2044,7 +2133,7 @@ export class BookingStatusPage implements OnInit {
       next: (b) => {
         if (currentGen !== this.fetchGeneration) return; // Guard: request A đến trễ không đè B
         this.isSearching.set(false);
-        this.booking.set(b);
+        this.applyBookingDetail(b);
         this.loadVietQr(b);
         if (b.status === 'PendingPayment' && b.holdExpiresAtUtc && !this.isHoldExpired()) {
           this.startHoldCountdown(b.holdExpiresAtUtc, b.status);
@@ -2648,7 +2737,7 @@ export class BookingStatusPage implements OnInit {
 
   submitGuestReview(): void {
     const b = this.booking();
-    if (!b || this.reviewSubmitting()) return;
+    if (!b || this.reviewSubmitting() || this.isAlreadyReviewed()) return;
     const rating = this.reviewRating();
     if (rating < 1 || rating > 5) {
       this.reviewError.set('Vui lòng chọn số sao từ 1 đến 5.');
@@ -2667,18 +2756,55 @@ export class BookingStatusPage implements OnInit {
       valueRating: this.reviewValue(),
       comment: this.reviewComment().trim() || undefined
     }).subscribe({
-      next: () => {
+      next: (createdReview) => {
         this.reviewSubmitting.set(false);
         this.reviewSubmitted.set(true);
+        const createdObj = createdReview as unknown as {
+          createdAtUtc?: string;
+          repliedAtUtc?: string | null;
+        } | null;
+        const summary: GuestBookingReviewSummaryDto = {
+          id: createdReview?.id ?? '',
+          rating: createdReview?.rating ?? this.reviewRating(),
+          cleanlinessRating: createdReview?.cleanlinessRating ?? this.reviewCleanliness(),
+          locationRating: createdReview?.locationRating ?? this.reviewLocation(),
+          serviceRating: createdReview?.serviceRating ?? this.reviewService(),
+          valueRating: createdReview?.valueRating ?? this.reviewValue(),
+          comment: createdReview?.comment ?? (this.reviewComment().trim() || null),
+          ownerReply: createdReview?.ownerReply ?? null,
+          repliedAtUtc: createdObj?.repliedAtUtc ?? createdReview?.repliedAt ?? null,
+          createdAtUtc: createdObj?.createdAtUtc ?? createdReview?.createdAt ?? new Date().toISOString()
+        };
+        this.submittedReview.set(summary);
+        this.booking.update(curr => (curr ? { ...curr, hasReviewed: true, existingReview: summary } : curr));
         this.alertService.success('Đánh giá của bạn đã được ghi nhận thành công! Cảm ơn bạn đã phản hồi.', 'Gửi đánh giá thành công');
       },
       error: (err) => {
         this.reviewSubmitting.set(false);
+        const errorCode = err?.error?.errorCode || err?.error?.code;
         const msg = err?.error?.message || err?.message || 'Không thể gửi đánh giá. Vui lòng thử lại sau.';
         this.reviewError.set(msg);
+        if (errorCode === 'ERR_ALREADY_REVIEWED' || /đã được gửi đánh giá/i.test(String(msg))) {
+          this.reviewSubmitted.set(true);
+          this.syncHoldStateFromServer(b.lookupToken || this.lastFetchedToken);
+        }
         this.alertService.error(msg, 'Gửi đánh giá thất bại');
       }
     });
+  }
+
+  private applyBookingDetail(detail: GuestBookingDetailDto): void {
+    this.booking.set(detail);
+    if (detail.hasReviewed || detail.existingReview) {
+      this.submittedReview.set(detail.existingReview ?? null);
+      this.reviewSubmitted.set(true);
+      if (detail.existingReview?.rating) {
+        this.reviewRating.set(detail.existingReview.rating);
+      }
+    } else {
+      this.submittedReview.set(null);
+      this.reviewSubmitted.set(false);
+    }
   }
 
   printConfirmation(): void {
@@ -2771,7 +2897,7 @@ export class BookingStatusPage implements OnInit {
     ).subscribe({
       next: fresh => {
         if (this.isDestroyed || gen !== this.fetchGeneration || this.booking()?.lookupToken !== token) return;
-        this.booking.set(fresh);
+        this.applyBookingDetail(fresh);
         if (fresh.status === 'PendingPayment' && fresh.holdExpiresAtUtc) {
           this.startHoldCountdown(fresh.holdExpiresAtUtc, fresh.status);
           this.startPolling(token);

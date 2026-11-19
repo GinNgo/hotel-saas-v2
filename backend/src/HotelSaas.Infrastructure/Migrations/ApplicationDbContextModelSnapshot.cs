@@ -290,6 +290,54 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.ToTable("GuestReviews");
                 });
 
+            modelBuilder.Entity("HotelSaas.Domain.Entities.HousekeepingTask", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AssignedToId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AssignedToUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RoomId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedToId");
+
+                    b.HasIndex("RoomId");
+
+                    b.ToTable("HousekeepingTasks");
+                });
+
             modelBuilder.Entity("HotelSaas.Domain.Entities.Invoice", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2053,6 +2101,23 @@ namespace HotelSaas.Infrastructure.Migrations
                     b.Navigation("Reservation");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("HotelSaas.Domain.Entities.HousekeepingTask", b =>
+                {
+                    b.HasOne("HotelSaas.Domain.Entities.User", "AssignedTo")
+                        .WithMany()
+                        .HasForeignKey("AssignedToId");
+
+                    b.HasOne("HotelSaas.Domain.Entities.Room", "Room")
+                        .WithMany()
+                        .HasForeignKey("RoomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AssignedTo");
+
+                    b.Navigation("Room");
                 });
 
             modelBuilder.Entity("HotelSaas.Domain.Entities.Invoice", b =>

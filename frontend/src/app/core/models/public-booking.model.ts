@@ -347,6 +347,8 @@ export interface GuestHoldDto {
   canExtendHold?: boolean;
   status?: string;
   isPhoneVerified?: boolean;
+  promoCode?: string | null;
+  promoDiscountAmount?: number | null;
   breakdown?: QuoteBreakdownItemDto[];
 }
 
@@ -397,7 +399,24 @@ export interface GuestBookingDetailDto {
   cancellationFee?: number;
   refundableAmount?: number;
   refundStatus?: string;
+  promoCode?: string | null;
+  promoDiscountAmount?: number | null;
+  hasReviewed?: boolean;
+  existingReview?: GuestBookingReviewSummaryDto | null;
   breakdown: QuoteBreakdownItemDto[];
+}
+
+export interface GuestBookingReviewSummaryDto {
+  id: string;
+  rating: number;
+  cleanlinessRating?: number | null;
+  locationRating?: number | null;
+  serviceRating?: number | null;
+  valueRating?: number | null;
+  comment?: string | null;
+  ownerReply?: string | null;
+  repliedAtUtc?: string | null;
+  createdAtUtc: string;
 }
 
 export interface CalculatePublicQuoteRequest {
@@ -408,6 +427,7 @@ export interface CalculatePublicQuoteRequest {
   endAtUtc: string;
   checkInDate?: string;
   checkOutDate?: string;
+  promoCode?: string | null;
 }
 
 export interface CreateGuestHoldRequest {
@@ -425,6 +445,7 @@ export interface CreateGuestHoldRequest {
   expectedTotalAmount?: number;
   idempotencyKey?: string;
   pointsToRedeem?: number;
+  promoCode?: string | null;
   guestUserId?: string;
   firebaseIdToken?: string;
   paymentMethodPreference?: 'Cash' | 'VietQR' | 'VNPay' | 'BankTransfer';
@@ -509,11 +530,21 @@ export interface SubmitGuestReviewRequest {
 export interface PromotionDealDto {
   id: string;
   code: string;
+  name?: string;
   title: string;
   description: string;
   discountBadge: string;
-  discountType: 'Percent' | 'Amount';
+  discountType: 'Percent' | 'Amount' | 'FreeNight';
+  type?: number;
+  value?: number;
   discountValue: number;
+  minNights?: number;
+  maxUsage?: number | null;
+  currentUsage?: number;
+  startsAtUtc?: string;
+  endsAtUtc?: string;
+  tenantName?: string;
+  propertySlug?: string | null;
   rentalType?: RentalType;
   applicableDestinations?: string[];
   expiresAt: string;

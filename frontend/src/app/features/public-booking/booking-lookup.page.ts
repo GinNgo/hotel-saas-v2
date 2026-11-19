@@ -350,31 +350,78 @@ export interface LookupErrorState {
 
             </div>
 
-            <!-- E. ĐÁNH GIÁ TRẢI NGHIỆM (KHI ĐÃ CHECK-OUT) — THÔNG BÁO CHƯA HỖ TRỢ QUA API CÔNG KHAI (T03) -->
-            @if (detail.status === 'CheckedOut') {
-              <div class="p-6 sm:p-8 bg-slate-50/70 border-t border-slate-100 space-y-3 print:hidden">
+            <!-- E. ĐÁNH GIÁ TRẢI NGHIỆM (KHI ĐÃ CHECK-IN HOẶC CHECK-OUT) -->
+            @if (detail.status === 'CheckedIn' || detail.status === 'CheckedOut') {
+              <section aria-label="Đánh giá trải nghiệm kỳ nghỉ" class="p-6 sm:p-8 bg-slate-50/70 border-t border-slate-100 space-y-3 print:hidden">
                 <div class="space-y-1">
                   <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                    <i class="pi pi-star text-amber-500 text-sm"></i>
+                    <i class="pi pi-star-fill text-amber-500 text-sm"></i>
                     <span>Đánh giá trải nghiệm kỳ nghỉ</span>
                   </h3>
                   <p class="text-xs text-slate-500 leading-relaxed">
-                    Đơn đặt phòng này đã hoàn tất kỳ lưu trú.
+                    {{ detail.status === 'CheckedOut'
+                      ? 'Đơn đặt phòng này đã hoàn tất kỳ lưu trú.'
+                      : 'Bạn đang trong kỳ lưu trú và đủ điều kiện chia sẻ đánh giá trải nghiệm tại cơ sở.' }}
                   </p>
                 </div>
 
-                <div class="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/90 text-amber-900 text-xs flex items-start gap-3">
-                  <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
-                    <i class="pi pi-info-circle text-sm"></i>
+                @if (detail.hasReviewed && detail.existingReview; as existing) {
+                  <div class="p-4 sm:p-5 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-emerald-950 space-y-3">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div class="space-y-1">
+                        <p class="font-bold text-xs sm:text-sm text-emerald-950 flex items-center gap-2">
+                          <i class="pi pi-check-circle text-emerald-600"></i>
+                          <span>Bạn đã gửi đánh giá xác thực ({{ existing.rating }}/5 sao)</span>
+                        </p>
+                        @if (existing.comment) {
+                          <p class="text-xs text-emerald-900/90 leading-relaxed">{{ existing.comment }}</p>
+                        }
+                      </div>
+                      <a
+                        [routerLink]="['/booking/status', detail.lookupToken || detail.confirmationCode]"
+                        fragment="review-section"
+                        class="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-2xs transition-colors shrink-0"
+                      >
+                        <i class="pi pi-eye text-xs"></i>
+                        <span>Xem đánh giá &amp; phản hồi</span>
+                      </a>
+                    </div>
+
+                    @if (existing.ownerReply) {
+                      <div class="p-3 rounded-xl bg-white/90 border border-emerald-200 text-xs space-y-1">
+                        <div class="font-bold text-emerald-800 flex items-center gap-1.5">
+                          <i class="pi pi-reply text-[11px]"></i>
+                          <span>Phản hồi từ cơ sở lưu trú:</span>
+                        </div>
+                        <p class="text-slate-700 leading-relaxed">{{ existing.ownerReply }}</p>
+                      </div>
+                    }
                   </div>
-                  <div class="space-y-1">
-                    <p class="font-bold text-amber-950">Chức năng đánh giá trực tuyến chưa khả dụng</p>
-                    <p class="text-amber-800 leading-relaxed">
-                      Hệ thống hiện tại chưa hỗ trợ gửi đánh giá trực tuyến qua API công khai. Cơ sở lưu trú sẽ liên hệ trực tiếp để ghi nhận phản hồi và nâng cao chất lượng dịch vụ.
-                    </p>
+                } @else {
+                  <div class="p-4 sm:p-5 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 text-indigo-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div class="flex items-start gap-3">
+                      <div class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 mt-0.5">
+                        <i class="pi pi-star-fill text-sm"></i>
+                      </div>
+                      <div class="space-y-1">
+                        <p class="font-bold text-xs sm:text-sm text-indigo-950">Chia sẻ đánh giá kỳ nghỉ của bạn</p>
+                        <p class="text-xs text-indigo-900/85 leading-relaxed">
+                          Gửi đánh giá trực tuyến xác thực để giúp cơ sở hoàn thiện chất lượng dịch vụ.
+                        </p>
+                      </div>
+                    </div>
+
+                    <a
+                      [routerLink]="['/booking/status', detail.lookupToken || detail.confirmationCode]"
+                      fragment="review-section"
+                      class="inline-flex items-center justify-center gap-2 min-h-[44px] px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-bold shadow-2xs transition-colors shrink-0"
+                    >
+                      <i class="pi pi-pencil text-xs"></i>
+                      <span>Gửi đánh giá ngay</span>
+                    </a>
                   </div>
-                </div>
-              </div>
+                }
+              </section>
             }
 
             <!-- F. FOOTER HÀNH ĐỘNG (CHUẨN HÓA PRIMARY & SECONDARY CTA) -->
@@ -1003,11 +1050,6 @@ export class BookingLookupPageComponent implements OnInit {
     if (typeof window !== 'undefined') {
       window.print();
     }
-  }
-
-  submitReview(): void {
-    // T03: Khi chưa có API lưu thật được phê duyệt, không gọi API giả hoặc báo thành công giả
-    this.alertService.toastWarning('Tính năng gửi đánh giá trực tuyến hiện chưa được hỗ trợ. Cơ sở lưu trú sẽ liên hệ trực tiếp để ghi nhận phản hồi của Quý khách.');
   }
 
   copyToken(token?: string): void {

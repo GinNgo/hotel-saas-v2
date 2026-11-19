@@ -1,13 +1,22 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, effect } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, Subscription, of } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap, tap, catchError } from 'rxjs/operators';
 import { RoomService, GetRoomsFilter, RoomSyncStatus } from '../../core/services/room.service';
+import { HousekeepingService } from '../../core/services/housekeeping.service';
 import { AlertService } from '../../core/services/alert.service';
 import { AuthService } from '../../core/services/auth.service';
 import { RoomDto } from '../../core/models/room.model';
 import { RoomStatus, ROOM_STATUS_LABELS } from '../../core/models/enums';
+import {
+  HousekeepingPriority,
+  HousekeepingStaffOptionDto,
+  HousekeepingTaskDto,
+  HousekeepingTaskStatus,
+  HOUSEKEEPING_PRIORITY_LABELS,
+  HOUSEKEEPING_TASK_STATUS_LABELS
+} from '../../core/models/housekeeping.model';
 import { HttpErrorResponse } from '@angular/common/http';
 import { SkeletonTableComponent } from '../../shared/components/skeleton-table/skeleton-table.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
@@ -26,6 +35,7 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 @Component({
   selector: 'app-housekeeping',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     FormsModule,
@@ -82,17 +92,242 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 
           <button
             type="button"
-            (click)="loadRooms()"
-            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-600 text-xs font-medium transition-colors shadow-2xs cursor-pointer"
-            title="Làm mới bảng buồng phòng"
-            aria-label="Làm mới bảng buồng phòng"
+            (click)="refreshActiveView()"
+            class="inline-flex items-center gap-2 min-h-[44px] min-w-[44px] px-3 py-2 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-600 text-xs font-medium transition-colors shadow-2xs cursor-pointer"
+            title="Làm mới dữ liệu buồng phòng"
+            aria-label="Làm mới dữ liệu buồng phòng"
           >
-            <i class="pi pi-refresh" [class.animate-spin]="loading()"></i>
+            <i class="pi pi-refresh" [class.animate-spin]="loading() || tasksLoading()"></i>
             <span class="hidden sm:inline">Làm mới dữ liệu</span>
           </button>
         </div>
       </div>
 
+      <!-- View Switcher: Queue vs Room Board -->
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1 text-xs font-semibold" role="tablist" aria-label="Chế độ xem Buồng phòng">
+          <button
+            type="button"
+            role="tab"
+            [attr.aria-selected]="activeViewTab() === 'queue'"
+            (click)="setViewTab('queue')"
+            class="inline-flex items-center gap-2 min-h-[44px] px-4 py-2 rounded-lg transition-colors cursor-pointer"
+            [ngClass]="activeViewTab() === 'queue' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+          >
+            <i class="pi pi-list-check text-xs"></i>
+            <span>Hàng đợi Buồng phòng</span>
+            @if (urgentTasksCount() > 0) {
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700">
+                {{ urgentTasksCount() }}
+              </span>
+            }
+          </button>
+          <button
+            type="button"
+            role="tab"
+            [attr.aria-selected]="activeViewTab() === 'board'"
+            (click)="setViewTab('board')"
+            class="inline-flex items-center gap-2 min-h-[44px] px-4 py-2 rounded-lg transition-colors cursor-pointer"
+            [ngClass]="activeViewTab() === 'board' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+          >
+            <i class="pi pi-th-large text-xs"></i>
+            <span>Sơ đồ Phòng theo tầng</span>
+          </button>
+        </div>
+
+        @if (activeViewTab() === 'queue' && canCreateTask()) {
+          <button
+            type="button"
+            (click)="openCreateTaskModal()"
+            aria-label="Tạo nhiệm vụ dọn phòng mới"
+            class="inline-flex items-center gap-2 min-h-[44px] min-w-[44px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors shadow-xs cursor-pointer"
+          >
+            <i class="pi pi-plus text-xs"></i>
+            <span>Tạo nhiệm vụ dọn phòng</span>
+          </button>
+        }
+      </div>
+
+      <!-- TAB 1: HANG DOI BUONG PHONG (TASK QUEUE) -->
+      @if (activeViewTab() === 'queue') {
+        <!-- Task Queue KPIs -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div class="p-3.5 rounded-xl border border-slate-200 bg-white">
+            <div class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Tổng nhiệm vụ</div>
+            <div class="text-xl font-bold text-slate-800 mt-1">{{ tasks().length }}</div>
+          </div>
+          <div class="p-3.5 rounded-xl border border-rose-200 bg-rose-50/50">
+            <div class="text-[11px] font-semibold text-rose-700 uppercase tracking-wider">Khẩn (Sắp check-in)</div>
+            <div class="text-xl font-bold text-rose-800 mt-1">{{ urgentTasksCount() }}</div>
+          </div>
+          <div class="p-3.5 rounded-xl border border-amber-200 bg-amber-50/50">
+            <div class="text-[11px] font-semibold text-amber-700 uppercase tracking-wider">Chờ / Đang dọn</div>
+            <div class="text-xl font-bold text-amber-800 mt-1">{{ activeTasksCount() }}</div>
+          </div>
+          <div class="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/50">
+            <div class="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider">Hoàn tất</div>
+            <div class="text-xl font-bold text-emerald-800 mt-1">{{ completedTasksCount() }}</div>
+          </div>
+        </div>
+
+        <!-- Task Filters -->
+        <div class="bg-white rounded-2xl border border-slate-200/80 p-3.5 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2.5">
+            <select
+              [ngModel]="taskStatusFilter()"
+              (ngModelChange)="onTaskStatusFilterChange($event)"
+              aria-label="Lọc theo trạng thái nhiệm vụ dọn phòng"
+              class="min-h-[44px] px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 font-medium outline-none focus:border-emerald-500"
+            >
+              <option value="ALL">Tất cả trạng thái</option>
+              <option [value]="HousekeepingTaskStatus.Pending">Chờ nhận</option>
+              <option [value]="HousekeepingTaskStatus.Claimed">Đã nhận việc</option>
+              <option [value]="HousekeepingTaskStatus.InProgress">Đang dọn</option>
+              <option [value]="HousekeepingTaskStatus.Completed">Hoàn tất sạch</option>
+            </select>
+
+            <select
+              [ngModel]="taskPriorityFilter()"
+              (ngModelChange)="onTaskPriorityFilterChange($event)"
+              aria-label="Lọc theo mức độ ưu tiên"
+              class="min-h-[44px] px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 font-medium outline-none focus:border-emerald-500"
+            >
+              <option value="ALL">Tất cả ưu tiên</option>
+              <option [value]="HousekeepingPriority.Urgent">Khẩn cấp</option>
+              <option [value]="HousekeepingPriority.High">Cao</option>
+              <option [value]="HousekeepingPriority.Normal">Bình thường</option>
+              <option [value]="HousekeepingPriority.Low">Thấp</option>
+            </select>
+
+            <label class="inline-flex items-center gap-2 min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 bg-slate-50/60 text-xs font-medium text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                [ngModel]="taskAssignedToMe()"
+                (ngModelChange)="onAssignedToMeChange($event)"
+                aria-label="Chỉ hiện việc được giao cho tôi"
+                class="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+              />
+              <span>Việc của tôi</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Task Queue List -->
+        @if (tasksLoading() && tasks().length === 0) {
+          <app-skeleton-table [rows]="5" />
+        } @else if (tasks().length === 0) {
+          <div class="bg-white rounded-2xl border border-slate-200/80 p-10 shadow-2xs">
+            <app-empty-state
+              iconClass="pi pi-sparkles"
+              title="Hàng đợi buồng phòng đang trống"
+              description="Hiện chưa có nhiệm vụ dọn phòng nào khớp bộ lọc. Nhấn 'Tạo nhiệm vụ dọn phòng' hoặc chờ hệ thống tự tạo sau khi khách Check-out."
+            />
+          </div>
+        } @else {
+          <div class="space-y-3">
+            @for (task of tasks(); track task.id) {
+              <div
+                class="bg-white rounded-2xl border p-4 shadow-2xs transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                [ngClass]="task.hasUpcomingCheckIn || task.effectivePriority === HousekeepingPriority.Urgent ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200/90'"
+              >
+                <div class="space-y-2 flex-1 min-w-0">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-base font-bold text-slate-900">Phòng {{ task.roomNumber }}</span>
+                    <span class="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700">
+                      Tầng {{ task.floor }}
+                    </span>
+                    <span class="text-xs text-slate-500">{{ task.roomTypeName }}</span>
+                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border" [ngClass]="getTaskStatusBadgeClass(task.status)">
+                      {{ getTaskStatusLabel(task.status) }}
+                    </span>
+                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border" [ngClass]="getPriorityBadgeClass(task.effectivePriority)">
+                      {{ getPriorityLabel(task.effectivePriority) }}
+                    </span>
+                    @if (task.hasUpcomingCheckIn) {
+                      <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-600 text-white">
+                        <i class="pi pi-bolt text-[10px]"></i>
+                        <span>Khách sắp nhận phòng{{ task.nextCheckInAtUtc ? ' (' + formatNextCheckIn(task.nextCheckInAtUtc) + ')' : '' }}</span>
+                      </span>
+                    }
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
+                    <span>
+                      Trạng thái phòng: <strong class="text-slate-800">{{ getStatusLabel(task.roomStatus) }}</strong>
+                    </span>
+                    <span>
+                      Phụ trách: <strong class="text-slate-800">{{ task.assignedToName || 'Chưa phân công' }}</strong>
+                    </span>
+                    @if (task.notes) {
+                      <span class="text-slate-500 italic">{{ task.notes }}</span>
+                    }
+                  </div>
+                </div>
+
+                <!-- Task Controls (>= 44x44px touch targets) -->
+                @if (canUpdate() && task.status !== HousekeepingTaskStatus.Completed) {
+                  <div class="flex flex-wrap items-center gap-2 shrink-0">
+                    @if (housekeepingStaff().length > 0) {
+                      <select
+                        [ngModel]="task.assignedToUserId || ''"
+                        (ngModelChange)="assignTask(task, $event)"
+                        [disabled]="updatingTaskId() === task.id"
+                        [attr.aria-label]="'Phân công nhân viên cho phòng ' + task.roomNumber"
+                        class="min-h-[44px] min-w-[44px] px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 font-medium outline-none focus:border-emerald-500"
+                      >
+                        <option value="">-- Phân công nhân viên --</option>
+                        @for (staff of housekeepingStaff(); track staff.userId) {
+                          <option [value]="staff.userId">{{ staff.fullName }}</option>
+                        }
+                      </select>
+                    }
+
+                    @if (task.status === HousekeepingTaskStatus.Pending) {
+                      <button
+                        type="button"
+                        (click)="claimTask(task)"
+                        [disabled]="updatingTaskId() === task.id"
+                        [attr.aria-label]="'Tự nhận việc phòng ' + task.roomNumber"
+                        class="inline-flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 text-indigo-700 text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        <i class="pi pi-hand-point-up text-xs"></i>
+                        <span>Tự nhận việc</span>
+                      </button>
+                    }
+
+                    @if (task.status === HousekeepingTaskStatus.Pending || task.status === HousekeepingTaskStatus.Claimed) {
+                      <button
+                        type="button"
+                        (click)="startTask(task)"
+                        [disabled]="updatingTaskId() === task.id"
+                        [attr.aria-label]="'Bắt đầu dọn phòng ' + task.roomNumber"
+                        class="inline-flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        <i class="pi pi-play text-xs"></i>
+                        <span>Bắt đầu dọn</span>
+                      </button>
+                    }
+
+                    <button
+                      type="button"
+                      (click)="completeTask(task)"
+                      [disabled]="updatingTaskId() === task.id"
+                      [attr.aria-label]="'Hoàn tất sạch phòng ' + task.roomNumber"
+                      class="inline-flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold transition-colors cursor-pointer"
+                    >
+                      <i class="pi pi-check-circle text-xs"></i>
+                      <span>Hoàn tất sạch</span>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+      }
+
+      <!-- TAB 2: ROOM BOARD -->
+      @if (activeViewTab() === 'board') {
       <!-- KPI Summary Cards (Trên trang đang hiển thị) -->
       <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <!-- All Rooms on Page -->
@@ -427,15 +662,145 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
           />
         </div>
       }
+      }
+
+      <!-- Create Housekeeping Task Modal -->
+      @if (isCreateTaskModalOpen()) {
+        <div
+          class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Tạo nhiệm vụ dọn phòng mới"
+          (click)="closeCreateTaskModal()"
+        >
+          <div
+            (click)="$event.stopPropagation()"
+            class="bg-white rounded-2xl border border-slate-200 w-[min(30rem,calc(100vw-2rem))] shadow-2xl overflow-hidden"
+          >
+            <div class="px-5 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <h3 class="text-sm font-bold text-slate-900">Tạo nhiệm vụ dọn phòng</h3>
+              <button
+                type="button"
+                (click)="closeCreateTaskModal()"
+                aria-label="Đóng hộp thoại tạo nhiệm vụ"
+                class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+              >
+                <i class="pi pi-times text-xs"></i>
+              </button>
+            </div>
+            <div class="p-5 space-y-4 text-xs">
+              <div class="space-y-1">
+                <label class="block font-semibold text-slate-700">Chọn phòng *</label>
+                <select
+                  [ngModel]="newTaskRoomId()"
+                  (ngModelChange)="newTaskRoomId.set($event)"
+                  aria-label="Chọn phòng cần dọn"
+                  class="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800"
+                >
+                  <option value="">-- Chọn phòng --</option>
+                  @for (rm of rooms(); track rm.id) {
+                    <option [value]="rm.id">Phòng {{ rm.roomNumber }} (Tầng {{ rm.floor }} - {{ getStatusLabel(rm.status) }})</option>
+                  }
+                </select>
+              </div>
+              <div class="space-y-1">
+                <label class="block font-semibold text-slate-700">Mức độ ưu tiên</label>
+                <select
+                  [ngModel]="newTaskPriority()"
+                  (ngModelChange)="newTaskPriority.set($event)"
+                  aria-label="Chọn mức độ ưu tiên"
+                  class="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800"
+                >
+                  <option [value]="HousekeepingPriority.Low">Thấp</option>
+                  <option [value]="HousekeepingPriority.Normal">Bình thường</option>
+                  <option [value]="HousekeepingPriority.High">Cao</option>
+                  <option [value]="HousekeepingPriority.Urgent">Khẩn cấp</option>
+                </select>
+              </div>
+              @if (housekeepingStaff().length > 0) {
+                <div class="space-y-1">
+                  <label class="block font-semibold text-slate-700">Phân công (tùy chọn)</label>
+                  <select
+                    [ngModel]="newTaskAssigneeId()"
+                    (ngModelChange)="newTaskAssigneeId.set($event)"
+                    aria-label="Chọn nhân viên phụ trách"
+                    class="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800"
+                  >
+                    <option value="">Để nhân viên tự nhận (Chờ nhận)</option>
+                    @for (staff of housekeepingStaff(); track staff.userId) {
+                      <option [value]="staff.userId">{{ staff.fullName }}</option>
+                    }
+                  </select>
+                </div>
+              }
+              <div class="space-y-1">
+                <label class="block font-semibold text-slate-700">Ghi chú</label>
+                <textarea
+                  rows="2"
+                  [ngModel]="newTaskNotes()"
+                  (ngModelChange)="newTaskNotes.set($event)"
+                  placeholder="VD: Thay ga gối, bổ sung minibar..."
+                  class="w-full p-2.5 rounded-xl border border-slate-300 bg-white"
+                ></textarea>
+              </div>
+            </div>
+            <div class="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                (click)="closeCreateTaskModal()"
+                class="min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                [disabled]="!newTaskRoomId() || isCreatingTask()"
+                (click)="submitCreateTask()"
+                class="min-h-[44px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold cursor-pointer"
+              >
+                Tạo nhiệm vụ
+              </button>
+            </div>
+          </div>
+        </div>
+      }
     </div>
   `
 })
 export class HousekeepingPage implements OnInit, OnDestroy {
   private readonly roomService = inject(RoomService);
+  private readonly housekeepingService = inject(HousekeepingService, { optional: true });
   private readonly alertService = inject(AlertService);
   readonly authService = inject(AuthService);
 
   readonly RoomStatus = RoomStatus;
+  readonly HousekeepingTaskStatus = HousekeepingTaskStatus;
+  readonly HousekeepingPriority = HousekeepingPriority;
+
+  activeViewTab = signal<'queue' | 'board'>('queue');
+  tasks = signal<HousekeepingTaskDto[]>([]);
+  tasksLoading = signal<boolean>(false);
+  updatingTaskId = signal<string | null>(null);
+  housekeepingStaff = signal<HousekeepingStaffOptionDto[]>([]);
+  taskStatusFilter = signal<string>('ALL');
+  taskPriorityFilter = signal<string>('ALL');
+  taskAssignedToMe = signal<boolean>(false);
+  isCreateTaskModalOpen = signal<boolean>(false);
+  isCreatingTask = signal<boolean>(false);
+  newTaskRoomId = signal<string>('');
+  newTaskPriority = signal<HousekeepingPriority>(HousekeepingPriority.Normal);
+  newTaskAssigneeId = signal<string>('');
+  newTaskNotes = signal<string>('');
+
+  urgentTasksCount = computed(() =>
+    this.tasks().filter(t => t.effectivePriority === HousekeepingPriority.Urgent && t.status !== HousekeepingTaskStatus.Completed).length
+  );
+  activeTasksCount = computed(() =>
+    this.tasks().filter(t => t.status !== HousekeepingTaskStatus.Completed).length
+  );
+  completedTasksCount = computed(() =>
+    this.tasks().filter(t => t.status === HousekeepingTaskStatus.Completed).length
+  );
 
   rooms = signal<RoomDto[]>([]);
   loading = signal<boolean>(false);
@@ -457,12 +822,19 @@ export class HousekeepingPage implements OnInit, OnDestroy {
   private searchSub?: Subscription;
   private readonly reloadTrigger$ = new Subject<void>();
   private listSub?: Subscription;
+  private tasksSub?: Subscription;
+  private staffSub?: Subscription;
+  private taskActionSub?: Subscription;
 
   // Permission
   canUpdate = computed(() => {
     return this.authService.hasPermission('HOUSEKEEPING', 4) ||
            this.authService.hasPermission('HOUSEKEEPING', 2) ||
            this.authService.hasPermission('ROOMS', 4);
+  });
+
+  canCreateTask = computed(() => {
+    return this.authService.hasPermission('HOUSEKEEPING', 2) || this.canUpdate();
   });
 
   // KPI Counters (trên trang đang hiển thị)
@@ -537,6 +909,8 @@ export class HousekeepingPage implements OnInit, OnDestroy {
           this.rooms.set([]);
           this.totalCount.set(0);
           this.loadRooms();
+          this.loadTasks();
+          this.loadAssignableStaff();
         }
       });
 
@@ -570,6 +944,8 @@ export class HousekeepingPage implements OnInit, OnDestroy {
 
     this.setupRoomListStream();
     this.loadRooms();
+    this.loadTasks();
+    this.loadAssignableStaff();
     this.startAutoSync();
   }
 
@@ -583,6 +959,251 @@ export class HousekeepingPage implements OnInit, OnDestroy {
     }
     this.searchSub?.unsubscribe();
     this.listSub?.unsubscribe();
+    this.tasksSub?.unsubscribe();
+    this.staffSub?.unsubscribe();
+    this.taskActionSub?.unsubscribe();
+  }
+
+  setViewTab(tab: 'queue' | 'board'): void {
+    this.activeViewTab.set(tab);
+    if (tab === 'queue') {
+      this.loadTasks();
+    } else {
+      this.loadRooms();
+    }
+  }
+
+  refreshActiveView(): void {
+    this.loadRooms();
+    this.loadTasks();
+  }
+
+  loadTasks(): void {
+    if (!this.housekeepingService) return;
+    const propId = this.authService.activePropertyId();
+    if (!propId) return;
+
+    const statusFilter = this.taskStatusFilter();
+    const priorityFilter = this.taskPriorityFilter();
+
+    this.tasksSub?.unsubscribe();
+    this.tasksLoading.set(true);
+    this.tasksSub = this.housekeepingService.getTasks(propId, {
+      status: statusFilter !== 'ALL' ? (statusFilter as HousekeepingTaskStatus) : null,
+      priority: priorityFilter !== 'ALL' ? (priorityFilter as HousekeepingPriority) : null,
+      assignedToMe: this.taskAssignedToMe() || null
+    }).subscribe({
+      next: (list) => {
+        if (this.authService.activePropertyId() !== propId) return;
+        this.tasks.set(list || []);
+        this.tasksLoading.set(false);
+      },
+      error: () => {
+        this.tasksLoading.set(false);
+      }
+    });
+  }
+
+  loadAssignableStaff(): void {
+    if (!this.housekeepingService) return;
+    const propId = this.authService.activePropertyId();
+    if (!propId) return;
+
+    this.staffSub?.unsubscribe();
+    this.staffSub = this.housekeepingService.getAssignableStaff(propId).subscribe({
+      next: (list) => {
+        if (this.authService.activePropertyId() === propId) {
+          this.housekeepingStaff.set(list || []);
+        }
+      },
+      error: () => {
+        this.housekeepingStaff.set([]);
+      }
+    });
+  }
+
+  onTaskStatusFilterChange(value: string): void {
+    this.taskStatusFilter.set(value);
+    this.loadTasks();
+  }
+
+  onTaskPriorityFilterChange(value: string): void {
+    this.taskPriorityFilter.set(value);
+    this.loadTasks();
+  }
+
+  onAssignedToMeChange(value: boolean): void {
+    this.taskAssignedToMe.set(Boolean(value));
+    this.loadTasks();
+  }
+
+  openCreateTaskModal(): void {
+    this.newTaskRoomId.set(this.rooms()[0]?.id || '');
+    this.newTaskPriority.set(HousekeepingPriority.Normal);
+    this.newTaskAssigneeId.set('');
+    this.newTaskNotes.set('');
+    this.isCreateTaskModalOpen.set(true);
+  }
+
+  closeCreateTaskModal(): void {
+    this.isCreateTaskModalOpen.set(false);
+  }
+
+  submitCreateTask(): void {
+    if (!this.housekeepingService || this.isCreatingTask()) return;
+    const propId = this.authService.activePropertyId();
+    const roomId = this.newTaskRoomId();
+    if (!propId || !roomId) return;
+
+    this.isCreatingTask.set(true);
+    this.taskActionSub?.unsubscribe();
+    this.taskActionSub = this.housekeepingService.createTask({
+      propertyId: propId,
+      roomId,
+      priority: this.newTaskPriority(),
+      notes: this.newTaskNotes().trim() || null,
+      assignedToUserId: this.newTaskAssigneeId() || null
+    }).subscribe({
+      next: (created) => {
+        this.isCreatingTask.set(false);
+        this.isCreateTaskModalOpen.set(false);
+        this.tasks.update(list => [created, ...list]);
+        this.alertService.toastSuccess(`Đã tạo nhiệm vụ dọn phòng ${created.roomNumber}.`);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.isCreatingTask.set(false);
+        this.alertService.toastError(err?.error?.message || 'Không thể tạo nhiệm vụ dọn phòng.');
+      }
+    });
+  }
+
+  assignTask(task: HousekeepingTaskDto, assignedToUserId: string): void {
+    if (!this.housekeepingService || !assignedToUserId || this.updatingTaskId()) return;
+    const propId = this.authService.activePropertyId();
+    if (!propId) return;
+
+    this.updatingTaskId.set(task.id);
+    this.taskActionSub?.unsubscribe();
+    this.taskActionSub = this.housekeepingService.assignTask(task.id, propId, assignedToUserId).subscribe({
+      next: (updated) => {
+        this.updatingTaskId.set(null);
+        this.tasks.update(list => list.map(t => t.id === task.id ? updated : t));
+        this.alertService.toastSuccess(`Đã phân công phòng ${updated.roomNumber} cho ${updated.assignedToName || 'nhân viên'}.`);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.updatingTaskId.set(null);
+        this.alertService.toastError(err?.error?.message || 'Không thể phân công nhiệm vụ.');
+      }
+    });
+  }
+
+  claimTask(task: HousekeepingTaskDto): void {
+    if (!this.housekeepingService || this.updatingTaskId()) return;
+    const propId = this.authService.activePropertyId();
+    if (!propId) return;
+
+    this.updatingTaskId.set(task.id);
+    this.taskActionSub?.unsubscribe();
+    this.taskActionSub = this.housekeepingService.claimTask(task.id, propId).subscribe({
+      next: (updated) => {
+        this.updatingTaskId.set(null);
+        this.tasks.update(list => list.map(t => t.id === task.id ? updated : t));
+        this.alertService.toastSuccess(`Bạn đã tự nhận việc dọn phòng ${updated.roomNumber}.`);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.updatingTaskId.set(null);
+        this.alertService.toastError(err?.error?.message || 'Công việc đã có nhân viên khác nhận.');
+        if (err.status === 409) {
+          this.loadTasks();
+        }
+      }
+    });
+  }
+
+  startTask(task: HousekeepingTaskDto): void {
+    if (!this.housekeepingService || this.updatingTaskId()) return;
+    const propId = this.authService.activePropertyId();
+    if (!propId) return;
+
+    this.updatingTaskId.set(task.id);
+    this.taskActionSub?.unsubscribe();
+    this.taskActionSub = this.housekeepingService.startTask(task.id, propId).subscribe({
+      next: (updated) => {
+        this.updatingTaskId.set(null);
+        this.tasks.update(list => list.map(t => t.id === task.id ? updated : t));
+        this.rooms.update(list => list.map(r => r.id === updated.roomId ? { ...r, status: updated.roomStatus } : r));
+        this.alertService.toastSuccess(`Bắt đầu dọn phòng ${updated.roomNumber}.`);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.updatingTaskId.set(null);
+        this.alertService.toastError(err?.error?.message || 'Không thể bắt đầu dọn phòng.');
+      }
+    });
+  }
+
+  completeTask(task: HousekeepingTaskDto): void {
+    if (!this.housekeepingService || this.updatingTaskId()) return;
+    const propId = this.authService.activePropertyId();
+    if (!propId) return;
+
+    this.updatingTaskId.set(task.id);
+    this.taskActionSub?.unsubscribe();
+    this.taskActionSub = this.housekeepingService.completeTask(task.id, propId).subscribe({
+      next: (updated) => {
+        this.updatingTaskId.set(null);
+        this.tasks.update(list => list.map(t => t.id === task.id ? updated : t));
+        this.rooms.update(list => list.map(r => r.id === updated.roomId ? { ...r, status: updated.roomStatus } : r));
+        this.alertService.toastSuccess(`Phòng ${updated.roomNumber} đã hoàn tất sạch sẽ!`);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.updatingTaskId.set(null);
+        this.alertService.toastError(err?.error?.message || 'Không thể hoàn tất công việc.');
+      }
+    });
+  }
+
+  getTaskStatusLabel(status: HousekeepingTaskStatus): string {
+    return HOUSEKEEPING_TASK_STATUS_LABELS[status] || status;
+  }
+
+  getPriorityLabel(priority: HousekeepingPriority): string {
+    return HOUSEKEEPING_PRIORITY_LABELS[priority] || priority;
+  }
+
+  getTaskStatusBadgeClass(status: HousekeepingTaskStatus): string {
+    switch (status) {
+      case HousekeepingTaskStatus.Pending:
+        return 'bg-slate-100 text-slate-700 border-slate-200';
+      case HousekeepingTaskStatus.Claimed:
+        return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+      case HousekeepingTaskStatus.InProgress:
+        return 'bg-amber-50 text-amber-800 border-amber-200';
+      case HousekeepingTaskStatus.Completed:
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      default:
+        return 'bg-slate-50 text-slate-700 border-slate-200';
+    }
+  }
+
+  getPriorityBadgeClass(priority: HousekeepingPriority): string {
+    switch (priority) {
+      case HousekeepingPriority.Urgent:
+        return 'bg-rose-100 text-rose-800 border-rose-300';
+      case HousekeepingPriority.High:
+        return 'bg-orange-100 text-orange-800 border-orange-300';
+      case HousekeepingPriority.Normal:
+        return 'bg-sky-50 text-sky-700 border-sky-200';
+      case HousekeepingPriority.Low:
+      default:
+        return 'bg-slate-100 text-slate-600 border-slate-200';
+    }
+  }
+
+  formatNextCheckIn(utcIso?: string | null): string {
+    if (!utcIso) return '';
+    const d = new Date(utcIso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
   }
 
   startAutoSync(intervalMs = 10000): void {

@@ -1,5 +1,6 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, effect, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, OnDestroy, inject, signal, computed, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePicker } from 'primeng/datepicker';
 import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-time.util';
@@ -9,6 +10,7 @@ import { RateService } from '../../core/services/rate.service';
 import { RoomTypeService } from '../../core/services/room-type.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
+import { AiService, DynamicPricingSummaryDto, RoomTypePricingRecommendationDto } from '../../core/services/ai.service';
 import { RoomTypeRateDto, RoomTypeRateAuditDto, CreateRoomTypeRateRequest } from '../../core/models/rate.model';
 import { RoomTypeDto } from '../../core/models/room-type.model';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
@@ -40,6 +42,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
 @Component({
   selector: 'app-rates',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FormsModule, ReactiveFormsModule, EmptyStateComponent, SkeletonTableComponent, DatePicker],
   template: `
     <div class="max-w-6xl mx-auto space-y-6">
@@ -76,6 +79,20 @@ export function addDaysToDateString(dateStr: string, days: number): string {
             <span>UTC+7</span>
           </div>
 
+          <!-- Nút Gợi ý giá AI -->
+          @if (canReadAi() && propertyId()) {
+            <button
+              type="button"
+              (click)="toggleAiPricingPanel()"
+              [disabled]="!propertyId()"
+              aria-label="Mở bảng gợi ý giá động AI"
+              class="min-h-[44px] inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 font-semibold text-xs transition-all cursor-pointer disabled:opacity-50"
+            >
+              <i class="pi pi-sparkles text-sm text-indigo-600" aria-hidden="true"></i>
+              <span>{{ showAiPanel() ? 'Ẩn gợi ý AI' : 'Gợi ý giá AI' }}</span>
+            </button>
+          }
+
           <!-- Nút Thiết lập bảng giá -->
           @if (canUpdate() && selectedRoomTypeId()) {
             <button
@@ -107,6 +124,154 @@ export function addDaysToDateString(dateStr: string, days: number): string {
           description="Vui lòng bấm vào bộ chuyển chi nhánh ở thanh tiêu đề trên cùng để chọn chi nhánh cần quản lý bảng giá."
         />
       } @else {
+        <!-- AI Dynamic Pricing Panel -->
+        @if (showAiPanel() && canReadAi()) {
+          <section aria-label="Đề xuất giá động AI" class="bg-gradient-to-br from-indigo-50 via-white to-emerald-50/40 rounded-2xl border border-indigo-200/90 p-5 shadow-2xs space-y-4">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-indigo-100 pb-4">
+              <div class="space-y-1">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                    <i class="pi pi-sparkles text-[10px]" aria-hidden="true"></i>
+                    AI Dynamic Pricing
+                  </span>
+                  @if (aiPricingSummary(); as summary) {
+                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+                      Công suất chung: {{ summary.overallOccupancyRate | number:'1.0-1' }}% ({{ summary.marketDemandLevel }})
+                    </span>
+                  }
+                </div>
+                <h2 class="text-sm sm:text-base font-bold text-slate-900">
+                  Đề xuất điều chỉnh giá đêm theo công suất phòng thực tế
+                </h2>
+                <p class="text-xs text-slate-600">
+                  Áp dụng 1 chạm sẽ tự động tách khoảng bảng giá đang hiệu lực (Interval Splitting) mà không ảnh hưởng các ngày khác.
+                </p>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2.5">
+                <div class="flex items-center gap-1.5">
+                  <label for="ai-target-date" class="text-xs font-semibold text-slate-700">Từ ngày:</label>
+                  <input
+                    id="ai-target-date"
+                    type="date"
+                    [ngModel]="aiTargetDate()"
+                    (ngModelChange)="aiTargetDate.set($event)"
+                    [min]="minEffectiveFromDate"
+                    class="min-h-[44px] px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                  />
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                  <label for="ai-duration-days" class="text-xs font-semibold text-slate-700">Số ngày:</label>
+                  <select
+                    id="ai-duration-days"
+                    [ngModel]="aiEffectiveDays()"
+                    (ngModelChange)="aiEffectiveDays.set(+$event)"
+                    class="min-h-[44px] px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                  >
+                    <option [value]="1">1 ngày</option>
+                    <option [value]="3">3 ngày</option>
+                    <option [value]="7">7 ngày</option>
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  (click)="loadAiPricingRecommendations()"
+                  [disabled]="isLoadingAiPricing()"
+                  class="min-h-[44px] inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <i class="pi pi-refresh text-xs" [class.pi-spin]="isLoadingAiPricing()" aria-hidden="true"></i>
+                  <span>Phân tích lại</span>
+                </button>
+              </div>
+            </div>
+
+            @if (aiPricingError()) {
+              <div role="alert" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800 flex items-center justify-between gap-3">
+                <span>{{ aiPricingError() }}</span>
+                <button
+                  type="button"
+                  (click)="loadAiPricingRecommendations()"
+                  class="min-h-[44px] px-3 py-1.5 rounded-lg bg-rose-600 text-white font-semibold text-xs cursor-pointer"
+                >
+                  Thử lại
+                </button>
+              </div>
+            } @else if (isLoadingAiPricing()) {
+              <div class="py-6 text-center text-xs text-slate-600">
+                <i class="pi pi-spin pi-spinner mr-2 text-indigo-600" aria-hidden="true"></i>
+                Đang tính toán mức giá đề xuất từ dữ liệu công suất phòng...
+              </div>
+            } @else if (aiPricingSummary()?.recommendations?.length) {
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                @for (rec of aiPricingSummary()!.recommendations; track rec.roomTypeId) {
+                  <div class="rounded-xl border border-slate-200 bg-white p-4 flex flex-col justify-between gap-3 shadow-2xs">
+                    <div class="space-y-2">
+                      <div class="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 class="text-sm font-bold text-slate-900">{{ rec.roomTypeName }}</h3>
+                          <p class="text-[11px] text-slate-500">
+                            Đã đặt: {{ rec.bookedRooms }}/{{ rec.totalRooms }} phòng ({{ rec.occupancyRate | number:'1.0-1' }}%)
+                          </p>
+                        </div>
+                        <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          {{ rec.strategy }} ({{ rec.surgeMultiplier }}x)
+                        </span>
+                      </div>
+
+                      <div class="flex items-baseline gap-3 pt-1">
+                        <div>
+                          <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Giá gốc / đêm</span>
+                          <span class="text-xs font-medium text-slate-500 line-through">{{ formatCurrency(rec.basePrice) }}</span>
+                        </div>
+                        <i class="pi pi-arrow-right text-[10px] text-slate-400" aria-hidden="true"></i>
+                        <div>
+                          <span class="block text-[10px] uppercase tracking-wider text-emerald-700 font-semibold">AI đề xuất / đêm</span>
+                          <strong class="text-base font-black text-emerald-700">{{ formatCurrency(rec.recommendedPrice) }}</strong>
+                        </div>
+                      </div>
+
+                      <p class="text-xs text-slate-600 leading-relaxed">{{ rec.rationale }}</p>
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                      @if (canUpdate()) {
+                        <button
+                          type="button"
+                          (click)="prefillRateFromAiRecommendation(rec)"
+                          class="min-h-[44px] px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
+                        >
+                          Chỉnh tay
+                        </button>
+                      }
+                      @if (canApplyAi()) {
+                        <button
+                          type="button"
+                          (click)="applyAiRecommendation(rec)"
+                          [disabled]="applyingAiRoomTypeId() === rec.roomTypeId"
+                          class="min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          @if (applyingAiRoomTypeId() === rec.roomTypeId) {
+                            <i class="pi pi-spin pi-spinner text-xs" aria-hidden="true"></i>
+                          } @else {
+                            <i class="pi pi-check text-xs" aria-hidden="true"></i>
+                          }
+                          <span>Áp dụng 1 chạm</span>
+                        </button>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            } @else if (aiPricingSummary()) {
+              <div class="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-600">
+                {{ aiPricingSummary()?.message || 'Chưa có hạng phòng nào cần điều chỉnh giá cho ngày đã chọn.' }}
+              </div>
+            }
+          </section>
+        }
+
         <!-- Room Type Selector Bar -->
         <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div class="flex items-center gap-3">
@@ -683,6 +848,7 @@ export class RatesPage implements OnInit, OnDestroy {
   private readonly rateService = inject(RateService);
   private readonly roomTypeService = inject(RoomTypeService);
   private readonly alertService = inject(AlertService);
+  private readonly aiService = inject(AiService, { optional: true });
 
   readonly isLoadingRates = signal(false);
   readonly isLoadingHistory = signal(false);
@@ -703,6 +869,14 @@ export class RatesPage implements OnInit, OnDestroy {
 
   readonly activeTab = signal<'rates' | 'history'>('rates');
   readonly showCreateModal = signal(false);
+
+  readonly showAiPanel = signal(false);
+  readonly isLoadingAiPricing = signal(false);
+  readonly aiPricingSummary = signal<DynamicPricingSummaryDto | null>(null);
+  readonly aiPricingError = signal<string | null>(null);
+  readonly applyingAiRoomTypeId = signal<string | null>(null);
+  readonly aiTargetDate = signal<string>(getTodayVnDateString());
+  readonly aiEffectiveDays = signal<number>(1);
 
   readonly minEffectiveFromDate = getTodayVnDateString();
 
@@ -731,6 +905,11 @@ export class RatesPage implements OnInit, OnDestroy {
   readonly propertyId = computed(() => this.authService.activePropertyId());
   readonly canRead = computed(() => this.authService.hasPermission('ROOM_TYPES', 1));
   readonly canUpdate = computed(() => this.authService.hasPermission('ROOM_TYPES', 4));
+  readonly canReadAi = computed(() => this.authService.hasPermission('AI_FEATURES', 1));
+  readonly canApplyAi = computed(() => this.authService.hasPermission('AI_FEATURES', 4) && this.canUpdate());
+
+  private aiSub?: Subscription;
+  private applyAiSub?: Subscription;
 
   readonly selectedRoomType = computed(() => {
     const id = this.selectedRoomTypeId();
@@ -824,6 +1003,10 @@ export class RatesPage implements OnInit, OnDestroy {
     this.clientErrors.set([]);
     this.conflictError.set(null);
     this.showCreateModal.set(false);
+    this.aiPricingSummary.set(null);
+    this.aiPricingError.set(null);
+    this.isLoadingAiPricing.set(false);
+    this.applyingAiRoomTypeId.set(null);
 
     if (newPropId && this.canRead()) {
       this.loadRoomTypes();
@@ -1121,6 +1304,10 @@ export class RatesPage implements OnInit, OnDestroy {
         return 'bg-sky-50 text-sky-700 border-sky-200';
       case 'Split_Shortened':
         return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'Split_TailCreated':
+        return 'bg-teal-50 text-teal-700 border-teal-200';
+      case 'Trimmed_Head':
+        return 'bg-orange-50 text-orange-700 border-orange-200';
       case 'Replaced':
         return 'bg-purple-50 text-purple-700 border-purple-200';
       case 'Replaced_Created':
@@ -1138,6 +1325,10 @@ export class RatesPage implements OnInit, OnDestroy {
         return 'Chia khoảng (Tạo mới)';
       case 'Split_Shortened':
         return 'Chia khoảng (Rút ngắn)';
+      case 'Split_TailCreated':
+        return 'Chia khoảng (Phần đuôi)';
+      case 'Trimmed_Head':
+        return 'Cắt đầu khoảng giá';
       case 'Replaced':
         return 'Thay thế (Hủy cũ)';
       case 'Replaced_Created':
@@ -1145,6 +1336,126 @@ export class RatesPage implements OnInit, OnDestroy {
       default:
         return actionType;
     }
+  }
+
+  toggleAiPricingPanel(): void {
+    const next = !this.showAiPanel();
+    this.showAiPanel.set(next);
+    if (next && !this.aiPricingSummary() && !this.isLoadingAiPricing()) {
+      this.loadAiPricingRecommendations();
+    }
+  }
+
+  loadAiPricingRecommendations(): void {
+    const propId = this.propertyId();
+    if (!propId || !this.canReadAi() || !this.aiService) {
+      return;
+    }
+
+    this.aiSub?.unsubscribe();
+    this.isLoadingAiPricing.set(true);
+    this.aiPricingError.set(null);
+
+    const targetDate = this.aiTargetDate() || getTodayVnDateString();
+    this.aiSub = this.aiService.getDynamicPricingRecommendations(propId, targetDate).subscribe({
+      next: summary => {
+        if (this.propertyId() !== propId) return;
+        this.aiPricingSummary.set(summary);
+        this.isLoadingAiPricing.set(false);
+      },
+      error: err => {
+        if (this.propertyId() !== propId) return;
+        this.isLoadingAiPricing.set(false);
+        this.aiPricingError.set(this.extractAiErrorMessage(err, 'Không thể tải gợi ý giá động AI.'));
+      }
+    });
+  }
+
+  prefillRateFromAiRecommendation(rec: RoomTypePricingRecommendationDto): void {
+    const propId = this.propertyId();
+    if (!propId || !this.canUpdate()) return;
+
+    if (this.selectedRoomTypeId() !== rec.roomTypeId) {
+      this.selectedRoomTypeId.set(rec.roomTypeId);
+      this.loadRatesData();
+    }
+
+    const fromDate = this.aiTargetDate() || getTodayVnDateString();
+    const days = Math.max(1, Number(this.aiEffectiveDays() || 1));
+    const toDate = addDaysToDateString(fromDate, days);
+
+    this.modalTargetRoomTypeId.set(rec.roomTypeId);
+    this.modalTargetPropertyId.set(propId);
+    this.clientErrors.set([]);
+    this.conflictError.set(null);
+
+    const matchingRate = this.rates().find(
+      r => r.roomTypeId === rec.roomTypeId && r.effectiveFrom <= fromDate && fromDate < r.effectiveTo
+    );
+
+    this.rateForm.reset({
+      effectiveFrom: fromDate,
+      effectiveTo: toDate,
+      firstHours: matchingRate?.firstHours ?? 2,
+      firstHoursPrice: matchingRate?.firstHoursPrice ?? Math.round(rec.recommendedPrice * 0.4),
+      additionalHourPrice: matchingRate?.additionalHourPrice ?? Math.round(rec.recommendedPrice * 0.12),
+      nightlyPrice: rec.recommendedPrice,
+      changeReason: `AI đề xuất: ${rec.strategy}`
+    });
+
+    this.showCreateModal.set(true);
+  }
+
+  applyAiRecommendation(rec: RoomTypePricingRecommendationDto): void {
+    const propId = this.propertyId();
+    if (!propId || !this.canApplyAi() || !this.aiService || this.applyingAiRoomTypeId()) {
+      return;
+    }
+
+    const fromDate = this.aiTargetDate() || getTodayVnDateString();
+    const days = Math.max(1, Number(this.aiEffectiveDays() || 1));
+    const toDate = addDaysToDateString(fromDate, days);
+
+    this.applyAiSub?.unsubscribe();
+    this.applyingAiRoomTypeId.set(rec.roomTypeId);
+
+    this.applyAiSub = this.aiService.applyDynamicPricing({
+      roomTypeId: rec.roomTypeId,
+      propertyId: propId,
+      nightlyPrice: rec.recommendedPrice,
+      effectiveFrom: fromDate,
+      effectiveTo: toDate,
+      changeReason: `Áp dụng AI Dynamic Pricing (${rec.strategy})`
+    }).subscribe({
+      next: () => {
+        if (this.propertyId() !== propId) return;
+        this.applyingAiRoomTypeId.set(null);
+        this.alertService.toastSuccess(`Đã áp dụng giá AI ${this.formatCurrency(rec.recommendedPrice)} cho hạng phòng ${rec.roomTypeName}.`);
+        if (this.selectedRoomTypeId() !== rec.roomTypeId) {
+          this.selectedRoomTypeId.set(rec.roomTypeId);
+        }
+        this.loadRatesData();
+      },
+      error: err => {
+        if (this.propertyId() !== propId) return;
+        this.applyingAiRoomTypeId.set(null);
+        this.alertService.toastError(this.extractAiErrorMessage(err, 'Không thể áp dụng đề xuất giá AI.'), 'Lỗi áp dụng giá AI');
+      }
+    });
+  }
+
+  private extractAiErrorMessage(err: unknown, fallback: string): string {
+    if (err instanceof HttpErrorResponse) {
+      const body = err.error as { message?: string; title?: string } | null;
+      if (body?.message) return body.message;
+      if (body?.title) return body.title;
+    }
+    if (err && typeof err === 'object' && 'error' in err) {
+      const inner = (err as { error?: { message?: string }; message?: string });
+      if (inner.error?.message) return inner.error.message;
+      if (inner.message) return inner.message;
+    }
+    return fallback;
   }
 
   formatCurrency(value?: number | null): string {
@@ -1199,6 +1510,10 @@ export class RatesPage implements OnInit, OnDestroy {
   private cancelPendingRequests(): void {
     this.cancelRateRequests();
     this.cancelSave();
+    this.aiSub?.unsubscribe();
+    this.aiSub = undefined;
+    this.applyAiSub?.unsubscribe();
+    this.applyAiSub = undefined;
     if (this.roomTypesSub) {
       this.roomTypesSub.unsubscribe();
       this.roomTypesSub = undefined;

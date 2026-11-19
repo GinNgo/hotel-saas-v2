@@ -9,6 +9,7 @@ using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Payments.DTOs;
 using HotelSaas.Application.Payments.Queries.GetFolio;
 using HotelSaas.Application.Quotes.DTOs;
+using HotelSaas.Application.Reservations.Commands.CheckOutReservation;
 using HotelSaas.Application.Reservations.DTOs;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
@@ -131,9 +132,9 @@ public sealed class AddFolioItemCommandHandler : IRequestHandler<AddFolioItemCom
             };
 
             invoice.InvoiceItems.Add(invoiceItem);
-            invoice.Subtotal += lineAmount;
             invoice.GrandTotal += lineAmount;
-            invoice.Balance = Math.Max(0m, invoice.GrandTotal - invoice.PaidAmount);
+            invoice.UpdatedAtUtc = DateTime.UtcNow;
+            StaySurchargeCalculator.RecalculateInvoiceBreakdown(invoice);
         }
 
         await _context.SaveChangesAsync(cancellationToken);

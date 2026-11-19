@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@ang
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ReportService } from '../../core/services/report.service';
+import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
 import { RevenueSummaryDto, PmsKpiDto, GroupAnalyticsDto } from '../../core/models/report.model';
 import { DateRangeFilterComponent, DateRangeFilterValue } from '../../shared/components/date-range-filter/date-range-filter.component';
@@ -68,19 +69,21 @@ import { formatCalendarDate } from '../../core/utils/date-time.util';
 
       <!-- Navigation Tabs: Branch Level vs Multi-Property Group Portfolio -->
       <div class="flex items-center gap-2 border-b border-slate-200">
-        <button
-          type="button"
-          (click)="switchTab('group')"
-          class="flex items-center gap-2 px-5 py-3 border-b-2 font-bold text-sm transition-all cursor-pointer"
-          [class.border-indigo-600]="activeTab() === 'group'"
-          [class.text-indigo-600]="activeTab() === 'group'"
-          [class.border-transparent]="activeTab() !== 'group'"
-          [class.text-slate-500]="activeTab() !== 'group'"
-        >
-          <i class="pi pi-building text-base"></i>
-          <span>Toàn bộ Chuỗi Khách sạn (Multi-Property Group)</span>
-          <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-100 text-indigo-700">Mới</span>
-        </button>
+        @if (authService.isTenantWide) {
+          <button
+            type="button"
+            (click)="switchTab('group')"
+            class="flex items-center gap-2 px-5 py-3 border-b-2 font-bold text-sm transition-all cursor-pointer"
+            [class.border-indigo-600]="activeTab() === 'group'"
+            [class.text-indigo-600]="activeTab() === 'group'"
+            [class.border-transparent]="activeTab() !== 'group'"
+            [class.text-slate-500]="activeTab() !== 'group'"
+          >
+            <i class="pi pi-building text-base"></i>
+            <span>Toàn bộ Chuỗi Khách sạn (Multi-Property Group)</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-100 text-indigo-700">Mới</span>
+          </button>
+        }
 
         <button
           type="button"
@@ -606,9 +609,10 @@ import { formatCalendarDate } from '../../core/utils/date-time.util';
 })
 export class ReportsPage implements OnInit {
   private readonly reportService = inject(ReportService);
+  readonly authService = inject(AuthService);
   private readonly alertService = inject(AlertService);
 
-  activeTab = signal<'group' | 'branch'>('group');
+  activeTab = signal<'group' | 'branch'>(this.resolveInitialTab());
   isLoading = signal(false);
   isExporting = signal(false);
   loadError = signal<string | null>(null);
@@ -623,7 +627,22 @@ export class ReportsPage implements OnInit {
   revenueSummary = signal<RevenueSummaryDto | null>(null);
   groupAnalytics = signal<GroupAnalyticsDto | null>(null);
 
+  private resolveInitialTab(): 'group' | 'branch' {
+    return !this.authService.isTenantWide || !!this.authService.activePropertyId()
+      ? 'branch'
+      : 'group';
+  }
+
+  private getScopedPropertyId(): string | undefined {
+    const activePropId = this.authService.activePropertyId();
+    if (!this.authService.isTenantWide || this.activeTab() === 'branch') {
+      return activePropId || undefined;
+    }
+    return undefined;
+  }
+
   ngOnInit(): void {
+    this.activeTab.set(this.resolveInitialTab());
     this.reportService.getRoomTypes().subscribe({ next: types => this.roomTypes.set(types), error: () => this.roomTypes.set([]) });
     this.selectQuickPeriod(30);
   }
@@ -634,6 +653,9 @@ export class ReportsPage implements OnInit {
   }
 
   switchTab(tab: 'group' | 'branch'): void {
+    if (tab === 'group' && !this.authService.isTenantWide) {
+      return;
+    }
     this.activeTab.set(tab);
     this.loadData();
   }
@@ -686,7 +708,7 @@ export class ReportsPage implements OnInit {
     this.isLoading.set(true);
     this.loadError.set(null);
 
-    if (this.activeTab() === 'group') {
+    if (this.activeTab() === 'group' && this.authService.isTenantWide) {
       this.reportService.getGroupAnalytics(this.fromDate, this.toDate).subscribe({
         next: res => {
           this.groupAnalytics.set(res);
@@ -699,7 +721,11 @@ export class ReportsPage implements OnInit {
         }
       });
     } else {
-      this.reportService.getPmsKpi(this.fromDate, this.toDate, undefined, this.selectedRoomTypeId()).subscribe({
+      if (this.activeTab() === 'group') {
+        this.activeTab.set('branch');
+      }
+      const propertyId = this.authService.activePropertyId() || undefined;
+      this.reportService.getPmsKpi(this.fromDate, this.toDate, propertyId, this.selectedRoomTypeId()).subscribe({
         next: res => {
           this.kpi.set(res);
           this.isLoading.set(false);
@@ -711,7 +737,7 @@ export class ReportsPage implements OnInit {
         }
       });
 
-      this.reportService.getRevenueSummary(this.fromDate, this.toDate, undefined, this.selectedRoomTypeId()).subscribe({
+      this.reportService.getRevenueSummary(this.fromDate, this.toDate, propertyId, this.selectedRoomTypeId()).subscribe({
         next: res => {
           this.revenueSummary.set(res);
         },
@@ -738,7 +764,7 @@ export class ReportsPage implements OnInit {
 
   exportCsv(): void {
     this.isExporting.set(true);
-    this.reportService.exportCsv(this.fromDate, this.toDate).subscribe({
+    this.reportService.exportCsv(this.fromDate, this.toDate, this.getScopedPropertyId()).subscribe({
       next: blob => {
         this.isExporting.set(false);
         const url = window.URL.createObjectURL(blob);
@@ -760,7 +786,7 @@ export class ReportsPage implements OnInit {
 
   exportExcel(): void {
     this.isExporting.set(true);
-    this.reportService.exportExcel(this.fromDate, this.toDate).subscribe({
+    this.reportService.exportExcel(this.fromDate, this.toDate, this.getScopedPropertyId()).subscribe({
       next: blob => {
         this.isExporting.set(false);
         this.downloadBlob(blob, `BaoCao_DoanhThu_${this.fromDate}_${this.toDate}.xlsx`);
@@ -775,7 +801,7 @@ export class ReportsPage implements OnInit {
 
   exportPdf(): void {
     this.isExporting.set(true);
-    this.reportService.exportPdf(this.fromDate, this.toDate).subscribe({
+    this.reportService.exportPdf(this.fromDate, this.toDate, this.getScopedPropertyId()).subscribe({
       next: blob => {
         this.isExporting.set(false);
         this.downloadBlob(blob, `BaoCao_DoanhThu_${this.fromDate}_${this.toDate}.pdf`);

@@ -1,5 +1,6 @@
 using System;
 using FluentValidation;
+using HotelSaas.Application.Reservations.Services;
 using HotelSaas.Domain.Enums;
 
 namespace HotelSaas.Application.Reservations.Commands.CreateReservation;
@@ -49,6 +50,24 @@ public sealed class CreateReservationCommandValidator : AbstractValidator<Create
                 .WithMessage("Ngày trả phòng phải sau ngày nhận phòng.");
         });
 
+        When(x => x.CheckInDate.HasValue, () =>
+        {
+            RuleFor(x => x.CheckInDate!.Value)
+                .Must(d => d <= GetVnToday().AddDays(365))
+                .WithErrorCode("ERR_ADVANCE_HORIZON_EXCEEDED")
+                .WithMessage("Chỉ hỗ trợ đặt phòng trước tối đa 365 ngày.");
+        });
+
+        RuleFor(x => x.StartAtUtc)
+            .Must(dt =>
+            {
+                var utc = DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+                var startDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(utc, ReservationTimeHelper.GetVietnamTimeZone()));
+                return startDate <= GetVnToday().AddDays(365);
+            })
+            .WithErrorCode("ERR_ADVANCE_HORIZON_EXCEEDED")
+            .WithMessage("Chỉ hỗ trợ đặt phòng trước tối đa 365 ngày.");
+
         RuleFor(x => x.GuestName)
             .NotEmpty()
             .WithMessage("Tên khách hàng không được để trống.")
@@ -87,5 +106,10 @@ public sealed class CreateReservationCommandValidator : AbstractValidator<Create
         RuleFor(x => x.IdempotencyKey)
             .MaximumLength(100)
             .WithMessage("Khóa IdempotencyKey không vượt quá 100 ký tự.");
+    }
+
+    private static DateOnly GetVnToday()
+    {
+        return DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, ReservationTimeHelper.GetVietnamTimeZone()));
     }
 }

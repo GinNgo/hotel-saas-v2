@@ -59,6 +59,13 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] DateOnly? toDate,
         CancellationToken cancellationToken)
     {
+        if (!_currentUser.IsTenantWide)
+        {
+            throw new ForbiddenException(
+                "ERR_PROPERTY_FORBIDDEN",
+                "Chỉ tài khoản cấp Chuỗi/Tập đoàn (Tenant-Wide) mới có quyền truy cập báo cáo hợp nhất đa chi nhánh.");
+        }
+
         var query = new GetGroupAnalyticsQuery(fromDate, toDate);
         var result = await _mediator.Send(query, cancellationToken);
         return Ok(result);
@@ -83,7 +90,7 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn / doanh nghiệp hợp lệ." });
         }
 
-        EnsurePropertyAccess(propertyId);
+        var effectivePropertyId = ResolveScopedPropertyId(propertyId);
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var effectiveFrom = fromDate ?? today.AddDays(-29);
@@ -98,18 +105,24 @@ public sealed class ReportsController : ControllerBase
             .AsNoTracking()
             .Where(r => r.TenantId == tenantId.Value &&
                         r.Status != ReservationStatus.Cancelled &&
+                        r.Status != ReservationStatus.PendingPayment &&
+                        r.Status != ReservationStatus.NoShow &&
                         r.CheckInDate <= effectiveTo &&
                         r.CheckOutDate >= effectiveFrom);
 
-        if (propertyId.HasValue && propertyId != Guid.Empty)
+        if (effectivePropertyId.HasValue)
         {
-            reservationsQuery = reservationsQuery.Where(r => r.PropertyId == propertyId.Value);
+            reservationsQuery = reservationsQuery.Where(r => r.PropertyId == effectivePropertyId.Value);
         }
         if (roomTypeId.HasValue && roomTypeId != Guid.Empty)
         {
-            var roomIds = _context.Rooms.AsNoTracking()
-                .Where(room => room.TenantId == tenantId.Value && room.RoomTypeId == roomTypeId.Value)
-                .Select(room => room.Id);
+            var roomsQuery = _context.Rooms.AsNoTracking()
+                .Where(room => room.TenantId == tenantId.Value && room.RoomTypeId == roomTypeId.Value);
+            if (effectivePropertyId.HasValue)
+            {
+                roomsQuery = roomsQuery.Where(room => room.PropertyId == effectivePropertyId.Value);
+            }
+            var roomIds = roomsQuery.Select(room => room.Id);
             reservationsQuery = reservationsQuery.Where(reservation => roomIds.Contains(reservation.RoomId));
         }
 
@@ -120,7 +133,7 @@ public sealed class ReportsController : ControllerBase
         var totalRevenue = reservations.Sum(r => r.TotalAmount);
         var totalBookings = reservations.Count;
 
-        // Payment method breakdown
+        // Payment method breakdown (excluding REFUND transactions)
         var paymentsQuery = _context.Payments
             .AsNoTracking()
             .Where(p => p.TenantId == tenantId.Value &&
@@ -128,9 +141,9 @@ public sealed class ReportsController : ControllerBase
                         p.PaidAtUtc >= effectiveFrom.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc) &&
                         p.PaidAtUtc <= effectiveTo.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc));
 
-        if (propertyId.HasValue && propertyId != Guid.Empty)
+        if (effectivePropertyId.HasValue)
         {
-            paymentsQuery = paymentsQuery.Where(p => p.PropertyId == propertyId.Value);
+            paymentsQuery = paymentsQuery.Where(p => p.PropertyId == effectivePropertyId.Value);
         }
         if (roomTypeId.HasValue && roomTypeId != Guid.Empty)
         {
@@ -138,10 +151,16 @@ public sealed class ReportsController : ControllerBase
             paymentsQuery = paymentsQuery.Where(payment => reservationIds.Contains(payment.ReservationId));
         }
 
-        var paymentTotals = await paymentsQuery
+        var completedPayments = await paymentsQuery
+            .Select(p => new { p.Method, p.Amount, p.TransactionRef })
+            .ToListAsync(cancellationToken);
+
+        var paymentTotals = completedPayments
+            .Where(p => p.TransactionRef == null ||
+                        !p.TransactionRef.Contains("REFUND", StringComparison.OrdinalIgnoreCase))
             .GroupBy(p => p.Method)
             .Select(group => new { Method = group.Key, Amount = group.Sum(p => p.Amount), Count = group.Count() })
-            .ToListAsync(cancellationToken);
+            .ToList();
         decimal paymentAmount(PaymentMethod method) => paymentTotals.FirstOrDefault(p => p.Method == method)?.Amount ?? 0m;
         int paymentCount(PaymentMethod method) => paymentTotals.FirstOrDefault(p => p.Method == method)?.Count ?? 0;
 
@@ -153,11 +172,14 @@ public sealed class ReportsController : ControllerBase
             new() { Method = "Thẻ tín dụng (Card)", Amount = paymentAmount(PaymentMethod.CreditCard), Count = paymentCount(PaymentMethod.CreditCard) }
         };
 
-        // Daily revenue series
+        // Daily revenue series (includes same-day / hourly stays where CheckInDate == CheckOutDate)
         var dailySeries = new List<DailyRevenuePointDto>();
         for (var d = effectiveFrom; d <= effectiveTo; d = d.AddDays(1))
         {
-            var dayRes = reservations.Where(r => r.CheckInDate <= d && r.CheckOutDate > d).ToList();
+            var dayRes = reservations
+                .Where(r => (r.CheckInDate == r.CheckOutDate && r.CheckInDate == d) ||
+                            (r.CheckInDate <= d && r.CheckOutDate > d))
+                .ToList();
             var dayRev = dayRes.Sum(r =>
             {
                 var nights = Math.Max(1, r.CheckOutDate.DayNumber - r.CheckInDate.DayNumber);
@@ -207,7 +229,7 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
         }
 
-        EnsurePropertyAccess(propertyId);
+        var effectivePropertyId = ResolveScopedPropertyId(propertyId);
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var effectiveFrom = fromDate ?? today.AddDays(-29);
@@ -223,9 +245,9 @@ public sealed class ReportsController : ControllerBase
             .AsNoTracking()
             .Where(r => r.TenantId == tenantId.Value);
 
-        if (propertyId.HasValue && propertyId != Guid.Empty)
+        if (effectivePropertyId.HasValue)
         {
-            roomsQuery = roomsQuery.Where(r => r.PropertyId == propertyId.Value);
+            roomsQuery = roomsQuery.Where(r => r.PropertyId == effectivePropertyId.Value);
         }
         if (roomTypeId.HasValue && roomTypeId != Guid.Empty)
             roomsQuery = roomsQuery.Where(room => room.RoomTypeId == roomTypeId.Value);
@@ -245,15 +267,19 @@ public sealed class ReportsController : ControllerBase
                         r.CheckInDate <= effectiveTo &&
                         r.CheckOutDate >= effectiveFrom);
 
-        if (propertyId.HasValue && propertyId != Guid.Empty)
+        if (effectivePropertyId.HasValue)
         {
-            allResQuery = allResQuery.Where(r => r.PropertyId == propertyId.Value);
+            allResQuery = allResQuery.Where(r => r.PropertyId == effectivePropertyId.Value);
         }
         if (roomTypeId.HasValue && roomTypeId != Guid.Empty)
         {
-            var roomIds = _context.Rooms.AsNoTracking()
-                .Where(room => room.TenantId == tenantId.Value && room.RoomTypeId == roomTypeId.Value)
-                .Select(room => room.Id);
+            var scopedRoomsQuery = _context.Rooms.AsNoTracking()
+                .Where(room => room.TenantId == tenantId.Value && room.RoomTypeId == roomTypeId.Value);
+            if (effectivePropertyId.HasValue)
+            {
+                scopedRoomsQuery = scopedRoomsQuery.Where(room => room.PropertyId == effectivePropertyId.Value);
+            }
+            var roomIds = scopedRoomsQuery.Select(room => room.Id);
             allResQuery = allResQuery.Where(reservation => roomIds.Contains(reservation.RoomId));
         }
 
@@ -262,18 +288,35 @@ public sealed class ReportsController : ControllerBase
             .ToListAsync(cancellationToken);
 
         var validReservations = allReservations
-            .Where(r => r.Status != ReservationStatus.Cancelled && r.Status != ReservationStatus.NoShow)
+            .Where(r => r.Status != ReservationStatus.Cancelled &&
+                        r.Status != ReservationStatus.PendingPayment &&
+                        r.Status != ReservationStatus.NoShow)
             .ToList();
 
         var totalSoldNights = 0;
         decimal totalRoomRevenue = 0m;
         var totalGuests = 0;
+        var effectiveToExclusive = effectiveTo.AddDays(1);
 
         foreach (var r in validReservations)
         {
-            var overlapStart = r.CheckInDate > effectiveFrom ? r.CheckInDate : effectiveFrom;
-            var overlapEnd = r.CheckOutDate < effectiveTo ? r.CheckOutDate : effectiveTo;
-            var overlapNights = Math.Max(0, overlapEnd.DayNumber - overlapStart.DayNumber);
+            int overlapNights;
+            if (r.CheckInDate == r.CheckOutDate)
+            {
+                // Hourly / same-day stay counts as 1 sold unit on CheckInDate when within [effectiveFrom, effectiveTo]
+                overlapNights = r.CheckInDate >= effectiveFrom && r.CheckInDate <= effectiveTo ? 1 : 0;
+            }
+            else
+            {
+                var overlapStart = r.CheckInDate > effectiveFrom ? r.CheckInDate : effectiveFrom;
+                var overlapEnd = r.CheckOutDate < effectiveToExclusive ? r.CheckOutDate : effectiveToExclusive;
+                overlapNights = Math.Max(0, overlapEnd.DayNumber - overlapStart.DayNumber);
+            }
+
+            if (overlapNights <= 0)
+            {
+                continue;
+            }
 
             totalSoldNights += overlapNights;
             totalGuests += r.NumberOfGuests;
@@ -320,15 +363,19 @@ public sealed class ReportsController : ControllerBase
     }
 
     [HttpGet("room-types")]
-    public async Task<IActionResult> GetReportRoomTypes(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetReportRoomTypes(
+        CancellationToken cancellationToken,
+        [FromQuery] Guid? propertyId = null)
     {
         var tenantId = _currentUser.TenantId;
         if (!tenantId.HasValue || tenantId == Guid.Empty)
             return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
 
+        var effectivePropertyId = ResolveScopedPropertyId(propertyId);
+
         var query = _context.RoomTypes.AsNoTracking().Where(type => type.TenantId == tenantId.Value);
-        if (!_currentUser.IsTenantWide && _currentUser.PropertyId.HasValue)
-            query = query.Where(type => type.PropertyId == _currentUser.PropertyId.Value);
+        if (effectivePropertyId.HasValue)
+            query = query.Where(type => type.PropertyId == effectivePropertyId.Value);
 
         var types = await query.OrderBy(type => type.Name)
             .Select(type => new { type.Id, type.Name })
@@ -354,7 +401,7 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
         }
 
-        EnsurePropertyAccess(propertyId);
+        var effectivePropertyId = ResolveScopedPropertyId(propertyId);
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var effectiveFrom = fromDate ?? today.AddDays(-30);
@@ -368,9 +415,9 @@ public sealed class ReportsController : ControllerBase
                         r.CheckInDate <= effectiveTo &&
                         r.CheckOutDate >= effectiveFrom);
 
-        if (propertyId.HasValue && propertyId != Guid.Empty)
+        if (effectivePropertyId.HasValue)
         {
-            query = query.Where(r => r.PropertyId == propertyId.Value);
+            query = query.Where(r => r.PropertyId == effectivePropertyId.Value);
         }
 
         var list = await query
@@ -437,7 +484,7 @@ public sealed class ReportsController : ControllerBase
         if (!tenantId.HasValue || tenantId == Guid.Empty)
             return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
 
-        EnsurePropertyAccess(propertyId);
+        var effectivePropertyId = ResolveScopedPropertyId(propertyId);
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var effectiveFrom = fromDate ?? today.AddDays(-30);
@@ -446,7 +493,7 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { code = "ERR_INVALID_DATE_RANGE", message = "Ngày bắt đầu không được lớn hơn ngày kết thúc." });
 
         var bytes = await _reportExportService.ExportReservationsExcelAsync(
-            effectiveFrom, effectiveTo, propertyId, cancellationToken);
+            effectiveFrom, effectiveTo, effectivePropertyId, cancellationToken);
         return File(bytes,
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             $"BaoCao_DoanhThu_{effectiveFrom:yyyyMMdd}_{effectiveTo:yyyyMMdd}.xlsx");
@@ -463,14 +510,14 @@ public sealed class ReportsController : ControllerBase
         if (!_currentUser.TenantId.HasValue || _currentUser.TenantId == Guid.Empty)
             return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
 
-        EnsurePropertyAccess(propertyId);
+        var effectivePropertyId = ResolveScopedPropertyId(propertyId);
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var effectiveFrom = fromDate ?? today.AddDays(-30);
         var effectiveTo = toDate ?? today;
         if (effectiveFrom > effectiveTo)
             return BadRequest(new { code = "ERR_INVALID_DATE_RANGE", message = "Ngày bắt đầu không được lớn hơn ngày kết thúc." });
-        var bytes = await _reportExportService.ExportRevenuePdfAsync(effectiveFrom, effectiveTo, propertyId, cancellationToken);
+        var bytes = await _reportExportService.ExportRevenuePdfAsync(effectiveFrom, effectiveTo, effectivePropertyId, cancellationToken);
         return File(bytes, "application/pdf", $"BaoCao_DoanhThu_{effectiveFrom:yyyyMMdd}_{effectiveTo:yyyyMMdd}.pdf");
     }
 
@@ -481,23 +528,45 @@ public sealed class ReportsController : ControllerBase
         if (!_currentUser.TenantId.HasValue || _currentUser.TenantId == Guid.Empty)
             return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
 
+        if (!_currentUser.IsTenantWide && (!_currentUser.PropertyId.HasValue || _currentUser.PropertyId.Value == Guid.Empty))
+        {
+            throw new ForbiddenException(
+                "ERR_PROPERTY_REQUIRED",
+                "Yêu cầu ngữ cảnh chi nhánh hợp lệ để xuất hóa đơn.");
+        }
+
         var bytes = await _reportExportService.ExportInvoicePdfAsync(reservationId, cancellationToken);
         return bytes is null
             ? NotFound(new { code = "ERR_INVOICE_NOT_FOUND", message = "Không tìm thấy hóa đơn của đơn đặt phòng." })
             : File(bytes, "application/pdf", $"HoaDon_{reservationId:N}.pdf");
     }
 
-    private void EnsurePropertyAccess(Guid? propertyId)
+    private Guid? ResolveScopedPropertyId(Guid? propertyId)
     {
-        if (propertyId.HasValue && propertyId != Guid.Empty &&
-            !_currentUser.IsTenantWide &&
-            _currentUser.PropertyId.HasValue &&
+        if (_currentUser.IsTenantWide)
+        {
+            return propertyId.HasValue && propertyId.Value != Guid.Empty
+                ? propertyId.Value
+                : null;
+        }
+
+        if (!_currentUser.PropertyId.HasValue || _currentUser.PropertyId.Value == Guid.Empty)
+        {
+            throw new ForbiddenException(
+                "ERR_PROPERTY_REQUIRED",
+                "Yêu cầu ngữ cảnh chi nhánh hợp lệ để truy cập báo cáo.");
+        }
+
+        if (propertyId.HasValue &&
+            propertyId.Value != Guid.Empty &&
             propertyId.Value != _currentUser.PropertyId.Value)
         {
             throw new ForbiddenException(
                 "ERR_PROPERTY_FORBIDDEN",
                 "Nhân viên chi nhánh không được phép truy cập báo cáo của chi nhánh khác.");
         }
+
+        return _currentUser.PropertyId.Value;
     }
 
     private static string EscapeCsv(string value)

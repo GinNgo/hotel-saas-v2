@@ -257,6 +257,18 @@ export const routes: Routes = [
         loadComponent: () => import('./features/guests/guests.page').then(m => m.GuestsPage)
       },
       {
+        path: 'promotions',
+        canActivate: [permissionGuard],
+        data: { permission: 'PROMOTIONS', action: 1 },
+        loadComponent: () => import('./features/promotions/promotions.page').then(m => m.PromotionsPageComponent)
+      },
+      {
+        path: 'reviews',
+        canActivate: [permissionGuard],
+        data: { permission: 'REVIEWS', action: 1 },
+        loadComponent: () => import('./features/reviews/reviews.page').then(m => m.ReviewsPage)
+      },
+      {
         path: 'plans',
         canActivate: [platformAdminGuard],
         loadComponent: () => import('./features/admin-plans/admin-plans.page').then(m => m.AdminPlansPage)
@@ -367,6 +379,18 @@ export const routes: Routes = [
         canActivate: [permissionGuard],
         data: { permission: 'GUESTS', action: 1, permissions: 'GUEST:Read' },
         loadComponent: () => import('./features/guests/guests.page').then(m => m.GuestsPage)
+      },
+      {
+        path: 'promotions',
+        canActivate: [permissionGuard],
+        data: { permission: 'PROMOTIONS', action: 1 },
+        loadComponent: () => import('./features/promotions/promotions.page').then(m => m.PromotionsPageComponent)
+      },
+      {
+        path: 'reviews',
+        canActivate: [permissionGuard],
+        data: { permission: 'REVIEWS', action: 1 },
+        loadComponent: () => import('./features/reviews/reviews.page').then(m => m.ReviewsPage)
       },
       {
         path: 'plans',

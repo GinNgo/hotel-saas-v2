@@ -211,6 +211,30 @@ import { UserMembershipDto } from '../../core/models/auth.model';
                 </a>
               }
 
+              @if (hasPromotionsPermission()) {
+                <a
+                  routerLink="/promotions"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-ticket text-base text-emerald-700"></i>
+                  <span>Khuyến mãi &amp; Voucher</span>
+                </a>
+              }
+
+              @if (hasReviewsPermission()) {
+                <a
+                  routerLink="/reviews"
+                  routerLinkActive="bg-emerald-50 text-emerald-800 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                  (click)="onNavItemClick()"
+                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+                >
+                  <i class="pi pi-star text-base text-amber-500"></i>
+                  <span>Đánh giá khách hàng</span>
+                </a>
+              }
+
               @if (isOwnerOrManager()) {
                 <a
                   routerLink="/staff"
@@ -532,6 +556,14 @@ export class AdminLayoutComponent {
 
   hasSubscriptionsPermission(): boolean {
     return this.authService.hasPermission('SUBSCRIPTIONS', 1);
+  }
+
+  hasPromotionsPermission(): boolean {
+    return this.authService.hasPermission('PROMOTIONS', 1);
+  }
+
+  hasReviewsPermission(): boolean {
+    return this.authService.hasPermission('REVIEWS', 1);
   }
 
   isSuperAdmin(): boolean {

@@ -35,6 +35,16 @@ export interface GetReservationsFilter {
   pageSize?: number;
 }
 
+export interface CheckInOptionsRequest {
+  applyEarlySurcharge?: boolean;
+}
+
+export interface CheckOutOptionsRequest {
+  applyLateSurcharge?: boolean;
+  overrideLateSurchargeAmount?: number | null;
+  lateSurchargeOverrideReason?: string | null;
+}
+
 export interface GetAvailabilityFilter {
   propertyId: string;
   rentalType: RentalType;
@@ -152,21 +162,40 @@ export class ReservationService {
   /**
    * Check in a confirmed reservation. Transitions room to Occupied.
    */
-  checkIn(id: string, propertyId: string): Observable<ReservationDetailDto> {
+  checkIn(id: string, propertyId: string, options?: CheckInOptionsRequest): Observable<ReservationDetailDto> {
     const params = new HttpParams().set('propertyId', propertyId);
-    return this.http.post<any>(`${this.apiUrl}/${id}/check-in`, null, { params }).pipe(
+    const body = options?.applyEarlySurcharge ? options : null;
+    return this.http.post<any>(`${this.apiUrl}/${id}/check-in`, body, { params }).pipe(
       map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto))
     );
   }
 
   /**
-   * Check out a checked-in reservation. Transitions room to Dirty.
+   * Check out a checked-in reservation. Transitions room to Dirty, generates HousekeepingTask and Invoice.
    */
-  checkOut(id: string, propertyId: string): Observable<ReservationDetailDto> {
+  checkOut(id: string, propertyId: string, options?: CheckOutOptionsRequest): Observable<ReservationDetailDto> {
     const params = new HttpParams().set('propertyId', propertyId);
-    return this.http.post<any>(`${this.apiUrl}/${id}/check-out`, null, { params }).pipe(
+    const body = options && (options.applyLateSurcharge !== undefined || options.overrideLateSurchargeAmount !== undefined)
+      ? options
+      : null;
+    return this.http.post<any>(`${this.apiUrl}/${id}/check-out`, body, { params }).pipe(
       map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto)),
       tap(() => this.broadcastLiveReservationPing('check-out', id, propertyId))
+    );
+  }
+
+  /**
+   * Marks a confirmed reservation as No-Show, revoking SmartLock access.
+   */
+  markNoShow(id: string, propertyId: string, reason?: string): Observable<ReservationDetailDto> {
+    const params = new HttpParams().set('propertyId', propertyId);
+    const body = reason ? { reason, propertyId } : null;
+    return this.http.post<ApiResponse<ReservationDetailDto> | ReservationDetailDto>(`${this.apiUrl}/${id}/no-show`, body, { params }).pipe(
+      map(res => {
+        const dto = 'data' in res && res.data ? res.data : (res as ReservationDetailDto);
+        return normalizeReservation(dto);
+      }),
+      tap(() => this.broadcastLiveReservationPing('no-show', id, propertyId))
     );
   }
 

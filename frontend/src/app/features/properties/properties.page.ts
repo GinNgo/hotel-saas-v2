@@ -1,6 +1,6 @@
 import { Component, OnInit, inject, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormGroup, ReactiveFormsModule, FormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, FormGroup, ReactiveFormsModule, FormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { PropertyManagementService } from '../../core/services/property-management.service';
 import { PublicBookingService } from '../../core/services/public-booking.service';
@@ -26,15 +26,33 @@ import {
   LocationPickerResult
 } from '../../shared';
 
-type BranchSummaryWithGeo = TenantPropertySummaryDto & {
+type BranchSummaryWithMeta = TenantPropertySummaryDto & {
   provinceCode?: string | null;
   touristZoneSlug?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  isPublished?: boolean;
+  status?: number | string;
+  checkInTime?: string | null;
+  checkOutTime?: string | null;
+};
+
+type CreatePropertyPayload = CreatePropertyRequest & {
+  phoneNumber?: string;
+  email?: string;
+  starRating?: number;
+  isPublished?: boolean;
+};
+
+type UpdatePropertyPayload = UpdatePropertyRequest & {
+  phoneNumber?: string;
+  email?: string;
+  starRating?: number;
+  isPublished?: boolean;
+  status?: number;
 };
 
 const LEGACY_PROVINCE_CODE_TO_34: Readonly<Record<string, string>> = {
-  'VN-SG': '79',
   '1': '01', '4': '04', '8': '08', '2': '08', '02': '08',
   '10': '15', '6': '19', '06': '19', '27': '24', '17': '25', '26': '25',
   '30': '31', '34': '33', '35': '37', '36': '37', '45': '44', '49': '48',
@@ -232,6 +250,12 @@ interface HttpErrorPayload {
                         [customLabel]="prop.propertyTypeName || getPropertyTypeLabel(prop.propertyType)"
                         [color]="getPropertyTypeColor(prop.propertyType)"
                       />
+                      <app-status-badge
+                        [status]="isPropertyPublished(prop)"
+                        type="custom"
+                        [customLabel]="isPropertyPublished(prop) ? 'Đang công khai' : 'Chưa công khai'"
+                        [color]="isPropertyPublished(prop) ? 'emerald' : 'amber'"
+                      />
                       @if (authService.activePropertyId() === prop.id) {
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
                           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -254,12 +278,34 @@ interface HttpErrorPayload {
                   </button>
                 </div>
 
-                <!-- Location Info -->
+                <!-- Location & Contact Info -->
                 <div class="text-xs text-slate-500 space-y-1">
                   <div class="flex items-center gap-2">
                     <i class="pi pi-map-marker text-slate-400 text-xs shrink-0"></i>
                     <span class="truncate">{{ prop.address }}, {{ prop.city }}</span>
                   </div>
+                  @if (prop.starRating && prop.starRating > 0) {
+                    <div class="flex items-center gap-1.5 text-amber-600 font-semibold">
+                      <i class="pi pi-star-fill text-[11px]"></i>
+                      <span>{{ prop.starRating }} sao</span>
+                    </div>
+                  }
+                  @if (prop.phoneNumber || prop.email) {
+                    <div class="flex items-center gap-3 flex-wrap text-slate-600">
+                      @if (prop.phoneNumber) {
+                        <span class="inline-flex items-center gap-1">
+                          <i class="pi pi-phone text-[11px] text-slate-400"></i>
+                          <span>{{ prop.phoneNumber }}</span>
+                        </span>
+                      }
+                      @if (prop.email) {
+                        <span class="inline-flex items-center gap-1 truncate">
+                          <i class="pi pi-envelope text-[11px] text-slate-400"></i>
+                          <span class="truncate">{{ prop.email }}</span>
+                        </span>
+                      }
+                    </div>
+                  }
                   @if (prop.touristZoneName) {
                     <div class="flex items-center gap-2 text-emerald-700 font-medium">
                       <i class="pi pi-compass text-emerald-600 text-xs shrink-0"></i>
@@ -307,6 +353,24 @@ interface HttpErrorPayload {
 
               <!-- Card Action Footer -->
               <div class="p-3 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  (click)="togglePublishStatus(prop)"
+                  [disabled]="togglingPublishId() === prop.id"
+                  [attr.aria-label]="(isPropertyPublished(prop) ? 'Ẩn khỏi trang công khai: ' : 'Công khai chi nhánh: ') + prop.name"
+                  [ngClass]="isPropertyPublished(prop)
+                    ? 'border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800'
+                    : 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700'"
+                  class="py-1.5 px-2.5 rounded-xl border text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60"
+                >
+                  @if (togglingPublishId() === prop.id) {
+                    Đang lưu...
+                  } @else if (isPropertyPublished(prop)) {
+                    Ẩn public
+                  } @else {
+                    Công khai
+                  }
+                </button>
                 <button
                   type="button"
                   (click)="openEditModal(prop)"
@@ -482,6 +546,106 @@ interface HttpErrorPayload {
               </div>
             </div>
 
+            <!-- Row 3b: Contact Info & Star Rating -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
+              <div>
+                <app-form-field
+                  #phoneField
+                  controlId="prop-phone"
+                  label="Số điện thoại lễ tân"
+                  [error]="getFieldError('phoneNumber')"
+                >
+                  <input
+                    [appFormControl]="phoneField"
+                    type="tel"
+                    formControlName="phoneNumber"
+                    placeholder="0909123456"
+                    class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
+                  />
+                </app-form-field>
+              </div>
+
+              <div>
+                <app-form-field
+                  #emailField
+                  controlId="prop-email"
+                  label="Email liên hệ"
+                  [error]="getFieldError('email')"
+                >
+                  <input
+                    [appFormControl]="emailField"
+                    type="email"
+                    formControlName="email"
+                    placeholder="booking@khachsan.vn"
+                    class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
+                  />
+                </app-form-field>
+              </div>
+
+              <div>
+                <app-form-field
+                  #starField
+                  controlId="prop-star"
+                  label="Hạng sao"
+                >
+                  <select
+                    [appFormControl]="starField"
+                    formControlName="starRating"
+                    class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
+                  >
+                    <option [ngValue]="0">Chưa xếp hạng</option>
+                    <option [ngValue]="1">1 sao</option>
+                    <option [ngValue]="2">2 sao</option>
+                    <option [ngValue]="3">3 sao</option>
+                    <option [ngValue]="4">4 sao</option>
+                    <option [ngValue]="5">5 sao</option>
+                  </select>
+                </app-form-field>
+              </div>
+            </div>
+
+            <!-- Row 3c: Check-in / Check-out Times & Publish State -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
+              <div>
+                <app-form-field
+                  #checkInTimeField
+                  controlId="prop-checkin-time"
+                  label="Giờ nhận phòng chuẩn"
+                  [error]="getFieldError('checkInTime')"
+                >
+                  <input
+                    [appFormControl]="checkInTimeField"
+                    type="time"
+                    formControlName="checkInTime"
+                    class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-mono focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
+                  />
+                </app-form-field>
+              </div>
+
+              <div>
+                <app-form-field
+                  #checkOutTimeField
+                  controlId="prop-checkout-time"
+                  label="Giờ trả phòng chuẩn"
+                  [error]="getFieldError('checkOutTime')"
+                >
+                  <input
+                    [appFormControl]="checkOutTimeField"
+                    type="time"
+                    formControlName="checkOutTime"
+                    class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-mono focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
+                  />
+                </app-form-field>
+              </div>
+
+              <div class="pt-6">
+                <label class="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-700 select-none p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white transition-colors">
+                  <input type="checkbox" formControlName="isPublished" class="rounded text-emerald-600 focus:ring-emerald-500" />
+                  <span>Công khai mở bán (Public)</span>
+                </label>
+              </div>
+            </div>
+
             <!-- Row 4: Tourist Zone & Province Code -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
               <div>
@@ -600,6 +764,7 @@ export class PropertiesPage implements OnInit {
   isLoading = signal<boolean>(false);
   isSubmitting = signal<boolean>(false);
   switchingPropertyId = signal<string | null>(null);
+  togglingPublishId = signal<string | null>(null);
   searchQuery = signal<string>('');
   selectedType = signal<number | 'ALL'>('ALL');
 
@@ -619,20 +784,32 @@ export class PropertiesPage implements OnInit {
   isEditing = signal<boolean>(false);
   editingPropertyId = signal<string | null>(null);
 
+  private static optionalEmailValidator(control: AbstractControl): ValidationErrors | null {
+    const value = String(control.value ?? '').trim();
+    if (!value) return null;
+    return Validators.email({ value } as AbstractControl);
+  }
+
   propertyForm: FormGroup = this.fb.group({
     name: ['', [Validators.required, Validators.maxLength(100)]],
     code: ['', [Validators.required, Validators.maxLength(20)]],
     slug: ['', [Validators.required, Validators.maxLength(100)]],
     propertyType: [1, [Validators.required]],
+    starRating: [0, [Validators.min(0), Validators.max(5)]],
+    phoneNumber: ['', [Validators.maxLength(20)]],
+    email: ['', [PropertiesPage.optionalEmailValidator, Validators.maxLength(200)]],
     address: ['', [Validators.required, Validators.maxLength(200)]],
     city: ['', [Validators.required, Validators.maxLength(50)]],
     provinceCode: ['79'],
     touristZoneSlug: [null],
     latitude: [null as number | null],
     longitude: [null as number | null],
+    checkInTime: ['14:00', [Validators.required]],
+    checkOutTime: ['12:00', [Validators.required]],
     allowHourlyBooking: [true],
     allowOvernightBooking: [true],
     allowDailyBooking: [true],
+    isPublished: [false],
     isActive: [true]
   });
 
@@ -659,7 +836,7 @@ export class PropertiesPage implements OnInit {
     let list = this.properties();
 
     if (type !== 'ALL') {
-      list = list.filter(p => p.propertyType === type);
+      list = list.filter(p => this.normalizePropertyType(p.propertyType) === type);
     }
 
     if (query) {
@@ -701,8 +878,57 @@ export class PropertiesPage implements OnInit {
     });
   }
 
-  getPropertyTypeLabel(type: number): string {
-    switch (type) {
+  normalizePropertyType(type: number | string | null | undefined): number {
+    if (typeof type === 'number' && Number.isFinite(type)) return type;
+    switch (String(type ?? '').trim()) {
+      case 'Hotel': return 1;
+      case 'Resort': return 2;
+      case 'Hostel': return 3;
+      case 'BedAndBreakfast': return 4;
+      case 'Villa': return 5;
+      case 'Apartment': return 6;
+      case 'Motel':
+      case 'Guesthouse': return 7;
+      case 'Homestay': return 8;
+      default: {
+        const parsed = Number(type);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+      }
+    }
+  }
+
+  isPropertyPublished(prop: TenantPropertySummaryDto): boolean {
+    return (prop as BranchSummaryWithMeta).isPublished === true;
+  }
+
+  private resolvePropertyStatusValue(status: number | string | undefined, isActive: boolean | undefined): number {
+    if (typeof status === 'number' && Number.isFinite(status)) return status;
+    switch (String(status ?? '').trim()) {
+      case 'Inactive': return 0;
+      case 'Active': return 1;
+      case 'Suspended': return 2;
+      default: return isActive === false ? 0 : 1;
+    }
+  }
+
+  private formatTimeToInput(time: string | null | undefined, fallback: string): string {
+    const raw = String(time ?? '').trim();
+    if (/^\d{2}:\d{2}/.test(raw)) {
+      return raw.slice(0, 5);
+    }
+    return fallback;
+  }
+
+  private formatTimeToBackend(time: string | null | undefined, fallback: string): string {
+    const raw = String(time ?? '').trim();
+    if (/^\d{2}:\d{2}:\d{2}$/.test(raw)) return raw;
+    if (/^\d{2}:\d{2}$/.test(raw)) return `${raw}:00`;
+    return fallback;
+  }
+
+  getPropertyTypeLabel(type: number | string): string {
+    const normalized = this.normalizePropertyType(type);
+    switch (normalized) {
       case 1: return 'Khách sạn (Hotel)';
       case 2: return 'Resort nghỉ dưỡng';
       case 3: return 'Hostel / Ký túc xá';
@@ -715,8 +941,9 @@ export class PropertiesPage implements OnInit {
     }
   }
 
-  getPropertyTypeColor(type: number): 'emerald' | 'amber' | 'blue' | 'purple' | 'rose' | 'slate' {
-    return this.propertyTypeOptions.find(opt => opt.value === type)?.color ?? 'slate';
+  getPropertyTypeColor(type: number | string): 'emerald' | 'amber' | 'blue' | 'purple' | 'rose' | 'slate' {
+    const normalized = this.normalizePropertyType(type);
+    return this.propertyTypeOptions.find(opt => opt.value === normalized)?.color ?? 'slate';
   }
 
   switchToProperty(prop: TenantPropertySummaryDto): void {
@@ -737,6 +964,60 @@ export class PropertiesPage implements OnInit {
     });
   }
 
+  togglePublishStatus(prop: TenantPropertySummaryDto): void {
+    if (this.togglingPublishId() !== null) return;
+
+    const propWithMeta = prop as BranchSummaryWithMeta;
+    const nextPublished = !this.isPropertyPublished(prop);
+    this.togglingPublishId.set(prop.id);
+
+    const req: UpdatePropertyPayload = {
+      name: prop.name,
+      code: prop.code,
+      slug: prop.slug,
+      address: prop.address,
+      city: prop.city,
+      provinceCode: this.resolveProvinceCodeForProperty(propWithMeta),
+      propertyType: this.normalizePropertyType(prop.propertyType),
+      starRating: prop.starRating ?? 0,
+      phoneNumber: prop.phoneNumber || undefined,
+      email: prop.email || undefined,
+      touristZoneSlug: propWithMeta.touristZoneSlug || undefined,
+      ...(typeof propWithMeta.latitude === 'number' && Number.isFinite(propWithMeta.latitude) ? { latitude: propWithMeta.latitude } : {}),
+      ...(typeof propWithMeta.longitude === 'number' && Number.isFinite(propWithMeta.longitude) ? { longitude: propWithMeta.longitude } : {}),
+      allowHourlyBooking: prop.allowHourlyBooking,
+      allowOvernightBooking: prop.allowOvernightBooking,
+      allowDailyBooking: prop.allowDailyBooking,
+      isPublished: nextPublished,
+      status: this.resolvePropertyStatusValue(propWithMeta.status, prop.isActive),
+      isActive: prop.isActive !== false,
+    };
+
+    this.propertyService.updateProperty(prop.id, req).subscribe({
+      next: () => {
+        this.togglingPublishId.set(null);
+        this.properties.update(list =>
+          list.map(item =>
+            item.id === prop.id
+              ? ({ ...item, isPublished: nextPublished } as BranchSummaryWithMeta)
+              : item
+          )
+        );
+        this.alertService.toastSuccess(
+          nextPublished
+            ? `Chi nhánh ${prop.name} đã được công khai trên trang đặt phòng.`
+            : `Chi nhánh ${prop.name} đã chuyển về trạng thái nháp (chưa công khai).`,
+          'Cập nhật trạng thái công khai'
+        );
+      },
+      error: (err: HttpErrorPayload) => {
+        this.togglingPublishId.set(null);
+        const detail = err?.error?.message || err?.error?.detail || err?.error?.title || 'Không thể cập nhật trạng thái công khai chi nhánh.';
+        this.alertService.toastError(detail, 'Lỗi cập nhật');
+      }
+    });
+  }
+
   openCreateModal(): void {
     this.isEditing.set(false);
     this.editingPropertyId.set(null);
@@ -745,44 +1026,56 @@ export class PropertiesPage implements OnInit {
       code: '',
       slug: '',
       propertyType: 1,
+      starRating: 0,
+      phoneNumber: '',
+      email: '',
       address: '',
       city: '',
       provinceCode: '79',
       touristZoneSlug: null,
       latitude: null,
       longitude: null,
+      checkInTime: '14:00',
+      checkOutTime: '12:00',
       allowHourlyBooking: true,
       allowOvernightBooking: true,
       allowDailyBooking: true,
+      isPublished: false,
       isActive: true
     });
     this.isModalOpen.set(true);
   }
 
   openEditModal(prop: TenantPropertySummaryDto): void {
-    const propWithGeo = prop as BranchSummaryWithGeo;
+    const propWithGeo = prop as BranchSummaryWithMeta;
     this.isEditing.set(true);
     this.editingPropertyId.set(prop.id);
     this.propertyForm.patchValue({
       name: prop.name,
       code: prop.code,
       slug: prop.slug,
-      propertyType: prop.propertyType || 1,
+      propertyType: this.normalizePropertyType(prop.propertyType),
+      starRating: prop.starRating ?? 0,
+      phoneNumber: prop.phoneNumber ?? '',
+      email: prop.email ?? '',
       address: prop.address,
       city: prop.city,
       provinceCode: this.resolveProvinceCodeForProperty(propWithGeo),
       touristZoneSlug: propWithGeo.touristZoneSlug ?? null,
       latitude: propWithGeo.latitude ?? null,
       longitude: propWithGeo.longitude ?? null,
+      checkInTime: this.formatTimeToInput(propWithGeo.checkInTime, '14:00'),
+      checkOutTime: this.formatTimeToInput(propWithGeo.checkOutTime, '12:00'),
       allowHourlyBooking: prop.allowHourlyBooking,
       allowOvernightBooking: prop.allowOvernightBooking,
       allowDailyBooking: prop.allowDailyBooking,
-      isActive: prop.isActive
+      isPublished: propWithGeo.isPublished === true,
+      isActive: this.resolvePropertyStatusValue(propWithGeo.status, prop.isActive) === 1
     });
     this.isModalOpen.set(true);
   }
 
-  private resolveProvinceCodeForProperty(prop: BranchSummaryWithGeo): string {
+  private resolveProvinceCodeForProperty(prop: BranchSummaryWithMeta): string {
     const rawCode = prop.provinceCode?.trim();
     if (rawCode) {
       const upper = rawCode.toUpperCase();
@@ -871,8 +1164,13 @@ export class PropertiesPage implements OnInit {
         case 'address': return 'Địa chỉ cụ thể không được để trống.';
         case 'city': return 'Tỉnh / Thành phố không được để trống.';
         case 'propertyType': return 'Vui lòng chọn loại hình cơ sở.';
+        case 'checkInTime': return 'Giờ nhận phòng không được để trống.';
+        case 'checkOutTime': return 'Giờ trả phòng không được để trống.';
         default: return 'Trường này là bắt buộc.';
       }
+    }
+    if (ctrl.errors['email']) {
+      return 'Email liên hệ không đúng định dạng.';
     }
     if (ctrl.errors['maxlength']) {
       const max = ctrl.errors['maxlength'].requiredLength;
@@ -893,25 +1191,41 @@ export class PropertiesPage implements OnInit {
     const rawLng = formVal.longitude;
     const latitude = typeof rawLat === 'number' && Number.isFinite(rawLat) ? rawLat : undefined;
     const longitude = typeof rawLng === 'number' && Number.isFinite(rawLng) ? rawLng : undefined;
+    const trimmedPhone = String(formVal.phoneNumber ?? '').trim() || undefined;
+    const trimmedEmail = String(formVal.email ?? '').trim() || undefined;
+    const starRating = Number(formVal.starRating ?? 0);
+    const checkInTime = this.formatTimeToBackend(formVal.checkInTime, '14:00:00');
+    const checkOutTime = this.formatTimeToBackend(formVal.checkOutTime, '12:00:00');
+    const isPublished = !!formVal.isPublished;
 
     if (this.isEditing()) {
       const id = this.editingPropertyId();
       if (!id) return;
 
-      const updateReq: UpdatePropertyRequest = {
+      const checkInDirty = this.propertyForm.get('checkInTime')?.dirty === true;
+      const checkOutDirty = this.propertyForm.get('checkOutTime')?.dirty === true;
+
+      const updateReq: UpdatePropertyPayload = {
         name: formVal.name,
         code: formVal.code.toUpperCase(),
         slug: formVal.slug,
-        propertyType: formVal.propertyType,
+        propertyType: this.normalizePropertyType(formVal.propertyType),
+        starRating: Number.isFinite(starRating) ? Math.min(5, Math.max(0, starRating)) : 0,
+        phoneNumber: trimmedPhone,
+        email: trimmedEmail,
         address: formVal.address,
         city: formVal.city,
         provinceCode: formVal.provinceCode || '79',
         touristZoneSlug: formVal.touristZoneSlug || undefined,
         ...(latitude !== undefined ? { latitude } : {}),
         ...(longitude !== undefined ? { longitude } : {}),
+        ...(checkInDirty ? { checkInTime } : {}),
+        ...(checkOutDirty ? { checkOutTime } : {}),
         allowHourlyBooking: !!formVal.allowHourlyBooking,
         allowOvernightBooking: !!formVal.allowOvernightBooking,
         allowDailyBooking: !!formVal.allowDailyBooking,
+        isPublished,
+        status: formVal.isActive === false ? 0 : 1,
         isActive: formVal.isActive !== false
       };
 
@@ -923,26 +1237,33 @@ export class PropertiesPage implements OnInit {
           this.loadProperties();
           this.authService.fetchMyMemberships().subscribe({ error: () => {} });
         },
-        error: () => {
+        error: (err: HttpErrorPayload) => {
           this.isSubmitting.set(false);
-          this.alertService.toastError('Không thể cập nhật chi nhánh. Vui lòng kiểm tra trùng mã hoặc slug.', 'Lỗi cập nhật');
+          const msg = err?.error?.message || err?.error?.detail || err?.error?.title || 'Không thể cập nhật chi nhánh. Vui lòng kiểm tra trùng mã hoặc slug.';
+          this.alertService.toastError(msg, 'Lỗi cập nhật');
         }
       });
     } else {
-      const createReq: CreatePropertyRequest = {
+      const createReq: CreatePropertyPayload = {
         name: formVal.name,
         code: formVal.code.toUpperCase(),
         slug: formVal.slug,
-        propertyType: formVal.propertyType,
+        propertyType: this.normalizePropertyType(formVal.propertyType),
+        starRating: Number.isFinite(starRating) ? Math.min(5, Math.max(0, starRating)) : 0,
+        phoneNumber: trimmedPhone,
+        email: trimmedEmail,
         address: formVal.address,
         city: formVal.city,
         provinceCode: formVal.provinceCode || '79',
         touristZoneSlug: formVal.touristZoneSlug || undefined,
         ...(latitude !== undefined ? { latitude } : {}),
         ...(longitude !== undefined ? { longitude } : {}),
+        checkInTime,
+        checkOutTime,
         allowHourlyBooking: !!formVal.allowHourlyBooking,
         allowOvernightBooking: !!formVal.allowOvernightBooking,
-        allowDailyBooking: !!formVal.allowDailyBooking
+        allowDailyBooking: !!formVal.allowDailyBooking,
+        isPublished
       };
 
       this.propertyService.createProperty(createReq).subscribe({
@@ -953,9 +1274,10 @@ export class PropertiesPage implements OnInit {
           this.loadProperties();
           this.authService.fetchMyMemberships().subscribe({ error: () => {} });
         },
-        error: () => {
+        error: (err: HttpErrorPayload) => {
           this.isSubmitting.set(false);
-          this.alertService.toastError('Không thể tạo mới chi nhánh. Vui lòng kiểm tra trùng mã hoặc slug.', 'Lỗi tạo mới');
+          const msg = err?.error?.message || err?.error?.detail || err?.error?.title || 'Không thể tạo mới chi nhánh. Vui lòng kiểm tra trùng mã hoặc slug.';
+          this.alertService.toastError(msg, 'Lỗi tạo mới');
         }
       });
     }

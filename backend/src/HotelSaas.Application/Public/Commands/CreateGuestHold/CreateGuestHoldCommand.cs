@@ -35,7 +35,8 @@ public sealed record CreateGuestHoldCommand(
     int? PointsToRedeem = null,
     Guid? GuestUserId = null,
     string? FirebaseIdToken = null,
-    PaymentMethodPreference PaymentMethodPreference = HotelSaas.Domain.Enums.PaymentMethodPreference.VNPay
+    PaymentMethodPreference PaymentMethodPreference = HotelSaas.Domain.Enums.PaymentMethodPreference.VNPay,
+    string? PromoCode = null
 ) : IRequest<GuestHoldDto>;
 
 public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestHoldCommand, GuestHoldDto>
@@ -276,6 +277,7 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
                         string.Equals(ex.GuestEmail.Trim(), request.GuestEmail.Trim(), StringComparison.OrdinalIgnoreCase) &&
                         string.Equals(ex.GuestPhone?.Trim() ?? string.Empty, request.GuestPhone?.Trim() ?? string.Empty, StringComparison.OrdinalIgnoreCase) &&
                         ex.NumberOfGuests == request.NumberOfGuests &&
+                        string.Equals(snap.PromoCode ?? string.Empty, request.PromoCode?.Trim() ?? string.Empty, StringComparison.OrdinalIgnoreCase) &&
                         (!request.ExpectedTotalAmount.HasValue || ex.TotalAmount == request.ExpectedTotalAmount.Value);
 
                     if (isMatch)
@@ -317,6 +319,8 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
                             CanExtendHold = ex.Status == ReservationStatus.PendingPayment && snap.HoldExtensionCount < 1 && remainingSeconds > 0 && remainingSeconds <= 180,
                             Status = ex.Status.ToString(),
                             IsPhoneVerified = snap.IsPhoneVerified,
+                            PromoCode = snap.PromoCode,
+                            PromoDiscountAmount = snap.PromoDiscountAmount,
                             Breakdown = snap.Breakdown
                         };
                     }
@@ -437,13 +441,54 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
             effectiveEndUtc,
             checkInDate,
             checkOutDate,
-            cancellationToken);
+            cancellationToken,
+            request.PromoCode);
 
         if (request.ExpectedTotalAmount.HasValue && request.ExpectedTotalAmount.Value != quote.TotalAmount)
         {
             await tx.RollbackAsync(cancellationToken);
             throw new BadRequestException("ERR_QUOTE_MISMATCH",
                 $"Tổng tiền dự kiến ({request.ExpectedTotalAmount.Value:N0} đ) không khớp với báo giá chính sách hiện hành ({quote.TotalAmount:N0} đ).");
+        }
+
+        if (!string.IsNullOrWhiteSpace(quote.PromoCode))
+        {
+            var normalizedPromo = quote.PromoCode.Trim().ToUpperInvariant();
+            Promotion? appliedPromo = null;
+            try
+            {
+                appliedPromo = await _context.Promotions
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(p => p.TenantId == property.TenantId && p.Code == normalizedPromo, cancellationToken);
+            }
+            catch (NotImplementedException)
+            {
+                appliedPromo = null;
+            }
+
+            if (appliedPromo == null)
+            {
+                await tx.RollbackAsync(cancellationToken);
+                throw new BadRequestException("ERR_INVALID_PROMO_CODE",
+                    $"Mã khuyến mãi '{normalizedPromo}' không tồn tại hoặc không thuộc chi nhánh này.");
+            }
+
+            var nightsCount = request.RentalType == RentalType.Hourly
+                ? 0
+                : (checkOutDate.DayNumber - checkInDate.DayNumber);
+
+            try
+            {
+                PricingCalculator.ValidatePromotionEligibility(appliedPromo, request.RentalType, nightsCount, DateTime.UtcNow);
+            }
+            catch
+            {
+                await tx.RollbackAsync(cancellationToken);
+                throw;
+            }
+
+            appliedPromo.CurrentUsage += 1;
+            appliedPromo.UpdatedAtUtc = DateTime.UtcNow;
         }
 
         // 6. Setup 15-minute hold parameters (Decision D03, D15, D02, D21)
@@ -508,7 +553,9 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
             TokenExpiresAtUtc = (effectiveEndUtc > DateTime.UtcNow ? effectiveEndUtc : DateTime.UtcNow).AddDays(30),
             IsTokenRevoked = false,
             IsPhoneVerified = isPhoneVerified,
-            PhoneVerifiedAtUtc = phoneVerifiedAtUtc
+            PhoneVerifiedAtUtc = phoneVerifiedAtUtc,
+            PromoCode = quote.PromoCode,
+            PromoDiscountAmount = quote.PromoDiscountAmount
         };
 
         var reservation = new Reservation
@@ -585,6 +632,8 @@ public sealed class CreateGuestHoldCommandHandler : IRequestHandler<CreateGuestH
             PointsRedeemed = pointsToRedeem,
             PointsDiscountAmount = pointsDiscount,
             IsPhoneVerified = isPhoneVerified,
+            PromoCode = quote.PromoCode,
+            PromoDiscountAmount = quote.PromoDiscountAmount,
             Breakdown = quote.Breakdown
         };
     }

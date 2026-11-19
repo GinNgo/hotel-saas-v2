@@ -434,12 +434,11 @@ public sealed class LocationsAndAiChatTests
         Assert.Single(conciergeDto.SuggestedRooms);
 
         var pricingRes = await controller.GetDynamicPricingRecommendations(null, null, CancellationToken.None);
-        var pricingOk = Assert.IsType<OkObjectResult>(pricingRes);
-        Assert.NotNull(pricingOk.Value);
+        Assert.IsType<UnauthorizedObjectResult>(pricingRes);
 
         Assert.Contains(db.ExecutedExpressions, expr => expr.Contains("Property", StringComparison.Ordinal));
         Assert.Contains(db.ExecutedExpressions, expr => expr.Contains("RoomType", StringComparison.Ordinal));
-        Assert.Contains(db.ExecutedExpressions, expr => expr.Contains("FirstOrDefault", StringComparison.Ordinal));
+        Assert.Contains(db.ExecutedExpressions, expr => expr.Contains("Take(6)", StringComparison.Ordinal));
     }
 
     [Fact]

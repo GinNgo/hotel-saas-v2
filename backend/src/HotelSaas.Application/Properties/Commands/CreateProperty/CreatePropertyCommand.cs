@@ -1,7 +1,7 @@
 using System;
-using System.ComponentModel.DataAnnotations;
 using System.Threading;
 using System.Threading.Tasks;
+using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Properties.DTOs;
 using HotelSaas.Application.Public.Services;
@@ -29,7 +29,10 @@ public sealed record CreatePropertyCommand(
     bool AllowOvernightBooking = true,
     bool AllowDailyBooking = true,
     double? Latitude = null,
-    double? Longitude = null
+    double? Longitude = null,
+    bool IsPublished = false,
+    TimeOnly? CheckInTime = null,
+    TimeOnly? CheckOutTime = null
 ) : IRequest<TenantPropertySummaryDto>;
 
 public sealed class CreatePropertyCommandHandler : IRequestHandler<CreatePropertyCommand, TenantPropertySummaryDto>
@@ -60,7 +63,7 @@ public sealed class CreatePropertyCommandHandler : IRequestHandler<CreatePropert
             .AnyAsync(p => p.TenantId == tenantId && p.Code == codeUpper, cancellationToken);
         if (codeExists)
         {
-            throw new ValidationException($"Mã chi nhánh '{request.Code}' đã tồn tại trong chuỗi.");
+            throw new ConflictException("ERR_DUPLICATE_PROPERTY_CODE", $"Mã chi nhánh '{request.Code}' đã tồn tại trong chuỗi.");
         }
 
         // Check global slug uniqueness
@@ -70,7 +73,7 @@ public sealed class CreatePropertyCommandHandler : IRequestHandler<CreatePropert
             .AnyAsync(p => p.Slug == slugLower, cancellationToken);
         if (slugExists)
         {
-            throw new ValidationException($"URL Slug '{request.Slug}' đã được sử dụng. Vui lòng chọn slug khác.");
+            throw new ConflictException("ERR_DUPLICATE_PROPERTY_SLUG", $"URL Slug '{request.Slug}' đã được sử dụng. Vui lòng chọn slug khác.");
         }
 
         // Resolve tourist zone name if slug passed
@@ -94,6 +97,8 @@ public sealed class CreatePropertyCommandHandler : IRequestHandler<CreatePropert
             Email = request.Email?.Trim(),
             PropertyType = request.PropertyType,
             StarRating = Math.Clamp(request.StarRating, 0, 5),
+            CheckInTime = request.CheckInTime ?? new TimeOnly(14, 0, 0),
+            CheckOutTime = request.CheckOutTime ?? new TimeOnly(12, 0, 0),
             TouristZoneSlug = request.TouristZoneSlug?.Trim(),
             TouristZoneName = touristZoneName,
             NearbyLandmarksJson = request.NearbyLandmarksJson,
@@ -102,7 +107,7 @@ public sealed class CreatePropertyCommandHandler : IRequestHandler<CreatePropert
             AllowDailyBooking = request.AllowDailyBooking,
             Latitude = request.Latitude,
             Longitude = request.Longitude,
-            IsPublished = true,
+            IsPublished = request.IsPublished,
             Status = PropertyStatus.Active,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
@@ -229,8 +234,22 @@ public sealed class CreatePropertyCommandHandler : IRequestHandler<CreatePropert
                             TenantId = tenantId,
                             PropertyId = propertyId,
                             SurchargeType = SurchargeType.EarlyCheckIn,
-                            FromTime = new TimeOnly(6, 0),
-                            ToTime = new TimeOnly(9, 0),
+                            FromTime = new TimeOnly(0, 0, 0),
+                            ToTime = new TimeOnly(6, 0, 0),
+                            CalculationMethod = SurchargeCalculationMethod.PercentageOfNightly,
+                            Percentage = 100m,
+                            IsActive = true,
+                            CreatedAtUtc = nowUtc,
+                            UpdatedAtUtc = nowUtc
+                        },
+                        new PropertySurchargePolicy
+                        {
+                            Id = Guid.NewGuid(),
+                            TenantId = tenantId,
+                            PropertyId = propertyId,
+                            SurchargeType = SurchargeType.EarlyCheckIn,
+                            FromTime = new TimeOnly(6, 0, 0),
+                            ToTime = new TimeOnly(9, 0, 0),
                             CalculationMethod = SurchargeCalculationMethod.PercentageOfNightly,
                             Percentage = 50m,
                             IsActive = true,
@@ -243,8 +262,8 @@ public sealed class CreatePropertyCommandHandler : IRequestHandler<CreatePropert
                             TenantId = tenantId,
                             PropertyId = propertyId,
                             SurchargeType = SurchargeType.EarlyCheckIn,
-                            FromTime = new TimeOnly(9, 0),
-                            ToTime = new TimeOnly(14, 0),
+                            FromTime = new TimeOnly(9, 0, 0),
+                            ToTime = new TimeOnly(14, 0, 0),
                             CalculationMethod = SurchargeCalculationMethod.PercentageOfNightly,
                             Percentage = 30m,
                             IsActive = true,
@@ -257,8 +276,8 @@ public sealed class CreatePropertyCommandHandler : IRequestHandler<CreatePropert
                             TenantId = tenantId,
                             PropertyId = propertyId,
                             SurchargeType = SurchargeType.LateCheckOut,
-                            FromTime = new TimeOnly(12, 0),
-                            ToTime = new TimeOnly(15, 0),
+                            FromTime = new TimeOnly(12, 0, 0),
+                            ToTime = new TimeOnly(15, 0, 0),
                             CalculationMethod = SurchargeCalculationMethod.PercentageOfNightly,
                             Percentage = 30m,
                             IsActive = true,
@@ -271,10 +290,24 @@ public sealed class CreatePropertyCommandHandler : IRequestHandler<CreatePropert
                             TenantId = tenantId,
                             PropertyId = propertyId,
                             SurchargeType = SurchargeType.LateCheckOut,
-                            FromTime = new TimeOnly(15, 0),
-                            ToTime = new TimeOnly(18, 0),
+                            FromTime = new TimeOnly(15, 0, 0),
+                            ToTime = new TimeOnly(18, 0, 0),
                             CalculationMethod = SurchargeCalculationMethod.PercentageOfNightly,
                             Percentage = 50m,
+                            IsActive = true,
+                            CreatedAtUtc = nowUtc,
+                            UpdatedAtUtc = nowUtc
+                        },
+                        new PropertySurchargePolicy
+                        {
+                            Id = Guid.NewGuid(),
+                            TenantId = tenantId,
+                            PropertyId = propertyId,
+                            SurchargeType = SurchargeType.LateCheckOut,
+                            FromTime = new TimeOnly(18, 0, 0),
+                            ToTime = new TimeOnly(23, 59, 59),
+                            CalculationMethod = SurchargeCalculationMethod.PercentageOfNightly,
+                            Percentage = 100m,
                             IsActive = true,
                             CreatedAtUtc = nowUtc,
                             UpdatedAtUtc = nowUtc

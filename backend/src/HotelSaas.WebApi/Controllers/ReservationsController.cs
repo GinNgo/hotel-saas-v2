@@ -9,6 +9,7 @@ using HotelSaas.Application.Reservations.Commands.CancelReservation;
 using HotelSaas.Application.Reservations.Commands.CheckInReservation;
 using HotelSaas.Application.Reservations.Commands.CheckOutReservation;
 using HotelSaas.Application.Reservations.Commands.CreateReservation;
+using HotelSaas.Application.Reservations.Commands.MarkNoShow;
 using HotelSaas.Application.Reservations.DTOs;
 using HotelSaas.Application.Reservations.Queries.GetReservationById;
 using HotelSaas.Application.Reservations.Queries.GetReservations;
@@ -150,9 +151,20 @@ public sealed class ReservationsController : ControllerBase
     public async Task<IActionResult> CheckIn(
         [FromRoute] Guid id,
         [FromQuery] Guid propertyId,
-        CancellationToken cancellationToken)
+        [FromQuery] bool applyEarlySurcharge = false,
+        CancellationToken cancellationToken = default)
     {
-        var command = new CheckInReservationCommand(id, propertyId);
+        bool earlySurcharge = applyEarlySurcharge;
+        if (Request.ContentLength > 0 && Request.HasJsonContentType())
+        {
+            var body = await Request.ReadFromJsonAsync<CheckInReservationRequest>(cancellationToken);
+            if (body != null)
+            {
+                earlySurcharge = body.ApplyEarlySurcharge || earlySurcharge;
+            }
+        }
+
+        var command = new CheckInReservationCommand(id, propertyId, earlySurcharge);
         var result = await _mediator.Send(command, cancellationToken);
         return Ok(result);
     }
@@ -170,9 +182,69 @@ public sealed class ReservationsController : ControllerBase
     public async Task<IActionResult> CheckOut(
         [FromRoute] Guid id,
         [FromQuery] Guid propertyId,
-        CancellationToken cancellationToken)
+        [FromQuery] bool applyLateSurcharge = false,
+        [FromQuery] decimal? overrideLateSurchargeAmount = null,
+        [FromQuery] string? lateSurchargeOverrideReason = null,
+        CancellationToken cancellationToken = default)
     {
-        var command = new CheckOutReservationCommand(id, propertyId);
+        bool applyLate = applyLateSurcharge;
+        decimal? overrideAmt = overrideLateSurchargeAmount;
+        string? overrideReason = lateSurchargeOverrideReason;
+        if (Request.ContentLength > 0 && Request.HasJsonContentType())
+        {
+            var body = await Request.ReadFromJsonAsync<CheckOutReservationRequest>(cancellationToken);
+            if (body != null)
+            {
+                applyLate = body.ApplyLateSurcharge || applyLate;
+                overrideAmt ??= body.OverrideLateSurchargeAmount;
+                overrideReason ??= body.LateSurchargeOverrideReason;
+            }
+        }
+
+        var command = new CheckOutReservationCommand(id, propertyId, applyLate, overrideAmt, overrideReason);
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Marks a confirmed reservation as NoShow, revoking SmartLock access and logging audit details.
+    /// </summary>
+    [HttpPost("{id:guid}/no-show")]
+    [RequirePermission("CHECK_IN_OUT", PermissionAction.Update)]
+    [ProducesResponseType(typeof(ReservationDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> MarkNoShow(
+        [FromRoute] Guid id,
+        [FromQuery] Guid propertyId,
+        [FromQuery] string? reason = null,
+        CancellationToken cancellationToken = default)
+    {
+        var resolvedPropertyId = propertyId;
+        if (resolvedPropertyId == Guid.Empty &&
+            Request.Headers.TryGetValue("X-Property-Id", out var headerProp) &&
+            Guid.TryParse(headerProp, out var parsedProp))
+        {
+            resolvedPropertyId = parsedProp;
+        }
+
+        string? resolvedReason = reason;
+        if (Request.ContentLength > 0 && Request.HasJsonContentType())
+        {
+            var body = await Request.ReadFromJsonAsync<MarkNoShowRequest>(cancellationToken);
+            if (body != null)
+            {
+                if (resolvedPropertyId == Guid.Empty && body.PropertyId.HasValue && body.PropertyId.Value != Guid.Empty)
+                {
+                    resolvedPropertyId = body.PropertyId.Value;
+                }
+                resolvedReason ??= body.Reason;
+            }
+        }
+
+        var command = new MarkNoShowCommand(id, resolvedPropertyId, resolvedReason);
         var result = await _mediator.Send(command, cancellationToken);
         return Ok(result);
     }
@@ -361,5 +433,20 @@ public sealed record AddFolioItemRequest(
     int Quantity,
     decimal UnitPrice,
     string? Category = "Service",
+    Guid? PropertyId = null
+);
+
+public sealed record CheckInReservationRequest(
+    bool ApplyEarlySurcharge = false
+);
+
+public sealed record CheckOutReservationRequest(
+    bool ApplyLateSurcharge = false,
+    decimal? OverrideLateSurchargeAmount = null,
+    string? LateSurchargeOverrideReason = null
+);
+
+public sealed record MarkNoShowRequest(
+    string? Reason = null,
     Guid? PropertyId = null
 );

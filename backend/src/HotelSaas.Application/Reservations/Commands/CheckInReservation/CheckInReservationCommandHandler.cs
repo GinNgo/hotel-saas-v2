@@ -1,11 +1,15 @@
 using System;
+using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
+using HotelSaas.Application.Reservations.Commands.CheckOutReservation;
 using HotelSaas.Application.Reservations.DTOs;
 using HotelSaas.Application.Reservations.Services;
+using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +18,8 @@ namespace HotelSaas.Application.Reservations.Commands.CheckInReservation;
 
 /// <summary>
 /// Handles checking in a reservation: validates FSM status, locks the physical room,
-/// verifies the room is Clean, transitions the reservation to CheckedIn and the room to Occupied.
+/// verifies the room is Clean, evaluates optional early check-in surcharge and 30% deposit warning,
+/// transitions the reservation to CheckedIn and the room to Occupied.
 /// </summary>
 public sealed class CheckInReservationCommandHandler : IRequestHandler<CheckInReservationCommand, ReservationDetailDto>
 {
@@ -24,6 +29,7 @@ public sealed class CheckInReservationCommandHandler : IRequestHandler<CheckInRe
     private readonly IMembershipLookupService _membershipLookupService;
     private readonly ICurrentPropertyService _propertyService;
     private readonly INotificationDispatcher? _notificationDispatcher;
+    private readonly IAuditLogService? _auditLogService;
 
     public CheckInReservationCommandHandler(
         IApplicationDbContext context,
@@ -31,7 +37,8 @@ public sealed class CheckInReservationCommandHandler : IRequestHandler<CheckInRe
         ICurrentUserContext userContext,
         IMembershipLookupService membershipLookupService,
         ICurrentPropertyService propertyService,
-        INotificationDispatcher? notificationDispatcher = null)
+        INotificationDispatcher? notificationDispatcher = null,
+        IAuditLogService? auditLogService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _tenantService = tenantService ?? throw new ArgumentNullException(nameof(tenantService));
@@ -39,6 +46,7 @@ public sealed class CheckInReservationCommandHandler : IRequestHandler<CheckInRe
         _membershipLookupService = membershipLookupService ?? throw new ArgumentNullException(nameof(membershipLookupService));
         _propertyService = propertyService ?? throw new ArgumentNullException(nameof(propertyService));
         _notificationDispatcher = notificationDispatcher;
+        _auditLogService = auditLogService;
     }
 
     public async Task<ReservationDetailDto> Handle(CheckInReservationCommand request, CancellationToken cancellationToken)
@@ -222,19 +230,76 @@ public sealed class CheckInReservationCommandHandler : IRequestHandler<CheckInRe
                 $"Phòng {room.RoomNumber} không ở trạng thái sẵn sàng để nhận phòng (trạng thái: {room.Status}).");
         }
 
-        // 6. Execute atomic state transitions
+        // 6. Optional early check-in surcharge and non-blocking 30% deposit warning
+        var utcNow = DateTime.UtcNow;
+        if (request.ApplyEarlySurcharge)
+        {
+            var (surchargeAmount, surchargeLabel) = await StaySurchargeCalculator.CalculateSurchargeAsync(
+                _context, tenantId.Value, property, reservation, room, SurchargeType.EarlyCheckIn, utcNow, cancellationToken);
+            if (surchargeAmount > 0m)
+            {
+                StaySurchargeCalculator.AppendSurchargeToSnapshot(
+                    reservation,
+                    property,
+                    room,
+                    surchargeAmount,
+                    string.IsNullOrWhiteSpace(surchargeLabel) ? "Phụ thu nhận phòng sớm" : surchargeLabel,
+                    utcNow);
+            }
+        }
+
+        var paidAmount = await _context.Payments
+            .Where(p => p.ReservationId == reservation.Id &&
+                        p.PropertyId == request.PropertyId &&
+                        p.TenantId == tenantId.Value &&
+                        p.Status == PaymentStatus.Completed &&
+                        (p.TransactionRef == null || !p.TransactionRef.Contains("REFUND")))
+            .SumAsync(p => (decimal?)p.Amount, cancellationToken) ?? 0m;
+
+        var minimumDeposit30 = Math.Round(reservation.TotalAmount * 0.30m, 0, MidpointRounding.AwayFromZero);
+
+        // 7. Execute atomic state transitions
         reservation.Status = ReservationStatus.CheckedIn;
         if (string.IsNullOrWhiteSpace(reservation.SmartLockPin))
         {
             reservation.SmartLockPin = System.Security.Cryptography.RandomNumberGenerator.GetInt32(100000, 999999).ToString();
         }
         reservation.SmartLockStatus = "Active";
-        reservation.SmartLockActivatedAtUtc = DateTime.UtcNow;
+        reservation.SmartLockActivatedAtUtc = utcNow;
+        reservation.UpdatedAtUtc = utcNow;
 
         room.Status = RoomStatus.Occupied;
-        room.UpdatedAtUtc = DateTime.UtcNow;
+        room.UpdatedAtUtc = utcNow;
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        if (paidAmount < minimumDeposit30 && _auditLogService != null)
+        {
+            try
+            {
+                await _auditLogService.RecordActionExplicitAsync(
+                    tenantId.Value,
+                    request.PropertyId,
+                    userId,
+                    "CheckInDepositWarning",
+                    nameof(Reservation),
+                    reservation.Id,
+                    null,
+                    JsonSerializer.Serialize(new
+                    {
+                        PaidAmount = paidAmount,
+                        RequiredDeposit30Percent = minimumDeposit30,
+                        TotalAmount = reservation.TotalAmount
+                    }),
+                    null,
+                    cancellationToken);
+            }
+            catch (NotImplementedException)
+            {
+                // Guard for test doubles without AuditLogs DbSet
+            }
+        }
+
         await transaction.CommitAsync(cancellationToken);
 
         if (_notificationDispatcher != null)

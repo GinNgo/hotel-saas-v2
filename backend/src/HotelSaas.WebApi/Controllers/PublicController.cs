@@ -16,6 +16,8 @@ using HotelSaas.Application.Public.Queries.GetPublicAvailability;
 using HotelSaas.Application.Public.Queries.GetPublicProperties;
 using HotelSaas.Application.Public.Queries.GetPublicPropertyBySlug;
 using HotelSaas.Application.Public.Queries.GetPublicRoomTypes;
+using HotelSaas.Application.Promotions.DTOs;
+using HotelSaas.Application.Promotions.Queries.GetPublicPromotions;
 using HotelSaas.Application.Quotes.DTOs;
 using HotelSaas.Application.Reviews.Commands.SubmitGuestReview;
 using HotelSaas.Application.Reviews.DTOs;
@@ -198,6 +200,20 @@ public sealed class PublicController : ControllerBase
     }
 
     /// <summary>
+    /// Lists active, non-expired public promotions across published partner brands.
+    /// </summary>
+    [HttpGet("promotions")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(IReadOnlyList<PublicPromotionDealDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPromotions(
+        [FromQuery] string? tenantSlug = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _mediator.Send(new GetPublicPromotionsQuery(tenantSlug), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Calculates authoritative quote using the core pricing engine.
     /// </summary>
     [HttpPost("quotes/calculate")]
@@ -208,8 +224,13 @@ public sealed class PublicController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> CalculateQuote(
         [FromBody] CalculatePublicQuoteRequest request,
-        CancellationToken cancellationToken)
+        [FromQuery] string? promoCode = null,
+        CancellationToken cancellationToken = default)
     {
+        var resolvedPromoCode = !string.IsNullOrWhiteSpace(request.PromoCode)
+            ? request.PromoCode
+            : promoCode;
+
         var query = new CalculatePublicQuoteQuery(
             request.PropertySlug,
             request.RoomTypeId,
@@ -217,7 +238,8 @@ public sealed class PublicController : ControllerBase
             request.StartAtUtc,
             request.EndAtUtc,
             request.CheckInDate,
-            request.CheckOutDate);
+            request.CheckOutDate,
+            resolvedPromoCode);
 
         var result = await _mediator.Send(query, cancellationToken);
         return Ok(result);
@@ -272,7 +294,8 @@ public sealed class PublicController : ControllerBase
             request.PointsToRedeem,
             guestUserId,
             request.FirebaseIdToken,
-            request.PaymentMethodPreference);
+            request.PaymentMethodPreference,
+            request.PromoCode);
 
         var result = await _mediator.Send(command, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, result);
@@ -488,7 +511,8 @@ public sealed record CalculatePublicQuoteRequest(
     DateTime StartAtUtc,
     DateTime EndAtUtc,
     DateOnly? CheckInDate = null,
-    DateOnly? CheckOutDate = null
+    DateOnly? CheckOutDate = null,
+    string? PromoCode = null
 );
 
 public sealed record CreateGuestHoldRequest(
@@ -508,7 +532,8 @@ public sealed record CreateGuestHoldRequest(
     int? PointsToRedeem = null,
     Guid? GuestUserId = null,
     string? FirebaseIdToken = null,
-    PaymentMethodPreference PaymentMethodPreference = HotelSaas.Domain.Enums.PaymentMethodPreference.VNPay
+    PaymentMethodPreference PaymentMethodPreference = HotelSaas.Domain.Enums.PaymentMethodPreference.VNPay,
+    string? PromoCode = null
 );
 
 public sealed record ConfirmGuestBookingRequest(

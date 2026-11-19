@@ -5,13 +5,17 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Interfaces;
+using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Common.Utils;
+using HotelSaas.Application.Pricing.Services;
 using HotelSaas.Application.Public.DTOs;
 using HotelSaas.Application.Public.Queries.GetPublicProperties;
 using HotelSaas.Application.Public.Services;
+using HotelSaas.Application.RoomTypes.Commands.CreateRoomTypeRate;
+using HotelSaas.Application.RoomTypes.DTOs;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
-using HotelSaas.Application.Pricing.Services;
+using HotelSaas.WebApi.Authorization;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -258,24 +262,17 @@ public sealed class AiController : ControllerBase
             ? sub.CurrentPeriodStartUtc
             : new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        // Count AI usage logs recorded in the current billing cycle
-        var loggedAiUsage = await _context.AiUsageLogs
-            .AsNoTracking()
-            .CountAsync(l => l.TenantId == tenantId.Value && l.CreatedAtUtc >= periodStart, cancellationToken);
-
-        // If no direct AiUsageLogs are recorded yet, calculate dynamically from tenant operational activities
-        var usedCount = loggedAiUsage;
-        if (usedCount == 0)
+        // Count ONLY actual AiUsageLogs recorded in the current billing cycle (no fallback inflation)
+        int usedCount = 0;
+        try
         {
-            var activityCount = await _context.Reservations
+            usedCount = await _context.AiUsageLogs
                 .AsNoTracking()
-                .CountAsync(r => r.TenantId == tenantId.Value && r.CreatedAtUtc >= periodStart, cancellationToken);
-
-            var pricingAuditsCount = await _context.RoomTypeRateAudits
-                .AsNoTracking()
-                .CountAsync(a => a.TenantId == tenantId.Value && a.ChangedAtUtc >= periodStart, cancellationToken);
-
-            usedCount = activityCount + pricingAuditsCount;
+                .CountAsync(l => l.TenantId == tenantId.Value && l.CreatedAtUtc >= periodStart, cancellationToken);
+        }
+        catch (NotImplementedException)
+        {
+            usedCount = 0;
         }
 
         return Ok(new AiUsageStatusDto
@@ -292,39 +289,245 @@ public sealed class AiController : ControllerBase
     /// Analyzes real-time inventory occupancy and returns AI Dynamic Pricing recommendations for a property.
     /// </summary>
     [HttpGet("dynamic-pricing/recommendations")]
-    [AllowAnonymous]
+    [Authorize]
+    [RequirePermission("AI_FEATURES", PermissionAction.Read)]
     [ProducesResponseType(typeof(DynamicPricingSummaryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetDynamicPricingRecommendations(
         [FromQuery] Guid? propertyId,
         [FromQuery] DateOnly? date,
         CancellationToken cancellationToken)
     {
+        var tenantId = _currentUser.TenantId;
+        if (!tenantId.HasValue || tenantId.Value == Guid.Empty)
+        {
+            return Unauthorized(ApiResponse.Fail("ERR_TENANT_REQUIRED", "Yêu cầu xác thực ngữ cảnh doanh nghiệp hợp lệ."));
+        }
+
+        Property? targetProperty;
+        if (propertyId.HasValue && propertyId.Value != Guid.Empty)
+        {
+            targetProperty = await _context.Properties
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == propertyId.Value, cancellationToken);
+
+            if (targetProperty == null)
+            {
+                return NotFound(ApiResponse.Fail("ERR_PROPERTY_NOT_FOUND", "Không tìm thấy cơ sở lưu trú."));
+            }
+
+            if (targetProperty.TenantId != tenantId.Value)
+            {
+                return Forbid();
+            }
+        }
+        else if (!_currentUser.IsTenantWide && _currentUser.PropertyId.HasValue && _currentUser.PropertyId.Value != Guid.Empty)
+        {
+            targetProperty = await _context.Properties
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == _currentUser.PropertyId.Value, cancellationToken);
+
+            if (targetProperty == null)
+            {
+                return NotFound(ApiResponse.Fail("ERR_PROPERTY_NOT_FOUND", "Không tìm thấy cơ sở lưu trú."));
+            }
+
+            if (targetProperty.TenantId != tenantId.Value)
+            {
+                return Forbid();
+            }
+        }
+        else
+        {
+            targetProperty = await _context.Properties
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(p => p.TenantId == tenantId.Value && p.Status == PropertyStatus.Active)
+                .OrderBy(p => p.CreatedAtUtc)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (targetProperty == null)
+            {
+                return NotFound(ApiResponse.Fail("ERR_PROPERTY_NOT_FOUND", "Không tìm thấy cơ sở lưu trú đang hoạt động."));
+            }
+        }
+
+        if (!_currentUser.IsTenantWide && _currentUser.PropertyId != targetProperty.Id)
+        {
+            return Forbid();
+        }
+
         if (_dynamicPricingService == null)
         {
             return Ok(new { message = "Dịch vụ định giá động AI chưa được kích hoạt." });
         }
 
-        Guid targetPropertyId;
-        if (propertyId.HasValue)
-        {
-            targetPropertyId = propertyId.Value;
-        }
-        else
-        {
-            var isTenantless = !_currentUser.TenantId.HasValue || _currentUser.TenantId == Guid.Empty;
-            var propsQuery = (isTenantless ? _context.Properties.IgnoreQueryFilters() : _context.Properties)
-                .AsNoTracking();
+        var tz = TimeZoneInfo.TryFindSystemTimeZoneById("Asia/Ho_Chi_Minh", out var vnTz)
+            ? vnTz
+            : (TimeZoneInfo.TryFindSystemTimeZoneById("SE Asia Standard Time", out var seTz)
+                ? seTz
+                : TimeZoneInfo.CreateCustomTimeZone("Asia/Ho_Chi_Minh", TimeSpan.FromHours(7), "ICT", "ICT"));
 
-            var firstProp = await propsQuery
-                .FirstOrDefaultAsync(p => p.Status == PropertyStatus.Active, cancellationToken);
+        var targetDate = date ?? DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz));
+        var result = await _dynamicPricingService.GetPricingRecommendationsAsync(targetProperty.Id, targetDate, cancellationToken);
 
-            if (firstProp == null) return NotFound(new { message = "Không tìm thấy cơ sở lưu trú." });
-            targetPropertyId = firstProp.Id;
-        }
+        await TryRecordAiUsageAsync(
+            tenantId.Value,
+            "DynamicPricing",
+            $"Property={targetProperty.Id}, Date={targetDate:yyyy-MM-dd}",
+            $"RecommendationsCount={result.Recommendations.Count}, MarketDemand={result.MarketDemandLevel}",
+            cancellationToken);
 
-        var targetDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
-        var result = await _dynamicPricingService.GetPricingRecommendationsAsync(targetPropertyId, targetDate, cancellationToken);
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Applies a selected AI dynamic pricing recommendation by creating or interval-splitting an active room type rate.
+    /// </summary>
+    [HttpPost("dynamic-pricing/apply")]
+    [Authorize]
+    [RequirePermission("AI_FEATURES", PermissionAction.Update)]
+    [ProducesResponseType(typeof(RoomTypeRateDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ApplyDynamicPricingRecommendation(
+        [FromBody] ApplyDynamicPricingRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _currentUser.TenantId;
+        if (!tenantId.HasValue || tenantId.Value == Guid.Empty)
+        {
+            return Unauthorized(ApiResponse.Fail("ERR_TENANT_REQUIRED", "Yêu cầu xác thực ngữ cảnh doanh nghiệp hợp lệ."));
+        }
+
+        if (request == null || request.RoomTypeId == Guid.Empty)
+        {
+            return BadRequest(ApiResponse.Fail("ERR_INVALID_REQUEST", "Vui lòng chọn hạng phòng hợp lệ để áp dụng giá AI."));
+        }
+
+        if (request.NightlyPrice <= 0)
+        {
+            return BadRequest(ApiResponse.Fail("ERR_INVALID_PRICE", "Giá đêm đề xuất phải lớn hơn 0."));
+        }
+
+        var roomType = await _context.RoomTypes
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(rt => rt.Id == request.RoomTypeId, cancellationToken);
+
+        if (roomType == null)
+        {
+            return NotFound(ApiResponse.Fail("ERR_ROOM_TYPE_NOT_FOUND", "Không tìm thấy hạng phòng."));
+        }
+
+        if (roomType.TenantId != tenantId.Value)
+        {
+            return Forbid();
+        }
+
+        var targetPropertyId = request.PropertyId ?? roomType.PropertyId;
+        if (request.PropertyId.HasValue && request.PropertyId.Value != roomType.PropertyId)
+        {
+            return BadRequest(ApiResponse.Fail("ERR_PROPERTY_MISMATCH", "Hạng phòng không thuộc chi nhánh được chọn."));
+        }
+
+        if (!_currentUser.IsTenantWide && _currentUser.PropertyId != targetPropertyId)
+        {
+            return Forbid();
+        }
+
+        var tz = TimeZoneInfo.TryFindSystemTimeZoneById("Asia/Ho_Chi_Minh", out var vnTz)
+            ? vnTz
+            : (TimeZoneInfo.TryFindSystemTimeZoneById("SE Asia Standard Time", out var seTz)
+                ? seTz
+                : TimeZoneInfo.CreateCustomTimeZone("Asia/Ho_Chi_Minh", TimeSpan.FromHours(7), "ICT", "ICT"));
+
+        var todayLocal = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz));
+        var effectiveFrom = request.EffectiveFrom ?? todayLocal;
+        var effectiveTo = request.EffectiveTo ?? effectiveFrom.AddDays(1);
+
+        if (effectiveTo <= effectiveFrom)
+        {
+            return BadRequest(ApiResponse.Fail("ERR_INVALID_DURATION", "Ngày kết thúc hiệu lực phải lớn hơn ngày bắt đầu."));
+        }
+
+        var currentRate = await _context.RoomTypeRates
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(r => r.RoomTypeId == roomType.Id &&
+                        r.PropertyId == targetPropertyId &&
+                        r.TenantId == tenantId.Value &&
+                        r.IsActive &&
+                        r.EffectiveFrom <= effectiveFrom &&
+                        effectiveFrom < r.EffectiveTo)
+            .OrderByDescending(r => r.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var firstHours = Math.Max(1, request.FirstHours ?? currentRate?.FirstHours ?? 2);
+        var firstHoursPrice = request.FirstHoursPrice ?? currentRate?.FirstHoursPrice ?? Math.Round(request.NightlyPrice * 0.40m, 0, MidpointRounding.AwayFromZero);
+        var additionalHourPrice = request.AdditionalHourPrice ?? currentRate?.AdditionalHourPrice ?? Math.Round(request.NightlyPrice * 0.12m, 0, MidpointRounding.AwayFromZero);
+        var currency = !string.IsNullOrWhiteSpace(request.Currency)
+            ? request.Currency.Trim().ToUpperInvariant()
+            : (currentRate?.Currency ?? "VND");
+        var changeReason = !string.IsNullOrWhiteSpace(request.ChangeReason)
+            ? request.ChangeReason.Trim()
+            : "Áp dụng đề xuất AI Dynamic Pricing";
+
+        var createdRate = await _mediator.Send(new CreateRoomTypeRateCommand(
+            roomType.Id,
+            targetPropertyId,
+            firstHours,
+            firstHoursPrice,
+            additionalHourPrice,
+            Math.Round(request.NightlyPrice, 0, MidpointRounding.AwayFromZero),
+            effectiveFrom,
+            effectiveTo,
+            currency,
+            changeReason), cancellationToken);
+
+        await TryRecordAiUsageAsync(
+            tenantId.Value,
+            "DynamicPricingApply",
+            $"RoomType={roomType.Id}, Property={targetPropertyId}, Range={effectiveFrom:yyyy-MM-dd}..{effectiveTo:yyyy-MM-dd}",
+            $"AppliedNightlyPrice={createdRate.NightlyPrice}, RateId={createdRate.Id}",
+            cancellationToken);
+
+        return Ok(createdRate);
+    }
+
+    private async Task TryRecordAiUsageAsync(
+        Guid tenantId,
+        string feature,
+        string prompt,
+        string response,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            _context.AiUsageLogs.Add(new AiUsageLog
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                UserId = _currentUser.UserId != Guid.Empty ? _currentUser.UserId : null,
+                Feature = feature,
+                Prompt = prompt,
+                Response = response,
+                ModelUsed = "ai-dynamic-pricing-engine",
+                IsSuccess = true,
+                CreatedAtUtc = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            // Non-critical telemetry logging must not disrupt pricing workflow
+        }
     }
 
     private static string DetectIntent(string query)
@@ -893,3 +1096,16 @@ public sealed class AiChatMapsChunk
     public string? Title { get; set; }
     public string? Uri { get; set; }
 }
+
+public sealed record ApplyDynamicPricingRequest(
+    Guid RoomTypeId,
+    decimal NightlyPrice,
+    Guid? PropertyId = null,
+    DateOnly? EffectiveFrom = null,
+    DateOnly? EffectiveTo = null,
+    int? FirstHours = null,
+    decimal? FirstHoursPrice = null,
+    decimal? AdditionalHourPrice = null,
+    string? Currency = null,
+    string? ChangeReason = null
+);

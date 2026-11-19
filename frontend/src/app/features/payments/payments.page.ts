@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, inject, signal, computed, effect, untrack
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { DatePicker } from 'primeng/datepicker';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
@@ -582,9 +582,21 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                       </span>
                     }
                   </div>
-                  <span class="text-xs text-slate-500 font-medium">
-                    Phòng: <strong class="text-slate-800">{{ f.roomNumber || 'Chưa gán' }}</strong> ({{ f.roomTypeName || 'Tiêu chuẩn' }})
-                  </span>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-500 font-medium">
+                      Phòng: <strong class="text-slate-800">{{ f.roomNumber || 'Chưa gán' }}</strong> ({{ f.roomTypeName || 'Tiêu chuẩn' }})
+                    </span>
+                    <button
+                      type="button"
+                      (click)="openPrintInvoice(f.reservationId)"
+                      aria-label="In hóa đơn thanh toán"
+                      title="Mở trang in hóa đơn cho đơn đặt phòng này"
+                      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition-colors cursor-pointer"
+                    >
+                      <i class="pi pi-print text-xs"></i>
+                      <span>In hóa đơn</span>
+                    </button>
+                  </div>
                 </div>
 
                 <!-- Guest & Stay details -->
@@ -1220,6 +1232,7 @@ export class PaymentsPage implements OnInit, OnDestroy {
   readonly authService = inject(AuthService);
   private readonly paymentService = inject(PaymentService);
   private readonly route = inject(ActivatedRoute, { optional: true });
+  private readonly router = inject(Router, { optional: true });
 
   readonly PaymentMethod = PaymentMethod;
   readonly PaymentStatus = PaymentStatus;
@@ -2001,6 +2014,15 @@ export class PaymentsPage implements OnInit, OnDestroy {
   printReceipt(): void {
     if (typeof window !== 'undefined') {
       window.print();
+    }
+  }
+
+  openPrintInvoice(reservationId: string): void {
+    if (!reservationId) return;
+    if (this.router) {
+      void this.router.navigate(['/print/invoice', reservationId]);
+    } else if (typeof window !== 'undefined') {
+      window.open(`/print/invoice/${reservationId}`, '_blank');
     }
   }
 

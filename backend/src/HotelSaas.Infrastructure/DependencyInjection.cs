@@ -61,6 +61,7 @@ public static class DependencyInjection
         services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddHostedService<ExpiredHoldSweepBackgroundService>();
+        services.AddHostedService<NightAuditBackgroundService>();
 
         return services;
     }

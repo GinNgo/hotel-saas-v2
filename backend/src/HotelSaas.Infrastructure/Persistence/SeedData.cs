@@ -139,7 +139,8 @@ public static class SeedData
             ("DASHBOARD", Read), ("PROPERTIES", ReadUpdate), ("ROOMS", All), ("ROOM_TYPES", All),
             ("RESERVATIONS", All), ("GUESTS", All), ("CHECK_IN_OUT", All), ("HOUSEKEEPING", All),
             ("PAYMENTS", All), ("INVOICES", All), ("REPORTS", All),
-            ("STAFF", ReadCreate), ("ROLES", Read), ("SETTINGS", Read));
+            ("STAFF", ReadCreate), ("ROLES", Read), ("SETTINGS", Read),
+            ("PROMOTIONS", All), ("REVIEWS", All), ("AI_FEATURES", All));
 
         // ── RECEPTIONIST ──────────────────────────────────────────────────
         var receptionistId = Guid.NewGuid();
@@ -374,6 +375,14 @@ public static class SeedData
             ["MANAGER"], Read, exactMatch: false);
         await UpsertRolePermissionAsync(context, "ROOM_TYPES", "Room Type Management", "ROOMS",
             ["RECEPTIONIST"], Read, exactMatch: false);
+        await UpsertRolePermissionAsync(context, "PROMOTIONS", "Promotions", "PROMOTIONS",
+            ["OWNER", "MANAGER", "SUPER_ADMIN"], All, exactMatch: false);
+        await UpsertRolePermissionAsync(context, "REVIEWS", "Guest Reviews", "REVIEWS",
+            ["OWNER", "MANAGER", "SUPER_ADMIN"], All, exactMatch: false);
+        await UpsertRolePermissionAsync(context, "AI_FEATURES", "AI Features", "AI_FEATURES",
+            ["OWNER", "MANAGER", "SUPER_ADMIN"], All, exactMatch: false);
+        await UpsertRolePermissionAsync(context, "HOUSEKEEPING", "Housekeeping", "HOUSEKEEPING",
+            ["HOUSEKEEPER"], 7, exactMatch: false);
 
         // Also ensure platform admin data is seeded even if roles already exist
         await SeedPlatformAdminDataAsync(context);

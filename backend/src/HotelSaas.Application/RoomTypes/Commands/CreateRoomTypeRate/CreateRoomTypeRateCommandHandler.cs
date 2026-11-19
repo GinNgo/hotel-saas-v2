@@ -142,15 +142,23 @@ public sealed class CreateRoomTypeRateCommandHandler : IRequestHandler<CreateRoo
         bool isSplit = false;
         bool isReplaced = false;
 
-        // Find overlapping rate: r.EffectiveFrom < request.EffectiveTo && request.EffectiveFrom < r.EffectiveTo
-        var overlappingRate = existingRates.FirstOrDefault(r =>
-            r.EffectiveFrom < request.EffectiveTo && request.EffectiveFrom < r.EffectiveTo);
+        // Find ALL overlapping active rates ordered chronologically:
+        // r.EffectiveFrom < request.EffectiveTo && request.EffectiveFrom < r.EffectiveTo
+        var overlappingRates = existingRates
+            .Where(r => r.EffectiveFrom < request.EffectiveTo && request.EffectiveFrom < r.EffectiveTo)
+            .OrderBy(r => r.EffectiveFrom)
+            .ToList();
 
-        if (overlappingRate != null)
+        var tailRatesToAdd = new List<(RoomTypeRate TailRate, DateOnly OriginalStart, DateOnly OriginalEnd, decimal OldNightlyPrice)>();
+
+        foreach (var overlappingRate in overlappingRates)
         {
-            if (request.EffectiveFrom == overlappingRate.EffectiveFrom)
+            var originalStart = overlappingRate.EffectiveFrom;
+            var originalEnd = overlappingRate.EffectiveTo;
+
+            if (request.EffectiveFrom <= originalStart && request.EffectiveTo >= originalEnd)
             {
-                // Case 1: Exact Head match - Deactivate old rate and replace
+                // Case (a): Full cover or exact match - Deactivate old rate
                 isReplaced = true;
                 overlappingRate.IsActive = false;
 
@@ -161,8 +169,8 @@ public sealed class CreateRoomTypeRateCommandHandler : IRequestHandler<CreateRoo
                     PropertyId = targetPropertyId,
                     RoomTypeId = roomType.Id,
                     RateId = overlappingRate.Id,
-                    OldEffectiveFrom = overlappingRate.EffectiveFrom,
-                    OldEffectiveTo = overlappingRate.EffectiveTo,
+                    OldEffectiveFrom = originalStart,
+                    OldEffectiveTo = originalEnd,
                     OldNightlyPrice = overlappingRate.NightlyPrice,
                     NewEffectiveFrom = request.EffectiveFrom,
                     NewEffectiveTo = request.EffectiveTo,
@@ -173,13 +181,10 @@ public sealed class CreateRoomTypeRateCommandHandler : IRequestHandler<CreateRoo
                     ChangeReason = request.ChangeReason
                 });
             }
-            else if (overlappingRate.EffectiveFrom < request.EffectiveFrom && request.EffectiveFrom < overlappingRate.EffectiveTo)
+            else if (originalStart < request.EffectiveFrom && request.EffectiveTo < originalEnd)
             {
-                // Case 2: Mid match - Interval Splitting
+                // Case (b): Strict interior split - Shorten head + create active tail clone [request.EffectiveTo, originalEnd)
                 isSplit = true;
-                var originalEnd = overlappingRate.EffectiveTo;
-
-                // Shorten existing rate
                 overlappingRate.EffectiveTo = request.EffectiveFrom;
 
                 _context.RoomTypeRateAudits.Add(new RoomTypeRateAudit
@@ -189,10 +194,55 @@ public sealed class CreateRoomTypeRateCommandHandler : IRequestHandler<CreateRoo
                     PropertyId = targetPropertyId,
                     RoomTypeId = roomType.Id,
                     RateId = overlappingRate.Id,
-                    OldEffectiveFrom = overlappingRate.EffectiveFrom,
+                    OldEffectiveFrom = originalStart,
                     OldEffectiveTo = originalEnd,
                     OldNightlyPrice = overlappingRate.NightlyPrice,
-                    NewEffectiveFrom = overlappingRate.EffectiveFrom,
+                    NewEffectiveFrom = originalStart,
+                    NewEffectiveTo = request.EffectiveFrom,
+                    NewNightlyPrice = overlappingRate.NightlyPrice,
+                    ActionType = "Split_Shortened",
+                    ChangedByUserId = userId,
+                    ChangedAtUtc = utcNow,
+                    ChangeReason = request.ChangeReason
+                });
+
+                var tailRate = new RoomTypeRate
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenantId.Value,
+                    PropertyId = targetPropertyId,
+                    RoomTypeId = roomType.Id,
+                    FirstHours = overlappingRate.FirstHours,
+                    FirstHoursPrice = overlappingRate.FirstHoursPrice,
+                    AdditionalHourPrice = overlappingRate.AdditionalHourPrice,
+                    NightlyPrice = overlappingRate.NightlyPrice,
+                    Currency = overlappingRate.Currency,
+                    EffectiveFrom = request.EffectiveTo,
+                    EffectiveTo = originalEnd,
+                    CreatedByUserId = userId,
+                    ChangeReason = overlappingRate.ChangeReason,
+                    IsActive = true
+                };
+
+                tailRatesToAdd.Add((tailRate, originalStart, originalEnd, overlappingRate.NightlyPrice));
+            }
+            else if (originalStart < request.EffectiveFrom && request.EffectiveTo >= originalEnd)
+            {
+                // Case (c): Right-tail overlap - Shorten existing rate to end at request.EffectiveFrom
+                isSplit = true;
+                overlappingRate.EffectiveTo = request.EffectiveFrom;
+
+                _context.RoomTypeRateAudits.Add(new RoomTypeRateAudit
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenantId.Value,
+                    PropertyId = targetPropertyId,
+                    RoomTypeId = roomType.Id,
+                    RateId = overlappingRate.Id,
+                    OldEffectiveFrom = originalStart,
+                    OldEffectiveTo = originalEnd,
+                    OldNightlyPrice = overlappingRate.NightlyPrice,
+                    NewEffectiveFrom = originalStart,
                     NewEffectiveTo = request.EffectiveFrom,
                     NewNightlyPrice = overlappingRate.NightlyPrice,
                     ActionType = "Split_Shortened",
@@ -201,6 +251,38 @@ public sealed class CreateRoomTypeRateCommandHandler : IRequestHandler<CreateRoo
                     ChangeReason = request.ChangeReason
                 });
             }
+            else
+            {
+                // Case (d): Left-head overlap - Advance existing rate start to request.EffectiveTo
+                isSplit = true;
+                overlappingRate.EffectiveFrom = request.EffectiveTo;
+
+                _context.RoomTypeRateAudits.Add(new RoomTypeRateAudit
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenantId.Value,
+                    PropertyId = targetPropertyId,
+                    RoomTypeId = roomType.Id,
+                    RateId = overlappingRate.Id,
+                    OldEffectiveFrom = originalStart,
+                    OldEffectiveTo = originalEnd,
+                    OldNightlyPrice = overlappingRate.NightlyPrice,
+                    NewEffectiveFrom = request.EffectiveTo,
+                    NewEffectiveTo = originalEnd,
+                    NewNightlyPrice = overlappingRate.NightlyPrice,
+                    ActionType = "Trimmed_Head",
+                    ChangedByUserId = userId,
+                    ChangedAtUtc = utcNow,
+                    ChangeReason = request.ChangeReason
+                });
+            }
+        }
+
+        // Flush modified/deactivated overlapping rates BEFORE inserting newRate & split tails
+        // so PostgreSQL gist exclusion constraint (EXCLUDE_RoomTypeRates_NoOverlap) never collides transiently.
+        if (overlappingRates.Count > 0)
+        {
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         // Insert new active rate
@@ -240,6 +322,29 @@ public sealed class CreateRoomTypeRateCommandHandler : IRequestHandler<CreateRoo
             ChangedAtUtc = utcNow,
             ChangeReason = request.ChangeReason
         });
+
+        foreach (var (tailRate, originalStart, originalEnd, oldNightlyPrice) in tailRatesToAdd)
+        {
+            _context.RoomTypeRates.Add(tailRate);
+            _context.RoomTypeRateAudits.Add(new RoomTypeRateAudit
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId.Value,
+                PropertyId = targetPropertyId,
+                RoomTypeId = roomType.Id,
+                RateId = tailRate.Id,
+                OldEffectiveFrom = originalStart,
+                OldEffectiveTo = originalEnd,
+                OldNightlyPrice = oldNightlyPrice,
+                NewEffectiveFrom = tailRate.EffectiveFrom,
+                NewEffectiveTo = tailRate.EffectiveTo,
+                NewNightlyPrice = tailRate.NightlyPrice,
+                ActionType = "Split_TailCreated",
+                ChangedByUserId = userId,
+                ChangedAtUtc = utcNow,
+                ChangeReason = request.ChangeReason
+            });
+        }
 
         await _context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

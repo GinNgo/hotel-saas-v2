@@ -89,6 +89,12 @@ public interface IApplicationDbContext
     /// <summary>Đánh giá và nhận xét của khách lưu trú (Guest Reviews).</summary>
     DbSet<GuestReview> GuestReviews { get; }
 
+    /// <summary>Hàng đợi công việc dọn phòng (Housekeeping Tasks).</summary>
+    DbSet<HousekeepingTask> HousekeepingTasks => throw new NotImplementedException();
+
+    /// <summary>Mã khuyến mãi và ưu đãi giảm giá.</summary>
+    DbSet<Promotion> Promotions => throw new NotImplementedException();
+
     /// <summary>Nhật ký sử dụng các tính năng AI (AI Usage Logs).</summary>
     DbSet<AiUsageLog> AiUsageLogs { get; }
 

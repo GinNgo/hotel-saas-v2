@@ -239,6 +239,15 @@ export class PublicBookingService {
    * Requests an authoritative quote calculation from the server's Pricing Engine.
    */
   calculateQuote(request: CalculatePublicQuoteRequest): Observable<QuoteDto> {
+    const trimmedPromo = request.promoCode?.trim();
+    if (trimmedPromo) {
+      const normalizedPromo = trimmedPromo.toUpperCase();
+      const params = new HttpParams().set('promoCode', normalizedPromo);
+      return this.http.post<any>(`${this.apiUrl}/quotes`, { ...request, promoCode: normalizedPromo }, { params }).pipe(
+        map(res => (res.data ? res.data : res) as QuoteDto)
+      );
+    }
+
     return this.http.post<any>(`${this.apiUrl}/quotes`, request).pipe(
       map(res => (res.data ? res.data : res) as QuoteDto)
     );
@@ -619,60 +628,25 @@ export class PublicBookingService {
   }
 
   /**
-   * Retrieves active promotional deals and golden-hour discounts.
+   * Retrieves active public promotional deals from the live backend catalog.
    */
-  getPromotions(): Observable<PromotionDealDto[]> {
-    return of([
-      {
-        id: 'deal-01',
-        code: 'GIODAY20',
-        title: 'Giờ Vàng Nghỉ Trưa - Giảm 20% Thuê Theo Giờ',
-        description: 'Áp dụng cho khách đặt phòng nghỉ theo giờ từ 11:00 đến 15:00 các ngày trong tuần tại tất cả nhà nghỉ & motel.',
-        discountBadge: 'GIẢM 20%',
-        discountType: 'Percent',
-        discountValue: 20,
-        rentalType: 'Hourly',
-        expiresAt: '31/12/2026',
-        bannerImageUrl: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800'
-      },
-      {
-        id: 'deal-02',
-        code: 'QUADEM15',
-        title: 'Combo Qua Đêm Cuối Tuần - Tiết Kiệm 15%',
-        description: 'Nhận phòng từ 21:00 đến 10:00 sáng hôm sau. Tặng kèm nước suối và ưu đãi trả phòng muộn 30 phút.',
-        discountBadge: 'GIẢM 15%',
-        discountType: 'Percent',
-        discountValue: 15,
-        rentalType: 'Overnight',
-        expiresAt: '31/12/2026',
-        bannerImageUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800'
-      },
-      {
-        id: 'deal-03',
-        code: 'DALAT50K',
-        title: 'Voucher Du Lịch Đà Lạt - Giảm Ngay 50.000₫',
-        description: 'Áp dụng cho mọi cơ sở lưu trú gần Chợ Đêm Đà Lạt và Hồ Xuân Hương cho đơn đặt phòng từ 300.000₫.',
-        discountBadge: '-50.000₫',
-        discountType: 'Amount',
-        discountValue: 50000,
-        applicableDestinations: ['Đà Lạt', 'Lâm Đồng'],
-        expiresAt: '31/12/2026',
-        minSpend: 300000,
-        bannerImageUrl: 'https://images.unsplash.com/photo-1579202673506-ca3ce28943ef?w=800'
-      },
-      {
-        id: 'deal-04',
-        code: 'BIENVUNGTAU',
-        title: 'Ưu Đãi Nghỉ Dưỡng Vũng Tàu Bãi Sau',
-        description: 'Giảm 10% cho khách đặt phòng khách sạn & nhà nghỉ cách Bãi Sau dưới 1km.',
-        discountBadge: 'GIẢM 10%',
-        discountType: 'Percent',
-        discountValue: 10,
-        applicableDestinations: ['Vũng Tàu'],
-        expiresAt: '31/12/2026',
-        bannerImageUrl: 'https://images.unsplash.com/photo-1590523741831-ab7e8b8f9c7f?w=800'
-      }
-    ]);
+  getPromotions(tenantSlug?: string): Observable<PromotionDealDto[]> {
+    let params = new HttpParams();
+    if (tenantSlug && tenantSlug.trim().length > 0) {
+      params = params.set('tenantSlug', tenantSlug.trim());
+    }
+
+    return this.http.get<PromotionDealDto[] | { data?: PromotionDealDto[] }>(`${this.apiUrl}/promotions`, { params }).pipe(
+      map(res => {
+        const items = Array.isArray(res) ? res : (res?.data ?? []);
+        return items.map(deal => ({
+          ...deal,
+          title: deal.title || deal.name || deal.code,
+          discountValue: deal.discountValue ?? deal.value ?? 0,
+          expiresAt: deal.expiresAt || deal.endsAtUtc || ''
+        }));
+      })
+    );
   }
 
   private broadcastLiveBookingPing(action: string, reservationId?: string, propertyId?: string, lookupToken?: string): void {

@@ -157,6 +157,14 @@ public sealed class CreateReservationCommandHandler : IRequestHandler<CreateRese
             }
         }
 
+        // Enforce advance booking horizon <= 365 days (T017)
+        var todayLocal = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz));
+        if (checkInDate > todayLocal.AddDays(365))
+        {
+            throw new BadRequestException("ERR_ADVANCE_HORIZON_EXCEEDED",
+                "Chỉ hỗ trợ đặt phòng trước tối đa 365 ngày.");
+        }
+
         // ── PRE-TRANSACTION IDEMPOTENCY CHECK (BEFORE live quote calculation) ──
         if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
         {
@@ -243,6 +251,13 @@ public sealed class CreateReservationCommandHandler : IRequestHandler<CreateRese
         {
             await transaction.RollbackAsync(cancellationToken);
             throw new BadRequestException("ERR_ROOM_INACTIVE", "Phòng này hiện đang tạm ngưng hoạt động.");
+        }
+
+        if (room.RoomType != null && request.NumberOfGuests > room.RoomType.MaxOccupancy)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw new BadRequestException("ERR_OCCUPANCY_EXCEEDED",
+                $"Số lượng khách ({request.NumberOfGuests}) vượt quá sức chứa tối đa ({room.RoomType.MaxOccupancy} khách) của hạng phòng {room.RoomType.Name}.");
         }
 
         if (request.ImmediateCheckIn)

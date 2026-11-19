@@ -29,5 +29,7 @@ public sealed record UpdatePropertyPoliciesCommand(
     TimeOnly? CheckOutTime,
     int? BufferMinutes,
     int? MaxHourlyHours,
-    IReadOnlyList<UpdateSurchargeItemCommand>? Surcharges = null
+    IReadOnlyList<UpdateSurchargeItemCommand>? Surcharges = null,
+    decimal? TaxRatePercent = null,
+    decimal? ServiceFeeRatePercent = null
 ) : IRequest<PropertyPoliciesDto>;

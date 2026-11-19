@@ -118,6 +118,12 @@ public sealed class UpdatePropertyPoliciesCommandHandler : IRequestHandler<Updat
         if (request.MaxHourlyHours.HasValue)
             property.MaxHourlyHours = request.MaxHourlyHours.Value;
 
+        if (request.TaxRatePercent.HasValue)
+            property.TaxRatePercent = request.TaxRatePercent.Value;
+
+        if (request.ServiceFeeRatePercent.HasValue)
+            property.ServiceFeeRatePercent = request.ServiceFeeRatePercent.Value;
+
         if (request.Surcharges != null)
         {
             var existingPolicies = await _context.PropertySurchargePolicies
@@ -201,6 +207,8 @@ public sealed class UpdatePropertyPoliciesCommandHandler : IRequestHandler<Updat
             CheckOutTime = property.CheckOutTime,
             BufferMinutes = property.BufferMinutes,
             MaxHourlyHours = property.MaxHourlyHours,
+            TaxRatePercent = property.TaxRatePercent,
+            ServiceFeeRatePercent = property.ServiceFeeRatePercent,
             Surcharges = activeSurcharges
         };
     }
