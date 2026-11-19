@@ -1,4 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -67,6 +68,7 @@ export type RegisterTab = 'email' | 'phone';
 @Component({
   selector: 'app-register',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     FormsModule,
@@ -92,7 +94,7 @@ export type RegisterTab = 'email' | 'phone';
         <button
           type="button"
           (click)="setTab('email')"
-          class="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
+          class="flex-1 min-h-11 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
           [ngClass]="activeTab() === 'email' ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/80 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'"
         >
           <i class="pi pi-envelope text-xs" [ngClass]="activeTab() === 'email' ? 'text-indigo-600' : 'text-slate-400'"></i>
@@ -102,7 +104,7 @@ export type RegisterTab = 'email' | 'phone';
         <button
           type="button"
           (click)="setTab('phone')"
-          class="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
+          class="flex-1 min-h-11 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
           [ngClass]="activeTab() === 'phone' ? 'bg-white text-emerald-800 shadow-sm border border-slate-200/80 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'"
         >
           <i class="pi pi-phone text-xs" [ngClass]="activeTab() === 'phone' ? 'text-emerald-600' : 'text-slate-400'"></i>
@@ -266,12 +268,13 @@ export type RegisterTab = 'email' | 'phone';
               <div class="relative shrink-0">
                 <select
                   [(ngModel)]="selectedDialCode"
-                  class="h-10 pl-3 pr-8 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 cursor-pointer appearance-none shadow-2xs transition-all"
+                  class="min-h-11 h-11 pl-3 pr-8 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 cursor-pointer appearance-none shadow-2xs transition-all"
+                  aria-label="Chọn mã vùng quốc gia"
                   title="Chọn mã vùng quốc gia"
                 >
                   @for (c of countryCodes; track c.code) {
                     <option [value]="c.dialCode">
-                      {{ c.flag }} {{ c.dialCode }}
+                      {{ c.code }} ({{ c.dialCode }})
                     </option>
                   }
                 </select>
@@ -304,7 +307,7 @@ export type RegisterTab = 'email' | 'phone';
               type="button"
               (click)="startPhoneRegistration()"
               [disabled]="loading() || !rawPhoneNumber.trim()"
-              class="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-md shadow-emerald-600/25 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              class="w-full min-h-11 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-md shadow-emerald-600/25 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <i class="pi pi-send text-sm"></i>
               <span>Gửi mã SMS OTP xác thực</span>
@@ -329,7 +332,7 @@ export type RegisterTab = 'email' | 'phone';
           type="button"
           (click)="registerWithGoogle()"
           [disabled]="loading()"
-          class="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
+          class="w-full min-h-11 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
         >
           <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -374,6 +377,7 @@ export class RegisterPage {
   private readonly socialAuth = inject(SocialAuthService);
   private readonly router = inject(Router);
   private readonly notification = inject(NotificationService);
+  private readonly destroyRef = inject(DestroyRef);
 
   activeTab = signal<RegisterTab>('email');
   loading = signal(false);
@@ -386,18 +390,18 @@ export class RegisterPage {
   formattedPhoneForModal: string = '';
 
   readonly countryCodes = [
-    { code: 'VN', dialCode: '+84', flag: '🇻🇳', label: 'Việt Nam (+84)' },
-    { code: 'US', dialCode: '+1', flag: '🇺🇸', label: 'Hoa Kỳ / Canada (+1)' },
-    { code: 'KR', dialCode: '+82', flag: '🇰🇷', label: 'Hàn Quốc (+82)' },
-    { code: 'JP', dialCode: '+81', flag: '🇯🇵', label: 'Nhật Bản (+81)' },
-    { code: 'SG', dialCode: '+65', flag: '🇸🇬', label: 'Singapore (+65)' },
-    { code: 'TH', dialCode: '+66', flag: '🇹🇭', label: 'Thái Lan (+66)' },
-    { code: 'CN', dialCode: '+86', flag: '🇨🇳', label: 'Trung Quốc (+86)' },
-    { code: 'GB', dialCode: '+44', flag: '🇬🇧', label: 'Vương quốc Anh (+44)' },
-    { code: 'AU', dialCode: '+61', flag: '🇦🇺', label: 'Úc (+61)' },
-    { code: 'FR', dialCode: '+33', flag: '🇫🇷', label: 'Pháp (+33)' },
-    { code: 'DE', dialCode: '+49', flag: '🇩🇪', label: 'Đức (+49)' },
-    { code: 'RU', dialCode: '+7', flag: '🇷🇺', label: 'Nga (+7)' },
+    { code: 'VN', dialCode: '+84', label: 'Việt Nam (+84)' },
+    { code: 'US', dialCode: '+1', label: 'Hoa Kỳ / Canada (+1)' },
+    { code: 'KR', dialCode: '+82', label: 'Hàn Quốc (+82)' },
+    { code: 'JP', dialCode: '+81', label: 'Nhật Bản (+81)' },
+    { code: 'SG', dialCode: '+65', label: 'Singapore (+65)' },
+    { code: 'TH', dialCode: '+66', label: 'Thái Lan (+66)' },
+    { code: 'CN', dialCode: '+86', label: 'Trung Quốc (+86)' },
+    { code: 'GB', dialCode: '+44', label: 'Vương quốc Anh (+44)' },
+    { code: 'AU', dialCode: '+61', label: 'Úc (+61)' },
+    { code: 'FR', dialCode: '+33', label: 'Pháp (+33)' },
+    { code: 'DE', dialCode: '+49', label: 'Đức (+49)' },
+    { code: 'RU', dialCode: '+7', label: 'Nga (+7)' },
   ];
 
   emailRegisterForm = this.fb.group({
@@ -429,7 +433,7 @@ export class RegisterPage {
       phoneNumber: undefined, // Không bắt buộc SĐT ở bước đăng ký Email
       password: password!,
       appUrl: typeof window !== 'undefined' ? window.location.origin : undefined
-    }).subscribe({
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (response: ApiResponse<RegisterResponse>) => {
         this.loading.set(false);
         if (response.success || response.data?.userId || response.data) {
@@ -483,7 +487,7 @@ export class RegisterPage {
       const idToken = user.idToken;
       if (!idToken) throw new Error('Không nhận được mã xác thực Google.');
 
-      this.authService.googleLogin(idToken).subscribe({
+      this.authService.googleLogin(idToken).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (response) => {
           this.loading.set(false);
           this.notification.success(`Đăng ký Google thành công! Chào mừng ${response.user.fullName}`);

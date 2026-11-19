@@ -107,7 +107,7 @@ import {
                 >
                   <div class="flex items-center gap-3 truncate">
                     <div class="w-8 h-8 rounded-xl bg-indigo-50 group-hover:bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs shrink-0 transition-colors">
-                      📍
+                      <i class="pi pi-map-marker text-xs"></i>
                     </div>
                     <div class="truncate">
                       <span class="text-xs font-bold text-slate-900 block truncate group-hover:text-indigo-600 transition-colors">{{ lm.name }}</span>
@@ -127,8 +127,9 @@ import {
           <div class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <span class="px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 inline-block mb-2">
-                  📍 Điểm đến du lịch
+                <span class="px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 inline-flex items-center gap-1.5 mb-2">
+                  <i class="pi pi-map-marker text-[11px]"></i>
+                  <span>Điểm đến du lịch</span>
                 </span>
                 <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                   Khách sạn &amp; Nhà nghỉ quanh {{ activeTitle() }}
@@ -138,8 +139,9 @@ import {
                 </p>
               </div>
 
-              <a routerLink="/booking/destinations" class="text-xs text-indigo-600 hover:underline font-bold">
-                ← Chọn địa danh khác
+              <a routerLink="/booking/destinations" class="min-h-11 inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:underline font-bold">
+                <i class="pi pi-arrow-left text-[10px]"></i>
+                <span>Chọn địa danh khác</span>
               </a>
             </div>
 
@@ -151,7 +153,7 @@ import {
                 <button
                   type="button"
                   (click)="setRadius(null)"
-                  class="px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border"
+                  class="min-h-11 px-3.5 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer border"
                   [class.bg-indigo-600]="selectedRadiusMeters() === null"
                   [class.text-white]="selectedRadiusMeters() === null"
                   [class.border-indigo-600]="selectedRadiusMeters() === null"
@@ -164,7 +166,7 @@ import {
                 <button
                   type="button"
                   (click)="setRadius(500)"
-                  class="px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border"
+                  class="min-h-11 px-3.5 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer border inline-flex items-center gap-1"
                   [class.bg-indigo-600]="selectedRadiusMeters() === 500"
                   [class.text-white]="selectedRadiusMeters() === 500"
                   [class.border-indigo-600]="selectedRadiusMeters() === 500"
@@ -172,12 +174,13 @@ import {
                   [class.text-slate-700]="selectedRadiusMeters() !== 500"
                   [class.border-slate-200]="selectedRadiusMeters() !== 500"
                 >
-                  🚶 Ngay sát (&lt; 500m)
+                  <i class="pi pi-directions-alt text-[11px]"></i>
+                  <span>Ngay sát (&lt; 500m)</span>
                 </button>
                 <button
                   type="button"
                   (click)="setRadius(1000)"
-                  class="px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border"
+                  class="min-h-11 px-3.5 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer border"
                   [class.bg-indigo-600]="selectedRadiusMeters() === 1000"
                   [class.text-white]="selectedRadiusMeters() === 1000"
                   [class.border-indigo-600]="selectedRadiusMeters() === 1000"
@@ -190,7 +193,7 @@ import {
                 <button
                   type="button"
                   (click)="setRadius(3000)"
-                  class="px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border"
+                  class="min-h-11 px-3.5 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer border"
                   [class.bg-indigo-600]="selectedRadiusMeters() === 3000"
                   [class.text-white]="selectedRadiusMeters() === 3000"
                   [class.border-indigo-600]="selectedRadiusMeters() === 3000"
@@ -208,7 +211,8 @@ import {
                 <select
                   [ngModel]="sortBy()"
                   (ngModelChange)="sortBy.set($event)"
-                  class="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 focus:outline-indigo-500"
+                  aria-label="Sắp xếp kết quả cơ sở lưu trú"
+                  class="min-h-11 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 focus:outline-indigo-500"
                 >
                   <option value="distance">Gần nhất</option>
                   <option value="price_asc">Giá rẻ nhất</option>
@@ -221,13 +225,13 @@ import {
           <!-- KẾT QUẢ TÌM THẤY -->
           <div class="space-y-4">
             <div class="flex items-center justify-between text-xs text-slate-500">
-              <span>Tìm thấy <b>{{ filteredProperties().length }}</b> cơ sở lưu trú phù hợp:</span>
+              <span>Tìm thấy <b class="tabular-nums">{{ filteredProperties().length }}</b> cơ sở lưu trú phù hợp:</span>
             </div>
 
             @if (isLoading()) {
               <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 @for (item of [1, 2, 3]; track item) {
-                  <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs animate-pulse">
+                  <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs animate-pulse motion-reduce:animate-none">
                     <div class="h-48 bg-slate-200"></div>
                     <div class="p-5 space-y-3">
                       <div class="h-4 bg-slate-200 rounded w-3/4"></div>
@@ -238,8 +242,8 @@ import {
               </div>
             } @else if (filteredProperties().length === 0) {
               <div class="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-3">
-                <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto text-xl">
-                  🏨
+                <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center mx-auto text-xl">
+                  <i class="pi pi-building text-lg"></i>
                 </div>
                 <h3 class="text-sm font-bold text-slate-800">Chưa có cơ sở lưu trú trong bán kính này</h3>
                 <p class="text-xs text-slate-500 max-w-sm mx-auto">
@@ -248,7 +252,7 @@ import {
                 <button
                   type="button"
                   (click)="setRadius(null)"
-                  class="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                  class="min-h-11 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors cursor-pointer"
                 >
                   Xem mọi khoảng cách
                 </button>
@@ -262,6 +266,9 @@ import {
                         <img
                           [src]="prop.thumbnailUrl || prop.imageUrl"
                           [alt]="prop.name"
+                          width="400"
+                          height="192"
+                          loading="lazy"
                           class="w-full h-full object-cover"
                         />
                       } @else {
@@ -276,15 +283,17 @@ import {
                         </span>
                         @if (prop.starRating && prop.starRating > 0) {
                           <span class="px-2 py-1 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950 flex items-center gap-0.5">
-                            ★ {{ prop.starRating }}
+                            <i class="pi pi-star-fill text-[9px]"></i>
+                            <span>{{ prop.starRating }}</span>
                           </span>
                         }
                       </div>
 
                       @if (prop.distanceFormatted) {
                         <div class="absolute bottom-3 left-3">
-                          <span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-indigo-600 text-white shadow-xs">
-                            📍 {{ prop.distanceFormatted }}
+                          <span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-indigo-600 text-white shadow-xs inline-flex items-center gap-1">
+                            <i class="pi pi-map-marker text-[10px]"></i>
+                            <span>{{ prop.distanceFormatted }}</span>
                           </span>
                         </div>
                       }
@@ -300,11 +309,11 @@ import {
                         </p>
                         <div class="mt-2 flex items-center gap-1.5 text-xs">
                           @if (prop.reviewCount && prop.reviewCount > 0 && prop.ratingAverage > 0) {
-                            <span class="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                            <span class="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 tabular-nums">
                               <i class="pi pi-star-fill text-amber-500 text-[10px]"></i>
                               <span>{{ prop.ratingAverage.toFixed(1) }}</span>
                             </span>
-                            <span class="text-slate-500">({{ prop.reviewCount }} đánh giá)</span>
+                            <span class="text-slate-500 tabular-nums">({{ prop.reviewCount }} đánh giá)</span>
                           } @else {
                             <span class="text-slate-500 italic">Chưa có đánh giá</span>
                           }
@@ -314,13 +323,22 @@ import {
                       <!-- Rental modes -->
                       <div class="flex flex-wrap gap-1 text-[10px] font-medium text-slate-600">
                         @if (prop.allowHourlyBooking) {
-                          <span class="px-2 py-0.5 rounded-md bg-slate-100">⏰ Thuê giờ</span>
+                          <span class="px-2 py-0.5 rounded-md bg-slate-100 inline-flex items-center gap-1">
+                            <i class="pi pi-clock text-[9px]"></i>
+                            <span>Thuê giờ</span>
+                          </span>
                         }
                         @if (prop.allowOvernightBooking) {
-                          <span class="px-2 py-0.5 rounded-md bg-slate-100">🌙 Qua đêm</span>
+                          <span class="px-2 py-0.5 rounded-md bg-slate-100 inline-flex items-center gap-1">
+                            <i class="pi pi-moon text-[9px]"></i>
+                            <span>Qua đêm</span>
+                          </span>
                         }
                         @if (prop.allowDailyBooking) {
-                          <span class="px-2 py-0.5 rounded-md bg-slate-100">☀️ Theo ngày</span>
+                          <span class="px-2 py-0.5 rounded-md bg-slate-100 inline-flex items-center gap-1">
+                            <i class="pi pi-sun text-[9px]"></i>
+                            <span>Theo ngày</span>
+                          </span>
                         }
                       </div>
 
@@ -328,7 +346,7 @@ import {
                         <div>
                           <span class="text-[10px] text-slate-400 block">Giá khởi điểm từ</span>
                           @if ((prop.hourlyStartingPrice || prop.startingPriceForSelectedMode || prop.startingPrice || 0) > 0) {
-                            <span class="text-base font-extrabold text-indigo-700">
+                            <span class="text-base font-extrabold text-indigo-700 tabular-nums">
                               {{ (prop.hourlyStartingPrice || prop.startingPriceForSelectedMode || prop.startingPrice) | number:'1.0-0' }} ₫
                             </span>
                           } @else {
@@ -338,9 +356,10 @@ import {
 
                         <a
                           [routerLink]="['/booking/properties', prop.slug]"
-                          class="px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors"
+                          class="min-h-11 px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors inline-flex items-center gap-1.5"
                         >
-                          Xem phòng →
+                          <span>Xem phòng</span>
+                          <i class="pi pi-arrow-right text-[10px]"></i>
                         </a>
                       </div>
                     </div>

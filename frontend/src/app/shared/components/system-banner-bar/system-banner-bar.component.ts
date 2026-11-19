@@ -22,6 +22,9 @@ import { SystemBannerDto, SystemBannerService } from '../../../core/services/sys
                 <img
                   [src]="banner.imageUrl"
                   [alt]="banner.title"
+                  width="44"
+                  height="44"
+                  loading="lazy"
                   class="w-11 h-11 rounded-lg object-cover border border-white/20 shrink-0 bg-white/10"
                 />
               } @else {

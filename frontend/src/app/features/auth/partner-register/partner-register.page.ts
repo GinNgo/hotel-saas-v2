@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal, computed } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -9,6 +10,7 @@ import { Province, Ward } from '../../../core/models/location.model';
 import { HttpErrorResponse } from '@angular/common/http';
 import { SearchableSelectComponent, SearchableSelectItem } from '../../../shared/components/searchable-select/searchable-select.component';
 import { GoogleMapPickerComponent, LocationPickerResult } from '../../../shared/components/google-map-picker/google-map-picker.component';
+import { HasUnsavedChanges } from '../../../core/guards/unsaved-changes.guard';
 
 interface PartnerPropertyTypeOption {
   readonly value: number;
@@ -19,10 +21,20 @@ interface PartnerPropertyTypeOption {
 
 function passwordMatchValidator(control: AbstractControl): ValidationErrors | null {
   const password = control.get('password')?.value;
-  const confirmPassword = control.get('confirmPassword')?.value;
+  const confirmControl = control.get('confirmPassword');
+  const confirmPassword = confirmControl?.value;
+  if (!confirmControl) return null;
+
   if (password && confirmPassword && password !== confirmPassword) {
-    control.get('confirmPassword')?.setErrors({ passwordMismatch: true });
+    const existingErrors = confirmControl.errors ? { ...confirmControl.errors } : {};
+    existingErrors['passwordMismatch'] = true;
+    confirmControl.setErrors(existingErrors);
     return { passwordMismatch: true };
+  }
+
+  if (confirmControl.hasError('passwordMismatch')) {
+    const { passwordMismatch: _removed, ...rest } = confirmControl.errors ?? {};
+    confirmControl.setErrors(Object.keys(rest).length > 0 ? rest : null);
   }
   return null;
 }
@@ -112,9 +124,10 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
           @if (registeredTenantSlug()) {
             <a
               [routerLink]="['/booking/brands', registeredTenantSlug()]"
-              class="mt-3 text-xs font-semibold text-indigo-700 hover:underline"
+              class="mt-3 min-h-11 inline-flex items-center gap-1.5 px-3 text-xs font-semibold text-indigo-700 hover:underline"
             >
-              Xem trang thương hiệu đối tác →
+              <span>Xem trang thương hiệu đối tác</span>
+              <i class="pi pi-arrow-right text-[10px]"></i>
             </a>
           }
         </div>
@@ -415,7 +428,8 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
                   <button
                     type="button"
                     (click)="selectStarRating(star)"
-                    class="px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center gap-1"
+                    [attr.aria-label]="'Chọn hạng ' + star + ' sao'"
+                    class="min-h-11 min-w-11 px-3 py-2 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1"
                     [class]="registerForm.get('starRating')?.value === star
                       ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-2xs'
                       : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-amber-300'"
@@ -596,10 +610,15 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
     </div>
   `
 })
-export class PartnerRegisterPage implements OnInit {
+export class PartnerRegisterPage implements OnInit, HasUnsavedChanges {
   private readonly fb = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly locationService = inject(LocationService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  hasUnsavedChanges(): boolean {
+    return this.registerForm.dirty && !this.successMessage();
+  }
 
   readonly isLoading = signal(false);
   readonly errorMessage = signal('');
@@ -702,7 +721,7 @@ export class PartnerRegisterPage implements OnInit {
   }
 
   loadProvinces(): void {
-    this.locationService.getProvinces().subscribe({
+    this.locationService.getProvinces().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (list) => {
         this.provinces.set(list);
       },
@@ -724,7 +743,7 @@ export class PartnerRegisterPage implements OnInit {
 
     this.registerForm.get('wardCode')?.enable();
     this.wardsLoading.set(true);
-    this.locationService.getWards(provinceCode).subscribe({
+    this.locationService.getWards(provinceCode).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (list) => {
         this.wards.set(list);
         this.wardsLoading.set(false);
@@ -810,7 +829,7 @@ export class PartnerRegisterPage implements OnInit {
       allowHourlyBooking: formVal.allowHourlyBooking ?? true,
       defaultNightlyPrice: Number.isFinite(nightlyPrice) && nightlyPrice > 0 ? nightlyPrice : null,
       defaultHourlyPrice: Number.isFinite(hourlyPrice) && hourlyPrice > 0 ? hourlyPrice : null,
-    }).subscribe({
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.isLoading.set(false);
         this.registeredPropertySlug.set(res.data?.propertySlug || '');

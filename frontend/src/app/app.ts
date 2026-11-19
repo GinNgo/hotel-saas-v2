@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { Toast } from 'primeng/toast';
 import { ConfirmDialog } from 'primeng/confirmdialog';
@@ -14,6 +14,7 @@ import { LoadingOverlayComponent } from './shared/components/loading-overlay/loa
   selector: 'app-root',
   standalone: true,
   imports: [RouterOutlet, Toast, ConfirmDialog, LoadingOverlayComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-loading-overlay />
     <p-toast position="top-right" />

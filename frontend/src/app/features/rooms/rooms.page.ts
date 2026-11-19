@@ -1,5 +1,7 @@
-import { Component, OnInit, inject, signal, computed, effect, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, OnDestroy, DestroyRef, ChangeDetectorRef, inject, signal, computed, effect, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { A11yModule } from '@angular/cdk/a11y';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePicker } from 'primeng/datepicker';
 import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-time.util';
 import { AbstractControl, FormBuilder, FormGroup, ReactiveFormsModule, FormsModule, ValidationErrors, Validators } from '@angular/forms';
@@ -59,6 +61,7 @@ export interface QuickMinibarCatalogItem {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
+    A11yModule,
     ReactiveFormsModule,
     FormsModule,
     PageHeaderComponent,
@@ -75,14 +78,14 @@ export interface QuickMinibarCatalogItem {
         title="Sơ đồ Phòng & Vận hành Lễ tân"
         subtitle="Quản lý sơ đồ Rack phòng theo từng tầng, theo dõi trạng thái buồng phòng, sơ đồ Timeline Gantt và tiếp nhận khách tại quầy."
       >
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
           <!-- View Mode Toggle Button -->
           <div class="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
             <button
               type="button"
               (click)="viewMode.set('rack')"
               [ngClass]="viewMode() === 'rack' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'"
-              class="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+              class="min-h-11 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1.5"
             >
               <i class="pi pi-th-large text-xs"></i>
               <span>Sơ đồ Rack</span>
@@ -91,7 +94,7 @@ export interface QuickMinibarCatalogItem {
               type="button"
               (click)="viewMode.set('timeline')"
               [ngClass]="viewMode() === 'timeline' ? 'bg-white shadow-2xs text-emerald-800 font-bold' : 'text-slate-600 hover:text-slate-900'"
-              class="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+              class="min-h-11 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1.5"
             >
               <i class="pi pi-calendar text-xs"></i>
               <span>Timeline (Gantt)</span>
@@ -100,7 +103,7 @@ export interface QuickMinibarCatalogItem {
               type="button"
               (click)="viewMode.set('table')"
               [ngClass]="viewMode() === 'table' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'"
-              class="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+              class="min-h-11 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1.5"
             >
               <i class="pi pi-list text-xs"></i>
               <span>Danh sách</span>
@@ -111,7 +114,7 @@ export interface QuickMinibarCatalogItem {
           <button
             type="button"
             (click)="openCreateRoomModal()"
-            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm shadow-2xs transition-colors cursor-pointer"
+            class="min-h-11 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm shadow-2xs transition-colors cursor-pointer"
           >
             <i class="pi pi-plus text-xs text-emerald-600"></i>
             <span>Thêm phòng</span>
@@ -121,7 +124,7 @@ export interface QuickMinibarCatalogItem {
           <button
             type="button"
             (click)="openQuickWalkinModal()"
-            class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-sm transition-colors cursor-pointer"
+            class="min-h-11 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-sm transition-colors cursor-pointer"
           >
             <i class="pi pi-user-plus text-xs"></i>
             <span>Tiếp khách (Walk-in)</span>
@@ -135,7 +138,7 @@ export interface QuickMinibarCatalogItem {
         <div class="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3 flex items-center justify-between">
           <div>
             <span class="block text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Trống sạch</span>
-            <span class="text-xl font-extrabold text-emerald-900">{{ cleanRoomsCount() }}</span>
+            <span class="text-xl font-extrabold text-emerald-900 tabular-nums">{{ cleanRoomsCount() }}</span>
           </div>
           <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
             <i class="pi pi-check text-sm"></i>
@@ -146,7 +149,7 @@ export interface QuickMinibarCatalogItem {
         <div class="bg-sky-50/70 border border-sky-200/80 rounded-xl p-3 flex items-center justify-between">
           <div>
             <span class="block text-[11px] font-bold text-sky-800 uppercase tracking-wider">Thuê theo giờ</span>
-            <span class="text-xl font-extrabold text-sky-900">{{ occupiedHourlyCount() }}</span>
+            <span class="text-xl font-extrabold text-sky-900 tabular-nums">{{ occupiedHourlyCount() }}</span>
           </div>
           <div class="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center">
             <i class="pi pi-clock text-sm"></i>
@@ -157,7 +160,7 @@ export interface QuickMinibarCatalogItem {
         <div class="bg-blue-50/70 border border-blue-200/80 rounded-xl p-3 flex items-center justify-between">
           <div>
             <span class="block text-[11px] font-bold text-blue-800 uppercase tracking-wider">Đêm / Theo ngày</span>
-            <span class="text-xl font-extrabold text-blue-900">{{ occupiedDailyOvernightCount() }}</span>
+            <span class="text-xl font-extrabold text-blue-900 tabular-nums">{{ occupiedDailyOvernightCount() }}</span>
           </div>
           <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
             <i class="pi pi-moon text-sm"></i>
@@ -168,7 +171,7 @@ export interface QuickMinibarCatalogItem {
         <div class="bg-rose-50/70 border border-rose-200/80 rounded-xl p-3 flex items-center justify-between">
           <div>
             <span class="block text-[11px] font-bold text-rose-800 uppercase tracking-wider">Cần dọn dẹp</span>
-            <span class="text-xl font-extrabold text-rose-900">{{ dirtyRoomsCount() }}</span>
+            <span class="text-xl font-extrabold text-rose-900 tabular-nums">{{ dirtyRoomsCount() }}</span>
           </div>
           <div class="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center">
             <i class="pi pi-exclamation-circle text-sm"></i>
@@ -179,10 +182,10 @@ export interface QuickMinibarCatalogItem {
         <div class="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3 flex items-center justify-between">
           <div>
             <span class="block text-[11px] font-bold text-amber-800 uppercase tracking-wider">Đang dọn</span>
-            <span class="text-xl font-extrabold text-amber-900">{{ cleaningRoomsCount() }}</span>
+            <span class="text-xl font-extrabold text-amber-900 tabular-nums">{{ cleaningRoomsCount() }}</span>
           </div>
           <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
-            <i class="pi pi-spin pi-spinner text-sm"></i>
+            <i class="pi pi-sync text-sm"></i>
           </div>
         </div>
 
@@ -190,7 +193,7 @@ export interface QuickMinibarCatalogItem {
         <div class="bg-slate-100 border border-slate-200 rounded-xl p-3 flex items-center justify-between">
           <div>
             <span class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Bảo trì / Khóa</span>
-            <span class="text-xl font-extrabold text-slate-900">{{ outOfServiceCount() }}</span>
+            <span class="text-xl font-extrabold text-slate-900 tabular-nums">{{ outOfServiceCount() }}</span>
           </div>
           <div class="w-8 h-8 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center">
             <i class="pi pi-ban text-sm"></i>
@@ -332,72 +335,90 @@ export interface QuickMinibarCatalogItem {
               <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                 @for (room of group.rooms; track room.id) {
                   <div
-                    (click)="onRoomCardClicked(room)"
                     [ngClass]="getRoomCardClasses(room)"
-                    class="rounded-xl border p-3 flex flex-col justify-between transition-all duration-150 cursor-pointer hover:shadow-md relative group select-none min-h-[110px]"
+                    class="rounded-xl border p-3 flex flex-col justify-between transition-all duration-150 hover:shadow-md relative group select-none min-h-[124px]"
                   >
-                    <!-- Top: Room Number & Status Dot -->
-                    <div class="flex items-start justify-between">
-                      <span class="text-base font-extrabold text-slate-900 font-mono tracking-tight group-hover:text-emerald-700">
-                        {{ room.roomNumber }}
-                      </span>
-                      <div class="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          (click)="$event.stopPropagation(); openEditRoomModal(room)"
-                          class="opacity-0 group-hover:opacity-100 w-5 h-5 rounded-md bg-white/90 hover:bg-white text-slate-500 hover:text-emerald-700 border border-slate-200/80 flex items-center justify-center transition-opacity cursor-pointer"
-                          title="Chỉnh sửa thông tin phòng"
-                        >
-                          <i class="pi pi-pencil text-[9px]"></i>
-                        </button>
-                        <span
-                          class="w-2.5 h-2.5 rounded-full"
-                          [ngClass]="getRoomDotClass(room)"
-                          [title]="getRoomStatusLabel(room)"
-                        ></span>
-                      </div>
-                    </div>
-
-                    <!-- Middle: Room Type & Pricing / Guest Info -->
-                    <div class="my-1.5 space-y-0.5">
-                      @if (!authService.activePropertyId() && getRoomPropertyName(room); as propName) {
-                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/80 text-[10px] font-semibold truncate max-w-full">
-                          <i class="pi pi-building text-[9px]"></i>
-                          <span class="truncate">{{ propName }}</span>
-                        </span>
-                      }
-                      <span class="block text-[11px] font-semibold text-slate-700 truncate">
-                        {{ room.roomTypeName }}
-                      </span>
-                      
-                      @if (room.status === 'Occupied' && room.activeReservation) {
-                        <div class="text-[10px] text-slate-600 truncate flex items-center gap-1">
-                          <i class="pi pi-user text-[9px] text-slate-400"></i>
-                          <span class="truncate font-medium">{{ room.activeReservation.guestName }}</span>
+                    <!-- Top: Room Primary Click Target + Visible Edit Button -->
+                    <div class="flex items-start justify-between gap-1">
+                      <button
+                        type="button"
+                        (click)="onRoomCardClicked(room)"
+                        [attr.aria-label]="'Thao tác nhanh phòng ' + room.roomNumber + ' (' + getRoomStatusLabel(room) + ')'"
+                        class="flex-1 text-left cursor-pointer rounded-lg p-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                      >
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-base font-extrabold text-slate-900 font-mono tabular-nums tracking-tight group-hover:text-emerald-700">
+                            {{ room.roomNumber }}
+                          </span>
+                          <span
+                            class="w-2.5 h-2.5 rounded-full shrink-0"
+                            [ngClass]="getRoomDotClass(room)"
+                            [title]="getRoomStatusLabel(room)"
+                          ></span>
                         </div>
-                      } @else {
-                        <span class="block text-[10px] text-slate-500 font-mono">
-                          {{ room.basePrice | number:'1.0-0' }}₫
-                        </span>
-                      }
+
+                        <!-- Middle: Room Type & Pricing / Guest Info -->
+                        <div class="my-1.5 space-y-0.5">
+                          @if (!authService.activePropertyId() && getRoomPropertyName(room); as propName) {
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/80 text-[10px] font-semibold truncate max-w-full">
+                              <i class="pi pi-building text-[9px]"></i>
+                              <span class="truncate">{{ propName }}</span>
+                            </span>
+                          }
+                          <span class="block text-[11px] font-semibold text-slate-700 truncate">
+                            {{ room.roomTypeName }}
+                          </span>
+
+                          @if (room.status === 'Occupied' && room.activeReservation) {
+                            <div class="text-[10px] text-slate-600 truncate flex items-center gap-1">
+                              <i class="pi pi-user text-[9px] text-slate-400"></i>
+                              <span class="truncate font-medium">{{ room.activeReservation.guestName }}</span>
+                            </div>
+                          } @else {
+                            <span class="block text-[10px] text-slate-500 font-mono tabular-nums">
+                              {{ room.basePrice | number:'1.0-0' }}₫
+                            </span>
+                          }
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        (click)="openEditRoomModal(room)"
+                        class="min-h-11 min-w-11 shrink-0 rounded-xl bg-white/95 hover:bg-white text-slate-600 hover:text-emerald-700 border border-slate-200/90 flex items-center justify-center transition-colors cursor-pointer"
+                        title="Chỉnh sửa thông tin phòng"
+                        [attr.aria-label]="'Chỉnh sửa phòng ' + room.roomNumber"
+                      >
+                        <i class="pi pi-pencil text-xs"></i>
+                      </button>
                     </div>
 
                     <!-- Bottom: Mode Tag / Status Action Pill -->
-                    <div class="pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px]">
-                      <span [ngClass]="getRoomStatusBadgeTextClass(room)" class="font-bold">
-                        {{ getRoomRentalOrStatusLabel(room) }}
+                    <div class="pt-1.5 border-t border-slate-100 flex items-center justify-between gap-1 text-[10px]">
+                      <span [ngClass]="getRoomStatusBadgeTextClass(room)" class="font-bold inline-flex items-center gap-1">
+                        <i [class]="getRoomRentalOrStatusIcon(room) + ' text-[10px]'" aria-hidden="true"></i>
+                        <span>{{ getRoomRentalOrStatusLabel(room) }}</span>
                       </span>
 
                       @if (room.status === 'Clean') {
-                        <span class="text-[10px] font-bold text-emerald-600 group-hover:underline">Walk-in →</span>
+                        <button
+                          type="button"
+                          (click)="onRoomCardClicked(room)"
+                          [attr.aria-label]="'Tiếp khách Walk-in phòng ' + room.roomNumber"
+                          class="min-h-11 px-2 text-[10px] font-bold text-emerald-700 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>Walk-in</span>
+                          <i class="pi pi-arrow-right text-[10px]" aria-hidden="true"></i>
+                        </button>
                       } @else if (room.status === 'Occupied' && room.activeReservation) {
                         <button
                           type="button"
-                          (click)="$event.stopPropagation(); openFolioModalForRoom(room)"
-                          class="px-1.5 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold border border-indigo-200 transition-colors cursor-pointer flex items-center gap-1"
+                          (click)="openFolioModalForRoom(room)"
+                          [attr.aria-label]="'Thêm Minibar và dịch vụ phòng ' + room.roomNumber"
+                          class="min-h-11 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold border border-indigo-200 transition-colors cursor-pointer inline-flex items-center gap-1"
                           title="Thêm Minibar & Dịch vụ"
                         >
-                          <i class="pi pi-plus text-[8px]"></i>
+                          <i class="pi pi-plus text-[9px]"></i>
                           <span>Minibar</span>
                         </button>
                       } @else if (room.status === 'Dirty') {
@@ -484,7 +505,7 @@ export interface QuickMinibarCatalogItem {
                           <button
                             type="button"
                             (click)="changeRoomStatus(room, RoomStatus.Cleaning)"
-                            class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 font-semibold text-xs transition-colors cursor-pointer"
+                            class="min-h-11 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 font-semibold text-xs transition-colors cursor-pointer"
                           >
                             Bắt đầu dọn
                           </button>
@@ -492,7 +513,7 @@ export interface QuickMinibarCatalogItem {
                           <button
                             type="button"
                             (click)="changeRoomStatus(room, RoomStatus.Clean)"
-                            class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold text-xs transition-colors cursor-pointer"
+                            class="min-h-11 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold text-xs transition-colors cursor-pointer"
                           >
                             Xong dọn
                           </button>
@@ -500,19 +521,21 @@ export interface QuickMinibarCatalogItem {
                         <button
                           type="button"
                           (click)="openEditRoomModal(room)"
-                          class="px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
+                          [attr.aria-label]="'Chỉnh sửa phòng ' + room.roomNumber"
+                          class="min-h-11 min-w-11 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors cursor-pointer inline-flex items-center justify-center"
                           title="Chỉnh sửa phòng"
                         >
-                          <i class="pi pi-pencil text-[10px]"></i>
+                          <i class="pi pi-pencil text-xs"></i>
                         </button>
                         @if (room.status !== 'Occupied') {
                           <button
                             type="button"
                             (click)="confirmDeleteRoom(room)"
-                            class="px-2 py-1 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs transition-colors cursor-pointer"
+                            [attr.aria-label]="'Xóa phòng ' + room.roomNumber"
+                            class="min-h-11 min-w-11 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs transition-colors cursor-pointer inline-flex items-center justify-center"
                             title="Xóa phòng"
                           >
-                            <i class="pi pi-trash text-[10px]"></i>
+                            <i class="pi pi-trash text-xs"></i>
                           </button>
                         }
                       </div>
@@ -542,7 +565,8 @@ export interface QuickMinibarCatalogItem {
                 <button
                   type="button"
                   (click)="prevTimeline()"
-                  class="px-2.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer"
+                  aria-label="Lùi khoảng thời gian trên dòng thời gian"
+                  class="min-h-11 min-w-11 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer flex items-center justify-center"
                   title="Lùi lại"
                 >
                   <i class="pi pi-chevron-left text-xs"></i>
@@ -550,14 +574,15 @@ export interface QuickMinibarCatalogItem {
                 <button
                   type="button"
                   (click)="todayTimeline()"
-                  class="px-3 py-1.5 rounded-lg font-semibold text-slate-700 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer"
+                  class="min-h-11 px-3 py-1.5 rounded-lg font-semibold text-slate-700 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer"
                 >
                   Hôm nay
                 </button>
                 <button
                   type="button"
                   (click)="nextTimeline()"
-                  class="px-2.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer"
+                  aria-label="Tiến tới khoảng thời gian tiếp theo trên dòng thời gian"
+                  class="min-h-11 min-w-11 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer flex items-center justify-center"
                   title="Tiếp theo"
                 >
                   <i class="pi pi-chevron-right text-xs"></i>
@@ -570,7 +595,7 @@ export interface QuickMinibarCatalogItem {
                   type="button"
                   (click)="timelineDaysCount.set(7)"
                   [ngClass]="timelineDaysCount() === 7 ? 'bg-white shadow-2xs text-emerald-700 font-bold' : 'text-slate-600 hover:text-slate-900'"
-                  class="px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                  class="min-h-11 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
                 >
                   7 ngày
                 </button>
@@ -578,7 +603,7 @@ export interface QuickMinibarCatalogItem {
                   type="button"
                   (click)="timelineDaysCount.set(14)"
                   [ngClass]="timelineDaysCount() === 14 ? 'bg-white shadow-2xs text-emerald-700 font-bold' : 'text-slate-600 hover:text-slate-900'"
-                  class="px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                  class="min-h-11 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
                 >
                   14 ngày
                 </button>
@@ -655,24 +680,31 @@ export interface QuickMinibarCatalogItem {
                         @if (getCellBooking(room, col.dateStr); as booking) {
                           <!-- Booking chip -->
                           <div
-                            (click)="onTimelineBookingClick(booking, room)"
                             [ngClass]="getBookingChipClass(booking)"
-                            class="rounded-lg p-1.5 text-left shadow-2xs border cursor-pointer hover:shadow-xs transition-all relative overflow-hidden group/chip"
+                            class="rounded-lg p-1.5 text-left shadow-2xs border transition-all relative overflow-hidden group/chip space-y-1"
                           >
-                            <div class="flex items-center justify-between text-[10px] font-bold truncate">
-                              <span class="truncate">{{ booking.guestName }}</span>
-                              <span class="text-[9px] opacity-80 uppercase">{{ getBookingStatusShort(booking.status) }}</span>
-                            </div>
-                            <div class="text-[9px] font-mono opacity-90 truncate">
-                              {{ booking.totalAmount | number:'1.0-0' }}₫
-                            </div>
+                            <button
+                              type="button"
+                              (click)="onTimelineBookingClick(booking, room)"
+                              [attr.aria-label]="'Xem đặt phòng ' + booking.confirmationCode + ' của ' + booking.guestName"
+                              class="w-full text-left min-h-11 rounded px-1 py-0.5 cursor-pointer hover:bg-black/5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                            >
+                              <div class="flex items-center justify-between text-[10px] font-bold truncate">
+                                <span class="truncate">{{ booking.guestName }}</span>
+                                <span class="text-[9px] opacity-80 uppercase">{{ getBookingStatusShort(booking.status) }}</span>
+                              </div>
+                              <div class="text-[9px] font-mono tabular-nums opacity-90 truncate">
+                                {{ booking.totalAmount | number:'1.0-0' }}₫
+                              </div>
+                            </button>
                             <!-- Mini button in chip -->
-                            <div class="flex items-center justify-between mt-1 pt-1 border-t border-black/10 text-[9px]">
-                              <span class="truncate text-[8px]">{{ booking.confirmationCode }}</span>
+                            <div class="flex items-center justify-between pt-1 border-t border-black/10 text-[9px] gap-1">
+                              <span class="truncate text-[8px] font-mono">{{ booking.confirmationCode }}</span>
                               <button
                                 type="button"
-                                (click)="$event.stopPropagation(); openFolioModalForReservation(booking, room)"
-                                class="px-1.5 py-0.5 rounded bg-white/90 hover:bg-white text-indigo-700 font-bold border border-indigo-200 text-[8px] cursor-pointer"
+                                (click)="openFolioModalForReservation(booking, room)"
+                                [attr.aria-label]="'Thêm Minibar cho đặt phòng ' + booking.confirmationCode"
+                                class="min-h-11 px-2 py-0.5 rounded bg-white/95 hover:bg-white text-indigo-700 font-bold border border-indigo-200 text-[9px] cursor-pointer shrink-0"
                                 title="Thêm Minibar & Dịch vụ"
                               >
                                 + Minibar
@@ -684,7 +716,8 @@ export interface QuickMinibarCatalogItem {
                           <button
                             type="button"
                             (click)="openQuickWalkinForRoomOnDate(room, col.dateStr)"
-                            class="w-full h-full rounded-md opacity-0 hover:opacity-100 hover:bg-emerald-50 text-emerald-700 text-[10px] font-semibold flex items-center justify-center gap-1 transition-opacity cursor-pointer border border-dashed border-emerald-300"
+                            [attr.aria-label]="'Nhận phòng nhanh cho phòng ' + room.roomNumber + ' ngày ' + col.dateFormatted"
+                            class="w-full min-h-11 h-full rounded-md opacity-60 hover:opacity-100 focus-visible:opacity-100 hover:bg-emerald-50 text-emerald-700 text-[10px] font-semibold flex items-center justify-center gap-1 transition-opacity cursor-pointer border border-dashed border-emerald-300"
                           >
                             <i class="pi pi-plus text-[9px]"></i>
                             <span>Nhận</span>
@@ -703,8 +736,17 @@ export interface QuickMinibarCatalogItem {
 
     <!-- Quick Walk-in Modal Dialog -->
     @if (isWalkinModalOpen()) {
-      <div class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
-        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200/80 max-w-xl w-full p-6 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-150">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Tiếp khách vãng lai tại quầy"
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
+        (keydown.escape)="closeWalkinModal()"
+        (click)="closeWalkinModal()"
+        class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
+      >
+        <div (click)="$event.stopPropagation()" class="bg-white rounded-2xl shadow-2xl border border-slate-200/80 max-w-xl w-full p-6 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-150">
           <div class="flex items-center justify-between pb-3 border-b border-slate-100">
             <div>
               <h2 class="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -720,7 +762,8 @@ export interface QuickMinibarCatalogItem {
             <button
               type="button"
               (click)="closeWalkinModal()"
-              class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              aria-label="Đóng hộp thoại tiếp khách nhanh"
+              class="min-h-11 min-w-11 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
             >
               <i class="pi pi-times text-sm"></i>
             </button>
@@ -750,7 +793,7 @@ export interface QuickMinibarCatalogItem {
                   type="button"
                   (click)="setWalkinRentalType(1)"
                   [ngClass]="walkinForm.get('rentalType')?.value === 1 ? 'bg-white text-emerald-700 font-bold shadow-xs border border-slate-200/80' : 'text-slate-600 hover:text-slate-900 font-medium'"
-                  class="py-2.5 rounded-lg text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  class="min-h-11 py-2.5 rounded-lg text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <i class="pi pi-clock text-xs"></i>
                   <span>Theo Giờ</span>
@@ -759,7 +802,7 @@ export interface QuickMinibarCatalogItem {
                   type="button"
                   (click)="setWalkinRentalType(2)"
                   [ngClass]="walkinForm.get('rentalType')?.value === 2 ? 'bg-white text-purple-700 font-bold shadow-xs border border-slate-200/80' : 'text-slate-600 hover:text-slate-900 font-medium'"
-                  class="py-2.5 rounded-lg text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  class="min-h-11 py-2.5 rounded-lg text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <i class="pi pi-moon text-xs"></i>
                   <span>Qua Đêm</span>
@@ -768,7 +811,7 @@ export interface QuickMinibarCatalogItem {
                   type="button"
                   (click)="setWalkinRentalType(3)"
                   [ngClass]="walkinForm.get('rentalType')?.value === 3 ? 'bg-white text-blue-700 font-bold shadow-xs border border-slate-200/80' : 'text-slate-600 hover:text-slate-900 font-medium'"
-                  class="py-2.5 rounded-lg text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  class="min-h-11 py-2.5 rounded-lg text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <i class="pi pi-calendar text-xs"></i>
                   <span>Theo Ngày</span>
@@ -782,7 +825,7 @@ export interface QuickMinibarCatalogItem {
               <div class="p-3.5 bg-sky-50/80 rounded-xl border border-sky-200 space-y-2">
                 <div class="flex items-center justify-between">
                   <span class="text-xs font-bold text-sky-900">Thời lượng thuê theo giờ:</span>
-                  <span class="text-xs font-mono font-bold text-sky-900 px-2 py-0.5 bg-sky-100 rounded-md border border-sky-200">{{ walkinForm.get('hourlyHours')?.value }} tiếng</span>
+                  <span class="text-xs font-mono tabular-nums font-bold text-sky-900 px-2 py-0.5 bg-sky-100 rounded-md border border-sky-200">{{ walkinForm.get('hourlyHours')?.value }} tiếng</span>
                 </div>
                 <div class="flex items-center gap-2">
                   @for (hrs of [1, 2, 3, 4, 6]; track hrs) {
@@ -790,7 +833,7 @@ export interface QuickMinibarCatalogItem {
                       type="button"
                       (click)="walkinForm.patchValue({ hourlyHours: hrs })"
                       [ngClass]="walkinForm.get('hourlyHours')?.value === hrs ? 'bg-sky-600 text-white font-bold shadow-xs border-sky-600' : 'bg-white text-sky-800 hover:bg-sky-100 border-sky-200'"
-                      class="flex-1 py-1.5 rounded-lg border text-xs font-medium transition-all cursor-pointer"
+                      class="flex-1 min-h-11 py-1.5 rounded-lg border text-xs font-medium transition-all cursor-pointer tabular-nums"
                     >
                       {{ hrs }}h
                     </button>
@@ -910,14 +953,14 @@ export interface QuickMinibarCatalogItem {
               <button
                 type="button"
                 (click)="closeWalkinModal()"
-                class="px-4 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                class="min-h-11 px-4 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
               >
                 Hủy bỏ
               </button>
               <button
                 type="submit"
                 [disabled]="walkinForm.invalid || isSubmittingWalkin()"
-                class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-xs sm:text-sm font-semibold shadow-sm shadow-emerald-600/30 transition-all cursor-pointer flex items-center gap-2"
+                class="min-h-11 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-xs sm:text-sm font-semibold shadow-sm shadow-emerald-600/30 transition-all cursor-pointer flex items-center gap-2"
               >
                 @if (isSubmittingWalkin()) {
                   <i class="pi pi-spin pi-spinner text-xs"></i>
@@ -932,8 +975,17 @@ export interface QuickMinibarCatalogItem {
 
     <!-- Folio Minibar & Incidental Services Modal Dialog -->
     @if (isFolioModalOpen()) {
-      <div class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
-        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200/80 max-w-2xl w-full p-6 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-150">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Phụ phí Minibar và dịch vụ phụ trợ"
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
+        (keydown.escape)="closeFolioModal()"
+        (click)="closeFolioModal()"
+        class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
+      >
+        <div (click)="$event.stopPropagation()" class="bg-white rounded-2xl shadow-2xl border border-slate-200/80 max-w-2xl w-full p-6 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-150">
           <!-- Modal Header -->
           <div class="flex items-center justify-between pb-3.5 border-b border-slate-100">
             <div>
@@ -956,7 +1008,8 @@ export interface QuickMinibarCatalogItem {
             <button
               type="button"
               (click)="closeFolioModal()"
-              class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              aria-label="Đóng hộp thoại phụ phí Minibar"
+              class="min-h-11 min-w-11 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
             >
               <i class="pi pi-times text-sm"></i>
             </button>
@@ -967,10 +1020,10 @@ export interface QuickMinibarCatalogItem {
             <div class="bg-linear-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-4.5 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-white/10">
               <div>
                 <span class="text-[10px] uppercase font-bold tracking-wider text-slate-300">Tổng hóa đơn hiện tại</span>
-                <div class="text-2xl sm:text-3xl font-black text-amber-300 mt-0.5 font-mono">
+                <div class="text-2xl sm:text-3xl font-black text-amber-300 mt-0.5 font-mono tabular-nums">
                   {{ folio.totalAmount | number:'1.0-0' }}₫
                 </div>
-                <div class="text-xs text-slate-300 flex items-center gap-3 mt-1.5 font-medium">
+                <div class="text-xs text-slate-300 flex items-center gap-3 mt-1.5 font-medium tabular-nums">
                   <span>Tiền phòng: {{ (folio.baseRoomAmount || folio.totalAmount) | number:'1.0-0' }}₫</span>
                   <span>•</span>
                   <span>Phụ phí: {{ (folio.surchargesAmount || 0) | number:'1.0-0' }}₫</span>
@@ -979,10 +1032,10 @@ export interface QuickMinibarCatalogItem {
               <div class="sm:text-right border-t sm:border-t-0 pt-3 sm:pt-0 border-white/10 w-full sm:w-auto">
                 <span class="text-[10px] uppercase font-bold tracking-wider text-slate-300">Đã thanh toán / Còn lại</span>
                 <div class="text-sm font-semibold mt-1">
-                  Đã trả: <span class="font-mono text-emerald-300 font-bold">{{ folio.paidAmount | number:'1.0-0' }}₫</span>
+                  Đã trả: <span class="font-mono tabular-nums text-emerald-300 font-bold">{{ folio.paidAmount | number:'1.0-0' }}₫</span>
                 </div>
                 <div class="text-xs font-bold mt-1" [ngClass]="folio.remainingBalance > 0 ? 'text-rose-300' : 'text-emerald-300'">
-                  Còn lại: <span class="font-mono text-lg font-black">{{ folio.remainingBalance | number:'1.0-0' }}₫</span>
+                  Còn lại: <span class="font-mono tabular-nums text-lg font-black">{{ folio.remainingBalance | number:'1.0-0' }}₫</span>
                 </div>
               </div>
             </div>
@@ -1057,7 +1110,7 @@ export interface QuickMinibarCatalogItem {
                   type="button"
                   [disabled]="!customItemName().trim() || !customItemPrice() || isAddingFolioItem()"
                   (click)="submitCustomFolioItem()"
-                  class="w-full h-10 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm shadow-indigo-600/20"
+                  class="w-full min-h-11 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm shadow-indigo-600/20"
                 >
                   <i class="pi pi-check text-xs"></i>
                   <span>Ghi vào Folio</span>
@@ -1095,7 +1148,7 @@ export interface QuickMinibarCatalogItem {
             <button
               type="button"
               (click)="closeFolioModal()"
-              class="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
+              class="min-h-11 px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
             >
               Đóng cửa sổ
             </button>
@@ -1107,6 +1160,12 @@ export interface QuickMinibarCatalogItem {
     <!-- Physical Room Create / Edit Modal Dialog -->
     @if (isRoomCrudModalOpen()) {
       <div
+        role="dialog"
+        aria-modal="true"
+        [attr.aria-label]="editingRoom() ? 'Chỉnh sửa Phòng ' + editingRoom()!.roomNumber : 'Thêm Phòng Vật Lý Mới'"
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
+        (keydown.escape)="closeRoomCrudModal()"
         class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto"
         (click)="closeRoomCrudModal()"
       >
@@ -1131,7 +1190,8 @@ export interface QuickMinibarCatalogItem {
             <button
               type="button"
               (click)="closeRoomCrudModal()"
-              class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              aria-label="Đóng hộp thoại thông tin phòng"
+              class="min-h-11 min-w-11 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
             >
               <i class="pi pi-times text-sm"></i>
             </button>
@@ -1213,7 +1273,7 @@ export interface QuickMinibarCatalogItem {
                 <button
                   type="button"
                   (click)="confirmDeleteRoom(editingRoom()!)"
-                  class="px-3.5 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                  class="min-h-11 px-3.5 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1.5"
                 >
                   <i class="pi pi-trash text-xs"></i>
                   <span>Xóa phòng</span>
@@ -1226,14 +1286,14 @@ export interface QuickMinibarCatalogItem {
                 <button
                   type="button"
                   (click)="closeRoomCrudModal()"
-                  class="px-4 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                  class="min-h-11 px-4 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
                 >
                   Hủy bỏ
                 </button>
                 <button
                   type="submit"
                   [disabled]="roomCrudForm.invalid || isSubmittingRoomCrud()"
-                  class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-xs sm:text-sm font-semibold shadow-sm transition-all cursor-pointer inline-flex items-center gap-2"
+                  class="min-h-11 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-xs sm:text-sm font-semibold shadow-sm transition-all cursor-pointer inline-flex items-center gap-2"
                 >
                   @if (isSubmittingRoomCrud()) {
                     <i class="pi pi-spin pi-spinner text-xs"></i>
@@ -1250,6 +1310,12 @@ export interface QuickMinibarCatalogItem {
     <!-- Delete Physical Room Confirmation Dialog -->
     @if (deletingRoom(); as targetRoom) {
       <div
+        role="dialog"
+        aria-modal="true"
+        [attr.aria-label]="'Xác nhận xóa phòng ' + targetRoom.roomNumber"
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
+        (keydown.escape)="deletingRoom.set(null)"
         class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[110] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
         (click)="deletingRoom.set(null)"
       >
@@ -1273,7 +1339,7 @@ export interface QuickMinibarCatalogItem {
             <button
               type="button"
               (click)="deletingRoom.set(null)"
-              class="px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              class="min-h-11 px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
             >
               Hủy
             </button>
@@ -1281,7 +1347,7 @@ export interface QuickMinibarCatalogItem {
               type="button"
               [disabled]="isSubmittingRoomCrud()"
               (click)="executeDeleteRoom()"
-              class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5"
+              class="min-h-11 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5"
             >
               @if (isSubmittingRoomCrud()) {
                 <i class="pi pi-spin pi-spinner text-xs"></i>
@@ -1301,7 +1367,7 @@ export interface QuickMinibarCatalogItem {
     }
   `
 })
-export class RoomsPage implements OnInit {
+export class RoomsPage implements OnInit, OnDestroy {
   private readonly roomService = inject(RoomService);
   private readonly reservationService = inject(ReservationService);
   private readonly roomTypeService = inject(RoomTypeService);
@@ -1309,6 +1375,11 @@ export class RoomsPage implements OnInit {
   readonly authService = inject(AuthService);
   private readonly alertService = inject(AlertService);
   private readonly fb = inject(FormBuilder);
+  private readonly cdr = inject(ChangeDetectorRef, { optional: true });
+
+  private fallbackDestroyCallbacks: Array<() => void> = [];
+  private isFallbackDestroyed = false;
+  private readonly destroyRef = inject(DestroyRef, { optional: true }) ?? this.createFallbackDestroyRef();
   readonly RoomStatus = RoomStatus;
 
   showContextSelector = signal<boolean>(false);
@@ -1539,58 +1610,95 @@ export class RoomsPage implements OnInit {
     this.loadData();
   }
 
+  ngOnDestroy(): void {
+    this.isFallbackDestroyed = true;
+    const callbacks = this.fallbackDestroyCallbacks.splice(0);
+    callbacks.forEach(cb => cb());
+  }
+
+  private createFallbackDestroyRef(): DestroyRef {
+    const page = this;
+    return {
+      get destroyed(): boolean {
+        return page.isFallbackDestroyed;
+      },
+      onDestroy: (callback: () => void) => {
+        page.fallbackDestroyCallbacks.push(callback);
+        return () => {
+          page.fallbackDestroyCallbacks = page.fallbackDestroyCallbacks.filter(cb => cb !== callback);
+        };
+      }
+    };
+  }
+
   loadData(): void {
     this.isLoading.set(true);
     const propId = this.authService.activePropertyId();
 
-    this.roomTypeService.getRoomTypes().subscribe({
-      next: (res) => this.roomTypes.set(res?.items || []),
-      error: () => {}
-    });
+    this.roomTypeService
+      .getRoomTypes()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.roomTypes.set(res?.items || []);
+          this.cdr?.markForCheck();
+        },
+        error: () => {}
+      });
 
     if (propId) {
       this.loadTimelineReservations();
     }
 
-    this.roomService.getRooms({ pageSize: 100 }).subscribe({
-      next: (paged) => {
-        const rawRooms = (paged.items || []) as ExtendedRoomDto[];
+    this.roomService
+      .getRooms({ pageSize: 100 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (paged) => {
+          const rawRooms = (paged.items || []) as ExtendedRoomDto[];
 
-        // If active property, load active reservations to enrich occupied rooms
-        if (propId) {
-          this.reservationService.getReservations({ propertyId: propId, status: 3, pageSize: 50 }).subscribe({
-            next: (resPaged) => {
-              const resList = resPaged.items || [];
-              const enriched: ExtendedRoomDto[] = rawRooms.map(r => {
-                const active = resList.find(res => res.roomId === r.id);
-                if (active) {
-                  const display: 'Hourly' | 'Overnight' | 'Daily' = active.rentalType === 1 ? 'Hourly' : (active.rentalType === 2 ? 'Overnight' : 'Daily');
-                  return {
-                    ...r,
-                    activeReservation: active,
-                    rentalTypeDisplay: display
-                  };
+          // If active property, load active reservations to enrich occupied rooms
+          if (propId) {
+            this.reservationService
+              .getReservations({ propertyId: propId, status: 3, pageSize: 50 })
+              .pipe(takeUntilDestroyed(this.destroyRef))
+              .subscribe({
+                next: (resPaged) => {
+                  const resList = resPaged.items || [];
+                  const enriched: ExtendedRoomDto[] = rawRooms.map(r => {
+                    const active = resList.find(res => res.roomId === r.id);
+                    if (active) {
+                      const display: 'Hourly' | 'Overnight' | 'Daily' = active.rentalType === 1 ? 'Hourly' : (active.rentalType === 2 ? 'Overnight' : 'Daily');
+                      return {
+                        ...r,
+                        activeReservation: active,
+                        rentalTypeDisplay: display
+                      };
+                    }
+                    return r;
+                  });
+                  this.rooms.set(enriched);
+                  this.isLoading.set(false);
+                  this.cdr?.markForCheck();
+                },
+                error: () => {
+                  this.rooms.set(rawRooms);
+                  this.isLoading.set(false);
+                  this.cdr?.markForCheck();
                 }
-                return r;
               });
-              this.rooms.set(enriched);
-              this.isLoading.set(false);
-            },
-            error: () => {
-              this.rooms.set(rawRooms);
-              this.isLoading.set(false);
-            }
-          });
-        } else {
-          this.rooms.set(rawRooms);
+          } else {
+            this.rooms.set(rawRooms);
+            this.isLoading.set(false);
+            this.cdr?.markForCheck();
+          }
+        },
+        error: () => {
           this.isLoading.set(false);
+          this.alertService.toastError('Không thể tải danh sách phòng.', 'Lỗi');
+          this.cdr?.markForCheck();
         }
-      },
-      error: () => {
-        this.isLoading.set(false);
-        this.alertService.toastError('Không thể tải danh sách phòng.', 'Lỗi');
-      }
-    });
+      });
   }
 
   getRoomCardClasses(room: ExtendedRoomDto): string {
@@ -1649,16 +1757,32 @@ export class RoomsPage implements OnInit {
     }
   }
 
+  getRoomRentalOrStatusIcon(room: ExtendedRoomDto): string {
+    if (room.status === 'Clean') return 'pi pi-check-circle';
+    if (room.status === 'Occupied') {
+      if (room.rentalTypeDisplay === 'Hourly' || room.activeReservation?.rentalType === 1) {
+        return 'pi pi-bolt';
+      }
+      if (room.rentalTypeDisplay === 'Overnight' || room.activeReservation?.rentalType === 2) {
+        return 'pi pi-moon';
+      }
+      return 'pi pi-calendar';
+    }
+    if (room.status === 'Dirty') return 'pi pi-exclamation-circle';
+    if (room.status === 'Cleaning') return 'pi pi-sync';
+    return 'pi pi-ban';
+  }
+
   getRoomRentalOrStatusLabel(room: ExtendedRoomDto): string {
     if (room.status === 'Clean') return 'Trống sạch';
     if (room.status === 'Occupied') {
       if (room.rentalTypeDisplay === 'Hourly' || room.activeReservation?.rentalType === 1) {
-        return '⚡ Theo giờ';
+        return 'Theo giờ';
       }
       if (room.rentalTypeDisplay === 'Overnight' || room.activeReservation?.rentalType === 2) {
-        return '🌙 Qua đêm';
+        return 'Qua đêm';
       }
-      return '📅 Theo ngày';
+      return 'Theo ngày';
     }
     if (room.status === 'Dirty') return 'Cần dọn dẹp';
     if (room.status === 'Cleaning') return 'Đang dọn';
@@ -1690,15 +1814,20 @@ export class RoomsPage implements OnInit {
 
   changeRoomStatus(room: ExtendedRoomDto, newStatus: RoomStatus): void {
     const oldStatus = room.status;
-    this.roomService.updateRoomStatus(room.id, newStatus, oldStatus).subscribe({
-      next: () => {
-        this.alertService.toastSuccess(`Phòng ${room.roomNumber} chuyển sang: ${ROOM_STATUS_LABELS[newStatus]}`, 'Cập nhật trạng thái');
-        this.loadData();
-      },
-      error: () => {
-        this.alertService.toastError(`Không thể đổi trạng thái phòng ${room.roomNumber}.`, 'Lỗi');
-      }
-    });
+    this.roomService
+      .updateRoomStatus(room.id, newStatus, oldStatus)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.alertService.toastSuccess(`Phòng ${room.roomNumber} chuyển sang: ${ROOM_STATUS_LABELS[newStatus]}`, 'Cập nhật trạng thái');
+          this.loadData();
+          this.cdr?.markForCheck();
+        },
+        error: () => {
+          this.alertService.toastError(`Không thể đổi trạng thái phòng ${room.roomNumber}.`, 'Lỗi');
+          this.cdr?.markForCheck();
+        }
+      });
   }
 
   openQuickWalkinModal(): void {
@@ -1813,24 +1942,29 @@ export class RoomsPage implements OnInit {
       immediateCheckIn: true
     };
 
-    this.reservationService.createReservation(req).subscribe({
-      next: (res) => {
-        this.isSubmittingWalkin.set(false);
-        this.isWalkinModalOpen.set(false);
-        this.alertService.toastSuccess(
-          `Đã nhận phòng Walk-in ${res.confirmationCode} cho khách ${formVal.guestName} tại phòng ${selectedRoom.roomNumber}.`,
-          'Nhận phòng thành công!'
-        );
-        this.loadData();
-      },
-      error: (err) => {
-        this.isSubmittingWalkin.set(false);
-        this.alertService.toastError(
-          err?.error?.message || 'Không thể tạo đặt phòng nhận ngay. Vui lòng thử lại.',
-          'Lỗi'
-        );
-      }
-    });
+    this.reservationService
+      .createReservation(req)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.isSubmittingWalkin.set(false);
+          this.isWalkinModalOpen.set(false);
+          this.alertService.toastSuccess(
+            `Đã nhận phòng Walk-in ${res.confirmationCode} cho khách ${formVal.guestName} tại phòng ${selectedRoom.roomNumber}.`,
+            'Nhận phòng thành công!'
+          );
+          this.loadData();
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          this.isSubmittingWalkin.set(false);
+          this.alertService.toastError(
+            err?.error?.message || 'Không thể tạo đặt phòng nhận ngay. Vui lòng thử lại.',
+            'Lỗi'
+          );
+          this.cdr?.markForCheck();
+        }
+      });
   }
 
   // --- Timeline (Gantt Tape Chart) Methods ---
@@ -1939,14 +2073,19 @@ export class RoomsPage implements OnInit {
     this.customItemPrice.set(null);
     this.isFolioModalOpen.set(true);
 
-    this.paymentService.getFolio(res.id, propId).subscribe({
-      next: (folio) => {
-        this.currentFolio.set(folio);
-      },
-      error: () => {
-        this.alertService.toastError('Không thể tải chi tiết Folio hóa đơn.', 'Lỗi');
-      }
-    });
+    this.paymentService
+      .getFolio(res.id, propId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (folio) => {
+          this.currentFolio.set(folio);
+          this.cdr?.markForCheck();
+        },
+        error: () => {
+          this.alertService.toastError('Không thể tải chi tiết Folio hóa đơn.', 'Lỗi');
+          this.cdr?.markForCheck();
+        }
+      });
   }
 
   closeFolioModal(): void {
@@ -1971,22 +2110,27 @@ export class RoomsPage implements OnInit {
       category: item.category
     };
 
-    this.reservationService.addFolioItem(res.id, req).subscribe({
-      next: (updatedFolio) => {
-        this.isAddingFolioItem.set(false);
-        this.currentFolio.set(updatedFolio);
-        this.alertService.toastSuccess(
-          `Đã thêm "${item.name}" (${item.price.toLocaleString('vi-VN')}₫) vào hóa đơn phòng ${this.selectedFolioRoom()?.roomNumber || ''}.`,
-          'Thêm phụ phí thành công!'
-        );
-        this.loadTimelineReservations();
-      },
-      error: (err) => {
-        this.isAddingFolioItem.set(false);
-        const msg = err?.error?.message || 'Không thể thêm khoản phí vào Folio.';
-        this.alertService.toastError(msg, 'Lỗi');
-      }
-    });
+    this.reservationService
+      .addFolioItem(res.id, req)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updatedFolio) => {
+          this.isAddingFolioItem.set(false);
+          this.currentFolio.set(updatedFolio);
+          this.alertService.toastSuccess(
+            `Đã thêm "${item.name}" (${item.price.toLocaleString('vi-VN')}₫) vào hóa đơn phòng ${this.selectedFolioRoom()?.roomNumber || ''}.`,
+            'Thêm phụ phí thành công!'
+          );
+          this.loadTimelineReservations();
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          this.isAddingFolioItem.set(false);
+          const msg = err?.error?.message || 'Không thể thêm khoản phí vào Folio.';
+          this.alertService.toastError(msg, 'Lỗi');
+          this.cdr?.markForCheck();
+        }
+      });
   }
 
   submitCustomFolioItem(): void {
@@ -2010,36 +2154,45 @@ export class RoomsPage implements OnInit {
       category: this.customItemCategory()
     };
 
-    this.reservationService.addFolioItem(res.id, req).subscribe({
-      next: (updatedFolio) => {
-        this.isAddingFolioItem.set(false);
-        this.currentFolio.set(updatedFolio);
-        this.customItemName.set('');
-        this.customItemPrice.set(null);
-        this.alertService.toastSuccess(
-          `Đã thêm "${name}" (${price.toLocaleString('vi-VN')}₫) vào hóa đơn.`,
-          'Thêm thành công!'
-        );
-        this.loadTimelineReservations();
-      },
-      error: (err) => {
-        this.isAddingFolioItem.set(false);
-        const msg = err?.error?.message || 'Không thể thêm khoản phí tùy chỉnh.';
-        this.alertService.toastError(msg, 'Lỗi');
-      }
-    });
+    this.reservationService
+      .addFolioItem(res.id, req)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updatedFolio) => {
+          this.isAddingFolioItem.set(false);
+          this.currentFolio.set(updatedFolio);
+          this.customItemName.set('');
+          this.customItemPrice.set(null);
+          this.alertService.toastSuccess(
+            `Đã thêm "${name}" (${price.toLocaleString('vi-VN')}₫) vào hóa đơn.`,
+            'Thêm thành công!'
+          );
+          this.loadTimelineReservations();
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          this.isAddingFolioItem.set(false);
+          const msg = err?.error?.message || 'Không thể thêm khoản phí tùy chỉnh.';
+          this.alertService.toastError(msg, 'Lỗi');
+          this.cdr?.markForCheck();
+        }
+      });
   }
 
   loadTimelineReservations(): void {
     const propId = this.authService.activePropertyId();
     if (!propId) return;
 
-    this.reservationService.getReservations({ propertyId: propId, pageSize: 200 }).subscribe({
-      next: (res) => {
-        this.allTimelineReservations.set(res?.items || []);
-      },
-      error: () => {}
-    });
+    this.reservationService
+      .getReservations({ propertyId: propId, pageSize: 200 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.allTimelineReservations.set(res?.items || []);
+          this.cdr?.markForCheck();
+        },
+        error: () => {}
+      });
   }
 
   private getTodayVnDate(): string {
@@ -2114,18 +2267,23 @@ export class RoomsPage implements OnInit {
         notes: val.notes ? String(val.notes).trim() : undefined,
         isActive: Boolean(val.isActive)
       };
-      this.roomService.updateRoom(editing.id, req).subscribe({
-        next: () => {
-          this.isSubmittingRoomCrud.set(false);
-          this.closeRoomCrudModal();
-          this.alertService.toastSuccess(`Đã cập nhật thông tin phòng ${req.roomNumber}.`, 'Thành công');
-          this.loadData();
-        },
-        error: err => {
-          this.isSubmittingRoomCrud.set(false);
-          this.alertService.toastError(err?.error?.message || 'Không thể cập nhật thông tin phòng.', 'Lỗi');
-        }
-      });
+      this.roomService
+        .updateRoom(editing.id, req)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => {
+            this.isSubmittingRoomCrud.set(false);
+            this.closeRoomCrudModal();
+            this.alertService.toastSuccess(`Đã cập nhật thông tin phòng ${req.roomNumber}.`, 'Thành công');
+            this.loadData();
+            this.cdr?.markForCheck();
+          },
+          error: err => {
+            this.isSubmittingRoomCrud.set(false);
+            this.alertService.toastError(err?.error?.message || 'Không thể cập nhật thông tin phòng.', 'Lỗi');
+            this.cdr?.markForCheck();
+          }
+        });
     } else {
       const req: CreateRoomRequest = {
         roomNumber: String(val.roomNumber || '').trim(),
@@ -2133,18 +2291,23 @@ export class RoomsPage implements OnInit {
         roomTypeId: String(val.roomTypeId),
         notes: val.notes ? String(val.notes).trim() : undefined
       };
-      this.roomService.createRoom(req).subscribe({
-        next: () => {
-          this.isSubmittingRoomCrud.set(false);
-          this.closeRoomCrudModal();
-          this.alertService.toastSuccess(`Đã thêm phòng ${req.roomNumber} (Tầng ${req.floor}) vào sơ đồ.`, 'Thành công');
-          this.loadData();
-        },
-        error: err => {
-          this.isSubmittingRoomCrud.set(false);
-          this.alertService.toastError(err?.error?.message || 'Không thể thêm phòng mới. Kiểm tra trùng số phòng.', 'Lỗi');
-        }
-      });
+      this.roomService
+        .createRoom(req)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => {
+            this.isSubmittingRoomCrud.set(false);
+            this.closeRoomCrudModal();
+            this.alertService.toastSuccess(`Đã thêm phòng ${req.roomNumber} (Tầng ${req.floor}) vào sơ đồ.`, 'Thành công');
+            this.loadData();
+            this.cdr?.markForCheck();
+          },
+          error: err => {
+            this.isSubmittingRoomCrud.set(false);
+            this.alertService.toastError(err?.error?.message || 'Không thể thêm phòng mới. Kiểm tra trùng số phòng.', 'Lỗi');
+            this.cdr?.markForCheck();
+          }
+        });
     }
   }
 
@@ -2158,17 +2321,22 @@ export class RoomsPage implements OnInit {
     if (!target || this.isSubmittingRoomCrud()) return;
 
     this.isSubmittingRoomCrud.set(true);
-    this.roomService.deleteRoom(target.id).subscribe({
-      next: () => {
-        this.isSubmittingRoomCrud.set(false);
-        this.deletingRoom.set(null);
-        this.alertService.toastSuccess(`Đã xóa phòng ${target.roomNumber} khỏi sơ đồ chi nhánh.`, 'Đã xóa');
-        this.loadData();
-      },
-      error: err => {
-        this.isSubmittingRoomCrud.set(false);
-        this.alertService.toastError(err?.error?.message || 'Không thể xóa phòng này (có thể phòng đã phát sinh lịch sử đặt phòng).', 'Lỗi');
-      }
-    });
+    this.roomService
+      .deleteRoom(target.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.isSubmittingRoomCrud.set(false);
+          this.deletingRoom.set(null);
+          this.alertService.toastSuccess(`Đã xóa phòng ${target.roomNumber} khỏi sơ đồ chi nhánh.`, 'Đã xóa');
+          this.loadData();
+          this.cdr?.markForCheck();
+        },
+        error: err => {
+          this.isSubmittingRoomCrud.set(false);
+          this.alertService.toastError(err?.error?.message || 'Không thể xóa phòng này (có thể phòng đã phát sinh lịch sử đặt phòng).', 'Lỗi');
+          this.cdr?.markForCheck();
+        }
+      });
   }
 }

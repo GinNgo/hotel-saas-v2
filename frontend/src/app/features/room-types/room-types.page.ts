@@ -1,6 +1,9 @@
 import {
   Component,
   OnInit,
+  OnDestroy,
+  DestroyRef,
+  ChangeDetectorRef,
   inject,
   signal,
   computed,
@@ -10,6 +13,8 @@ import {
   HostListener
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { A11yModule } from '@angular/cdk/a11y';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroup, ReactiveFormsModule, FormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { RoomTypeService } from '../../core/services/room-type.service';
@@ -42,6 +47,7 @@ interface RoomTypeWithProperty extends RoomTypeDto {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
+    A11yModule,
     ReactiveFormsModule,
     FormsModule,
     RouterLink,
@@ -65,7 +71,7 @@ interface RoomTypeWithProperty extends RoomTypeDto {
               type="button"
               (click)="viewMode.set('grid')"
               [ngClass]="viewMode() === 'grid' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'"
-              class="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+              class="min-h-11 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1.5"
             >
               <i class="pi pi-th-large text-xs"></i>
               <span>Thẻ hạng phòng</span>
@@ -74,7 +80,7 @@ interface RoomTypeWithProperty extends RoomTypeDto {
               type="button"
               (click)="viewMode.set('table')"
               [ngClass]="viewMode() === 'table' ? 'bg-white shadow-2xs text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'"
-              class="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+              class="min-h-11 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1.5"
             >
               <i class="pi pi-list text-xs"></i>
               <span>Bảng chi tiết</span>
@@ -83,7 +89,7 @@ interface RoomTypeWithProperty extends RoomTypeDto {
 
           <a
             routerLink="/rates"
-            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm shadow-2xs transition-colors"
+            class="min-h-11 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm shadow-2xs transition-colors"
           >
             <i class="pi pi-dollar text-xs text-emerald-600"></i>
             <span>Bảng giá theo giờ/đêm</span>
@@ -93,7 +99,7 @@ interface RoomTypeWithProperty extends RoomTypeDto {
             <button
               type="button"
               (click)="openCreateModal()"
-              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-sm transition-colors cursor-pointer"
+              class="min-h-11 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-sm transition-colors cursor-pointer"
             >
               <i class="pi pi-plus text-xs"></i>
               <span>Thêm loại phòng</span>
@@ -177,13 +183,13 @@ interface RoomTypeWithProperty extends RoomTypeDto {
 
         <div class="flex items-center gap-2">
           <span class="text-xs text-slate-500 font-medium">
-            Hiển thị <strong class="text-slate-800 font-mono">{{ filteredRoomTypes().length }}</strong> / {{ roomTypes().length }} hạng phòng
+            Hiển thị <strong class="text-slate-800 font-mono tabular-nums">{{ filteredRoomTypes().length }}</strong> / <span class="tabular-nums">{{ roomTypes().length }}</span> hạng phòng
           </span>
           <button
             type="button"
             (click)="loadRoomTypes()"
             [disabled]="loading()"
-            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
+            class="min-h-11 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
           >
             <i class="pi pi-refresh text-xs text-emerald-600" [class.pi-spin]="loading()"></i>
             <span>Làm mới</span>
@@ -193,7 +199,7 @@ interface RoomTypeWithProperty extends RoomTypeDto {
 
       <!-- 4. ERROR BANNER -->
       @if (errorMessage()) {
-        <div class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800 flex items-center justify-between gap-3">
+        <div role="alert" class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800 flex items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <i class="pi pi-exclamation-triangle text-rose-600 text-base"></i>
             <span>{{ errorMessage() }}</span>
@@ -201,7 +207,7 @@ interface RoomTypeWithProperty extends RoomTypeDto {
           <button
             type="button"
             (click)="loadRoomTypes()"
-            class="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs transition-colors cursor-pointer"
+            class="min-h-11 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs transition-colors cursor-pointer"
           >
             Thử lại
           </button>
@@ -225,7 +231,7 @@ interface RoomTypeWithProperty extends RoomTypeDto {
               <button
                 type="button"
                 (click)="openCreateModal()"
-                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-sm transition-colors cursor-pointer"
+                class="min-h-11 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-sm transition-colors cursor-pointer"
               >
                 <i class="pi pi-plus text-xs"></i>
                 <span>Tạo loại phòng đầu tiên</span>
@@ -244,6 +250,9 @@ interface RoomTypeWithProperty extends RoomTypeDto {
                   <img
                     [src]="rt.imageUrl || getFallbackImage(rt.code)"
                     [alt]="rt.name"
+                    width="400"
+                    height="176"
+                    loading="lazy"
                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     (error)="onImgError($event)"
                   />
@@ -290,8 +299,8 @@ interface RoomTypeWithProperty extends RoomTypeDto {
                       <i class="pi pi-inbox text-emerald-600 text-xs"></i>
                       <span>{{ rt.bedType || '1 Giường Đôi King' }}</span>
                     </span>
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-medium">
-                      <i class="pi pi-Arrows-alt text-indigo-600 text-xs"></i>
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-medium tabular-nums">
+                      <i class="pi pi-arrows-alt text-indigo-600 text-xs"></i>
                       <span>{{ rt.squareMeters || 28 }} m²</span>
                     </span>
                   </div>
@@ -306,7 +315,7 @@ interface RoomTypeWithProperty extends RoomTypeDto {
               <div class="px-4 py-3 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between gap-2">
                 <a
                   routerLink="/rooms"
-                  class="text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1"
+                  class="min-h-11 text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1 tabular-nums"
                 >
                   <span>Xem {{ rt.roomCount }} phòng</span>
                   <i class="pi pi-arrow-right text-[10px]"></i>
@@ -317,7 +326,8 @@ interface RoomTypeWithProperty extends RoomTypeDto {
                     <button
                       type="button"
                       (click)="openEditModal(rt)"
-                      class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors cursor-pointer inline-flex items-center gap-1"
+                      [attr.aria-label]="'Chỉnh sửa hạng phòng ' + rt.name"
+                      class="min-h-11 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors cursor-pointer inline-flex items-center gap-1"
                       title="Chỉnh sửa hạng phòng"
                     >
                       <i class="pi pi-pencil text-[11px] text-emerald-600"></i>
@@ -328,7 +338,8 @@ interface RoomTypeWithProperty extends RoomTypeDto {
                     <button
                       type="button"
                       (click)="confirmDelete(rt)"
-                      class="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50/60 hover:bg-rose-100 text-rose-700 font-semibold text-xs transition-colors cursor-pointer inline-flex items-center gap-1"
+                      [attr.aria-label]="'Xóa hạng phòng ' + rt.name"
+                      class="min-h-11 px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50/60 hover:bg-rose-100 text-rose-700 font-semibold text-xs transition-colors cursor-pointer inline-flex items-center gap-1"
                       title="Xóa hạng phòng"
                     >
                       <i class="pi pi-trash text-[11px]"></i>
@@ -378,16 +389,16 @@ interface RoomTypeWithProperty extends RoomTypeDto {
                     </td>
                     <td class="py-3.5 px-4 text-slate-700">
                       <div class="font-medium">{{ rt.bedType || '1 Giường Đôi King' }}</div>
-                      <div class="text-[11px] text-slate-400 font-mono">{{ rt.squareMeters || 28 }} m²</div>
+                      <div class="text-[11px] text-slate-400 font-mono tabular-nums">{{ rt.squareMeters || 28 }} m²</div>
                     </td>
-                    <td class="py-3.5 px-4 text-center font-mono font-semibold text-slate-800">
+                    <td class="py-3.5 px-4 text-center font-mono font-semibold text-slate-800 tabular-nums">
                       {{ rt.maxOccupancy }} người
                     </td>
-                    <td class="py-3.5 px-4 text-right font-mono font-bold text-emerald-700 text-sm">
+                    <td class="py-3.5 px-4 text-right font-mono font-bold text-emerald-700 text-sm tabular-nums">
                       {{ rt.basePrice | number:'1.0-0' }}₫
                     </td>
                     <td class="py-3.5 px-4 text-center">
-                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono">
+                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono tabular-nums">
                         {{ rt.roomCount }} phòng
                       </span>
                     </td>
@@ -397,7 +408,8 @@ interface RoomTypeWithProperty extends RoomTypeDto {
                           <button
                             type="button"
                             (click)="openEditModal(rt)"
-                            class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
+                            [attr.aria-label]="'Chỉnh sửa hạng phòng ' + rt.name"
+                            class="min-h-11 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
                           >
                             <i class="pi pi-pencil text-xs text-emerald-600 mr-1"></i>Sửa
                           </button>
@@ -406,7 +418,8 @@ interface RoomTypeWithProperty extends RoomTypeDto {
                           <button
                             type="button"
                             (click)="confirmDelete(rt)"
-                            class="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs transition-colors cursor-pointer"
+                            [attr.aria-label]="'Xóa hạng phòng ' + rt.name"
+                            class="min-h-11 px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs transition-colors cursor-pointer"
                           >
                             <i class="pi pi-trash text-xs mr-1"></i>Xóa
                           </button>
@@ -425,6 +438,12 @@ interface RoomTypeWithProperty extends RoomTypeDto {
     <!-- 6. MODAL THÊM / SỬA LOẠI PHÒNG -->
     @if (isModalOpen()) {
       <div
+        role="dialog"
+        aria-modal="true"
+        [attr.aria-label]="editingRoomType() ? 'Chỉnh sửa Loại phòng' : 'Thêm Loại phòng mới'"
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
+        (keydown.escape)="closeModal()"
         class="fixed inset-0 z-[100] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto"
         (click)="closeModal()"
       >
@@ -449,7 +468,8 @@ interface RoomTypeWithProperty extends RoomTypeDto {
             <button
               type="button"
               (click)="closeModal()"
-              class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              aria-label="Đóng hộp thoại loại phòng"
+              class="min-h-11 min-w-11 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
             >
               <i class="pi pi-times text-sm"></i>
             </button>
@@ -539,7 +559,7 @@ interface RoomTypeWithProperty extends RoomTypeDto {
                     type="button"
                     (click)="roomTypeForm.patchValue({ bedType: preset })"
                     [ngClass]="roomTypeForm.get('bedType')?.value === preset ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'"
-                    class="px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer"
+                    class="min-h-11 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer"
                   >
                     {{ preset }}
                   </button>
@@ -579,14 +599,14 @@ interface RoomTypeWithProperty extends RoomTypeDto {
               <button
                 type="button"
                 (click)="closeModal()"
-                class="px-4 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                class="min-h-11 px-4 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
               >
                 Hủy bỏ
               </button>
               <button
                 type="submit"
                 [disabled]="roomTypeForm.invalid || isSubmitting()"
-                class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-xs sm:text-sm font-semibold shadow-sm transition-all cursor-pointer inline-flex items-center gap-2"
+                class="min-h-11 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-xs sm:text-sm font-semibold shadow-sm transition-all cursor-pointer inline-flex items-center gap-2"
               >
                 @if (isSubmitting()) {
                   <i class="pi pi-spin pi-spinner text-xs"></i>
@@ -602,6 +622,12 @@ interface RoomTypeWithProperty extends RoomTypeDto {
     <!-- 7. MODAL XÁC NHẬN XÓA LOẠI PHÒNG -->
     @if (deletingRoomType(); as target) {
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Xác nhận xóa hạng phòng"
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
+        (keydown.escape)="deletingRoomType.set(null)"
         class="fixed inset-0 z-[100] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
         (click)="deletingRoomType.set(null)"
       >
@@ -621,7 +647,7 @@ interface RoomTypeWithProperty extends RoomTypeDto {
               @if (target.roomCount > 0) {
                 <div class="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
                   <i class="pi pi-info-circle mr-1 text-amber-600"></i>
-                  Hạng phòng này đang có <strong>{{ target.roomCount }} phòng vật lý</strong>. Bạn cần chuyển hoặc xóa các phòng thuộc hạng này trước khi xóa danh mục.
+                  Hạng phòng này đang có <strong class="tabular-nums">{{ target.roomCount }} phòng vật lý</strong>. Bạn cần chuyển hoặc xóa các phòng thuộc hạng này trước khi xóa danh mục.
                 </div>
               }
             </div>
@@ -631,7 +657,7 @@ interface RoomTypeWithProperty extends RoomTypeDto {
             <button
               type="button"
               (click)="deletingRoomType.set(null)"
-              class="px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              class="min-h-11 px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
             >
               Đóng
             </button>
@@ -639,7 +665,7 @@ interface RoomTypeWithProperty extends RoomTypeDto {
               type="button"
               [disabled]="isSubmitting() || target.roomCount > 0"
               (click)="executeDelete()"
-              class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5"
+              class="min-h-11 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5"
             >
               @if (isSubmitting()) {
                 <i class="pi pi-spin pi-spinner text-xs"></i>
@@ -659,11 +685,16 @@ interface RoomTypeWithProperty extends RoomTypeDto {
     }
   `
 })
-export class RoomTypesPage implements OnInit {
+export class RoomTypesPage implements OnInit, OnDestroy {
   private readonly roomTypeService = inject(RoomTypeService);
   readonly authService = inject(AuthService);
   private readonly alertService = inject(AlertService);
   private readonly fb = inject(FormBuilder);
+  private readonly cdr = inject(ChangeDetectorRef, { optional: true });
+
+  private fallbackDestroyCallbacks: Array<() => void> = [];
+  private isFallbackDestroyed = false;
+  private readonly destroyRef = inject(DestroyRef, { optional: true }) ?? this.createFallbackDestroyRef();
 
   readonly showContextSelector = signal<boolean>(false);
 
@@ -761,26 +792,57 @@ export class RoomTypesPage implements OnInit {
     this.loadRoomTypes();
   }
 
+  ngOnDestroy(): void {
+    this.isFallbackDestroyed = true;
+    const callbacks = this.fallbackDestroyCallbacks.splice(0);
+    callbacks.forEach(cb => cb());
+  }
+
+  private createFallbackDestroyRef(): DestroyRef {
+    const page = this;
+    return {
+      get destroyed(): boolean {
+        return page.isFallbackDestroyed;
+      },
+      onDestroy: (callback: () => void) => {
+        page.fallbackDestroyCallbacks.push(callback);
+        return () => {
+          page.fallbackDestroyCallbacks = page.fallbackDestroyCallbacks.filter(cb => cb !== callback);
+        };
+      }
+    };
+  }
+
   @HostListener('document:keydown.escape')
   onEscape(): void {
-    if (this.isModalOpen()) this.closeModal();
-    if (this.deletingRoomType()) this.deletingRoomType.set(null);
+    if (this.deletingRoomType()) {
+      this.deletingRoomType.set(null);
+      return;
+    }
+    if (this.isModalOpen()) {
+      this.closeModal();
+    }
   }
 
   loadRoomTypes(): void {
     this.loading.set(true);
     this.errorMessage.set(null);
 
-    this.roomTypeService.getRoomTypes(undefined, 1, 100).subscribe({
-      next: res => {
-        this.roomTypes.set(res?.items || []);
-        this.loading.set(false);
-      },
-      error: err => {
-        this.loading.set(false);
-        this.errorMessage.set(err?.error?.message || 'Không thể tải danh sách loại phòng. Vui lòng kiểm tra chi nhánh đang chọn.');
-      }
-    });
+    this.roomTypeService
+      .getRoomTypes(undefined, 1, 100)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: res => {
+          this.roomTypes.set(res?.items || []);
+          this.loading.set(false);
+          this.cdr?.markForCheck();
+        },
+        error: err => {
+          this.loading.set(false);
+          this.errorMessage.set(err?.error?.message || 'Không thể tải danh sách loại phòng. Vui lòng kiểm tra chi nhánh đang chọn.');
+          this.cdr?.markForCheck();
+        }
+      });
   }
 
   openCreateModal(): void {
@@ -843,31 +905,41 @@ export class RoomTypesPage implements OnInit {
 
     if (editing) {
       const updatePayload: UpdateRoomTypeRequest = { ...payload };
-      this.roomTypeService.updateRoomType(editing.id, updatePayload).subscribe({
-        next: () => {
-          this.isSubmitting.set(false);
-          this.closeModal();
-          this.alertService.toastSuccess(`Đã cập nhật hạng phòng "${payload.name}".`, 'Thành công');
-          this.loadRoomTypes();
-        },
-        error: err => {
-          this.isSubmitting.set(false);
-          this.alertService.toastError(err?.error?.message || 'Không thể cập nhật loại phòng.', 'Lỗi');
-        }
-      });
+      this.roomTypeService
+        .updateRoomType(editing.id, updatePayload)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => {
+            this.isSubmitting.set(false);
+            this.closeModal();
+            this.alertService.toastSuccess(`Đã cập nhật hạng phòng "${payload.name}".`, 'Thành công');
+            this.loadRoomTypes();
+            this.cdr?.markForCheck();
+          },
+          error: err => {
+            this.isSubmitting.set(false);
+            this.alertService.toastError(err?.error?.message || 'Không thể cập nhật loại phòng.', 'Lỗi');
+            this.cdr?.markForCheck();
+          }
+        });
     } else {
-      this.roomTypeService.createRoomType(payload).subscribe({
-        next: () => {
-          this.isSubmitting.set(false);
-          this.closeModal();
-          this.alertService.toastSuccess(`Đã tạo hạng phòng "${payload.name}" (${payload.code}).`, 'Thành công');
-          this.loadRoomTypes();
-        },
-        error: err => {
-          this.isSubmitting.set(false);
-          this.alertService.toastError(err?.error?.message || 'Không thể tạo loại phòng mới.', 'Lỗi');
-        }
-      });
+      this.roomTypeService
+        .createRoomType(payload)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => {
+            this.isSubmitting.set(false);
+            this.closeModal();
+            this.alertService.toastSuccess(`Đã tạo hạng phòng "${payload.name}" (${payload.code}).`, 'Thành công');
+            this.loadRoomTypes();
+            this.cdr?.markForCheck();
+          },
+          error: err => {
+            this.isSubmitting.set(false);
+            this.alertService.toastError(err?.error?.message || 'Không thể tạo loại phòng mới.', 'Lỗi');
+            this.cdr?.markForCheck();
+          }
+        });
     }
   }
 
@@ -880,18 +952,23 @@ export class RoomTypesPage implements OnInit {
     if (!target || this.isSubmitting()) return;
 
     this.isSubmitting.set(true);
-    this.roomTypeService.deleteRoomType(target.id).subscribe({
-      next: () => {
-        this.isSubmitting.set(false);
-        this.deletingRoomType.set(null);
-        this.alertService.toastSuccess(`Đã xóa hạng phòng "${target.name}".`, 'Đã xóa');
-        this.loadRoomTypes();
-      },
-      error: err => {
-        this.isSubmitting.set(false);
-        this.alertService.toastError(err?.error?.message || 'Không thể xóa hạng phòng này.', 'Lỗi');
-      }
-    });
+    this.roomTypeService
+      .deleteRoomType(target.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.isSubmitting.set(false);
+          this.deletingRoomType.set(null);
+          this.alertService.toastSuccess(`Đã xóa hạng phòng "${target.name}".`, 'Đã xóa');
+          this.loadRoomTypes();
+          this.cdr?.markForCheck();
+        },
+        error: err => {
+          this.isSubmitting.set(false);
+          this.alertService.toastError(err?.error?.message || 'Không thể xóa hạng phòng này.', 'Lỗi');
+          this.cdr?.markForCheck();
+        }
+      });
   }
 
   getFallbackImage(code: string): string {

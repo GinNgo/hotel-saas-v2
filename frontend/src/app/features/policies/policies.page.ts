@@ -1,6 +1,7 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, inject, signal, computed, effect, untracked } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, DestroyRef, inject, signal, computed, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, FormArray, ReactiveFormsModule, Validators } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription } from 'rxjs';
 import { PolicyService } from '../../core/services/policy.service';
 import {
@@ -18,8 +19,28 @@ import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
 import { PrintDocumentsService } from '../../core/services/print-documents.service';
 import { PrintTemplateConfigDto } from '../../core/models/print-document.model';
+import { HasUnsavedChanges } from '../../core/guards/unsaved-changes.guard';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { ContextSelectorDialogComponent } from '../auth/context-selector/context-selector.dialog';
+
+interface SurchargeFormValue {
+  id?: string | null;
+  surchargeType: SurchargeType;
+  fromTime: string;
+  toTime: string;
+  calculationMethod: SurchargeCalculationMethod;
+  percentage: number | null;
+  flatAmount: number | null;
+  isActive: boolean;
+}
+
+interface ErrorWithMessage {
+  message?: string;
+  error?: {
+    message?: string;
+    title?: string;
+  } | null;
+}
 
 @Component({
   selector: 'app-policies',
@@ -69,7 +90,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
               [disabled]="isSaving() || isLoading() || !propertyId() || loadedPropertyId() !== propertyId()"
               aria-label="Lưu thay đổi chính sách"
               title="Lưu thay đổi chính sách"
-              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs transition-all shadow-xs cursor-pointer disabled:cursor-not-allowed"
+              class="inline-flex items-center gap-2 min-h-11 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs transition-all shadow-xs cursor-pointer disabled:cursor-not-allowed"
             >
               @if (isSaving()) {
                 <i class="pi pi-spin pi-spinner text-sm"></i>
@@ -101,7 +122,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
         />
       } @else if (isLoading()) {
         <!-- Skeleton Loading State -->
-        <div class="space-y-6 animate-pulse">
+        <div class="space-y-6 animate-pulse motion-reduce:animate-none">
           <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-2xs space-y-4">
             <div class="h-5 w-48 bg-slate-200 rounded"></div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
@@ -118,7 +139,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
         </div>
       } @else if (errorMessage()) {
         <!-- Error State -->
-        <div class="p-6 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-3">
+        <div role="alert" class="p-6 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-3">
           <div class="flex items-center gap-2.5">
             <i class="pi pi-exclamation-triangle text-xl text-rose-600"></i>
             <h3 class="font-bold text-sm">Không thể tải cấu hình chính sách chi nhánh</h3>
@@ -128,7 +149,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
             type="button"
             (click)="loadPolicies()"
             aria-label="Thử tải lại chính sách"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors cursor-pointer"
+            class="inline-flex items-center gap-1.5 min-h-11 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors cursor-pointer"
           >
             <i class="pi pi-refresh"></i>
             <span>Thử lại</span>
@@ -139,7 +160,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
         <form [formGroup]="policyForm" class="space-y-6">
           <!-- Client Validation Alert -->
           @if (clientErrors().length > 0) {
-            <div class="p-4 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-900 text-xs space-y-1">
+            <div role="alert" class="p-4 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-900 text-xs space-y-1">
               <div class="font-bold flex items-center gap-2 text-amber-800">
                 <i class="pi pi-exclamation-circle text-amber-600"></i>
                 <span>Vui lòng kiểm tra lại thông tin:</span>
@@ -308,7 +329,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                     (click)="applyFull24hSurchargePreset()"
                     aria-label="Nạp nhanh biểu phí phụ thu 24/24 tiêu chuẩn"
                     title="Tự động điền 6 khung phụ thu nhận sớm / trả muộn phủ đủ 24/24"
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-semibold transition-colors cursor-pointer"
+                    class="inline-flex items-center gap-1.5 min-h-11 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-semibold transition-colors cursor-pointer"
                   >
                     <i class="pi pi-bolt text-xs"></i>
                     <span>Nạp chuẩn 24/24</span>
@@ -318,7 +339,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                     (click)="addSurcharge()"
                     aria-label="Thêm khung phụ thu"
                     title="Thêm khung phụ thu"
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                    class="inline-flex items-center gap-1.5 min-h-11 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
                   >
                     <i class="pi pi-plus text-xs"></i>
                     <span>Thêm khung phụ thu</span>
@@ -343,17 +364,17 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                   >
                     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
                       <div class="flex items-center gap-2">
-                        <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center">
+                        <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center tabular-nums">
                           {{ $index + 1 }}
                         </span>
-                        <span class="text-xs font-bold text-slate-700">
+                        <span class="text-xs font-bold text-slate-700 tabular-nums">
                           Khung quy tắc #{{ $index + 1 }}
                         </span>
                       </div>
 
                       <div class="flex items-center gap-3">
                         <!-- Active Checkbox -->
-                        <label class="inline-flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+                        <label class="inline-flex items-center gap-1.5 min-h-11 text-xs text-slate-600 cursor-pointer">
                           <input
                             type="checkbox"
                             formControlName="isActive"
@@ -369,9 +390,9 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                           <button
                             type="button"
                             (click)="removeSurcharge($index)"
-                            class="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            class="min-h-11 min-w-11 inline-flex items-center justify-center p-2 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                             title="Xóa quy tắc này"
-                            aria-label="Xóa quy tắc này"
+                            aria-label="Xóa quy tắc phụ thu này"
                           >
                             <i class="pi pi-trash text-xs"></i>
                           </button>
@@ -524,7 +545,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                 [disabled]="isSaving() || isLoading() || !propertyId()"
                 aria-label="Hủy thay đổi và tải lại"
                 title="Hủy thay đổi và tải lại"
-                class="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold transition-colors cursor-pointer"
+                class="min-h-11 px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold transition-colors cursor-pointer"
               >
                 Hủy thay đổi
               </button>
@@ -534,7 +555,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                 [disabled]="isSaving() || isLoading() || !propertyId() || loadedPropertyId() !== propertyId()"
                 aria-label="Lưu thay đổi chính sách"
                 title="Lưu thay đổi chính sách"
-                class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs transition-all shadow-xs cursor-pointer disabled:cursor-not-allowed"
+                class="inline-flex items-center gap-2 min-h-11 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs transition-all shadow-xs cursor-pointer disabled:cursor-not-allowed"
               >
                 @if (isSaving()) {
                   <i class="pi pi-spin pi-spinner text-sm"></i>
@@ -566,7 +587,8 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                 <button
                   type="submit"
                   [disabled]="isSavingPrintConfig()"
-                  class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                  aria-label="Lưu mẫu in hóa đơn và tài khoản VietQR"
+                  class="inline-flex items-center gap-1.5 min-h-11 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
                 >
                   @if (isSavingPrintConfig()) {
                     <i class="pi pi-spin pi-spinner text-xs"></i>
@@ -711,12 +733,17 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
     }
   `
 })
-export class PoliciesPage implements OnInit, OnDestroy {
+export class PoliciesPage implements OnInit, OnDestroy, HasUnsavedChanges {
   private readonly fb = inject(FormBuilder);
   readonly authService = inject(AuthService);
   private readonly policyService = inject(PolicyService);
   private readonly alertService = inject(AlertService);
   private readonly printService = inject(PrintDocumentsService, { optional: true });
+  private readonly cdr = inject(ChangeDetectorRef, { optional: true });
+
+  private fallbackDestroyCallbacks: Array<() => void> = [];
+  private isFallbackDestroyed = false;
+  private readonly destroyRef = inject(DestroyRef, { optional: true }) ?? this.createFallbackDestroyRef();
 
   readonly showContextSelector = signal(false);
   openContextSelector(): void {
@@ -740,6 +767,8 @@ export class PoliciesPage implements OnInit, OnDestroy {
 
   private loadSub?: Subscription;
   private saveSub?: Subscription;
+  private printLoadSub?: Subscription;
+  private printSaveSub?: Subscription;
 
   constructor() {
     this.initForm();
@@ -763,6 +792,39 @@ export class PoliciesPage implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.cancelPendingRequests();
+    this.isFallbackDestroyed = true;
+    const callbacks = this.fallbackDestroyCallbacks.splice(0);
+    callbacks.forEach(cb => cb());
+  }
+
+  hasUnsavedChanges(): boolean {
+    if (this.isSaving() || this.isSavingPrintConfig()) {
+      return false;
+    }
+    return Boolean(this.policyForm?.dirty || this.printConfigForm?.dirty);
+  }
+
+  private createFallbackDestroyRef(): DestroyRef {
+    const page = this;
+    return {
+      get destroyed(): boolean {
+        return page.isFallbackDestroyed;
+      },
+      onDestroy: (callback: () => void) => {
+        page.fallbackDestroyCallbacks.push(callback);
+        return () => {
+          page.fallbackDestroyCallbacks = page.fallbackDestroyCallbacks.filter(cb => cb !== callback);
+        };
+      }
+    };
+  }
+
+  private extractErrorMessage(err: unknown, fallback: string): string {
+    if (err && typeof err === 'object') {
+      const apiErr = err as ErrorWithMessage;
+      return apiErr.error?.message || apiErr.message || fallback;
+    }
+    return fallback;
   }
 
   get surchargesArray(): FormArray {
@@ -808,6 +870,8 @@ export class PoliciesPage implements OnInit, OnDestroy {
     this.surchargesArray.clear();
     this.policyForm.markAsPristine();
     this.policyForm.markAsUntouched();
+    this.printConfigForm?.markAsPristine();
+    this.printConfigForm?.markAsUntouched();
   }
 
   handlePropertyContextChange(newPropId: string | null): void {
@@ -846,49 +910,62 @@ export class PoliciesPage implements OnInit, OnDestroy {
     this.clientErrors.set([]);
 
     const requestedPropId = propId;
-    this.loadSub = this.policyService.getPolicies(requestedPropId).subscribe({
-      next: (data: PropertyPoliciesDto) => {
-        // Discard response if branch context changed while request was in-flight
-        if (this.propertyId() !== requestedPropId) {
-          return;
+    this.loadSub = this.policyService
+      .getPolicies(requestedPropId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (data: PropertyPoliciesDto) => {
+          // Discard response if branch context changed while request was in-flight
+          if (this.propertyId() !== requestedPropId) {
+            return;
+          }
+          this.populateForm(data);
+          this.loadedPropertyId.set(requestedPropId);
+          this.isLoading.set(false);
+          this.cdr?.markForCheck();
+        },
+        error: (err: unknown) => {
+          // Discard error if branch context changed while request was in-flight
+          if (this.propertyId() !== requestedPropId) {
+            return;
+          }
+          this.isLoading.set(false);
+          this.errorMessage.set(this.extractErrorMessage(err, 'Không thể tải chính sách của chi nhánh.'));
+          this.cdr?.markForCheck();
         }
-        this.populateForm(data);
-        this.loadedPropertyId.set(requestedPropId);
-        this.isLoading.set(false);
-      },
-      error: (err: any) => {
-        // Discard error if branch context changed while request was in-flight
-        if (this.propertyId() !== requestedPropId) {
-          return;
-        }
-        this.isLoading.set(false);
-        const msg = err?.error?.message || err?.message || 'Không thể tải chính sách của chi nhánh.';
-        this.errorMessage.set(msg);
-      }
-    });
+      });
 
     if (this.printService) {
-      this.printService.getTemplateConfig(requestedPropId).subscribe({
-        next: (cfg: PrintTemplateConfigDto) => {
-          if (cfg && this.printConfigForm) {
-            this.printConfigForm.patchValue({
-              headerCompanyName: cfg.headerCompanyName || '',
-              headerAddress: cfg.headerAddress || '',
-              taxNumber: cfg.taxNumber || '',
-              hotline: cfg.hotline || '',
-              logoUrl: cfg.logoUrl || '',
-              bankName: cfg.bankName || 'MBBank',
-              bankAccountNumber: cfg.bankAccountNumber || '',
-              bankAccountHolder: cfg.bankAccountHolder || '',
-              footerNote: cfg.footerNote || '',
-              checkInPolicyText: cfg.checkInPolicyText || '',
-              showVietQrCode: cfg.showVietQrCode ?? true,
-              defaultPaperSize: cfg.defaultPaperSize || 'A4'
-            });
-          }
-        },
-        error: () => {}
-      });
+      this.printLoadSub?.unsubscribe();
+      this.printLoadSub = this.printService
+        .getTemplateConfig(requestedPropId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (cfg: PrintTemplateConfigDto) => {
+            if (this.propertyId() !== requestedPropId) {
+              return;
+            }
+            if (cfg && this.printConfigForm) {
+              this.printConfigForm.patchValue({
+                headerCompanyName: cfg.headerCompanyName || '',
+                headerAddress: cfg.headerAddress || '',
+                taxNumber: cfg.taxNumber || '',
+                hotline: cfg.hotline || '',
+                logoUrl: cfg.logoUrl || '',
+                bankName: cfg.bankName || 'MBBank',
+                bankAccountNumber: cfg.bankAccountNumber || '',
+                bankAccountHolder: cfg.bankAccountHolder || '',
+                footerNote: cfg.footerNote || '',
+                checkInPolicyText: cfg.checkInPolicyText || '',
+                showVietQrCode: cfg.showVietQrCode ?? true,
+                defaultPaperSize: cfg.defaultPaperSize || 'A4'
+              });
+              this.printConfigForm.markAsPristine();
+              this.cdr?.markForCheck();
+            }
+          },
+          error: () => {}
+        });
     }
   }
 
@@ -898,19 +975,26 @@ export class PoliciesPage implements OnInit, OnDestroy {
     const raw = this.printConfigForm.getRawValue() as PrintTemplateConfigDto;
 
     this.isSavingPrintConfig.set(true);
-    this.printService.updateTemplateConfig(raw, propId).subscribe({
-      next: (updated) => {
-        this.isSavingPrintConfig.set(false);
-        if (updated) {
-          this.printConfigForm.patchValue(updated);
+    this.printSaveSub?.unsubscribe();
+    this.printSaveSub = this.printService
+      .updateTemplateConfig(raw, propId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          this.isSavingPrintConfig.set(false);
+          if (updated) {
+            this.printConfigForm.patchValue(updated);
+          }
+          this.printConfigForm.markAsPristine();
+          this.alertService.toastSuccess('Đã lưu cấu hình mẫu in hóa đơn & VietQR.', 'Thành công');
+          this.cdr?.markForCheck();
+        },
+        error: (err: unknown) => {
+          this.isSavingPrintConfig.set(false);
+          this.alertService.toastError(this.extractErrorMessage(err, 'Không thể lưu cấu hình mẫu in.'), 'Lỗi');
+          this.cdr?.markForCheck();
         }
-        this.alertService.toastSuccess('Đã lưu cấu hình mẫu in hóa đơn & VietQR.', 'Thành công');
-      },
-      error: (err) => {
-        this.isSavingPrintConfig.set(false);
-        this.alertService.toastError(err?.error?.message || 'Không thể lưu cấu hình mẫu in.', 'Lỗi');
-      }
-    });
+      });
   }
 
   private populateForm(data: PropertyPoliciesDto): void {
@@ -961,6 +1045,7 @@ export class PoliciesPage implements OnInit, OnDestroy {
       percentage: 30,
       isActive: true
     }));
+    this.policyForm.markAsDirty();
   }
 
   applyFull24hSurchargePreset(): void {
@@ -982,6 +1067,7 @@ export class PoliciesPage implements OnInit, OnDestroy {
   removeSurcharge(index: number): void {
     if (!this.canUpdate()) return;
     this.surchargesArray.removeAt(index);
+    this.policyForm.markAsDirty();
   }
 
   validateForm(): string[] {
@@ -1093,7 +1179,7 @@ export class PoliciesPage implements OnInit, OnDestroy {
     const val = this.policyForm.value;
     const formatTime = (t: string) => (t && t.length === 5 ? `${t}:00` : t);
 
-    const surchargesPayload: UpdateSurchargeItemRequest[] = (val.surcharges || []).map((s: any) => ({
+    const surchargesPayload: UpdateSurchargeItemRequest[] = ((val.surcharges || []) as SurchargeFormValue[]).map((s) => ({
       id: s.id || null,
       surchargeType: s.surchargeType,
       fromTime: formatTime(s.fromTime),
@@ -1118,28 +1204,33 @@ export class PoliciesPage implements OnInit, OnDestroy {
     this.saveSub?.unsubscribe();
     const savingPropId = propId;
 
-    this.saveSub = this.policyService.updatePolicies(savingPropId, payload).subscribe({
-      next: (res: PropertyPoliciesDto) => {
-        this.isSaving.set(false);
-        // Discard response if branch context changed while request was in-flight
-        if (this.propertyId() !== savingPropId) {
-          return;
+    this.saveSub = this.policyService
+      .updatePolicies(savingPropId, payload)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res: PropertyPoliciesDto) => {
+          this.isSaving.set(false);
+          // Discard response if branch context changed while request was in-flight
+          if (this.propertyId() !== savingPropId) {
+            return;
+          }
+          this.populateForm(res);
+          this.loadedPropertyId.set(savingPropId);
+          this.clientErrors.set([]);
+          this.alertService.toastSuccess('Cập nhật chính sách chi nhánh thành công.');
+          this.cdr?.markForCheck();
+        },
+        error: (err: unknown) => {
+          this.isSaving.set(false);
+          // Discard error if branch context changed while request was in-flight
+          if (this.propertyId() !== savingPropId) {
+            return;
+          }
+          const detail = this.extractErrorMessage(err, 'Lỗi khi lưu chính sách chi nhánh.');
+          this.alertService.toastError(detail, 'Lỗi cập nhật');
+          this.cdr?.markForCheck();
         }
-        this.populateForm(res);
-        this.loadedPropertyId.set(savingPropId);
-        this.clientErrors.set([]);
-        this.alertService.toastSuccess('Cập nhật chính sách chi nhánh thành công.');
-      },
-      error: (err: any) => {
-        this.isSaving.set(false);
-        // Discard error if branch context changed while request was in-flight
-        if (this.propertyId() !== savingPropId) {
-          return;
-        }
-        const detail = err?.error?.message || err?.message || 'Lỗi khi lưu chính sách chi nhánh.';
-        this.alertService.toastError(detail, 'Lỗi cập nhật');
-      }
-    });
+      });
   }
 
   private cancelPendingRequests(): void {
@@ -1150,6 +1241,14 @@ export class PoliciesPage implements OnInit, OnDestroy {
     if (this.saveSub) {
       this.saveSub.unsubscribe();
       this.saveSub = undefined;
+    }
+    if (this.printLoadSub) {
+      this.printLoadSub.unsubscribe();
+      this.printLoadSub = undefined;
+    }
+    if (this.printSaveSub) {
+      this.printSaveSub.unsubscribe();
+      this.printSaveSub = undefined;
     }
   }
 }

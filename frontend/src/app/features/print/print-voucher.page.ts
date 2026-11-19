@@ -1,6 +1,7 @@
-import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { PrintDocumentsService } from '../../core/services/print-documents.service';
 import { PrintVoucherDto } from '../../core/models/print-document.model';
 
@@ -96,7 +97,7 @@ import { PrintVoucherDto } from '../../core/models/print-document.model';
             <div class="flex justify-center sm:justify-start">
               @if (v.qrCodeData) {
                 @if (isImageUrl(v.qrCodeData)) {
-                  <img [src]="v.qrCodeData" alt="Check-in QR" class="w-32 h-32 object-contain rounded-xl border border-slate-200 p-1 bg-white shadow-2xs" />
+                  <img [src]="v.qrCodeData" alt="Check-in QR" width="128" height="128" loading="lazy" class="w-32 h-32 object-contain rounded-xl border border-slate-200 p-1 bg-white shadow-2xs" />
                 } @else {
                   <div class="w-36 rounded-xl border border-slate-200 p-3 bg-slate-50 text-center space-y-1.5 shadow-2xs">
                     <i class="pi pi-qrcode text-4xl text-slate-800"></i>
@@ -159,6 +160,7 @@ import { PrintVoucherDto } from '../../core/models/print-document.model';
 export class PrintVoucherPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly printService = inject(PrintDocumentsService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly voucher = signal<PrintVoucherDto | null>(null);
   readonly isLoading = signal(true);
@@ -166,7 +168,9 @@ export class PrintVoucherPage implements OnInit {
   ngOnInit(): void {
     const token = this.route.snapshot.paramMap.get('token');
     if (token) {
-      this.printService.getVoucher(token).subscribe({
+      this.printService.getVoucher(token)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
         next: data => {
           this.voucher.set(data);
           this.isLoading.set(false);

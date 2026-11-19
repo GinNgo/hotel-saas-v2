@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
-import { PagedResult } from '../models/api-response.model';
+import { ApiEnvelope, PagedResult, unwrapApiEnvelope } from '../models/api-response.model';
 import {
   PaymentDto,
   FolioDto,
@@ -39,9 +39,9 @@ export class PaymentService {
    */
   getFolio(reservationId: string, propertyId: string): Observable<FolioDto> {
     const params = new HttpParams().set('propertyId', propertyId);
-    return this.http.get<any>(`${this.reservationsApiUrl}/${reservationId}/folio`, { params }).pipe(
-      map(res => (res.data ? res.data : res) as FolioDto)
-    );
+    return this.http
+      .get<ApiEnvelope<FolioDto> | FolioDto>(`${this.reservationsApiUrl}/${reservationId}/folio`, { params })
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -61,9 +61,9 @@ export class PaymentService {
       headers['X-Property-Id'] = propertyId;
     }
 
-    return this.http.post<any>(this.apiUrl, request, { params, headers }).pipe(
-      map(res => (res.data ? res.data : res) as PaymentDto)
-    );
+    return this.http
+      .post<ApiEnvelope<PaymentDto> | PaymentDto>(this.apiUrl, request, { params, headers })
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -91,9 +91,9 @@ export class PaymentService {
       params = params.set('dateTo', filter.dateTo);
     }
 
-    return this.http.get<any>(this.apiUrl, { params }).pipe(
-      map(res => (res.data ? res.data : res) as PagedResult<PaymentDto>)
-    );
+    return this.http
+      .get<ApiEnvelope<PagedResult<PaymentDto>> | PagedResult<PaymentDto>>(this.apiUrl, { params })
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -105,9 +105,9 @@ export class PaymentService {
       params = params.set('date', date);
     }
 
-    return this.http.get<any>(`${this.apiUrl}/summary`, { params }).pipe(
-      map(res => (res.data ? res.data : res) as PaymentSummaryDto)
-    );
+    return this.http
+      .get<ApiEnvelope<PaymentSummaryDto> | PaymentSummaryDto>(`${this.apiUrl}/summary`, { params })
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -122,9 +122,9 @@ export class PaymentService {
       params = params.set('date', date);
     }
 
-    return this.http.get<any>(`${this.apiUrl}/shift-report`, { params }).pipe(
-      map(res => (res.data ? res.data : res) as ShiftReportDto)
-    );
+    return this.http
+      .get<ApiEnvelope<ShiftReportDto> | ShiftReportDto>(`${this.apiUrl}/shift-report`, { params })
+      .pipe(map(unwrapApiEnvelope));
   }
 
   // =========================================================================
@@ -157,9 +157,9 @@ export class PaymentService {
       'X-Property-Id': filter.propertyId
     };
 
-    return this.http.get<any>(`${this.apiUrl}/refunds`, { params, headers }).pipe(
-      map(res => (res.data ? res.data : res) as PagedResult<RefundRequestDto>)
-    );
+    return this.http
+      .get<ApiEnvelope<PagedResult<RefundRequestDto>> | PagedResult<RefundRequestDto>>(`${this.apiUrl}/refunds`, { params, headers })
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -169,9 +169,9 @@ export class PaymentService {
     const params = new HttpParams().set('propertyId', propertyId);
     const headers = { 'X-Property-Id': propertyId };
 
-    return this.http.get<any>(`${this.apiUrl}/refunds/${paymentId}`, { params, headers }).pipe(
-      map(res => (res.data ? res.data : res) as RefundRequestDetailDto)
-    );
+    return this.http
+      .get<ApiEnvelope<RefundRequestDetailDto> | RefundRequestDetailDto>(`${this.apiUrl}/refunds/${paymentId}`, { params, headers })
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -181,9 +181,9 @@ export class PaymentService {
     const params = new HttpParams().set('propertyId', propertyId);
     const headers = { 'X-Property-Id': propertyId };
 
-    return this.http.post<any>(`${this.apiUrl}/refunds/${paymentId}/approve`, { notes }, { params, headers }).pipe(
-      map(res => (res.data ? res.data : res) as RefundRequestDto)
-    );
+    return this.http
+      .post<ApiEnvelope<RefundRequestDto> | RefundRequestDto>(`${this.apiUrl}/refunds/${paymentId}/approve`, { notes }, { params, headers })
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -193,9 +193,9 @@ export class PaymentService {
     const params = new HttpParams().set('propertyId', propertyId);
     const headers = { 'X-Property-Id': propertyId };
 
-    return this.http.post<any>(`${this.apiUrl}/refunds/${paymentId}/reject`, { reason }, { params, headers }).pipe(
-      map(res => (res.data ? res.data : res) as RefundRequestDto)
-    );
+    return this.http
+      .post<ApiEnvelope<RefundRequestDto> | RefundRequestDto>(`${this.apiUrl}/refunds/${paymentId}/reject`, { reason }, { params, headers })
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -205,8 +205,8 @@ export class PaymentService {
     const params = new HttpParams().set('propertyId', propertyId);
     const headers = { 'X-Property-Id': propertyId };
 
-    return this.http.post<any>(`${this.apiUrl}/refunds/${paymentId}/confirm-payout`, request, { params, headers }).pipe(
-      map(res => (res.data ? res.data : res) as RefundRequestDto)
-    );
+    return this.http
+      .post<ApiEnvelope<RefundRequestDto> | RefundRequestDto>(`${this.apiUrl}/refunds/${paymentId}/confirm-payout`, request, { params, headers })
+      .pipe(map(unwrapApiEnvelope));
   }
 }

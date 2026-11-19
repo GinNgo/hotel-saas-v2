@@ -158,8 +158,9 @@ interface BrandPropertyTypeFilterOption {
                         <div class="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
                           <span class="text-[10px] font-semibold text-slate-400 block w-full mb-1">Khu vực có mặt:</span>
                           @for (prov of brand.provinces; track prov) {
-                            <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-medium">
-                              📍 {{ prov }}
+                            <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-medium inline-flex items-center gap-1">
+                              <i class="pi pi-map-marker text-[10px] text-indigo-600"></i>
+                              <span>{{ prov }}</span>
                             </span>
                           }
                         </div>
@@ -169,11 +170,11 @@ interface BrandPropertyTypeFilterOption {
                     <div class="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
                       <div class="flex items-center gap-1.5 text-xs">
                         @if (brand.reviewCount > 0 && brand.ratingAverage > 0) {
-                          <span class="inline-flex items-center gap-1 font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                          <span class="inline-flex items-center gap-1 font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 tabular-nums">
                             <i class="pi pi-star-fill text-amber-500 text-[10px]"></i>
                             <span>{{ brand.ratingAverage | number:'1.1-1' }}</span>
                           </span>
-                          <span class="text-slate-500">({{ brand.reviewCount }} đánh giá)</span>
+                          <span class="text-slate-500 tabular-nums">({{ brand.reviewCount }} đánh giá)</span>
                         } @else {
                           <span class="text-slate-500 italic">Chưa có đánh giá</span>
                         }
@@ -181,9 +182,10 @@ interface BrandPropertyTypeFilterOption {
 
                       <a
                         [routerLink]="['/booking/brands', brand.slug || brand.tenantId]"
-                        class="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors shrink-0"
+                        class="min-h-11 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors shrink-0 inline-flex items-center gap-1.5"
                       >
-                        {{ brand.totalProperties === 1 ? 'Xem cơ sở →' : 'Xem ' + brand.totalProperties + ' chi nhánh →' }}
+                        <span>{{ brand.totalProperties === 1 ? 'Xem cơ sở' : 'Xem ' + brand.totalProperties + ' chi nhánh' }}</span>
+                        <i class="pi pi-arrow-right text-[10px]"></i>
                       </a>
                     </div>
                   </div>
@@ -245,12 +247,13 @@ interface BrandPropertyTypeFilterOption {
                 <div class="flex flex-wrap items-center gap-3 shrink-0">
                   <a
                     routerLink="/auth/partner-register"
-                    class="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold transition-colors"
+                    class="min-h-11 inline-flex items-center px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold transition-colors"
                   >
                     + Đăng ký đối tác mới
                   </a>
-                  <a routerLink="/booking/brands" class="text-xs text-indigo-600 hover:underline font-bold">
-                    ← Danh sách thương hiệu
+                  <a routerLink="/booking/brands" class="min-h-11 inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:underline font-bold">
+                    <i class="pi pi-arrow-left text-[10px]"></i>
+                    <span>Danh sách thương hiệu</span>
                   </a>
                 </div>
               </div>
@@ -263,24 +266,25 @@ interface BrandPropertyTypeFilterOption {
                     <button
                       type="button"
                       (click)="selectedProvince.set(null)"
-                      class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border"
+                      class="min-h-11 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border"
                       [class]="selectedProvince() === null
                         ? 'bg-indigo-600 text-white border-indigo-600'
                         : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-300'"
                     >
-                      Tất cả ({{ activeBrand()?.totalProperties }})
+                      Tất cả (<span class="tabular-nums">{{ activeBrand()?.totalProperties }}</span>)
                     </button>
 
                     @for (prov of activeBrand()?.provinces ?? []; track prov) {
                       <button
                         type="button"
                         (click)="selectedProvince.set(prov)"
-                        class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border"
+                        class="min-h-11 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border inline-flex items-center gap-1.5"
                         [class]="selectedProvince() === prov
                           ? 'bg-indigo-600 text-white border-indigo-600'
                           : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-300'"
                       >
-                        📍 {{ prov }}
+                        <i class="pi pi-map-marker text-[11px]"></i>
+                        <span>{{ prov }}</span>
                       </button>
                     }
                   </div>
@@ -292,7 +296,7 @@ interface BrandPropertyTypeFilterOption {
                     <button
                       type="button"
                       (click)="selectedDetailPropertyType.set('ALL')"
-                      class="px-3 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer border"
+                      class="min-h-11 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border"
                       [class]="selectedDetailPropertyType() === 'ALL'
                         ? 'bg-slate-900 text-white border-slate-900'
                         : 'bg-slate-50 text-slate-700 border-slate-200'"
@@ -303,7 +307,7 @@ interface BrandPropertyTypeFilterOption {
                       <button
                         type="button"
                         (click)="selectedDetailPropertyType.set(pt)"
-                        class="px-3 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer border"
+                        class="min-h-11 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border"
                         [class]="selectedDetailPropertyType() === pt
                           ? 'bg-slate-900 text-white border-slate-900'
                           : 'bg-slate-50 text-slate-700 border-slate-200'"
@@ -319,7 +323,7 @@ interface BrandPropertyTypeFilterOption {
             <!-- DANH SÁCH CƠ SỞ THUỘC THƯƠNG HIỆU -->
             <div class="space-y-4">
               <h2 class="text-base font-bold text-slate-900">
-                Danh sách cơ sở thuộc thương hiệu ({{ filteredProperties().length }} cơ sở):
+                Danh sách cơ sở thuộc thương hiệu (<span class="tabular-nums">{{ filteredProperties().length }}</span> cơ sở):
               </h2>
 
               <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -330,6 +334,9 @@ interface BrandPropertyTypeFilterOption {
                         <img
                           [src]="prop.thumbnailUrl || prop.imageUrl"
                           [alt]="prop.name"
+                          width="400"
+                          height="192"
+                          loading="lazy"
                           class="w-full h-full object-cover"
                         />
                       } @else {
@@ -362,7 +369,7 @@ interface BrandPropertyTypeFilterOption {
 
                       @if (prop.nearbyLandmarks && prop.nearbyLandmarks.length > 0) {
                         <div class="text-[11px] text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100 flex items-center gap-1.5">
-                          <span>📍</span>
+                          <i class="pi pi-map-marker text-[11px] text-indigo-600 shrink-0"></i>
                           <span class="truncate">Gần <b>{{ prop.nearbyLandmarks[0].landmarkName || prop.nearbyLandmarks[0].name }}</b> ({{ prop.nearbyLandmarks[0].distanceFormatted || formatDistance(prop.nearbyLandmarks[0].distanceMeters) }})</span>
                         </div>
                       }
@@ -371,7 +378,7 @@ interface BrandPropertyTypeFilterOption {
                         <div>
                           <span class="text-[10px] text-slate-400 block">Giá từ</span>
                           @if (getStartingPrice(prop) > 0) {
-                            <span class="text-base font-extrabold text-indigo-700">
+                            <span class="text-base font-extrabold text-indigo-700 tabular-nums">
                               {{ getStartingPrice(prop) | number:'1.0-0' }} ₫
                             </span>
                           } @else {
@@ -381,9 +388,10 @@ interface BrandPropertyTypeFilterOption {
 
                         <a
                           [routerLink]="['/booking/properties', prop.slug]"
-                          class="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors shrink-0"
+                          class="min-h-11 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors shrink-0 inline-flex items-center gap-1.5"
                         >
-                          Đặt phòng →
+                          <span>Đặt phòng</span>
+                          <i class="pi pi-arrow-right text-[10px]"></i>
                         </a>
                       </div>
                     </div>
@@ -398,9 +406,10 @@ interface BrandPropertyTypeFilterOption {
               <p class="text-xs text-slate-500">Thương hiệu bạn đang tìm có thể đã đổi tên hoặc chưa có cơ sở hoạt động công khai.</p>
               <a
                 routerLink="/booking/brands"
-                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700"
+                class="min-h-11 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700"
               >
-                ← Quay lại danh sách thương hiệu
+                <i class="pi pi-arrow-left text-[10px]"></i>
+                <span>Quay lại danh sách thương hiệu</span>
               </a>
             </div>
           }

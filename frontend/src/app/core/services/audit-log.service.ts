@@ -69,8 +69,8 @@ export class AuditLogService {
     entityName: string;
     entityId: string;
     propertyId?: string | null;
-    oldValues?: any;
-    newValues?: any;
+    oldValues?: unknown;
+    newValues?: unknown;
   }): Observable<ApiResponse<string>> {
     return this.http.post<ApiResponse<string>>(`${this.apiUrl}/events`, event);
   }

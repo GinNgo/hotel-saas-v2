@@ -17,7 +17,13 @@ export const permissionGuard: CanActivateFn = (route: ActivatedRouteSnapshot) =>
 
   if (!permission || !action) return true; // Không config → cho qua
 
-  if (tokenStorage.hasPermission(permission, action)) {
+  const hasAccess =
+    permission === 'AUDIT_LOGS'
+      ? tokenStorage.hasPermission('AUDIT_LOGS', action) ||
+        tokenStorage.hasPermission('SETTINGS', action)
+      : tokenStorage.hasPermission(permission, action);
+
+  if (hasAccess) {
     return true;
   }
 

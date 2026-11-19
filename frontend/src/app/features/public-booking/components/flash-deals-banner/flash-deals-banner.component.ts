@@ -1,12 +1,14 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   EventEmitter,
   OnInit,
   Output,
   inject,
   signal
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { PublicBookingService } from '../../../../core/services/public-booking.service';
@@ -29,7 +31,7 @@ import { PromotionDealDto } from '../../../../core/models/public-booking.model';
             </span>
             <span class="text-xs text-slate-500 font-medium">Áp dụng trực tiếp khi giữ phòng</span>
           </div>
-          <h2 class="font-serif text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+          <h2 class="font-display text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
             Mã Giảm Giá &amp; Ưu Đãi Đang Hoạt Động
           </h2>
           <p class="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">
@@ -49,7 +51,7 @@ import { PromotionDealDto } from '../../../../core/models/public-booking.model';
       @if (loading()) {
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
           @for (item of [1, 2, 3]; track item) {
-            <div class="rounded-2xl border border-slate-200 bg-white p-5 space-y-3 animate-pulse">
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 space-y-3 animate-pulse motion-reduce:animate-none">
               <div class="h-5 w-24 rounded-full bg-slate-200"></div>
               <div class="h-5 w-3/4 rounded bg-slate-200"></div>
               <div class="h-4 w-full rounded bg-slate-100"></div>
@@ -88,7 +90,7 @@ import { PromotionDealDto } from '../../../../core/models/public-booking.model';
                       {{ deal.discountBadge }}
                     </span>
 
-                    <span class="text-[11px] font-semibold text-slate-600">
+                    <span class="text-[11px] font-semibold text-slate-600 tabular-nums">
                       Hết hạn: {{ formatExpiryDate(deal.endsAtUtc || deal.expiresAt) }}
                     </span>
                   </div>
@@ -143,6 +145,7 @@ import { PromotionDealDto } from '../../../../core/models/public-booking.model';
 export class FlashDealsBannerComponent implements OnInit {
   private readonly publicBookingService = inject(PublicBookingService, { optional: true });
   private readonly router = inject(Router, { optional: true });
+  private readonly destroyRef = inject(DestroyRef);
 
   @Output() applyCode = new EventEmitter<string>();
 
@@ -157,7 +160,7 @@ export class FlashDealsBannerComponent implements OnInit {
     }
 
     this.loading.set(true);
-    getPromos$.subscribe({
+    getPromos$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: items => {
         this.deals.set(items.slice(0, 3));
         this.loading.set(false);

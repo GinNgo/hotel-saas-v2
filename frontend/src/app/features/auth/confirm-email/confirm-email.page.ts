@@ -1,4 +1,5 @@
-import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -136,14 +137,14 @@ export type VerificationState = 'loading' | 'success' | 'error';
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 max-w-sm mx-auto">
             <a
               routerLink="/register"
-              class="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-all cursor-pointer"
+              class="w-full min-h-11 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-all cursor-pointer"
             >
               <i class="pi pi-user-plus text-xs"></i>
               <span>Đăng ký lại</span>
             </a>
             <a
               routerLink="/login"
-              class="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all cursor-pointer"
+              class="w-full min-h-11 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all cursor-pointer"
             >
               <i class="pi pi-sign-in text-xs"></i>
               <span>Về Đăng nhập</span>
@@ -166,6 +167,7 @@ export class ConfirmEmailPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
   private readonly notification = inject(NotificationService);
+  private readonly destroyRef = inject(DestroyRef);
 
   state = signal<VerificationState>('loading');
   confirmedEmail = signal<string | null>(null);
@@ -189,7 +191,7 @@ export class ConfirmEmailPage implements OnInit {
       return;
     }
 
-    this.authService.confirmEmail(token.trim()).subscribe({
+    this.authService.confirmEmail(token.trim()).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (response) => {
         const data = response.data;
         this.confirmedEmail.set(data?.email || null);
@@ -215,7 +217,7 @@ export class ConfirmEmailPage implements OnInit {
 
     this.resending.set(true);
     this.resendStatus.set(null);
-    this.authService.resendConfirmation({ email }).subscribe({
+    this.authService.resendConfirmation({ email }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.resending.set(false);
         const msg = res.message || 'Nếu tài khoản tồn tại và chưa xác thực, email kích hoạt mới đã được gửi.';

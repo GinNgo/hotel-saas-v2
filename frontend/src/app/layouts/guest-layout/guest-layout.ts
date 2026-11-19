@@ -1,12 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, ElementRef, HostListener, inject, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink, RouterOutlet } from '@angular/router';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { BrandLogoComponent } from '../../shared/components/brand-logo/brand-logo.component';
 import { AiConciergeChatComponent } from '../../shared/components/ai-concierge-chat/ai-concierge-chat.component';
 import { SystemBannerBarComponent } from '../../shared/components/system-banner-bar/system-banner-bar.component';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-guest-layout',
@@ -15,6 +15,7 @@ import { SystemBannerBarComponent } from '../../shared/components/system-banner-
     CommonModule,
     RouterOutlet,
     RouterLink,
+    RouterLinkActive,
     BrandLogoComponent,
     AiConciergeChatComponent,
     SystemBannerBarComponent
@@ -22,42 +23,43 @@ import { SystemBannerBarComponent } from '../../shared/components/system-banner-
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`
     :host a:focus-visible, :host button:focus-visible {
-      outline: 2px solid var(--color-indigo-600, #4f46e5);
+      outline: 2px solid var(--focus-ring, #0D2E28);
       outline-offset: 3px;
     }
-    .skip-link { position: absolute; top: 0; left: 1rem; z-index: 50; padding: 1rem; background: var(--surface-card); color: var(--text-main); transform: translateY(-110%); }
+    .skip-link { position: absolute; top: 0; left: 1rem; z-index: 50; padding: 1rem; background: var(--surface-card); color: var(--text-primary); transform: translateY(-110%); }
     .skip-link:focus { transform: translateY(0); }
   `],
   template: `
-    <div class="min-h-screen flex flex-col bg-[var(--surface-ground)] text-[var(--text-main)] font-sans transition-colors duration-200">
+    <div [attr.data-shell]="'marketplace'" class="min-h-screen flex flex-col bg-[var(--surface-canvas)] text-[var(--text-primary)] font-sans transition-colors duration-200">
       <a href="#booking-content" class="skip-link">Đến nội dung chính</a>
       <!-- 2. LIGHT/DARK LUXURY ARCHITECTURAL HEADER -->
-      <header class="bg-[var(--surface-card)]/95 text-[var(--text-main)] border-b border-[var(--surface-border)] sticky top-0 z-30 shadow-xs backdrop-blur-md transition-colors duration-200">
+      <header class="bg-[var(--surface-card)]/95 text-[var(--text-primary)] border-b border-[var(--border-subtle)] sticky top-0 z-30 shadow-xs backdrop-blur-md transition-colors duration-200">
         <!-- Top Micro Utility Bar -->
-        <div class="border-b border-[var(--surface-border)] bg-[var(--surface-subtle)]/80">
-          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-8 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
+        <div class="border-b border-[var(--border-subtle)] bg-[var(--surface-subtle)]/80">
+          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-9 py-1 flex items-center justify-between text-xs text-[var(--text-muted)]">
             <div class="flex items-center gap-4">
-              <span class="inline-flex items-center gap-1.5 hover:text-indigo-600 transition-colors">
-                <i class="pi pi-phone text-[10px] text-amber-600"></i>
-                <span>Hotline 24/7: <strong class="text-[var(--text-main)] font-bold">1900 6868</strong></span>
+              <span class="inline-flex items-center gap-1.5 hover:text-[var(--brand-primary)] transition-colors">
+                <i class="pi pi-phone text-xs text-amber-600" aria-hidden="true"></i>
+                <span>Hotline 24/7: <strong class="text-[var(--text-primary)] font-bold num-tabular">1900 6868</strong></span>
               </span>
               <span class="hidden md:inline-flex items-center gap-1.5 text-[var(--text-muted)]">
-                <i class="pi pi-shield text-[10px] text-emerald-600"></i>
+                <i class="pi pi-shield text-xs text-emerald-600" aria-hidden="true"></i>
                 <span>Chính sách hủy &amp; hoàn tiền minh bạch theo từng cơ sở</span>
               </span>
             </div>
 
             <div class="flex items-center gap-3.5">
-              <a 
-                routerLink="/auth/partner-register" 
-                class="inline-flex items-center gap-1 text-amber-600 hover:text-amber-500 transition-colors font-bold"
+              <a
+                routerLink="/auth/partner-register"
+                class="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-400 hover:text-amber-600 transition-colors font-bold"
               >
-                <i class="pi pi-building text-[10px]"></i>
+                <i class="pi pi-building text-xs" aria-hidden="true"></i>
                 <span>Dành cho Chủ khách sạn: Đăng ký cơ sở</span>
               </a>
-              <span class="text-slate-300 dark:text-slate-700">|</span>
-              <span class="inline-flex items-center gap-1 text-[var(--text-muted)] font-semibold cursor-default">
-                <span>🇻🇳 VN &bull; VND</span>
+              <span class="text-slate-300 dark:text-slate-700" aria-hidden="true">|</span>
+              <span class="inline-flex items-center gap-1.5 text-[var(--text-muted)] font-semibold cursor-default">
+                <i class="pi pi-globe text-xs" aria-hidden="true"></i>
+                <span>VN &bull; VND</span>
               </span>
             </div>
           </div>
@@ -69,33 +71,37 @@ import { SystemBannerBarComponent } from '../../shared/components/system-banner-
           <app-brand-logo size="md" [variant]="themeService.isDark() ? 'light' : 'dark'" />
 
           <!-- Center Navigation Links -->
-          <nav class="hidden lg:flex items-center gap-1 text-xs font-semibold tracking-wide text-[var(--text-secondary)]">
-            <a 
-              routerLink="/booking/destinations" 
-              class="px-3.5 py-2 rounded-xl hover:text-indigo-500 hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5"
+          <nav aria-label="Điều hướng chính" class="hidden lg:flex items-center gap-1 text-xs font-semibold tracking-wide text-[var(--text-secondary)]">
+            <a
+              routerLink="/booking/destinations"
+              routerLinkActive="bg-[var(--surface-subtle)] text-[var(--brand-primary)] font-bold"
+              class="px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5"
             >
-              <i class="pi pi-compass text-[11px] text-indigo-500"></i>
+              <i class="pi pi-compass text-xs text-[var(--brand-primary)]" aria-hidden="true"></i>
               <span>Khám Phá Địa Danh</span>
             </a>
-            <a 
-              routerLink="/booking/deals" 
-              class="px-3.5 py-2 rounded-xl hover:text-indigo-500 hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5"
+            <a
+              routerLink="/booking/deals"
+              routerLinkActive="bg-[var(--surface-subtle)] text-[var(--brand-primary)] font-bold"
+              class="px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5"
             >
-              <i class="pi pi-tag text-[11px] text-amber-600"></i>
+              <i class="pi pi-tag text-xs text-amber-600" aria-hidden="true"></i>
               <span>Ưu Đãi Đặc Quyền</span>
             </a>
-            <a 
-              routerLink="/booking/brands" 
-              class="px-3.5 py-2 rounded-xl hover:text-indigo-500 hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5"
+            <a
+              routerLink="/booking/brands"
+              routerLinkActive="bg-[var(--surface-subtle)] text-[var(--brand-primary)] font-bold"
+              class="px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5"
             >
-              <i class="pi pi-star text-[11px] text-amber-500"></i>
+              <i class="pi pi-star text-xs text-amber-500" aria-hidden="true"></i>
               <span>Chuỗi Thương Hiệu</span>
             </a>
-            <a 
-              routerLink="/booking/lookup" 
-              class="px-3.5 py-2 rounded-xl hover:text-indigo-500 hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5"
+            <a
+              routerLink="/booking/lookup"
+              routerLinkActive="bg-[var(--surface-subtle)] text-[var(--brand-primary)] font-bold"
+              class="px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5"
             >
-              <i class="pi pi-search text-[11px] text-slate-400"></i>
+              <i class="pi pi-search text-xs text-[var(--text-muted)]" aria-hidden="true"></i>
               <span>Tra Cứu Đặt Phòng</span>
             </a>
           </nav>
@@ -106,90 +112,93 @@ import { SystemBannerBarComponent } from '../../shared/components/system-banner-
             <button
               type="button"
               (click)="themeService.toggleTheme()"
-              class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-[var(--surface-subtle)] hover:opacity-90 text-[var(--text-main)] border border-[var(--surface-border)] transition-all cursor-pointer"
+              class="inline-flex items-center justify-center min-w-11 min-h-11 w-11 h-11 rounded-xl bg-[var(--surface-subtle)] hover:opacity-90 text-[var(--text-primary)] border border-[var(--border-subtle)] transition-all cursor-pointer"
               [attr.aria-label]="themeService.isDark() ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'"
               [title]="themeService.isDark() ? 'Chuyển sang chế độ Sáng (Light Mode)' : 'Chuyển sang chế độ Tối (Dark Mode)'"
               data-testid="theme-toggle-btn"
             >
-              <i [class]="themeService.isDark() ? 'pi pi-sun text-amber-400 text-sm' : 'pi pi-moon text-slate-700 text-sm'"></i>
+              <i [class]="themeService.isDark() ? 'pi pi-sun text-amber-400 text-sm' : 'pi pi-moon text-[var(--text-primary)] text-sm'" aria-hidden="true"></i>
             </button>
 
             <!-- Tra Cứu Quick Button on Mobile -->
-            <a 
-              routerLink="/booking/lookup" 
-              class="inline-flex lg:hidden items-center justify-center w-9 h-9 rounded-xl bg-[var(--surface-subtle)] hover:opacity-90 text-[var(--text-main)] border border-[var(--surface-border)] transition-all text-xs"
+            <a
+              routerLink="/booking/lookup"
+              aria-label="Tra cứu đặt phòng"
+              class="inline-flex lg:hidden items-center justify-center min-w-11 min-h-11 w-11 h-11 rounded-xl bg-[var(--surface-subtle)] hover:opacity-90 text-[var(--text-primary)] border border-[var(--border-subtle)] transition-all text-xs"
               title="Tra cứu đặt phòng"
             >
-              <i class="pi pi-search"></i>
+              <i class="pi pi-search" aria-hidden="true"></i>
             </a>
 
             <!-- Partner B2B CTA Button -->
             <a
               routerLink="/auth/partner-register"
-              class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300/80 transition-all shadow-2xs"
+              class="hidden sm:inline-flex items-center gap-1.5 min-h-11 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-300 dark:hover:bg-amber-500/25 border border-amber-300/80 dark:border-amber-500/30 transition-all shadow-2xs"
             >
-              <i class="pi pi-building text-[10px] text-amber-600"></i>
+              <i class="pi pi-building text-xs text-amber-600 dark:text-amber-400" aria-hidden="true"></i>
               <span>Mở Khách Sạn</span>
             </a>
 
             <!-- User Auth / Profile Button -->
-            <a 
+            <a
               [routerLink]="isAuthenticated() ? (isCustomer() ? '/booking/profile' : '/dashboard') : '/auth/login'"
               [queryParams]="isAuthenticated() ? {} : { portal: 'guest' }"
-              class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shadow-xs border"
-              [class]="isAuthenticated() ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100' : 'bg-slate-900 hover:bg-indigo-600 text-white border-transparent shadow-xs'"
+              class="inline-flex items-center justify-center gap-2 min-h-11 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shadow-xs border"
+              [class]="isAuthenticated() ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-500/15 dark:text-indigo-300 dark:border-indigo-500/30' : 'bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] border-transparent shadow-xs'"
             >
-              <i [class]="isAuthenticated() ? 'pi pi-user-check text-indigo-600' : 'pi pi-user'" class="text-xs"></i>
+              <i [class]="isAuthenticated() ? 'pi pi-user-check text-indigo-600 dark:text-indigo-300 text-xs' : 'pi pi-user text-xs'" aria-hidden="true"></i>
               <span class="truncate max-w-28">{{ isAuthenticated() ? (isCustomer() ? userFirstName() : 'Quản trị PMS') : 'Đăng nhập' }}</span>
             </a>
 
             <!-- Mobile & Explore Dropdown -->
             <div #discoveryGroup class="relative" (keydown.escape)="closeMenu(menuToggle)">
-              <button 
-                #menuToggle 
-                type="button" 
+              <button
+                #menuToggle
+                type="button"
                 (click)="menuOpen.set(!menuOpen())"
-                [attr.aria-expanded]="menuOpen()" 
+                [attr.aria-expanded]="menuOpen()"
                 aria-controls="guest-navigation"
-                class="inline-flex items-center justify-center gap-1.5 h-9 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-semibold transition-all cursor-pointer"
+                class="inline-flex items-center justify-center gap-1.5 min-h-11 min-w-11 px-3 rounded-xl bg-[var(--surface-subtle)] hover:opacity-90 border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs font-semibold transition-all cursor-pointer"
                 aria-label="Khám phá và danh mục"
               >
-                <i class="pi pi-bars text-sm"></i>
+                <i class="pi pi-bars text-sm" aria-hidden="true"></i>
                 <span class="hidden sm:inline">Menu</span>
               </button>
 
               @if (menuOpen()) {
-                <nav 
-                  id="guest-navigation" 
+                <nav
+                  id="guest-navigation"
                   aria-label="Khám phá và hỗ trợ"
-                  class="absolute right-0 mt-3 w-64 max-w-[calc(100vw-2rem)] max-h-[75dvh] overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-2xl p-2.5 text-slate-800 z-50 animate-fade-in"
+                  class="absolute right-0 mt-3 w-64 max-w-[calc(100vw-2rem)] max-h-[75dvh] overflow-y-auto rounded-2xl bg-[var(--surface-card)] border border-[var(--border-subtle)] shadow-2xl p-2.5 text-[var(--text-primary)] z-50 animate-fade-in"
                   (click)="menuOpen.set(false)"
                 >
-                  <div class="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-1">
+                  <div class="px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border-subtle)] mb-1">
                     Điều Hướng Nhanh
                   </div>
                   @for (link of exploreLinks; track link.path) {
-                    <a 
-                      [routerLink]="link.path" 
-                      class="flex items-center min-h-10 px-3 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-indigo-600 transition-colors"
+                    <a
+                      [routerLink]="link.path"
+                      routerLinkActive="bg-[var(--surface-subtle)] text-[var(--brand-primary)] font-bold"
+                      [routerLinkActiveOptions]="{ exact: link.path === '/booking' }"
+                      class="flex items-center min-h-11 px-3 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--brand-primary)] transition-colors"
                     >
                       {{ link.label }}
                     </a>
                   }
-                  <div class="border-t border-slate-100 mt-2 pt-2 space-y-1">
-                    <a 
-                      routerLink="/auth/partner-register" 
-                      class="flex items-center gap-2 min-h-10 px-3 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-xl"
+                  <div class="border-t border-[var(--border-subtle)] mt-2 pt-2 space-y-1">
+                    <a
+                      routerLink="/auth/partner-register"
+                      class="flex items-center gap-2 min-h-11 px-3 text-xs font-bold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/15 hover:bg-amber-100 rounded-xl"
                     >
-                      <i class="pi pi-building text-xs text-amber-600"></i>
+                      <i class="pi pi-building text-xs text-amber-600 dark:text-amber-400" aria-hidden="true"></i>
                       <span>Đăng ký đối tác khách sạn</span>
                     </a>
-                    <a 
-                      routerLink="/auth/login" 
-                      [queryParams]="{ portal: 'admin' }" 
-                      class="flex items-center gap-2 min-h-10 px-3 text-xs text-slate-700 hover:bg-slate-100 hover:text-indigo-600 rounded-xl"
+                    <a
+                      routerLink="/auth/login"
+                      [queryParams]="{ portal: 'admin' }"
+                      class="flex items-center gap-2 min-h-11 px-3 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--brand-primary)] rounded-xl"
                     >
-                      <i class="pi pi-lock text-xs"></i>
+                      <i class="pi pi-lock text-xs" aria-hidden="true"></i>
                       <span>Cổng quản lý PMS</span>
                     </a>
                   </div>

@@ -1,9 +1,10 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { BehaviorSubject, Observable, map, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { ApiResponse } from '../models/api-response.model';
+import { ApiEnvelope, ApiResponse, unwrapApiEnvelope } from '../models/api-response.model';
 import {
   LoginRequest,
   LoginResponse,
@@ -32,6 +33,7 @@ export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly tokenStorage = inject(TokenStorageService);
+  private readonly destroyRef = inject(DestroyRef, { optional: true });
   private readonly apiUrl = `${environment.apiUrl}/auth`;
 
   private currentUserSubject = new BehaviorSubject<UserDto | null>(null);
@@ -84,24 +86,23 @@ export class AuthService {
    * Tự động xác thực tài khoản và cấp thẻ thành viên Silver theo cơ chế Soft-Gating.
    */
   googleLogin(idToken: string): Observable<LoginResponse> {
-    return this.http.post<any>(`${this.apiUrl}/google-login`, { idToken }).pipe(
-      map(res => {
-        const data: LoginResponse = res.accessToken ? res : (res.data || res);
-        return data;
-      }),
-      tap(data => {
-        if (data?.accessToken) {
-          this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
-          this.currentUserSubject.next(data.user);
-          const memberships = data.memberships || [];
-          this.tokenStorage.setMemberships(memberships);
-          this.membershipsSubject.next(memberships);
-          if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
-            this.clearPropertyContext();
+    return this.http
+      .post<ApiEnvelope<LoginResponse> | LoginResponse>(`${this.apiUrl}/google-login`, { idToken })
+      .pipe(
+        map(res => this.unwrapLoginPayload(res)),
+        tap(data => {
+          if (data?.accessToken) {
+            this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
+            this.currentUserSubject.next(data.user);
+            const memberships = data.memberships || [];
+            this.tokenStorage.setMemberships(memberships);
+            this.membershipsSubject.next(memberships);
+            if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
+              this.clearPropertyContext();
+            }
           }
-        }
-      })
-    );
+        })
+      );
   }
 
   /**
@@ -115,24 +116,23 @@ export class AuthService {
     fullName?: string;
     avatarUrl?: string;
   }): Observable<LoginResponse> {
-    return this.http.post<any>(`${this.apiUrl}/social-login`, request).pipe(
-      map(res => {
-        const data: LoginResponse = res.accessToken ? res : (res.data || res);
-        return data;
-      }),
-      tap(data => {
-        if (data?.accessToken) {
-          this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
-          this.currentUserSubject.next(data.user);
-          const memberships = data.memberships || [];
-          this.tokenStorage.setMemberships(memberships);
-          this.membershipsSubject.next(memberships);
-          if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
-            this.clearPropertyContext();
+    return this.http
+      .post<ApiEnvelope<LoginResponse> | LoginResponse>(`${this.apiUrl}/social-login`, request)
+      .pipe(
+        map(res => this.unwrapLoginPayload(res)),
+        tap(data => {
+          if (data?.accessToken) {
+            this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
+            this.currentUserSubject.next(data.user);
+            const memberships = data.memberships || [];
+            this.tokenStorage.setMemberships(memberships);
+            this.membershipsSubject.next(memberships);
+            if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
+              this.clearPropertyContext();
+            }
           }
-        }
-      })
-    );
+        })
+      );
   }
 
   /**
@@ -140,24 +140,23 @@ export class AuthService {
    * Kèm token idToken do Firebase cấp sau khi nhập đúng SMS OTP.
    */
   verifyPhoneFirebase(request: { firebaseIdToken: string; fullName?: string }): Observable<LoginResponse> {
-    return this.http.post<any>(`${this.apiUrl}/verify-phone-firebase`, request).pipe(
-      map(res => {
-        const data: LoginResponse = res.accessToken ? res : (res.data || res);
-        return data;
-      }),
-      tap(data => {
-        if (data?.accessToken) {
-          this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
-          this.currentUserSubject.next(data.user);
-          const memberships = data.memberships || [];
-          this.tokenStorage.setMemberships(memberships);
-          this.membershipsSubject.next(memberships);
-          if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
-            this.clearPropertyContext();
+    return this.http
+      .post<ApiEnvelope<LoginResponse> | LoginResponse>(`${this.apiUrl}/verify-phone-firebase`, request)
+      .pipe(
+        map(res => this.unwrapLoginPayload(res)),
+        tap(data => {
+          if (data?.accessToken) {
+            this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
+            this.currentUserSubject.next(data.user);
+            const memberships = data.memberships || [];
+            this.tokenStorage.setMemberships(memberships);
+            this.membershipsSubject.next(memberships);
+            if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
+              this.clearPropertyContext();
+            }
           }
-        }
-      })
-    );
+        })
+      );
   }
 
   /**
@@ -166,53 +165,51 @@ export class AuthService {
    * Hỗ trợ đồng thời cả format bọc ApiResponse<{...}> phòng hờ.
    */
   login(request: LoginRequest): Observable<LoginResponse> {
-    return this.http.post<any>(`${this.apiUrl}/login`, request).pipe(
-      map(res => {
-        // Chuẩn hóa response payload
-        const data: LoginResponse = res.accessToken ? res : res.data;
-        return data;
-      }),
-      tap(data => {
-        if (data?.accessToken) {
-          this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
-          this.currentUserSubject.next(data.user);
+    return this.http
+      .post<ApiEnvelope<LoginResponse> | LoginResponse>(`${this.apiUrl}/login`, request)
+      .pipe(
+        map(res => this.unwrapLoginPayload(res)),
+        tap(data => {
+          if (data?.accessToken) {
+            this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
+            this.currentUserSubject.next(data.user);
 
-          const memberships = data.memberships || [];
-          this.tokenStorage.setMemberships(memberships);
-          this.membershipsSubject.next(memberships);
+            const memberships = data.memberships || [];
+            this.tokenStorage.setMemberships(memberships);
+            this.membershipsSubject.next(memberships);
 
-          // Kiểm tra xem token đã có propertyId chưa (trường hợp user chỉ có 1 branch hoặc token đã gán)
-          if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
-            this.clearPropertyContext();
-            return;
-          }
-          const decoded = this.tokenStorage.getDecodedToken();
-          const propId = decoded?.propertyId || decoded?.pid;
-          if (propId) {
-            const matched = memberships.find(m => m.propertyId?.toLowerCase() === propId.toLowerCase());
-            this.setActivePropertyContext(propId, matched?.propertyName, matched?.propertyCode, matched?.roleName);
-          } else {
-            this.tokenStorage.clearContextMode?.();
-            if (!memberships.some(m => !!m.propertyId)) {
-              // Tải danh sách chi nhánh mở rộng (cho tài khoản Tenant-Wide)
-              this.fetchMyMemberships().subscribe({
-                next: (fullList) => {
-                  if (this.tokenStorage.getContextMode?.() === 'hq') {
-                    return;
-                  }
-                  const branchMembers = fullList.filter(m => !!m.propertyId);
-                  if (branchMembers.length > 0 && !this.activePropertyId()) {
-                    const defaultBranch = branchMembers[0];
-                    this.setActivePropertyContext(defaultBranch.propertyId!, defaultBranch.propertyName, defaultBranch.propertyCode, defaultBranch.roleName);
-                  }
-                },
-                error: () => {}
-              });
+            // Kiểm tra xem token đã có propertyId chưa (trường hợp user chỉ có 1 branch hoặc token đã gán)
+            if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
+              this.clearPropertyContext();
+              return;
+            }
+            const decoded = this.tokenStorage.getDecodedToken();
+            const propId = decoded?.propertyId || decoded?.pid;
+            if (propId) {
+              const matched = memberships.find(m => m.propertyId?.toLowerCase() === propId.toLowerCase());
+              this.setActivePropertyContext(propId, matched?.propertyName, matched?.propertyCode, matched?.roleName);
+            } else {
+              this.tokenStorage.clearContextMode?.();
+              if (!memberships.some(m => !!m.propertyId)) {
+                // Tải danh sách chi nhánh mở rộng (cho tài khoản Tenant-Wide)
+                this.pipeDestroy(this.fetchMyMemberships()).subscribe({
+                  next: (fullList) => {
+                    if (this.tokenStorage.getContextMode?.() === 'hq') {
+                      return;
+                    }
+                    const branchMembers = fullList.filter(m => !!m.propertyId);
+                    if (branchMembers.length > 0 && !this.activePropertyId()) {
+                      const defaultBranch = branchMembers[0];
+                      this.setActivePropertyContext(defaultBranch.propertyId!, defaultBranch.propertyName, defaultBranch.propertyCode, defaultBranch.roleName);
+                    }
+                  },
+                  error: () => {}
+                });
+              }
             }
           }
-        }
-      })
-    );
+        })
+      );
   }
 
   /**
@@ -273,16 +270,15 @@ export class AuthService {
    * Lấy danh sách memberships của user hiện tại từ GET /api/auth/me/memberships
    */
   fetchMyMemberships(): Observable<UserMembershipDto[]> {
-    return this.http.get<any>(`${this.apiUrl}/me/memberships`).pipe(
-      map(res => {
-        const list: UserMembershipDto[] = Array.isArray(res) ? res : (res.data || []);
-        return list;
-      }),
-      tap(list => {
-        this.tokenStorage.setMemberships(list);
-        this.membershipsSubject.next(list);
-      })
-    );
+    return this.http
+      .get<ApiEnvelope<UserMembershipDto[]> | UserMembershipDto[]>(`${this.apiUrl}/me/memberships`)
+      .pipe(
+        map(res => (Array.isArray(res) ? res : (res?.data ?? []))),
+        tap(list => {
+          this.tokenStorage.setMemberships(list);
+          this.membershipsSubject.next(list);
+        })
+      );
   }
 
   refreshToken(): Observable<LoginResponse> {
@@ -290,15 +286,17 @@ export class AuthService {
       accessToken: this.tokenStorage.getAccessToken() || '',
       refreshToken: this.tokenStorage.getRefreshToken() || ''
     };
-    return this.http.post<any>(`${this.apiUrl}/refresh-token`, request).pipe(
-      map(res => (res.accessToken ? res : res.data) as LoginResponse),
-      tap(data => {
-        if (data?.accessToken) {
-          this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
-          this.currentUserSubject.next(data.user);
-        }
-      })
-    );
+    return this.http
+      .post<ApiEnvelope<LoginResponse> | LoginResponse>(`${this.apiUrl}/refresh-token`, request)
+      .pipe(
+        map(res => this.unwrapLoginPayload(res)),
+        tap(data => {
+          if (data?.accessToken) {
+            this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
+            this.currentUserSubject.next(data.user);
+          }
+        })
+      );
   }
 
   updateCurrentUser(partial: Partial<UserDto>): void {
@@ -311,7 +309,9 @@ export class AuthService {
   logout(): void {
     const refreshToken = this.tokenStorage.getRefreshToken();
     if (refreshToken) {
-      this.http.post(`${this.apiUrl}/revoke-token`, { refreshToken }).subscribe({
+      this.pipeDestroy(
+        this.http.post<ApiEnvelope<unknown> | void>(`${this.apiUrl}/revoke-token`, { refreshToken })
+      ).subscribe({
         error: () => { /* Không chặn logout nếu revoke lỗi */ }
       });
     }
@@ -371,7 +371,7 @@ export class AuthService {
 
       // Nếu cached memberships chưa có chi nhánh cụ thể, làm mới từ API
       if (!cachedMemberships.some(m => !!m.propertyId)) {
-        this.fetchMyMemberships().subscribe({
+        this.pipeDestroy(this.fetchMyMemberships()).subscribe({
           next: (fullList) => {
             if (this.tokenStorage.getContextMode?.() === 'hq') {
               return;
@@ -386,6 +386,17 @@ export class AuthService {
         });
       }
     }
+  }
+
+  private pipeDestroy<T>(source: Observable<T>): Observable<T> {
+    return this.destroyRef ? source.pipe(takeUntilDestroyed(this.destroyRef)) : source;
+  }
+
+  private unwrapLoginPayload(res: ApiEnvelope<LoginResponse> | LoginResponse): LoginResponse {
+    if (res && typeof res === 'object' && 'accessToken' in res && typeof res.accessToken === 'string' && res.accessToken) {
+      return res;
+    }
+    return unwrapApiEnvelope(res);
   }
 
   hasPermission(functionCode: string, action: number = 1): boolean {

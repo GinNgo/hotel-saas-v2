@@ -1,13 +1,15 @@
-import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { PrintDocumentsService } from '../../core/services/print-documents.service';
 import { PrintInvoiceDto } from '../../core/models/print-document.model';
+import { BusinessDatePipe } from '../../shared/pipes/business-date.pipe';
 
 @Component({
   selector: 'app-print-invoice-page',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, BusinessDatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="min-h-screen bg-slate-100 p-4 sm:p-8 print:p-0 print:bg-white text-slate-800 font-sans">
@@ -15,18 +17,18 @@ import { PrintInvoiceDto } from '../../core/models/print-document.model';
       <div class="max-w-4xl mx-auto mb-6 flex items-center justify-between print:hidden">
         <a
           routerLink="/reservations"
-          class="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs"
+          class="inline-flex items-center gap-2 min-h-11 text-sm font-medium text-slate-600 hover:text-slate-900 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-2xs"
         >
-          <i class="pi pi-arrow-left"></i> Quay lại
+          <i class="pi pi-arrow-left" aria-hidden="true"></i> Quay lại
         </a>
 
         <div class="flex items-center gap-3">
           <button
             type="button"
             (click)="windowPrint()"
-            class="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm cursor-pointer"
+            class="inline-flex items-center gap-2 min-h-11 px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm cursor-pointer"
           >
-            <i class="pi pi-print"></i> In Hóa Đơn (Ctrl + P)
+            <i class="pi pi-print" aria-hidden="true"></i> In Hóa Đơn (Ctrl + P)
           </button>
         </div>
       </div>
@@ -39,7 +41,7 @@ import { PrintInvoiceDto } from '../../core/models/print-document.model';
             <div class="space-y-1">
               <div class="flex items-center gap-3">
                 @if (inv.logoUrl) {
-                  <img [src]="inv.logoUrl" alt="Hotel Logo" class="h-12 w-auto object-contain rounded-lg border border-slate-200" />
+                  <img [src]="inv.logoUrl" alt="Hotel Logo" width="48" height="48" class="h-12 w-auto object-contain rounded-lg border border-slate-200" />
                 }
                 <div>
                   <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight uppercase">
@@ -70,14 +72,14 @@ import { PrintInvoiceDto } from '../../core/models/print-document.model';
               </div>
               <div class="text-xs text-slate-500 font-mono mt-1">Số: <span class="font-bold text-slate-900">{{ inv.invoiceNumber }}</span></div>
               <div class="text-xs text-slate-500 font-mono">Mã đặt phòng: <span class="font-semibold text-slate-800">{{ inv.confirmationCode }}</span></div>
-              <div class="text-xs text-slate-500">Ngày in: <span class="font-semibold text-slate-700">{{ inv.issuedDate | slice:0:10 }}</span></div>
+              <div class="text-xs text-slate-500">Ngày in: <span class="font-semibold text-slate-700 tabular-nums">{{ inv.issuedDate | businessDate }}</span></div>
               @if (inv.remainingAmount <= 0) {
                 <div class="text-xs text-emerald-700 font-semibold flex sm:justify-end items-center gap-1">
-                  <i class="pi pi-check-circle text-[11px]"></i> {{ inv.status }} ({{ inv.paymentMethod }})
+                  <i class="pi pi-check-circle text-[11px]" aria-hidden="true"></i> {{ inv.status }} ({{ inv.paymentMethod }})
                 </div>
               } @else {
                 <div class="text-xs text-amber-700 font-semibold flex sm:justify-end items-center gap-1">
-                  <i class="pi pi-clock text-[11px]"></i> {{ inv.status }} — Còn lại: {{ inv.remainingAmount | number:'1.0-0' }} ₫
+                  <i class="pi pi-clock text-[11px]" aria-hidden="true"></i> {{ inv.status }} — Còn lại: <span class="tabular-nums">{{ inv.remainingAmount | number:'1.0-0' }} ₫</span>
                 </div>
               }
             </div>
@@ -126,9 +128,9 @@ import { PrintInvoiceDto } from '../../core/models/print-document.model';
                     <td class="py-2.5 px-3">
                       <div class="font-semibold text-slate-900">{{ item.description }}</div>
                     </td>
-                    <td class="py-2.5 px-3 text-center">{{ item.quantity }}</td>
-                    <td class="py-2.5 px-3 text-right">{{ item.unitPrice | number:'1.0-0' }} ₫</td>
-                    <td class="py-2.5 px-3 text-right font-bold text-slate-900">{{ item.amount | number:'1.0-0' }} ₫</td>
+                    <td class="py-2.5 px-3 text-center tabular-nums">{{ item.quantity }}</td>
+                    <td class="py-2.5 px-3 text-right tabular-nums">{{ item.unitPrice | number:'1.0-0' }} ₫</td>
+                    <td class="py-2.5 px-3 text-right font-bold text-slate-900 tabular-nums">{{ item.amount | number:'1.0-0' }} ₫</td>
                   </tr>
                 }
               </tbody>
@@ -148,7 +150,7 @@ import { PrintInvoiceDto } from '../../core/models/print-document.model';
                 </div>
               } @else if (inv.bankAccountNumber) {
                 @if (inv.vietQrImageUrl && inv.showVietQrCode) {
-                  <img [src]="inv.vietQrImageUrl" alt="VietQR" class="w-28 h-28 object-contain rounded-lg border border-slate-200 bg-white p-1" />
+                  <img [src]="inv.vietQrImageUrl" alt="VietQR" width="112" height="112" loading="lazy" class="w-28 h-28 object-contain rounded-lg border border-slate-200 bg-white p-1" />
                 }
                 <div class="text-xs space-y-1">
                   <div class="font-bold text-slate-900 flex items-center gap-1.5">
@@ -175,24 +177,24 @@ import { PrintInvoiceDto } from '../../core/models/print-document.model';
             <div class="space-y-2 text-xs">
               <div class="flex justify-between py-1 text-slate-600">
                 <span>Tiền phòng & Dịch vụ (trước thuế):</span>
-                <span class="font-semibold text-slate-800">{{ inv.subTotal | number:'1.0-0' }} ₫</span>
+                <span class="font-semibold text-slate-800 tabular-nums">{{ inv.subTotal | number:'1.0-0' }} ₫</span>
               </div>
               <div class="flex justify-between py-1 text-slate-600 border-t border-slate-100">
                 <span>Thuế GTGT (VAT {{ inv.vatRate }}%):</span>
-                <span class="font-semibold text-slate-800">{{ inv.vatAmount | number:'1.0-0' }} ₫</span>
+                <span class="font-semibold text-slate-800 tabular-nums">{{ inv.vatAmount | number:'1.0-0' }} ₫</span>
               </div>
               <div class="flex justify-between py-2 text-sm border-t-2 border-slate-900 font-black">
                 <span class="text-slate-900 uppercase">TỔNG THANH TOÁN:</span>
-                <span class="text-indigo-700 text-base">{{ inv.totalAmount | number:'1.0-0' }} ₫</span>
+                <span class="text-indigo-700 text-base tabular-nums">{{ inv.totalAmount | number:'1.0-0' }} ₫</span>
               </div>
               <div class="flex justify-between py-1 text-slate-600">
                 <span>Đã thanh toán:</span>
-                <span class="font-bold text-emerald-600">{{ inv.paidAmount | number:'1.0-0' }} ₫</span>
+                <span class="font-bold text-emerald-600 tabular-nums">{{ inv.paidAmount | number:'1.0-0' }} ₫</span>
               </div>
               @if (inv.remainingAmount > 0) {
                 <div class="flex justify-between py-1 text-rose-600 font-bold">
                   <span>Còn lại cần thanh toán:</span>
-                  <span>{{ inv.remainingAmount | number:'1.0-0' }} ₫</span>
+                  <span class="tabular-nums">{{ inv.remainingAmount | number:'1.0-0' }} ₫</span>
                 </div>
               }
             </div>
@@ -263,6 +265,7 @@ import { PrintInvoiceDto } from '../../core/models/print-document.model';
 export class PrintInvoicePage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly printService = inject(PrintDocumentsService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly invoice = signal<PrintInvoiceDto | null>(null);
   readonly isLoading = signal(true);
@@ -274,7 +277,7 @@ export class PrintInvoicePage implements OnInit {
       const request$ = code
         ? this.printService.getInvoice(reservationId, code)
         : this.printService.getInvoice(reservationId);
-      request$.subscribe({
+      request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: data => {
           this.invoice.set(data);
           this.isLoading.set(false);

@@ -1,4 +1,6 @@
-import { Component, ElementRef, OnInit, inject, isDevMode, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { A11yModule } from '@angular/cdk/a11y';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -11,6 +13,7 @@ import { LoginResponse, UserMembershipDto } from '../../../core/models/auth.mode
 import { FormFieldComponent, FormControlDirective } from '../../../shared/components/form-field/form-field.component';
 import { PhoneOtpModalComponent } from '../phone-otp-modal/phone-otp-modal.component';
 import { SocialAuthService } from '../../../core/services/social-auth.service';
+import { environment } from '../../../../environments/environment';
 
 export type PortalType = 'guest' | 'admin';
 
@@ -23,12 +26,14 @@ export type PortalType = 'guest' | 'admin';
 @Component({
   selector: 'app-login',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
     RouterLink,
     Password,
+    A11yModule,
     ContextSelectorDialogComponent,
     FormFieldComponent,
     FormControlDirective,
@@ -41,7 +46,7 @@ export type PortalType = 'guest' | 'admin';
         <button
           type="button"
           (click)="setPortal('guest')"
-          class="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
+          class="flex-1 min-h-11 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
           [ngClass]="portal() === 'guest' ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/80 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'"
         >
           <i class="pi pi-user text-xs" [ngClass]="portal() === 'guest' ? 'text-indigo-600' : 'text-slate-400'"></i>
@@ -51,7 +56,7 @@ export type PortalType = 'guest' | 'admin';
         <button
           type="button"
           (click)="setPortal('admin')"
-          class="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
+          class="flex-1 min-h-11 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
           [ngClass]="portal() === 'admin' ? 'bg-white text-emerald-800 shadow-sm border border-slate-200/80 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'"
         >
           <i class="pi pi-shield text-xs" [ngClass]="portal() === 'admin' ? 'text-emerald-600' : 'text-slate-400'"></i>
@@ -161,7 +166,7 @@ export type PortalType = 'guest' | 'admin';
             type="button"
             (click)="loginWithGoogle()"
             [disabled]="loading()"
-            class="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
+            class="w-full min-h-11 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
           >
             <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -177,7 +182,7 @@ export type PortalType = 'guest' | 'admin';
             type="button"
             (click)="showPhoneOtpModal.set(true)"
             [disabled]="loading()"
-            class="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100/70 text-indigo-900 text-xs font-bold shadow-2xs hover:border-indigo-300 transition-all cursor-pointer"
+            class="w-full min-h-11 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100/70 text-indigo-900 text-xs font-bold shadow-2xs hover:border-indigo-300 transition-all cursor-pointer"
           >
             <i class="pi pi-phone text-indigo-600 text-xs"></i>
             <span>Đăng nhập bằng Số điện thoại (SMS OTP)</span>
@@ -186,7 +191,7 @@ export type PortalType = 'guest' | 'admin';
       }
 
       <!-- 5. TÀI KHOẢN KIỂM THỬ (CHỈ HIỂN THỊ TRONG MÔI TRƯỜNG DEV) -->
-      @if (devMode) {
+      @if (isDevDemoVisible) {
         <div class="mt-5 pt-4 border-t border-slate-100" data-testid="dev-quick-accounts">
           <div class="flex items-center justify-between mb-2.5">
             <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
@@ -321,10 +326,11 @@ export type PortalType = 'guest' | 'admin';
           <button
             type="button"
             (click)="setPortal('admin')"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+            class="min-h-11 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer"
           >
             <i class="pi pi-shield text-xs"></i>
-            <span>Chuyển sang Cổng Quản trị (PMS &amp; SuperAdmin) →</span>
+            <span>Chuyển sang Cổng Quản trị (PMS &amp; SuperAdmin)</span>
+            <i class="pi pi-arrow-right text-[11px]"></i>
           </button>
         </div>
       }
@@ -384,6 +390,8 @@ export type PortalType = 'guest' | 'admin';
     <!-- Modal Hướng dẫn Khôi phục Mật khẩu / Tài khoản -->
     @if (showForgotPasswordModal()) {
       <div
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs"
         role="dialog"
         aria-modal="true"
@@ -404,7 +412,7 @@ export type PortalType = 'guest' | 'admin';
               type="button"
               (click)="closeForgotPasswordModal()"
               aria-label="Đóng hướng dẫn khôi phục mật khẩu"
-              class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              class="min-h-11 min-w-11 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
             >
               <i class="pi pi-times text-xs"></i>
             </button>
@@ -419,10 +427,11 @@ export type PortalType = 'guest' | 'admin';
               <a
                 routerLink="/auth/forgot-password"
                 (click)="closeForgotPasswordModal()"
-                class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-2xs transition-colors"
+                class="min-h-11 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-2xs transition-colors"
               >
                 <i class="pi pi-envelope text-xs"></i>
-                <span>Khôi phục mật khẩu qua Email →</span>
+                <span>Khôi phục mật khẩu qua Email</span>
+                <i class="pi pi-arrow-right text-[11px]"></i>
               </a>
             </div>
             @if (portal() === 'guest') {
@@ -487,7 +496,8 @@ export class LoginPage implements OnInit {
     return control.touched && control.hasError('required') ? 'Mật khẩu không được để trống' : '';
   }
 
-  readonly devMode = isDevMode();
+  private readonly destroyRef = inject(DestroyRef);
+  readonly isDevDemoVisible = !environment.production;
   portal = signal<PortalType>('guest');
   loading = signal(false);
   errorMessage = signal<string | null>(null);
@@ -507,7 +517,7 @@ export class LoginPage implements OnInit {
 
   ngOnInit(): void {
     // Đọc query param 'portal' nếu có trên URL (e.g. /auth/login?portal=admin)
-    this.route.queryParamMap.subscribe(params => {
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
       const p = params.get('portal');
       if (p === 'admin' || p === 'guest') {
         this.setPortal(p, false);
@@ -525,7 +535,7 @@ export class LoginPage implements OnInit {
   }
 
   quickFill(email: string): void {
-    if (!isDevMode()) return;
+    if (!this.isDevDemoVisible) return;
     this.loginForm.patchValue({
       email,
       password: ''
@@ -558,7 +568,7 @@ export class LoginPage implements OnInit {
   }
 
   private attemptLogin(email: string, password: string): void {
-    this.authService.login({ email, password }).subscribe({
+    this.authService.login({ email, password }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (response) => {
         this.loading.set(false);
         const globalRole = response.user.globalRole;
@@ -593,7 +603,7 @@ export class LoginPage implements OnInit {
         // Trường hợp 3b: Nhân viên có duy nhất 1 chi nhánh -> Tự động kích hoạt ngữ cảnh chi nhánh đó
         if (branchMemberships.length === 1) {
           const soleBranch = branchMemberships[0];
-          this.authService.switchContext(soleBranch.propertyId!).subscribe({
+          this.authService.switchContext(soleBranch.propertyId!).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
             next: () => {
               this.notification.success(`Đăng nhập thành công chi nhánh: ${soleBranch.propertyName || soleBranch.propertyCode}`);
               this.router.navigate(['/dashboard']);
@@ -634,7 +644,7 @@ export class LoginPage implements OnInit {
         throw new Error('Không nhận được mã xác thực Google.');
       }
 
-      this.authService.googleLogin(idToken).subscribe({
+      this.authService.googleLogin(idToken).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (response) => {
           this.loading.set(false);
           this.notification.success(`Đăng nhập Google thành công! Chào mừng ${response.user.fullName}`);

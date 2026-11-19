@@ -1,32 +1,34 @@
-import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { PrintDocumentsService } from '../../core/services/print-documents.service';
 import { PrintContractDto } from '../../core/models/print-document.model';
+import { BusinessDatePipe, BusinessDateTimePipe } from '../../shared/pipes/business-date.pipe';
 
 @Component({
   selector: 'app-print-contract-page',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, BusinessDatePipe, BusinessDateTimePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="min-h-screen bg-slate-100 p-4 sm:p-8 print:p-0 print:bg-white text-slate-800 font-serif">
+    <div class="min-h-screen bg-slate-100 p-4 sm:p-8 print:p-0 print:bg-white text-slate-800 font-sans">
       <!-- Action Toolbar -->
       <div class="max-w-4xl mx-auto mb-6 flex items-center justify-between print:hidden font-sans">
         <a
-          routerLink="/admin/contracts"
-          class="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs"
+          routerLink="/contracts"
+          class="inline-flex items-center gap-2 min-h-11 text-sm font-medium text-slate-600 hover:text-slate-900 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-2xs"
         >
-          <i class="pi pi-arrow-left"></i> Về danh sách hợp đồng
+          <i class="pi pi-arrow-left" aria-hidden="true"></i> Về danh sách hợp đồng
         </a>
 
         <div class="flex items-center gap-3">
           <button
             type="button"
             (click)="windowPrint()"
-            class="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm cursor-pointer"
+            class="inline-flex items-center gap-2 min-h-11 px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm cursor-pointer"
           >
-            <i class="pi pi-print"></i> In Hợp Đồng (Ctrl + P)
+            <i class="pi pi-print" aria-hidden="true"></i> In Hợp Đồng (Ctrl + P)
           </button>
         </div>
       </div>
@@ -56,7 +58,7 @@ import { PrintContractDto } from '../../core/models/print-document.model';
 
           <!-- Preamble -->
           <div class="text-xs leading-relaxed text-slate-700 text-justify">
-            Hôm nay, ngày {{ (c.signedAtUtc || c.signedDate || c.createdAtUtc) | slice:0:10 }}, tại nền tảng điện toán đám mây Hotel SaaS Platform v2, chúng tôi gồm các bên:
+            Hôm nay, ngày <span class="tabular-nums">{{ (c.signedAtUtc || c.signedDate || c.createdAtUtc) | businessDate }}</span>, tại nền tảng điện toán đám mây Hotel SaaS Platform v2, chúng tôi gồm các bên:
           </div>
 
           <!-- Parties Info -->
@@ -99,9 +101,9 @@ import { PrintContractDto } from '../../core/models/print-document.model';
             <div>
               <strong class="text-slate-900">ĐIỀU 2: THỜI HẠN VÀ GIÁ TRỊ HỢP ĐỒNG</strong>
               <div class="mt-1 space-y-1">
-                <div>- Thời hạn hiệu lực: Từ ngày <strong class="text-slate-900">{{ c.startDate }}</strong> đến hết ngày <strong class="text-slate-900">{{ c.endDate }}</strong>.</div>
+                <div>- Thời hạn hiệu lực: Từ ngày <strong class="text-slate-900 tabular-nums">{{ c.startDate }}</strong> đến hết ngày <strong class="text-slate-900 tabular-nums">{{ c.endDate }}</strong>.</div>
                 <div>- Chu kỳ thanh toán: <strong class="text-slate-900">{{ c.billingCycle }}</strong>.</div>
-                <div>- Tổng giá trị hợp đồng: <strong class="text-indigo-700 text-sm">{{ c.contractValue | number:'1.0-0' }} VNĐ</strong> (Đã bao gồm thuế GTGT và phí vận hành máy chủ).</div>
+                <div>- Tổng giá trị hợp đồng: <strong class="text-indigo-700 text-sm tabular-nums">{{ c.contractValue | number:'1.0-0' }} VNĐ</strong> (Đã bao gồm thuế GTGT và phí vận hành máy chủ).</div>
               </div>
             </div>
 
@@ -128,7 +130,7 @@ import { PrintContractDto } from '../../core/models/print-document.model';
               </div>
               <div class="text-slate-700">
                 Trạng thái hợp đồng: <strong class="text-emerald-700">{{ c.status }}</strong>
-                <span> — Ký lúc: <strong>{{ c.signedAtUtc | slice:0:19 }} UTC</strong></span>
+                <span> — Ký lúc: <strong class="tabular-nums">{{ c.signedAtUtc | businessDateTime }}</strong></span>
               </div>
               <div class="font-mono text-[11px] text-slate-500 break-all">
                 Mã băm kiểm toán (Hash): {{ c.digitalSignatureHash }}
@@ -213,6 +215,7 @@ import { PrintContractDto } from '../../core/models/print-document.model';
 export class PrintContractPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly printService = inject(PrintDocumentsService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly contract = signal<PrintContractDto | null>(null);
   readonly isLoading = signal(true);
@@ -220,15 +223,18 @@ export class PrintContractPage implements OnInit {
   ngOnInit(): void {
     const contractId = this.route.snapshot.paramMap.get('id');
     if (contractId) {
-      this.printService.getContract(contractId).subscribe({
-        next: data => {
-          this.contract.set(data);
-          this.isLoading.set(false);
-        },
-        error: () => {
-          this.isLoading.set(false);
-        }
-      });
+      this.printService
+        .getContract(contractId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: data => {
+            this.contract.set(data);
+            this.isLoading.set(false);
+          },
+          error: () => {
+            this.isLoading.set(false);
+          }
+        });
     } else {
       this.isLoading.set(false);
     }

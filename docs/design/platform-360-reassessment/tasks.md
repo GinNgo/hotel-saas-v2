@@ -578,7 +578,15 @@
 
 ## Wave 4 — UI/UX Pro Max Design System & Hiện Đại Hóa Angular 22 (Gate G4)
 
-### `T027` — Triển Khai 3-Layer CSS Tokens, 3 Shells (`marketplace` / `pms-ops` / `governance`), Dark Mode & Typography
+> [!TIP]
+> **Trạng thái kiểm định nhánh `feature/wave4-uiux-design-system` (2026-11-19):**
+> - **Frontend Build:** `npm --prefix frontend run build` — exited `0`, **0 Errors, 0 Warnings** (`Application bundle generation complete`).
+> - **Frontend Unit Tests:** `npm --prefix frontend test -- --watch=false` — **54/54 files, 687/687 tests passed** (`Failed: 0`).
+> - **Static Audit & Hygiene:** **78/78** `@Component` dùng `ChangeDetectionStrategy.OnPush` (`MISSING_ONPUSH: 0`), **0** explicit `any` / `$any(`, **0** browser `confirm(`, **0** `Playfair Display` / `Material+Icons`, **0** Unsplash `<img src>` (chỉ còn bộ lọc blocklist), **0** component/layout `.subscribe(` thiếu teardown (`PrintVoucherPage` đã bổ sung `takeUntilDestroyed`), `git diff --check` exited `0`.
+> - **Backend Regression Checks:** `dotnet build backend/HotelSaas.slnx --verbosity minimal` (**0 Warnings, 0 Errors**); `HotelSaas.Domain.Tests` (**1/1**), `HotelSaas.WebApi.Tests` non-DB (**100/100**, loại trừ 9 lớp `RealDatabaseTests`), `HotelSaas.Application.Tests` non-DB (**434/434**, loại trừ 26 lớp `RealDatabaseTests` + `NotificationHubSecurityTests` do PostgreSQL cục bộ `127.0.0.1:5435` offline).
+> - **Responsive & Theme Coverage:** Verified via CSS design tokens (`[data-shell]` + `[data-theme="dark"]` + Tailwind `darkMode`), layout breakpoints & unit/build suites; live headless browser pixel screenshots at `375px`/`768px`/`1024px`/`1440px` were not captured in this offline run.
+
+### `T027` — Triển Khai 3-Layer CSS Tokens, 3 Shells (`marketplace` / `pms-ops` / `governance`), Dark Mode & Typography `[COMPLETED — Verified on feature/wave4-uiux-design-system]`
 - **Gap Refs:** `04-audit` Phần IV, Mục 3, 5, 6 | `NFR-DS01`–`NFR-DS03` | **Owner Role:** `frontend` (UI Architect)
 - **Dependencies:** `T019`
 - **Allowed Files:**
@@ -596,7 +604,7 @@
   npm --prefix frontend run build
   ```
 
-### `T028` — Nâng Cấp Shared Registry (`OnPush`, Signals, Touch 44px) & Chuẩn Hóa Pipe `businessDate`
+### `T028` — Nâng Cấp Shared Registry (`OnPush`, Signals, Touch 44px) & Chuẩn Hóa Pipe `businessDate` `[COMPLETED — Verified on feature/wave4-uiux-design-system]`
 - **Gap Refs:** `GAP-B23`, `04-audit` Mục 2, 4, §3.1, §3.5 | `NFR-NG01`, `NFR-NG03` | **Owner Role:** `frontend`
 - **Dependencies:** `T027`
 - **Allowed Files:**
@@ -614,7 +622,7 @@
   npm --prefix frontend run build
   ```
 
-### `T029` — Sửa A11y, Touch `>=44px`, `<img>` CLS & `OnPush` Cho Guest Portal & Auth Pages
+### `T029` — Sửa A11y, Touch `>=44px`, `<img>` CLS & `OnPush` Cho Guest Portal & Auth Pages `[COMPLETED — Verified on feature/wave4-uiux-design-system]`
 - **Gap Refs:** `GAP-A22`, `GAP-A24`, `04-audit` Mục 1–8 | `NFR-A11Y01`–`NFR-A11Y04` | **Owner Role:** `frontend`
 - **Dependencies:** `T025`, `T027`, `T028`
 - **Allowed Files:**
@@ -632,7 +640,7 @@
   npm --prefix frontend run build
   ```
 
-### `T030` — Sửa A11y, Modal Focus Trap, Touch `>=44px`, Hover-Trap & Emoji Sweep Cho B2B PMS & Governance
+### `T030` — Sửa A11y, Modal Focus Trap, Touch `>=44px`, Hover-Trap & Emoji Sweep Cho B2B PMS & Governance `[COMPLETED — Verified on feature/wave4-uiux-design-system]`
 - **Gap Refs:** `GAP-B21`, `GAP-B22`, `GAP-B24`, `GAP-C25`, `04-audit` Mục 1, 2, 4, 8 | **Owner Role:** `frontend`
 - **Dependencies:** `T027`, `T028`
 - **Allowed Files:**
@@ -646,7 +654,7 @@
   npm --prefix frontend run build
   ```
 
-### `T031` — Tích Hợp Chart.js (`<app-chart-card>`), `<p-table>`, Virtual Scroll & Hoàn Tất `OnPush`/`.subscribe()`/`any` Sweep
+### `T031` — Tích Hợp Chart.js (`<app-chart-card>`), `<p-table>`, Virtual Scroll & Hoàn Tất `OnPush`/`.subscribe()`/`any` Sweep `[COMPLETED — Verified on feature/wave4-uiux-design-system]`
 - **Gap Refs:** `04-audit` Mục 3, 10, §3.1–3.3 | `NFR-NG01`, `NFR-NG02` | **Owner Role:** `frontend`
 - **Dependencies:** `T028`, `T029`, `T030`
 - **Allowed Files:**
@@ -665,7 +673,7 @@
   npm --prefix frontend run build
   ```
 
-### `T032` — Hợp Nhất Cây Route (`/admin/*` & `/auth/*`), `UnsavedChangesGuard` & Kiểm Định Toàn Hệ Thống
+### `T032` — Hợp Nhất Cây Route (`/admin/*` & `/auth/*`), `UnsavedChangesGuard` & Kiểm Định Toàn Hệ Thống `[COMPLETED — Verified on feature/wave4-uiux-design-system]`
 - **Gap Refs:** `GAP-C18`, `04-audit` Mục 8, 9 | **Owner Role:** `frontend` + `qa`
 - **Dependencies:** `T026`, `T031`
 - **Allowed Files:**

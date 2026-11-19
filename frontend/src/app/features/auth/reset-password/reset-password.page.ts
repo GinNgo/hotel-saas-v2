@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -86,8 +87,9 @@ function passwordMatchValidator(group: AbstractControl): ValidationErrors | null
             <span>Thiếu mã xác thực đặt lại mật khẩu</span>
           </div>
           <p>Liên kết không chứa token hợp lệ hoặc đã bị cắt xén.</p>
-          <a routerLink="/auth/forgot-password" class="inline-block font-bold text-indigo-700 hover:underline">
-            Yêu cầu liên kết mới →
+          <a routerLink="/auth/forgot-password" class="min-h-11 inline-flex items-center gap-1.5 font-bold text-indigo-700 hover:underline">
+            <span>Yêu cầu liên kết mới</span>
+            <i class="pi pi-arrow-right text-[11px]"></i>
           </a>
         </div>
       } @else if (completed()) {
@@ -195,6 +197,7 @@ export class ResetPasswordPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
   private readonly notification = inject(NotificationService);
+  private readonly destroyRef = inject(DestroyRef);
 
   token = signal<string>('');
   isInviteMode = signal(false);
@@ -232,7 +235,7 @@ export class ResetPasswordPage implements OnInit {
     this.loading.set(true);
     this.errorMessage.set(null);
 
-    this.authService.resetPassword({ token: this.token(), newPassword }).subscribe({
+    this.authService.resetPassword({ token: this.token(), newPassword }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.loading.set(false);
         this.completed.set(true);

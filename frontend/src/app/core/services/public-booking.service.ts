@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { map, catchError, tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+import { ApiEnvelope, unwrapApiEnvelope } from '../models/api-response.model';
 import {
   PublicPropertyDto,
   PublicRoomTypeDto,
@@ -65,9 +66,33 @@ type RawPropertyPayload = Omit<Partial<PublicPropertyDto>, 'propertyType' | 'nea
   nearbyLandmarks?: RawLandmarkPayload[];
 };
 
-interface ApiDataEnvelope<T> {
-  data?: T;
+interface CreateVnpayUrlPayload {
+  reservationId?: string;
+  lookupToken?: string;
+  returnUrl?: string;
 }
+
+interface CreateVnpayUrlResult {
+  paymentUrl: string;
+  transactionRef: string;
+}
+
+interface GenerateVietQrResult {
+  qrImageUrl: string;
+  bankBin: string;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  amount: number;
+  description: string;
+  confirmationCode: string;
+  quickPayDeepLink: string;
+}
+
+type PropertyReviewsApiPayload =
+  | GuestReviewDto[]
+  | ApiEnvelope<GuestReviewDto[] | PropertyReviewsSummaryDto>
+  | PropertyReviewsSummaryDto;
 
 @Injectable({ providedIn: 'root' })
 export class PublicBookingService {
@@ -81,7 +106,7 @@ export class PublicBookingService {
     const params = this.buildPropertiesParams(filter);
 
     return this.http
-      .get<RawPropertyPayload[] | ApiDataEnvelope<RawPropertyPayload[]>>(`${this.apiUrl}/properties`, { params })
+      .get<RawPropertyPayload[] | ApiEnvelope<RawPropertyPayload[]>>(`${this.apiUrl}/properties`, { params })
       .pipe(
         map(res => {
           const list = Array.isArray(res) ? res : (res?.data ?? []);
@@ -99,7 +124,7 @@ export class PublicBookingService {
     const params = this.buildPropertiesParams(filter);
 
     return this.http
-      .get<RawPropertyPayload[] | ApiDataEnvelope<RawPropertyPayload[]>>(`${this.apiUrl}/properties`, {
+      .get<RawPropertyPayload[] | ApiEnvelope<RawPropertyPayload[]>>(`${this.apiUrl}/properties`, {
         params,
         observe: 'response',
       })
@@ -210,9 +235,9 @@ export class PublicBookingService {
    * Retrieves list of tourist zones for destination discovery and autocomplete.
    */
   getTouristZones(): Observable<TouristZoneDto[]> {
-    return this.http.get<any>(`${this.apiUrl}/tourist-zones`).pipe(
-      map(res => (res.data ? res.data : res) as TouristZoneDto[])
-    );
+    return this.http
+      .get<ApiEnvelope<TouristZoneDto[]> | TouristZoneDto[]>(`${this.apiUrl}/tourist-zones`)
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -226,9 +251,9 @@ export class PublicBookingService {
     if (options?.touristZoneSlug) {
       params = params.set('touristZoneSlug', options.touristZoneSlug);
     }
-    return this.http.get<any>(`${this.apiUrl}/landmarks`, { params }).pipe(
-      map(res => (res.data ? res.data : res) as LandmarkDto[])
-    );
+    return this.http
+      .get<ApiEnvelope<LandmarkDto[]> | LandmarkDto[]>(`${this.apiUrl}/landmarks`, { params })
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -236,13 +261,13 @@ export class PublicBookingService {
    */
   getPropertyBySlug(slug: string): Observable<PublicPropertyDto> {
     return this.http
-      .get<RawPropertyPayload | ApiDataEnvelope<RawPropertyPayload>>(
+      .get<RawPropertyPayload | ApiEnvelope<RawPropertyPayload>>(
         `${this.apiUrl}/properties/${encodeURIComponent(slug)}`
       )
       .pipe(
         map(res => {
           const payload =
-            res && typeof res === 'object' && 'data' in res && res.data !== undefined
+            res && typeof res === 'object' && 'data' in res && res.data !== undefined && res.data !== null
               ? res.data
               : (res as RawPropertyPayload);
           return this.normalizeProperty(payload ?? {});
@@ -254,9 +279,11 @@ export class PublicBookingService {
    * Retrieves all available room types for a specific property.
    */
   getRoomTypes(slug: string): Observable<PublicRoomTypeDto[]> {
-    return this.http.get<any>(`${this.apiUrl}/properties/${encodeURIComponent(slug)}/room-types`).pipe(
-      map(res => (res.data ? res.data : res) as PublicRoomTypeDto[])
-    );
+    return this.http
+      .get<ApiEnvelope<PublicRoomTypeDto[]> | PublicRoomTypeDto[]>(
+        `${this.apiUrl}/properties/${encodeURIComponent(slug)}/room-types`
+      )
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -284,16 +311,25 @@ export class PublicBookingService {
       params = params.set('checkOutDate', query.checkOutDate);
     }
 
-    return this.http.get<any>(`${this.apiUrl}/properties/${encodeURIComponent(slug)}/availability`, { params }).pipe(
-      map(res => {
-        const rooms = (res.data ?? res) as PublicRoomTypeAvailabilityDto[];
-        return rooms.map(room => ({ ...room, name: room.name ?? room.roomTypeName ?? '',
-          maxGuests: room.maxGuests ?? room.maxOccupancy ?? 0,
-          availableRoomsCount: room.availableRoomsCount ?? room.availableRooms ?? 0,
-          calculatedQuoteTotal: room.calculatedQuoteTotal ?? room.estimatedPrice ?? 0,
-          amenities: room.amenities ?? [], images: room.images ?? [] }));
-      })
-    );
+    return this.http
+      .get<ApiEnvelope<PublicRoomTypeAvailabilityDto[]> | PublicRoomTypeAvailabilityDto[]>(
+        `${this.apiUrl}/properties/${encodeURIComponent(slug)}/availability`,
+        { params }
+      )
+      .pipe(
+        map(res => {
+          const rooms = unwrapApiEnvelope(res) ?? [];
+          return rooms.map(room => ({
+            ...room,
+            name: room.name ?? room.roomTypeName ?? '',
+            maxGuests: room.maxGuests ?? room.maxOccupancy ?? 0,
+            availableRoomsCount: room.availableRoomsCount ?? room.availableRooms ?? 0,
+            calculatedQuoteTotal: room.calculatedQuoteTotal ?? room.estimatedPrice ?? 0,
+            amenities: room.amenities ?? [],
+            images: room.images ?? []
+          }));
+        })
+      );
   }
 
   /**
@@ -304,14 +340,18 @@ export class PublicBookingService {
     if (trimmedPromo) {
       const normalizedPromo = trimmedPromo.toUpperCase();
       const params = new HttpParams().set('promoCode', normalizedPromo);
-      return this.http.post<any>(`${this.apiUrl}/quotes`, { ...request, promoCode: normalizedPromo }, { params }).pipe(
-        map(res => (res.data ? res.data : res) as QuoteDto)
-      );
+      return this.http
+        .post<ApiEnvelope<QuoteDto> | QuoteDto>(
+          `${this.apiUrl}/quotes`,
+          { ...request, promoCode: normalizedPromo },
+          { params }
+        )
+        .pipe(map(unwrapApiEnvelope));
     }
 
-    return this.http.post<any>(`${this.apiUrl}/quotes`, request).pipe(
-      map(res => (res.data ? res.data : res) as QuoteDto)
-    );
+    return this.http
+      .post<ApiEnvelope<QuoteDto> | QuoteDto>(`${this.apiUrl}/quotes`, request)
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -323,20 +363,26 @@ export class PublicBookingService {
       headers['Idempotency-Key'] = request.idempotencyKey;
     }
 
-    return this.http.post<any>(`${this.apiUrl}/bookings/hold`, request, { headers }).pipe(
-      map(res => (res.data ? res.data : res) as GuestHoldDto),
-      tap(hold => this.broadcastLiveBookingPing('hold', hold?.reservationId))
-    );
+    return this.http
+      .post<ApiEnvelope<GuestHoldDto> | GuestHoldDto>(`${this.apiUrl}/bookings/hold`, request, { headers })
+      .pipe(
+        map(unwrapApiEnvelope),
+        tap(hold => this.broadcastLiveBookingPing('hold', hold?.reservationId))
+      );
   }
 
   /**
    * Looks up booking details via cryptographically secure lookup token (PII protected).
    */
   getBookingByToken(lookupToken: string): Observable<GuestBookingDetailDto> {
-    return this.http.get<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}`).pipe(
-      map(res => (res.data ? res.data : res) as GuestBookingDetailDto),
-      tap(detail => this.broadcastLiveBookingPing('confirm', detail?.reservationId, detail?.propertyId, lookupToken))
-    );
+    return this.http
+      .get<ApiEnvelope<GuestBookingDetailDto> | GuestBookingDetailDto>(
+        `${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}`
+      )
+      .pipe(
+        map(unwrapApiEnvelope),
+        tap(detail => this.broadcastLiveBookingPing('confirm', detail?.reservationId, detail?.propertyId, lookupToken))
+      );
   }
 
   /**
@@ -348,19 +394,27 @@ export class PublicBookingService {
       headers['Idempotency-Key'] = request.idempotencyKey;
     }
 
-    return this.http.post<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/confirm`, request ?? {}, { headers }).pipe(
-      map(res => (res.data ? res.data : res) as GuestBookingDetailDto),
-      tap(detail => this.broadcastLiveBookingPing('confirm', detail?.reservationId, detail?.propertyId, lookupToken))
-    );
+    return this.http
+      .post<ApiEnvelope<GuestBookingDetailDto> | GuestBookingDetailDto>(
+        `${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/confirm`,
+        request ?? {},
+        { headers }
+      )
+      .pipe(
+        map(unwrapApiEnvelope),
+        tap(detail => this.broadcastLiveBookingPing('confirm', detail?.reservationId, detail?.propertyId, lookupToken))
+      );
   }
 
   /**
    * Retrieves an authoritative pre-cancellation preview with breakdown of fees, refundable amounts, and loyalty points.
    */
   getCancellationPreview(lookupToken: string): Observable<GuestCancellationPreviewDto> {
-    return this.http.get<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/cancel-preview`).pipe(
-      map(res => (res.data ? res.data : res) as GuestCancellationPreviewDto)
-    );
+    return this.http
+      .get<ApiEnvelope<GuestCancellationPreviewDto> | GuestCancellationPreviewDto>(
+        `${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/cancel-preview`
+      )
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -372,30 +426,46 @@ export class PublicBookingService {
       headers['Idempotency-Key'] = request.idempotencyKey;
     }
 
-    return this.http.post<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/cancel`, request ?? {}, { headers }).pipe(
-      map(res => (res.data ? res.data : res) as GuestBookingDetailDto),
-      tap(detail => this.broadcastLiveBookingPing('cancel', detail?.reservationId, detail?.propertyId, lookupToken))
-    );
+    return this.http
+      .post<ApiEnvelope<GuestBookingDetailDto> | GuestBookingDetailDto>(
+        `${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/cancel`,
+        request ?? {},
+        { headers }
+      )
+      .pipe(
+        map(unwrapApiEnvelope),
+        tap(detail => this.broadcastLiveBookingPing('cancel', detail?.reservationId, detail?.propertyId, lookupToken))
+      );
   }
 
   /**
    * Extends active room hold timer by 5 minutes (maximum 1 extension per session).
    */
   extendHold(lookupToken: string): Observable<GuestBookingDetailDto> {
-    return this.http.post<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/extend`, {}).pipe(
-      map(res => (res.data ? res.data : res) as GuestBookingDetailDto),
-      tap(detail => this.broadcastLiveBookingPing('extend-hold', detail?.reservationId, detail?.propertyId, lookupToken))
-    );
+    return this.http
+      .post<ApiEnvelope<GuestBookingDetailDto> | GuestBookingDetailDto>(
+        `${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/extend`,
+        {}
+      )
+      .pipe(
+        map(unwrapApiEnvelope),
+        tap(detail => this.broadcastLiveBookingPing('extend-hold', detail?.reservationId, detail?.propertyId, lookupToken))
+      );
   }
 
   /**
    * Reschedules a held or confirmed guest booking to a new interval under row lock.
    */
   rescheduleBooking(lookupToken: string, request: RescheduleGuestBookingRequest): Observable<GuestBookingDetailDto> {
-    return this.http.post<any>(`${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/reschedule`, request).pipe(
-      map(res => (res.data ? res.data : res) as GuestBookingDetailDto),
-      tap(detail => this.broadcastLiveBookingPing('reschedule', detail?.reservationId, detail?.propertyId, lookupToken))
-    );
+    return this.http
+      .post<ApiEnvelope<GuestBookingDetailDto> | GuestBookingDetailDto>(
+        `${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}/reschedule`,
+        request
+      )
+      .pipe(
+        map(unwrapApiEnvelope),
+        tap(detail => this.broadcastLiveBookingPing('reschedule', detail?.reservationId, detail?.propertyId, lookupToken))
+      );
   }
 
   /**
@@ -406,7 +476,7 @@ export class PublicBookingService {
     lookupTokenOrReturnUrl?: string,
     returnUrl?: string
   ): Observable<{ paymentUrl: string; transactionRef: string }> {
-    let payload: any = {};
+    let payload: CreateVnpayUrlPayload = {};
     if (returnUrl) {
       payload = { reservationId, lookupToken: lookupTokenOrReturnUrl, returnUrl };
     } else if (lookupTokenOrReturnUrl && lookupTokenOrReturnUrl.startsWith('http')) {
@@ -415,9 +485,12 @@ export class PublicBookingService {
       payload = { reservationId, lookupToken: lookupTokenOrReturnUrl };
     }
 
-    return this.http.post<any>(`${environment.apiUrl}/payments/vnpay/create-url`, payload).pipe(
-      map(res => (res.data ? res.data : res))
-    );
+    return this.http
+      .post<ApiEnvelope<CreateVnpayUrlResult> | CreateVnpayUrlResult>(
+        `${environment.apiUrl}/payments/vnpay/create-url`,
+        payload
+      )
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -431,20 +504,13 @@ export class PublicBookingService {
     accountNumber?: string;
     accountName?: string;
     description?: string;
-  }): Observable<{
-    qrImageUrl: string;
-    bankBin: string;
-    bankName: string;
-    accountNumber: string;
-    accountName: string;
-    amount: number;
-    description: string;
-    confirmationCode: string;
-    quickPayDeepLink: string;
-  }> {
-    return this.http.post<any>(`${environment.apiUrl}/public/payments/vietqr/generate`, payload).pipe(
-      map(res => (res.data ? res.data : res))
-    );
+  }): Observable<GenerateVietQrResult> {
+    return this.http
+      .post<ApiEnvelope<GenerateVietQrResult> | GenerateVietQrResult>(
+        `${environment.apiUrl}/public/payments/vietqr/generate`,
+        payload
+      )
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -572,7 +638,7 @@ export class PublicBookingService {
     }
 
     return this.http
-      .get<TenantBrandDto[] | ApiDataEnvelope<TenantBrandDto[]>>(`${this.apiUrl}/brands`, { params })
+      .get<TenantBrandDto[] | ApiEnvelope<TenantBrandDto[]>>(`${this.apiUrl}/brands`, { params })
       .pipe(
         map(res => {
           const list = Array.isArray(res) ? res : (res?.data ?? []);
@@ -713,27 +779,43 @@ export class PublicBookingService {
   }
 
   getPropertyReviews(slug: string): Observable<GuestReviewDto[]> {
-    return this.http.get<any>(`${this.apiUrl}/properties/${encodeURIComponent(slug)}/reviews`).pipe(
-      map(res => {
-        if (Array.isArray(res)) return res as GuestReviewDto[];
-        if (Array.isArray(res?.data)) return res.data as GuestReviewDto[];
-        if (Array.isArray(res?.reviews)) return res.reviews as GuestReviewDto[];
-        return [];
-      }),
-      catchError(() => of([]))
-    );
+    return this.http
+      .get<PropertyReviewsApiPayload>(`${this.apiUrl}/properties/${encodeURIComponent(slug)}/reviews`)
+      .pipe(
+        map(res => {
+          if (Array.isArray(res)) return res;
+          if (res && typeof res === 'object') {
+            if ('data' in res) {
+              if (Array.isArray(res.data)) return res.data;
+              if (res.data && typeof res.data === 'object' && 'reviews' in res.data && Array.isArray(res.data.reviews)) {
+                return res.data.reviews;
+              }
+            }
+            if ('reviews' in res && Array.isArray(res.reviews)) {
+              return res.reviews;
+            }
+          }
+          return [];
+        }),
+        catchError(() => of([]))
+      );
   }
 
   getPropertyReviewsSummary(slug: string): Observable<PropertyReviewsSummaryDto> {
-    return this.http.get<any>(`${this.apiUrl}/properties/${encodeURIComponent(slug)}/reviews`).pipe(
-      map(res => (res.data ? res.data : res) as PropertyReviewsSummaryDto)
-    );
+    return this.http
+      .get<ApiEnvelope<PropertyReviewsSummaryDto> | PropertyReviewsSummaryDto>(
+        `${this.apiUrl}/properties/${encodeURIComponent(slug)}/reviews`
+      )
+      .pipe(map(unwrapApiEnvelope));
   }
 
   submitReview(request: SubmitGuestReviewRequest): Observable<GuestReviewDto> {
-    return this.http.post<any>(`${this.apiUrl}/bookings/${encodeURIComponent(request.lookupToken)}/review`, request).pipe(
-      map(res => (res.data ? res.data : res) as GuestReviewDto)
-    );
+    return this.http
+      .post<ApiEnvelope<GuestReviewDto> | GuestReviewDto>(
+        `${this.apiUrl}/bookings/${encodeURIComponent(request.lookupToken)}/review`,
+        request
+      )
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -745,17 +827,19 @@ export class PublicBookingService {
       params = params.set('tenantSlug', tenantSlug.trim());
     }
 
-    return this.http.get<PromotionDealDto[] | { data?: PromotionDealDto[] }>(`${this.apiUrl}/promotions`, { params }).pipe(
-      map(res => {
-        const items = Array.isArray(res) ? res : (res?.data ?? []);
-        return items.map(deal => ({
-          ...deal,
-          title: deal.title || deal.name || deal.code,
-          discountValue: deal.discountValue ?? deal.value ?? 0,
-          expiresAt: deal.expiresAt || deal.endsAtUtc || ''
-        }));
-      })
-    );
+    return this.http
+      .get<PromotionDealDto[] | ApiEnvelope<PromotionDealDto[]>>(`${this.apiUrl}/promotions`, { params })
+      .pipe(
+        map(res => {
+          const items = Array.isArray(res) ? res : (res?.data ?? []);
+          return items.map(deal => ({
+            ...deal,
+            title: deal.title || deal.name || deal.code,
+            discountValue: deal.discountValue ?? deal.value ?? 0,
+            expiresAt: deal.expiresAt || deal.endsAtUtc || ''
+          }));
+        })
+      );
   }
 
   private broadcastLiveBookingPing(action: string, reservationId?: string, propertyId?: string, lookupToken?: string): void {

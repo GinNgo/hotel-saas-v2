@@ -1,16 +1,43 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: ['selector', '[data-theme="dark"]'],
   content: [
     "./src/**/*.{html,ts}",
   ],
   theme: {
     extend: {
       fontFamily: {
-        serif: ['"Playfair Display"', 'Georgia', 'serif'],
-        sans: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'Consolas', 'monospace'],
+        sans: ['"Be Vietnam Pro"', '"Plus Jakarta Sans"', 'Inter', 'system-ui', 'sans-serif'],
+        display: ['"Be Vietnam Pro"', '"Plus Jakarta Sans"', 'Inter', 'system-ui', 'sans-serif'],
+        serif: ['"Be Vietnam Pro"', '"Plus Jakarta Sans"', 'Inter', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Consolas', 'monospace'],
       },
       colors: {
+        surface: {
+          canvas: 'var(--surface-canvas)',
+          card: 'var(--surface-card)',
+          subtle: 'var(--surface-subtle)',
+          elevated: 'var(--surface-elevated)',
+        },
+        brand: {
+          DEFAULT: 'var(--brand-primary)',
+          hover: 'var(--brand-primary-hover)',
+          fg: 'var(--brand-primary-fg)',
+          accent: 'var(--brand-accent)',
+        },
+        cta: {
+          DEFAULT: 'var(--brand-cta)',
+          hover: 'var(--brand-cta-hover)',
+        },
+        text: {
+          primary: 'var(--text-primary)',
+          secondary: 'var(--text-secondary)',
+          muted: 'var(--text-muted)',
+        },
+        border: {
+          subtle: 'var(--border-subtle)',
+          strong: 'var(--border-strong)',
+        },
         indochine: {
           50: '#f0fdf9',
           100: '#ccfbf1',

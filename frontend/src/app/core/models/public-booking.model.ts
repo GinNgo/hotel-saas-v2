@@ -111,20 +111,46 @@ export interface LandmarkDto {
   addressHint?: string;
 }
 
-export interface SuggestedFilterChipDto {
+export interface SuggestedFilterChipBaseDto {
   id: string;
   label: string;
   category: 'nearby' | 'price' | 'rating' | 'rentalType' | 'amenity';
-  filterKey: string;
-  filterValue: any;
   count?: number;
   isActive?: boolean;
+}
+
+export type SuggestedFilterChipDto =
+  | (SuggestedFilterChipBaseDto & {
+      filterKey: 'maxDistanceMeters' | 'maxPrice' | 'minStarRating';
+      filterValue: number;
+    })
+  | (SuggestedFilterChipBaseDto & {
+      filterKey: 'destinationKeyword' | 'amenity';
+      filterValue: string;
+    })
+  | (SuggestedFilterChipBaseDto & {
+      filterKey: 'rentalType';
+      filterValue: RentalType;
+    });
+
+export interface AiSmartExtractedFiltersDto {
+  rentalType?: RentalType | number | null;
+  destinationKeyword?: string | null;
+  provinceCode?: string | null;
+  touristZoneSlug?: string | null;
+  landmarkSlug?: string | null;
+  landmarkName?: string | null;
+  propertyTypes?: Array<PropertyType | number>;
+  minGuests?: number | null;
+  maxPrice?: number | null;
+  maxDistanceMeters?: number | null;
+  amenities?: string[];
 }
 
 export interface AiSmartSearchResponseDto {
   query: string;
   summaryMessage: string;
-  extractedFilters: any;
+  extractedFilters: AiSmartExtractedFiltersDto;
   suggestedFilterChips: SuggestedFilterChipDto[];
   properties: PublicPropertyDto[];
   totalResults: number;

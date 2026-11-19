@@ -31,6 +31,9 @@ import { RoomPhoto, RoomAmenityItem } from '../../../core/services/room-gallery.
             *ngIf="heroImageUrl; else fallbackHero"
             [src]="heroImageUrl"
             [alt]="roomType.roomTypeName || roomType.name"
+            width="800"
+            height="450"
+            loading="lazy"
             class="w-full h-full object-cover"
           />
           <ng-template #fallbackHero>
@@ -50,7 +53,7 @@ import { RoomPhoto, RoomAmenityItem } from '../../../core/services/room-gallery.
             type="button"
             (click)="closeModal()"
             cdkFocusInitial
-            class="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-slate-900/60 hover:bg-slate-900/90 text-white flex items-center justify-center transition-colors focus-visible:outline-2 focus-visible:outline-white cursor-pointer"
+            class="absolute top-4 right-4 z-10 min-w-11 min-h-11 w-11 h-11 rounded-full bg-slate-900/60 hover:bg-slate-900/90 text-white flex items-center justify-center transition-colors focus-visible:outline-2 focus-visible:outline-white cursor-pointer"
             aria-label="Đóng chi tiết phòng">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
@@ -183,7 +186,7 @@ import { RoomPhoto, RoomAmenityItem } from '../../../core/services/room-gallery.
           <div>
             <span class="text-[10px] uppercase font-bold text-slate-400 block">Giá dự kiến:</span>
             <div *ngIf="displayPrice > 0; else referencePrice" class="flex items-baseline gap-1">
-              <strong class="text-xl sm:text-2xl font-black text-indigo-600">
+              <strong class="text-xl sm:text-2xl font-black text-indigo-600 tabular-nums">
                 {{ displayPrice | number:'1.0-0' }} ₫
               </strong>
               <span class="text-xs text-slate-500">theo biểu giá cơ sở</span>

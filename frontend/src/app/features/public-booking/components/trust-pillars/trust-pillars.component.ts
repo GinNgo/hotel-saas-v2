@@ -21,7 +21,7 @@ interface TrustPillar {
         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold uppercase tracking-wider mb-2">
           <i class="pi pi-shield"></i> Vận Hành Minh Bạch
         </span>
-        <h2 class="font-serif text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+        <h2 class="font-display text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
           An Tâm Kiểm Tra Phòng Trống &amp; Báo Giá Trực Tiếp
         </h2>
         <p class="text-xs sm:text-sm text-slate-500 mt-1">

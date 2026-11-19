@@ -58,7 +58,7 @@ describe('Public and management route boundaries', () => {
     await router.navigateByUrl('/admin/dashboard');
     const destination = router.parseUrl(router.url);
     expect(destination.root.children['primary'].segments.map(segment => segment.path)).toEqual(['auth', 'login']);
-    expect(destination.queryParams).toEqual({ portal: 'admin', returnUrl: '/admin/dashboard' });
+    expect(destination.queryParams).toEqual({ portal: 'admin', returnUrl: '/dashboard' });
   });
 
   it('keeps customer tokens out of the PMS layout', async () => {
@@ -76,10 +76,10 @@ describe('Public and management route boundaries', () => {
   it('lets the platform administrator reach plan management and ops readiness', async () => {
     role = 'SuperAdmin';
     await router.navigateByUrl('/admin/plans');
-    expect(router.url).toBe('/admin/plans');
+    expect(router.url).toBe('/plans');
 
     await router.navigateByUrl('/admin/ops-readiness');
-    expect(router.url).toBe('/admin/ops-readiness');
+    expect(router.url).toBe('/ops-readiness');
 
     await router.navigateByUrl('/ops-readiness');
     expect(router.url).toBe('/ops-readiness');

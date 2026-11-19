@@ -91,8 +91,8 @@ export interface RecentSearchItem {
               role="tab"
               [attr.aria-selected]="rentalType() === tab.type"
               (click)="selectRentalType(tab.type)"
-              class="flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer"
-              [class.bg-[#0D2E28]]="rentalType() === tab.type"
+              class="min-h-11 flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer"
+              [class.bg-[var(--brand-primary)]]="rentalType() === tab.type"
               [class.text-white]="rentalType() === tab.type"
               [class.shadow-sm]="rentalType() === tab.type"
               [class.text-slate-700]="rentalType() !== tab.type"
@@ -130,8 +130,8 @@ export interface RecentSearchItem {
         <div
           class="flex items-center gap-2 text-xs md:text-sm bg-amber-50/80 text-amber-950 px-3.5 py-2 rounded-xl border border-amber-200/80"
         >
-          <i class="pi pi-clock text-[#C05621]"></i>
-          <span>{{ computedStaySummary() }}</span>
+          <i class="pi pi-clock text-[var(--brand-cta)]"></i>
+          <span class="tabular-nums">{{ computedStaySummary() }}</span>
         </div>
       </div>
 
@@ -139,18 +139,18 @@ export interface RecentSearchItem {
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
         <!-- Cột 1: Điểm đến / Địa danh / Khu du lịch / Tên cơ sở (4 cột) -->
         <div #destinationGroup class="lg:col-span-4 relative flex flex-col">
-          <div class="flex items-center justify-between mb-1.5 h-6">
+          <div class="flex items-center justify-between mb-1.5 min-h-11">
             <label for="booking-destination" class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
               Địa danh, Khu du lịch hoặc Cơ sở
             </label>
             <button
               type="button"
               (click)="useCurrentLocation()"
-              class="text-xs text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0"
+              class="min-h-11 px-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0"
               title="Tìm cơ sở lưu trú gần vị trí của tôi"
             >
-              <i class="pi pi-compass text-xs" [class.pi-spin]="isLocating()"></i>
-              <span>{{ isLocating() ? 'Đang định vị...' : '📍 Gần tôi' }}</span>
+              <i class="pi text-xs" [ngClass]="isLocating() ? 'pi-spin pi-compass' : 'pi-map-marker'"></i>
+              <span>{{ isLocating() ? 'Đang định vị...' : 'Gần tôi' }}</span>
             </button>
           </div>
           <div class="relative">
@@ -171,13 +171,14 @@ export interface RecentSearchItem {
               [attr.aria-controls]="showSuggestionsDropdown() && filteredSuggestions().length > 0 ? 'destination-options' : null"
               [attr.aria-activedescendant]="showSuggestionsDropdown() && activeSuggestion() >= 0 ? 'destination-option-' + activeSuggestion() : null"
               placeholder="VD: Chợ đêm Đà Lạt, Bãi Sau, Chợ Bến Thành, Nhà nghỉ..."
-              class="w-full h-11 pl-10 pr-9 rounded-xl border border-slate-300 text-sm font-medium text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-2xs transition-colors"
+              class="w-full h-11 pl-10 pr-11 rounded-xl border border-slate-300 text-sm font-medium text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-2xs transition-colors"
             />
             @if (destinationKeyword()) {
               <button
                 type="button"
                 (click)="clearDestination()"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                aria-label="Xóa địa điểm đã nhập"
+                class="min-w-11 min-h-11 flex items-center justify-center absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                 title="Xóa địa điểm"
               >
                 <i class="pi pi-times-circle"></i>
@@ -192,7 +193,7 @@ export interface RecentSearchItem {
             >
               <!-- 1. LỊCH SỬ TÌM KIẾM GẦN ĐÂY -->
               @if (!destinationKeyword().trim() && recentSearches().length > 0) {
-                <div class="px-3.5 py-2.5 bg-slate-50 flex items-center justify-between text-xs">
+                <div class="px-3.5 py-1.5 bg-slate-50 flex items-center justify-between text-xs">
                   <span class="font-bold flex items-center gap-1.5 text-slate-700">
                     <i class="pi pi-history text-indigo-600"></i>
                     <span>Lịch sử tìm kiếm gần đây</span>
@@ -200,18 +201,19 @@ export interface RecentSearchItem {
                   <button
                     type="button"
                     (click)="clearAllRecentSearches($event)"
-                    class="text-xs text-red-500 hover:text-red-700 hover:underline font-medium cursor-pointer"
+                    class="min-h-11 px-2 text-xs text-red-500 hover:text-red-700 hover:underline font-medium cursor-pointer"
                   >
                     Xóa tất cả
                   </button>
                 </div>
                 <div class="divide-y divide-slate-100 max-h-44 overflow-y-auto">
                   @for (recent of recentSearches(); track recent.id) {
-                    <div
-                      (click)="selectRecentSearch(recent)"
-                      class="w-full px-4 py-2.5 text-left hover:bg-indigo-50/60 flex items-center justify-between gap-3 transition-colors cursor-pointer group"
-                    >
-                      <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-full px-2 py-1 hover:bg-indigo-50/60 flex items-center justify-between gap-2 transition-colors group">
+                      <button
+                        type="button"
+                        (click)="selectRecentSearch(recent)"
+                        class="flex-1 min-w-0 min-h-11 px-2 py-1.5 text-left flex items-center gap-3 cursor-pointer rounded-lg"
+                      >
                         <span class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 text-xs">
                           <i class="pi pi-clock"></i>
                         </span>
@@ -223,11 +225,12 @@ export interface RecentSearchItem {
                             <p class="text-xs text-slate-400 truncate">{{ recent.provinceName }}</p>
                           }
                         </div>
-                      </div>
+                      </button>
                       <button
                         type="button"
                         (click)="removeRecentSearch(recent, $event)"
-                        class="text-slate-300 hover:text-red-500 p-1.5 rounded-md transition-colors"
+                        aria-label="Xóa tìm kiếm gần đây"
+                        class="min-w-11 min-h-11 flex items-center justify-center text-slate-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer shrink-0"
                         title="Xóa mục này"
                       >
                         <i class="pi pi-times text-xs"></i>
@@ -330,17 +333,17 @@ export interface RecentSearchItem {
               </label>
               <span class="text-[11px] text-slate-400 shrink-0">1 phòng</span>
             </div>
-            <div class="flex items-center border border-slate-300 rounded-xl px-2 h-11 bg-white hover:border-slate-400 shadow-2xs transition-colors" role="group" aria-label="Số khách, một phòng">
+            <div class="flex items-center border border-slate-300 rounded-xl px-0.5 h-11 bg-white hover:border-slate-400 shadow-2xs transition-colors" role="group" aria-label="Số khách, một phòng">
               <button
                 type="button"
                 (click)="adjustGuests(-1)"
                 [disabled]="guests() <= 1"
                 aria-label="Giảm số khách"
-                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                class="min-w-11 min-h-11 w-11 h-11 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 -
               </button>
-              <div class="flex-1 text-center text-xs font-semibold text-slate-800 truncate" aria-live="polite" aria-atomic="true">
+              <div class="flex-1 text-center text-xs font-semibold text-slate-800 truncate tabular-nums" aria-live="polite" aria-atomic="true">
                 {{ guests() }} khách
               </div>
               <button
@@ -348,7 +351,7 @@ export interface RecentSearchItem {
                 (click)="adjustGuests(1)"
                 [disabled]="guests() >= 20"
                 aria-label="Tăng số khách"
-                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                class="min-w-11 min-h-11 w-11 h-11 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 +
               </button>
@@ -363,7 +366,7 @@ export interface RecentSearchItem {
             <button
               type="button"
               (click)="emitSearch()"
-              class="w-full h-11 px-4 bg-[#C05621] hover:bg-[#a34315] active:bg-[#823510] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+              class="w-full h-11 px-4 bg-[var(--brand-cta)] hover:bg-[var(--brand-cta-hover)] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <i class="pi pi-search"></i>
               <span>Tìm phòng</span>
@@ -386,7 +389,7 @@ export interface RecentSearchItem {
           <button
             type="button"
             (click)="clearPropertyTypes()"
-            class="px-3 py-1.5 rounded-full text-xs font-semibold border transition-all cursor-pointer"
+            class="min-h-11 px-3.5 py-2 rounded-full text-xs font-semibold border transition-all cursor-pointer"
             [class.bg-slate-900]="selectedPropertyTypes().length === 0"
             [class.text-white]="selectedPropertyTypes().length === 0"
             [class.border-slate-900]="selectedPropertyTypes().length === 0"
@@ -401,10 +404,10 @@ export interface RecentSearchItem {
             <button
               type="button"
               (click)="togglePropertyType(chip.type)"
-              class="px-3 py-1.5 rounded-full text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer"
-              [class.bg-[#0D2E28]]="isPropertyTypeSelected(chip.type)"
+              class="min-h-11 px-3.5 py-2 rounded-full text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer"
+              [class.bg-[var(--brand-primary)]]="isPropertyTypeSelected(chip.type)"
               [class.text-white]="isPropertyTypeSelected(chip.type)"
-              [class.border-[#0D2E28]]="isPropertyTypeSelected(chip.type)"
+              [class.border-[var(--brand-primary)]]="isPropertyTypeSelected(chip.type)"
               [class.bg-white]="!isPropertyTypeSelected(chip.type)"
               [class.text-slate-700]="!isPropertyTypeSelected(chip.type)"
               [class.border-slate-300]="!isPropertyTypeSelected(chip.type)"
@@ -423,7 +426,7 @@ export interface RecentSearchItem {
             <button
               type="button"
               (click)="selectQuickLandmark(quickSpot)"
-              class="text-indigo-600 hover:text-indigo-800 hover:underline font-medium px-1.5 py-0.5 rounded bg-indigo-50/60 cursor-pointer"
+              class="min-h-11 inline-flex items-center text-indigo-600 hover:text-indigo-800 hover:underline font-medium px-2.5 py-1 rounded bg-indigo-50/60 cursor-pointer"
             >
               #{{ quickSpot.name }}
             </button>

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { A11yModule } from '@angular/cdk/a11y';
 import { take } from 'rxjs';
 import { PublicBookingService } from '../../core/services/public-booking.service';
 import { AlertService } from '../../core/services/alert.service';
@@ -29,10 +30,10 @@ export interface StatusErrorState {
 @Component({
   selector: 'app-booking-status',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, A11yModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="min-h-screen bg-[#EFECE6] py-6 sm:py-8 font-sans text-stone-900">
+    <div class="min-h-screen bg-[var(--surface-canvas)] py-6 sm:py-8 font-sans text-stone-900">
       <div class="max-w-4xl mx-auto px-4 sm:px-6 space-y-6">
 
         <!-- 1. BREADCRUMB -->
@@ -201,7 +202,7 @@ export interface StatusErrorState {
           <article class="bg-white rounded-3xl border-2 border-stone-300 shadow-md overflow-hidden space-y-0 animate-in fade-in duration-200 print:hidden">
 
             <!-- A. HEADER & TRẠNG THÁI TỔNG QUAN -->
-            <div class="p-6 sm:p-8 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-[#0D2E28] via-[#103A32] to-[#15463D] text-white rounded-t-3xl shadow-xs">
+            <div class="p-6 sm:p-8 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[var(--brand-primary)] text-white rounded-t-3xl shadow-xs">
               <div class="space-y-2">
                 <div class="flex flex-wrap items-center gap-2">
                   <span [class]="getStatusBadgeClass(detail.status)" class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full border shadow-2xs">
@@ -449,13 +450,15 @@ export interface StatusErrorState {
                       <i class="pi text-xs transition-transform group-hover:scale-110" [ngClass]="isCodeCopied() ? 'pi-check text-emerald-700' : 'pi-copy text-emerald-600'"></i>
                     </button>
                   </div>
-                  <div
+                  <button
+                    type="button"
                     (click)="copyConfirmationCode(detail.confirmationCode)"
-                    class="font-mono text-2xl sm:text-3xl font-extrabold text-emerald-600 tracking-wider py-1 select-all cursor-pointer hover:text-emerald-700 transition-colors"
+                    class="min-h-11 w-full font-mono text-2xl sm:text-3xl font-extrabold text-emerald-600 tracking-wider py-1 select-all cursor-pointer hover:text-emerald-700 transition-colors text-center"
                     title="Nhấp để sao chép mã đặt phòng"
+                    aria-label="Sao chép mã đặt phòng {{ detail.confirmationCode }}"
                   >
                     {{ detail.confirmationCode }}
-                  </div>
+                  </button>
                   <p class="text-[11px] text-slate-500 font-medium mt-0.5">
                     Vui lòng cung cấp mã này tại quầy lễ tân
                   </p>
@@ -815,15 +818,15 @@ export interface StatusErrorState {
                             <span class="font-bold text-slate-800 block">Vệ sinh &amp; Sạch sẽ</span>
                             <span class="text-[10px] text-slate-500">Phòng ốc, drap giường, phòng tắm</span>
                           </div>
-                          <div class="flex items-center gap-1">
+                          <div class="flex items-center gap-0.5">
                             @for (s of [1,2,3,4,5]; track s) {
                               <button
                                 type="button"
                                 (click)="reviewCleanliness.set(s)"
                                 [attr.aria-label]="'Vệ sinh ' + s + ' sao'"
-                                class="text-xs p-1 cursor-pointer hover:scale-110 transition-transform focus:outline-none"
+                                class="min-w-11 min-h-11 inline-flex items-center justify-center text-xs cursor-pointer hover:scale-110 transition-transform focus:outline-none"
                               >
-                                <i class="pi text-xs" [ngClass]="s <= reviewCleanliness() ? 'pi-star-fill text-emerald-600' : 'pi-star text-slate-200'"></i>
+                                <i class="pi text-sm" [ngClass]="s <= reviewCleanliness() ? 'pi-star-fill text-emerald-600' : 'pi-star text-slate-300'"></i>
                               </button>
                             }
                           </div>
@@ -835,15 +838,15 @@ export interface StatusErrorState {
                             <span class="font-bold text-slate-800 block">Vị trí &amp; Cảnh quan</span>
                             <span class="text-[10px] text-slate-500">Thuận tiện đi lại, gần điểm đến</span>
                           </div>
-                          <div class="flex items-center gap-1">
+                          <div class="flex items-center gap-0.5">
                             @for (s of [1,2,3,4,5]; track s) {
                               <button
                                 type="button"
                                 (click)="reviewLocation.set(s)"
                                 [attr.aria-label]="'Vị trí ' + s + ' sao'"
-                                class="text-xs p-1 cursor-pointer hover:scale-110 transition-transform focus:outline-none"
+                                class="min-w-11 min-h-11 inline-flex items-center justify-center text-xs cursor-pointer hover:scale-110 transition-transform focus:outline-none"
                               >
-                                <i class="pi text-xs" [ngClass]="s <= reviewLocation() ? 'pi-star-fill text-[#C05621]' : 'pi-star text-slate-200'"></i>
+                                <i class="pi text-sm" [ngClass]="s <= reviewLocation() ? 'pi-star-fill text-[var(--brand-cta)]' : 'pi-star text-slate-300'"></i>
                               </button>
                             }
                           </div>
@@ -855,15 +858,15 @@ export interface StatusErrorState {
                             <span class="font-bold text-slate-800 block">Dịch vụ &amp; Nhân viên</span>
                             <span class="text-[10px] text-slate-500">Thái độ tiếp đón, hỗ trợ lễ tân</span>
                           </div>
-                          <div class="flex items-center gap-1">
+                          <div class="flex items-center gap-0.5">
                             @for (s of [1,2,3,4,5]; track s) {
                               <button
                                 type="button"
                                 (click)="reviewService.set(s)"
                                 [attr.aria-label]="'Dịch vụ ' + s + ' sao'"
-                                class="text-xs p-1 cursor-pointer hover:scale-110 transition-transform focus:outline-none"
+                                class="min-w-11 min-h-11 inline-flex items-center justify-center text-xs cursor-pointer hover:scale-110 transition-transform focus:outline-none"
                               >
-                                <i class="pi text-xs" [ngClass]="s <= reviewService() ? 'pi-star-fill text-rose-500' : 'pi-star text-slate-200'"></i>
+                                <i class="pi text-sm" [ngClass]="s <= reviewService() ? 'pi-star-fill text-rose-500' : 'pi-star text-slate-300'"></i>
                               </button>
                             }
                           </div>
@@ -875,15 +878,15 @@ export interface StatusErrorState {
                             <span class="font-bold text-slate-800 block">Đáng giá tiền</span>
                             <span class="text-[10px] text-slate-500">Mức giá so với chất lượng nhận được</span>
                           </div>
-                          <div class="flex items-center gap-1">
+                          <div class="flex items-center gap-0.5">
                             @for (s of [1,2,3,4,5]; track s) {
                               <button
                                 type="button"
                                 (click)="reviewValue.set(s)"
                                 [attr.aria-label]="'Đáng giá ' + s + ' sao'"
-                                class="text-xs p-1 cursor-pointer hover:scale-110 transition-transform focus:outline-none"
+                                class="min-w-11 min-h-11 inline-flex items-center justify-center text-xs cursor-pointer hover:scale-110 transition-transform focus:outline-none"
                               >
-                                <i class="pi text-xs" [ngClass]="s <= reviewValue() ? 'pi-star-fill text-amber-600' : 'pi-star text-slate-200'"></i>
+                                <i class="pi text-sm" [ngClass]="s <= reviewValue() ? 'pi-star-fill text-amber-600' : 'pi-star text-slate-300'"></i>
                               </button>
                             }
                           </div>
@@ -897,7 +900,7 @@ export interface StatusErrorState {
                         <label for="review-comment-textarea" class="font-bold text-slate-700">
                           Nhận xét chi tiết (tùy chọn)
                         </label>
-                        <span class="text-slate-400 font-mono text-[11px]">
+                        <span class="text-slate-400 font-mono text-[11px] tabular-nums">
                           {{ reviewComment().length }}/1500 ký tự
                         </span>
                       </div>
@@ -1104,7 +1107,7 @@ export interface StatusErrorState {
                     <!-- PHƯƠNG THỨC THANH TOÁN (DEDICATED PAYMENT GATEWAY HUB - HIGH CONTRAST & INTUITIVE) -->
                     @if (detail.status === 'PendingPayment') {
                       <div class="pt-4 border-t border-stone-200">
-                        <div class="p-5 sm:p-6 rounded-3xl bg-[#FAF7F2] border-2 border-stone-300 shadow-md space-y-5">
+                        <div class="p-5 sm:p-6 rounded-3xl bg-[var(--surface-card)] border-2 border-stone-300 shadow-md space-y-5">
                           <div class="flex items-center justify-between pb-3 border-b border-slate-200">
                             <div class="flex items-center gap-2.5">
                               <div class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-sm">
@@ -1126,10 +1129,10 @@ export interface StatusErrorState {
                           <div class="grid grid-cols-1 gap-3.5">
                             
                             <!-- Option 1: Cổng VNPAY -->
-                            <div class="p-4 sm:p-5 rounded-2xl bg-blue-50/90 border-2 border-blue-300 hover:border-[#005BAA] transition-all space-y-3"
+                            <div class="p-4 sm:p-5 rounded-2xl bg-blue-50/90 border-2 border-blue-300 hover:border-blue-700 transition-all space-y-3"
                               [class.ring-2]="selectedPaymentMethod() === 'VNPay'" [class.ring-blue-600]="selectedPaymentMethod() === 'VNPay'">
                               <div class="flex items-center justify-between">
-                                <span class="px-2 py-0.5 rounded-md bg-[#005BAA] text-white text-[10px] font-black uppercase tracking-wider">
+                                <span class="px-2 py-0.5 rounded-md bg-blue-700 text-white text-[10px] font-black uppercase tracking-wider">
                                   {{ devMode ? 'VNPAY SANDBOX' : 'VNPAY' }}
                                 </span>
                                 <span class="text-[11px] font-semibold text-blue-900">Tự động xác nhận (IPN)</span>
@@ -1139,15 +1142,15 @@ export interface StatusErrorState {
                               </p>
                               @if (devMode) {
                                 <div class="p-2 rounded-lg bg-white border border-blue-100 text-[10px] text-slate-600 space-y-0.5" data-testid="vnpay-sandbox-test-card">
-                                  <div>Thẻ test: <strong class="text-slate-800">NCB</strong> &bull; Số: <strong class="font-mono text-slate-900">9704198526191432198</strong></div>
-                                  <div>Tên: <strong class="text-slate-800">NGUYEN VAN A</strong> &bull; OTP: <strong class="font-mono text-slate-900">123456</strong></div>
+                                  <div>Thẻ test: <strong class="text-slate-800">NCB</strong> &bull; Số: <strong class="font-mono tabular-nums text-slate-900">9704198526191432198</strong></div>
+                                  <div>Tên: <strong class="text-slate-800">NGUYEN VAN A</strong> &bull; OTP: <strong class="font-mono tabular-nums text-slate-900">123456</strong></div>
                                 </div>
                               }
                               <button
                                 type="button"
                                 (click)="payWithVnpay()"
                                 [disabled]="isVnpayRedirecting()"
-                                class="w-full py-2.5 px-3.5 rounded-xl bg-[#005BAA] hover:bg-[#004785] active:bg-[#003868] text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-colors disabled:opacity-50"
+                                class="w-full min-h-11 py-2.5 px-3.5 rounded-xl bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-colors disabled:opacity-50"
                               >
                                 @if (isVnpayRedirecting()) {
                                   <i class="pi pi-spin pi-spinner text-xs"></i>
@@ -1172,7 +1175,7 @@ export interface StatusErrorState {
 
                               <div class="p-2.5 bg-white rounded-xl border border-amber-200 flex items-center gap-3 shadow-2xs">
                                 @if (vietQr(); as qr) {
-                                  <img [src]="qr.qrImageUrl" alt="Mã thanh toán VietQR" class="w-20 h-20 object-contain shrink-0 rounded-lg border border-slate-100" />
+                                  <img [src]="qr.qrImageUrl" alt="Mã thanh toán VietQR" width="80" height="80" loading="lazy" class="w-20 h-20 object-contain shrink-0 rounded-lg border border-slate-100" />
                                 } @else {
                                   <div role="status" class="w-20 h-20 flex items-center justify-center shrink-0 rounded-lg border border-slate-100 text-slate-400">
                                     <i class="pi" [class.pi-spin]="isVietQrLoading()" [class.pi-spinner]="isVietQrLoading()" [class.pi-qrcode]="!isVietQrLoading()"></i>
@@ -1181,7 +1184,7 @@ export interface StatusErrorState {
                                 <div class="text-[10px] space-y-0.5 min-w-0 flex-1">
                                   <div class="font-bold text-slate-900 truncate">{{ vietQr()?.bankName || (vietQrError() ? 'Chưa cấu hình ngân hàng' : 'Đang tạo thông tin thanh toán…') }}</div>
                                   <div class="text-slate-500 text-[10px]">CTK: {{ vietQr()?.accountName || '—' }}</div>
-                                  <div class="font-mono text-emerald-700 font-bold text-[11px]">
+                                  <div class="font-mono tabular-nums text-emerald-700 font-bold text-[11px]">
                                     Số tiền: {{ (vietQr()?.amount ?? getRemainingDeposit(detail)) | number:'1.0-0' }} ₫
                                   </div>
                                   <div class="text-amber-800 font-mono font-bold text-[10px] bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 truncate">
@@ -1500,6 +1503,9 @@ export interface StatusErrorState {
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-cancel-title"
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
+        (keydown.escape)="closeCancelModal()"
         (click)="closeCancelModal()"
       >
         <div
@@ -1525,7 +1531,7 @@ export interface StatusErrorState {
               type="button"
               (click)="closeCancelModal()"
               [disabled]="isCancelling()"
-              class="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+              class="min-h-11 min-w-11 inline-flex items-center justify-center text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
               aria-label="Đóng cửa sổ"
             >
               <i class="pi pi-times text-base"></i>
@@ -1549,7 +1555,7 @@ export interface StatusErrorState {
                 <button
                   type="button"
                   (click)="loadCancelPreview()"
-                  class="mt-2 px-3 py-1.5 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700 transition-colors cursor-pointer"
+                  class="mt-2 min-h-11 inline-flex items-center px-4 py-2 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700 transition-colors cursor-pointer"
                 >
                   Thử lại
                 </button>
@@ -1657,7 +1663,7 @@ export interface StatusErrorState {
                   }
                 </div>
 
-                <div class="space-y-2 text-slate-700">
+                <div class="space-y-2 text-slate-700 tabular-nums">
                   <div class="flex justify-between items-center">
                     <span>Tổng tiền phòng:</span>
                     <span class="font-mono font-semibold text-slate-900">{{ prev.totalAmount | number:'1.0-0' }} ₫</span>
@@ -1684,7 +1690,7 @@ export interface StatusErrorState {
                 </div>
 
                 <!-- Highlight Refundable Amount -->
-                <div class="pt-3 border-t border-slate-200 flex items-center justify-between font-black text-sm text-emerald-800 bg-emerald-50/80 -mx-4 -mb-4 p-4 rounded-b-2xl">
+                <div class="pt-3 border-t border-slate-200 flex items-center justify-between font-black text-sm text-emerald-800 bg-emerald-50/80 -mx-4 -mb-4 p-4 rounded-b-2xl tabular-nums">
                   <span>Khoản tiền dự kiến hoàn trả:</span>
                   <span class="font-mono text-base text-emerald-700">{{ prev.refundableAmount | number:'1.0-0' }} ₫</span>
                 </div>
@@ -1698,7 +1704,7 @@ export interface StatusErrorState {
                     <span>Quy trình hủy phòng & hoàn tiền:</span>
                   </div>
                   <p class="leading-relaxed text-[11px] text-amber-950 font-medium">
-                    Đặt phòng sẽ được hủy sau khi bạn xác nhận. Khoản hoàn dự kiến <strong class="font-bold font-mono text-amber-950">{{ prev.refundableAmount | number:'1.0-0' }} ₫</strong> sẽ được khách sạn kiểm tra và xử lý theo quy trình hoàn tiền. Đây chưa phải khoản tiền đã được hoàn.
+                    Đặt phòng sẽ được hủy sau khi bạn xác nhận. Khoản hoàn dự kiến <strong class="font-bold font-mono tabular-nums text-amber-950">{{ prev.refundableAmount | number:'1.0-0' }} ₫</strong> sẽ được khách sạn kiểm tra và xử lý theo quy trình hoàn tiền. Đây chưa phải khoản tiền đã được hoàn.
                   </p>
                 </div>
               }
@@ -1766,7 +1772,7 @@ export interface StatusErrorState {
               type="button"
               (click)="closeCancelModal()"
               [disabled]="isCancelling()"
-              class="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+              class="min-h-11 inline-flex items-center px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
             >
               Giữ lại đặt phòng
             </button>
@@ -1774,7 +1780,7 @@ export interface StatusErrorState {
               type="button"
               (click)="confirmCancellation()"
               [disabled]="isCancelling() || isLoadingCancelPreview() || !cancelPreview()?.canCancel || (booking()?.status === 'PendingPayment' && isHoldExpired())"
-              class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-50 text-white font-bold text-xs transition-all shadow-sm shadow-rose-600/30 cursor-pointer disabled:cursor-not-allowed"
+              class="min-h-11 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-50 text-white font-bold text-xs transition-all shadow-sm shadow-rose-600/30 cursor-pointer disabled:cursor-not-allowed"
             >
               @if (isCancelling()) {
                 <i class="pi pi-spin pi-spinner text-xs"></i>
@@ -1795,6 +1801,8 @@ export interface StatusErrorState {
         role="dialog"
         aria-modal="true"
         aria-labelledby="reschedule-modal-title"
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
         (keydown.escape)="closeRescheduleModal()"
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150 print:hidden"
       >
@@ -2045,7 +2053,8 @@ export class BookingStatusPage implements OnInit {
       if (token && b && b.status === 'PendingPayment') {
         const gen = this.fetchGeneration;
         this.publicBookingService.getBookingByToken(token).pipe(
-          take(1)
+          take(1),
+          takeUntilDestroyed(this.destroyRef)
         ).subscribe({
           next: (fresh) => {
             if (this.isDestroyed || gen !== this.fetchGeneration) return;
@@ -2349,15 +2358,22 @@ export class BookingStatusPage implements OnInit {
     });
   }
 
-  parseError(err: any): StatusErrorState {
+  parseError(err: unknown): StatusErrorState {
+    const httpErr = (err && typeof err === 'object' ? err : {}) as {
+      status?: number;
+      name?: string;
+      message?: string;
+      error?: { message?: string } | ProgressEvent;
+    };
+    const errMsg = httpErr.error && !(httpErr.error instanceof ProgressEvent) ? httpErr.error.message : undefined;
     const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
-    const isProgressEvent = typeof ProgressEvent !== 'undefined' && err?.error instanceof ProgressEvent;
-    const status = err?.status ?? (isProgressEvent ? 0 : undefined);
-    const rawMsg = String(err?.error?.message || err?.message || err || '');
+    const isProgressEvent = typeof ProgressEvent !== 'undefined' && httpErr.error instanceof ProgressEvent;
+    const status = httpErr.status ?? (isProgressEvent ? 0 : undefined);
+    const rawMsg = String(errMsg || httpErr.message || err || '');
     const isNetwork =
       isOffline ||
       status === 0 ||
-      err?.name === 'TimeoutError' ||
+      httpErr.name === 'TimeoutError' ||
       /failed to fetch|networkerror|network request failed|load failed|connection refused|timeout/i.test(rawMsg);
 
     if (isNetwork) {
@@ -2376,8 +2392,8 @@ export class BookingStatusPage implements OnInit {
       };
     }
 
-    const serverMsg = typeof err?.error?.message === 'string' && !/failed|exception|error|stacktrace/i.test(err.error.message)
-      ? err.error.message
+    const serverMsg = typeof errMsg === 'string' && !/failed|exception|error|stacktrace/i.test(errMsg)
+      ? errMsg
       : '';
 
     return {
@@ -2451,7 +2467,8 @@ export class BookingStatusPage implements OnInit {
 
       const pollGen = this.fetchGeneration;
       this.publicBookingService.getBookingByToken(token).pipe(
-        take(1)
+        take(1),
+        takeUntilDestroyed(this.destroyRef)
       ).subscribe({
         next: (updated) => {
           if (this.isDestroyed || pollGen !== this.fetchGeneration) return;
@@ -2751,7 +2768,9 @@ export class BookingStatusPage implements OnInit {
     this.isVnpayRedirecting.set(true);
     const returnUrl = typeof window !== 'undefined' ? `${window.location.origin}/booking/status/${detail.lookupToken}` : undefined;
 
-    this.publicBookingService.createVnpayPaymentUrl(detail.reservationId, detail.confirmationCode || detail.lookupToken, returnUrl).subscribe({
+    this.publicBookingService.createVnpayPaymentUrl(detail.reservationId, detail.confirmationCode || detail.lookupToken, returnUrl)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (res) => {
         if (res?.paymentUrl && typeof window !== 'undefined') {
           window.location.href = res.paymentUrl;
@@ -2932,7 +2951,7 @@ export class BookingStatusPage implements OnInit {
       serviceRating: this.reviewService(),
       valueRating: this.reviewValue(),
       comment: this.reviewComment().trim() || undefined
-    }).subscribe({
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (createdReview) => {
         this.reviewSubmitting.set(false);
         this.reviewSubmitted.set(true);
@@ -3037,7 +3056,8 @@ export class BookingStatusPage implements OnInit {
     const gen = this.fetchGeneration;
 
     this.publicBookingService.getBookingByToken(token).pipe(
-      take(1)
+      take(1),
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: fresh => {
         if (this.isDestroyed || gen !== this.fetchGeneration || this.booking()?.lookupToken !== token) return;
@@ -3070,7 +3090,8 @@ export class BookingStatusPage implements OnInit {
     if (!token || this.isDestroyed || typeof this.publicBookingService.getBookingByToken !== 'function') return;
     const gen = this.fetchGeneration;
     this.publicBookingService.getBookingByToken(token).pipe(
-      take(1)
+      take(1),
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: fresh => {
         if (this.isDestroyed || gen !== this.fetchGeneration || this.booking()?.lookupToken !== token) return;
@@ -3244,7 +3265,8 @@ export class BookingStatusPage implements OnInit {
     this.rescheduleError.set('');
 
     this.publicBookingService.rescheduleBooking(detail.lookupToken, request).pipe(
-      take(1)
+      take(1),
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: (updated) => {
         this.isRescheduling.set(false);
@@ -3319,7 +3341,8 @@ export class BookingStatusPage implements OnInit {
     this.cancelPreview.set(null);
 
     this.publicBookingService.getCancellationPreview(b.lookupToken).pipe(
-      take(1)
+      take(1),
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: preview => {
         this.isLoadingCancelPreview.set(false);
@@ -3357,7 +3380,8 @@ export class BookingStatusPage implements OnInit {
     };
 
     this.publicBookingService.cancelBooking(b.lookupToken, request).pipe(
-      take(1)
+      take(1),
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: updated => {
         this.isCancelling.set(false);

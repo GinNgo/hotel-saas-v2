@@ -20,7 +20,7 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
             </span>
             <span class="text-xs text-slate-400 font-medium">34 Tỉnh Thành Trọng Điểm</span>
           </div>
-          <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-serif">
+          <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-display">
             Khám Phá Địa Danh &amp; Resort Nghỉ Dưỡng
           </h2>
           <p class="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
@@ -38,13 +38,15 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
               [ngModel]="searchQuery()"
               (ngModelChange)="searchQuery.set($event)"
               placeholder="Tìm tỉnh, vịnh, đèo, chợ..."
-              class="w-full pl-8 pr-7 py-2 rounded-xl text-xs bg-slate-100 hover:bg-slate-200/60 focus:bg-white border border-slate-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
+              aria-label="Tìm kiếm điểm đến"
+              class="w-full min-h-11 pl-8 pr-11 py-2 rounded-xl text-xs bg-slate-100 hover:bg-slate-200/60 focus:bg-white border border-slate-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
             />
             @if (searchQuery()) {
               <button
                 type="button"
                 (click)="searchQuery.set('')"
-                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                aria-label="Xóa từ khóa tìm kiếm điểm đến"
+                class="min-w-11 min-h-11 flex items-center justify-center absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
               >
                 <i class="pi pi-times-circle"></i>
               </button>
@@ -120,6 +122,8 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
                 <img
                   [src]="dest.imageUrl"
                   [alt]="dest.name"
+                  width="360"
+                  height="450"
                   (error)="onDestinationImageError($event)"
                   class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                   loading="lazy"
@@ -143,7 +147,7 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
               <!-- Bottom Content Details -->
               <div class="relative z-10 text-white min-w-0">
                 <div class="flex items-baseline justify-between gap-1">
-                  <h3 class="text-sm sm:text-base font-black tracking-tight leading-tight group-hover:text-amber-300 transition-colors truncate font-serif">
+                  <h3 class="text-sm sm:text-base font-black tracking-tight leading-tight group-hover:text-amber-300 transition-colors truncate font-display">
                     {{ dest.shortName }}
                   </h3>
                   <span class="text-[10px] font-mono font-semibold text-slate-300 shrink-0">

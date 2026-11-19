@@ -1,5 +1,6 @@
 import {
   Component,
+  DestroyRef,
   inject,
   signal,
   ElementRef,
@@ -7,6 +8,8 @@ import {
   ChangeDetectionStrategy,
   afterNextRender
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { A11yModule } from '@angular/cdk/a11y';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/services/ai-concierge.service';
@@ -15,7 +18,7 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
   selector: 'app-ai-concierge-chat',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, A11yModule],
   template: `
     <!-- Floating Trigger Button -->
     <div class="fixed bottom-4 right-3 sm:bottom-5 sm:right-6 z-50 flex flex-col items-end max-w-[calc(100vw-1.5rem)]">
@@ -23,11 +26,11 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
         <button
           type="button"
           (click)="toggleOpen()"
-          class="group relative flex items-center gap-2.5 px-3.5 sm:px-4 py-3 max-w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-700 hover:to-indigo-700 text-white rounded-full shadow-lg shadow-emerald-900/20 hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer"
+          class="group relative min-h-11 flex items-center gap-2.5 px-3.5 sm:px-4 py-3 max-w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-700 hover:to-indigo-700 text-white rounded-full shadow-lg shadow-emerald-900/20 hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer"
           aria-label="Mở Trợ lý AI Hotel SaaS"
         >
           <div class="relative flex items-center justify-center w-7 h-7 rounded-full bg-white/20 backdrop-blur-xs shrink-0">
-            <i class="pi pi-sparkles text-sm text-amber-300 animate-pulse"></i>
+            <i class="pi pi-sparkles text-sm text-amber-300"></i>
           </div>
           <div class="text-left min-w-0">
             <div class="text-xs font-bold tracking-wide flex items-center gap-1.5">
@@ -41,9 +44,13 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
       <!-- Chat Drawer / Modal Box -->
       @if (isOpen()) {
         <div
+          cdkTrapFocus
+          [cdkTrapFocusAutoCapture]="true"
           class="w-[calc(100vw-1.5rem)] max-w-[380px] sm:w-[400px] sm:max-w-[400px] h-[520px] sm:h-[560px] max-h-[85vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
           role="dialog"
+          aria-modal="true"
           aria-label="Khung trò chuyện với Trợ lý AI Hotel SaaS"
+          (keydown.escape)="toggleOpen()"
         >
           <!-- Chat Header -->
           <div class="p-3.5 bg-gradient-to-r from-emerald-700 via-teal-700 to-slate-900 text-white flex items-center justify-between gap-2 shadow-xs">
@@ -56,7 +63,7 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
                   <span class="truncate">Trợ lý AI Hotel SaaS</span>
                 </div>
                 <div class="text-[11px] text-emerald-100 flex items-center gap-1 truncate">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-ping shrink-0"></span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-300 shrink-0"></span>
                   <span class="truncate">Tích hợp Google Maps Data &amp; Đặt phòng</span>
                 </div>
               </div>
@@ -66,7 +73,7 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
               <button
                 type="button"
                 (click)="clearHistory()"
-                class="p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+                class="min-h-11 min-w-11 flex items-center justify-center text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
                 title="Làm mới cuộc trò chuyện"
                 aria-label="Làm mới cuộc trò chuyện"
               >
@@ -75,7 +82,7 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
               <button
                 type="button"
                 (click)="toggleOpen()"
-                class="p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                class="min-h-11 min-w-11 flex items-center justify-center text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
                 title="Đóng khung chat"
                 aria-label="Đóng khung chat"
               >
@@ -94,14 +101,17 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
                 [ngClass]="userLocation()
                   ? 'bg-emerald-600 text-white border-emerald-600'
                   : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50'"
-                class="px-2.5 py-1 rounded-full border shrink-0 transition-colors font-semibold cursor-pointer disabled:opacity-50"
+                class="min-h-11 px-3 py-1.5 rounded-full border shrink-0 transition-colors font-semibold inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
               >
                 @if (locatingGps()) {
+                  <i class="pi pi-spin pi-spinner text-[11px]"></i>
                   <span>Đang định vị...</span>
                 } @else if (userLocation()) {
-                  <span>📍 Đã bật vị trí</span>
+                  <i class="pi pi-map-marker text-[11px]"></i>
+                  <span>Đã bật vị trí</span>
                 } @else {
-                  <span>📍 Định vị gần tôi</span>
+                  <i class="pi pi-map-marker text-[11px]"></i>
+                  <span>Định vị gần tôi</span>
                 }
               </button>
               <span class="text-slate-400 font-semibold shrink-0">Gợi ý:</span>
@@ -110,7 +120,7 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
                   type="button"
                   (click)="sendQuickPrompt(prompt)"
                   [disabled]="loading()"
-                  class="px-2.5 py-1 rounded-full bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-200/90 hover:border-emerald-300 shrink-0 transition-colors font-medium cursor-pointer disabled:opacity-50"
+                  class="min-h-11 px-3 py-1.5 rounded-full bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-200/90 hover:border-emerald-300 shrink-0 transition-colors font-medium cursor-pointer disabled:opacity-50"
                 >
                   {{ prompt }}
                 </button>
@@ -122,10 +132,10 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
                 <button
                   type="button"
                   (click)="locationStatus.set(null)"
-                  class="text-slate-400 hover:text-slate-600 cursor-pointer"
+                  class="min-h-11 min-w-11 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer rounded-lg"
                   aria-label="Đóng trạng thái định vị"
                 >
-                  <i class="pi pi-times text-[9px]"></i>
+                  <i class="pi pi-times text-[10px]"></i>
                 </button>
               </div>
             }
@@ -181,7 +191,7 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
                   </div>
                 </div>
 
-                <span class="text-[9px] text-slate-400 px-1">
+                <span class="text-[9px] text-slate-400 px-1 tabular-nums">
                   {{ msg.timestamp | date:'HH:mm' }}
                 </span>
               </div>
@@ -206,6 +216,7 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
               [(ngModel)]="userInput"
               (keydown.enter)="onEnterPress($event)"
               placeholder="Nhập câu hỏi (VD: Gần khách sạn Q1 có quán ăn nào ngon?)..."
+              aria-label="Nhập câu hỏi cho Trợ lý AI"
               rows="1"
               [disabled]="loading()"
               class="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none max-h-24 transition-colors"
@@ -215,7 +226,7 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
               type="button"
               (click)="sendUserMessage()"
               [disabled]="loading() || !userInput.trim()"
-              class="w-9 h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-xs transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+              class="min-w-11 min-h-11 w-11 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-xs transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
               aria-label="Gửi tin nhắn"
             >
               <i class="pi pi-send text-xs"></i>
@@ -228,6 +239,7 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
 })
 export class AiConciergeChatComponent {
   private readonly aiService = inject(AiConciergeService);
+  private readonly destroyRef = inject(DestroyRef);
 
   @ViewChild('scrollContainer') private scrollContainer?: ElementRef<HTMLDivElement>;
 
@@ -358,7 +370,7 @@ export class AiConciergeChatComponent {
     setTimeout(() => this.scrollToBottom(), 50);
 
     // Call server-side Gemini API
-    this.aiService.sendMessage(text, currentHistory, this.userLocation() ?? undefined).subscribe({
+    this.aiService.sendMessage(text, currentHistory, this.userLocation() ?? undefined).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: res => {
         this.loading.set(false);
         const links: Array<{ title?: string; uri?: string }> = [];

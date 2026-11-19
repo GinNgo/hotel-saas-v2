@@ -1,10 +1,30 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef, inject, signal, computed, effect, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  ElementRef,
+  HostListener,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { A11yModule } from '@angular/cdk/a11y';
+import { ScrollingModule } from '@angular/cdk/scrolling';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DatePicker } from 'primeng/datepicker';
 import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-time.util';
-import { Subscription } from 'rxjs';
+import { Subject, Subscription } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { BusinessDatePipe } from '../../shared';
 import { ReservationService } from '../../core/services/reservation.service';
 import { RoomTypeService } from '../../core/services/room-type.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -80,7 +100,19 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
 @Component({
   selector: 'app-reservations',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, EmptyStateComponent, DateRangeFilterComponent, DatePicker, ContextSelectorDialogComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    CommonModule,
+    A11yModule,
+    ScrollingModule,
+    FormsModule,
+    ReactiveFormsModule,
+    BusinessDatePipe,
+    EmptyStateComponent,
+    DateRangeFilterComponent,
+    DatePicker,
+    ContextSelectorDialogComponent
+  ],
   template: `
     <div class="max-w-7xl mx-auto space-y-6">
       <!-- Header -->
@@ -105,7 +137,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
             <button
               type="button"
               (click)="setViewMode('table')"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md transition cursor-pointer"
+              class="min-h-11 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md transition cursor-pointer"
               [class.bg-white]="viewMode() === 'table'"
               [class.text-slate-800]="viewMode() === 'table'"
               [class.shadow-xs]="viewMode() === 'table'"
@@ -118,7 +150,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
             <button
               type="button"
               (click)="setViewMode('timeline')"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md transition cursor-pointer"
+              class="min-h-11 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md transition cursor-pointer"
               [class.bg-white]="viewMode() === 'timeline'"
               [class.text-slate-800]="viewMode() === 'timeline'"
               [class.shadow-xs]="viewMode() === 'timeline'"
@@ -133,7 +165,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
           <button
             type="button"
             (click)="onRefreshCurrentView()"
-            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition shadow-xs cursor-pointer"
+            class="min-h-11 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition shadow-xs cursor-pointer"
             title="Tải lại dữ liệu"
           >
             <i class="pi pi-refresh" [class.animate-spin]="isLoading() || isTimelineLoading()"></i>
@@ -144,7 +176,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
             <button
               type="button"
               (click)="openSummaryModal()"
-              class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition shadow-xs cursor-pointer"
+              class="min-h-11 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition shadow-xs cursor-pointer"
               title="Xem tổng kết thu ngân trong ngày"
             >
               <i class="pi pi-wallet text-indigo-600"></i>
@@ -156,7 +188,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
             <button
               type="button"
               (click)="openCreateModal()"
-              class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition shadow-xs shadow-emerald-600/30 cursor-pointer"
+              class="min-h-11 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition shadow-xs shadow-emerald-600/30 cursor-pointer"
             >
               <i class="pi pi-plus"></i>
               <span>Tạo đặt phòng mới</span>
@@ -171,26 +203,32 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
           <!-- Search box -->
           <div class="lg:col-span-3">
-            <label class="block text-xs font-medium text-slate-600 mb-1">Tìm kiếm</label>
+            <label for="reservationSearchInput" class="block text-xs font-medium text-slate-600 mb-1">Tìm kiếm (/ hoặc Ctrl+K)</label>
             <div class="relative">
               <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
               <input
+                #reservationSearchInput
+                id="reservationSearchInput"
                 type="text"
                 [value]="searchQuery()"
-                (input)="onSearchInput($event)"
-                placeholder="Mã đặt phòng, tên khách, SĐT, số phòng..."
-                class="w-full pl-8 pr-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                (input)="onDebouncedSearchInput($event)"
+                (keydown.enter)="onSearchInput($event)"
+                aria-label="Tìm kiếm đơn đặt phòng theo mã, tên khách, số điện thoại hoặc số phòng"
+                placeholder="Mã đơn, tên khách, SĐT, số phòng..."
+                class="w-full min-h-11 pl-8 pr-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
               />
             </div>
           </div>
 
           <!-- Status filter -->
           <div class="lg:col-span-3">
-            <label class="block text-xs font-medium text-slate-600 mb-1">Trạng thái</label>
+            <label for="reservationStatusFilter" class="block text-xs font-medium text-slate-600 mb-1">Trạng thái</label>
             <select
+              id="reservationStatusFilter"
               [value]="selectedStatus() ?? ''"
               (change)="onStatusChange($event)"
-              class="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
+              aria-label="Lọc đặt phòng theo trạng thái"
+              class="w-full min-h-11 px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
             >
               <option value="">Tất cả trạng thái</option>
               <option [value]="ReservationStatus.Confirmed">Đã xác nhận</option>
@@ -218,7 +256,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
             <button
               type="button"
               (click)="resetFilters()"
-              class="text-xs text-emerald-700 hover:text-emerald-800 font-medium cursor-pointer"
+              class="min-h-11 px-3 text-xs text-emerald-700 hover:text-emerald-800 font-medium cursor-pointer"
             >
               <i class="pi pi-filter-slash mr-1 text-[10px]"></i>Xóa bộ lọc
             </button>
@@ -233,13 +271,13 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
           <span class="text-xs text-slate-500">Đang tải danh sách đặt phòng...</span>
         </div>
       } @else if (errorMessage()) {
-        <div class="bg-rose-50 p-6 rounded-xl border border-rose-200 text-center space-y-3">
+        <div role="alert" class="bg-rose-50 p-6 rounded-xl border border-rose-200 text-center space-y-3">
           <i class="pi pi-exclamation-triangle text-2xl text-rose-600"></i>
           <p class="text-sm font-semibold text-rose-900">{{ errorMessage() }}</p>
           <button
             type="button"
             (click)="loadReservations()"
-            class="px-3.5 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition"
+            class="min-h-11 px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition cursor-pointer"
           >
             Thử lại
           </button>
@@ -257,175 +295,339 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
         <app-empty-state
           title="Chưa có đơn đặt phòng nào"
           description="Hiện tại không có đơn đặt phòng nào khớp với điều kiện lọc tại chi nhánh này."
-          icon="pi pi-calendar"
+          iconClass="pi pi-calendar"
         ></app-empty-state>
       } @else {
         <div class="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr class="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-semibold text-[11px] uppercase tracking-wider">
-                  <th class="py-3 px-4">Mã đặt phòng</th>
-                  <th class="py-3 px-4">Khách hàng</th>
-                  <th class="py-3 px-4">Phòng & Loại phòng</th>
-                  <th class="py-3 px-4">Hình thức</th>
-                  <th class="py-3 px-4">Thời gian</th>
-                  <th class="py-3 px-4 text-right">Tổng tiền</th>
-                  <th class="py-3 px-4 text-center">Trạng thái</th>
-                  <th class="py-3 px-4 text-center">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100">
-                @for (res of reservations(); track res.id) {
-                  <tr class="hover:bg-slate-50/60 transition-colors">
-                    <!-- Confirmation code -->
-                    <td class="py-3 px-4 font-mono font-bold text-emerald-700">
-                      {{ res.confirmationCode }}
-                    </td>
+          <!-- Mobile Stacked Cards (md:hidden) -->
+          <div class="block md:hidden divide-y divide-slate-100">
+            @for (res of sortedReservations(); track res.id) {
+              <div class="p-4 space-y-3 hover:bg-slate-50/60 transition-colors">
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <div class="font-mono font-bold text-sm text-emerald-700">{{ res.confirmationCode }}</div>
+                    <div class="font-semibold text-xs text-slate-800 mt-0.5">{{ res.guestName }}</div>
+                    <div class="text-[11px] text-slate-500">{{ res.guestPhone || res.guestEmail }}</div>
+                  </div>
+                  <span
+                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border shrink-0"
+                    [ngClass]="getStatusBadgeClass(res.status)"
+                  >
+                    {{ getStatusLabel(res.status) }}
+                  </span>
+                </div>
 
-                    <!-- Guest -->
-                    <td class="py-3 px-4">
-                      <div class="font-semibold text-slate-800">{{ res.guestName }}</div>
-                      <div class="text-[11px] text-slate-500">{{ res.guestPhone || res.guestEmail }}</div>
-                    </td>
+                <div class="grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-2.5 border border-slate-100 text-xs">
+                  <div>
+                    <span class="text-[10px] text-slate-400 block">Phòng</span>
+                    <span class="font-bold text-slate-800">{{ res.roomNumber }}</span>
+                    <span class="text-slate-600 ml-1">{{ res.roomTypeName }}</span>
+                  </div>
+                  <div class="text-right">
+                    <span class="text-[10px] text-slate-400 block">Tổng tiền</span>
+                    <span class="font-bold text-slate-900 tabular-nums">{{ res.totalAmount | number:'1.0-0' }} đ</span>
+                  </div>
+                  <div class="col-span-2 text-[11px] text-slate-600 tabular-nums flex items-center gap-1">
+                    <span>{{ res.checkInDate | businessDate }}</span>
+                    @if (res.rentalType !== RentalType.Hourly) {
+                      <i class="pi pi-arrow-right text-[10px] text-slate-400" aria-hidden="true"></i>
+                      <span>{{ res.checkOutDate | businessDate }}</span>
+                      <span class="text-slate-400 ml-1">({{ getNightCount(res.checkInDate, res.checkOutDate) }} đêm)</span>
+                    } @else {
+                      <span class="text-slate-500 ml-1">({{ formatUtcTime(res.startAtUtc) }} – {{ formatUtcTime(res.endAtUtc) }})</span>
+                    }
+                  </div>
+                </div>
 
-                    <!-- Room & RoomType -->
-                    <td class="py-3 px-4">
-                      <div class="flex items-center gap-1.5">
-                        <span class="font-bold text-slate-800 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px]">
-                          {{ res.roomNumber }}
-                        </span>
-                        <span class="text-slate-600">{{ res.roomTypeName }}</span>
-                      </div>
-                    </td>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    (click)="viewDetails(res)"
+                    class="min-h-11 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition cursor-pointer"
+                  >
+                    Chi tiết
+                  </button>
+                  @if (canCheckInOut() && (res.status === ReservationStatus.Confirmed || res.status === ReservationStatus.PendingPayment)) {
+                    <button
+                      type="button"
+                      [disabled]="actionReservationId() === res.id || isActionLoading()"
+                      (click)="openCheckInModal(res)"
+                      class="min-h-11 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 disabled:opacity-50 rounded-lg transition cursor-pointer"
+                    >
+                      Nhận phòng
+                    </button>
+                  }
+                  @if (canCheckInOut() && res.status === ReservationStatus.CheckedIn) {
+                    <button
+                      type="button"
+                      [disabled]="actionReservationId() === res.id || isActionLoading()"
+                      (click)="openCheckOutModal(res)"
+                      class="min-h-11 px-3 py-1.5 text-xs font-semibold text-amber-800 bg-amber-100 hover:bg-amber-200 disabled:opacity-50 rounded-lg transition cursor-pointer"
+                    >
+                      Trả phòng
+                    </button>
+                  }
+                  @if (res.status === ReservationStatus.CheckedOut) {
+                    <button
+                      type="button"
+                      (click)="openPrintInvoice(res.id)"
+                      aria-label="In hóa đơn thanh toán"
+                      class="min-h-11 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition cursor-pointer"
+                    >
+                      In hóa đơn
+                    </button>
+                  }
+                  @if (canCancel() && (res.status === ReservationStatus.Confirmed || res.status === ReservationStatus.PendingPayment)) {
+                    <button
+                      type="button"
+                      [disabled]="actionReservationId() === res.id || isActionLoading()"
+                      (click)="openCancelModal(res)"
+                      class="min-h-11 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 disabled:opacity-50 rounded-lg transition cursor-pointer"
+                    >
+                      Hủy
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+          </div>
 
-                    <!-- Rental Type -->
-                    <td class="py-3 px-4">
-                      @if (res.rentalType === RentalType.Hourly) {
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                          <i class="pi pi-clock mr-1 text-[9px]"></i>Theo giờ
-                        </span>
-                      } @else {
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
-                          <i class="pi pi-moon mr-1 text-[9px]"></i>Theo đêm
-                        </span>
-                      }
-                    </td>
+          <!-- Desktop Table (hidden md:block): normal table <= 50 rows, cdk-virtual-scroll-viewport > 50 rows -->
+          @if (sortedReservations().length <= 50) {
+            <div class="hidden md:block overflow-x-auto">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-semibold text-[11px] uppercase tracking-wider">
+                    <th scope="col" class="py-2 px-4" [attr.aria-sort]="getAriaSort('confirmationCode')">
+                      <button type="button" (click)="toggleSort('confirmationCode')" class="min-h-11 inline-flex items-center gap-1 font-semibold uppercase tracking-wider cursor-pointer hover:text-slate-900">
+                        <span>Mã đặt phòng</span>
+                        <i class="pi text-[10px]" [ngClass]="sortColumn() === 'confirmationCode' ? (sortDirection() === 'asc' ? 'pi-sort-amount-up' : 'pi-sort-amount-down') : 'pi-sort-alt text-slate-400'" aria-hidden="true"></i>
+                      </button>
+                    </th>
+                    <th scope="col" class="py-2 px-4" [attr.aria-sort]="getAriaSort('guestName')">
+                      <button type="button" (click)="toggleSort('guestName')" class="min-h-11 inline-flex items-center gap-1 font-semibold uppercase tracking-wider cursor-pointer hover:text-slate-900">
+                        <span>Khách hàng</span>
+                        <i class="pi text-[10px]" [ngClass]="sortColumn() === 'guestName' ? (sortDirection() === 'asc' ? 'pi-sort-amount-up' : 'pi-sort-amount-down') : 'pi-sort-alt text-slate-400'" aria-hidden="true"></i>
+                      </button>
+                    </th>
+                    <th scope="col" class="py-3 px-4">Phòng & Loại phòng</th>
+                    <th scope="col" class="py-3 px-4">Hình thức</th>
+                    <th scope="col" class="py-2 px-4" [attr.aria-sort]="getAriaSort('checkInDate')">
+                      <button type="button" (click)="toggleSort('checkInDate')" class="min-h-11 inline-flex items-center gap-1 font-semibold uppercase tracking-wider cursor-pointer hover:text-slate-900">
+                        <span>Thời gian</span>
+                        <i class="pi text-[10px]" [ngClass]="sortColumn() === 'checkInDate' ? (sortDirection() === 'asc' ? 'pi-sort-amount-up' : 'pi-sort-amount-down') : 'pi-sort-alt text-slate-400'" aria-hidden="true"></i>
+                      </button>
+                    </th>
+                    <th scope="col" class="py-2 px-4 text-right" [attr.aria-sort]="getAriaSort('totalAmount')">
+                      <button type="button" (click)="toggleSort('totalAmount')" class="min-h-11 inline-flex items-center justify-end gap-1 font-semibold uppercase tracking-wider cursor-pointer hover:text-slate-900">
+                        <span>Tổng tiền</span>
+                        <i class="pi text-[10px]" [ngClass]="sortColumn() === 'totalAmount' ? (sortDirection() === 'asc' ? 'pi-sort-amount-up' : 'pi-sort-amount-down') : 'pi-sort-alt text-slate-400'" aria-hidden="true"></i>
+                      </button>
+                    </th>
+                    <th scope="col" class="py-2 px-4 text-center" [attr.aria-sort]="getAriaSort('status')">
+                      <button type="button" (click)="toggleSort('status')" class="min-h-11 inline-flex items-center justify-center gap-1 font-semibold uppercase tracking-wider cursor-pointer hover:text-slate-900">
+                        <span>Trạng thái</span>
+                        <i class="pi text-[10px]" [ngClass]="sortColumn() === 'status' ? (sortDirection() === 'asc' ? 'pi-sort-amount-up' : 'pi-sort-amount-down') : 'pi-sort-alt text-slate-400'" aria-hidden="true"></i>
+                      </button>
+                    </th>
+                    <th scope="col" class="py-3 px-4 text-center">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  @for (res of sortedReservations(); track res.id) {
+                    <tr class="hover:bg-slate-50/60 transition-colors">
+                      <!-- Confirmation code -->
+                      <td class="py-3 px-4 font-mono font-bold text-emerald-700">
+                        {{ res.confirmationCode }}
+                      </td>
 
-                    <!-- Dates -->
-                    <td class="py-3 px-4 text-slate-600">
-                      @if (res.rentalType === RentalType.Hourly) {
-                        <div>{{ res.checkInDate }}</div>
-                        <div class="text-[11px] text-slate-500">{{ formatUtcTime(res.startAtUtc) }} – {{ formatUtcTime(res.endAtUtc) }}</div>
-                      } @else {
-                        <div>{{ res.checkInDate }} ➔ {{ res.checkOutDate }}</div>
-                        <div class="text-[11px] text-slate-500">{{ getNightCount(res.checkInDate, res.checkOutDate) }} đêm</div>
-                      }
-                    </td>
+                      <!-- Guest -->
+                      <td class="py-3 px-4">
+                        <div class="font-semibold text-slate-800">{{ res.guestName }}</div>
+                        <div class="text-[11px] text-slate-500">{{ res.guestPhone || res.guestEmail }}</div>
+                      </td>
 
-                    <!-- Total Amount -->
-                    <td class="py-3 px-4 text-right font-bold text-slate-800">
-                      {{ res.totalAmount | number:'1.0-0' }} đ
-                    </td>
+                      <!-- Room & RoomType -->
+                      <td class="py-3 px-4">
+                        <div class="flex items-center gap-1.5">
+                          <span class="font-bold text-slate-800 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px]">
+                            {{ res.roomNumber }}
+                          </span>
+                          <span class="text-slate-600">{{ res.roomTypeName }}</span>
+                        </div>
+                      </td>
 
-                    <!-- Status -->
-                    <td class="py-3 px-4 text-center">
-                      <span
-                        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border"
-                        [ngClass]="getStatusBadgeClass(res.status)"
-                      >
-                        {{ getStatusLabel(res.status) }}
-                      </span>
-                    </td>
-
-                    <!-- Action -->
-                    <td class="py-3 px-4 text-center">
-                      <div class="flex items-center justify-center gap-1.5">
-                        <button
-                          type="button"
-                          (click)="viewDetails(res)"
-                          class="px-2.5 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition cursor-pointer"
-                          title="Xem chi tiết và bảng kê giá"
-                        >
-                          Chi tiết
-                        </button>
-
-                        @if (canCheckInOut()) {
-                          @if (res.status === ReservationStatus.Confirmed || res.status === ReservationStatus.PendingPayment) {
-                            <button
-                              type="button"
-                              [disabled]="actionReservationId() === res.id || isActionLoading()"
-                              (click)="openCheckInModal(res)"
-                              class="px-2.5 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 disabled:opacity-50 rounded-md transition cursor-pointer flex items-center gap-1"
-                              title="Mở thủ tục nhận phòng"
-                            >
-                              <i class="pi pi-sign-in text-[10px]" [class.animate-spin]="actionReservationId() === res.id"></i>
-                              <span>Nhận phòng</span>
-                            </button>
-                          }
-                          @if (res.status === ReservationStatus.Confirmed) {
-                            <button
-                              type="button"
-                              [disabled]="actionReservationId() === res.id || isActionLoading()"
-                              (click)="openNoShowModal(res)"
-                              class="px-2 py-1 text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 disabled:opacity-50 rounded-md transition cursor-pointer flex items-center gap-1"
-                              title="Đánh dấu khách vắng mặt (No-Show)"
-                              aria-label="Đánh dấu vắng mặt No-Show"
-                            >
-                              <i class="pi pi-user-minus text-[10px]"></i>
-                              <span>Vắng mặt</span>
-                            </button>
-                          }
-                          @if (res.status === ReservationStatus.CheckedIn) {
-                            <button
-                              type="button"
-                              [disabled]="actionReservationId() === res.id || isActionLoading()"
-                              (click)="openCheckOutModal(res)"
-                              class="px-2.5 py-1 text-[11px] font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 disabled:opacity-50 rounded-md transition cursor-pointer flex items-center gap-1"
-                              title="Mở thủ tục trả phòng"
-                            >
-                              <i class="pi pi-sign-out text-[10px]" [class.animate-spin]="actionReservationId() === res.id"></i>
-                              <span>Trả phòng</span>
-                            </button>
-                          }
+                      <!-- Rental Type -->
+                      <td class="py-3 px-4">
+                        @if (res.rentalType === RentalType.Hourly) {
+                          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                            <i class="pi pi-clock mr-1 text-[9px]"></i>Theo giờ
+                          </span>
+                        } @else {
+                          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+                            <i class="pi pi-moon mr-1 text-[9px]"></i>Theo đêm
+                          </span>
                         }
-                        @if (res.status === ReservationStatus.CheckedOut) {
+                      </td>
+
+                      <!-- Dates -->
+                      <td class="py-3 px-4 text-slate-600 tabular-nums">
+                        @if (res.rentalType === RentalType.Hourly) {
+                          <div>{{ res.checkInDate | businessDate }}</div>
+                          <div class="text-[11px] text-slate-500">{{ formatUtcTime(res.startAtUtc) }} – {{ formatUtcTime(res.endAtUtc) }}</div>
+                        } @else {
+                          <div class="inline-flex items-center gap-1">
+                            <span>{{ res.checkInDate | businessDate }}</span>
+                            <i class="pi pi-arrow-right text-[10px] text-slate-400" aria-hidden="true"></i>
+                            <span>{{ res.checkOutDate | businessDate }}</span>
+                          </div>
+                          <div class="text-[11px] text-slate-500">{{ getNightCount(res.checkInDate, res.checkOutDate) }} đêm</div>
+                        }
+                      </td>
+
+                      <!-- Total Amount -->
+                      <td class="py-3 px-4 text-right font-bold text-slate-800 tabular-nums">
+                        {{ res.totalAmount | number:'1.0-0' }} đ
+                      </td>
+
+                      <!-- Status -->
+                      <td class="py-3 px-4 text-center">
+                        <span
+                          class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border"
+                          [ngClass]="getStatusBadgeClass(res.status)"
+                        >
+                          {{ getStatusLabel(res.status) }}
+                        </span>
+                      </td>
+
+                      <!-- Action -->
+                      <td class="py-3 px-4 text-center">
+                        <div class="flex items-center justify-center gap-1.5">
                           <button
                             type="button"
-                            (click)="openPrintInvoice(res.id)"
-                            class="px-2.5 py-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-md transition cursor-pointer flex items-center gap-1"
-                            title="In hóa đơn thanh toán"
-                            aria-label="In hóa đơn"
+                            (click)="viewDetails(res)"
+                            class="min-h-11 px-3 py-1.5 text-[11px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition cursor-pointer"
+                            title="Xem chi tiết và bảng kê giá"
                           >
-                            <i class="pi pi-print text-[10px]"></i>
-                            <span>In hóa đơn</span>
+                            Chi tiết
                           </button>
-                        }
 
-                        @if (canCancel()) {
-                          @if (res.status === ReservationStatus.Confirmed || res.status === ReservationStatus.PendingPayment) {
+                          @if (canCheckInOut()) {
+                            @if (res.status === ReservationStatus.Confirmed || res.status === ReservationStatus.PendingPayment) {
+                              <button
+                                type="button"
+                                [disabled]="actionReservationId() === res.id || isActionLoading()"
+                                (click)="openCheckInModal(res)"
+                                class="min-h-11 px-3 py-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 disabled:opacity-50 rounded-md transition cursor-pointer flex items-center gap-1"
+                                title="Mở thủ tục nhận phòng"
+                              >
+                                <i class="pi pi-sign-in text-[10px]" [class.animate-spin]="actionReservationId() === res.id"></i>
+                                <span>Nhận phòng</span>
+                              </button>
+                            }
+                            @if (res.status === ReservationStatus.Confirmed) {
+                              <button
+                                type="button"
+                                [disabled]="actionReservationId() === res.id || isActionLoading()"
+                                (click)="openNoShowModal(res)"
+                                class="min-h-11 px-2.5 py-1.5 text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 disabled:opacity-50 rounded-md transition cursor-pointer flex items-center gap-1"
+                                title="Đánh dấu khách vắng mặt (No-Show)"
+                                aria-label="Đánh dấu vắng mặt No-Show"
+                              >
+                                <i class="pi pi-user-minus text-[10px]"></i>
+                                <span>Vắng mặt</span>
+                              </button>
+                            }
+                            @if (res.status === ReservationStatus.CheckedIn) {
+                              <button
+                                type="button"
+                                [disabled]="actionReservationId() === res.id || isActionLoading()"
+                                (click)="openCheckOutModal(res)"
+                                class="min-h-11 px-3 py-1.5 text-[11px] font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 disabled:opacity-50 rounded-md transition cursor-pointer flex items-center gap-1"
+                                title="Mở thủ tục trả phòng"
+                              >
+                                <i class="pi pi-sign-out text-[10px]" [class.animate-spin]="actionReservationId() === res.id"></i>
+                                <span>Trả phòng</span>
+                              </button>
+                            }
+                          }
+                          @if (res.status === ReservationStatus.CheckedOut) {
                             <button
                               type="button"
-                              [disabled]="actionReservationId() === res.id || isActionLoading()"
-                              (click)="openCancelModal(res)"
-                              class="px-2 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 disabled:opacity-50 rounded-md transition cursor-pointer"
-                              title="Hủy đặt phòng"
+                              (click)="openPrintInvoice(res.id)"
+                              class="min-h-11 px-3 py-1.5 text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-md transition cursor-pointer flex items-center gap-1"
+                              title="In hóa đơn thanh toán"
+                              aria-label="In hóa đơn"
                             >
-                              Hủy
+                              <i class="pi pi-print text-[10px]"></i>
+                              <span>In hóa đơn</span>
                             </button>
                           }
-                        }
-                      </div>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
+
+                          @if (canCancel()) {
+                            @if (res.status === ReservationStatus.Confirmed || res.status === ReservationStatus.PendingPayment) {
+                              <button
+                                type="button"
+                                [disabled]="actionReservationId() === res.id || isActionLoading()"
+                                (click)="openCancelModal(res)"
+                                class="min-h-11 px-3 py-1.5 text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 disabled:opacity-50 rounded-md transition cursor-pointer"
+                                title="Hủy đặt phòng"
+                              >
+                                Hủy
+                              </button>
+                            }
+                          }
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <div class="hidden md:block">
+              <div class="grid grid-cols-12 gap-2 bg-slate-50/80 border-b border-slate-200 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                <div class="col-span-2">Mã đặt phòng</div>
+                <div class="col-span-2">Khách hàng</div>
+                <div class="col-span-2">Phòng</div>
+                <div class="col-span-2">Thời gian</div>
+                <div class="col-span-1 text-right">Tổng tiền</div>
+                <div class="col-span-1 text-center">Trạng thái</div>
+                <div class="col-span-2 text-center">Thao tác</div>
+              </div>
+              <cdk-virtual-scroll-viewport itemSize="68" class="h-[600px] w-full divide-y divide-slate-100">
+                <div *cdkVirtualFor="let res of sortedReservations(); trackBy: trackByReservationId" class="grid grid-cols-12 gap-2 items-center px-4 py-2 text-xs hover:bg-slate-50/60 h-[68px]">
+                  <div class="col-span-2 font-mono font-bold text-emerald-700 truncate">{{ res.confirmationCode }}</div>
+                  <div class="col-span-2 truncate">
+                    <div class="font-semibold text-slate-800 truncate">{{ res.guestName }}</div>
+                    <div class="text-[11px] text-slate-500 truncate">{{ res.guestPhone || res.guestEmail }}</div>
+                  </div>
+                  <div class="col-span-2 truncate">
+                    <span class="font-bold text-slate-800 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px]">{{ res.roomNumber }}</span>
+                    <span class="text-slate-600 ml-1 truncate">{{ res.roomTypeName }}</span>
+                  </div>
+                  <div class="col-span-2 text-slate-600 tabular-nums truncate">
+                    {{ res.checkInDate | businessDate }}
+                  </div>
+                  <div class="col-span-1 text-right font-bold text-slate-800 tabular-nums">{{ res.totalAmount | number:'1.0-0' }} đ</div>
+                  <div class="col-span-1 text-center">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border" [ngClass]="getStatusBadgeClass(res.status)">
+                      {{ getStatusLabel(res.status) }}
+                    </span>
+                  </div>
+                  <div class="col-span-2 flex items-center justify-center gap-1">
+                    <button type="button" (click)="viewDetails(res)" class="min-h-11 px-2.5 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md cursor-pointer">
+                      Chi tiết
+                    </button>
+                  </div>
+                </div>
+              </cdk-virtual-scroll-viewport>
+            </div>
+          }
 
           <!-- Pagination Footer -->
           <div class="flex items-center justify-between px-4 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-600">
-            <div>
+            <div class="tabular-nums">
               Hiển thị <span class="font-semibold">{{ reservations().length }}</span> / <span class="font-semibold">{{ totalCount() }}</span> đơn đặt phòng
             </div>
             <div class="flex items-center gap-2">
@@ -433,16 +635,16 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 type="button"
                 [disabled]="currentPage() <= 1"
                 (click)="goToPage(currentPage() - 1)"
-                class="px-3 py-1 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                class="min-h-11 px-3 py-1 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
               >
                 Trước
               </button>
-              <span class="font-medium text-slate-700">Trang {{ currentPage() }} / {{ totalPages() }}</span>
+              <span class="font-medium text-slate-700 tabular-nums">Trang {{ currentPage() }} / {{ totalPages() }}</span>
               <button
                 type="button"
                 [disabled]="currentPage() >= totalPages()"
                 (click)="goToPage(currentPage() + 1)"
-                class="px-3 py-1 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                class="min-h-11 px-3 py-1 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
               >
                 Sau
               </button>
@@ -462,7 +664,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               <button
                 type="button"
                 (click)="goToToday()"
-                class="px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition border border-emerald-200 cursor-pointer"
+                class="min-h-11 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition border border-emerald-200 cursor-pointer"
               >
                 Hôm nay
               </button>
@@ -471,7 +673,8 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <button
                   type="button"
                   (click)="goToPreviousDays()"
-                  class="px-2.5 py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition rounded-l-lg border-r border-slate-200 cursor-pointer"
+                  aria-label="Khoảng thời gian trước"
+                  class="min-h-11 min-w-11 flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition rounded-l-lg border-r border-slate-200 cursor-pointer"
                   title="Khoảng thời gian trước"
                 >
                   <i class="pi pi-chevron-left text-xs"></i>
@@ -479,7 +682,8 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <button
                   type="button"
                   (click)="goToNextDays()"
-                  class="px-2.5 py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition rounded-r-lg cursor-pointer"
+                  aria-label="Khoảng thời gian tiếp theo"
+                  class="min-h-11 min-w-11 flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition rounded-r-lg cursor-pointer"
                   title="Khoảng thời gian tiếp theo"
                 >
                   <i class="pi pi-chevron-right text-xs"></i>
@@ -501,7 +705,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   placeholder="dd/mm/yyyy"
                   ariaLabel="Từ ngày sơ đồ phòng"
                   styleClass="w-36 text-xs"
-                  inputStyleClass="w-full text-xs py-1.5 pl-2.5 pr-8 rounded-lg border border-slate-200 bg-white text-slate-800 shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  inputStyleClass="w-full min-h-11 text-xs py-1.5 pl-2.5 pr-8 rounded-lg border border-slate-200 bg-white text-slate-800 shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 />
               </div>
 
@@ -510,7 +714,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <button
                   type="button"
                   (click)="setTimelineDaysCount(7)"
-                  class="px-2.5 py-1 rounded-md transition cursor-pointer"
+                  class="min-h-11 px-3 py-1 rounded-md transition cursor-pointer"
                   [class.bg-white]="timelineDaysCount() === 7"
                   [class.text-slate-800]="timelineDaysCount() === 7"
                   [class.shadow-xs]="timelineDaysCount() === 7"
@@ -521,7 +725,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <button
                   type="button"
                   (click)="setTimelineDaysCount(14)"
-                  class="px-2.5 py-1 rounded-md transition cursor-pointer"
+                  class="min-h-11 px-3 py-1 rounded-md transition cursor-pointer"
                   [class.bg-white]="timelineDaysCount() === 14"
                   [class.text-slate-800]="timelineDaysCount() === 14"
                   [class.shadow-xs]="timelineDaysCount() === 14"
@@ -537,7 +741,8 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               <select
                 [value]="timelineFloorFilter() ?? ''"
                 (change)="onTimelineFloorChange($event)"
-                class="px-2.5 py-1 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-white text-slate-700"
+                aria-label="Lọc sơ đồ theo tầng"
+                class="min-h-11 px-2.5 py-1 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-white text-slate-700"
               >
                 <option value="">Tất cả các tầng</option>
                 @for (floor of timelineFloors(); track floor) {
@@ -548,7 +753,8 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               <select
                 [value]="timelineRoomTypeFilter() ?? ''"
                 (change)="onTimelineRoomTypeChange($event)"
-                class="px-2.5 py-1 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-white text-slate-700"
+                aria-label="Lọc sơ đồ theo loại phòng"
+                class="min-h-11 px-2.5 py-1 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-white text-slate-700"
               >
                 <option value="">Tất cả loại phòng</option>
                 @for (rt of roomTypes(); track rt.id) {
@@ -609,7 +815,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
             <app-empty-state
               title="Không có phòng nào phù hợp"
               description="Hiện tại không có phòng nào trong danh mục hoặc không khớp với bộ lọc tầng/loại phòng đã chọn."
-              icon="pi pi-building"
+              iconClass="pi pi-building"
             ></app-empty-state>
           } @else {
             <div class="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
@@ -625,7 +831,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                       <!-- Date header cells -->
                       @for (col of timelineDates(); track col.dateStr) {
                         <th
-                          class="py-2.5 px-2 text-center min-w-[110px] border-r border-slate-200 font-semibold"
+                          class="py-2.5 px-2 text-center min-w-[110px] border-r border-slate-200 font-semibold tabular-nums"
                           [class.bg-emerald-50]="col.isToday"
                           [class.text-emerald-800]="col.isToday"
                           [class.bg-slate-50]="!col.isToday && !col.isWeekend"
@@ -670,26 +876,28 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                             @if (bookings.length > 0) {
                               <div class="space-y-1">
                                 @for (b of bookings; track b.id) {
-                                  <div
+                                  <button
+                                    type="button"
                                     (click)="viewDetails(b)"
                                     [title]="getBookingTooltip(b)"
-                                    class="p-1.5 rounded-md text-[10px] font-semibold transition cursor-pointer shadow-xs truncate flex flex-col justify-between"
+                                    [attr.aria-label]="'Xem chi tiết đặt phòng ' + b.confirmationCode + ' của ' + b.guestName"
+                                    class="w-full min-h-11 text-left p-1.5 rounded-md text-[10px] font-semibold transition cursor-pointer shadow-xs truncate flex flex-col justify-between focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                                     [ngClass]="getTimelineBookingBadgeClass(b, col.dateStr)"
                                   >
-                                    <div class="flex items-center justify-between gap-1">
+                                    <div class="flex items-center justify-between gap-1 w-full">
                                       <span class="truncate font-bold">{{ b.guestName }}</span>
                                       @if (b.rentalType === RentalType.Hourly) {
                                         <i class="pi pi-clock text-[9px]"></i>
                                       }
                                     </div>
-                                    <div class="text-[9px] opacity-90 truncate">
+                                    <div class="text-[9px] opacity-90 truncate tabular-nums">
                                       @if (b.rentalType === RentalType.Hourly) {
                                         {{ formatUtcTime(b.startAtUtc) }} - {{ formatUtcTime(b.endAtUtc) }}
                                       } @else {
                                         {{ b.confirmationCode }}
                                       }
                                     </div>
-                                  </div>
+                                  </button>
                                 }
                               </div>
                             } @else {
@@ -697,10 +905,11 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                               <button
                                 type="button"
                                 (click)="openCreateModalWithPrefill(room, col.dateStr)"
-                                class="w-full h-full min-h-[44px] rounded-md border border-dashed border-transparent hover:border-emerald-300 hover:bg-emerald-50/60 transition flex items-center justify-center text-slate-300 hover:text-emerald-700 cursor-pointer"
+                                class="w-full h-full min-h-11 rounded-md border border-dashed border-transparent hover:border-emerald-300 hover:bg-emerald-50/60 transition flex items-center justify-center text-slate-300 hover:text-emerald-700 cursor-pointer"
+                                [attr.aria-label]="'Đặt nhanh phòng ' + room.roomNumber + ' cho ngày ' + col.dateStr"
                                 [title]="'Đặt nhanh phòng ' + room.roomNumber + ' cho ngày ' + col.dateStr"
                               >
-                                <i class="pi pi-plus text-xs opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                <i class="pi pi-plus text-xs opacity-60 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"></i>
                               </button>
                             }
                           </td>
@@ -721,6 +930,10 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
           class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
           role="dialog"
           aria-modal="true"
+          aria-label="Chi tiết đơn đặt phòng"
+          cdkTrapFocus
+          [cdkTrapFocusAutoCapture]="true"
+          (keydown.escape)="closeDetailModal()"
           (click)="closeDetailModal()"
         >
           <div
@@ -741,7 +954,8 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               <button
                 type="button"
                 (click)="closeDetailModal()"
-                class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                aria-label="Đóng chi tiết đơn đặt phòng"
+                class="min-h-11 min-w-11 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
               >
                 <i class="pi pi-times text-sm"></i>
               </button>
@@ -770,8 +984,14 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   <div class="text-slate-600 font-medium">
                     Hình thức: {{ detail.rentalType === RentalType.Hourly ? 'Thuê theo giờ' : 'Thuê theo đêm' }}
                   </div>
-                  <div class="text-slate-600">
-                    {{ detail.checkInDate }} @if (detail.rentalType === RentalType.Hourly) { ({{ formatUtcTime(detail.startAtUtc) }} – {{ formatUtcTime(detail.endAtUtc) }}) } @else { ➔ {{ detail.checkOutDate }} }
+                  <div class="text-slate-600 tabular-nums inline-flex items-center gap-1 flex-wrap">
+                    <span>{{ detail.checkInDate | businessDate }}</span>
+                    @if (detail.rentalType === RentalType.Hourly) {
+                      <span>({{ formatUtcTime(detail.startAtUtc) }} – {{ formatUtcTime(detail.endAtUtc) }})</span>
+                    } @else {
+                      <i class="pi pi-arrow-right text-[10px] text-slate-400" aria-hidden="true"></i>
+                      <span>{{ detail.checkOutDate | businessDate }}</span>
+                    }
                   </div>
                   <div>
                     Trạng thái:
@@ -935,7 +1155,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                       <button
                         type="button"
                         (click)="loadFolio(detail.id, detail.propertyId)"
-                        class="px-2.5 py-1 text-xs font-semibold text-rose-700 bg-white border border-rose-300 hover:bg-rose-100 rounded-lg transition shrink-0 cursor-pointer"
+                        class="min-h-11 px-3 py-1 text-xs font-semibold text-rose-700 bg-white border border-rose-300 hover:bg-rose-100 rounded-lg transition shrink-0 cursor-pointer"
                       >
                         Thử lại
                       </button>
@@ -1000,7 +1220,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                           <button
                             type="button"
                             (click)="fillFullRemaining()"
-                            class="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
+                            class="min-h-11 px-2 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer tabular-nums"
                           >
                             Thu đủ dư nợ ({{ f.remainingBalance | number:'1.0-0' }} đ)
                           </button>
@@ -1043,7 +1263,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                             <button
                               type="submit"
                               [disabled]="paymentForm.invalid || isSubmittingPayment() || isLoadingFolio()"
-                              class="px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                              class="min-h-11 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
                             >
                               <i class="pi pi-check" [class.animate-spin]="isSubmittingPayment()"></i>
                               <span>Xác nhận thu tiền</span>
@@ -1052,6 +1272,34 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                         </form>
                       </div>
                     }
+                  }
+
+                  <!-- Quick Minibar / Service Charge Bar for Checked-In Reservations -->
+                  @if (canCheckInOut() && detail.status === ReservationStatus.CheckedIn) {
+                    <div class="bg-indigo-50/60 p-3 rounded-xl border border-indigo-200/80 space-y-2">
+                      <div class="flex items-center justify-between">
+                        <span class="font-bold text-indigo-900 text-xs flex items-center gap-1.5">
+                          <i class="pi pi-bolt text-indigo-600"></i>
+                          <span>Thêm nhanh Minibar & Dịch vụ vào Folio</span>
+                        </span>
+                        @if (isAddingQuickMinibar()) {
+                          <span class="text-[11px] text-indigo-700 font-medium">Đang ghi nhận...</span>
+                        }
+                      </div>
+                      <div class="flex flex-wrap gap-2">
+                        @for (mItem of quickMinibarCatalog; track mItem.code) {
+                          <button
+                            type="button"
+                            [disabled]="isAddingQuickMinibar()"
+                            (click)="addQuickMinibarToReservation(detail, mItem)"
+                            class="min-h-11 px-3 py-1.5 rounded-lg border border-indigo-200 bg-white hover:bg-indigo-50 text-indigo-800 text-xs font-semibold transition cursor-pointer inline-flex items-center gap-1.5 disabled:opacity-50 tabular-nums"
+                          >
+                            <i class="pi pi-plus text-[10px]"></i>
+                            <span>{{ mItem.name }} ({{ mItem.price | number:'1.0-0' }} đ)</span>
+                          </button>
+                        }
+                      </div>
+                    </div>
                   }
                 </div>
               }
@@ -1109,7 +1357,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                         type="button"
                         [disabled]="isActionLoading()"
                         (click)="onRegenerateSmartLockPin(detail)"
-                        class="px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50 rounded-lg transition cursor-pointer"
+                        class="min-h-11 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50 rounded-lg transition cursor-pointer"
                       >
                         <i class="pi pi-refresh mr-1"></i>Cấp mới mã PIN
                       </button>
@@ -1118,7 +1366,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                           type="button"
                           [disabled]="isActionLoading()"
                           (click)="onRevokeSmartLockPin(detail)"
-                          class="px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 rounded-lg transition cursor-pointer"
+                          class="min-h-11 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 rounded-lg transition cursor-pointer"
                         >
                           <i class="pi pi-ban mr-1"></i>Thu hồi PIN
                         </button>
@@ -1144,16 +1392,16 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
             </div>
 
             <!-- Modal Footer -->
-            <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+            <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
               <div>
-                <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2">
                   @if (canCheckInOut()) {
                     @if (detail.status === ReservationStatus.Confirmed || detail.status === ReservationStatus.PendingPayment) {
                       <button
                         type="button"
                         [disabled]="isActionLoading()"
                         (click)="openCheckInModal(detail)"
-                        class="px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                        class="min-h-11 px-3.5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
                       >
                         <i class="pi pi-sign-in" [class.animate-spin]="isActionLoading()"></i>
                         <span>Nhận phòng</span>
@@ -1164,7 +1412,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                         type="button"
                         [disabled]="isActionLoading()"
                         (click)="openNoShowModal(detail)"
-                        class="px-3.5 py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 disabled:opacity-50 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                        class="min-h-11 px-3.5 py-2 text-xs font-semibold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 disabled:opacity-50 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
                       >
                         <i class="pi pi-user-minus"></i>
                         <span>Vắng mặt (No-Show)</span>
@@ -1175,14 +1423,14 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                         type="button"
                         [disabled]="isActionLoading()"
                         (click)="openCheckOutModal(detail)"
-                        class="px-3.5 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                        class="min-h-11 px-3.5 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
                         title="Trả phòng"
                       >
                         <i class="pi pi-sign-out" [class.animate-spin]="isActionLoading()"></i>
                         <span>Trả phòng</span>
                       </button>
                       @if (folio()?.reservationId === detail.id && (folio()?.remainingBalance ?? 0) > 0) {
-                        <span class="text-[11px] text-amber-700 font-medium">
+                        <span class="text-[11px] text-amber-700 font-medium tabular-nums">
                           <i class="pi pi-exclamation-triangle mr-1"></i>Còn nợ {{ folio()?.remainingBalance | number:'1.0-0' }} đ (thu đủ trước khi trả phòng)
                         </span>
                       }
@@ -1192,7 +1440,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                     type="button"
                     (click)="openPrintInvoice(detail.id)"
                     aria-label="In hóa đơn đơn đặt phòng"
-                    class="px-3.5 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    class="min-h-11 px-3.5 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
                   >
                     <i class="pi pi-print"></i>
                     <span>In hóa đơn</span>
@@ -1203,7 +1451,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                         type="button"
                         [disabled]="isActionLoading()"
                         (click)="openCancelModal(detail)"
-                        class="px-3.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                        class="min-h-11 px-3.5 py-2 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
                       >
                         <i class="pi pi-times-circle"></i>
                         <span>Hủy đặt phòng</span>
@@ -1216,7 +1464,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               <button
                 type="button"
                 (click)="closeDetailModal()"
-                class="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                class="min-h-11 px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition cursor-pointer"
               >
                 Đóng
               </button>
@@ -1231,6 +1479,10 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
           class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
           role="dialog"
           aria-modal="true"
+          aria-label="Tạo đặt phòng mới"
+          cdkTrapFocus
+          [cdkTrapFocusAutoCapture]="true"
+          (keydown.escape)="closeCreateModal()"
           (click)="closeCreateModal()"
         >
           <div
@@ -1254,7 +1506,8 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               <button
                 type="button"
                 (click)="closeCreateModal()"
-                class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                aria-label="Đóng hộp thoại tạo đặt phòng"
+                class="min-h-11 min-w-11 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
               >
                 <i class="pi pi-times text-sm"></i>
               </button>
@@ -1683,7 +1936,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <button
                   type="button"
                   (click)="closeCreateModal()"
-                  class="px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition cursor-pointer"
+                  class="min-h-11 px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition cursor-pointer"
                 >
                   Hủy
                 </button>
@@ -1691,7 +1944,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <button
                   type="submit"
                   [disabled]="isSubmitting() || !canSubmitCreate()"
-                  class="px-5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition shadow-sm shadow-emerald-600/30 flex items-center gap-2 cursor-pointer"
+                  class="min-h-11 px-5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition shadow-sm shadow-emerald-600/30 flex items-center gap-2 cursor-pointer"
                 >
                   <i class="pi pi-check" [class.animate-spin]="isSubmitting()"></i>
                   <span>Xác nhận tạo đặt phòng</span>
@@ -1708,6 +1961,10 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
           class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
           role="dialog"
           aria-modal="true"
+          aria-label="Xác nhận hủy đặt phòng"
+          cdkTrapFocus
+          [cdkTrapFocusAutoCapture]="true"
+          (keydown.escape)="closeCancelModal()"
           (click)="closeCancelModal()"
         >
           <div
@@ -1724,7 +1981,8 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               <button
                 type="button"
                 (click)="closeCancelModal()"
-                class="w-8 h-8 rounded-xl flex items-center justify-center text-rose-400 hover:text-rose-700 hover:bg-rose-100 transition cursor-pointer"
+                aria-label="Đóng hộp thoại hủy đặt phòng"
+                class="min-h-11 min-w-11 rounded-xl flex items-center justify-center text-rose-500 hover:text-rose-700 hover:bg-rose-100 transition cursor-pointer"
               >
                 <i class="pi pi-times text-sm"></i>
               </button>
@@ -1736,7 +1994,14 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               </p>
               <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-slate-700 space-y-1.5">
                 <div>Phòng: <span class="font-bold text-slate-800">Phòng {{ targetRes.roomNumber }}</span> ({{ targetRes.roomTypeName }})</div>
-                <div>Thời gian: <span class="font-medium text-slate-800">{{ targetRes.checkInDate }}</span> @if (targetRes.rentalType === RentalType.Overnight) { ➔ <span class="font-medium text-slate-800">{{ targetRes.checkOutDate }}</span> }</div>
+                <div class="flex items-center gap-1 tabular-nums">
+                  <span>Thời gian:</span>
+                  <span class="font-medium text-slate-800">{{ targetRes.checkInDate | businessDate }}</span>
+                  @if (targetRes.rentalType === RentalType.Overnight) {
+                    <i class="pi pi-arrow-right text-[10px] text-slate-400" aria-hidden="true"></i>
+                    <span class="font-medium text-slate-800">{{ targetRes.checkOutDate | businessDate }}</span>
+                  }
+                </div>
               </div>
 
               <div>
@@ -1756,7 +2021,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 type="button"
                 [disabled]="isActionLoading()"
                 (click)="closeCancelModal()"
-                class="px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                class="min-h-11 px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition cursor-pointer"
               >
                 Quay lại
               </button>
@@ -1764,7 +2029,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 type="button"
                 [disabled]="isActionLoading()"
                 (click)="confirmCancelReservation()"
-                class="px-5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-50 rounded-xl transition shadow-sm shadow-rose-600/30 flex items-center gap-2 cursor-pointer"
+                class="min-h-11 px-5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-50 rounded-xl transition shadow-sm shadow-rose-600/30 flex items-center gap-2 cursor-pointer"
               >
                 <i class="pi pi-times-circle" [class.animate-spin]="isActionLoading()"></i>
                 <span>Xác nhận hủy</span>
@@ -1781,6 +2046,10 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
             class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
             role="dialog"
             aria-modal="true"
+            aria-label="Thủ tục nhận phòng Check-in"
+            cdkTrapFocus
+            [cdkTrapFocusAutoCapture]="true"
+            (keydown.escape)="closeCheckInModal()"
             (click)="closeCheckInModal()"
           >
             <div
@@ -1800,7 +2069,8 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <button
                   type="button"
                   (click)="closeCheckInModal()"
-                  class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                  aria-label="Đóng hộp thoại nhận phòng"
+                  class="min-h-11 min-w-11 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                 >
                   <i class="pi pi-times text-sm"></i>
                 </button>
@@ -1904,7 +2174,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <button
                   type="button"
                   (click)="closeCheckInModal()"
-                  class="px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                  class="min-h-11 px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition cursor-pointer"
                 >
                   Hủy bỏ
                 </button>
@@ -1912,7 +2182,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   type="button"
                   [disabled]="isActionLoading() || !isIdentityVerified()"
                   (click)="confirmCheckInModal()"
-                  class="px-5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition shadow-sm shadow-emerald-600/30 flex items-center gap-2 cursor-pointer"
+                  class="min-h-11 px-5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition shadow-sm shadow-emerald-600/30 flex items-center gap-2 cursor-pointer"
                 >
                   <i class="pi pi-check" [class.animate-spin]="isActionLoading()"></i>
                   <span>Xác nhận nhận phòng</span>
@@ -1930,6 +2200,10 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
             class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
             role="dialog"
             aria-modal="true"
+            aria-label="Thủ tục trả phòng Check-out"
+            cdkTrapFocus
+            [cdkTrapFocusAutoCapture]="true"
+            (keydown.escape)="closeCheckOutModal()"
             (click)="closeCheckOutModal()"
           >
             <div
@@ -1949,7 +2223,8 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <button
                   type="button"
                   (click)="closeCheckOutModal()"
-                  class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                  aria-label="Đóng hộp thoại trả phòng"
+                  class="min-h-11 min-w-11 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                 >
                   <i class="pi pi-times text-sm"></i>
                 </button>
@@ -1982,7 +2257,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                       <span>Đang tải số liệu công nợ folio...</span>
                     </div>
                   } @else if (checkOutFolioError(); as errorMsg) {
-                    <div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between gap-3">
+                    <div role="alert" class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between gap-3">
                       <div class="flex items-center gap-2">
                         <i class="pi pi-exclamation-triangle text-rose-600 text-sm shrink-0"></i>
                         <span>{{ errorMsg }}</span>
@@ -1990,7 +2265,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                       <button
                         type="button"
                         (click)="retryCheckOutFolio()"
-                        class="px-3 py-1.5 text-xs font-semibold text-rose-700 bg-white border border-rose-300 hover:bg-rose-100 rounded-xl transition shrink-0 cursor-pointer"
+                        class="min-h-11 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-white border border-rose-300 hover:bg-rose-100 rounded-xl transition shrink-0 cursor-pointer"
                       >
                         Thử lại
                       </button>
@@ -2083,24 +2358,35 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <button
                   type="button"
                   (click)="openPrintInvoice(res.id)"
-                  class="px-3.5 py-2 text-xs sm:text-sm font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                  class="min-h-11 px-3.5 py-2 text-xs sm:text-sm font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
                 >
                   <i class="pi pi-print"></i>
                   <span>In hóa đơn</span>
                 </button>
-                <div class="flex items-center gap-3">
+                <div class="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
                     (click)="closeCheckOutModal()"
-                    class="px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                    class="min-h-11 px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition cursor-pointer"
                   >
                     Hủy bỏ
                   </button>
+                  @if (canCreatePayment() && checkOutFolio() && checkOutFolio()!.remainingBalance > 0) {
+                    <button
+                      type="button"
+                      [disabled]="isActionLoading() || isSubmittingPayment() || isLoadingCheckOutFolio()"
+                      (click)="payAndCheckOut(res, checkOutFolio()!)"
+                      class="min-h-11 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition shadow-sm shadow-emerald-600/30 flex items-center gap-2 cursor-pointer tabular-nums"
+                    >
+                      <i class="pi pi-wallet" [class.animate-spin]="isSubmittingPayment()"></i>
+                      <span>Thu đủ ({{ checkOutFolio()!.remainingBalance | number:'1.0-0' }} đ) & Trả phòng</span>
+                    </button>
+                  }
                   <button
                     type="button"
                     [disabled]="isActionLoading() || isLoadingCheckOutFolio() || !!checkOutFolioError() || !checkOutFolio() || checkOutFolio()!.remainingBalance > 0"
                     (click)="confirmCheckOutModal()"
-                    class="px-5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition shadow-sm shadow-amber-600/30 flex items-center gap-2 cursor-pointer"
+                    class="min-h-11 px-5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition shadow-sm shadow-amber-600/30 flex items-center gap-2 cursor-pointer"
                   >
                     <i class="pi pi-check" [class.animate-spin]="isActionLoading()"></i>
                     <span>Hoàn tất trả phòng</span>
@@ -2118,6 +2404,10 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
           class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
           role="dialog"
           aria-modal="true"
+          aria-label="Xác nhận vắng mặt No-Show"
+          cdkTrapFocus
+          [cdkTrapFocusAutoCapture]="true"
+          (keydown.escape)="closeNoShowModal()"
           (click)="closeNoShowModal()"
         >
           <div
@@ -2132,7 +2422,8 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               <button
                 type="button"
                 (click)="closeNoShowModal()"
-                class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-white transition cursor-pointer"
+                aria-label="Đóng hộp thoại vắng mặt"
+                class="min-h-11 min-w-11 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-white transition cursor-pointer"
               >
                 <i class="pi pi-times text-sm"></i>
               </button>
@@ -2156,7 +2447,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               <button
                 type="button"
                 (click)="closeNoShowModal()"
-                class="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                class="min-h-11 px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition cursor-pointer"
               >
                 Đóng
               </button>
@@ -2164,7 +2455,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 type="button"
                 [disabled]="isActionLoading()"
                 (click)="confirmNoShowModal()"
-                class="px-4 py-2 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-xl transition cursor-pointer"
+                class="min-h-11 px-4 py-2 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-xl transition cursor-pointer"
               >
                 Xác nhận Vắng mặt (No-Show)
               </button>
@@ -2179,6 +2470,10 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
           class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
           role="dialog"
           aria-modal="true"
+          aria-label="Báo cáo thu ngân trong ngày"
+          cdkTrapFocus
+          [cdkTrapFocusAutoCapture]="true"
+          (keydown.escape)="closeSummaryModal()"
           (click)="closeSummaryModal()"
         >
           <div
@@ -2200,15 +2495,17 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   type="button"
                   (click)="loadCashierSummary()"
                   [disabled]="isLoadingSummary()"
+                  aria-label="Làm mới báo cáo thu ngân"
                   title="Làm mới số liệu"
-                  class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-emerald-700 hover:bg-slate-200 transition cursor-pointer disabled:opacity-50"
+                  class="min-h-11 min-w-11 rounded-xl flex items-center justify-center text-slate-500 hover:text-emerald-700 hover:bg-slate-200 transition cursor-pointer disabled:opacity-50"
                 >
                   <i class="pi pi-refresh text-xs" [class.animate-spin]="isLoadingSummary()"></i>
                 </button>
                 <button
                   type="button"
                   (click)="closeSummaryModal()"
-                  class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+                  aria-label="Đóng báo cáo thu ngân"
+                  class="min-h-11 min-w-11 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
                 >
                   <i class="pi pi-times text-sm"></i>
                 </button>
@@ -2222,7 +2519,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   <span>Đang tải số liệu tổng hợp...</span>
                 </div>
               } @else if (summaryError()) {
-                <div class="py-8 flex flex-col items-center justify-center gap-3 text-center">
+                <div role="alert" class="py-8 flex flex-col items-center justify-center gap-3 text-center">
                   <div class="w-10 h-10 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600">
                     <i class="pi pi-exclamation-circle text-lg"></i>
                   </div>
@@ -2233,7 +2530,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   <button
                     type="button"
                     (click)="retrySummary()"
-                    class="px-3.5 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                    class="min-h-11 px-4 py-2 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
                   >
                     <i class="pi pi-refresh text-xs"></i>
                     <span>Thử lại</span>
@@ -2243,12 +2540,12 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <div class="grid grid-cols-2 gap-3">
                   <div class="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-100">
                     <div class="text-[11px] font-medium text-emerald-700 uppercase tracking-wider">Tổng thực thu</div>
-                    <div class="text-xl font-bold text-emerald-700 mt-1">{{ (summary.totalCollected ?? 0) | number:'1.0-0' }} đ</div>
-                    <div class="text-[11px] text-emerald-600 mt-0.5">{{ summary.completedCount ?? 0 }} giao dịch thành công</div>
+                    <div class="text-xl font-bold text-emerald-700 mt-1 tabular-nums">{{ (summary.totalCollected ?? 0) | number:'1.0-0' }} đ</div>
+                    <div class="text-[11px] text-emerald-600 mt-0.5 tabular-nums">{{ summary.completedCount ?? 0 }} giao dịch thành công</div>
                   </div>
                   <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
                     <div class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Ngày báo cáo</div>
-                    <div class="text-lg font-bold text-slate-800 mt-1">{{ formatVnDateDisplay(summary.date) }}</div>
+                    <div class="text-lg font-bold text-slate-800 mt-1 tabular-nums">{{ formatVnDateDisplay(summary.date) }}</div>
                     <div class="text-[11px] text-slate-500 mt-0.5">Múi giờ Việt Nam (UTC+7)</div>
                   </div>
                 </div>
@@ -2261,7 +2558,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                         <i class="pi pi-money-bill text-emerald-600"></i>
                         <span>Tiền mặt (Cash)</span>
                       </div>
-                      <span class="font-bold text-slate-900">{{ (summary.cashCollected ?? 0) | number:'1.0-0' }} đ</span>
+                      <span class="font-bold text-slate-900 tabular-nums">{{ (summary.cashCollected ?? 0) | number:'1.0-0' }} đ</span>
                     </div>
 
                     <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs">
@@ -2269,7 +2566,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                         <i class="pi pi-credit-card text-blue-600"></i>
                         <span>Chuyển khoản (Bank Transfer)</span>
                       </div>
-                      <span class="font-bold text-slate-900">{{ (summary.bankTransferCollected ?? 0) | number:'1.0-0' }} đ</span>
+                      <span class="font-bold text-slate-900 tabular-nums">{{ (summary.bankTransferCollected ?? 0) | number:'1.0-0' }} đ</span>
                     </div>
 
                     @if ((summary.creditCardCollected ?? 0) > 0) {
@@ -2278,7 +2575,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                           <i class="pi pi-credit-card text-purple-600"></i>
                           <span>Thẻ tín dụng / POS (Card)</span>
                         </div>
-                        <span class="font-bold text-slate-900">{{ summary.creditCardCollected | number:'1.0-0' }} đ</span>
+                        <span class="font-bold text-slate-900 tabular-nums">{{ summary.creditCardCollected | number:'1.0-0' }} đ</span>
                       </div>
                     }
                   </div>
@@ -2294,7 +2591,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
               <button
                 type="button"
                 (click)="closeSummaryModal()"
-                class="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                class="min-h-11 px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition cursor-pointer"
               >
                 Đóng
               </button>
@@ -2329,6 +2626,13 @@ export class ReservationsPage implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute, { optional: true });
   private readonly router = inject(Router, { optional: true });
+  private readonly cdr = inject(ChangeDetectorRef, { optional: true });
+
+  private fallbackDestroyCallbacks: Array<() => void> = [];
+  private isFallbackDestroyed = false;
+  private readonly destroyRef = inject(DestroyRef, { optional: true }) ?? this.createFallbackDestroyRef();
+
+  @ViewChild('reservationSearchInput') searchInputRef?: ElementRef<HTMLInputElement>;
 
   // Constants
   readonly RentalType = RentalType;
@@ -2383,11 +2687,27 @@ export class ReservationsPage implements OnInit, OnDestroy {
   readonly isLoading = signal<boolean>(false);
   readonly errorMessage = signal<string | null>(null);
 
-  // Filters
+  // Filters & Sorting
   readonly searchQuery = signal<string>('');
   readonly selectedStatus = signal<number | null>(null);
   readonly dateFrom = signal<string>('');
   readonly dateTo = signal<string>('');
+  readonly sortColumn = signal<'confirmationCode' | 'guestName' | 'checkInDate' | 'totalAmount' | 'status' | null>(null);
+  readonly sortDirection = signal<'asc' | 'desc'>('asc');
+  readonly sortedReservations = computed(() => {
+    const items = [...this.reservations()];
+    const col = this.sortColumn();
+    if (!col) return items;
+    const dir = this.sortDirection() === 'asc' ? 1 : -1;
+    return items.sort((a, b) => {
+      if (col === 'totalAmount' || col === 'status') {
+        return ((Number(a[col]) || 0) - (Number(b[col]) || 0)) * dir;
+      }
+      const valA = String(a[col] || '');
+      const valB = String(b[col] || '');
+      return valA.localeCompare(valB, 'vi') * dir;
+    });
+  });
 
   // Modals & Details
   readonly selectedReservationDetail = signal<ReservationDetailDto | null>(null);
@@ -2537,6 +2857,12 @@ export class ReservationsPage implements OnInit, OnDestroy {
   readonly folio = signal<FolioDto | null>(null);
   readonly isLoadingFolio = signal<boolean>(false);
   readonly isSubmittingPayment = signal<boolean>(false);
+  readonly isAddingQuickMinibar = signal<boolean>(false);
+  readonly quickMinibarCatalog = [
+    { code: 'MB-WATER', name: 'Nước suối', price: 20000 },
+    { code: 'MB-DRINK', name: 'Nước ngọt / Bia', price: 35000 },
+    { code: 'SVC-LAUNDRY', name: 'Giặt ủi nhanh', price: 50000 }
+  ];
   readonly isSummaryModalOpen = signal<boolean>(false);
   readonly paymentSummary = signal<PaymentSummaryDto | null>(null);
   readonly isLoadingSummary = signal<boolean>(false);
@@ -2546,6 +2872,8 @@ export class ReservationsPage implements OnInit, OnDestroy {
   paymentForm!: FormGroup;
 
   // Subscriptions & Request Generation Trackers
+  private readonly searchDebounceSubject$ = new Subject<string>();
+  private searchDebounceSub?: Subscription;
   private listSub?: Subscription;
   private roomTypesSub?: Subscription;
   private policiesSub?: Subscription;
@@ -2556,6 +2884,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
   private lifecycleSub?: Subscription;
   private folioSub?: Subscription;
   private paymentSub?: Subscription;
+  private minibarSub?: Subscription;
   private summarySub?: Subscription;
   private timelineRoomsSub?: Subscription;
   private timelineResSub?: Subscription;
@@ -2592,38 +2921,55 @@ export class ReservationsPage implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    if (this.route?.queryParams) {
-      this.queryParamsSub = this.route.queryParams.subscribe(params => {
-        const view = params['view'];
-        const rawCode = params['code'] ? String(params['code']).trim().replace(/^#/, '') : '';
-        const rawResId = params['reservationId'] ? String(params['reservationId']).trim() : '';
-
-        if (view === 'timeline') {
-          this.viewMode.set('timeline');
-          if (this.activeProperty()?.id) {
-            this.loadTimelineData();
-          }
-        } else if (rawCode || rawResId) {
-          this.viewMode.set('table');
-        }
-
-        if (rawCode || rawResId) {
-          if (rawCode) {
-            this.searchQuery.set(rawCode);
-          }
-          this.selectedStatus.set(null);
-          this.dateFrom.set('');
-          this.dateTo.set('');
-          this.currentPage.set(1);
-          this.pendingAutoOpenReservation = {
-            code: rawCode || undefined,
-            reservationId: rawResId || undefined
-          };
-          if (this.activeProperty()?.id) {
-            this.loadReservations();
-          }
-        }
+    this.searchDebounceSub?.unsubscribe();
+    this.searchDebounceSub = this.searchDebounceSubject$
+      .pipe(
+        debounceTime(300),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((term) => {
+        this.searchQuery.set(term);
+        this.currentPage.set(1);
+        this.loadReservations();
+        this.cdr?.markForCheck();
       });
+
+    if (this.route?.queryParams) {
+      this.queryParamsSub = this.route.queryParams
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(params => {
+          const view = params['view'];
+          const rawCode = params['code'] ? String(params['code']).trim().replace(/^#/, '') : '';
+          const rawResId = params['reservationId'] ? String(params['reservationId']).trim() : '';
+
+          if (view === 'timeline') {
+            this.viewMode.set('timeline');
+            if (this.activeProperty()?.id) {
+              this.loadTimelineData();
+            }
+          } else if (rawCode || rawResId) {
+            this.viewMode.set('table');
+          }
+
+          if (rawCode || rawResId) {
+            if (rawCode) {
+              this.searchQuery.set(rawCode);
+            }
+            this.selectedStatus.set(null);
+            this.dateFrom.set('');
+            this.dateTo.set('');
+            this.currentPage.set(1);
+            this.pendingAutoOpenReservation = {
+              code: rawCode || undefined,
+              reservationId: rawResId || undefined
+            };
+            if (this.activeProperty()?.id) {
+              this.loadReservations();
+            }
+          }
+          this.cdr?.markForCheck();
+        });
     }
 
     const propId = this.activeProperty()?.id ?? null;
@@ -2636,7 +2982,68 @@ export class ReservationsPage implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.queryParamsSub?.unsubscribe();
+    this.searchDebounceSub?.unsubscribe();
     this.cancelPendingRequests();
+    this.isFallbackDestroyed = true;
+    const callbacks = this.fallbackDestroyCallbacks.splice(0);
+    callbacks.forEach(cb => cb());
+  }
+
+  private createFallbackDestroyRef(): DestroyRef {
+    const page = this;
+    return {
+      get destroyed(): boolean {
+        return page.isFallbackDestroyed;
+      },
+      onDestroy: (callback: () => void) => {
+        page.fallbackDestroyCallbacks.push(callback);
+        return () => {
+          page.fallbackDestroyCallbacks = page.fallbackDestroyCallbacks.filter(cb => cb !== callback);
+        };
+      }
+    };
+  }
+
+  private hasOpenModal(): boolean {
+    return Boolean(
+      this.selectedReservationDetail() ||
+      this.isCreateModalOpen() ||
+      this.cancelModalReservation() ||
+      this.isCheckInModalOpen() ||
+      this.isCheckOutModalOpen() ||
+      this.noShowModalReservation() ||
+      this.isSummaryModalOpen() ||
+      this.showContextSelector()
+    );
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  onGlobalKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      if (this.isCheckOutModalOpen()) { this.closeCheckOutModal(); return; }
+      if (this.isCheckInModalOpen()) { this.closeCheckInModal(); return; }
+      if (this.cancelModalReservation()) { this.closeCancelModal(); return; }
+      if (this.noShowModalReservation()) { this.closeNoShowModal(); return; }
+      if (this.isSummaryModalOpen()) { this.closeSummaryModal(); return; }
+      if (this.isCreateModalOpen()) { this.closeCreateModal(); return; }
+      if (this.selectedReservationDetail()) { this.closeDetailModal(); return; }
+      return;
+    }
+
+    if (this.hasOpenModal() || this.viewMode() !== 'table') {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+    const tag = target?.tagName?.toUpperCase();
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) {
+      return;
+    }
+
+    if (event.key === '/' || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k')) {
+      event.preventDefault();
+      this.searchInputRef?.nativeElement?.focus();
+    }
   }
 
   handlePropertyContextChange(newPropertyId: string | null): void {
@@ -2690,6 +3097,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.lifecycleSub?.unsubscribe();
     this.folioSub?.unsubscribe();
     this.paymentSub?.unsubscribe();
+    this.minibarSub?.unsubscribe();
     this.summarySub?.unsubscribe();
     this.timelineRoomsSub?.unsubscribe();
     this.timelineResSub?.unsubscribe();
@@ -2704,28 +3112,33 @@ export class ReservationsPage implements OnInit, OnDestroy {
       return;
     }
 
-    this.policiesSub = this.policyService.getPolicies(propId).subscribe({
-      next: (policies) => {
-        this.branchPolicies.set(policies);
-        if (this.isCreateModalOpen() && this.createForm) {
-          const inTime = policies.checkInTime ? policies.checkInTime.slice(0, 5) : '';
-          const outTime = policies.checkOutTime ? policies.checkOutTime.slice(0, 5) : '';
-          if (inTime && !this.createForm.get('checkInTime')?.dirty) {
-            this.createForm.patchValue({ checkInTime: inTime });
-            if (!this.createForm.get('checkInDate')?.dirty && !this.createForm.get('checkOutDate')?.dirty) {
-              const dates = this.getDefaultOvernightDates(inTime);
-              this.createForm.patchValue({ checkInDate: dates.checkInDate, checkOutDate: dates.checkOutDate });
+    this.policiesSub = this.policyService
+      .getPolicies(propId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (policies) => {
+          this.branchPolicies.set(policies);
+          if (this.isCreateModalOpen() && this.createForm) {
+            const inTime = policies.checkInTime ? policies.checkInTime.slice(0, 5) : '';
+            const outTime = policies.checkOutTime ? policies.checkOutTime.slice(0, 5) : '';
+            if (inTime && !this.createForm.get('checkInTime')?.dirty) {
+              this.createForm.patchValue({ checkInTime: inTime });
+              if (!this.createForm.get('checkInDate')?.dirty && !this.createForm.get('checkOutDate')?.dirty) {
+                const dates = this.getDefaultOvernightDates(inTime);
+                this.createForm.patchValue({ checkInDate: dates.checkInDate, checkOutDate: dates.checkOutDate });
+              }
+            }
+            if (outTime && !this.createForm.get('checkOutTime')?.dirty) {
+              this.createForm.patchValue({ checkOutTime: outTime });
             }
           }
-          if (outTime && !this.createForm.get('checkOutTime')?.dirty) {
-            this.createForm.patchValue({ checkOutTime: outTime });
-          }
+          this.cdr?.markForCheck();
+        },
+        error: () => {
+          this.branchPolicies.set(null);
+          this.cdr?.markForCheck();
         }
-      },
-      error: () => {
-        this.branchPolicies.set(null);
-      }
-    });
+      });
   }
 
   private initCreateForm(): void {
@@ -2790,44 +3203,49 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.isLoading.set(true);
     this.errorMessage.set(null);
 
-    this.listSub = this.reservationService.getReservations({
-      propertyId: propId,
-      status: this.selectedStatus() ?? undefined,
-      from: this.dateFrom() || undefined,
-      to: this.dateTo() || undefined,
-      search: this.searchQuery() || undefined,
-      page: this.currentPage(),
-      pageSize: this.pageSize()
-    }).subscribe({
-      next: (res) => {
-        if (reqId !== this.listRequestId || this.activeProperty()?.id !== propId) return;
-        const loadedItems = res.items || [];
-        this.reservations.set(loadedItems);
-        this.totalCount.set(res.totalCount || 0);
-        this.isLoading.set(false);
+    this.listSub = this.reservationService
+      .getReservations({
+        propertyId: propId,
+        status: this.selectedStatus() ?? undefined,
+        from: this.dateFrom() || undefined,
+        to: this.dateTo() || undefined,
+        search: this.searchQuery() || undefined,
+        page: this.currentPage(),
+        pageSize: this.pageSize()
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          if (reqId !== this.listRequestId || this.activeProperty()?.id !== propId) return;
+          const loadedItems = res.items || [];
+          this.reservations.set(loadedItems);
+          this.totalCount.set(res.totalCount || 0);
+          this.isLoading.set(false);
 
-        if (this.pendingAutoOpenReservation) {
-          const target = this.pendingAutoOpenReservation;
-          this.pendingAutoOpenReservation = null;
-          const targetCode = target.code?.toUpperCase();
-          const targetId = target.reservationId;
-          const match =
-            (targetId ? loadedItems.find(i => i.id === targetId) : undefined) ||
-            (targetCode ? loadedItems.find(i => i.confirmationCode?.toUpperCase() === targetCode) : undefined) ||
-            (loadedItems.length === 1 ? loadedItems[0] : undefined);
-          if (match) {
-            this.viewDetails(match);
-          } else if (targetId && targetId.length >= 32) {
-            this.viewDetails({ id: targetId } as ReservationDto);
+          if (this.pendingAutoOpenReservation) {
+            const target = this.pendingAutoOpenReservation;
+            this.pendingAutoOpenReservation = null;
+            const targetCode = target.code?.toUpperCase();
+            const targetId = target.reservationId;
+            const match =
+              (targetId ? loadedItems.find(i => i.id === targetId) : undefined) ||
+              (targetCode ? loadedItems.find(i => i.confirmationCode?.toUpperCase() === targetCode) : undefined) ||
+              (loadedItems.length === 1 ? loadedItems[0] : undefined);
+            if (match) {
+              this.viewDetails(match);
+            } else if (targetId && targetId.length >= 32) {
+              this.viewDetails({ id: targetId } as ReservationDto);
+            }
           }
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          if (reqId !== this.listRequestId || this.activeProperty()?.id !== propId) return;
+          this.isLoading.set(false);
+          this.errorMessage.set(err?.error?.message || 'Không thể tải danh sách đặt phòng. Vui lòng thử lại.');
+          this.cdr?.markForCheck();
         }
-      },
-      error: (err) => {
-        if (reqId !== this.listRequestId || this.activeProperty()?.id !== propId) return;
-        this.isLoading.set(false);
-        this.errorMessage.set(err?.error?.message || 'Không thể tải danh sách đặt phòng. Vui lòng thử lại.');
-      }
-    });
+      });
   }
 
   private loadRoomTypes(): void {
@@ -2838,15 +3256,44 @@ export class ReservationsPage implements OnInit, OnDestroy {
     }
 
     this.roomTypesSub?.unsubscribe();
-    this.roomTypesSub = this.roomTypeService.getRoomTypes(undefined, 1, 100).subscribe({
-      next: (res) => {
-        if (this.activeProperty()?.id !== propId) return;
-        this.roomTypes.set(res.items || []);
-      },
-      error: () => {
-        this.roomTypes.set([]);
-      }
-    });
+    this.roomTypesSub = this.roomTypeService
+      .getRoomTypes(undefined, 1, 100)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          if (this.activeProperty()?.id !== propId) return;
+          this.roomTypes.set(res.items || []);
+          this.cdr?.markForCheck();
+        },
+        error: () => {
+          this.roomTypes.set([]);
+          this.cdr?.markForCheck();
+        }
+      });
+  }
+
+  toggleSort(col: 'confirmationCode' | 'guestName' | 'checkInDate' | 'totalAmount' | 'status'): void {
+    if (this.sortColumn() === col) {
+      this.sortDirection.set(this.sortDirection() === 'asc' ? 'desc' : 'asc');
+    } else {
+      this.sortColumn.set(col);
+      this.sortDirection.set('asc');
+    }
+  }
+
+  getAriaSort(col: 'confirmationCode' | 'guestName' | 'checkInDate' | 'totalAmount' | 'status'): 'ascending' | 'descending' | 'none' {
+    if (this.sortColumn() !== col) return 'none';
+    return this.sortDirection() === 'asc' ? 'ascending' : 'descending';
+  }
+
+  trackByReservationId(_index: number, item: ReservationDto): string {
+    return item.id;
+  }
+
+  onDebouncedSearchInput(event: Event): void {
+    const val = (event.target as HTMLInputElement).value;
+    this.searchQuery.set(val);
+    this.searchDebounceSubject$.next(val);
   }
 
   // Filter Event Handlers
@@ -2929,16 +3376,21 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.lastPaymentFingerprint = null;
     this.initPaymentForm();
 
-    this.detailSub = this.reservationService.getReservationById(res.id, propId).subscribe({
-      next: (detail) => {
-        if (reqId !== this.detailRequestId || this.activeProperty()?.id !== propId || this.detailReservationId() !== res.id) return;
-        this.selectedReservationDetail.set(detail);
-      },
-      error: () => {
-        if (reqId !== this.detailRequestId || this.activeProperty()?.id !== propId) return;
-        this.alertService.toastError('Không thể tải chi tiết đặt phòng.');
-      }
-    });
+    this.detailSub = this.reservationService
+      .getReservationById(res.id, propId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (detail) => {
+          if (reqId !== this.detailRequestId || this.activeProperty()?.id !== propId || this.detailReservationId() !== res.id) return;
+          this.selectedReservationDetail.set(detail);
+          this.cdr?.markForCheck();
+        },
+        error: () => {
+          if (reqId !== this.detailRequestId || this.activeProperty()?.id !== propId) return;
+          this.alertService.toastError('Không thể tải chi tiết đặt phòng.');
+          this.cdr?.markForCheck();
+        }
+      });
 
     this.loadFolio(res.id, propId);
   }
@@ -3076,72 +3528,83 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.selectedRoomId.set(null);
     this.verifiedScheduleKey.set(null);
 
-    this.quoteSub = this.reservationService.calculateQuote({
-      propertyId: propId,
-      roomTypeId: roomTypeId,
-      rentalType: rentalType,
-      startAtUtc: startAtUtc,
-      endAtUtc: endAtUtc,
-      checkInDate: checkInDate,
-      checkOutDate: checkOutDate
-    }).subscribe({
-      next: (quote) => {
-        if (
-          reqId !== this.quoteRequestId ||
-          this.activeProperty()?.id !== propId ||
-          !this.isCreateModalOpen() ||
-          this.getCurrentScheduleKey() !== currentScheduleKey
-        ) {
-          this.isCalculatingQuote.set(false);
-          return;
-        }
-
-        this.calculatedQuote.set(quote);
-
-        this.availabilitySub = this.reservationService.getAvailability({
-          propertyId: propId,
-          rentalType: rentalType,
-          startAtUtc: startAtUtc,
-          endAtUtc: endAtUtc,
-          roomTypeId: roomTypeId,
-          checkInDate: checkInDate,
-          checkOutDate: checkOutDate
-        }).subscribe({
-          next: (rooms) => {
-            if (
-              reqId !== this.quoteRequestId ||
-              this.activeProperty()?.id !== propId ||
-              !this.isCreateModalOpen() ||
-              this.getCurrentScheduleKey() !== currentScheduleKey
-            ) {
-              this.isCalculatingQuote.set(false);
-              return;
-            }
-
-            this.availableRooms.set(rooms || []);
-            this.verifiedScheduleKey.set(currentScheduleKey);
+    this.quoteSub = this.reservationService
+      .calculateQuote({
+        propertyId: propId,
+        roomTypeId: roomTypeId,
+        rentalType: rentalType,
+        startAtUtc: startAtUtc,
+        endAtUtc: endAtUtc,
+        checkInDate: checkInDate,
+        checkOutDate: checkOutDate
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (quote) => {
+          if (
+            reqId !== this.quoteRequestId ||
+            this.activeProperty()?.id !== propId ||
+            !this.isCreateModalOpen() ||
+            this.getCurrentScheduleKey() !== currentScheduleKey
+          ) {
             this.isCalculatingQuote.set(false);
-
-            const firstAvail = rooms.find(r => r.isAvailable);
-            if (firstAvail) {
-              this.selectedRoomId.set(firstAvail.roomId);
-            }
-          },
-          error: (err) => {
-            if (reqId !== this.quoteRequestId || this.activeProperty()?.id !== propId) return;
-            this.isCalculatingQuote.set(false);
-            this.quoteError.set(err?.error?.message || 'Không thể kiểm tra tình trạng phòng trống.');
+            this.cdr?.markForCheck();
+            return;
           }
-        });
-      },
-      error: (err) => {
-        if (reqId !== this.quoteRequestId || this.activeProperty()?.id !== propId) return;
-        this.isCalculatingQuote.set(false);
-        const validationErrors = err?.error?.errors as Record<string, string[]> | undefined;
-        const validationMessage = validationErrors && Object.values(validationErrors).flat().find(Boolean);
-        this.quoteError.set(validationMessage || err?.error?.message || 'Không thể tính giá đặt phòng theo chính sách hiện hành.');
-      }
-    });
+
+          this.calculatedQuote.set(quote);
+
+          this.availabilitySub = this.reservationService
+            .getAvailability({
+              propertyId: propId,
+              rentalType: rentalType,
+              startAtUtc: startAtUtc,
+              endAtUtc: endAtUtc,
+              roomTypeId: roomTypeId,
+              checkInDate: checkInDate,
+              checkOutDate: checkOutDate
+            })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+              next: (rooms) => {
+                if (
+                  reqId !== this.quoteRequestId ||
+                  this.activeProperty()?.id !== propId ||
+                  !this.isCreateModalOpen() ||
+                  this.getCurrentScheduleKey() !== currentScheduleKey
+                ) {
+                  this.isCalculatingQuote.set(false);
+                  this.cdr?.markForCheck();
+                  return;
+                }
+
+                this.availableRooms.set(rooms || []);
+                this.verifiedScheduleKey.set(currentScheduleKey);
+                this.isCalculatingQuote.set(false);
+
+                const firstAvail = rooms.find(r => r.isAvailable);
+                if (firstAvail) {
+                  this.selectedRoomId.set(firstAvail.roomId);
+                }
+                this.cdr?.markForCheck();
+              },
+              error: (err) => {
+                if (reqId !== this.quoteRequestId || this.activeProperty()?.id !== propId) return;
+                this.isCalculatingQuote.set(false);
+                this.quoteError.set(err?.error?.message || 'Không thể kiểm tra tình trạng phòng trống.');
+                this.cdr?.markForCheck();
+              }
+            });
+        },
+        error: (err) => {
+          if (reqId !== this.quoteRequestId || this.activeProperty()?.id !== propId) return;
+          this.isCalculatingQuote.set(false);
+          const validationErrors = err?.error?.errors as Record<string, string[]> | undefined;
+          const validationMessage = validationErrors && Object.values(validationErrors).flat().find(Boolean);
+          this.quoteError.set(validationMessage || err?.error?.message || 'Không thể tính giá đặt phòng theo chính sách hiện hành.');
+          this.cdr?.markForCheck();
+        }
+      });
   }
 
   selectRoom(room: RoomAvailabilityDto): void {
@@ -3243,34 +3706,41 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.submitSub?.unsubscribe();
     this.isSubmitting.set(true);
 
-    this.submitSub = this.reservationService.createReservation(payload).subscribe({
-      next: (created) => {
-        if (this.activeProperty()?.id !== propId || !this.isCreateModalOpen()) {
-          this.isSubmitting.set(false);
-          return;
-        }
+    this.submitSub = this.reservationService
+      .createReservation(payload)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (created) => {
+          if (this.activeProperty()?.id !== propId || !this.isCreateModalOpen()) {
+            this.isSubmitting.set(false);
+            this.cdr?.markForCheck();
+            return;
+          }
 
-        this.currentSubmissionKey = null;
-        this.lastSubmittedFingerprint = null;
-        this.isSubmitting.set(false);
-        this.closeCreateModal();
-        this.alertService.toastSuccess(`Tạo đặt phòng thành công! Mã xác nhận: ${created.confirmationCode}`);
-        this.loadReservations();
-        if (this.viewMode() === 'timeline') {
-          this.loadTimelineData();
-        }
-      },
-      error: (err) => {
-        if (this.activeProperty()?.id !== propId || !this.isCreateModalOpen()) {
+          this.currentSubmissionKey = null;
+          this.lastSubmittedFingerprint = null;
           this.isSubmitting.set(false);
-          return;
-        }
+          this.closeCreateModal();
+          this.alertService.toastSuccess(`Tạo đặt phòng thành công! Mã xác nhận: ${created.confirmationCode}`);
+          this.loadReservations();
+          if (this.viewMode() === 'timeline') {
+            this.loadTimelineData();
+          }
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          if (this.activeProperty()?.id !== propId || !this.isCreateModalOpen()) {
+            this.isSubmitting.set(false);
+            this.cdr?.markForCheck();
+            return;
+          }
 
-        this.isSubmitting.set(false);
-        const errMsg = err?.error?.message || 'Tạo đặt phòng thất bại. Vui lòng kiểm tra lại.';
-        this.alertService.toastError(errMsg);
-      }
-    });
+          this.isSubmitting.set(false);
+          const errMsg = err?.error?.message || 'Tạo đặt phòng thất bại. Vui lòng kiểm tra lại.';
+          this.alertService.toastError(errMsg);
+          this.cdr?.markForCheck();
+        }
+      });
   }
 
   // Stay Lifecycle Actions
@@ -3291,31 +3761,35 @@ export class ReservationsPage implements OnInit, OnDestroy {
     const checkInCall = this.checkInApplyEarlySurcharge()
       ? this.reservationService.checkIn(res.id, propId, { applyEarlySurcharge: true })
       : this.reservationService.checkIn(res.id, propId);
-    this.lifecycleSub = checkInCall.subscribe({
-      next: (updated) => {
-        if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
-          return;
+    this.lifecycleSub = checkInCall
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
+            return;
+          }
+          this.actionReservationId.set(null);
+          this.isActionLoading.set(false);
+          this.alertService.toastSuccess(`Nhận phòng thành công cho đơn ${updated.confirmationCode}!`);
+          if (this.selectedReservationDetail()?.id === res.id) {
+            this.selectedReservationDetail.set(updated);
+          }
+          // Notify Housekeeping Board via real-time signal
+          this.roomService?.notifyRoomStatusChanged?.(res.roomId, RoomStatus.Occupied, res.roomNumber);
+          this.loadReservations();
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
+            return;
+          }
+          this.actionReservationId.set(null);
+          this.isActionLoading.set(false);
+          const errMsg = err?.error?.message || 'Nhận phòng thất bại. Vui lòng kiểm tra trạng thái phòng.';
+          this.alertService.toastError(errMsg);
+          this.cdr?.markForCheck();
         }
-        this.actionReservationId.set(null);
-        this.isActionLoading.set(false);
-        this.alertService.toastSuccess(`Nhận phòng thành công cho đơn ${updated.confirmationCode}!`);
-        if (this.selectedReservationDetail()?.id === res.id) {
-          this.selectedReservationDetail.set(updated);
-        }
-        // Notify Housekeeping Board via real-time signal
-        this.roomService?.notifyRoomStatusChanged?.(res.roomId, RoomStatus.Occupied, res.roomNumber);
-        this.loadReservations();
-      },
-      error: (err) => {
-        if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
-          return;
-        }
-        this.actionReservationId.set(null);
-        this.isActionLoading.set(false);
-        const errMsg = err?.error?.message || 'Nhận phòng thất bại. Vui lòng kiểm tra trạng thái phòng.';
-        this.alertService.toastError(errMsg);
-      }
-    });
+      });
   }
 
   onCheckOut(res: ReservationDto | ReservationDetailDto): void {
@@ -3349,34 +3823,38 @@ export class ReservationsPage implements OnInit, OnDestroy {
           lateSurchargeOverrideReason: overrideReason || null
         })
       : this.reservationService.checkOut(res.id, propId);
-    this.lifecycleSub = checkOutCall.subscribe({
-      next: (updated) => {
-        if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
-          return;
+    this.lifecycleSub = checkOutCall
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
+            return;
+          }
+          this.actionReservationId.set(null);
+          this.isActionLoading.set(false);
+          this.checkOutApplyLateSurcharge.set(false);
+          this.checkOutOverrideLateSurcharge.set(null);
+          this.checkOutOverrideReason.set('');
+          this.alertService.toastSuccess(`Trả phòng thành công cho đơn ${updated.confirmationCode}! Phòng đã chuyển sang trạng thái Cần dọn dẹp (Dirty).`);
+          if (this.selectedReservationDetail()?.id === res.id) {
+            this.selectedReservationDetail.set(updated);
+          }
+          // Realtime notification to Housekeeping Board: Room transitions to Dirty automatically
+          this.roomService?.notifyRoomStatusChanged?.(res.roomId, RoomStatus.Dirty, res.roomNumber);
+          this.loadReservations();
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
+            return;
+          }
+          this.actionReservationId.set(null);
+          this.isActionLoading.set(false);
+          const errMsg = err?.error?.message || 'Trả phòng thất bại.';
+          this.alertService.toastError(errMsg);
+          this.cdr?.markForCheck();
         }
-        this.actionReservationId.set(null);
-        this.isActionLoading.set(false);
-        this.checkOutApplyLateSurcharge.set(false);
-        this.checkOutOverrideLateSurcharge.set(null);
-        this.checkOutOverrideReason.set('');
-        this.alertService.toastSuccess(`Trả phòng thành công cho đơn ${updated.confirmationCode}! Phòng đã chuyển sang trạng thái Cần dọn dẹp (Dirty).`);
-        if (this.selectedReservationDetail()?.id === res.id) {
-          this.selectedReservationDetail.set(updated);
-        }
-        // Realtime notification to Housekeeping Board: Room transitions to Dirty automatically
-        this.roomService?.notifyRoomStatusChanged?.(res.roomId, RoomStatus.Dirty, res.roomNumber);
-        this.loadReservations();
-      },
-      error: (err) => {
-        if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
-          return;
-        }
-        this.actionReservationId.set(null);
-        this.isActionLoading.set(false);
-        const errMsg = err?.error?.message || 'Trả phòng thất bại.';
-        this.alertService.toastError(errMsg);
-      }
-    });
+      });
   }
 
   getMinimumDeposit30(totalAmount: number): number {
@@ -3430,29 +3908,34 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.isActionLoading.set(true);
 
     this.lifecycleSub?.unsubscribe();
-    this.lifecycleSub = this.reservationService.markNoShow(res.id, propId, reason).subscribe({
-      next: (updated) => {
-        if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
-          return;
+    this.lifecycleSub = this.reservationService
+      .markNoShow(res.id, propId, reason)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
+            return;
+          }
+          this.actionReservationId.set(null);
+          this.isActionLoading.set(false);
+          this.alertService.toastSuccess(`Đã đánh dấu vắng mặt (No-Show) cho đơn ${updated.confirmationCode}.`);
+          if (this.selectedReservationDetail()?.id === res.id) {
+            this.selectedReservationDetail.set(updated);
+          }
+          this.loadReservations();
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
+            return;
+          }
+          this.actionReservationId.set(null);
+          this.isActionLoading.set(false);
+          const errMsg = err?.error?.message || 'Đánh dấu No-Show thất bại.';
+          this.alertService.toastError(errMsg);
+          this.cdr?.markForCheck();
         }
-        this.actionReservationId.set(null);
-        this.isActionLoading.set(false);
-        this.alertService.toastSuccess(`Đã đánh dấu vắng mặt (No-Show) cho đơn ${updated.confirmationCode}.`);
-        if (this.selectedReservationDetail()?.id === res.id) {
-          this.selectedReservationDetail.set(updated);
-        }
-        this.loadReservations();
-      },
-      error: (err) => {
-        if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
-          return;
-        }
-        this.actionReservationId.set(null);
-        this.isActionLoading.set(false);
-        const errMsg = err?.error?.message || 'Đánh dấu No-Show thất bại.';
-        this.alertService.toastError(errMsg);
-      }
-    });
+      });
   }
 
   onRegenerateSmartLockPin(res: ReservationDto | ReservationDetailDto): void {
@@ -3469,28 +3952,33 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.isActionLoading.set(true);
 
     this.lifecycleSub?.unsubscribe();
-    this.lifecycleSub = this.reservationService.regenerateSmartLockPin(res.id, propId).subscribe({
-      next: (updated) => {
-        if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
-          return;
+    this.lifecycleSub = this.reservationService
+      .regenerateSmartLockPin(res.id, propId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
+            return;
+          }
+          this.actionReservationId.set(null);
+          this.isActionLoading.set(false);
+          this.alertService.toastSuccess(`Đã cấp mới mã PIN Smart Lock cho đơn ${updated.confirmationCode}.`);
+          if (this.selectedReservationDetail()?.id === res.id) {
+            this.selectedReservationDetail.set(updated);
+          }
+          this.loadReservations();
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
+            return;
+          }
+          this.actionReservationId.set(null);
+          this.isActionLoading.set(false);
+          this.alertService.toastError(err?.error?.message || 'Cấp mới mã PIN Smart Lock thất bại.');
+          this.cdr?.markForCheck();
         }
-        this.actionReservationId.set(null);
-        this.isActionLoading.set(false);
-        this.alertService.toastSuccess(`Đã cấp mới mã PIN Smart Lock cho đơn ${updated.confirmationCode}.`);
-        if (this.selectedReservationDetail()?.id === res.id) {
-          this.selectedReservationDetail.set(updated);
-        }
-        this.loadReservations();
-      },
-      error: (err) => {
-        if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
-          return;
-        }
-        this.actionReservationId.set(null);
-        this.isActionLoading.set(false);
-        this.alertService.toastError(err?.error?.message || 'Cấp mới mã PIN Smart Lock thất bại.');
-      }
-    });
+      });
   }
 
   onRevokeSmartLockPin(res: ReservationDto | ReservationDetailDto): void {
@@ -3507,28 +3995,33 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.isActionLoading.set(true);
 
     this.lifecycleSub?.unsubscribe();
-    this.lifecycleSub = this.reservationService.revokeSmartLockPin(res.id, propId).subscribe({
-      next: (updated) => {
-        if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
-          return;
+    this.lifecycleSub = this.reservationService
+      .revokeSmartLockPin(res.id, propId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
+            return;
+          }
+          this.actionReservationId.set(null);
+          this.isActionLoading.set(false);
+          this.alertService.toastSuccess(`Đã thu hồi mã PIN Smart Lock cho đơn ${updated.confirmationCode}.`);
+          if (this.selectedReservationDetail()?.id === res.id) {
+            this.selectedReservationDetail.set(updated);
+          }
+          this.loadReservations();
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
+            return;
+          }
+          this.actionReservationId.set(null);
+          this.isActionLoading.set(false);
+          this.alertService.toastError(err?.error?.message || 'Thu hồi mã PIN Smart Lock thất bại.');
+          this.cdr?.markForCheck();
         }
-        this.actionReservationId.set(null);
-        this.isActionLoading.set(false);
-        this.alertService.toastSuccess(`Đã thu hồi mã PIN Smart Lock cho đơn ${updated.confirmationCode}.`);
-        if (this.selectedReservationDetail()?.id === res.id) {
-          this.selectedReservationDetail.set(updated);
-        }
-        this.loadReservations();
-      },
-      error: (err) => {
-        if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
-          return;
-        }
-        this.actionReservationId.set(null);
-        this.isActionLoading.set(false);
-        this.alertService.toastError(err?.error?.message || 'Thu hồi mã PIN Smart Lock thất bại.');
-      }
-    });
+      });
   }
 
   // Check-In Modal Handlers
@@ -3544,16 +4037,20 @@ export class ReservationsPage implements OnInit, OnDestroy {
 
     const propId = this.activeProperty()?.id;
     if (propId && res.propertyId === propId) {
-      this.paymentService.getFolio(res.id, propId).subscribe({
-        next: (folio) => {
-          if (this.checkInModalReservation()?.id === res.id) {
-            this.checkInFolio.set(folio);
+      this.paymentService
+        .getFolio(res.id, propId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (folio) => {
+            if (this.checkInModalReservation()?.id === res.id) {
+              this.checkInFolio.set(folio);
+              this.cdr?.markForCheck();
+            }
+          },
+          error: () => {
+            // Non-blocking warning: ignore if folio lookup unavailable
           }
-        },
-        error: () => {
-          // Non-blocking warning: ignore if folio lookup unavailable
-        }
-      });
+        });
     }
   }
 
@@ -3601,21 +4098,26 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.checkOutOverrideLateSurcharge.set(null);
     this.checkOutOverrideReason.set('');
 
-    this.paymentService.getFolio(res.id, propId).subscribe({
-      next: (folio) => {
-        if (this.checkOutModalReservation()?.id === res.id) {
-          this.checkOutFolio.set(folio);
-          this.checkOutFolioError.set(null);
-          this.isLoadingCheckOutFolio.set(false);
+    this.paymentService
+      .getFolio(res.id, propId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (folio) => {
+          if (this.checkOutModalReservation()?.id === res.id) {
+            this.checkOutFolio.set(folio);
+            this.checkOutFolioError.set(null);
+            this.isLoadingCheckOutFolio.set(false);
+            this.cdr?.markForCheck();
+          }
+        },
+        error: (err) => {
+          if (this.checkOutModalReservation()?.id === res.id) {
+            this.isLoadingCheckOutFolio.set(false);
+            this.checkOutFolioError.set(err?.error?.message || 'Không thể tải bảng kê công nợ Folio. Vui lòng kiểm tra lại kết nối mạng.');
+            this.cdr?.markForCheck();
+          }
         }
-      },
-      error: (err) => {
-        if (this.checkOutModalReservation()?.id === res.id) {
-          this.isLoadingCheckOutFolio.set(false);
-          this.checkOutFolioError.set(err?.error?.message || 'Không thể tải bảng kê công nợ Folio. Vui lòng kiểm tra lại kết nối mạng.');
-        }
-      }
-    });
+      });
   }
 
   retryCheckOutFolio(): void {
@@ -3626,21 +4128,26 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.isLoadingCheckOutFolio.set(true);
     this.checkOutFolioError.set(null);
 
-    this.paymentService.getFolio(res.id, propId).subscribe({
-      next: (folio) => {
-        if (this.checkOutModalReservation()?.id === res.id) {
-          this.checkOutFolio.set(folio);
-          this.checkOutFolioError.set(null);
-          this.isLoadingCheckOutFolio.set(false);
+    this.paymentService
+      .getFolio(res.id, propId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (folio) => {
+          if (this.checkOutModalReservation()?.id === res.id) {
+            this.checkOutFolio.set(folio);
+            this.checkOutFolioError.set(null);
+            this.isLoadingCheckOutFolio.set(false);
+            this.cdr?.markForCheck();
+          }
+        },
+        error: (err) => {
+          if (this.checkOutModalReservation()?.id === res.id) {
+            this.isLoadingCheckOutFolio.set(false);
+            this.checkOutFolioError.set(err?.error?.message || 'Không thể tải bảng kê công nợ Folio. Vui lòng kiểm tra lại kết nối mạng.');
+            this.cdr?.markForCheck();
+          }
         }
-      },
-      error: (err) => {
-        if (this.checkOutModalReservation()?.id === res.id) {
-          this.isLoadingCheckOutFolio.set(false);
-          this.checkOutFolioError.set(err?.error?.message || 'Không thể tải bảng kê công nợ Folio. Vui lòng kiểm tra lại kết nối mạng.');
-        }
-      }
-    });
+      });
   }
 
   closeCheckOutModal(): void {
@@ -3691,6 +4198,93 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.onCheckOut(res);
   }
 
+  payAndCheckOut(res: ReservationDto | ReservationDetailDto, folio: FolioDto): void {
+    if (!this.canCreatePayment() || !this.canCheckInOut() || this.isActionLoading() || this.isSubmittingPayment()) {
+      return;
+    }
+    const propId = this.activeProperty()?.id;
+    if (!propId || res.propertyId !== propId || folio.remainingBalance <= 0) {
+      return;
+    }
+
+    this.isSubmittingPayment.set(true);
+    const amount = folio.remainingBalance;
+    const idemKey = this.getOrCreatePaymentIdempotencyKey(res.id, amount, PaymentMethod.Cash);
+
+    this.paymentSub?.unsubscribe();
+    this.paymentSub = this.paymentService
+      .createPayment(
+        {
+          reservationId: res.id,
+          amount,
+          method: PaymentMethod.Cash,
+          transactionRef: 'CHECKOUT-SETTLEMENT',
+          idempotencyKey: idemKey
+        },
+        propId
+      )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          if (this.activeProperty()?.id !== propId) return;
+          this.isSubmittingPayment.set(false);
+          this.currentPaymentIdempotencyKey = null;
+          this.lastPaymentFingerprint = null;
+          this.alertService.toastSuccess(`Đã thu đủ ${amount.toLocaleString('vi-VN')} đ. Đang hoàn tất trả phòng...`);
+          this.folio.set(null);
+          this.checkOutFolio.set(null);
+          this.isCheckOutModalOpen.set(false);
+          this.checkOutModalReservation.set(null);
+          this.checkOutFolioError.set(null);
+          this.onCheckOut(res);
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          if (this.activeProperty()?.id !== propId) return;
+          this.isSubmittingPayment.set(false);
+          this.alertService.toastError(err?.error?.message || 'Không thể thu tiền quyết toán trước khi trả phòng.');
+          this.cdr?.markForCheck();
+        }
+      });
+  }
+
+  addQuickMinibarToReservation(
+    detail: ReservationDetailDto,
+    item: { code: string; name: string; price: number }
+  ): void {
+    const propId = this.activeProperty()?.id;
+    if (!propId || detail.propertyId !== propId || this.isAddingQuickMinibar()) return;
+    if (typeof this.reservationService.addFolioItem !== 'function') return;
+
+    this.isAddingQuickMinibar.set(true);
+    this.minibarSub?.unsubscribe();
+    this.minibarSub = this.reservationService
+      .addFolioItem(detail.id, {
+        propertyId: propId,
+        itemCode: item.code,
+        description: item.name,
+        quantity: 1,
+        unitPrice: item.price,
+        category: 'Minibar'
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updatedFolio) => {
+          this.isAddingQuickMinibar.set(false);
+          if (this.selectedReservationDetail()?.id === detail.id) {
+            this.folio.set(updatedFolio);
+          }
+          this.alertService.toastSuccess(`Đã thêm "${item.name}" (${item.price.toLocaleString('vi-VN')} đ) vào Folio.`);
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          this.isAddingQuickMinibar.set(false);
+          this.alertService.toastError(err?.error?.message || 'Không thể thêm Minibar vào Folio.');
+          this.cdr?.markForCheck();
+        }
+      });
+  }
+
   openCancelModal(res: ReservationDto | ReservationDetailDto): void {
     if (!this.canCancel() || this.isActionLoading()) return;
     const propId = this.activeProperty()?.id;
@@ -3729,28 +4323,33 @@ export class ReservationsPage implements OnInit, OnDestroy {
     const reason = this.cancellationReasonInput().trim() || undefined;
 
     this.lifecycleSub?.unsubscribe();
-    this.lifecycleSub = this.reservationService.cancel(target.id, propId, reason).subscribe({
-      next: (updated) => {
-        if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
-          return;
+    this.lifecycleSub = this.reservationService
+      .cancel(target.id, propId, reason)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
+            return;
+          }
+          this.isActionLoading.set(false);
+          this.closeCancelModal();
+          this.alertService.toastSuccess(`Hủy đơn đặt phòng ${updated.confirmationCode} thành công.`);
+          if (this.selectedReservationDetail()?.id === target.id) {
+            this.selectedReservationDetail.set(updated);
+          }
+          this.loadReservations();
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
+            return;
+          }
+          this.isActionLoading.set(false);
+          const errMsg = err?.error?.message || 'Hủy đặt phòng thất bại.';
+          this.alertService.toastError(errMsg);
+          this.cdr?.markForCheck();
         }
-        this.isActionLoading.set(false);
-        this.closeCancelModal();
-        this.alertService.toastSuccess(`Hủy đơn đặt phòng ${updated.confirmationCode} thành công.`);
-        if (this.selectedReservationDetail()?.id === target.id) {
-          this.selectedReservationDetail.set(updated);
-        }
-        this.loadReservations();
-      },
-      error: (err) => {
-        if (reqId !== this.lifecycleRequestId || this.activeProperty()?.id !== propId) {
-          return;
-        }
-        this.isActionLoading.set(false);
-        const errMsg = err?.error?.message || 'Hủy đặt phòng thất bại.';
-        this.alertService.toastError(errMsg);
-      }
-    });
+      });
   }
 
   // Formatting helpers
@@ -3839,36 +4438,41 @@ export class ReservationsPage implements OnInit, OnDestroy {
     const reqId = ++this.folioRequestId;
     this.isLoadingFolio.set(true);
 
-    this.folioSub = this.paymentService.getFolio(reservationId, propertyId).subscribe({
-      next: (folio) => {
-        // Discard stale responses if branch changed, request ID changed, or user opened another reservation
-        if (reqId !== this.folioRequestId ||
-            this.activeProperty()?.id !== propertyId ||
-            this.detailReservationId() !== reservationId ||
-            (this.selectedReservationDetail() && this.selectedReservationDetail()!.id !== reservationId) ||
-            folio.reservationId !== reservationId) {
-          return;
+    this.folioSub = this.paymentService
+      .getFolio(reservationId, propertyId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (folio) => {
+          // Discard stale responses if branch changed, request ID changed, or user opened another reservation
+          if (reqId !== this.folioRequestId ||
+              this.activeProperty()?.id !== propertyId ||
+              this.detailReservationId() !== reservationId ||
+              (this.selectedReservationDetail() && this.selectedReservationDetail()!.id !== reservationId) ||
+              folio.reservationId !== reservationId) {
+            return;
+          }
+          this.folio.set(folio);
+          this.isLoadingFolio.set(false);
+          if (folio.remainingBalance > 0) {
+            this.paymentForm.patchValue({
+              amount: folio.remainingBalance,
+              method: PaymentMethod.Cash,
+              transactionRef: ''
+            });
+          }
+          this.cdr?.markForCheck();
+        },
+        error: () => {
+          if (reqId !== this.folioRequestId ||
+              this.activeProperty()?.id !== propertyId ||
+              this.detailReservationId() !== reservationId) {
+            return;
+          }
+          this.isLoadingFolio.set(false);
+          this.folio.set(null);
+          this.cdr?.markForCheck();
         }
-        this.folio.set(folio);
-        this.isLoadingFolio.set(false);
-        if (folio.remainingBalance > 0) {
-          this.paymentForm.patchValue({
-            amount: folio.remainingBalance,
-            method: PaymentMethod.Cash,
-            transactionRef: ''
-          });
-        }
-      },
-      error: () => {
-        if (reqId !== this.folioRequestId ||
-            this.activeProperty()?.id !== propertyId ||
-            this.detailReservationId() !== reservationId) {
-          return;
-        }
-        this.isLoadingFolio.set(false);
-        this.folio.set(null);
-      }
-    });
+      });
   }
 
   fillFullRemaining(): void {
@@ -3939,40 +4543,45 @@ export class ReservationsPage implements OnInit, OnDestroy {
     };
 
     this.paymentSub?.unsubscribe();
-    this.paymentSub = this.paymentService.createPayment(payload, propId).subscribe({
-      next: (payment) => {
-        if (this.activeProperty()?.id !== propId) return;
-        this.isSubmittingPayment.set(false);
-        this.currentPaymentIdempotencyKey = null;
-        this.lastPaymentFingerprint = null;
-        this.alertService.toastSuccess(`Thu tiền thành công: ${payment.amount.toLocaleString('vi-VN')} đ (${payment.methodName}).`);
+    this.paymentSub = this.paymentService
+      .createPayment(payload, propId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (payment) => {
+          if (this.activeProperty()?.id !== propId) return;
+          this.isSubmittingPayment.set(false);
+          this.currentPaymentIdempotencyKey = null;
+          this.lastPaymentFingerprint = null;
+          this.alertService.toastSuccess(`Thu tiền thành công: ${payment.amount.toLocaleString('vi-VN')} đ (${payment.methodName}).`);
 
-        if (this.selectedReservationDetail()?.id === detail.id) {
-          this.loadFolio(detail.id, propId);
+          if (this.selectedReservationDetail()?.id === detail.id) {
+            this.loadFolio(detail.id, propId);
+          }
+          this.paymentSummary.set(null);
+          this.loadReservations();
+          if (detail.status === ReservationStatus.PendingPayment && this.selectedReservationDetail()?.id === detail.id) {
+            this.viewDetails({ id: detail.id, propertyId: propId } as ReservationDto);
+          }
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          if (this.activeProperty()?.id !== propId) return;
+          this.isSubmittingPayment.set(false);
+          // Idempotency key is retained on failure for reliable client retry
+          const code = err?.error?.code;
+          const msg = err?.error?.message;
+          if (code === 'ERR_AMOUNT_EXCEEDS_BALANCE') {
+            this.alertService.toastError('Số tiền thanh toán vượt quá số dư cần trả.');
+          } else if (code === 'ERR_FOLIO_ALREADY_PAID') {
+            this.alertService.toastError('Đơn đặt phòng đã được thanh toán đủ.');
+          } else if (code === 'ERR_IDEMPOTENCY_PAYLOAD_MISMATCH') {
+            this.alertService.toastError('Yêu cầu thanh toán xung đột với giao dịch trước đó.');
+          } else {
+            this.alertService.toastError(msg || 'Ghi nhận thanh toán thất bại.');
+          }
+          this.cdr?.markForCheck();
         }
-        this.paymentSummary.set(null);
-        this.loadReservations();
-        if (detail.status === ReservationStatus.PendingPayment && this.selectedReservationDetail()?.id === detail.id) {
-          this.viewDetails({ id: detail.id, propertyId: propId } as ReservationDto);
-        }
-      },
-      error: (err) => {
-        if (this.activeProperty()?.id !== propId) return;
-        this.isSubmittingPayment.set(false);
-        // Idempotency key is retained on failure for reliable client retry
-        const code = err?.error?.code;
-        const msg = err?.error?.message;
-        if (code === 'ERR_AMOUNT_EXCEEDS_BALANCE') {
-          this.alertService.toastError('Số tiền thanh toán vượt quá số dư cần trả.');
-        } else if (code === 'ERR_FOLIO_ALREADY_PAID') {
-          this.alertService.toastError('Đơn đặt phòng đã được thanh toán đủ.');
-        } else if (code === 'ERR_IDEMPOTENCY_PAYLOAD_MISMATCH') {
-          this.alertService.toastError('Yêu cầu thanh toán xung đột với giao dịch trước đó.');
-        } else {
-          this.alertService.toastError(msg || 'Ghi nhận thanh toán thất bại.');
-        }
-      }
-    });
+      });
   }
 
   loadCashierSummary(): void {
@@ -3986,20 +4595,25 @@ export class ReservationsPage implements OnInit, OnDestroy {
 
     const todayVn = getTodayVnDateString();
     this.summarySub?.unsubscribe();
-    this.summarySub = this.paymentService.getPaymentSummary(propId, todayVn).subscribe({
-      next: (sum) => {
-        if (this.activeProperty()?.id !== propId) return;
-        this.paymentSummary.set(sum);
-        this.isLoadingSummary.set(false);
-      },
-      error: (err) => {
-        if (this.activeProperty()?.id !== propId) return;
-        this.isLoadingSummary.set(false);
-        const msg = err?.error?.message || 'Không thể tải báo cáo thu ngân.';
-        this.summaryError.set(msg);
-        this.alertService.toastError(msg);
-      }
-    });
+    this.summarySub = this.paymentService
+      .getPaymentSummary(propId, todayVn)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (sum) => {
+          if (this.activeProperty()?.id !== propId) return;
+          this.paymentSummary.set(sum);
+          this.isLoadingSummary.set(false);
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          if (this.activeProperty()?.id !== propId) return;
+          this.isLoadingSummary.set(false);
+          const msg = err?.error?.message || 'Không thể tải báo cáo thu ngân.';
+          this.summaryError.set(msg);
+          this.alertService.toastError(msg);
+          this.cdr?.markForCheck();
+        }
+      });
   }
 
   openSummaryModal(): void {
@@ -4055,28 +4669,38 @@ export class ReservationsPage implements OnInit, OnDestroy {
     // 1. Load rooms for property
     this.timelineRoomsSub?.unsubscribe();
     if (this.roomService) {
-      this.timelineRoomsSub = this.roomService.getRooms({ pageSize: 100 }).subscribe({
-        next: (res) => {
-          this.timelineRooms.set(res.items || []);
-        },
-        error: () => {
-          this.timelineRooms.set([]);
-        }
-      });
+      this.timelineRoomsSub = this.roomService
+        .getRooms({ pageSize: 100 })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (res) => {
+            this.timelineRooms.set(res.items || []);
+            this.cdr?.markForCheck();
+          },
+          error: () => {
+            this.timelineRooms.set([]);
+            this.cdr?.markForCheck();
+          }
+        });
     }
 
     // 2. Load reservations in timeline window
     this.timelineResSub?.unsubscribe();
-    this.timelineResSub = this.reservationService.getTimelineReservations(propId, startDate, endDate).subscribe({
-      next: (items) => {
-        this.timelineReservations.set(items || []);
-        this.isTimelineLoading.set(false);
-      },
-      error: () => {
-        this.timelineReservations.set([]);
-        this.isTimelineLoading.set(false);
-      }
-    });
+    this.timelineResSub = this.reservationService
+      .getTimelineReservations(propId, startDate, endDate)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (items) => {
+          this.timelineReservations.set(items || []);
+          this.isTimelineLoading.set(false);
+          this.cdr?.markForCheck();
+        },
+        error: () => {
+          this.timelineReservations.set([]);
+          this.isTimelineLoading.set(false);
+          this.cdr?.markForCheck();
+        }
+      });
   }
 
   goToToday(): void {
@@ -4234,15 +4858,20 @@ export class ReservationsPage implements OnInit, OnDestroy {
     if (this.provinces().length > 0 || this.isLoadingProvinces()) return;
     this.isLoadingProvinces.set(true);
     this.provincesSub?.unsubscribe();
-    this.provincesSub = this.locationService?.getProvinces().subscribe({
-      next: (list) => {
-        this.provinces.set(list || []);
-        this.isLoadingProvinces.set(false);
-      },
-      error: () => {
-        this.isLoadingProvinces.set(false);
-      }
-    });
+    this.provincesSub = this.locationService
+      ?.getProvinces()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (list) => {
+          this.provinces.set(list || []);
+          this.isLoadingProvinces.set(false);
+          this.cdr?.markForCheck();
+        },
+        error: () => {
+          this.isLoadingProvinces.set(false);
+          this.cdr?.markForCheck();
+        }
+      });
   }
 
   onProvinceChange(event: Event): void {
@@ -4260,15 +4889,20 @@ export class ReservationsPage implements OnInit, OnDestroy {
 
     this.isLoadingWards.set(true);
     this.wardsSub?.unsubscribe();
-    this.wardsSub = this.locationService?.getWards(code).subscribe({
-      next: (list) => {
-        this.wards.set(list || []);
-        this.isLoadingWards.set(false);
-      },
-      error: () => {
-        this.isLoadingWards.set(false);
-      }
-    });
+    this.wardsSub = this.locationService
+      ?.getWards(code)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (list) => {
+          this.wards.set(list || []);
+          this.isLoadingWards.set(false);
+          this.cdr?.markForCheck();
+        },
+        error: () => {
+          this.isLoadingWards.set(false);
+          this.cdr?.markForCheck();
+        }
+      });
   }
 
   onWardChange(event: Event): void {

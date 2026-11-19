@@ -1,7 +1,19 @@
-import { Component, OnInit, inject, signal, computed, ChangeDetectionStrategy } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  HostListener,
+  OnInit,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AbstractControl, FormBuilder, FormGroup, ReactiveFormsModule, FormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
+import { A11yModule } from '@angular/cdk/a11y';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { HasUnsavedChanges } from '../../core/guards/unsaved-changes.guard';
 import { PropertyManagementService } from '../../core/services/property-management.service';
 import { PublicBookingService } from '../../core/services/public-booking.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -81,6 +93,7 @@ const CITY_ALIAS_TO_34: Readonly<Array<[string, string]>> = [
 interface PropertyTypeSelectOption {
   readonly value: number;
   readonly label: string;
+  readonly icon: string;
   readonly color: 'emerald' | 'amber' | 'blue' | 'purple' | 'rose' | 'slate';
 }
 
@@ -100,6 +113,7 @@ interface HttpErrorPayload {
     CommonModule,
     ReactiveFormsModule,
     FormsModule,
+    A11yModule,
     PageHeaderComponent,
     StatCardComponent,
     StatusBadgeComponent,
@@ -119,9 +133,9 @@ interface HttpErrorPayload {
         <button
           type="button"
           (click)="openCreateModal()"
-          class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm transition-colors cursor-pointer"
+          class="min-h-11 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm transition-colors cursor-pointer"
         >
-          <i class="pi pi-plus text-xs"></i>
+          <i class="pi pi-plus text-xs" aria-hidden="true"></i>
           <span>Thêm Chi nhánh</span>
         </button>
       </app-page-header>
@@ -170,36 +184,38 @@ interface HttpErrorPayload {
       </div>
 
       <!-- Filter & Search Toolbar -->
-      <div class="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs space-y-3">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-700 p-4 shadow-2xs space-y-3">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <!-- Search input -->
           <div class="relative flex-1 max-w-md">
-            <i class="pi pi-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+            <i class="pi pi-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs" aria-hidden="true"></i>
             <input
               type="text"
               [ngModel]="searchQuery()"
               (ngModelChange)="searchQuery.set($event)"
+              aria-label="Tìm theo tên chi nhánh, mã, địa chỉ, thành phố"
               placeholder="Tìm theo tên chi nhánh, mã, địa chỉ, thành phố..."
-              class="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm bg-slate-50 focus:bg-white focus:outline-hidden focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+              class="min-h-11 w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:outline-hidden focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
             />
           </div>
 
           <!-- Active branch switch reminder badge -->
-          <div class="text-xs text-slate-500 flex items-center gap-1.5 self-end sm:self-center">
-            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <div class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 self-end sm:self-center">
+            <span class="w-2 h-2 rounded-full bg-emerald-500" aria-hidden="true"></span>
             <span>Chi nhánh đang chọn: </span>
-            <strong class="text-slate-800">{{ authService.activePropertyName() || 'Chưa chọn' }}</strong>
+            <strong class="text-slate-800 dark:text-slate-100">{{ authService.activePropertyName() || 'Chưa chọn' }}</strong>
           </div>
         </div>
 
         <!-- Property Type Filter Chips -->
-        <div class="flex items-center gap-1.5 flex-wrap pt-2 border-t border-slate-100 text-xs">
+        <div class="flex items-center gap-1.5 flex-wrap pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
           <span class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mr-1">Loại hình:</span>
           <button
             type="button"
             (click)="selectedType.set('ALL')"
-            [ngClass]="selectedType() === 'ALL' ? 'bg-emerald-600 text-white font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
-            class="px-3 py-1 rounded-lg transition-colors cursor-pointer"
+            [attr.aria-pressed]="selectedType() === 'ALL'"
+            [ngClass]="selectedType() === 'ALL' ? 'bg-emerald-600 text-white font-semibold' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'"
+            class="min-h-11 inline-flex items-center px-3 py-2 rounded-lg transition-colors cursor-pointer tabular-nums"
           >
             Tất cả ({{ totalProperties() }})
           </button>
@@ -207,10 +223,12 @@ interface HttpErrorPayload {
             <button
               type="button"
               (click)="selectedType.set(opt.value)"
-              [ngClass]="selectedType() === opt.value ? 'bg-emerald-600 text-white font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
-              class="px-3 py-1 rounded-lg transition-colors cursor-pointer"
+              [attr.aria-pressed]="selectedType() === opt.value"
+              [ngClass]="selectedType() === opt.value ? 'bg-emerald-600 text-white font-semibold' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'"
+              class="min-h-11 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg transition-colors cursor-pointer"
             >
-              {{ opt.label }}
+              <i [class]="opt.icon" class="text-xs" aria-hidden="true"></i>
+              <span>{{ opt.label }}</span>
             </button>
           }
         </div>
@@ -258,12 +276,12 @@ interface HttpErrorPayload {
                       />
                       @if (authService.activePropertyId() === prop.id) {
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
                           Đang làm việc
                         </span>
                       }
                     </div>
-                    <h3 class="text-base font-bold text-slate-800 tracking-tight group-hover:text-emerald-700 transition-colors">
+                    <h3 class="text-base font-bold text-slate-800 dark:text-slate-100 tracking-tight group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                       {{ prop.name }}
                     </h3>
                   </div>
@@ -271,10 +289,11 @@ interface HttpErrorPayload {
                   <button
                     type="button"
                     (click)="openEditModal(prop)"
-                    class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                    [attr.aria-label]="'Chỉnh sửa thông tin chi nhánh ' + prop.name"
+                    class="min-w-11 min-h-11 inline-flex items-center justify-center rounded-xl text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
                     title="Chỉnh sửa thông tin chi nhánh"
                   >
-                    <i class="pi pi-pencil text-sm"></i>
+                    <i class="pi pi-pencil text-sm" aria-hidden="true"></i>
                   </button>
                 </div>
 
@@ -335,24 +354,24 @@ interface HttpErrorPayload {
                 </div>
 
                 <!-- Metrics Strip -->
-                <div class="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100 text-center">
-                  <div class="bg-slate-50 rounded-xl p-2">
+                <div class="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100 dark:border-slate-800 text-center tabular-nums">
+                  <div class="bg-slate-50 dark:bg-slate-800/70 rounded-xl p-2">
                     <span class="block text-[10px] text-slate-400 font-medium uppercase">Tổng phòng</span>
-                    <span class="text-sm font-bold text-slate-800">{{ prop.totalRooms }}</span>
+                    <span class="text-sm font-bold text-slate-800 dark:text-slate-100">{{ prop.totalRooms }}</span>
                   </div>
-                  <div class="bg-amber-50/70 rounded-xl p-2">
-                    <span class="block text-[10px] text-amber-700 font-medium uppercase">Có khách</span>
-                    <span class="text-sm font-bold text-amber-800">{{ prop.occupiedRooms }}</span>
+                  <div class="bg-amber-50/70 dark:bg-amber-950/50 rounded-xl p-2">
+                    <span class="block text-[10px] text-amber-700 dark:text-amber-400 font-medium uppercase">Có khách</span>
+                    <span class="text-sm font-bold text-amber-800 dark:text-amber-300">{{ prop.occupiedRooms }}</span>
                   </div>
-                  <div class="bg-emerald-50/70 rounded-xl p-2">
-                    <span class="block text-[10px] text-emerald-700 font-medium uppercase">Hôm nay</span>
-                    <span class="text-xs font-bold text-emerald-800">{{ prop.todayRevenue | number:'1.0-0' }}₫</span>
+                  <div class="bg-emerald-50/70 dark:bg-emerald-950/50 rounded-xl p-2">
+                    <span class="block text-[10px] text-emerald-700 dark:text-emerald-400 font-medium uppercase">Hôm nay</span>
+                    <span class="text-xs font-bold text-emerald-800 dark:text-emerald-300">{{ prop.todayRevenue | number:'1.0-0' }}₫</span>
                   </div>
                 </div>
               </div>
 
               <!-- Card Action Footer -->
-              <div class="p-3 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between gap-2">
+              <div class="p-3 bg-slate-50/70 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
                 <button
                   type="button"
                   (click)="togglePublishStatus(prop)"
@@ -361,7 +380,7 @@ interface HttpErrorPayload {
                   [ngClass]="isPropertyPublished(prop)
                     ? 'border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800'
                     : 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700'"
-                  class="py-1.5 px-2.5 rounded-xl border text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60"
+                  class="min-h-11 py-2 px-2.5 rounded-xl border text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60"
                 >
                   @if (togglingPublishId() === prop.id) {
                     Đang lưu...
@@ -374,7 +393,7 @@ interface HttpErrorPayload {
                 <button
                   type="button"
                   (click)="openEditModal(prop)"
-                  class="flex-1 py-1.5 px-3 rounded-xl border border-slate-200 hover:bg-white text-slate-700 text-xs font-semibold transition-colors cursor-pointer text-center"
+                  class="min-h-11 flex-1 py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors cursor-pointer text-center"
                 >
                   Cấu hình
                 </button>
@@ -382,8 +401,8 @@ interface HttpErrorPayload {
                   type="button"
                   (click)="switchToProperty(prop)"
                   [disabled]="switchingPropertyId() === prop.id"
-                  [ngClass]="authService.activePropertyId() === prop.id ? 'bg-slate-200 text-slate-500 cursor-default' : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer disabled:opacity-60'"
-                  class="flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold shadow-2xs transition-colors text-center"
+                  [ngClass]="authService.activePropertyId() === prop.id ? 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-default' : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer disabled:opacity-60'"
+                  class="min-h-11 flex-1 py-2 px-3 rounded-xl text-xs font-semibold shadow-2xs transition-colors text-center"
                 >
                   @if (switchingPropertyId() === prop.id) {
                     Đang chuyển...
@@ -402,26 +421,38 @@ interface HttpErrorPayload {
 
     <!-- Create / Edit Property Modal Dialog -->
     @if (isModalOpen()) {
-      <div class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
-        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200/80 max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-150">
-          <div class="flex items-center justify-between pb-3.5 border-b border-slate-100">
+      <div
+        class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[65] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="property-modal-title"
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
+        (click)="closeModal()"
+      >
+        <div
+          class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-5 my-8"
+          (click)="$event.stopPropagation()"
+        >
+          <div class="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
             <div>
-              <h2 class="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
-                <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                  <i class="pi pi-building text-sm"></i>
+              <h2 id="property-modal-title" class="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <div class="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <i class="pi pi-building text-sm" aria-hidden="true"></i>
                 </div>
                 <span>{{ isEditing() ? 'Cập nhật Thông tin Chi nhánh' : 'Thêm Chi nhánh Mới' }}</span>
               </h2>
-              <p class="text-xs text-slate-500 mt-1">
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 Thiết lập thông tin nhận diện, địa chỉ hành chính, khu vực du lịch và hình thức cho thuê.
               </p>
             </div>
             <button
               type="button"
               (click)="closeModal()"
-              class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              aria-label="Đóng cửa sổ chi nhánh"
+              class="min-w-11 min-h-11 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer shrink-0"
             >
-              <i class="pi pi-times text-sm"></i>
+              <i class="pi pi-times text-sm" aria-hidden="true"></i>
             </button>
           </div>
 
@@ -639,7 +670,7 @@ interface HttpErrorPayload {
               </div>
 
               <div class="pt-6">
-                <label class="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-700 select-none p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white transition-colors">
+                <label class="min-h-11 flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-200 select-none p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 transition-colors">
                   <input type="checkbox" formControlName="isPublished" class="rounded text-emerald-600 focus:ring-emerald-500" />
                   <span>Công khai mở bán (Public)</span>
                 </label>
@@ -706,18 +737,18 @@ interface HttpErrorPayload {
             </div>
 
             <!-- Row 5: Booking Models Options Checkboxes -->
-            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-              <span class="block text-xs font-bold text-slate-800">Hình thức kinh doanh được phép mở bán Online:</span>
+            <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-2">
+              <span class="block text-xs font-bold text-slate-800 dark:text-slate-100">Hình thức kinh doanh được phép mở bán Online:</span>
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <label class="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 select-none p-1.5 rounded-lg hover:bg-white transition-colors">
+                <label class="min-h-11 flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-200 select-none p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors">
                   <input type="checkbox" formControlName="allowDailyBooking" class="rounded text-emerald-600 focus:ring-emerald-500" />
                   <span>Theo Ngày (Daily)</span>
                 </label>
-                <label class="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 select-none p-1.5 rounded-lg hover:bg-white transition-colors">
+                <label class="min-h-11 flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-200 select-none p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors">
                   <input type="checkbox" formControlName="allowHourlyBooking" class="rounded text-emerald-600 focus:ring-emerald-500" />
                   <span>Theo Giờ (Hourly)</span>
                 </label>
-                <label class="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 select-none p-1.5 rounded-lg hover:bg-white transition-colors">
+                <label class="min-h-11 flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-200 select-none p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors">
                   <input type="checkbox" formControlName="allowOvernightBooking" class="rounded text-emerald-600 focus:ring-emerald-500" />
                   <span>Qua Đêm (Overnight)</span>
                 </label>
@@ -725,21 +756,21 @@ interface HttpErrorPayload {
             </div>
 
             <!-- Form Actions -->
-            <div class="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+            <div class="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3">
               <button
                 type="button"
                 (click)="closeModal()"
-                class="px-4 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                class="min-h-11 px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 Hủy bỏ
               </button>
               <button
                 type="submit"
                 [disabled]="propertyForm.invalid || isSubmitting()"
-                class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-xs sm:text-sm font-semibold shadow-sm shadow-emerald-600/30 transition-all cursor-pointer flex items-center gap-2"
+                class="min-h-11 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-xs sm:text-sm font-semibold shadow-sm shadow-emerald-600/30 transition-all cursor-pointer flex items-center gap-2"
               >
                 @if (isSubmitting()) {
-                  <i class="pi pi-spin pi-spinner text-xs"></i>
+                  <i class="pi pi-spin pi-spinner text-xs" aria-hidden="true"></i>
                 }
                 <span>{{ isEditing() ? 'Lưu cập nhật' : 'Tạo mới chi nhánh' }}</span>
               </button>
@@ -750,13 +781,14 @@ interface HttpErrorPayload {
     }
   `
 })
-export class PropertiesPage implements OnInit {
+export class PropertiesPage implements OnInit, HasUnsavedChanges {
   private readonly fb = inject(FormBuilder);
   private readonly propertyService = inject(PropertyManagementService);
   private readonly publicBookingService = inject(PublicBookingService);
   readonly authService = inject(AuthService);
   private readonly alertService = inject(AlertService);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   properties = signal<TenantPropertySummaryDto[]>([]);
   touristZones = signal<TouristZoneDto[]>([]);
@@ -770,14 +802,14 @@ export class PropertiesPage implements OnInit {
 
   /** Đồng bộ 1-based C# enum PropertyType (1..8). */
   readonly propertyTypeOptions: readonly PropertyTypeSelectOption[] = [
-    { value: 1, label: '🏨 Khách sạn (Hotel)', color: 'blue' },
-    { value: 2, label: '🏖️ Resort nghỉ dưỡng', color: 'emerald' },
-    { value: 3, label: '🛏️ Hostel / Ký túc xá', color: 'amber' },
-    { value: 4, label: '☕ Bed & Breakfast', color: 'purple' },
-    { value: 5, label: '🏡 Biệt thự / Villa', color: 'rose' },
-    { value: 6, label: '🏢 Căn hộ dịch vụ', color: 'blue' },
-    { value: 7, label: '⚡ Nhà nghỉ / Motel', color: 'amber' },
-    { value: 8, label: '🌿 Homestay', color: 'emerald' },
+    { value: 1, label: 'Khách sạn (Hotel)', icon: 'pi pi-building', color: 'blue' },
+    { value: 2, label: 'Resort nghỉ dưỡng', icon: 'pi pi-sun', color: 'emerald' },
+    { value: 3, label: 'Hostel / Ký túc xá', icon: 'pi pi-home', color: 'amber' },
+    { value: 4, label: 'Bed & Breakfast', icon: 'pi pi-sparkles', color: 'purple' },
+    { value: 5, label: 'Biệt thự / Villa', icon: 'pi pi-warehouse', color: 'rose' },
+    { value: 6, label: 'Căn hộ dịch vụ', icon: 'pi pi-th-large', color: 'blue' },
+    { value: 7, label: 'Nhà nghỉ / Motel', icon: 'pi pi-bolt', color: 'amber' },
+    { value: 8, label: 'Homestay', icon: 'pi pi-compass', color: 'emerald' },
   ];
 
   isModalOpen = signal<boolean>(false);
@@ -857,9 +889,20 @@ export class PropertiesPage implements OnInit {
     this.loadTouristZones();
   }
 
+  @HostListener('document:keydown.escape')
+  onEscapeKey(): void {
+    if (this.isModalOpen() && !this.isSubmitting()) {
+      this.closeModal();
+    }
+  }
+
+  hasUnsavedChanges(): boolean {
+    return this.isModalOpen() && this.propertyForm.dirty;
+  }
+
   loadProperties(): void {
     this.isLoading.set(true);
-    this.propertyService.getTenantProperties().subscribe({
+    this.propertyService.getTenantProperties().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (data) => {
         this.properties.set(data || []);
         this.isLoading.set(false);
@@ -872,7 +915,7 @@ export class PropertiesPage implements OnInit {
   }
 
   loadTouristZones(): void {
-    this.publicBookingService.getTouristZones().subscribe({
+    this.publicBookingService.getTouristZones().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (zones) => this.touristZones.set(zones || []),
       error: () => {}
     });
@@ -950,7 +993,7 @@ export class PropertiesPage implements OnInit {
     if (this.switchingPropertyId() !== null) return;
 
     this.switchingPropertyId.set(prop.id);
-    this.authService.switchContext(prop.id).subscribe({
+    this.authService.switchContext(prop.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.switchingPropertyId.set(null);
         this.alertService.toastSuccess(`Bạn đang làm việc tại: ${prop.name} (${prop.code})`, 'Đã đổi chi nhánh');
@@ -993,7 +1036,7 @@ export class PropertiesPage implements OnInit {
       isActive: prop.isActive !== false,
     };
 
-    this.propertyService.updateProperty(prop.id, req).subscribe({
+    this.propertyService.updateProperty(prop.id, req).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.togglingPublishId.set(null);
         this.properties.update(list =>
@@ -1043,6 +1086,7 @@ export class PropertiesPage implements OnInit {
       isPublished: false,
       isActive: true
     });
+    this.propertyForm.markAsPristine();
     this.isModalOpen.set(true);
   }
 
@@ -1072,6 +1116,7 @@ export class PropertiesPage implements OnInit {
       isPublished: propWithGeo.isPublished === true,
       isActive: this.resolvePropertyStatusValue(propWithGeo.status, prop.isActive) === 1
     });
+    this.propertyForm.markAsPristine();
     this.isModalOpen.set(true);
   }
 
@@ -1229,13 +1274,14 @@ export class PropertiesPage implements OnInit {
         isActive: formVal.isActive !== false
       };
 
-      this.propertyService.updateProperty(id, updateReq).subscribe({
+      this.propertyService.updateProperty(id, updateReq).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: () => {
           this.isSubmitting.set(false);
+          this.propertyForm.markAsPristine();
           this.isModalOpen.set(false);
           this.alertService.toastSuccess(`Chi nhánh ${formVal.name} đã được cập nhật.`, 'Cập nhật thành công');
           this.loadProperties();
-          this.authService.fetchMyMemberships().subscribe({ error: () => {} });
+          this.authService.fetchMyMemberships().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ error: () => {} });
         },
         error: (err: HttpErrorPayload) => {
           this.isSubmitting.set(false);
@@ -1266,13 +1312,14 @@ export class PropertiesPage implements OnInit {
         isPublished
       };
 
-      this.propertyService.createProperty(createReq).subscribe({
+      this.propertyService.createProperty(createReq).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: () => {
           this.isSubmitting.set(false);
+          this.propertyForm.markAsPristine();
           this.isModalOpen.set(false);
           this.alertService.toastSuccess(`Chi nhánh ${formVal.name} đã được khởi tạo.`, 'Thêm mới thành công');
           this.loadProperties();
-          this.authService.fetchMyMemberships().subscribe({ error: () => {} });
+          this.authService.fetchMyMemberships().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ error: () => {} });
         },
         error: (err: HttpErrorPayload) => {
           this.isSubmitting.set(false);

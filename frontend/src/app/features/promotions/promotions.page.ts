@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   HostListener,
   OnInit,
   computed,
@@ -9,6 +10,8 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
+import { A11yModule } from '@angular/cdk/a11y';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   FormBuilder,
   FormGroup,
@@ -91,6 +94,7 @@ function extractApiErrorMessage(err: unknown, fallback: string): string {
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
+    A11yModule,
     PageHeaderComponent,
     StatCardComponent,
     StatusBadgeComponent,
@@ -258,64 +262,158 @@ function extractApiErrorMessage(err: unknown, fallback: string): string {
           }
         </div>
       } @else {
-        <div class="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-700 shadow-2xs overflow-hidden">
+          <!-- Mobile Cards (< md) -->
+          <div class="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+            @for (promo of filteredPromotions(); track promo.id) {
+              <div class="p-4 space-y-3">
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <span class="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-mono font-bold text-xs tracking-wide">
+                      {{ promo.code }}
+                    </span>
+                    <p class="font-semibold text-slate-900 dark:text-slate-100 mt-1.5">{{ promo.name }}</p>
+                    @if (promo.description) {
+                      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{{ promo.description }}</p>
+                    }
+                  </div>
+                  <div class="flex flex-col items-end gap-1">
+                    <app-status-badge
+                      [status]="promo.isActive"
+                      type="custom"
+                      [customLabel]="promo.isActive ? 'Đang kích hoạt' : 'Đang tạm ngừng'"
+                      [color]="promo.isActive ? 'emerald' : 'slate'"
+                    />
+                    @if (isExpired(promo)) {
+                      <app-status-badge status="expired" type="custom" customLabel="Đã hết hạn" color="amber" />
+                    }
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-xs bg-slate-50 dark:bg-slate-800/70 rounded-xl p-2.5">
+                  <div>
+                    <div class="text-[11px] text-slate-500 dark:text-slate-400">Ưu đãi</div>
+                    <div class="font-semibold text-indigo-700 dark:text-indigo-300 tabular-nums">{{ formatOfferBadge(promo) }}</div>
+                  </div>
+                  <div>
+                    <div class="text-[11px] text-slate-500 dark:text-slate-400">Lượt dùng / Tối thiểu</div>
+                    <div class="font-semibold text-slate-800 dark:text-slate-200 tabular-nums">
+                      {{ promo.currentUsage }}@if (promo.maxUsage !== null && promo.maxUsage !== undefined) {/{{ promo.maxUsage }}} · {{ promo.minNights }} đêm
+                    </div>
+                  </div>
+                  <div class="col-span-2 text-[11px] text-slate-600 dark:text-slate-300 tabular-nums">
+                    Hiệu lực: {{ promo.startsAtUtc | businessDateTime }} – {{ promo.endsAtUtc | businessDateTime }}
+                  </div>
+                </div>
+
+                @if (canUpdate()) {
+                  <div class="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      (click)="openEditModal(promo)"
+                      [attr.aria-label]="'Chỉnh sửa mã ' + promo.code"
+                      class="min-h-11 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs transition-colors cursor-pointer"
+                    >
+                      <i class="pi pi-pencil text-xs" aria-hidden="true"></i>
+                      <span>Sửa</span>
+                    </button>
+                    <button
+                      type="button"
+                      (click)="toggleStatus(promo)"
+                      [disabled]="togglingId() === promo.id"
+                      [attr.aria-label]="(promo.isActive ? 'Tạm ngừng mã ' : 'Kích hoạt mã ') + promo.code"
+                      [ngClass]="promo.isActive
+                        ? 'border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800'
+                        : 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800'"
+                      class="min-h-11 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border font-semibold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <i [class]="promo.isActive ? 'pi pi-pause text-xs' : 'pi pi-play text-xs'" aria-hidden="true"></i>
+                      <span>{{ promo.isActive ? 'Tạm ngừng' : 'Kích hoạt' }}</span>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+
+          <!-- Desktop Table (>= md) -->
+          <div class="hidden md:block overflow-x-auto">
+            <table class="w-full text-left border-collapse tabular-nums">
               <thead>
-                <tr class="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                  <th class="px-5 py-3.5">Mã & Tên chương trình</th>
-                  <th class="px-5 py-3.5">Loại ưu đãi</th>
-                  <th class="px-5 py-3.5">Điều kiện & Lượt dùng</th>
-                  <th class="px-5 py-3.5">Hiệu lực (UTC+7)</th>
-                  <th class="px-5 py-3.5">Trạng thái</th>
-                  <th class="px-5 py-3.5 text-right">Thao tác</th>
+                <tr class="bg-slate-50/90 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  <th scope="col" class="px-5 py-3.5" [attr.aria-sort]="getAriaSort('code')">
+                    <button type="button" (click)="toggleSort('code')" class="min-h-11 inline-flex items-center gap-1.5 font-bold uppercase tracking-wider hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer">
+                      <span>Mã &amp; Tên chương trình</span>
+                      <i class="pi text-[10px]" [ngClass]="getSortIcon('code')" aria-hidden="true"></i>
+                    </button>
+                  </th>
+                  <th scope="col" class="px-5 py-3.5" [attr.aria-sort]="getAriaSort('type')">
+                    <button type="button" (click)="toggleSort('type')" class="min-h-11 inline-flex items-center gap-1.5 font-bold uppercase tracking-wider hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer">
+                      <span>Loại ưu đãi</span>
+                      <i class="pi text-[10px]" [ngClass]="getSortIcon('type')" aria-hidden="true"></i>
+                    </button>
+                  </th>
+                  <th scope="col" class="px-5 py-3.5" [attr.aria-sort]="getAriaSort('usage')">
+                    <button type="button" (click)="toggleSort('usage')" class="min-h-11 inline-flex items-center gap-1.5 font-bold uppercase tracking-wider hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer">
+                      <span>Điều kiện &amp; Lượt dùng</span>
+                      <i class="pi text-[10px]" [ngClass]="getSortIcon('usage')" aria-hidden="true"></i>
+                    </button>
+                  </th>
+                  <th scope="col" class="px-5 py-3.5" [attr.aria-sort]="getAriaSort('endsAt')">
+                    <button type="button" (click)="toggleSort('endsAt')" class="min-h-11 inline-flex items-center gap-1.5 font-bold uppercase tracking-wider hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer">
+                      <span>Hiệu lực (UTC+7)</span>
+                      <i class="pi text-[10px]" [ngClass]="getSortIcon('endsAt')" aria-hidden="true"></i>
+                    </button>
+                  </th>
+                  <th scope="col" class="px-5 py-3.5">Trạng thái</th>
+                  <th scope="col" class="px-5 py-3.5 text-right">Thao tác</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-slate-100 text-xs sm:text-sm">
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-800 text-xs sm:text-sm">
                 @for (promo of filteredPromotions(); track promo.id) {
-                  <tr class="hover:bg-slate-50/70 transition-colors">
+                  <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition-colors">
                     <td class="px-5 py-4 align-top">
                       <div class="flex items-center gap-2 flex-wrap">
-                        <span class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono font-bold text-xs tracking-wide">
+                        <span class="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-mono font-bold text-xs tracking-wide">
                           {{ promo.code }}
                         </span>
                       </div>
-                      <p class="font-semibold text-slate-900 mt-1.5">{{ promo.name }}</p>
+                      <p class="font-semibold text-slate-900 dark:text-slate-100 mt-1.5">{{ promo.name }}</p>
                       @if (promo.description) {
-                        <p class="text-xs text-slate-500 mt-0.5 line-clamp-2 max-w-xs">{{ promo.description }}</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2 max-w-xs">{{ promo.description }}</p>
                       }
                     </td>
 
                     <td class="px-5 py-4 align-top">
-                      <span class="inline-flex items-center px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-800 border border-indigo-200 font-semibold text-xs">
+                      <span class="inline-flex items-center px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-semibold text-xs tabular-nums">
                         {{ formatOfferBadge(promo) }}
                       </span>
-                      <p class="text-[11px] text-slate-500 mt-1">{{ getTypeLabel(promo.type) }}</p>
+                      <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">{{ getTypeLabel(promo.type) }}</p>
                     </td>
 
-                    <td class="px-5 py-4 align-top text-xs text-slate-700 space-y-1">
+                    <td class="px-5 py-4 align-top text-xs text-slate-700 dark:text-slate-300 space-y-1 tabular-nums">
                       <div>
-                        Tối thiểu: <strong class="font-semibold">{{ promo.minNights }} đêm</strong>
+                        Tối thiểu: <strong class="font-semibold tabular-nums">{{ promo.minNights }} đêm</strong>
                       </div>
                       <div>
                         Đã dùng:
-                        <strong class="font-mono font-semibold">{{ promo.currentUsage }}</strong>
+                        <strong class="font-mono font-semibold tabular-nums">{{ promo.currentUsage }}</strong>
                         @if (promo.maxUsage !== null && promo.maxUsage !== undefined) {
-                          <span class="text-slate-500">/ {{ promo.maxUsage }} lượt</span>
+                          <span class="text-slate-500 dark:text-slate-400 tabular-nums">/ {{ promo.maxUsage }} lượt</span>
                         } @else {
-                          <span class="text-slate-500">(Không giới hạn)</span>
+                          <span class="text-slate-500 dark:text-slate-400">(Không giới hạn)</span>
                         }
                       </div>
                     </td>
 
-                    <td class="px-5 py-4 align-top text-xs text-slate-700 space-y-1 whitespace-nowrap">
+                    <td class="px-5 py-4 align-top text-xs text-slate-700 dark:text-slate-300 space-y-1 whitespace-nowrap tabular-nums">
                       <div>
-                        <span class="text-slate-500">Từ:</span>
-                        <strong class="ml-1 font-medium text-slate-800">{{ promo.startsAtUtc | businessDateTime }}</strong>
+                        <span class="text-slate-500 dark:text-slate-400">Từ:</span>
+                        <strong class="ml-1 font-medium text-slate-800 dark:text-slate-200 tabular-nums">{{ promo.startsAtUtc | businessDateTime }}</strong>
                       </div>
                       <div>
-                        <span class="text-slate-500">Đến:</span>
-                        <strong class="ml-1 font-medium text-slate-800">{{ promo.endsAtUtc | businessDateTime }}</strong>
+                        <span class="text-slate-500 dark:text-slate-400">Đến:</span>
+                        <strong class="ml-1 font-medium text-slate-800 dark:text-slate-200 tabular-nums">{{ promo.endsAtUtc | businessDateTime }}</strong>
                       </div>
                     </td>
 
@@ -345,7 +443,7 @@ function extractApiErrorMessage(err: unknown, fallback: string): string {
                             type="button"
                             (click)="openEditModal(promo)"
                             [attr.aria-label]="'Chỉnh sửa mã ' + promo.code"
-                            class="min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
+                            class="min-h-11 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs transition-colors cursor-pointer"
                           >
                             <i class="pi pi-pencil text-xs" aria-hidden="true"></i>
                             <span>Sửa</span>
@@ -359,7 +457,7 @@ function extractApiErrorMessage(err: unknown, fallback: string): string {
                             [ngClass]="promo.isActive
                               ? 'border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800'
                               : 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800'"
-                            class="min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border font-semibold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                            class="min-h-11 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border font-semibold text-xs transition-colors cursor-pointer disabled:opacity-50"
                           >
                             <i [class]="promo.isActive ? 'pi pi-pause text-xs' : 'pi pi-play text-xs'" aria-hidden="true"></i>
                             <span>{{ promo.isActive ? 'Tạm ngừng' : 'Kích hoạt' }}</span>
@@ -378,10 +476,12 @@ function extractApiErrorMessage(err: unknown, fallback: string): string {
       <!-- Create / Edit Modal -->
       @if (showModal()) {
         <div
-          class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 overflow-y-auto"
+          class="fixed inset-0 z-[65] flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 overflow-y-auto"
           role="dialog"
           aria-modal="true"
           aria-labelledby="promo-modal-title"
+          cdkTrapFocus
+          [cdkTrapFocusAutoCapture]="true"
           (click)="onBackdropClick($event)"
         >
           <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl overflow-hidden my-auto">
@@ -589,6 +689,7 @@ export class PromotionsPageComponent implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly alertService = inject(AlertService);
   private readonly fb = inject(FormBuilder);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly canRead = computed(() => this.authService.hasPermission('PROMOTIONS', 1));
   readonly canCreate = computed(() => this.authService.hasPermission('PROMOTIONS', 2));
@@ -603,6 +704,8 @@ export class PromotionsPageComponent implements OnInit {
 
   readonly searchQuery = signal<string>('');
   readonly statusFilter = signal<'all' | 'active' | 'inactive'>('all');
+  readonly sortField = signal<'code' | 'type' | 'usage' | 'endsAt'>('endsAt');
+  readonly sortDirection = signal<'asc' | 'desc'>('desc');
 
   readonly showModal = signal<boolean>(false);
   readonly editingPromo = signal<PromotionDto | null>(null);
@@ -616,8 +719,10 @@ export class PromotionsPageComponent implements OnInit {
   readonly filteredPromotions = computed(() => {
     const query = this.searchQuery().trim().toLowerCase();
     const filter = this.statusFilter();
+    const field = this.sortField();
+    const dir = this.sortDirection() === 'asc' ? 1 : -1;
 
-    return this.promotions().filter(promo => {
+    const list = this.promotions().filter(promo => {
       if (filter === 'active' && !promo.isActive) return false;
       if (filter === 'inactive' && promo.isActive) return false;
       if (!query) return true;
@@ -627,7 +732,40 @@ export class PromotionsPageComponent implements OnInit {
         (promo.description ?? '').toLowerCase().includes(query)
       );
     });
+
+    return [...list].sort((a, b) => {
+      switch (field) {
+        case 'code':
+          return a.code.localeCompare(b.code) * dir;
+        case 'type':
+          return a.type.localeCompare(b.type) * dir;
+        case 'usage':
+          return ((a.currentUsage || 0) - (b.currentUsage || 0)) * dir;
+        case 'endsAt':
+        default:
+          return (new Date(a.endsAtUtc).getTime() - new Date(b.endsAtUtc).getTime()) * dir;
+      }
+    });
   });
+
+  toggleSort(field: 'code' | 'type' | 'usage' | 'endsAt'): void {
+    if (this.sortField() === field) {
+      this.sortDirection.update(d => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      this.sortField.set(field);
+      this.sortDirection.set(field === 'endsAt' || field === 'usage' ? 'desc' : 'asc');
+    }
+  }
+
+  getAriaSort(field: 'code' | 'type' | 'usage' | 'endsAt'): 'ascending' | 'descending' | 'none' {
+    if (this.sortField() !== field) return 'none';
+    return this.sortDirection() === 'asc' ? 'ascending' : 'descending';
+  }
+
+  getSortIcon(field: 'code' | 'type' | 'usage' | 'endsAt'): string {
+    if (this.sortField() !== field) return 'pi-sort-alt text-slate-400';
+    return this.sortDirection() === 'asc' ? 'pi-sort-amount-up text-emerald-600' : 'pi-sort-amount-down text-emerald-600';
+  }
 
   promoForm: FormGroup = this.fb.group({
     code: ['', [Validators.required, Validators.maxLength(50), Validators.pattern(/^[A-Za-z0-9_-]+$/)]],
@@ -662,7 +800,7 @@ export class PromotionsPageComponent implements OnInit {
     this.loading.set(true);
     this.errorMessage.set(null);
 
-    this.promotionService.getPromotions().subscribe({
+    this.promotionService.getPromotions().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: list => {
         this.promotions.set(list);
         this.loading.set(false);
@@ -818,7 +956,7 @@ export class PromotionsPageComponent implements OnInit {
 
     if (editing) {
       const updatePayload: UpdatePromotionRequest = { id: editing.id, ...payload };
-      this.promotionService.updatePromotion(editing.id, updatePayload).subscribe({
+      this.promotionService.updatePromotion(editing.id, updatePayload).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: updated => {
           this.promotions.update(list => list.map(item => (item.id === updated.id ? updated : item)));
           this.saving.set(false);
@@ -831,7 +969,7 @@ export class PromotionsPageComponent implements OnInit {
         }
       });
     } else {
-      this.promotionService.createPromotion(payload).subscribe({
+      this.promotionService.createPromotion(payload).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: created => {
           this.promotions.update(list => [created, ...list]);
           this.saving.set(false);
@@ -848,7 +986,7 @@ export class PromotionsPageComponent implements OnInit {
 
   toggleStatus(promo: PromotionDto): void {
     this.togglingId.set(promo.id);
-    this.promotionService.togglePromotionStatus(promo.id, { isActive: !promo.isActive }).subscribe({
+    this.promotionService.togglePromotionStatus(promo.id, { isActive: !promo.isActive }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: updated => {
         this.promotions.update(list => list.map(item => (item.id === updated.id ? updated : item)));
         this.togglingId.set(null);

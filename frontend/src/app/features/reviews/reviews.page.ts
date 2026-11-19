@@ -11,6 +11,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
+import { A11yModule } from '@angular/cdk/a11y';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ReviewService } from '../../core/services/review.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -49,6 +50,7 @@ const INITIAL_SUMMARY: PmsReviewsSummaryDto = {
   imports: [
     CommonModule,
     FormsModule,
+    A11yModule,
     PageHeaderComponent,
     StatCardComponent,
     StatusBadgeComponent,
@@ -134,7 +136,7 @@ const INITIAL_SUMMARY: PmsReviewsSummaryDto = {
                 type="button"
                 (click)="toggleRatingQuickFilter(activeStar)"
                 aria-label="Bỏ lọc theo số sao"
-                class="inline-flex items-center gap-1.5 min-h-[36px] px-2.5 py-1 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 cursor-pointer transition-colors"
+                class="inline-flex items-center gap-1.5 min-h-11 px-3 py-2 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 cursor-pointer transition-colors"
               >
                 <i class="pi pi-times text-[10px]"></i>
                 <span>Bỏ lọc {{ activeStar }} sao</span>
@@ -164,7 +166,7 @@ const INITIAL_SUMMARY: PmsReviewsSummaryDto = {
                   [style.width.%]="getStarPercentage(star)"
                 ></div>
               </div>
-              <span class="w-20 text-right font-mono text-slate-600 shrink-0">
+              <span class="w-20 text-right font-mono tabular-nums text-slate-600 shrink-0">
                 {{ getStarCount(star) }} ({{ getStarPercentage(star) | number:'1.0-0' }}%)
               </span>
             </button>
@@ -174,25 +176,25 @@ const INITIAL_SUMMARY: PmsReviewsSummaryDto = {
         <div class="lg:col-span-5 grid grid-cols-2 gap-3">
           <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
             <div class="text-xs font-medium text-slate-500">Vệ sinh &amp; Sạch sẽ</div>
-            <div class="text-xl font-extrabold text-slate-900 font-mono">
+            <div class="text-xl font-extrabold text-slate-900 font-mono tabular-nums">
               {{ summary().cleanlinessAverage.toFixed(1) }} <span class="text-xs font-medium text-slate-400">/ 5</span>
             </div>
           </div>
           <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
             <div class="text-xs font-medium text-slate-500">Vị trí &amp; Di chuyển</div>
-            <div class="text-xl font-extrabold text-slate-900 font-mono">
+            <div class="text-xl font-extrabold text-slate-900 font-mono tabular-nums">
               {{ summary().locationAverage.toFixed(1) }} <span class="text-xs font-medium text-slate-400">/ 5</span>
             </div>
           </div>
           <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
             <div class="text-xs font-medium text-slate-500">Thái độ dịch vụ</div>
-            <div class="text-xl font-extrabold text-slate-900 font-mono">
+            <div class="text-xl font-extrabold text-slate-900 font-mono tabular-nums">
               {{ summary().serviceAverage.toFixed(1) }} <span class="text-xs font-medium text-slate-400">/ 5</span>
             </div>
           </div>
           <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
             <div class="text-xs font-medium text-slate-500">Đáng giá tiền</div>
-            <div class="text-xl font-extrabold text-slate-900 font-mono">
+            <div class="text-xl font-extrabold text-slate-900 font-mono tabular-nums">
               {{ summary().valueAverage.toFixed(1) }} <span class="text-xs font-medium text-slate-400">/ 5</span>
             </div>
           </div>
@@ -539,10 +541,12 @@ const INITIAL_SUMMARY: PmsReviewsSummaryDto = {
     <!-- REPLY MODAL DIALOG -->
     @if (replyModalReview(); as target) {
       <div
-        class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+        class="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
         role="dialog"
         aria-modal="true"
         aria-labelledby="reply-modal-title"
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
         (click)="closeReplyModal()"
       >
         <div

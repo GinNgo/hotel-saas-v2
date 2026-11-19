@@ -11,6 +11,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { A11yModule } from '@angular/cdk/a11y';
 import { AuthService } from '../../../core/services/auth.service';
 import { GuestAccountService } from '../../../core/services/guest-account.service';
 import { AlertService } from '../../../core/services/alert.service';
@@ -30,7 +31,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
 @Component({
   selector: 'app-guest-profile-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, PhoneOtpModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink, A11yModule, PhoneOtpModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-6 sm:space-y-8">
@@ -47,14 +48,14 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
         <div class="flex items-center gap-2 flex-wrap">
           <a
             routerLink="/booking/lookup"
-            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
+            class="min-h-11 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
           >
             <i class="pi pi-search text-xs text-indigo-600"></i>
             <span>Tra cứu mã đặt phòng</span>
           </a>
           <a
             routerLink="/booking"
-            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors"
+            class="min-h-11 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors"
           >
             <i class="pi pi-plus text-xs"></i>
             <span>Đặt phòng mới</span>
@@ -122,6 +123,9 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                 <img
                   [src]="currentAvatarUrl()"
                   alt="Ảnh đại diện"
+                  width="80"
+                  height="80"
+                  loading="lazy"
                   class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-indigo-400/50 shadow-md bg-indigo-900"
                   (error)="onAvatarImgError($event)"
                 />
@@ -133,7 +137,8 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
               <button
                 type="button"
                 (click)="startEditing()"
-                class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white border-2 border-indigo-950 flex items-center justify-center text-[10px] cursor-pointer shadow-xs transition-transform hover:scale-110"
+                aria-label="Thay đổi ảnh đại diện hoặc họ tên"
+                class="absolute -bottom-2 -right-2 min-w-11 min-h-11 w-11 h-11 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white border-2 border-indigo-950 flex items-center justify-center text-xs cursor-pointer shadow-xs transition-transform hover:scale-105"
                 title="Thay đổi ảnh đại diện hoặc họ tên"
               >
                 <i class="pi pi-pencil"></i>
@@ -243,8 +248,8 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
               </div>
             </div>
             <div class="mt-2.5">
-              <div class="text-2xl sm:text-3xl font-extrabold text-slate-900 font-mono">{{ bookings().length }}</div>
-              <div class="text-xs text-slate-500 mt-1">
+              <div class="text-2xl sm:text-3xl font-extrabold text-slate-900 font-mono tabular-nums">{{ bookings().length }}</div>
+              <div class="text-xs text-slate-500 mt-1 tabular-nums">
                 {{ activeBookingsCount() }} đơn đang hiệu lực
               </div>
             </div>
@@ -258,10 +263,10 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
               </div>
             </div>
             <div class="mt-2.5">
-              <div class="text-2xl sm:text-3xl font-extrabold text-amber-600 font-mono">
+              <div class="text-2xl sm:text-3xl font-extrabold text-amber-600 font-mono tabular-nums">
                 {{ (loyaltyData()?.totalPoints || 0) | number }}
               </div>
-              <div class="text-xs text-slate-500 mt-1">
+              <div class="text-xs text-slate-500 mt-1 tabular-nums">
                 Quy đổi ~ {{ (loyaltyData()?.pointsValueVnd || 0) | number }}₫
               </div>
             </div>
@@ -275,7 +280,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
               </div>
             </div>
             <div class="mt-2.5">
-              <div class="text-2xl sm:text-3xl font-extrabold text-emerald-700 font-mono truncate">
+              <div class="text-2xl sm:text-3xl font-extrabold text-emerald-700 font-mono tabular-nums truncate">
                 {{ totalSpentVnd() | number:'1.0-0' }}₫
               </div>
               <div class="text-xs text-slate-500 mt-1">
@@ -352,6 +357,9 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                           <img
                             [src]="editAvatarUrl"
                             alt="Avatar preview"
+                            width="64"
+                            height="64"
+                            loading="lazy"
                             class="w-16 h-16 rounded-2xl object-cover border-2 border-indigo-500 shadow-sm"
                             (error)="onAvatarImgError($event)"
                           />
@@ -367,7 +375,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                           type="url"
                           [(ngModel)]="editAvatarUrl"
                           name="avatarUrl"
-                          class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50/50"
+                          class="w-full min-h-11 px-3.5 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50/50"
                           placeholder="Dán đường dẫn ảnh đại diện cá nhân (https://...)"
                         />
                         <div class="flex items-center gap-2 flex-wrap">
@@ -376,7 +384,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                             <button
                               type="button"
                               (click)="clearAvatarUrl()"
-                              class="text-[10px] px-2 py-0.5 rounded-full border border-rose-200 text-rose-600 hover:bg-rose-50 cursor-pointer transition-colors"
+                              class="min-h-11 text-xs px-3 py-1.5 rounded-full border border-rose-200 text-rose-600 hover:bg-rose-50 cursor-pointer transition-colors"
                             >
                               Gỡ ảnh
                             </button>
@@ -462,9 +470,10 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                   <button
                     type="button"
                     (click)="selectTab('bookings')"
-                    class="text-xs font-semibold text-indigo-600 hover:underline cursor-pointer"
+                    class="min-h-11 inline-flex items-center gap-1.5 px-2 text-xs font-semibold text-indigo-600 hover:underline cursor-pointer"
                   >
-                    Xem tất cả ({{ bookings().length }}) →
+                    <span>Xem tất cả (<span class="tabular-nums">{{ bookings().length }}</span>)</span>
+                    <i class="pi pi-arrow-right text-[10px]"></i>
                   </button>
                 </div>
 
@@ -475,7 +484,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                     </div>
                     <a
                       routerLink="/booking"
-                      class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 shrink-0 self-start sm:self-auto"
+                      class="min-h-11 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 shrink-0 self-start sm:self-auto"
                     >
                       <span>Tìm phòng ngay</span>
                       <i class="pi pi-arrow-right text-[10px]"></i>
@@ -492,15 +501,19 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                               {{ b.status }}
                             </span>
                           </div>
-                          <p class="text-xs text-slate-500 mt-0.5">
-                            Mã: <span class="font-mono font-semibold text-slate-700">{{ b.reference }}</span> • {{ b.checkInDate }} → {{ b.checkOutDate }}
+                          <p class="text-xs text-slate-500 mt-0.5 tabular-nums inline-flex items-center gap-1 flex-wrap">
+                            <span>Mã: <span class="font-mono font-semibold text-slate-700">{{ b.reference }}</span></span>
+                            <span>•</span>
+                            <span>{{ b.checkInDate }}</span>
+                            <i class="pi pi-arrow-right text-[9px]" aria-hidden="true"></i>
+                            <span>{{ b.checkOutDate }}</span>
                           </p>
                         </div>
                         <div class="flex items-center justify-between sm:justify-end gap-3">
-                          <span class="font-mono font-extrabold text-indigo-600 text-sm">{{ b.totalAmount | number }}₫</span>
+                          <span class="font-mono font-extrabold text-indigo-600 text-sm tabular-nums">{{ b.totalAmount | number }}₫</span>
                           <a
                             [routerLink]="['/booking/status', b.lookupToken || b.reference]"
-                            class="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
+                            class="min-h-11 inline-flex items-center px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
                           >
                             Chi tiết
                           </a>
@@ -621,17 +634,17 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                           </p>
                         </div>
                         <div class="flex items-center justify-between sm:justify-end gap-2 flex-wrap">
-                          <span class="font-mono font-extrabold text-emerald-700 text-sm mr-1">{{ inv.grandTotal | number:'1.0-0' }}₫</span>
+                          <span class="font-mono tabular-nums font-extrabold text-emerald-700 text-sm mr-1">{{ inv.grandTotal | number:'1.0-0' }}₫</span>
                           <button
                             type="button"
                             (click)="openInvoicePreview(inv)"
-                            class="min-h-[38px] px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                            class="min-h-11 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer inline-flex items-center"
                           >
                             Xem chi tiết
                           </button>
                           <a
                             [routerLink]="['/print/invoice', inv.reservationId || inv.invoiceId]"
-                            class="min-h-[38px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-xs font-bold text-indigo-700 hover:bg-indigo-100"
+                            class="min-h-11 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-xs font-bold text-indigo-700 hover:bg-indigo-100"
                           >
                             <i class="pi pi-print text-[11px]"></i>
                             <span>In hóa đơn</span>
@@ -957,8 +970,9 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
           }
         </section>
 
-        <a routerLink="/booking" class="inline-flex min-h-11 items-center text-indigo-700 hover:underline font-semibold text-sm">
-          Tiếp tục khám phá chỗ nghỉ →
+        <a routerLink="/booking" class="inline-flex min-h-11 items-center gap-1.5 text-indigo-700 hover:underline font-semibold text-sm">
+          <span>Tiếp tục khám phá chỗ nghỉ</span>
+          <i class="pi pi-arrow-right text-xs"></i>
         </a>
       }
 
@@ -973,6 +987,8 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
       <!-- Modal Đăng ký thẻ hội viên cơ sở (POST /api/guest/memberships/enroll) -->
       @if (showEnrollModal()) {
         <div
+          cdkTrapFocus
+          [cdkTrapFocusAutoCapture]="true"
           role="dialog"
           aria-modal="true"
           aria-labelledby="enroll-modal-title"
@@ -1052,6 +1068,8 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
       <!-- Modal Chi tiết hóa đơn (GET /api/guest/invoices/{id}/print) -->
       @if (selectedInvoicePrint(); as inv) {
         <div
+          cdkTrapFocus
+          [cdkTrapFocusAutoCapture]="true"
           role="dialog"
           aria-modal="true"
           aria-labelledby="invoice-preview-title"
@@ -1089,12 +1107,12 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                   @for (line of inv.lineItems; track line.id) {
                     <div class="p-3 flex items-center justify-between gap-2">
                       <span>{{ line.description }} (x{{ line.quantity }})</span>
-                      <span class="font-mono font-bold">{{ line.amount | number:'1.0-0' }}₫</span>
+                      <span class="font-mono tabular-nums font-bold">{{ line.amount | number:'1.0-0' }}₫</span>
                     </div>
                   }
                 </div>
               }
-              <div class="space-y-1.5 pt-2 border-t border-slate-200">
+              <div class="space-y-1.5 pt-2 border-t border-slate-200 tabular-nums">
                 <div class="flex justify-between text-slate-600">
                   <span>Tạm tính:</span>
                   <span class="font-mono">{{ inv.subTotal | number:'1.0-0' }}₫</span>

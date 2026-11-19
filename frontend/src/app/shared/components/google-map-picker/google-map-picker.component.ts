@@ -148,10 +148,11 @@ const PROVINCE_COORDINATES: Readonly<Record<string, { lat: number; lng: number }
           class="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-semibold shrink-0 transition-colors cursor-pointer disabled:opacity-60 flex items-center gap-1"
         >
           @if (locatingGps()) {
-            <i class="pi pi-spin pi-spinner text-[10px]"></i>
+            <i class="pi pi-spin pi-spinner text-[10px]" aria-hidden="true"></i>
             <span>Đang định vị...</span>
           } @else {
-            <span>📍 Vị trí hiện tại</span>
+            <i class="pi pi-map-marker text-[11px]" aria-hidden="true"></i>
+            <span>Vị trí hiện tại</span>
           }
         </button>
         <span class="text-[11px] text-slate-400 shrink-0 font-medium flex items-center gap-1 ml-1">

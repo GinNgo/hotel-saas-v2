@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -153,6 +154,9 @@ import { PromotionDealDto } from '../../core/models/public-booking.model';
                     <img
                       [src]="deal.bannerImageUrl"
                       [alt]="deal.title || deal.name || deal.code"
+                      width="600"
+                      height="220"
+                      loading="lazy"
                       class="absolute inset-0 w-full h-full object-cover opacity-35"
                     />
                   }
@@ -186,7 +190,7 @@ import { PromotionDealDto } from '../../core/models/public-booking.model';
                     </p>
 
                     <div class="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 pt-1">
-                      <span class="inline-flex items-center gap-1">
+                      <span class="inline-flex items-center gap-1 tabular-nums">
                         <i class="pi pi-calendar text-[11px] text-slate-400" aria-hidden="true"></i>
                         Hạn dùng: <strong class="text-slate-700">{{ formatExpiryDate(deal.endsAtUtc || deal.expiresAt) }}</strong>
                       </span>
@@ -239,6 +243,7 @@ export class PromotionsPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly publicBookingService = inject(PublicBookingService);
   private readonly alertService = inject(AlertService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly deals = signal<PromotionDealDto[]>([]);
   readonly loading = signal<boolean>(false);
@@ -274,7 +279,7 @@ export class PromotionsPageComponent implements OnInit {
     this.loading.set(true);
     this.errorMessage.set(null);
 
-    this.publicBookingService.getPromotions().subscribe({
+    this.publicBookingService.getPromotions().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: list => {
         this.deals.set(list);
         this.loading.set(false);

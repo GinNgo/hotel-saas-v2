@@ -1,5 +1,7 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, inject, signal, computed, effect } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, DestroyRef, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { A11yModule } from '@angular/cdk/a11y';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Subject, Subscription, of } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap, tap, catchError } from 'rxjs/operators';
@@ -39,6 +41,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
+    A11yModule,
     FormsModule,
     SkeletonTableComponent,
     EmptyStateComponent,
@@ -54,15 +57,15 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
             <h1 class="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Quản lý Buồng phòng</h1>
             @if (syncStatus() === 'connected') {
               <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200" title="Đồng bộ thời gian thực từ máy chủ">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                 <span>Máy chủ: Đang kết nối</span>
                 @if (lastSyncTime()) {
-                  <span class="font-normal text-[10px] text-emerald-600">({{ formatLastSyncTime() }})</span>
+                  <span class="font-normal text-[10px] text-emerald-600 tabular-nums">({{ formatLastSyncTime() }})</span>
                 }
               </span>
             } @else if (syncStatus() === 'reconnecting') {
               <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                 <span>Đang kết nối lại...</span>
               </span>
             } @else if (syncStatus() === 'offline') {
@@ -84,7 +87,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
           <button
             type="button"
             (click)="toggleAutoSync()"
-            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium transition-colors shadow-2xs cursor-pointer"
+            class="inline-flex items-center gap-1.5 min-h-11 px-3 py-2 rounded-xl border text-xs font-medium transition-colors shadow-2xs cursor-pointer"
             [ngClass]="autoSyncEnabled() ? 'border-emerald-200 bg-emerald-50/70 text-emerald-700 hover:bg-emerald-100' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'"
             [title]="autoSyncEnabled() ? 'Tự động đồng bộ máy chủ đang BẬT (định kỳ 10 giây)' : 'Tự động đồng bộ đang TẮT'"
           >
@@ -156,19 +159,19 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div class="p-3.5 rounded-xl border border-slate-200 bg-white">
             <div class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Tổng nhiệm vụ</div>
-            <div class="text-xl font-bold text-slate-800 mt-1">{{ tasks().length }}</div>
+            <div class="text-xl font-bold text-slate-800 mt-1 tabular-nums">{{ tasks().length }}</div>
           </div>
           <div class="p-3.5 rounded-xl border border-rose-200 bg-rose-50/50">
             <div class="text-[11px] font-semibold text-rose-700 uppercase tracking-wider">Khẩn (Sắp check-in)</div>
-            <div class="text-xl font-bold text-rose-800 mt-1">{{ urgentTasksCount() }}</div>
+            <div class="text-xl font-bold text-rose-800 mt-1 tabular-nums">{{ urgentTasksCount() }}</div>
           </div>
           <div class="p-3.5 rounded-xl border border-amber-200 bg-amber-50/50">
             <div class="text-[11px] font-semibold text-amber-700 uppercase tracking-wider">Chờ / Đang dọn</div>
-            <div class="text-xl font-bold text-amber-800 mt-1">{{ activeTasksCount() }}</div>
+            <div class="text-xl font-bold text-amber-800 mt-1 tabular-nums">{{ activeTasksCount() }}</div>
           </div>
           <div class="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/50">
             <div class="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider">Hoàn tất</div>
-            <div class="text-xl font-bold text-emerald-800 mt-1">{{ completedTasksCount() }}</div>
+            <div class="text-xl font-bold text-emerald-800 mt-1 tabular-nums">{{ completedTasksCount() }}</div>
           </div>
         </div>
 
@@ -344,22 +347,26 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
       <!-- KPI Summary Cards (Trên trang đang hiển thị) -->
       <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <!-- All Rooms on Page -->
-        <div
+        <button
+          type="button"
           (click)="setStatusFilter('ALL')"
-          class="p-3.5 rounded-xl border transition-all cursor-pointer bg-white hover:shadow-2xs"
+          [attr.aria-pressed]="activeStatusFilter() === 'ALL'"
+          class="w-full text-left min-h-11 p-3.5 rounded-xl border transition-all cursor-pointer bg-white hover:shadow-2xs"
           [class.ring-2]="activeStatusFilter() === 'ALL'"
           [class.ring-slate-400]="activeStatusFilter() === 'ALL'"
           [class.border-slate-300]="activeStatusFilter() === 'ALL'"
         >
           <div class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Tổng phòng</div>
-          <div class="text-xl font-bold text-slate-800 mt-1">{{ pageRoomsCount() }}</div>
+          <div class="text-xl font-bold text-slate-800 mt-1 tabular-nums">{{ pageRoomsCount() }}</div>
           <div class="text-[10px] text-slate-400 mt-0.5">Trên trang đang hiển thị</div>
-        </div>
+        </button>
 
         <!-- Dirty (Cần dọn) -->
-        <div
+        <button
+          type="button"
           (click)="setStatusFilter(RoomStatus.Dirty)"
-          class="p-3.5 rounded-xl border transition-all cursor-pointer bg-rose-50/40 hover:bg-rose-50/80 hover:shadow-2xs border-rose-200/80"
+          [attr.aria-pressed]="activeStatusFilter() === RoomStatus.Dirty"
+          class="w-full text-left min-h-11 p-3.5 rounded-xl border transition-all cursor-pointer bg-rose-50/40 hover:bg-rose-50/80 hover:shadow-2xs border-rose-200/80"
           [class.ring-2]="activeStatusFilter() === RoomStatus.Dirty"
           [class.ring-rose-500]="activeStatusFilter() === RoomStatus.Dirty"
         >
@@ -367,29 +374,33 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
             <span class="text-[11px] font-semibold text-rose-700 uppercase tracking-wider">Cần dọn</span>
             <span class="w-2 h-2 rounded-full bg-rose-500"></span>
           </div>
-          <div class="text-xl font-bold text-rose-800 mt-1">{{ dirtyCount() }}</div>
+          <div class="text-xl font-bold text-rose-800 mt-1 tabular-nums">{{ dirtyCount() }}</div>
           <div class="text-[10px] text-rose-600 mt-0.5">Trên trang đang hiển thị</div>
-        </div>
+        </button>
 
         <!-- Cleaning (Đang dọn) -->
-        <div
+        <button
+          type="button"
           (click)="setStatusFilter(RoomStatus.Cleaning)"
-          class="p-3.5 rounded-xl border transition-all cursor-pointer bg-amber-50/40 hover:bg-amber-50/80 hover:shadow-2xs border-amber-200/80"
+          [attr.aria-pressed]="activeStatusFilter() === RoomStatus.Cleaning"
+          class="w-full text-left min-h-11 p-3.5 rounded-xl border transition-all cursor-pointer bg-amber-50/40 hover:bg-amber-50/80 hover:shadow-2xs border-amber-200/80"
           [class.ring-2]="activeStatusFilter() === RoomStatus.Cleaning"
           [class.ring-amber-500]="activeStatusFilter() === RoomStatus.Cleaning"
         >
           <div class="flex items-center justify-between">
             <span class="text-[11px] font-semibold text-amber-700 uppercase tracking-wider">Đang dọn</span>
-            <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
           </div>
-          <div class="text-xl font-bold text-amber-800 mt-1">{{ cleaningCount() }}</div>
+          <div class="text-xl font-bold text-amber-800 mt-1 tabular-nums">{{ cleaningCount() }}</div>
           <div class="text-[10px] text-amber-600 mt-0.5">Trên trang đang hiển thị</div>
-        </div>
+        </button>
 
         <!-- Clean (Sạch sẵn sàng) -->
-        <div
+        <button
+          type="button"
           (click)="setStatusFilter(RoomStatus.Clean)"
-          class="p-3.5 rounded-xl border transition-all cursor-pointer bg-emerald-50/40 hover:bg-emerald-50/80 hover:shadow-2xs border-emerald-200/80"
+          [attr.aria-pressed]="activeStatusFilter() === RoomStatus.Clean"
+          class="w-full text-left min-h-11 p-3.5 rounded-xl border transition-all cursor-pointer bg-emerald-50/40 hover:bg-emerald-50/80 hover:shadow-2xs border-emerald-200/80"
           [class.ring-2]="activeStatusFilter() === RoomStatus.Clean"
           [class.ring-emerald-500]="activeStatusFilter() === RoomStatus.Clean"
         >
@@ -397,14 +408,16 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
             <span class="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider">Sạch sẽ</span>
             <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
           </div>
-          <div class="text-xl font-bold text-emerald-800 mt-1">{{ cleanCount() }}</div>
+          <div class="text-xl font-bold text-emerald-800 mt-1 tabular-nums">{{ cleanCount() }}</div>
           <div class="text-[10px] text-emerald-600 mt-0.5">Trên trang đang hiển thị</div>
-        </div>
+        </button>
 
         <!-- Occupied (Có khách) -->
-        <div
+        <button
+          type="button"
           (click)="setStatusFilter(RoomStatus.Occupied)"
-          class="p-3.5 rounded-xl border transition-all cursor-pointer bg-sky-50/40 hover:bg-sky-50/80 hover:shadow-2xs border-sky-200/80"
+          [attr.aria-pressed]="activeStatusFilter() === RoomStatus.Occupied"
+          class="w-full text-left min-h-11 p-3.5 rounded-xl border transition-all cursor-pointer bg-sky-50/40 hover:bg-sky-50/80 hover:shadow-2xs border-sky-200/80"
           [class.ring-2]="activeStatusFilter() === RoomStatus.Occupied"
           [class.ring-sky-500]="activeStatusFilter() === RoomStatus.Occupied"
         >
@@ -412,14 +425,16 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
             <span class="text-[11px] font-semibold text-sky-700 uppercase tracking-wider">Có khách</span>
             <span class="w-2 h-2 rounded-full bg-sky-500"></span>
           </div>
-          <div class="text-xl font-bold text-sky-800 mt-1">{{ occupiedCount() }}</div>
+          <div class="text-xl font-bold text-sky-800 mt-1 tabular-nums">{{ occupiedCount() }}</div>
           <div class="text-[10px] text-sky-600 mt-0.5">Trên trang đang hiển thị</div>
-        </div>
+        </button>
 
         <!-- OutOfService (Bảo trì) -->
-        <div
+        <button
+          type="button"
           (click)="setStatusFilter(RoomStatus.OutOfService)"
-          class="p-3.5 rounded-xl border transition-all cursor-pointer bg-slate-100/60 hover:bg-slate-100 hover:shadow-2xs border-slate-300/80"
+          [attr.aria-pressed]="activeStatusFilter() === RoomStatus.OutOfService"
+          class="w-full text-left min-h-11 p-3.5 rounded-xl border transition-all cursor-pointer bg-slate-100/60 hover:bg-slate-100 hover:shadow-2xs border-slate-300/80"
           [class.ring-2]="activeStatusFilter() === RoomStatus.OutOfService"
           [class.ring-slate-500]="activeStatusFilter() === RoomStatus.OutOfService"
         >
@@ -427,9 +442,9 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
             <span class="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">Bảo trì</span>
             <span class="w-2 h-2 rounded-full bg-slate-500"></span>
           </div>
-          <div class="text-xl font-bold text-slate-800 mt-1">{{ outOfServiceCount() }}</div>
+          <div class="text-xl font-bold text-slate-800 mt-1 tabular-nums">{{ outOfServiceCount() }}</div>
           <div class="text-[10px] text-slate-500 mt-0.5">Trên trang đang hiển thị</div>
-        </div>
+        </button>
       </div>
 
       <!-- Filters & Search Bar -->
@@ -467,7 +482,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
             <button
               type="button"
               (click)="resetFilters()"
-              class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs text-rose-600 bg-rose-50 hover:bg-rose-100 font-medium transition-colors shrink-0"
+              class="inline-flex items-center gap-1.5 min-h-11 px-3 py-2 rounded-xl text-xs text-rose-600 bg-rose-50 hover:bg-rose-100 font-medium transition-colors shrink-0 cursor-pointer"
               title="Xóa bộ lọc"
             >
               <i class="pi pi-filter-slash text-xs"></i>
@@ -476,7 +491,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
           }
         </div>
 
-        <div class="text-xs text-slate-500 font-medium self-end sm:self-auto">
+        <div class="text-xs text-slate-500 font-medium self-end sm:self-auto tabular-nums">
           Đang hiển thị: <strong class="text-slate-800">{{ rooms().length }}</strong> phòng / Tổng: <strong class="text-slate-800">{{ totalCount() }}</strong> phòng
         </div>
       </div>
@@ -485,7 +500,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
       @if (loading()) {
         <app-skeleton-table [rows]="6" />
       } @else if (loadError()) {
-        <div class="bg-white rounded-2xl border border-slate-200/80 p-8 text-center shadow-xs">
+        <div role="alert" class="bg-white rounded-2xl border border-slate-200/80 p-8 text-center shadow-xs">
           <div class="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-3 border border-rose-200">
             <i class="pi pi-exclamation-triangle text-xl"></i>
           </div>
@@ -495,7 +510,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
             <button
               type="button"
               (click)="loadRooms()"
-              class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-medium text-xs transition-colors"
+              class="inline-flex items-center gap-1.5 min-h-11 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-medium text-xs transition-colors cursor-pointer"
             >
               <i class="pi pi-refresh"></i>
               <span>Thử lại</span>
@@ -591,7 +606,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                               <button
                                 type="button"
                                 (click)="changeRoomStatus(room, RoomStatus.Cleaning)"
-                                class="flex-1 px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-semibold text-[11px] transition-colors shadow-2xs text-center"
+                                class="flex-1 min-h-11 px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-semibold text-[11px] transition-colors shadow-2xs text-center cursor-pointer"
                                 title="Bắt đầu dọn dẹp"
                               >
                                 <i class="pi pi-play text-[10px] mr-1"></i> Bắt đầu dọn
@@ -599,10 +614,11 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                               <button
                                 type="button"
                                 (click)="changeRoomStatus(room, RoomStatus.OutOfService)"
-                                class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-[11px] transition-colors"
+                                [attr.aria-label]="'Chuyển phòng ' + room.roomNumber + ' sang bảo trì'"
+                                class="min-h-11 min-w-11 px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-[11px] transition-colors inline-flex items-center justify-center cursor-pointer"
                                 title="Chuyển sang bảo trì"
                               >
-                                <i class="pi pi-wrench text-[10px]"></i>
+                                <i class="pi pi-wrench text-xs"></i>
                               </button>
                             </div>
                           } @else if (room.status === RoomStatus.Cleaning) {
@@ -610,7 +626,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                               <button
                                 type="button"
                                 (click)="changeRoomStatus(room, RoomStatus.Clean)"
-                                class="flex-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] transition-colors shadow-2xs text-center"
+                                class="flex-1 min-h-11 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] transition-colors shadow-2xs text-center cursor-pointer"
                                 title="Dọn xong, phòng sạch sẽ"
                               >
                                 <i class="pi pi-check text-[10px] mr-1"></i> Dọn xong (Sạch)
@@ -618,18 +634,20 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                               <button
                                 type="button"
                                 (click)="changeRoomStatus(room, RoomStatus.Dirty)"
-                                class="px-2 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium text-[11px] transition-colors"
+                                [attr.aria-label]="'Yêu cầu dọn lại phòng ' + room.roomNumber"
+                                class="min-h-11 min-w-11 px-2 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium text-[11px] transition-colors inline-flex items-center justify-center cursor-pointer"
                                 title="Dọn chưa đạt, yêu cầu dọn lại"
                               >
-                                <i class="pi pi-times text-[10px]" title="Chưa đạt"></i>
+                                <i class="pi pi-times text-xs" title="Chưa đạt"></i>
                               </button>
                               <button
                                 type="button"
                                 (click)="changeRoomStatus(room, RoomStatus.OutOfService)"
-                                class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-[11px] transition-colors"
+                                [attr.aria-label]="'Chuyển phòng ' + room.roomNumber + ' sang bảo trì'"
+                                class="min-h-11 min-w-11 px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-[11px] transition-colors inline-flex items-center justify-center cursor-pointer"
                                 title="Chuyển sang bảo trì"
                               >
-                                <i class="pi pi-wrench text-[10px]"></i>
+                                <i class="pi pi-wrench text-xs"></i>
                               </button>
                             </div>
                           } @else if (room.status === RoomStatus.Clean) {
@@ -637,7 +655,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                               <button
                                 type="button"
                                 (click)="changeRoomStatus(room, RoomStatus.Dirty)"
-                                class="flex-1 px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-[11px] transition-colors text-center border border-rose-200/80"
+                                class="flex-1 min-h-11 px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-[11px] transition-colors text-center border border-rose-200/80 cursor-pointer"
                                 title="Đánh dấu phòng bẩn cần dọn"
                               >
                                 <i class="pi pi-exclamation-circle text-[10px] mr-1"></i> Báo bẩn
@@ -645,17 +663,18 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                               <button
                                 type="button"
                                 (click)="changeRoomStatus(room, RoomStatus.OutOfService)"
-                                class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-[11px] transition-colors"
+                                [attr.aria-label]="'Báo bảo trì phòng ' + room.roomNumber"
+                                class="min-h-11 min-w-11 px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-[11px] transition-colors inline-flex items-center justify-center cursor-pointer"
                                 title="Báo bảo trì"
                               >
-                                <i class="pi pi-wrench text-[10px]"></i>
+                                <i class="pi pi-wrench text-xs"></i>
                               </button>
                             </div>
                           } @else if (room.status === RoomStatus.OutOfService) {
                             <button
                               type="button"
                               (click)="changeRoomStatus(room, RoomStatus.Dirty)"
-                              class="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-semibold text-[11px] transition-colors shadow-2xs text-center"
+                              class="w-full min-h-11 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-semibold text-[11px] transition-colors shadow-2xs text-center cursor-pointer"
                               title="Hoàn tất bảo trì -> Chuyển sang Cần dọn trước khi đón khách"
                             >
                               <i class="pi pi-check-circle text-[10px] mr-1"></i> Bảo trì xong (Cần dọn)
@@ -695,6 +714,9 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
           role="dialog"
           aria-modal="true"
           aria-label="Tạo nhiệm vụ dọn phòng mới"
+          cdkTrapFocus
+          [cdkTrapFocusAutoCapture]="true"
+          (keydown.escape)="closeCreateTaskModal()"
           (click)="closeCreateTaskModal()"
         >
           <div
@@ -905,10 +927,15 @@ export class HousekeepingPage implements OnInit, OnDestroy {
   });
 
   // Multi-device Auto-Sync & Network Resilience
+  private readonly cdr = inject(ChangeDetectorRef, { optional: true });
+  private fallbackDestroyCallbacks: Array<() => void> = [];
+  private isFallbackDestroyed = false;
+  private readonly destroyRef = inject(DestroyRef, { optional: true }) ?? this.createFallbackDestroyRef();
+
   syncStatus = signal<RoomSyncStatus>('connected');
   lastSyncTime = signal<Date | null>(null);
   autoSyncEnabled = signal<boolean>(true);
-  private autoSyncTimer?: any;
+  private autoSyncTimer?: ReturnType<typeof setInterval>;
   private syncInFlight = false;
   private trackedPropertyId: string | null = null;
   private pollSub?: Subscription;
@@ -969,6 +996,21 @@ export class HousekeepingPage implements OnInit, OnDestroy {
     }
   }
 
+  private createFallbackDestroyRef(): DestroyRef {
+    const page = this;
+    return {
+      get destroyed(): boolean {
+        return page.isFallbackDestroyed;
+      },
+      onDestroy: (callback: () => void) => {
+        page.fallbackDestroyCallbacks.push(callback);
+        return () => {
+          page.fallbackDestroyCallbacks = page.fallbackDestroyCallbacks.filter(cb => cb !== callback);
+        };
+      }
+    };
+  }
+
   ngOnInit(): void {
     if (typeof window !== 'undefined') {
       window.addEventListener('online', this.handleOnline);
@@ -977,10 +1019,12 @@ export class HousekeepingPage implements OnInit, OnDestroy {
 
     this.searchSub = this.searchSubject$.pipe(
       debounceTime(300),
-      distinctUntilChanged()
+      distinctUntilChanged(),
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe(() => {
       this.currentPage.set(1);
       this.loadRooms();
+      this.cdr?.markForCheck();
     });
 
     this.setupRoomListStream();
@@ -992,6 +1036,7 @@ export class HousekeepingPage implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.isDestroyed = true;
+    this.isFallbackDestroyed = true;
     this.invalidatePolling();
     this.stopAutoSync();
     if (typeof window !== 'undefined') {
@@ -1003,6 +1048,8 @@ export class HousekeepingPage implements OnInit, OnDestroy {
     this.tasksSub?.unsubscribe();
     this.staffSub?.unsubscribe();
     this.taskActionSub?.unsubscribe();
+    const callbacks = this.fallbackDestroyCallbacks.splice(0);
+    callbacks.forEach(cb => cb());
   }
 
   setViewTab(tab: 'queue' | 'board'): void {
@@ -1033,14 +1080,16 @@ export class HousekeepingPage implements OnInit, OnDestroy {
       status: statusFilter !== 'ALL' ? (statusFilter as HousekeepingTaskStatus) : null,
       priority: priorityFilter !== 'ALL' ? (priorityFilter as HousekeepingPriority) : null,
       assignedToMe: this.taskAssignedToMe() || null
-    }).subscribe({
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (list) => {
         if (this.authService.activePropertyId() !== propId) return;
         this.tasks.set(list || []);
         this.tasksLoading.set(false);
+        this.cdr?.markForCheck();
       },
       error: () => {
         this.tasksLoading.set(false);
+        this.cdr?.markForCheck();
       }
     });
   }
@@ -1051,14 +1100,16 @@ export class HousekeepingPage implements OnInit, OnDestroy {
     if (!propId) return;
 
     this.staffSub?.unsubscribe();
-    this.staffSub = this.housekeepingService.getAssignableStaff(propId).subscribe({
+    this.staffSub = this.housekeepingService.getAssignableStaff(propId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (list) => {
         if (this.authService.activePropertyId() === propId) {
           this.housekeepingStaff.set(list || []);
+          this.cdr?.markForCheck();
         }
       },
       error: () => {
         this.housekeepingStaff.set([]);
+        this.cdr?.markForCheck();
       }
     });
   }
@@ -1104,16 +1155,18 @@ export class HousekeepingPage implements OnInit, OnDestroy {
       priority: this.newTaskPriority(),
       notes: this.newTaskNotes().trim() || null,
       assignedToUserId: this.newTaskAssigneeId() || null
-    }).subscribe({
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (created) => {
         this.isCreatingTask.set(false);
         this.isCreateTaskModalOpen.set(false);
         this.tasks.update(list => [created, ...list]);
         this.alertService.toastSuccess(`Đã tạo nhiệm vụ dọn phòng ${created.roomNumber}.`);
+        this.cdr?.markForCheck();
       },
       error: (err: HttpErrorResponse) => {
         this.isCreatingTask.set(false);
         this.alertService.toastError(err?.error?.message || 'Không thể tạo nhiệm vụ dọn phòng.');
+        this.cdr?.markForCheck();
       }
     });
   }
@@ -1125,15 +1178,17 @@ export class HousekeepingPage implements OnInit, OnDestroy {
 
     this.updatingTaskId.set(task.id);
     this.taskActionSub?.unsubscribe();
-    this.taskActionSub = this.housekeepingService.assignTask(task.id, propId, assignedToUserId).subscribe({
+    this.taskActionSub = this.housekeepingService.assignTask(task.id, propId, assignedToUserId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (updated) => {
         this.updatingTaskId.set(null);
         this.tasks.update(list => list.map(t => t.id === task.id ? updated : t));
         this.alertService.toastSuccess(`Đã phân công phòng ${updated.roomNumber} cho ${updated.assignedToName || 'nhân viên'}.`);
+        this.cdr?.markForCheck();
       },
       error: (err: HttpErrorResponse) => {
         this.updatingTaskId.set(null);
         this.alertService.toastError(err?.error?.message || 'Không thể phân công nhiệm vụ.');
+        this.cdr?.markForCheck();
       }
     });
   }
@@ -1145,11 +1200,12 @@ export class HousekeepingPage implements OnInit, OnDestroy {
 
     this.updatingTaskId.set(task.id);
     this.taskActionSub?.unsubscribe();
-    this.taskActionSub = this.housekeepingService.claimTask(task.id, propId).subscribe({
+    this.taskActionSub = this.housekeepingService.claimTask(task.id, propId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (updated) => {
         this.updatingTaskId.set(null);
         this.tasks.update(list => list.map(t => t.id === task.id ? updated : t));
         this.alertService.toastSuccess(`Bạn đã tự nhận việc dọn phòng ${updated.roomNumber}.`);
+        this.cdr?.markForCheck();
       },
       error: (err: HttpErrorResponse) => {
         this.updatingTaskId.set(null);
@@ -1157,6 +1213,7 @@ export class HousekeepingPage implements OnInit, OnDestroy {
         if (err.status === 409) {
           this.loadTasks();
         }
+        this.cdr?.markForCheck();
       }
     });
   }
@@ -1168,16 +1225,18 @@ export class HousekeepingPage implements OnInit, OnDestroy {
 
     this.updatingTaskId.set(task.id);
     this.taskActionSub?.unsubscribe();
-    this.taskActionSub = this.housekeepingService.startTask(task.id, propId).subscribe({
+    this.taskActionSub = this.housekeepingService.startTask(task.id, propId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (updated) => {
         this.updatingTaskId.set(null);
         this.tasks.update(list => list.map(t => t.id === task.id ? updated : t));
         this.rooms.update(list => list.map(r => r.id === updated.roomId ? { ...r, status: updated.roomStatus } : r));
         this.alertService.toastSuccess(`Bắt đầu dọn phòng ${updated.roomNumber}.`);
+        this.cdr?.markForCheck();
       },
       error: (err: HttpErrorResponse) => {
         this.updatingTaskId.set(null);
         this.alertService.toastError(err?.error?.message || 'Không thể bắt đầu dọn phòng.');
+        this.cdr?.markForCheck();
       }
     });
   }
@@ -1189,16 +1248,18 @@ export class HousekeepingPage implements OnInit, OnDestroy {
 
     this.updatingTaskId.set(task.id);
     this.taskActionSub?.unsubscribe();
-    this.taskActionSub = this.housekeepingService.completeTask(task.id, propId).subscribe({
+    this.taskActionSub = this.housekeepingService.completeTask(task.id, propId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (updated) => {
         this.updatingTaskId.set(null);
         this.tasks.update(list => list.map(t => t.id === task.id ? updated : t));
         this.rooms.update(list => list.map(r => r.id === updated.roomId ? { ...r, status: updated.roomStatus } : r));
         this.alertService.toastSuccess(`Phòng ${updated.roomNumber} đã hoàn tất sạch sẽ!`);
+        this.cdr?.markForCheck();
       },
       error: (err: HttpErrorResponse) => {
         this.updatingTaskId.set(null);
         this.alertService.toastError(err?.error?.message || 'Không thể hoàn tất công việc.');
+        this.cdr?.markForCheck();
       }
     });
   }
@@ -1340,7 +1401,8 @@ export class HousekeepingPage implements OnInit, OnDestroy {
           this.syncStatus.set('reconnecting');
         }
         return of(null);
-      })
+      }),
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: (res) => {
         if (gen === this.pollGeneration) {
@@ -1366,11 +1428,13 @@ export class HousekeepingPage implements OnInit, OnDestroy {
 
         this.rooms.set(res.items || []);
         this.totalCount.set(res.totalCount ?? (res.items || []).length);
+        this.cdr?.markForCheck();
       },
       error: () => {
         if (gen === this.pollGeneration) {
           this.syncInFlight = false;
         }
+        this.cdr?.markForCheck();
       }
     });
   }
@@ -1416,7 +1480,8 @@ export class HousekeepingPage implements OnInit, OnDestroy {
             return of(null);
           })
         );
-      })
+      }),
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: (res) => {
         this.loading.set(false);
@@ -1494,35 +1559,40 @@ export class HousekeepingPage implements OnInit, OnDestroy {
     this.updatingRoomId.set(room.id);
     this.invalidatePolling();
 
-    this.roomService.updateRoomStatus(room.id, targetStatus, currentOldStatus).subscribe({
-      next: (updated) => {
-        this.updatingRoomId.set(null);
-        this.lastMutationTimestamp = Date.now();
-        this.invalidatePolling();
-        // Cập nhật trạng thái trực tiếp trong danh sách signal
-        this.rooms.update(list => list.map(r => r.id === room.id ? { ...r, status: targetStatus } : r));
-        this.alertService.toastSuccess(
-          `Phòng ${room.roomNumber}: Chuyển sang "${ROOM_STATUS_LABELS[targetStatus] || targetStatus}"`
-        );
-      },
-      error: (err: HttpErrorResponse) => {
-        this.updatingRoomId.set(null);
-        if (err.status === 409) {
-          // Xử lý xung đột stale state khi người dùng khác đã đổi trạng thái trước
-          this.alertService.toastWarning(
-            'Trạng thái phòng đã thay đổi trước đó bởi người dùng khác. Đang làm mới dữ liệu...'
+    this.roomService
+      .updateRoomStatus(room.id, targetStatus, currentOldStatus)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          this.updatingRoomId.set(null);
+          this.lastMutationTimestamp = Date.now();
+          this.invalidatePolling();
+          // Cập nhật trạng thái trực tiếp trong danh sách signal
+          this.rooms.update(list => list.map(r => r.id === room.id ? { ...r, status: targetStatus } : r));
+          this.alertService.toastSuccess(
+            `Phòng ${room.roomNumber}: Chuyển sang "${ROOM_STATUS_LABELS[targetStatus] || targetStatus}"`
           );
-          this.loadRooms();
-        } else if (err.status === 403) {
-          this.alertService.toastError('Bạn không có quyền cập nhật trạng thái buồng phòng.');
-        } else if (err.status === 400) {
-          const msg = err.error?.message || err.error?.title || 'Chuyển đổi trạng thái không hợp lệ theo quy tắc nghiệp vụ.';
-          this.alertService.toastError(msg);
-        } else {
-          this.alertService.toastError('Đã có lỗi xảy ra khi cập nhật trạng thái buồng phòng.');
+          this.cdr?.markForCheck();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.updatingRoomId.set(null);
+          if (err.status === 409) {
+            // Xử lý xung đột stale state khi người dùng khác đã đổi trạng thái trước
+            this.alertService.toastWarning(
+              'Trạng thái phòng đã thay đổi trước đó bởi người dùng khác. Đang làm mới dữ liệu...'
+            );
+            this.loadRooms();
+          } else if (err.status === 403) {
+            this.alertService.toastError('Bạn không có quyền cập nhật trạng thái buồng phòng.');
+          } else if (err.status === 400) {
+            const msg = err.error?.message || err.error?.title || 'Chuyển đổi trạng thái không hợp lệ theo quy tắc nghiệp vụ.';
+            this.alertService.toastError(msg);
+          } else {
+            this.alertService.toastError('Đã có lỗi xảy ra khi cập nhật trạng thái buồng phòng.');
+          }
+          this.cdr?.markForCheck();
         }
-      }
-    });
+      });
   }
 
   // Helpers
@@ -1575,7 +1645,7 @@ export class HousekeepingPage implements OnInit, OnDestroy {
       case RoomStatus.Dirty:
         return 'bg-rose-500';
       case RoomStatus.Cleaning:
-        return 'bg-amber-500 animate-pulse';
+        return 'bg-amber-500';
       case RoomStatus.Occupied:
         return 'bg-sky-500';
       case RoomStatus.OutOfService:

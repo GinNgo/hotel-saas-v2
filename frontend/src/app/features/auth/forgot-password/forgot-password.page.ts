@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -108,6 +109,7 @@ export class ForgotPasswordPage implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
+  private readonly destroyRef = inject(DestroyRef);
 
   loading = signal(false);
   submitted = signal(false);
@@ -135,7 +137,7 @@ export class ForgotPasswordPage implements OnInit {
     this.loading.set(true);
     this.errorMessage.set(null);
 
-    this.authService.forgotPassword({ email }).subscribe({
+    this.authService.forgotPassword({ email }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.loading.set(false);
         this.responseMessage.set(

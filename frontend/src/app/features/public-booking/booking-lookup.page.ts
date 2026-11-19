@@ -112,7 +112,7 @@ export interface LookupErrorState {
                         <button
                           type="button"
                           (click)="onSearch()"
-                          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-2xs cursor-pointer transition-colors"
+                          class="min-h-11 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-2xs cursor-pointer transition-colors"
                         >
                           <i class="pi pi-refresh text-[10px]"></i>
                           <span>Thử lại</span>
@@ -125,7 +125,8 @@ export interface LookupErrorState {
                 <button
                   type="button"
                   (click)="dismissSearchError()"
-                  class="text-rose-400 hover:text-rose-600 active:text-rose-800 p-1 -mr-1 -mt-1 rounded-lg transition-colors cursor-pointer shrink-0"
+                  aria-label="Đóng thông báo lỗi"
+                  class="min-h-11 min-w-11 flex items-center justify-center text-rose-400 hover:text-rose-600 active:text-rose-800 p-1 -mr-2 -mt-2 rounded-lg transition-colors cursor-pointer shrink-0"
                   title="Đóng thông báo"
                   aria-label="Đóng thông báo"
                 >
@@ -210,7 +211,7 @@ export interface LookupErrorState {
                       Đã hết hạn giữ phòng
                     </span>
                   } @else {
-                    <div class="bg-white/90 px-3.5 py-1.5 rounded-xl border border-amber-200 shadow-2xs font-mono font-black text-amber-800 text-sm">
+                    <div class="bg-white/90 px-3.5 py-1.5 rounded-xl border border-amber-200 shadow-2xs font-mono tabular-nums font-black text-amber-800 text-sm">
                       {{ formatCountdown(remainingSeconds()) }}
                     </div>
                   }
@@ -298,24 +299,24 @@ export interface LookupErrorState {
                 <div class="p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3 text-xs">
                   <div class="flex justify-between text-slate-600">
                     <span>Tổng tiền lưu trú:</span>
-                    <span class="font-bold text-slate-900 font-mono text-sm">{{ detail.totalAmount | number:'1.0-0' }} ₫</span>
+                    <span class="font-bold text-slate-900 font-mono text-sm tabular-nums">{{ detail.totalAmount | number:'1.0-0' }} ₫</span>
                   </div>
 
                   @if (detail.depositRequired > 0) {
                     <div class="flex justify-between text-slate-600">
                       <span>Khoản đặt cọc yêu cầu:</span>
-                      <span class="font-mono font-semibold text-amber-700">{{ detail.depositRequired | number:'1.0-0' }} ₫</span>
+                      <span class="font-mono font-semibold text-amber-700 tabular-nums">{{ detail.depositRequired | number:'1.0-0' }} ₫</span>
                     </div>
                   }
 
                   <div class="flex justify-between text-emerald-800 font-semibold bg-emerald-50 p-2.5 rounded-xl border border-emerald-100">
                     <span>Số tiền đã thanh toán:</span>
-                    <span class="font-mono font-bold">{{ detail.paidAmount | number:'1.0-0' }} ₫</span>
+                    <span class="font-mono font-bold tabular-nums">{{ detail.paidAmount | number:'1.0-0' }} ₫</span>
                   </div>
 
                   <div class="flex justify-between text-indigo-700 font-black text-sm pt-2.5 border-t border-slate-100">
                     <span>Tổng còn phải thanh toán:</span>
-                    <span class="font-mono text-base">{{ detail.remainingBalance | number:'1.0-0' }} ₫</span>
+                    <span class="font-mono text-base tabular-nums">{{ detail.remainingBalance | number:'1.0-0' }} ₫</span>
                   </div>
 
                   @if (detail.isFullyPaid) {
@@ -341,7 +342,7 @@ export interface LookupErrorState {
                     @for (item of detail.breakdown; track item.description) {
                       <div class="flex justify-between text-slate-600 py-0.5">
                         <span>{{ item.description }} @if (item.quantity > 1) { <span class="text-slate-400">(x{{ item.quantity }})</span> }</span>
-                        <span class="font-mono font-medium text-slate-800">{{ item.amount | number:'1.0-0' }} ₫</span>
+                        <span class="font-mono font-medium text-slate-800 tabular-nums">{{ item.amount | number:'1.0-0' }} ₫</span>
                       </div>
                     }
                   </div>
@@ -430,7 +431,7 @@ export interface LookupErrorState {
                 <button
                   type="button"
                   (click)="copyToken(detail.lookupToken)"
-                  class="px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  class="min-h-11 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer inline-flex items-center gap-1.5 shadow-2xs"
                 >
                   <i class="pi" [ngClass]="isCopied() ? 'pi-check text-emerald-600' : 'pi-copy'"></i>
                   <span>{{ isCopied() ? 'Đã sao chép mã' : 'Sao chép mã tra cứu' }}</span>
@@ -441,14 +442,14 @@ export interface LookupErrorState {
                 <!-- Secondary CTA: Đặt phòng khác -->
                 <a
                   routerLink="/booking"
-                  class="px-4 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer shadow-2xs"
+                  class="min-h-11 px-4 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer inline-flex items-center shadow-2xs"
                 >
                   Đặt phòng khác
                 </a>
                 <!-- Primary CTA: Xem chi tiết đặt phòng -->
                 <a
                   [routerLink]="['/booking/status', detail.lookupToken]"
-                  class="px-5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white transition-colors cursor-pointer shadow-xs flex items-center gap-1.5"
+                  class="min-h-11 px-5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white transition-colors cursor-pointer shadow-xs inline-flex items-center gap-1.5"
                 >
                   <span>Xem chi tiết đặt phòng</span>
                   <i class="pi pi-arrow-right text-[10px]"></i>
@@ -589,15 +590,15 @@ export interface LookupErrorState {
                   </tr>
                   <tr>
                     <td class="py-1.5 px-3 text-slate-800">Khoản đặt cọc yêu cầu</td>
-                    <td class="py-1.5 px-3 text-right font-medium text-slate-900">{{ detail.depositRequired | number }} đ</td>
+                    <td class="py-1.5 px-3 text-right font-medium text-slate-900 tabular-nums">{{ detail.depositRequired | number }} đ</td>
                   </tr>
                   <tr>
                     <td class="py-1.5 px-3 text-slate-800">Số tiền đã thanh toán</td>
-                    <td class="py-1.5 px-3 text-right font-semibold text-emerald-700">{{ detail.paidAmount | number }} đ</td>
+                    <td class="py-1.5 px-3 text-right font-semibold text-emerald-700 tabular-nums">{{ detail.paidAmount | number }} đ</td>
                   </tr>
                   <tr class="bg-slate-50 font-bold">
                     <td class="py-2 px-3 text-slate-900 uppercase text-[11px]">Tổng còn phải thanh toán</td>
-                    <td class="py-2 px-3 text-right text-sm text-slate-900 font-mono font-bold">{{ detail.remainingBalance | number }} đ</td>
+                    <td class="py-2 px-3 text-right text-sm text-slate-900 font-mono tabular-nums font-bold">{{ detail.remainingBalance | number }} đ</td>
                   </tr>
                 </tbody>
               </table>
@@ -779,15 +780,17 @@ export class BookingLookupPageComponent implements OnInit {
     });
   }
 
-  parseError(err: any): LookupErrorState {
+  parseError(err: unknown): LookupErrorState {
+    const httpErr = err as { status?: number; name?: string; message?: string; error?: { message?: string } | ProgressEvent } | null;
     const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
-    const isProgressEvent = typeof ProgressEvent !== 'undefined' && err?.error instanceof ProgressEvent;
-    const status = err?.status ?? (isProgressEvent ? 0 : undefined);
-    const rawMsg = String(err?.error?.message || err?.message || err || '');
+    const isProgressEvent = typeof ProgressEvent !== 'undefined' && httpErr?.error instanceof ProgressEvent;
+    const status = httpErr?.status ?? (isProgressEvent ? 0 : undefined);
+    const errPayloadMsg = httpErr?.error && !(httpErr.error instanceof ProgressEvent) ? httpErr.error.message : undefined;
+    const rawMsg = String(errPayloadMsg || httpErr?.message || err || '');
     const isNetwork =
       isOffline ||
       status === 0 ||
-      err?.name === 'TimeoutError' ||
+      httpErr?.name === 'TimeoutError' ||
       /failed to fetch|networkerror|network request failed|load failed|connection refused|timeout/i.test(rawMsg);
 
     if (isNetwork) {
@@ -806,8 +809,8 @@ export class BookingLookupPageComponent implements OnInit {
       };
     }
 
-    const serverMsg = typeof err?.error?.message === 'string' && !/failed|exception|error|stacktrace/i.test(err.error.message)
-      ? err.error.message
+    const serverMsg = typeof errPayloadMsg === 'string' && !/failed|exception|error|stacktrace/i.test(errPayloadMsg)
+      ? errPayloadMsg
       : '';
 
     return {

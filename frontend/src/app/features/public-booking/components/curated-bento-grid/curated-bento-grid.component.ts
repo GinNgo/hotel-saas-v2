@@ -25,7 +25,7 @@ export interface TravelLifestyle {
           <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold uppercase tracking-wider mb-2">
             <i class="pi pi-compass"></i> Danh Mục Lưu Trú
           </span>
-          <h2 class="font-serif text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+          <h2 class="font-display text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Khám Phá Theo Loại Hình Lưu Trú
           </h2>
           <p class="text-xs sm:text-sm text-slate-500 mt-1">
