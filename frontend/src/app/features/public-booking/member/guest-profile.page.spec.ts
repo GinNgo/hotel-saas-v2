@@ -9,6 +9,12 @@ import { AuthService } from '../../../core/services/auth.service';
 import { GuestAccountService } from '../../../core/services/guest-account.service';
 import { AlertService } from '../../../core/services/alert.service';
 import { UserDto } from '../../../core/models/auth.model';
+import {
+  GuestInvoiceRecordDto,
+  GuestPagedBookingsDto,
+  GuestProfileResponseDto,
+  LoyaltyPointLedgerItemDto
+} from '../../../core/models/guest-account.model';
 import { GuestProfilePageComponent } from './guest-profile.page';
 
 if (typeof document === 'undefined') {
@@ -23,8 +29,11 @@ describe('Real-session guest account', () => {
   const mockGuestService = {
     getMe: vi.fn(() => of({ id: 'u1', fullName: 'Khách Test', email: 'test@example.com', emailVerified: true, capabilities: { canEditName: true, canViewBookings: true } })),
     updateMe: vi.fn((name: string) => of({ id: 'u1', fullName: name, email: 'test@example.com', emailVerified: true, capabilities: { canEditName: true, canViewBookings: true } })),
-    getBookings: vi.fn(() => of({ items: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 })),
-    getLoyaltyProfile: vi.fn(() => of(null)),
+    getBookings: vi.fn(() => of<GuestPagedBookingsDto>({ items: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 })),
+    getLoyaltyProfile: vi.fn(() => of<GuestProfileResponseDto | null>(null)),
+    getLoyaltyLedger: vi.fn(() => of<LoyaltyPointLedgerItemDto[]>([])),
+    getInvoices: vi.fn(() => of<GuestInvoiceRecordDto[]>([])),
+    updateVatProfile: vi.fn(() => of(true)),
   };
   const mockAlertService = {
     success: vi.fn(),
@@ -32,6 +41,11 @@ describe('Real-session guest account', () => {
   };
 
   beforeEach(() => {
+    vi.clearAllMocks();
+    mockGuestService.getBookings.mockReturnValue(of({ items: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 }));
+    mockGuestService.getLoyaltyProfile.mockReturnValue(of(null));
+    mockGuestService.getLoyaltyLedger.mockReturnValue(of([]));
+    mockGuestService.getInvoices.mockReturnValue(of([]));
     users.next(null); logout.mockClear();
     TestBed.configureTestingModule({
       imports: [GuestProfilePageComponent],
@@ -65,5 +79,149 @@ describe('Real-session guest account', () => {
     users.next({ id: 'staff', fullName: 'Staff', email: 'staff@example.com', globalRole: 'TenantStaff', tenantId: 'tenant' }); fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).querySelector('a[href="/dashboard"]')).not.toBeNull();
     expect((fixture.nativeElement as HTMLElement).querySelector('a[download]')).toBeNull();
+  });
+
+  it('links booking details using lookupToken or reference instead of reservation GUID id', () => {
+    mockGuestService.getBookings.mockReturnValue(of({
+      items: [
+        {
+          id: 'res-guid-9999',
+          reference: 'RES-XYZ789',
+          lookupToken: 'secure-lookup-tok-123',
+          property: { id: 'p1', name: 'Hotel Đà Lạt', slug: 'hotel-da-lat' },
+          roomTypeName: 'Deluxe',
+          rentalType: 'Daily',
+          checkInDate: '2026-12-01',
+          checkOutDate: '2026-12-03',
+          status: 'Confirmed',
+          totalAmount: 1500000,
+          currency: 'VND'
+        }
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1
+    }));
+
+    const fixture = TestBed.createComponent(GuestProfilePageComponent);
+    users.next({ id: 'u1', fullName: 'Khách A', email: 'a@example.com', globalRole: 'Customer', tenantId: null });
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const detailLink = Array.from(element.querySelectorAll('a')).find(a => a.textContent?.includes('Chi tiết'));
+    expect(detailLink?.getAttribute('href')).toBe('/booking/status/secure-lookup-tok-123');
+    expect(detailLink?.getAttribute('href')).not.toContain('res-guid-9999');
+
+    fixture.componentInstance.selectTab('bookings');
+    fixture.detectChanges();
+    const tabDetailLink = Array.from(element.querySelectorAll('a')).find(a => a.textContent?.includes('Xem chi tiết'));
+    expect(tabDetailLink?.getAttribute('href')).toBe('/booking/status/secure-lookup-tok-123');
+    expect(tabDetailLink?.getAttribute('href')).not.toContain('res-guid-9999');
+  });
+
+  it('loads and renders loyalty ledger, invoices, and updates VAT profile', () => {
+    mockGuestService.getLoyaltyProfile.mockReturnValue(of({
+      userId: 'u1',
+      fullName: 'Khách Test',
+      phone: '0901234567',
+      email: 'test@example.com',
+      companyName: 'ABC Corp',
+      companyTaxCode: '0101234567',
+      companyAddress: 'Hà Nội',
+      totalPoints: 250,
+      pointsValueVnd: 250000,
+      totalPointsRefunded: 0,
+      memberships: [
+        {
+          membershipId: 'm1',
+          tenantId: 't1',
+          tenantBrandName: 'LuxeStay',
+          enrolledPropertyId: 'p1',
+          enrolledPropertyName: 'LuxeStay Đà Lạt',
+          memberCode: 'MEM-001',
+          tier: 'Silver',
+          pointsBalance: 250,
+          pendingPoints: 0,
+          totalStays: 2,
+          discountPercent: 5,
+          nextTierName: 'Gold',
+          staysToNextTier: 3,
+          joinedAt: '2026-01-01'
+        }
+      ]
+    }));
+
+    mockGuestService.getLoyaltyLedger.mockReturnValue(of([
+      {
+        id: 'led-1',
+        createdAt: '2026-11-01',
+        tenantBrandName: 'LuxeStay',
+        propertyName: 'LuxeStay Đà Lạt',
+        reservationCode: 'RES-XYZ789',
+        type: 'Earned',
+        pointsDelta: 100,
+        balanceAfter: 250,
+        description: 'Tích điểm sau trả phòng'
+      }
+    ]));
+
+    mockGuestService.getInvoices.mockReturnValue(of([
+      {
+        invoiceId: 'inv-1',
+        invoiceNumber: 'INV-2026-001',
+        reservationId: 'res-guid-9999',
+        reservationCode: 'RES-XYZ789',
+        tenantBrandName: 'LuxeStay',
+        propertyName: 'LuxeStay Đà Lạt',
+        propertyType: 'Hotel',
+        propertyAddress: 'Đà Lạt',
+        propertyTaxCode: '0300000000',
+        rentalType: 'Daily',
+        checkInTime: '2026-11-01',
+        checkOutTime: '2026-11-02',
+        roomName: 'Deluxe',
+        roomNumber: '101',
+        status: 'Paid',
+        subTotal: 1000000,
+        surchargeTotal: 0,
+        discountTotal: 0,
+        pointsUsed: 0,
+        pointsDiscountAmount: 0,
+        pointsEarned: 100,
+        pointsRefunded: 0,
+        taxAmount: 80000,
+        grandTotal: 1080000,
+        paidAmount: 1080000,
+        paymentMethod: 'VNPay',
+        issuedAt: '2026-11-02',
+        lineItems: []
+      }
+    ]));
+
+    const fixture = TestBed.createComponent(GuestProfilePageComponent);
+    users.next({ id: 'u1', fullName: 'Khách Test', email: 'test@example.com', globalRole: 'Customer', tenantId: null });
+    fixture.detectChanges();
+
+    expect(mockGuestService.getLoyaltyLedger).toHaveBeenCalled();
+    expect(mockGuestService.getInvoices).toHaveBeenCalled();
+
+    fixture.componentInstance.selectTab('bookings');
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).toContain('INV-2026-001');
+
+    fixture.componentInstance.vatCompanyName = 'New Co';
+    fixture.componentInstance.saveVatProfile();
+    expect(mockGuestService.updateVatProfile).toHaveBeenCalledWith({
+      companyName: 'New Co',
+      companyTaxCode: '0101234567',
+      companyAddress: 'Hà Nội'
+    });
+
+    fixture.componentInstance.selectTab('loyalty');
+    fixture.detectChanges();
+    expect(element.textContent).toContain('Tích điểm sau trả phòng');
+    expect(element.textContent).toContain('MEM-001');
   });
 });

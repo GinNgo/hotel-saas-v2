@@ -62,7 +62,7 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
           class="px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
         >
           <span>Tất Cả</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">34</span>
+          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">{{ totalCount() }}</span>
         </button>
 
         <button
@@ -72,7 +72,7 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
           class="px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
         >
           <span>Miền Bắc</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'north' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">10</span>
+          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'north' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">{{ northCount() }}</span>
         </button>
 
         <button
@@ -82,7 +82,7 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
           class="px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
         >
           <span>Miền Trung</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'central' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">10</span>
+          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'central' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">{{ centralCount() }}</span>
         </button>
 
         <button
@@ -92,7 +92,7 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
           class="px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
         >
           <span>Tây Nguyên</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'highlands' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">4</span>
+          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'highlands' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">{{ highlandsCount() }}</span>
         </button>
 
         <button
@@ -102,7 +102,7 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
           class="px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
         >
           <span>Miền Nam</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'south' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">10</span>
+          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'south' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">{{ southCount() }}</span>
         </button>
       </div>
 
@@ -210,6 +210,12 @@ export class PopularDestinationsComponent {
 
   readonly allDestinations = VIETNAM_34_PROVINCES;
   readonly initialLimit = 12;
+
+  readonly totalCount = computed(() => this.allDestinations.length);
+  readonly northCount = computed(() => this.allDestinations.filter(d => d.region === 'north').length);
+  readonly centralCount = computed(() => this.allDestinations.filter(d => d.region === 'central').length);
+  readonly highlandsCount = computed(() => this.allDestinations.filter(d => d.region === 'highlands').length);
+  readonly southCount = computed(() => this.allDestinations.filter(d => d.region === 'south').length);
 
   readonly selectedRegion = signal<VietnamRegion>('all');
   readonly searchQuery = signal<string>('');

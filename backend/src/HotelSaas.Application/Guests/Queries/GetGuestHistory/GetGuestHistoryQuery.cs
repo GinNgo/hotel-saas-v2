@@ -1,6 +1,7 @@
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Guests.DTOs;
+using HotelSaas.Application.Reservations.DTOs;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -72,6 +73,23 @@ public sealed class GetGuestHistoryQueryHandler : IRequestHandler<GetGuestHistor
             CreatedAtUtc = b.CreatedAtUtc
         }).ToList();
 
+        var loyaltyTier = completedStays >= 3 ? "Gold" : (completedStays >= 1 ? "Silver" : "Standard");
+        var pointsBalance = 0;
+        if (latest.GuestUserId.HasValue)
+        {
+            var membership = await _context.GuestLoyaltyMemberships
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.TenantId == tenantId.Value && m.UserId == latest.GuestUserId.Value, cancellationToken);
+            if (membership != null)
+            {
+                loyaltyTier = membership.Tier.ToString();
+                pointsBalance = membership.PointsBalance;
+            }
+        }
+
+        var latestSnapshot = ReservationSnapshotHelper.TryDeserialize(latest.Notes);
+        var cleanNotes = ReservationSnapshotHelper.CleanCustomerNotes(latest.Notes, latestSnapshot);
+
         var profile = new GuestDirectoryItemDto
         {
             Id = latest.GuestUserId ?? latest.Id,
@@ -85,11 +103,11 @@ public sealed class GetGuestHistoryQueryHandler : IRequestHandler<GetGuestHistor
             CancelledBookings = cancelled,
             TotalSpent = totalSpent,
             LastStayDate = latest.CreatedAtUtc,
-            LoyaltyTier = completedStays >= 3 ? "Gold" : (completedStays >= 1 ? "Silver" : "Standard"),
-            PointsBalance = 0,
-            IsVip = totalSpent >= 5_000_000 || completedStays >= 3,
+            LoyaltyTier = loyaltyTier,
+            PointsBalance = pointsBalance,
+            IsVip = totalSpent >= 5_000_000 || completedStays >= 3 || loyaltyTier != "Standard",
             IsBlacklisted = false,
-            Notes = latest.Notes
+            Notes = cleanNotes
         };
 
         return new GuestDetailDto

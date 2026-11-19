@@ -400,21 +400,31 @@ import {
                     <!-- Column 3: Role Status (Active / Inactive & Staff Assignment) -->
                     <td class="px-4 py-4 whitespace-nowrap">
                       <div class="flex flex-col items-start gap-1">
-                        <button
-                          type="button"
-                          (click)="toggleRoleActiveStatus(role)"
-                          [title]="'Nhấn để chuyển trạng thái hoạt động của vai trò ' + role.name"
-                          class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border transition-colors cursor-pointer"
-                          [ngClass]="isActiveRole(role)
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100/80'
-                            : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/80'"
-                        >
+                        @if (role.isSystemRole) {
                           <span
-                            class="w-1.5 h-1.5 rounded-full"
-                            [ngClass]="isActiveRole(role) ? 'bg-emerald-500' : 'bg-amber-500'"
-                          ></span>
-                          <span>{{ isActiveRole(role) ? 'Đang hoạt động' : 'Tạm ngưng' }}</span>
-                        </button>
+                            title="Vai trò mặc định hệ thống (chỉ đọc)"
+                            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-200"
+                          >
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            <span>{{ isActiveRole(role) ? 'Đang hoạt động' : 'Tạm ngưng' }}</span>
+                          </span>
+                        } @else {
+                          <button
+                            type="button"
+                            (click)="toggleRoleActiveStatus(role)"
+                            [title]="'Nhấn để chuyển trạng thái hoạt động của vai trò ' + role.name"
+                            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border transition-colors cursor-pointer"
+                            [ngClass]="isActiveRole(role)
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100/80'
+                              : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/80'"
+                          >
+                            <span
+                              class="w-1.5 h-1.5 rounded-full"
+                              [ngClass]="isActiveRole(role) ? 'bg-emerald-500' : 'bg-amber-500'"
+                            ></span>
+                            <span>{{ isActiveRole(role) ? 'Đang hoạt động' : 'Tạm ngưng' }}</span>
+                          </button>
+                        }
                         <span class="text-[10px] text-slate-400">
                           {{ (role.staffCount || 0) > 0 ? 'Đang áp dụng (' + role.staffCount + ' NS)' : 'Chưa gán nhân sự' }}
                         </span>
@@ -455,23 +465,39 @@ import {
                       </span>
                     </td>
 
-                    <!-- Column 5: Actions Column for Editing Permissions -->
+                    <!-- Column 5: Actions Column for Viewing/Cloning/Editing Permissions -->
                     <td class="px-5 py-4 text-right whitespace-nowrap">
                       <div class="inline-flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          (click)="openEditRoleModal(role)"
-                          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border"
-                          [ngClass]="role.isSystemRole
-                            ? 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                            : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200'"
-                          [attr.aria-label]="'Chỉnh sửa quyền ' + role.name"
-                        >
-                          <i class="pi text-[11px]" [ngClass]="role.isSystemRole ? 'pi-sliders-h' : 'pi-pencil'"></i>
-                          <span>Chỉnh sửa quyền</span>
-                        </button>
-
-                        @if (!role.isSystemRole) {
+                        @if (role.isSystemRole) {
+                          <button
+                            type="button"
+                            (click)="openEditRoleModal(role)"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                            [attr.aria-label]="'Xem quyền ' + role.name"
+                          >
+                            <i class="pi pi-eye text-[11px]"></i>
+                            <span>Xem quyền</span>
+                          </button>
+                          <button
+                            type="button"
+                            (click)="cloneRoleToCustom(role)"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200"
+                            [attr.aria-label]="'Nhân bản vai trò ' + role.name + ' thành vai trò tùy biến'"
+                            title="Nhân bản thành vai trò tùy biến để chỉnh sửa"
+                          >
+                            <i class="pi pi-copy text-[11px]"></i>
+                            <span>Nhân bản</span>
+                          </button>
+                        } @else {
+                          <button
+                            type="button"
+                            (click)="openEditRoleModal(role)"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200"
+                            [attr.aria-label]="'Chỉnh sửa quyền ' + role.name"
+                          >
+                            <i class="pi pi-pencil text-[11px]"></i>
+                            <span>Chỉnh sửa quyền</span>
+                          </button>
                           <button
                             type="button"
                             (click)="confirmDeleteRole(role)"
@@ -539,24 +565,42 @@ import {
             </div>
 
             @if (selectedInlineRole(); as activeRole) {
-              <button
-                type="button"
-                (click)="saveInlineMatrixRole()"
-                [disabled]="submittingRole()"
-                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer shrink-0 self-start md:self-center"
-              >
-                @if (submittingRole()) {
-                  <i class="pi pi-spin pi-spinner text-xs"></i>
-                } @else {
-                  <i class="pi pi-save text-xs"></i>
-                }
-                <span>Lưu quyền cho "{{ activeRole.name }}"</span>
-              </button>
+              @if (activeRole.isSystemRole) {
+                <div class="flex items-center gap-2 shrink-0 self-start md:self-center">
+                  <span class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200">
+                    <i class="pi pi-lock text-xs"></i>
+                    <span>Vai trò hệ thống (Chỉ đọc)</span>
+                  </span>
+                  <button
+                    type="button"
+                    (click)="cloneRoleToCustom(activeRole)"
+                    class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                  >
+                    <i class="pi pi-copy text-xs"></i>
+                    <span>Nhân bản thành vai trò tùy biến</span>
+                  </button>
+                </div>
+              } @else {
+                <button
+                  type="button"
+                  (click)="saveInlineMatrixRole()"
+                  [disabled]="submittingRole()"
+                  class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer shrink-0 self-start md:self-center"
+                >
+                  @if (submittingRole()) {
+                    <i class="pi pi-spin pi-spinner text-xs"></i>
+                  } @else {
+                    <i class="pi pi-save text-xs"></i>
+                  }
+                  <span>Lưu quyền cho "{{ activeRole.name }}"</span>
+                </button>
+              }
             }
           </div>
 
           <app-permissions-matrix
             [rows]="inlineMatrixRows()"
+            [readonly]="selectedInlineRole()?.isSystemRole ?? false"
             (rowsChange)="inlineMatrixRows.set($event)"
           ></app-permissions-matrix>
         </div>
@@ -618,14 +662,29 @@ import {
               </div>
 
               <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  (click)="openEditRoleModal(role)"
-                  class="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition-colors cursor-pointer"
-                >
-                  <i class="pi pi-pencil mr-1 text-[11px]"></i> Chỉnh sửa quyền
-                </button>
-                @if (!role.isSystemRole) {
+                @if (role.isSystemRole) {
+                  <button
+                    type="button"
+                    (click)="openEditRoleModal(role)"
+                    class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    <i class="pi pi-eye mr-1 text-[11px]"></i> Xem quyền
+                  </button>
+                  <button
+                    type="button"
+                    (click)="cloneRoleToCustom(role)"
+                    class="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    <i class="pi pi-copy mr-1 text-[11px]"></i> Nhân bản
+                  </button>
+                } @else {
+                  <button
+                    type="button"
+                    (click)="openEditRoleModal(role)"
+                    class="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    <i class="pi pi-pencil mr-1 text-[11px]"></i> Chỉnh sửa quyền
+                  </button>
                   <button
                     type="button"
                     (click)="confirmDeleteRole(role)"
@@ -656,7 +715,15 @@ import {
             <div class="flex items-center justify-between pb-3 border-b border-slate-100">
               <h2 id="role-modal-title" class="text-base font-bold text-slate-900 flex items-center gap-2">
                 <i class="pi pi-shield text-indigo-600"></i>
-                <span>{{ isEditingRole() ? 'Chỉnh sửa Quyền Chức vụ & Ma trận CRUD' : 'Tạo Chức vụ Mới & Cấp quyền CRUD' }}</span>
+                <span>
+                  @if (isEditingSystemRole()) {
+                    Chi tiết Quyền Vai trò Hệ thống (Chỉ đọc)
+                  } @else if (isEditingRole()) {
+                    Chỉnh sửa Quyền Chức vụ &amp; Ma trận CRUD
+                  } @else {
+                    Tạo Chức vụ Mới &amp; Cấp quyền CRUD
+                  }
+                </span>
               </h2>
               <button
                 type="button"
@@ -667,6 +734,15 @@ import {
                 <i class="pi pi-times text-xs"></i>
               </button>
             </div>
+
+            @if (isEditingSystemRole()) {
+              <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                  <i class="pi pi-lock text-amber-700 shrink-0"></i>
+                  <span>Vai trò chuẩn hệ thống được khóa ở chế độ chỉ đọc. Hãy nhân bản thành vai trò tùy biến để chỉnh sửa phân quyền riêng.</span>
+                </div>
+              </div>
+            }
 
             <div class="space-y-4 text-xs">
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -689,8 +765,9 @@ import {
                     id="role-name-input"
                     type="text"
                     [(ngModel)]="roleForm.name"
+                    [disabled]="isEditingSystemRole()"
                     placeholder="VD: Kế toán trưởng, Nhân viên kinh doanh"
-                    class="w-full h-10 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    class="w-full h-10 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-slate-100"
                   />
                 </div>
 
@@ -700,8 +777,9 @@ import {
                     id="role-desc-input"
                     type="text"
                     [(ngModel)]="roleForm.description"
+                    [disabled]="isEditingSystemRole()"
                     placeholder="Mô tả phạm vi trách nhiệm của vị trí này..."
-                    class="w-full h-10 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    class="w-full h-10 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-slate-100"
                   />
                 </div>
               </div>
@@ -713,8 +791,9 @@ import {
                 </div>
                 <select
                   [(ngModel)]="roleForm.isActive"
+                  [disabled]="isEditingSystemRole()"
                   aria-label="Trạng thái kích hoạt vai trò"
-                  class="h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+                  class="h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer disabled:bg-slate-100"
                 >
                   <option [ngValue]="true">Đang hoạt động (Active)</option>
                   <option [ngValue]="false">Tạm ngưng (Inactive)</option>
@@ -724,6 +803,7 @@ import {
               <!-- Embedded PermissionsMatrixComponent -->
               <app-permissions-matrix
                 [rows]="matrixRows()"
+                [readonly]="isEditingSystemRole()"
                 (rowsChange)="matrixRows.set($event)"
               ></app-permissions-matrix>
             </div>
@@ -734,19 +814,30 @@ import {
                 (click)="closeRoleModal()"
                 class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
-                Hủy bỏ
+                {{ isEditingSystemRole() ? 'Đóng' : 'Hủy bỏ' }}
               </button>
-              <button
-                type="button"
-                (click)="submitRole()"
-                [disabled]="submittingRole()"
-                class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
-              >
-                @if (submittingRole()) {
-                  <i class="pi pi-spin pi-spinner mr-1"></i>
-                }
-                <span>{{ isEditingRole() ? 'Cập nhật chức vụ' : 'Tạo chức vụ' }}</span>
-              </button>
+              @if (isEditingSystemRole()) {
+                <button
+                  type="button"
+                  (click)="cloneCurrentModalRole()"
+                  class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <i class="pi pi-copy text-xs"></i>
+                  <span>Nhân bản thành vai trò tùy biến</span>
+                </button>
+              } @else {
+                <button
+                  type="button"
+                  (click)="submitRole()"
+                  [disabled]="submittingRole()"
+                  class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+                >
+                  @if (submittingRole()) {
+                    <i class="pi pi-spin pi-spinner mr-1"></i>
+                  }
+                  <span>{{ isEditingRole() ? 'Cập nhật chức vụ' : 'Tạo chức vụ' }}</span>
+                </button>
+              }
             </div>
           </div>
         </div>
@@ -775,7 +866,9 @@ export class RolesManagementComponent implements OnInit {
 
   readonly showRoleModal = signal<boolean>(false);
   readonly isEditingRole = signal<boolean>(false);
+  readonly isEditingSystemRole = signal<boolean>(false);
   editingRoleId = '';
+  private modalSourceRole: RoleDetailDto | null = null;
 
   roleForm = {
     code: '',
@@ -840,7 +933,9 @@ export class RolesManagementComponent implements OnInit {
 
     this.staffService.getPermissionFunctions().subscribe({
       next: funcs => this.permissionFunctions.set(funcs),
-      error: () => {}
+      error: err => {
+        this.alertService.toastError(this.extractApiError(err, 'Không thể tải danh sách chức năng phân quyền.'));
+      }
     });
 
     this.staffService.getRolesWithPermissions().subscribe({
@@ -855,10 +950,16 @@ export class RolesManagementComponent implements OnInit {
           this.selectRoleForInlineMatrix(target);
         }
       },
-      error: () => {
+      error: err => {
         this.loading.set(false);
+        this.alertService.toastError(this.extractApiError(err, 'Không thể tải danh sách vai trò từ máy chủ.'));
       }
     });
+  }
+
+  private extractApiError(err: unknown, fallback: string): string {
+    const httpErr = err as { error?: { message?: string; detail?: string; title?: string }; message?: string } | null;
+    return httpErr?.error?.message || httpErr?.error?.detail || httpErr?.error?.title || httpErr?.message || fallback;
   }
 
   private buildMatrixRowsForRole(role?: RoleDetailDto): PermissionMatrixRow[] {
@@ -896,6 +997,10 @@ export class RolesManagementComponent implements OnInit {
   saveInlineMatrixRole(): void {
     const role = this.selectedInlineRole();
     if (!role) return;
+    if (role.isSystemRole) {
+      this.alertService.toastError('Vai trò hệ thống là chỉ đọc. Vui lòng nhân bản thành vai trò tùy biến để chỉnh sửa.');
+      return;
+    }
 
     const permissions: RolePermissionInput[] = this.inlineMatrixRows().map(r => ({
       functionId: r.functionId,
@@ -925,7 +1030,7 @@ export class RolesManagementComponent implements OnInit {
       error: err => {
         this.loadingOverlay.end(overlayTaskId);
         this.submittingRole.set(false);
-        this.alertService.toastError(err.error?.message || 'Không thể lưu ma trận phân quyền.');
+        this.alertService.toastError(this.extractApiError(err, 'Không thể lưu ma trận phân quyền.'));
       }
     });
   }
@@ -966,6 +1071,11 @@ export class RolesManagementComponent implements OnInit {
   }
 
   toggleRoleActiveStatus(role: RoleDetailDto): void {
+    if (role.isSystemRole) {
+      this.alertService.toastError('Không thể thay đổi trạng thái vai trò mặc định hệ thống.');
+      return;
+    }
+
     const nextStatus = !isRoleActive(role);
     const permissions: RolePermissionInput[] = (role.permissions || []).map(p => ({
       functionId: p.functionId,
@@ -991,15 +1101,17 @@ export class RolesManagementComponent implements OnInit {
         this.loadRolesAndFunctions();
         this.rolesChanged.emit();
       },
-      error: () => {
-        this.alertService.toastError('Không thể cập nhật trạng thái vai trò.');
+      error: err => {
+        this.alertService.toastError(this.extractApiError(err, 'Không thể cập nhật trạng thái vai trò.'));
       }
     });
   }
 
   openCreateRoleModal(): void {
     this.isEditingRole.set(false);
+    this.isEditingSystemRole.set(false);
     this.editingRoleId = '';
+    this.modalSourceRole = null;
     this.roleForm = {
       code: '',
       name: '',
@@ -1012,7 +1124,9 @@ export class RolesManagementComponent implements OnInit {
 
   openEditRoleModal(role: RoleDetailDto): void {
     this.isEditingRole.set(true);
+    this.isEditingSystemRole.set(Boolean(role.isSystemRole));
     this.editingRoleId = role.id;
+    this.modalSourceRole = role;
     this.roleForm = {
       code: role.code,
       name: role.name,
@@ -1023,11 +1137,37 @@ export class RolesManagementComponent implements OnInit {
     this.showRoleModal.set(true);
   }
 
+  cloneRoleToCustom(role: RoleDetailDto): void {
+    this.isEditingRole.set(false);
+    this.isEditingSystemRole.set(false);
+    this.editingRoleId = '';
+    this.modalSourceRole = null;
+    const baseCode = normalizeRoleCode(role.code) || 'ROLE';
+    this.roleForm = {
+      code: `${baseCode}_CUSTOM`,
+      name: `${role.name} (Bản sao)`,
+      description: role.description || '',
+      isActive: true
+    };
+    this.matrixRows.set(this.buildMatrixRowsForRole(role));
+    this.showRoleModal.set(true);
+  }
+
+  cloneCurrentModalRole(): void {
+    if (!this.modalSourceRole) return;
+    this.cloneRoleToCustom(this.modalSourceRole);
+  }
+
   closeRoleModal(): void {
     this.showRoleModal.set(false);
   }
 
   submitRole(): void {
+    if (this.isEditingSystemRole()) {
+      this.alertService.toastError('Vai trò hệ thống là chỉ đọc. Vui lòng nhân bản thành vai trò tùy biến để chỉnh sửa.');
+      return;
+    }
+
     if (!this.roleForm.name.trim()) {
       this.alertService.toastError('Vui lòng nhập tên chức vụ.');
       return;
@@ -1075,7 +1215,7 @@ export class RolesManagementComponent implements OnInit {
         error: err => {
           this.loadingOverlay.end(overlayTaskId);
           this.submittingRole.set(false);
-          this.alertService.toastError(err.error?.message || 'Không thể cập nhật chức vụ.');
+          this.alertService.toastError(this.extractApiError(err, 'Không thể cập nhật chức vụ.'));
         }
       });
     } else {
@@ -1099,13 +1239,18 @@ export class RolesManagementComponent implements OnInit {
         error: err => {
           this.loadingOverlay.end(overlayTaskId);
           this.submittingRole.set(false);
-          this.alertService.toastError(err.error?.message || 'Không thể tạo chức vụ.');
+          this.alertService.toastError(this.extractApiError(err, 'Không thể tạo chức vụ.'));
         }
       });
     }
   }
 
   async confirmDeleteRole(role: RoleDetailDto): Promise<void> {
+    if (role.isSystemRole) {
+      this.alertService.toastError('Không thể xóa vai trò mặc định hệ thống.');
+      return;
+    }
+
     const confirmed = await this.alertService.confirmDelete({
       title: 'Xóa chức vụ tùy biến?',
       text: `Bạn có chắc chắn muốn xóa chức vụ "${role.name}" (${role.code})?`
@@ -1118,7 +1263,7 @@ export class RolesManagementComponent implements OnInit {
           this.rolesChanged.emit();
         },
         error: err => {
-          this.alertService.toastError(err.error?.message || 'Không thể xóa chức vụ.');
+          this.alertService.toastError(this.extractApiError(err, 'Không thể xóa chức vụ.'));
         }
       });
     }

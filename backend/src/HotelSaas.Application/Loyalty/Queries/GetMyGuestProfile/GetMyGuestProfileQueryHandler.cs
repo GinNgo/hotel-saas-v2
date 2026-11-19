@@ -46,6 +46,7 @@ public sealed class GetMyGuestProfileQueryHandler : IRequestHandler<GetMyGuestPr
         }
 
         var memberships = await _context.GuestLoyaltyMemberships
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Include(m => m.Tenant)
             .Include(m => m.EnrolledProperty)
@@ -79,6 +80,7 @@ public sealed class GetMyGuestProfileQueryHandler : IRequestHandler<GetMyGuestPr
         var membershipIds = memberships.Select(m => m.Id).ToList();
 
         var totalRefunded = await _context.LoyaltyPointTransactions
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(t => membershipIds.Contains(t.MembershipId) && t.TransactionType == LoyaltyPointTransactionType.RefundedOnCancel)
             .SumAsync(t => (int?)t.PointsDelta, cancellationToken) ?? 0;

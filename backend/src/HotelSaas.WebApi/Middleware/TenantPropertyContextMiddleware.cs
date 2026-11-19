@@ -1,10 +1,15 @@
+using System.Net;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
 using HotelSaas.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog.Context;
 
@@ -53,6 +58,29 @@ public sealed class TenantPropertyContextMiddleware
         // ── 1. Pipeline Classification: Group 1 - Anonymous / Public Endpoints ──
         if (IsPublicEndpoint(context, path))
         {
+            await _next(context);
+            return;
+        }
+
+        // ── 1b. Observability /metrics Protection (Loopback, SuperAdmin, or X-Metrics-Key) ──
+        if (path.Equals("/metrics", StringComparison.OrdinalIgnoreCase))
+        {
+            var configuration = context.RequestServices?.GetService<IConfiguration>();
+            if (!IsAuthorizedMetricsRequest(context, configuration, out var isAuthenticatedNonSuperAdmin))
+            {
+                if (isAuthenticatedNonSuperAdmin)
+                {
+                    await WriteErrorResponseAsync(context, StatusCodes.Status403Forbidden, "ERR_FORBIDDEN",
+                        "Chỉ SuperAdmin hoặc hệ thống giám sát nội bộ mới được phép truy cập /metrics.");
+                }
+                else
+                {
+                    await WriteErrorResponseAsync(context, StatusCodes.Status401Unauthorized, "ERR_UNAUTHORIZED",
+                        "Yêu cầu xác thực SuperAdmin hoặc X-Metrics-Key để truy cập /metrics.");
+                }
+                return;
+            }
+
             await _next(context);
             return;
         }
@@ -337,7 +365,6 @@ public sealed class TenantPropertyContextMiddleware
             path.StartsWith("/api/print/voucher", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/health", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/health/", StringComparison.OrdinalIgnoreCase) ||
-            path.Equals("/metrics", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/auth/login", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/auth/register", StringComparison.OrdinalIgnoreCase) ||
@@ -346,6 +373,59 @@ public sealed class TenantPropertyContextMiddleware
             path.Equals("/api/auth/refresh-token", StringComparison.OrdinalIgnoreCase))
         {
             return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Validates access to Prometheus <c>/metrics</c>: allows loopback connections (including TestServer
+    /// where <see cref="ConnectionInfo.RemoteIpAddress"/> is null), authenticated <see cref="GlobalUserRole.SuperAdmin"/>
+    /// callers, or callers providing a configured <c>Metrics:ApiKey</c> via the <c>X-Metrics-Key</c> header.
+    /// </summary>
+    public static bool IsAuthorizedMetricsRequest(
+        HttpContext context,
+        IConfiguration? configuration,
+        out bool isAuthenticatedNonSuperAdmin)
+    {
+        isAuthenticatedNonSuperAdmin = false;
+
+        var remoteIp = context.Connection.RemoteIpAddress;
+        if (remoteIp is null)
+        {
+            return true;
+        }
+
+        var normalizedIp = remoteIp.IsIPv4MappedToIPv6 ? remoteIp.MapToIPv4() : remoteIp;
+        if (IPAddress.IsLoopback(normalizedIp))
+        {
+            return true;
+        }
+
+        var configuredKey = configuration?["Metrics:ApiKey"];
+        if (!string.IsNullOrWhiteSpace(configuredKey) &&
+            context.Request.Headers.TryGetValue("X-Metrics-Key", out var providedKeyValues))
+        {
+            var expectedBytes = Encoding.UTF8.GetBytes(configuredKey.Trim());
+            var providedBytes = Encoding.UTF8.GetBytes(providedKeyValues.ToString().Trim());
+            if (expectedBytes.Length == providedBytes.Length &&
+                CryptographicOperations.FixedTimeEquals(expectedBytes, providedBytes))
+            {
+                return true;
+            }
+        }
+
+        if (context.User.Identity?.IsAuthenticated == true)
+        {
+            var globalRoleClaim = context.User.FindFirst("globalRole")?.Value
+                ?? context.User.FindFirst(ClaimTypes.Role)?.Value;
+            if (Enum.TryParse<GlobalUserRole>(globalRoleClaim, ignoreCase: true, out var role) &&
+                role == GlobalUserRole.SuperAdmin)
+            {
+                return true;
+            }
+
+            isAuthenticatedNonSuperAdmin = true;
         }
 
         return false;

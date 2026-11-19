@@ -84,7 +84,7 @@ describe('GoogleMapPickerComponent', () => {
     fixture.detectChanges();
 
     const emitSpy = vi.spyOn(component.locationSelected, 'emit');
-    const vungTauPreset = component.presets.find(p => p.provinceCode === '77')!;
+    const vungTauPreset = component.presets.find(p => p.name.includes('Vũng Tàu') && p.provinceCode === '79')!;
 
     component.applySuggestion(vungTauPreset);
 
@@ -103,11 +103,11 @@ describe('GoogleMapPickerComponent', () => {
 
     component.onSearchQueryChange('sa pa');
     expect(component.showSuggestions()).toBe(true);
-    expect(component.suggestions().some(s => s.provinceName === 'Lào Cai' && s.lat > 22)).toBe(true);
+    expect(component.suggestions().some(s => s.provinceName.includes('Lào Cai') && s.lat > 22)).toBe(true);
 
     component.onSearchQueryChange('hoi an');
     expect(component.showSuggestions()).toBe(true);
-    expect(component.suggestions().some(s => s.provinceName === 'Quảng Nam' && s.lat > 15 && s.lng > 108)).toBe(true);
+    expect(component.suggestions().some(s => s.provinceName.includes('Đà Nẵng') && s.lat > 15 && s.lng > 108)).toBe(true);
   });
 
   it('should parse raw coordinates and Google Maps URLs and emit on click or Enter', () => {

@@ -27,6 +27,7 @@ import {
   CancelGuestBookingRequest,
   NearbyLandmarkBadgeDto,
   RentalType,
+  VnpayReturnVerificationDto,
 } from '../models/public-booking.model';
 import { QuoteDto } from '../models/reservation.model';
 
@@ -364,6 +365,42 @@ export class PublicBookingService {
     return this.http.post<any>(`${environment.apiUrl}/public/payments/vietqr/generate`, payload).pipe(
       map(res => (res.data ? res.data : res))
     );
+  }
+
+  /**
+   * Xác thực chữ ký kết quả trả về từ cổng VNPay thông qua endpoint read-only của máy chủ.
+   */
+  verifyVnpayReturn(vnpParams: Record<string, string>): Observable<VnpayReturnVerificationDto> {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(vnpParams)) {
+      if (value !== undefined && value !== null) {
+        params = params.set(key, value);
+      }
+    }
+
+    return this.http
+      .get<{
+        success?: boolean;
+        data?: {
+          rspCode?: string;
+          message?: string;
+          txnRef?: string;
+          transactionNo?: string;
+          amount?: number;
+          bankCode?: string;
+        };
+      }>(`${this.apiUrl}/payments/vnpay/return`, { params })
+      .pipe(
+        map(res => ({
+          success: Boolean(res?.success),
+          rspCode: res?.data?.rspCode ?? (res?.success ? '00' : '99'),
+          message: res?.data?.message ?? '',
+          txnRef: res?.data?.txnRef,
+          transactionNo: res?.data?.transactionNo,
+          amount: res?.data?.amount,
+          bankCode: res?.data?.bankCode
+        }))
+      );
   }
 
   /**

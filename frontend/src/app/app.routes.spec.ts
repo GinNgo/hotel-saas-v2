@@ -67,15 +67,21 @@ describe('Public and management route boundaries', () => {
     expect(router.url).toBe('/booking/profile');
   });
 
-  it.each(['/admin/plans', '/admin/contracts', '/plans', '/contracts'])('blocks staff from platform page %s', async url => {
+  it.each(['/admin/plans', '/admin/contracts', '/admin/ops-readiness', '/plans', '/contracts', '/ops-readiness'])('blocks staff from platform page %s', async url => {
     role = 'TenantStaff';
     await router.navigateByUrl(url);
     expect(router.url).toBe('/forbidden');
   });
 
-  it('lets the platform administrator reach plan management', async () => {
+  it('lets the platform administrator reach plan management and ops readiness', async () => {
     role = 'SuperAdmin';
     await router.navigateByUrl('/admin/plans');
     expect(router.url).toBe('/admin/plans');
+
+    await router.navigateByUrl('/admin/ops-readiness');
+    expect(router.url).toBe('/admin/ops-readiness');
+
+    await router.navigateByUrl('/ops-readiness');
+    expect(router.url).toBe('/ops-readiness');
   });
 });

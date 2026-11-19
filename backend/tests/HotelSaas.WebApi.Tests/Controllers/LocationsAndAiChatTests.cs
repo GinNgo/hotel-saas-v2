@@ -7,10 +7,12 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Interfaces;
+using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Pricing.Services;
 using HotelSaas.Application.Public.Commands.CreateGuestHold;
 using HotelSaas.Application.Public.DTOs;
 using HotelSaas.Application.Public.Queries.GetPublicProperties;
+using HotelSaas.Application.Reservations.DTOs;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using HotelSaas.Infrastructure.Services;
@@ -657,5 +659,337 @@ public sealed class LocationsAndAiChatTests
         var outsiderDto = Assert.IsType<PrintableInvoiceDto>(outsiderOk.Value);
         Assert.Equal("g***@example.com", outsiderDto.GuestEmail);
         Assert.Equal("090****567", outsiderDto.GuestPhone);
+    }
+
+    [Fact]
+    public async Task PrintDocumentsController_GetTemplateConfig_ForbidsMissingAndCrossTenant_AndHasNoDummyBankFallback()
+    {
+        var tenantA = Guid.NewGuid();
+        var tenantB = Guid.NewGuid();
+        var propA1 = Guid.NewGuid();
+        var propA2 = Guid.NewGuid();
+
+        var configTenantADefault = new PrintTemplateConfig
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantA,
+            PropertyId = null,
+            HeaderCompanyName = "Chuỗi Khách Sạn A",
+            BankName = "Techcombank",
+            BankAccountNumber = "1903000111222",
+            BankAccountHolder = "CTY A HQ",
+            ShowVietQrCode = true
+        };
+        var configPropA1 = new PrintTemplateConfig
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantA,
+            PropertyId = propA1,
+            HeaderCompanyName = "Chi nhánh A1",
+            BankName = "Vietcombank",
+            BankAccountNumber = "0071000111222",
+            BankAccountHolder = "CHI NHANH A1",
+            ShowVietQrCode = true
+        };
+        var configTenantB = new PrintTemplateConfig
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantB,
+            PropertyId = null,
+            HeaderCompanyName = "Khách Sạn B",
+            BankName = "BIDV",
+            BankAccountNumber = "3141000999888",
+            BankAccountHolder = "CTY B",
+            ShowVietQrCode = true
+        };
+
+        var fakeDb = new AiFakeDbContext(
+            Array.Empty<Property>(),
+            Array.Empty<RoomType>(),
+            printTemplateConfigs: new[] { configTenantADefault, configPropA1, configTenantB });
+
+        // 1. Anonymous user without tenant -> Forbid
+        var anonController = new PrintDocumentsController(fakeDb, CreateAnonymousUserContext());
+        Assert.IsType<ForbidResult>(await anonController.GetTemplateConfig(null, null, CancellationToken.None));
+
+        // 2. SuperAdmin without tenantId -> Forbid
+        var superAdmin = CreateAnonymousUserContext();
+        superAdmin.SetUser(Guid.NewGuid(), "admin@platform.vn", GlobalUserRole.SuperAdmin);
+        var superAdminController = new PrintDocumentsController(fakeDb, superAdmin);
+        Assert.IsType<ForbidResult>(await superAdminController.GetTemplateConfig(null, null, CancellationToken.None));
+
+        // 3. Tenant A user attempting cross-tenant query for Tenant B -> Forbid
+        var tenantAUser = CreateAnonymousUserContext();
+        tenantAUser.SetUser(Guid.NewGuid(), "owner@tenanta.vn", GlobalUserRole.TenantStaff);
+        tenantAUser.SetMembershipContext(tenantA, TenantStatus.Active, null, null, StaffRole.Owner, null, isTenantWide: true);
+        var tenantAController = new PrintDocumentsController(fakeDb, tenantAUser);
+        Assert.IsType<ForbidResult>(await tenantAController.GetTemplateConfig(tenantB, null, CancellationToken.None));
+
+        // 4. Tenant A requesting propA1 prefers propA1 config over tenantA default
+        var propA1Ok = Assert.IsType<OkObjectResult>(await tenantAController.GetTemplateConfig(null, propA1, CancellationToken.None));
+        var propA1Dto = Assert.IsType<PrintTemplateConfigDto>(propA1Ok.Value);
+        Assert.Equal("0071000111222", propA1Dto.BankAccountNumber);
+        Assert.Equal("Vietcombank", propA1Dto.BankName);
+
+        // 5. Tenant A requesting propA2 (no specific config) falls back to tenantA default (never Tenant B)
+        var propA2Ok = Assert.IsType<OkObjectResult>(await tenantAController.GetTemplateConfig(null, propA2, CancellationToken.None));
+        var propA2Dto = Assert.IsType<PrintTemplateConfigDto>(propA2Ok.Value);
+        Assert.Equal("1903000111222", propA2Dto.BankAccountNumber);
+
+        // 6. Tenant with no PrintTemplateConfig at all gets empty bank fields (never dummy "0988889999")
+        var tenantC = Guid.NewGuid();
+        var tenantCUser = CreateAnonymousUserContext();
+        tenantCUser.SetUser(Guid.NewGuid(), "owner@tenantc.vn", GlobalUserRole.TenantStaff);
+        tenantCUser.SetMembershipContext(tenantC, TenantStatus.Active, null, null, StaffRole.Owner, null, isTenantWide: true);
+        var tenantCController = new PrintDocumentsController(fakeDb, tenantCUser);
+        var tenantCOk = Assert.IsType<OkObjectResult>(await tenantCController.GetTemplateConfig(null, null, CancellationToken.None));
+        var tenantCDto = Assert.IsType<PrintTemplateConfigDto>(tenantCOk.Value);
+        Assert.Equal(string.Empty, tenantCDto.BankAccountNumber);
+        Assert.NotEqual("0988889999", tenantCDto.BankAccountNumber);
+        Assert.False(tenantCDto.ShowVietQrCode);
+    }
+
+    [Fact]
+    public async Task PrintDocumentsController_GetPrintableInvoice_ExcludesRefundTransactionsFromPaidAmount()
+    {
+        var tenantId = Guid.NewGuid();
+        var propId = Guid.NewGuid();
+        var resId = Guid.NewGuid();
+
+        var reservation = new Reservation
+        {
+            Id = resId,
+            TenantId = tenantId,
+            PropertyId = propId,
+            ConfirmationCode = "INV-REF-01",
+            GuestName = "Tran Thi Thu",
+            GuestEmail = "thu@example.com",
+            GuestPhone = "0911222333",
+            CheckInDate = new DateOnly(2026, 7, 1),
+            CheckOutDate = new DateOnly(2026, 7, 3),
+            NumberOfGuests = 2,
+            TotalAmount = 2_000_000m,
+            Payments = new List<Payment>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenantId,
+                    PropertyId = propId,
+                    ReservationId = resId,
+                    Amount = 1_500_000m,
+                    Method = PaymentMethod.VNPay,
+                    Status = PaymentStatus.Completed,
+                    TransactionRef = "VNPAY-20260701-01",
+                    CreatedAtUtc = DateTime.UtcNow.AddMinutes(-30)
+                },
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenantId,
+                    PropertyId = propId,
+                    ReservationId = resId,
+                    Amount = 500_000m,
+                    Method = PaymentMethod.BankTransfer,
+                    Status = PaymentStatus.Completed,
+                    TransactionRef = "REFUND-COMPLETED-001",
+                    CreatedAtUtc = DateTime.UtcNow.AddMinutes(-10)
+                },
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenantId,
+                    PropertyId = propId,
+                    ReservationId = resId,
+                    Amount = 500_000m,
+                    Method = PaymentMethod.Cash,
+                    Status = PaymentStatus.Pending,
+                    TransactionRef = "CASH-PENDING-002",
+                    CreatedAtUtc = DateTime.UtcNow
+                }
+            }
+        };
+
+        var fakeDb = new AiFakeDbContext(
+            Array.Empty<Property>(),
+            Array.Empty<RoomType>(),
+            reservations: new[] { reservation });
+
+        var staffContext = CreateAnonymousUserContext();
+        staffContext.SetUser(Guid.NewGuid(), "cashier@hotel.vn", GlobalUserRole.TenantStaff);
+        staffContext.SetMembershipContext(tenantId, TenantStatus.Active, propId, PropertyStatus.Active, StaffRole.Receptionist, null, isTenantWide: false);
+
+        var controller = new PrintDocumentsController(fakeDb, staffContext);
+        var ok = Assert.IsType<OkObjectResult>(await controller.GetPrintableInvoice(resId, null, CancellationToken.None));
+        var dto = Assert.IsType<PrintableInvoiceDto>(ok.Value);
+
+        Assert.Equal(1_500_000m, dto.PaidAmount);
+        Assert.Equal(500_000m, dto.RemainingAmount);
+        Assert.Equal("CÒN CÔNG NỢ", dto.Status);
+        Assert.Equal(string.Empty, dto.BankAccountNumber);
+    }
+
+    [Fact]
+    public async Task PrintDocumentsController_GetPrintableVoucher_SupportsLookupTokenAndConfirmationCode_WithPiiMasking()
+    {
+        var tenantId = Guid.NewGuid();
+        var propId = Guid.NewGuid();
+        var snapshot = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            StartAtUtc = DateTime.UtcNow.AddDays(1),
+            EndAtUtc = DateTime.UtcNow.AddDays(2),
+            BufferMinutes = 30,
+            RoomTypeName = "Suite Deluxe",
+            LookupToken = "vch-secret-lookup-token-999",
+            TokenExpiresAtUtc = DateTime.UtcNow.AddDays(10),
+            CustomerNotes = "Phòng tầng cao yên tĩnh"
+        };
+
+        var reservation = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            PropertyId = propId,
+            ConfirmationCode = "VCH9900",
+            GuestName = "Nguyen Van An",
+            GuestEmail = "an.guest@example.com",
+            GuestPhone = "0909888777",
+            CheckInDate = new DateOnly(2026, 8, 1),
+            CheckOutDate = new DateOnly(2026, 8, 2),
+            NumberOfGuests = 2,
+            TotalAmount = 1_800_000m,
+            Status = ReservationStatus.Confirmed,
+            Notes = ReservationSnapshotHelper.Serialize(snapshot)
+        };
+
+        var fakeDb = new AiFakeDbContext(
+            Array.Empty<Property>(),
+            Array.Empty<RoomType>(),
+            reservations: new[] { reservation });
+
+        var anonController = new PrintDocumentsController(fakeDb, CreateAnonymousUserContext());
+
+        // 1. Anonymous lookup by short ConfirmationCode -> PII masked
+        var codeOk = Assert.IsType<OkObjectResult>(await anonController.GetPrintableVoucher("VCH9900", CancellationToken.None));
+        var codeDto = Assert.IsType<PrintableVoucherDto>(codeOk.Value);
+        Assert.NotEqual("Nguyen Van An", codeDto.GuestName);
+        Assert.NotEqual("an.guest@example.com", codeDto.GuestEmail);
+        Assert.NotEqual("0909888777", codeDto.GuestPhone);
+        Assert.Null(codeDto.SpecialRequests);
+
+        // 2. Anonymous lookup by full LookupToken -> unmasked PII
+        var tokenOk = Assert.IsType<OkObjectResult>(await anonController.GetPrintableVoucher("vch-secret-lookup-token-999", CancellationToken.None));
+        var tokenDto = Assert.IsType<PrintableVoucherDto>(tokenOk.Value);
+        Assert.Equal("Nguyen Van An", tokenDto.GuestName);
+        Assert.Equal("an.guest@example.com", tokenDto.GuestEmail);
+        Assert.Equal("0909888777", tokenDto.GuestPhone);
+        Assert.Equal("Phòng tầng cao yên tĩnh", tokenDto.SpecialRequests);
+    }
+
+    [Fact]
+    public async Task PrintDocumentsController_GetPrintableContract_UnsignedContract_ReturnsEmptyDigitalSignatureHash()
+    {
+        var tenantId = Guid.NewGuid();
+        var unsignedContract = new TenantContract
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            ContractNumber = "HD-DRAFT-001",
+            PlanCode = "PRO",
+            PlanName = "Pro",
+            RepresentativeName = "Le Van Draft",
+            RepresentativeEmail = "draft@tenant.vn",
+            RepresentativePhone = "0901111222",
+            StartDate = new DateOnly(2026, 1, 1),
+            EndDate = new DateOnly(2026, 12, 31),
+            ContractValue = 12_000_000m,
+            Status = TenantContractStatus.Draft,
+            SignedAtUtc = null,
+            DigitalSignatureHash = null
+        };
+
+        var fakeDb = new AiFakeDbContext(
+            Array.Empty<Property>(),
+            Array.Empty<RoomType>(),
+            tenantContracts: new[] { unsignedContract });
+
+        var superAdmin = CreateAnonymousUserContext();
+        superAdmin.SetUser(Guid.NewGuid(), "admin@platform.vn", GlobalUserRole.SuperAdmin);
+        var controller = new PrintDocumentsController(fakeDb, superAdmin);
+
+        var ok = Assert.IsType<OkObjectResult>(await controller.GetPrintableContract(unsignedContract.Id, CancellationToken.None));
+        var dto = Assert.IsType<PrintableContractDocumentDto>(ok.Value);
+
+        Assert.False(dto.IsSigned);
+        Assert.Equal(string.Empty, dto.DigitalSignatureHash);
+        Assert.Null(dto.SignedAtUtc);
+    }
+
+    [Fact]
+    public async Task PaymentsController_GenerateVietQr_Returns422WhenBankNotConfigured_AndUsesPropertyConfig()
+    {
+        var tenantId = Guid.NewGuid();
+        var propUnconfigured = Guid.NewGuid();
+        var propConfigured = Guid.NewGuid();
+
+        var resUnconfigured = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            PropertyId = propUnconfigured,
+            ConfirmationCode = "RES-NOBANK"
+        };
+        var resConfigured = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            PropertyId = propConfigured,
+            ConfirmationCode = "RES-HASBANK"
+        };
+
+        var bankConfig = new PrintTemplateConfig
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            PropertyId = propConfigured,
+            HeaderCompanyName = "Sao Mai Hotel",
+            BankName = "Vietcombank",
+            BankAccountNumber = "1122334455",
+            BankAccountHolder = "KHACH SAN SAO MAI",
+            ShowVietQrCode = true
+        };
+
+        var fakeDb = new AiFakeDbContext(
+            Array.Empty<Property>(),
+            Array.Empty<RoomType>(),
+            reservations: new[] { resUnconfigured, resConfigured },
+            printTemplateConfigs: new[] { bankConfig });
+
+        var controller = new PaymentsController(new CapturingSender());
+        var vietQrService = new VietQrService();
+
+        // 1. Property without configured bank -> 422 UnprocessableEntity
+        var unconfResult = await controller.GenerateVietQr(
+            new VietQrApiRequest(500_000m, "RES-NOBANK", resUnconfigured.Id),
+            vietQrService,
+            fakeDb,
+            CancellationToken.None);
+        Assert.IsType<UnprocessableEntityObjectResult>(unconfResult);
+
+        // 2. Property with configured bank -> 200 OK with real bank account (never dummy "0345678910")
+        var confResult = await controller.GenerateVietQr(
+            new VietQrApiRequest(500_000m, "RES-HASBANK", resConfigured.Id),
+            vietQrService,
+            fakeDb,
+            CancellationToken.None);
+        var ok = Assert.IsType<OkObjectResult>(confResult);
+        var apiResp = Assert.IsType<ApiResponse<VietQrResult>>(ok.Value);
+        Assert.True(apiResp.Success);
+        Assert.NotNull(apiResp.Data);
+        Assert.Equal("970436", apiResp.Data!.BankBin);
+        Assert.Equal("1122334455", apiResp.Data.AccountNumber);
+        Assert.Equal("KHACH SAN SAO MAI", apiResp.Data.AccountName);
+        Assert.NotEqual("0345678910", apiResp.Data.AccountNumber);
     }
 }

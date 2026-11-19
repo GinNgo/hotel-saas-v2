@@ -6,7 +6,10 @@ import { environment } from '../../../environments/environment';
 import {
   GuestMeDto,
   GuestPagedBookingsDto,
-  GuestBookingSummaryDto,
+  GuestProfileResponseDto,
+  LoyaltyPointLedgerItemDto,
+  GuestInvoiceRecordDto,
+  UpdateGuestVatProfileRequest,
 } from '../models/guest-account.model';
 
 interface ApiResponse<T> {
@@ -43,9 +46,38 @@ export class GuestAccountService {
       .pipe(map((res) => res.data));
   }
 
-  getLoyaltyProfile(): Observable<any> {
+  getLoyaltyProfile(): Observable<GuestProfileResponseDto> {
     return this.http
-      .get<ApiResponse<any>>(`${this.apiUrl}/profile`)
+      .get<ApiResponse<GuestProfileResponseDto>>(`${this.apiUrl}/profile`)
       .pipe(map((res) => res.data));
+  }
+
+  getLoyaltyLedger(filterType?: string): Observable<LoyaltyPointLedgerItemDto[]> {
+    let params = new HttpParams();
+    if (filterType?.trim()) {
+      params = params.set('filterType', filterType.trim());
+    }
+
+    return this.http
+      .get<ApiResponse<LoyaltyPointLedgerItemDto[]>>(`${this.apiUrl}/loyalty-ledger`, { params })
+      .pipe(map((res) => res.data ?? []));
+  }
+
+  getInvoices(): Observable<GuestInvoiceRecordDto[]> {
+    return this.http
+      .get<ApiResponse<GuestInvoiceRecordDto[]>>(`${this.apiUrl}/invoices`)
+      .pipe(map((res) => res.data ?? []));
+  }
+
+  getInvoicePrintView(invoiceOrReservationId: string): Observable<GuestInvoiceRecordDto> {
+    return this.http
+      .get<ApiResponse<GuestInvoiceRecordDto>>(`${this.apiUrl}/invoices/${encodeURIComponent(invoiceOrReservationId)}/print`)
+      .pipe(map((res) => res.data));
+  }
+
+  updateVatProfile(request: UpdateGuestVatProfileRequest): Observable<boolean> {
+    return this.http
+      .put<ApiResponse<boolean>>(`${this.apiUrl}/vat-profile`, request)
+      .pipe(map((res) => Boolean(res.data)));
   }
 }

@@ -1,5 +1,7 @@
 export type TenantContractStatus = 'Draft' | 'PendingSignature' | 'Active' | 'Expired' | 'Terminated';
 
+export type ContractBillingCycle = 'Monthly' | 'Annual';
+
 export interface TenantContractDto {
   id: string;
   tenantId: string;
@@ -19,6 +21,7 @@ export interface TenantContractDto {
   status: TenantContractStatus;
   slaCommitment?: string;
   signedAtUtc?: string;
+  hasDigitalSignature?: boolean;
   digitalSignatureHash?: string;
   termsAndConditions?: string;
   notes?: string;
@@ -35,7 +38,7 @@ export interface CreateTenantContractRequest {
   representativePhone: string;
   startDate: string;
   endDate: string;
-  billingCycle: number;
+  billingCycle: ContractBillingCycle;
   contractValue: number;
   termsAndConditions?: string;
   notes?: string;
@@ -43,6 +46,5 @@ export interface CreateTenantContractRequest {
 
 export interface UpdateContractStatusRequest {
   status: string;
-  digitalSignatureHash?: string;
-  notes?: string;
+  note?: string;
 }

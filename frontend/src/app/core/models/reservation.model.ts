@@ -122,11 +122,12 @@ export interface CreateReservationRequest {
   checkInDate?: string;
   checkOutDate?: string;
   guestName: string;
-  guestEmail: string;
+  guestEmail?: string;
   guestPhone?: string;
   numberOfGuests: number;
   customerNotes?: string;
   expectedTotalAmount?: number;
   idempotencyKey?: string;
+  immediateCheckIn?: boolean;
 }
 

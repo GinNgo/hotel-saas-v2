@@ -6,6 +6,7 @@ import { PropertyManagementService } from '../../core/services/property-manageme
 import { PublicBookingService } from '../../core/services/public-booking.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
+import { VIETNAM_34_ADMIN_PROVINCES, removeVietnameseAccents } from '../../core/models/location.model';
 import {
   TenantPropertySummaryDto,
   CreatePropertyRequest,
@@ -26,10 +27,38 @@ import {
 } from '../../shared';
 
 type BranchSummaryWithGeo = TenantPropertySummaryDto & {
+  provinceCode?: string | null;
   touristZoneSlug?: string | null;
   latitude?: number | null;
   longitude?: number | null;
 };
+
+const LEGACY_PROVINCE_CODE_TO_34: Readonly<Record<string, string>> = {
+  'VN-SG': '79',
+  '1': '01', '4': '04', '8': '08', '2': '08', '02': '08',
+  '10': '15', '6': '19', '06': '19', '27': '24', '17': '25', '26': '25',
+  '30': '31', '34': '33', '35': '37', '36': '37', '45': '44', '49': '48',
+  '62': '51', '64': '52', '58': '56', '54': '66', '60': '68', '67': '68',
+  '70': '75', '74': '79', '77': '79', '72': '80', '87': '82',
+  '83': '86', '84': '86', '89': '91', '93': '92', '94': '92', '95': '96',
+};
+
+const CITY_ALIAS_TO_34: Readonly<Array<[string, string]>> = [
+  ['ho chi minh', '79'], ['sai gon', '79'], ['vung tau', '79'], ['con dao', '79'], ['binh duong', '79'],
+  ['ha noi', '01'], ['da nang', '48'], ['hoi an', '48'], ['quang nam', '48'],
+  ['da lat', '68'], ['mui ne', '68'], ['phan thiet', '68'], ['lam dong', '68'], ['binh thuan', '68'], ['dak nong', '68'],
+  ['nha trang', '56'], ['khanh hoa', '56'], ['ninh thuan', '56'], ['phan rang', '56'],
+  ['phu quoc', '91'], ['kien giang', '91'], ['an giang', '91'], ['ha tien', '91'],
+  ['sa pa', '15'], ['sapa', '15'], ['lao cai', '15'], ['yen bai', '15'],
+  ['ha long', '22'], ['quang ninh', '22'], ['van don', '22'], ['co to', '22'],
+  ['hue', '46'], ['ha giang', '08'], ['tuyen quang', '08'],
+  ['quy nhon', '52'], ['binh dinh', '52'], ['gia lai', '52'], ['pleiku', '52'],
+  ['phu yen', '66'], ['tuy hoa', '66'], ['dak lak', '66'], ['buon ma thuot', '66'],
+  ['mang den', '51'], ['kon tum', '51'], ['quang ngai', '51'], ['ly son', '51'],
+  ['hai phong', '31'], ['cat ba', '31'], ['hai duong', '31'],
+  ['can tho', '92'], ['soc trang', '92'], ['hau giang', '92'],
+  ['ca mau', '96'], ['bac lieu', '96'],
+];
 
 interface PropertyTypeSelectOption {
   readonly value: number;
@@ -484,7 +513,7 @@ interface HttpErrorPayload {
                     [appFormControl]="provinceField"
                     type="text"
                     formControlName="provinceCode"
-                    placeholder="VN-35, VN-43, VN-SG..."
+                    placeholder="79, 01, 48, 68..."
                     class="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-mono focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
                   />
                 </app-form-field>
@@ -597,7 +626,7 @@ export class PropertiesPage implements OnInit {
     propertyType: [1, [Validators.required]],
     address: ['', [Validators.required, Validators.maxLength(200)]],
     city: ['', [Validators.required, Validators.maxLength(50)]],
-    provinceCode: ['VN-SG'],
+    provinceCode: ['79'],
     touristZoneSlug: [null],
     latitude: [null as number | null],
     longitude: [null as number | null],
@@ -718,7 +747,7 @@ export class PropertiesPage implements OnInit {
       propertyType: 1,
       address: '',
       city: '',
-      provinceCode: 'VN-SG',
+      provinceCode: '79',
       touristZoneSlug: null,
       latitude: null,
       longitude: null,
@@ -741,7 +770,7 @@ export class PropertiesPage implements OnInit {
       propertyType: prop.propertyType || 1,
       address: prop.address,
       city: prop.city,
-      provinceCode: 'VN-SG',
+      provinceCode: this.resolveProvinceCodeForProperty(propWithGeo),
       touristZoneSlug: propWithGeo.touristZoneSlug ?? null,
       latitude: propWithGeo.latitude ?? null,
       longitude: propWithGeo.longitude ?? null,
@@ -751,6 +780,39 @@ export class PropertiesPage implements OnInit {
       isActive: prop.isActive
     });
     this.isModalOpen.set(true);
+  }
+
+  private resolveProvinceCodeForProperty(prop: BranchSummaryWithGeo): string {
+    const rawCode = prop.provinceCode?.trim();
+    if (rawCode) {
+      const upper = rawCode.toUpperCase();
+      if (LEGACY_PROVINCE_CODE_TO_34[upper]) {
+        return LEGACY_PROVINCE_CODE_TO_34[upper];
+      }
+      if (VIETNAM_34_ADMIN_PROVINCES.some(p => p.code === rawCode)) {
+        return rawCode;
+      }
+    }
+
+    const matchedZone = prop.touristZoneSlug
+      ? this.touristZones().find(z => z.slug === prop.touristZoneSlug)
+      : undefined;
+    const candidates = [matchedZone?.provinceName, prop.city, prop.address].filter(Boolean) as string[];
+    for (const candidate of candidates) {
+      const norm = removeVietnameseAccents(candidate.toLowerCase());
+      for (const [alias, code] of CITY_ALIAS_TO_34) {
+        if (norm.includes(alias)) return code;
+      }
+      const provMatch = VIETNAM_34_ADMIN_PROVINCES.find(p => {
+        const cleanProv = removeVietnameseAccents(
+          p.name.replace(/^(Thành phố|Tỉnh)\s+/i, '').toLowerCase()
+        );
+        return norm.includes(cleanProv);
+      });
+      if (provMatch) return provMatch.code;
+    }
+
+    return '79';
   }
 
   onMapLocationSelected(result: LocationPickerResult): void {
@@ -843,7 +905,7 @@ export class PropertiesPage implements OnInit {
         propertyType: formVal.propertyType,
         address: formVal.address,
         city: formVal.city,
-        provinceCode: formVal.provinceCode || 'VN-SG',
+        provinceCode: formVal.provinceCode || '79',
         touristZoneSlug: formVal.touristZoneSlug || undefined,
         ...(latitude !== undefined ? { latitude } : {}),
         ...(longitude !== undefined ? { longitude } : {}),
@@ -874,7 +936,7 @@ export class PropertiesPage implements OnInit {
         propertyType: formVal.propertyType,
         address: formVal.address,
         city: formVal.city,
-        provinceCode: formVal.provinceCode || 'VN-SG',
+        provinceCode: formVal.provinceCode || '79',
         touristZoneSlug: formVal.touristZoneSlug || undefined,
         ...(latitude !== undefined ? { latitude } : {}),
         ...(longitude !== undefined ? { longitude } : {}),

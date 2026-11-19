@@ -29,7 +29,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
 
 /**
  * Trang Đăng ký Đối tác Mở Khách sạn & Nâng cấp Chủ Khách sạn
- * Tích hợp Google Maps Places, Bản đồ vị trí tương tác và Bộ chọn 63 Tỉnh/Thành phố thông minh.
+ * Tích hợp Google Maps Places, Bản đồ vị trí tương tác và Bộ chọn 34 Tỉnh/Thành phố (mô hình 2 cấp) thông minh.
  */
 @Component({
   selector: 'app-partner-register',
@@ -312,11 +312,11 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
                     }
                   </div>
 
-                  <!-- Tỉnh / Thành phố Searchable Dropdown (Đủ 63 tỉnh thành có tìm kiếm) -->
+                  <!-- Tỉnh / Thành phố Searchable Dropdown (Đủ 34 tỉnh thành 2 cấp có tìm kiếm) -->
                   <div>
                     <div class="flex items-center justify-between mb-1">
                       <label for="provinceCode" class="block text-xs font-semibold text-slate-700">
-                        Tỉnh / Thành phố (63 đơn vị) <span class="text-rose-500">*</span>
+                        Tỉnh / Thành phố (34 đơn vị) <span class="text-rose-500">*</span>
                       </label>
                       <span class="text-[10px] text-indigo-600 font-medium">Tìm kiếm nhanh</span>
                     </div>
@@ -335,11 +335,11 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
                     }
                   </div>
 
-                  <!-- Phường / Xã Searchable Dropdown -->
+                  <!-- Phường / Xã / Đặc khu Searchable Dropdown -->
                   <div>
                     <div class="flex items-center justify-between mb-1">
                       <label for="wardCode" class="block text-xs font-semibold text-slate-700">
-                        Phường / Xã / Thị trấn <span class="text-rose-500">*</span>
+                        Phường / Xã / Đặc khu <span class="text-rose-500">*</span>
                       </label>
                       @if (wardsLoading()) {
                         <span class="text-[11px] text-indigo-600 flex items-center gap-1 font-medium">
@@ -349,17 +349,17 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
                     </div>
                     <app-searchable-select
                       [items]="wardItems()"
-                      [placeholder]="selectedProvinceCode ? '-- Chọn hoặc gõ tìm Phường / Xã --' : '-- Chọn Tỉnh/Thành trước --'"
-                      searchPlaceholder="Tìm kiếm phường, xã..."
+                      [placeholder]="selectedProvinceCode ? '-- Chọn hoặc gõ tìm Phường / Xã / Đặc khu --' : '-- Chọn Tỉnh/Thành trước --'"
+                      searchPlaceholder="Tìm kiếm phường, xã, đặc khu..."
                       formControlName="wardCode"
                       [loading]="wardsLoading()"
                       [invalid]="isFieldInvalid('wardCode')"
                     />
                     @if (!selectedProvinceCode) {
-                      <p class="text-[11px] text-slate-400 mt-1">Hãy chọn Tỉnh/Thành phố trước để tải danh sách Phường/Xã.</p>
+                      <p class="text-[11px] text-slate-400 mt-1">Hãy chọn Tỉnh/Thành phố trước để tải danh sách Phường / Xã / Đặc khu.</p>
                     } @else if (isFieldInvalid('wardCode')) {
                       <p class="text-[11px] text-rose-500 mt-1 flex items-center gap-1">
-                        <i class="pi pi-exclamation-circle text-[10px]"></i> Vui lòng chọn Phường/Xã.
+                        <i class="pi pi-exclamation-circle text-[10px]"></i> Vui lòng chọn Phường / Xã / Đặc khu.
                       </p>
                     }
                   </div>
@@ -731,7 +731,7 @@ export class PartnerRegisterPage implements OnInit {
       },
       error: () => {
         this.wardsLoading.set(false);
-        this.errorMessage.set('Không thể tải danh sách Phường/Xã cho tỉnh/thành đã chọn.');
+        this.errorMessage.set('Không thể tải danh sách Phường / Xã / Đặc khu cho tỉnh/thành đã chọn.');
       }
     });
   }
@@ -754,9 +754,13 @@ export class PartnerRegisterPage implements OnInit {
       this.registerForm.patchValue({ address: result.address });
     }
 
-    if (result.provinceCode) {
-      this.registerForm.patchValue({ provinceCode: result.provinceCode });
-      this.onProvinceChange(result.provinceCode);
+    const matchedByCode = result.provinceCode
+      ? this.provinces().find(p => p.code === result.provinceCode)
+      : undefined;
+
+    if (matchedByCode) {
+      this.registerForm.patchValue({ provinceCode: matchedByCode.code });
+      this.onProvinceChange(matchedByCode.code);
     } else if (result.provinceName) {
       const match = this.locationService.findProvinceByKeyword(result.provinceName, this.provinces());
       if (match) {

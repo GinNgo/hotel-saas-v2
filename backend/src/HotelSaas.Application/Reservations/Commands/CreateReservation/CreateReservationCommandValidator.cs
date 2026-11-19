@@ -55,13 +55,21 @@ public sealed class CreateReservationCommandValidator : AbstractValidator<Create
             .MaximumLength(200)
             .WithMessage("Tên khách hàng không vượt quá 200 ký tự.");
 
-        RuleFor(x => x.GuestEmail)
-            .NotEmpty()
-            .WithMessage("Email khách hàng không được để trống.")
-            .EmailAddress()
-            .WithMessage("Email khách hàng không đúng định dạng.")
-            .MaximumLength(255)
-            .WithMessage("Email không vượt quá 255 ký tự.");
+        When(x => !x.ImmediateCheckIn, () =>
+        {
+            RuleFor(x => x.GuestEmail)
+                .NotEmpty()
+                .WithMessage("Email khách hàng không được để trống.");
+        });
+
+        When(x => !string.IsNullOrWhiteSpace(x.GuestEmail), () =>
+        {
+            RuleFor(x => x.GuestEmail!)
+                .EmailAddress()
+                .WithMessage("Email khách hàng không đúng định dạng.")
+                .MaximumLength(255)
+                .WithMessage("Email không vượt quá 255 ký tự.");
+        });
 
         RuleFor(x => x.NumberOfGuests)
             .GreaterThan(0)

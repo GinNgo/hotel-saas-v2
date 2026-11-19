@@ -235,8 +235,7 @@ export const routes: Routes = [
       },
       {
         path: 'ops-readiness',
-        canActivate: [permissionGuard],
-        data: { permission: 'SETTINGS', action: 1, permissions: 'SETTINGS:Read' },
+        canActivate: [platformAdminGuard],
         loadComponent: () => import('./features/ops-readiness/ops-readiness.page').then(m => m.OpsReadinessPage)
       },
       {
@@ -348,8 +347,7 @@ export const routes: Routes = [
       },
       {
         path: 'ops-readiness',
-        canActivate: [permissionGuard],
-        data: { permission: 'SETTINGS', action: 1, permissions: 'SETTINGS:Read' },
+        canActivate: [platformAdminGuard],
         loadComponent: () => import('./features/ops-readiness/ops-readiness.page').then(m => m.OpsReadinessPage)
       },
       {

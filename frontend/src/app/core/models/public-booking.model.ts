@@ -555,3 +555,13 @@ export interface CancelGuestBookingRequest {
   reason?: string;
   idempotencyKey?: string;
 }
+
+export interface VnpayReturnVerificationDto {
+  success: boolean;
+  rspCode: string;
+  message: string;
+  txnRef?: string;
+  transactionNo?: string;
+  amount?: number;
+  bankCode?: string;
+}

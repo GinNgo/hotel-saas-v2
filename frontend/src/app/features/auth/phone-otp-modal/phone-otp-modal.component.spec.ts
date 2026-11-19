@@ -1,13 +1,24 @@
 import '@angular/compiler';
 import { TestBed } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
-import { of, throwError } from 'rxjs';
+import { JSDOM } from 'jsdom';
+import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PhoneOtpModalComponent } from './phone-otp-modal.component';
 import { FirebaseAuthService } from '../../../core/services/firebase-auth.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { LoginResponse } from '../../../core/models/auth.model';
 
+if (typeof document === 'undefined') {
+  const browser = new JSDOM('<!DOCTYPE html><html><body></body></html>', { url: 'http://localhost' });
+  Object.assign(globalThis, {
+    window: browser.window,
+    document: browser.window.document,
+    HTMLElement: browser.window.HTMLElement,
+    Node: browser.window.Node
+  });
+}
 try { TestBed.initTestEnvironment(BrowserTestingModule, platformBrowserTesting()); } catch {}
 
 describe('PhoneOtpModalComponent', () => {
@@ -50,10 +61,17 @@ describe('PhoneOtpModalComponent', () => {
 
   afterEach(() => TestBed.resetTestingModule());
 
-  it('renders correctly and populates demo phone number', () => {
+  it('renders dialog accessibility attributes and close button aria-label', () => {
     const fixture = TestBed.createComponent(PhoneOtpModalComponent);
     fixture.componentInstance.visible = true;
     fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const dialog = el.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.getAttribute('aria-modal')).toBe('true');
+    const closeBtn = el.querySelector('button[aria-label]');
+    expect(closeBtn?.getAttribute('aria-label')).toBeTruthy();
 
     expect(fixture.componentInstance.step()).toBe('phone');
     fixture.componentInstance.quickFillDemoPhone();
@@ -91,10 +109,18 @@ describe('PhoneOtpModalComponent', () => {
       phoneNumber: '+84987654321'
     });
 
-    const mockLoginResponse: any = {
+    const mockLoginResponse: LoginResponse = {
       accessToken: 'test-token',
       refreshToken: 'test-refresh',
-      user: { id: 'u1', fullName: 'Test User', globalRole: 'Customer' }
+      expiresAtUtc: '2026-12-31T00:00:00Z',
+      user: {
+        id: 'u1',
+        fullName: 'Test User',
+        email: 'test@example.com',
+        globalRole: 'Customer',
+        tenantId: null
+      },
+      memberships: []
     };
     mockVerifyPhoneFirebase.mockReturnValue(of(mockLoginResponse));
 
@@ -104,9 +130,9 @@ describe('PhoneOtpModalComponent', () => {
     fixture.componentInstance.otpCode = '123456';
     fixture.componentInstance.step.set('otp');
 
-    let emittedResult: any = null;
+    const emittedResults: Array<{ success: boolean; loginResponse?: LoginResponse; phoneNumber: string }> = [];
     fixture.componentInstance.verified.subscribe((res) => {
-      emittedResult = res;
+      emittedResults.push(res);
     });
 
     await fixture.componentInstance.verifyOtp();
@@ -117,7 +143,7 @@ describe('PhoneOtpModalComponent', () => {
       fullName: undefined
     });
     expect(mockNotification.success).toHaveBeenCalled();
-    expect(emittedResult?.success).toBe(true);
+    expect(emittedResults[0]?.success).toBe(true);
     expect(fixture.componentInstance.visible).toBe(false);
   });
 });

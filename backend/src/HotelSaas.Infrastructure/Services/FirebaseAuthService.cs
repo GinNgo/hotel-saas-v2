@@ -124,15 +124,19 @@ public sealed class FirebaseAuthService : IFirebaseAuthService
             return new FirebasePhoneVerificationResult(false, null, null, "Mã xác thực (idToken) không được để trống.");
         }
 
+#if DEBUG
         // ── 1. Dev / Mock Sandbox Token (For offline unit tests, load tests, or local verification in non-Prod) ──
         if (idToken.StartsWith("dev-mock-token:", StringComparison.OrdinalIgnoreCase))
         {
             var envName = _environment?.EnvironmentName ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-            var isProdOrStaging = (_environment != null && !_environment.IsDevelopment() && !_environment.IsEnvironment("Testing")) ||
-                                  string.Equals(envName, "Production", StringComparison.OrdinalIgnoreCase) ||
-                                  string.Equals(envName, "Staging", StringComparison.OrdinalIgnoreCase);
+            var isDisallowedEnvironment = _environment == null ||
+                                          _environment.IsProduction() ||
+                                          _environment.IsStaging() ||
+                                          (!_environment.IsDevelopment() && !_environment.IsEnvironment("Testing")) ||
+                                          string.Equals(envName, "Production", StringComparison.OrdinalIgnoreCase) ||
+                                          string.Equals(envName, "Staging", StringComparison.OrdinalIgnoreCase);
 
-            if (isProdOrStaging)
+            if (isDisallowedEnvironment)
             {
                 _logger.LogWarning("Rejected sandbox dev-mock-token in {Environment} environment.", envName ?? "Production");
                 return new FirebasePhoneVerificationResult(false, null, null, "Mã xác thực thử nghiệm (dev-mock-token) bị từ chối trên môi trường Production.");
@@ -145,6 +149,7 @@ public sealed class FirebaseAuthService : IFirebaseAuthService
             _logger.LogInformation("Sandbox Phone Verification accepted for mock phone: {Phone}", phone);
             return new FirebasePhoneVerificationResult(true, phone, mockUid);
         }
+#endif
 
         // ── 2. Production Google Identity Platform Token Verification ──
         try

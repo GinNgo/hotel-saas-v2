@@ -37,18 +37,93 @@ public sealed class LocationLookupService : ILocationLookupService
         LoadTouristZonesAndLandmarks();
     }
 
+    private static readonly IReadOnlyDictionary<string, string> LegacyProvinceCodeMap =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["VN-SG"] = "79",
+            ["1"] = "01",
+            ["01"] = "01",
+            ["4"] = "04",
+            ["04"] = "04",
+            ["2"] = "08",
+            ["02"] = "08",
+            ["8"] = "08",
+            ["08"] = "08",
+            ["10"] = "15",
+            ["6"] = "19",
+            ["06"] = "19",
+            ["27"] = "24",
+            ["17"] = "25",
+            ["26"] = "25",
+            ["30"] = "31",
+            ["34"] = "33",
+            ["35"] = "37",
+            ["36"] = "37",
+            ["45"] = "44",
+            ["49"] = "48",
+            ["62"] = "51",
+            ["64"] = "52",
+            ["58"] = "56",
+            ["54"] = "66",
+            ["60"] = "68",
+            ["67"] = "68",
+            ["70"] = "75",
+            ["74"] = "79",
+            ["77"] = "79",
+            ["72"] = "80",
+            ["87"] = "82",
+            ["83"] = "86",
+            ["84"] = "86",
+            ["89"] = "91",
+            ["93"] = "92",
+            ["94"] = "92",
+            ["95"] = "96"
+        };
+
+    /// <summary>
+    /// Resolves a raw, legacy (63-province), single-digit, or alias province code
+    /// into its canonical 2-digit 34-province code (Quyết định 19/2025/QĐ-TTg).
+    /// </summary>
+    public static string ResolveCanonicalProvinceCode(string? rawCode)
+    {
+        if (string.IsNullOrWhiteSpace(rawCode))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = rawCode.Trim();
+        if (LegacyProvinceCodeMap.TryGetValue(trimmed, out var mapped))
+        {
+            return mapped;
+        }
+
+        var stripped = trimmed.TrimStart('0');
+        if (!string.IsNullOrEmpty(stripped) && LegacyProvinceCodeMap.TryGetValue(stripped, out var mappedStripped))
+        {
+            return mappedStripped;
+        }
+
+        if (trimmed.Length == 1 && char.IsDigit(trimmed[0]))
+        {
+            return "0" + trimmed;
+        }
+
+        return trimmed;
+    }
+
     /// <inheritdoc />
     public IReadOnlyList<ProvinceDto> GetProvinces() => _provinces;
 
     /// <inheritdoc />
     public IReadOnlyList<WardDto> GetWardsByProvince(string provinceCode)
     {
-        if (string.IsNullOrWhiteSpace(provinceCode))
+        var canonicalCode = ResolveCanonicalProvinceCode(provinceCode);
+        if (string.IsNullOrEmpty(canonicalCode))
         {
             return Array.Empty<WardDto>();
         }
 
-        return _wardsByProvinceCode.TryGetValue(provinceCode.Trim(), out var wards)
+        return _wardsByProvinceCode.TryGetValue(canonicalCode, out var wards)
             ? wards
             : Array.Empty<WardDto>();
     }
@@ -56,12 +131,13 @@ public sealed class LocationLookupService : ILocationLookupService
     /// <inheritdoc />
     public ProvinceDto? GetProvinceByCode(string provinceCode)
     {
-        if (string.IsNullOrWhiteSpace(provinceCode))
+        var canonicalCode = ResolveCanonicalProvinceCode(provinceCode);
+        if (string.IsNullOrEmpty(canonicalCode))
         {
             return null;
         }
 
-        return _provincesByCode.TryGetValue(provinceCode.Trim(), out var province)
+        return _provincesByCode.TryGetValue(canonicalCode, out var province)
             ? province
             : null;
     }
@@ -69,12 +145,13 @@ public sealed class LocationLookupService : ILocationLookupService
     /// <inheritdoc />
     public WardDto? GetWardByCode(string provinceCode, string wardCode)
     {
-        if (string.IsNullOrWhiteSpace(provinceCode) || string.IsNullOrWhiteSpace(wardCode))
+        var canonicalCode = ResolveCanonicalProvinceCode(provinceCode);
+        if (string.IsNullOrEmpty(canonicalCode) || string.IsNullOrWhiteSpace(wardCode))
         {
             return null;
         }
 
-        var key = $"{provinceCode.Trim()}_{wardCode.Trim()}";
+        var key = $"{canonicalCode}_{wardCode.Trim()}";
         return _wardsByCompositeKey.TryGetValue(key, out var ward)
             ? ward
             : null;
@@ -83,21 +160,31 @@ public sealed class LocationLookupService : ILocationLookupService
     /// <inheritdoc />
     public bool IsValidProvince(string provinceCode)
     {
-        if (string.IsNullOrWhiteSpace(provinceCode)) return false;
-        return _provincesByCode.ContainsKey(provinceCode.Trim());
+        var canonicalCode = ResolveCanonicalProvinceCode(provinceCode);
+        if (string.IsNullOrEmpty(canonicalCode)) return false;
+        return _provincesByCode.ContainsKey(canonicalCode);
     }
 
     /// <inheritdoc />
     public bool IsValidWard(string provinceCode, string wardCode)
     {
-        if (string.IsNullOrWhiteSpace(provinceCode) || string.IsNullOrWhiteSpace(wardCode)) return false;
-        return _wardsByCompositeKey.ContainsKey($"{provinceCode.Trim()}_{wardCode.Trim()}");
+        var canonicalCode = ResolveCanonicalProvinceCode(provinceCode);
+        if (string.IsNullOrEmpty(canonicalCode) || string.IsNullOrWhiteSpace(wardCode)) return false;
+        return _wardsByCompositeKey.ContainsKey($"{canonicalCode}_{wardCode.Trim()}");
     }
 
-    private static bool ProvinceCodeMatches(string? a, string? b) =>
-        !string.IsNullOrWhiteSpace(a) &&
-        !string.IsNullOrWhiteSpace(b) &&
-        string.Equals(a.Trim().TrimStart('0'), b.Trim().TrimStart('0'), StringComparison.OrdinalIgnoreCase);
+    private static bool ProvinceCodeMatches(string? a, string? b)
+    {
+        if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b))
+        {
+            return false;
+        }
+
+        return string.Equals(
+            ResolveCanonicalProvinceCode(a),
+            ResolveCanonicalProvinceCode(b),
+            StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <inheritdoc />
     public IReadOnlyList<TouristZoneDto> GetTouristZones(string? provinceCode = null)
@@ -140,7 +227,11 @@ public sealed class LocationLookupService : ILocationLookupService
             ["tphochiminh"] = "quan-1-tphcm",
             ["hochiminh"] = "quan-1-tphcm",
             ["sg"] = "quan-1-tphcm",
-            ["hanoi"] = "ha-noi-pho-co"
+            ["hanoi"] = "ha-noi-pho-co",
+            ["hagiang"] = "ha-giang",
+            ["condao"] = "con-dao",
+            ["phuyen"] = "phu-yen",
+            ["mangden"] = "mang-den"
         };
 
     private static string CondenseNormalized(string? input)
@@ -493,17 +584,21 @@ public sealed class LocationLookupService : ILocationLookupService
         var zones = new List<TouristZoneDto>
         {
             new("da-lat", "Đà Lạt", "68", "Thành phố ngàn hoa với khí hậu se lạnh và cảnh quan đồi thông thơ mộng", "https://images.unsplash.com/photo-1579202673506-ca3ce28943ef?w=800", 11.9404, 108.4452, null, "DL"),
-            new("vung-tau", "Vũng Tàu", "77", "Thành phố biển sôi động với bãi tắm dài và hải sản tươi ngon", "https://images.unsplash.com/photo-1590523741831-ab7e8b8f9c7f?w=800", 10.3460, 107.0843, null, "VT"),
+            new("vung-tau", "Vũng Tàu", "79", "Thành phố biển sôi động với bãi tắm dài và hải sản tươi ngon", "https://images.unsplash.com/photo-1590523741831-ab7e8b8f9c7f?w=800", 10.3460, 107.0843, null, "VT"),
             new("nha-trang", "Nha Trang", "56", "Vịnh biển đẹp bậc nhất Việt Nam với dải cát trắng và đảo san hô", "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800", 12.2388, 109.1967, null, "NT"),
             new("da-nang", "Đà Nẵng", "48", "Thành phố đáng sống với biển Mỹ Khê, cầu Rồng và núi Ngũ Hành Sơn", "https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=800", 16.0544, 108.2022, null, "DN"),
-            new("hoi-an", "Hội An", "49", "Đô thị cổ trầm mặc với đèn lồng lung linh và di sản UNESCO", "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800", 15.8801, 108.3263, null, "HA"),
-            new("phu-quoc", "Phú Quốc", "91", "Đảo ngọc thiên đường với biển xanh ngọc bích, hoàng hôn Bãi Trường", "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800", 10.2289, 103.9572, null, "PQ"),
-            new("sa-pa", "Sa Pa", "10", "Xứ sở sương mù Tây Bắc với ruộng bậc thang và đỉnh Fansipan hùng vĩ", "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800", 22.3354, 103.8427, null, "SP"),
+            new("hoi-an", "Hội An", "48", "Đô thị cổ trầm mặc với đèn lồng lung linh và di sản UNESCO", "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800", 15.8801, 108.3263, null, "HA"),
+            new("phu-quoc", "Phú Quốc", "91", "Đặc khu đảo ngọc thiên đường với biển xanh ngọc bích, hoàng hôn Bãi Trường", "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800", 10.2289, 103.9572, null, "PQ"),
+            new("sa-pa", "Sa Pa", "15", "Xứ sở sương mù Tây Bắc với ruộng bậc thang và đỉnh Fansipan hùng vĩ", "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800", 22.3354, 103.8427, null, "SP"),
             new("ha-noi-pho-co", "Hà Nội - Phố Cổ & Hồ Gươm", "01", "Trái tim nghìn năm văn hiến, phố cổ 36 phố phường và ẩm thực nức tiếng", "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=800", 21.0285, 105.8542, null, "HN"),
-            new("quan-1-tphcm", "TP. Hồ Chí Minh - Trung Tâm Quận 1", "79", "Trung tâm tài chính, mua sắm và giải trí sôi động ngày đêm", "https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=800", 10.7769, 106.7009, null, "SG"),
+            new("quan-1-tphcm", "TP. Hồ Chí Minh - Trung Tâm Sài Gòn", "79", "Trung tâm tài chính, mua sắm và giải trí sôi động ngày đêm", "https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=800", 10.7769, 106.7009, null, "SG"),
             new("ha-long", "Hạ Long", "22", "Kỳ quan thiên nhiên thế giới với hàng nghìn đảo đá vôi kỳ vĩ", "https://images.unsplash.com/photo-1528127269322-539801943592?w=800", 20.9500, 107.0733, null, "HL"),
-            new("phan-thiet-mui-ne", "Phan Thiết - Mũi Né", "60", "Thủ phủ resort với đồi cát bay, làng chài và biển xanh nắng vàng", "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800", 10.9333, 108.1000, null, "PT"),
-            new("quy-nhon", "Quy Nhơn", "52", "Vẻ đẹp hoang sơ tuyệt mỹ của Kỳ Co, Eo Gió và biển trong vắt", "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800", 13.7830, 109.2197, null, "QN")
+            new("phan-thiet-mui-ne", "Phan Thiết - Mũi Né", "68", "Thủ phủ resort với đồi cát bay, làng chài và biển xanh nắng vàng", "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800", 10.9333, 108.1000, null, "PT"),
+            new("quy-nhon", "Quy Nhơn", "52", "Vẻ đẹp hoang sơ tuyệt mỹ của Kỳ Co, Eo Gió và biển trong vắt", "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800", 13.7830, 109.2197, null, "QN"),
+            new("ha-giang", "Hà Giang - Cao nguyên đá Đồng Văn", "08", "Miền cực Bắc hùng vĩ với đèo Mã Pí Lèng, sông Nho Quế và Cổng Trời Quản Bạ", "https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=800", 23.0784, 105.0135, null, "HG"),
+            new("con-dao", "Đặc khu Côn Đảo", "79", "Quần đảo sinh thái biển nguyên sơ, bãi Đầm Trầu và di tích lịch sử linh thiêng", "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800", 8.6833, 106.6000, null, "CD"),
+            new("phu-yen", "Phú Yên - Gành Đá Đĩa & Tuy Hòa", "66", "Xứ sở hoa vàng cỏ xanh với Gành Đá Đĩa kỳ thú và Bãi Xép hoang sơ", "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800", 13.3469, 109.2939, null, "PY"),
+            new("mang-den", "Măng Đen - Rừng thông đại ngàn", "51", "Cao nguyên khí hậu ôn hòa giữa đại ngàn thông xanh và thác Pa Sỹ", "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=800", 14.6042, 108.2845, null, "MD")
         };
 
         foreach (var z in zones)
@@ -514,73 +609,85 @@ public sealed class LocationLookupService : ILocationLookupService
 
         var rawLandmarks = new List<LandmarkDto>
         {
-            // Đà Lạt (68)
-            new("cho-dem-da-lat", "Chợ Đêm Đà Lạt", "NightMarket", "68", "da-lat", 11.9424, 108.4373, "Đường Nguyễn Thị Minh Khai, Phường 1, Đà Lạt", null, new[] { "Chợ Đêm", "Chợ Âm Phủ", "Chợ Đà Lạt" }, null, 1),
-            new("ho-xuan-huong", "Hồ Xuân Hương", "CityCenter", "68", "da-lat", 11.9404, 108.4452, "Trung tâm TP. Đà Lạt", null, new[] { "Xuân Hương", "Bờ Hồ Đà Lạt", "Ho Xuan Huong" }, null, 2),
-            new("quang-truong-lam-vien", "Quảng Trường Lâm Viên", "CityCenter", "68", "da-lat", 11.9366, 108.4456, "Đường Trần Quốc Toản, Phường 1, Đà Lạt", null, new[] { "Lâm Viên", "Nụ Hoa Atiso", "Bông Hoa Dã Quỳ" }, null, 3),
-            new("khu-hoa-binh", "Khu Hòa Bình Đà Lạt", "CityCenter", "68", "da-lat", 11.9431, 108.4385, "Phường 1, TP. Đà Lạt", null, new[] { "Hòa Bình Đà Lạt", "Khu Hòa Bình", "Rạp Hòa Bình" }, null, 4),
-            new("ho-tuyen-lam", "Hồ Tuyền Lâm", "Heritage", "68", "da-lat", 11.8970, 108.4358, "Phường 4, TP. Đà Lạt", null, new[] { "Tuyền Lâm", "Hồ Tuyền Lâm Đà Lạt" }, null, 5),
-            new("thung-lung-tinh-yeu", "Thung Lũng Tình Yêu", "ThemePark", "68", "da-lat", 11.9794, 108.4506, "Số 3-5-7 Đường Mai Anh Đào, Phường 8, Đà Lạt", null, new[] { "Thung Lũng Tình Yêu", "Valley of Love" }, null, 6),
+            // Đà Lạt - Lâm Đồng (68)
+            new("cho-dem-da-lat", "Chợ Đêm Đà Lạt", "NightMarket", "68", "da-lat", 11.9424, 108.4373, "Đường Nguyễn Thị Minh Khai, Phường Xuân Hương - Đà Lạt, Lâm Đồng", null, new[] { "Chợ Đêm", "Chợ Âm Phủ", "Chợ Đà Lạt" }, null, 1),
+            new("ho-xuan-huong", "Hồ Xuân Hương", "CityCenter", "68", "da-lat", 11.9404, 108.4452, "Trung tâm Đà Lạt, Lâm Đồng", null, new[] { "Xuân Hương", "Bờ Hồ Đà Lạt", "Ho Xuan Huong" }, null, 2),
+            new("quang-truong-lam-vien", "Quảng Trường Lâm Viên", "CityCenter", "68", "da-lat", 11.9366, 108.4456, "Đường Trần Quốc Toản, Phường 1, Đà Lạt, Lâm Đồng", null, new[] { "Lâm Viên", "Nụ Hoa Atiso", "Bông Hoa Dã Quỳ" }, null, 3),
+            new("khu-hoa-binh", "Khu Hòa Bình Đà Lạt", "CityCenter", "68", "da-lat", 11.9431, 108.4385, "Phường 1, Đà Lạt, Lâm Đồng", null, new[] { "Hòa Bình Đà Lạt", "Khu Hòa Bình", "Rạp Hòa Bình" }, null, 4),
+            new("ho-tuyen-lam", "Hồ Tuyền Lâm", "Heritage", "68", "da-lat", 11.8970, 108.4358, "Phường 4, Đà Lạt, Lâm Đồng", null, new[] { "Tuyền Lâm", "Hồ Tuyền Lâm Đà Lạt" }, null, 5),
+            new("thung-lung-tinh-yeu", "Thung Lũng Tình Yêu", "ThemePark", "68", "da-lat", 11.9794, 108.4506, "Số 3-5-7 Đường Mai Anh Đào, Phường 8, Đà Lạt, Lâm Đồng", null, new[] { "Thung Lũng Tình Yêu", "Valley of Love" }, null, 6),
 
             // TP. Hồ Chí Minh (79)
-            new("cho-ben-thanh", "Chợ Bến Thành", "NightMarket", "79", "quan-1-tphcm", 10.7725, 106.6980, "Đường Lê Lợi, Phường Bến Thành, Quận 1, TP.HCM", null, new[] { "Bến Thành", "Ben Thanh Market", "Chợ Bến Thành Quận 1" }, null, 1),
-            new("pho-di-bo-nguyen-hue", "Phố Đi Bộ Nguyễn Huệ", "CityCenter", "79", "quan-1-tphcm", 10.7745, 106.7036, "Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP.HCM", null, new[] { "Nguyễn Huệ", "Phố đi bộ", "Nguyen Hue Walking Street" }, null, 2),
-            new("pho-tay-bui-vien", "Phố Tây Bùi Viện", "NightMarket", "79", "quan-1-tphcm", 10.7674, 106.6938, "Phường Phạm Ngũ Lão, Quận 1, TP.HCM", null, new[] { "Bùi Viện", "Phố Tây", "Bui Vien Street", "Phố đi bộ Bùi Viện" }, null, 3),
-            new("san-bay-tan-son-nhat", "Sân bay Quốc tế Tân Sơn Nhất", "Airport", "79", null, 10.8185, 106.6588, "Đường Trường Sơn, Phường 2, Tân Bình, TP.HCM", null, new[] { "Tân Sơn Nhất", "Sân bay TSN", "Tan Son Nhat Airport", "SGN" }, null, 4),
-            new("landmark-81", "Tòa nhà Landmark 81", "CityCenter", "79", null, 10.7950, 106.7218, "720A Điện Biên Phủ, Phường 22, Bình Thạnh, TP.HCM", null, new[] { "Landmark 81", "Vinhomes Central Park", "Vincom Landmark 81" }, null, 5),
-            new("nha-tho-duc-ba", "Nhà Thờ Đức Bà Sài Gòn", "Heritage", "79", "quan-1-tphcm", 10.7798, 106.6990, "01 Công xã Paris, Bến Nghé, Quận 1, TP.HCM", null, new[] { "Đức Bà", "Nhà Thờ Đức Bà", "Notre Dame Saigon" }, null, 6),
+            new("cho-ben-thanh", "Chợ Bến Thành", "NightMarket", "79", "quan-1-tphcm", 10.7725, 106.6980, "Đường Lê Lợi, Phường Bến Thành, TP.HCM", null, new[] { "Bến Thành", "Ben Thanh Market", "Chợ Bến Thành Quận 1" }, null, 1),
+            new("pho-di-bo-nguyen-hue", "Phố Đi Bộ Nguyễn Huệ", "CityCenter", "79", "quan-1-tphcm", 10.7745, 106.7036, "Đường Nguyễn Huệ, Phường Bến Nghé, TP.HCM", null, new[] { "Nguyễn Huệ", "Phố đi bộ", "Nguyen Hue Walking Street" }, null, 2),
+            new("pho-tay-bui-vien", "Phố Tây Bùi Viện", "NightMarket", "79", "quan-1-tphcm", 10.7674, 106.6938, "Phường Phạm Ngũ Lão, TP.HCM", null, new[] { "Bùi Viện", "Phố Tây", "Bui Vien Street", "Phố đi bộ Bùi Viện" }, null, 3),
+            new("san-bay-tan-son-nhat", "Sân bay Quốc tế Tân Sơn Nhất", "Airport", "79", null, 10.8185, 106.6588, "Đường Trường Sơn, Phường 2, TP.HCM", null, new[] { "Tân Sơn Nhất", "Sân bay TSN", "Tan Son Nhat Airport", "SGN" }, null, 4),
+            new("landmark-81", "Tòa nhà Landmark 81", "CityCenter", "79", null, 10.7950, 106.7218, "720A Điện Biên Phủ, Phường 22, TP.HCM", null, new[] { "Landmark 81", "Vinhomes Central Park", "Vincom Landmark 81" }, null, 5),
+            new("nha-tho-duc-ba", "Nhà Thờ Đức Bà Sài Gòn", "Heritage", "79", "quan-1-tphcm", 10.7798, 106.6990, "01 Công xã Paris, Phường Bến Nghé, TP.HCM", null, new[] { "Đức Bà", "Nhà Thờ Đức Bà", "Notre Dame Saigon" }, null, 6),
 
-            // Vũng Tàu (77)
-            new("bai-sau-vung-tau", "Bãi Sau Vũng Tàu (Bãi Thùy Vân)", "Beach", "77", "vung-tau", 10.3347, 107.0898, "Đường Thùy Vân, Vũng Tàu", null, new[] { "Bãi Sau", "Bãi Thùy Vân", "Thùy Vân Vũng Tàu", "Back Beach" }, null, 1),
-            new("bai-truoc-vung-tau", "Bãi Trước Vũng Tàu", "Beach", "77", "vung-tau", 10.3475, 107.0734, "Đường Quang Trung, Vũng Tàu", null, new[] { "Bãi Trước", "Front Beach" }, null, 2),
-            new("tuong-chua-kito-vung-tau", "Tượng Chúa Kitô Vua", "Heritage", "77", "vung-tau", 10.3264, 107.0847, "Núi Nhỏ, Phường 2, Vũng Tàu", null, new[] { "Tượng Chúa Kito", "Chúa Dang Tay", "Tượng Chúa Núi Nhỏ" }, null, 3),
-            new("ngon-hai-dang-vung-tau", "Ngọn Hải Đăng Vũng Tàu", "Heritage", "77", "vung-tau", 10.3340, 107.0765, "Núi Nhỏ, Phường 2, Vũng Tàu", null, new[] { "Hải Đăng Vũng Tàu", "Hải Đăng Núi Nhỏ" }, null, 4),
-            new("cho-dem-vung-tau", "Chợ Đêm Vũng Tàu", "NightMarket", "77", "vung-tau", 10.3389, 107.0863, "Phường Thắng Tam, Vũng Tàu", null, new[] { "Chợ Đêm", "Chợ đêm hải sản Vũng Tàu" }, null, 5),
+            // Vũng Tàu - TP. Hồ Chí Minh (79)
+            new("bai-sau-vung-tau", "Bãi Sau Vũng Tàu (Bãi Thùy Vân)", "Beach", "79", "vung-tau", 10.3347, 107.0898, "Đường Thùy Vân, Vũng Tàu, TP.HCM", null, new[] { "Bãi Sau", "Bãi Thùy Vân", "Thùy Vân Vũng Tàu", "Back Beach" }, null, 1),
+            new("bai-truoc-vung-tau", "Bãi Trước Vũng Tàu", "Beach", "79", "vung-tau", 10.3475, 107.0734, "Đường Quang Trung, Vũng Tàu, TP.HCM", null, new[] { "Bãi Trước", "Front Beach" }, null, 2),
+            new("tuong-chua-kito-vung-tau", "Tượng Chúa Kitô Vua", "Heritage", "79", "vung-tau", 10.3264, 107.0847, "Núi Nhỏ, Phường 2, Vũng Tàu, TP.HCM", null, new[] { "Tượng Chúa Kito", "Chúa Dang Tay", "Tượng Chúa Núi Nhỏ" }, null, 3),
+            new("ngon-hai-dang-vung-tau", "Ngọn Hải Đăng Vũng Tàu", "Heritage", "79", "vung-tau", 10.3340, 107.0765, "Núi Nhỏ, Phường 2, Vũng Tàu, TP.HCM", null, new[] { "Hải Đăng Vũng Tàu", "Hải Đăng Núi Nhỏ" }, null, 4),
+            new("cho-dem-vung-tau", "Chợ Đêm Vũng Tàu", "NightMarket", "79", "vung-tau", 10.3389, 107.0863, "Phường Thắng Tam, Vũng Tàu, TP.HCM", null, new[] { "Chợ Đêm", "Chợ đêm hải sản Vũng Tàu" }, null, 5),
+
+            // Đặc khu Côn Đảo - TP. Hồ Chí Minh (79)
+            new("bai-dam-trau-con-dao", "Bãi Đầm Trầu Côn Đảo", "Beach", "79", "con-dao", 8.7267, 106.6258, "Đặc khu Côn Đảo, TP.HCM", null, new[] { "Bãi Đầm Trầu", "Đảo Côn Đảo", "Côn Đảo" }, null, 1),
 
             // Đà Nẵng (48)
-            new("bai-bien-my-khe", "Bãi Biển Mỹ Khê", "Beach", "48", "da-nang", 16.0601, 108.2464, "Đường Võ Nguyên Giáp, Sơn Trà, Đà Nẵng", null, new[] { "Mỹ Khê", "Biển Mỹ Khê", "My Khe Beach" }, null, 1),
-            new("cau-rong-da-nang", "Cầu Rồng Đà Nẵng", "CityCenter", "48", "da-nang", 16.0611, 108.2272, "Đường Nguyễn Văn Linh, Phước Ninh, Hải Châu, Đà Nẵng", null, new[] { "Cầu Rồng", "Dragon Bridge" }, null, 2),
-            new("ba-na-hills", "Bà Nà Hills", "ThemePark", "48", "da-nang", 15.9961, 107.9877, "Thôn An Sơn, Hòa Ninh, Hòa Vang, Đà Nẵng", null, new[] { "Bà Nà", "Cầu Vàng", "Sun World Ba Na Hills" }, null, 3),
-            new("san-bay-da-nang", "Sân bay Quốc tế Đà Nẵng", "Airport", "48", "da-nang", 16.0538, 108.1994, "Đường Duy Tân, Hải Châu, Đà Nẵng", null, new[] { "Sân bay Đà Nẵng", "DAD", "Da Nang Airport" }, null, 4),
-            new("cho-han-da-nang", "Chợ Hàn Đà Nẵng", "NightMarket", "48", "da-nang", 16.0683, 108.2241, "119 Trần Phú, Hải Châu 1, Đà Nẵng", null, new[] { "Chợ Hàn", "Han Market" }, null, 5),
+            new("bai-bien-my-khe", "Bãi Biển Mỹ Khê", "Beach", "48", "da-nang", 16.0601, 108.2464, "Đường Võ Nguyên Giáp, Phường Phước Mỹ, Đà Nẵng", null, new[] { "Mỹ Khê", "Biển Mỹ Khê", "My Khe Beach" }, null, 1),
+            new("cau-rong-da-nang", "Cầu Rồng Đà Nẵng", "CityCenter", "48", "da-nang", 16.0611, 108.2272, "Đường Nguyễn Văn Linh, Phường Phước Ninh, Đà Nẵng", null, new[] { "Cầu Rồng", "Dragon Bridge" }, null, 2),
+            new("ba-na-hills", "Bà Nà Hills", "ThemePark", "48", "da-nang", 15.9961, 107.9877, "Thôn An Sơn, Xã Hòa Ninh, Đà Nẵng", null, new[] { "Bà Nà", "Cầu Vàng", "Sun World Ba Na Hills" }, null, 3),
+            new("san-bay-da-nang", "Sân bay Quốc tế Đà Nẵng", "Airport", "48", "da-nang", 16.0538, 108.1994, "Đường Duy Tân, Phường Hòa Thuận Tây, Đà Nẵng", null, new[] { "Sân bay Đà Nẵng", "DAD", "Da Nang Airport" }, null, 4),
+            new("cho-han-da-nang", "Chợ Hàn Đà Nẵng", "NightMarket", "48", "da-nang", 16.0683, 108.2241, "119 Trần Phú, Phường Hải Châu 1, Đà Nẵng", null, new[] { "Chợ Hàn", "Han Market" }, null, 5),
 
-            // Hội An (49)
-            new("pho-co-hoi-an", "Phố Cổ Hội An", "Heritage", "49", "hoi-an", 15.8801, 108.3263, "Trung tâm Phố Cổ, Hội An", null, new[] { "Hội An", "Phố Cổ", "Hoi An Ancient Town" }, null, 1),
-            new("chua-cau-hoi-an", "Chùa Cầu Nhật Bản", "Heritage", "49", "hoi-an", 15.8772, 108.3260, "Đường Nguyễn Thị Minh Khai, Minh An, Hội An", null, new[] { "Chùa Cầu", "Lai Viễn Kiều", "Japanese Covered Bridge" }, null, 2),
+            // Hội An - Đà Nẵng (48)
+            new("pho-co-hoi-an", "Phố Cổ Hội An", "Heritage", "48", "hoi-an", 15.8801, 108.3263, "Trung tâm Phố Cổ, Hội An, Đà Nẵng", null, new[] { "Hội An", "Phố Cổ", "Hoi An Ancient Town" }, null, 1),
+            new("chua-cau-hoi-an", "Chùa Cầu Nhật Bản", "Heritage", "48", "hoi-an", 15.8772, 108.3260, "Đường Nguyễn Thị Minh Khai, Phường Minh An, Hội An, Đà Nẵng", null, new[] { "Chùa Cầu", "Lai Viễn Kiều", "Japanese Covered Bridge" }, null, 2),
 
             // Hà Nội (01)
-            new("ho-hoan-kiem", "Hồ Hoàn Kiếm (Hồ Gươm)", "CityCenter", "01", "ha-noi-pho-co", 21.0285, 105.8542, "Hàng Trống, Hoàn Kiếm, Hà Nội", null, new[] { "Hồ Gươm", "Hoàn Kiếm", "Hồ Bờ Hồ", "Bờ Hồ", "Sword Lake" }, null, 1),
-            new("pho-co-ha-noi", "Phố Cổ Hà Nội", "Heritage", "01", "ha-noi-pho-co", 21.0340, 105.8500, "Hoàn Kiếm, Hà Nội", null, new[] { "Phố Cổ", "36 Phố Phường", "Hanoi Old Quarter" }, null, 2),
-            new("lang-bac-ha-noi", "Lăng Chủ tịch Hồ Chí Minh", "Heritage", "01", "ha-noi-pho-co", 21.0368, 105.8346, "Số 2 Hùng Vương, Điện Biên, Ba Đình, Hà Nội", null, new[] { "Lăng Bác", "Lăng Chủ Tịch", "Quảng Trường Ba Đình" }, null, 3),
-            new("ho-tay-ha-noi", "Hồ Tây Hà Nội", "CityCenter", "01", "ha-noi-pho-co", 21.0583, 105.8236, "Tây Hồ, Hà Nội", null, new[] { "Hồ Tây", "West Lake", "Đường Thanh Niên" }, null, 4),
-            new("cho-dong-xuan", "Chợ Đồng Xuân", "NightMarket", "01", "ha-noi-pho-co", 21.0378, 105.8497, "Đồng Xuân, Hoàn Kiếm, Hà Nội", null, new[] { "Đồng Xuân", "Chợ Đồng Xuân Hà Nội" }, null, 5),
-            new("san-bay-noi-bai", "Sân bay Quốc tế Nội Bài", "Airport", "01", null, 21.2212, 105.8072, "Phú Minh, Sóc Sơn, Hà Nội", null, new[] { "Nội Bài", "Sân bay Nội Bài", "HAN", "Noi Bai Airport" }, null, 6),
+            new("ho-hoan-kiem", "Hồ Hoàn Kiếm (Hồ Gươm)", "CityCenter", "01", "ha-noi-pho-co", 21.0285, 105.8542, "Phường Hàng Trống, Hà Nội", null, new[] { "Hồ Gươm", "Hoàn Kiếm", "Hồ Bờ Hồ", "Bờ Hồ", "Sword Lake" }, null, 1),
+            new("pho-co-ha-noi", "Phố Cổ Hà Nội", "Heritage", "01", "ha-noi-pho-co", 21.0340, 105.8500, "Phường Hàng Bạc, Hà Nội", null, new[] { "Phố Cổ", "36 Phố Phường", "Hanoi Old Quarter" }, null, 2),
+            new("lang-bac-ha-noi", "Lăng Chủ tịch Hồ Chí Minh", "Heritage", "01", "ha-noi-pho-co", 21.0368, 105.8346, "Số 2 Hùng Vương, Phường Điện Biên, Hà Nội", null, new[] { "Lăng Bác", "Lăng Chủ Tịch", "Quảng Trường Ba Đình" }, null, 3),
+            new("ho-tay-ha-noi", "Hồ Tây Hà Nội", "CityCenter", "01", "ha-noi-pho-co", 21.0583, 105.8236, "Phường Quảng An, Hà Nội", null, new[] { "Hồ Tây", "West Lake", "Đường Thanh Niên" }, null, 4),
+            new("cho-dong-xuan", "Chợ Đồng Xuân", "NightMarket", "01", "ha-noi-pho-co", 21.0378, 105.8497, "Phường Đồng Xuân, Hà Nội", null, new[] { "Đồng Xuân", "Chợ Đồng Xuân Hà Nội" }, null, 5),
+            new("san-bay-noi-bai", "Sân bay Quốc tế Nội Bài", "Airport", "01", null, 21.2212, 105.8072, "Xã Phú Minh, Hà Nội", null, new[] { "Nội Bài", "Sân bay Nội Bài", "HAN", "Noi Bai Airport" }, null, 6),
 
-            // Nha Trang (56)
-            new("thap-tram-huong-nha-trang", "Quảng Trường & Tháp Trầm Hương", "CityCenter", "56", "nha-trang", 12.2388, 109.1967, "Đường Trần Phú, Lộc Thọ, Nha Trang", null, new[] { "Quảng trường 2/4", "Tháp Trầm Hương", "Quảng trường 2-4" }, null, 1),
-            new("bai-bien-tran-phu", "Bãi Biển Trần Phú", "Beach", "56", "nha-trang", 12.2415, 109.1970, "Dọc đường Trần Phú, Nha Trang", null, new[] { "Bãi biển Trần Phú", "Đường Trần Phú Nha Trang", "Biển Nha Trang" }, null, 2),
-            new("vinwonders-nha-trang", "VinWonders Nha Trang", "ThemePark", "56", "nha-trang", 12.2198, 109.2435, "Đảo Hòn Tre, Vĩnh Nguyên, Nha Trang", null, new[] { "Vinpearl Nha Trang", "VinWonders", "Hòn Tre" }, null, 3),
+            // Nha Trang - Khánh Hòa (56)
+            new("thap-tram-huong-nha-trang", "Quảng Trường & Tháp Trầm Hương", "CityCenter", "56", "nha-trang", 12.2388, 109.1967, "Đường Trần Phú, Phường Lộc Thọ, Nha Trang, Khánh Hòa", null, new[] { "Quảng trường 2/4", "Tháp Trầm Hương", "Quảng trường 2-4" }, null, 1),
+            new("bai-bien-tran-phu", "Bãi Biển Trần Phú", "Beach", "56", "nha-trang", 12.2415, 109.1970, "Dọc đường Trần Phú, Nha Trang, Khánh Hòa", null, new[] { "Bãi biển Trần Phú", "Đường Trần Phú Nha Trang", "Biển Nha Trang" }, null, 2),
+            new("vinwonders-nha-trang", "VinWonders Nha Trang", "ThemePark", "56", "nha-trang", 12.2198, 109.2435, "Đảo Hòn Tre, Phường Vĩnh Nguyên, Nha Trang, Khánh Hòa", null, new[] { "Vinpearl Nha Trang", "VinWonders", "Hòn Tre" }, null, 3),
 
-            // Phú Quốc (91)
-            new("cho-dem-phu-quoc", "Chợ Đêm Phú Quốc", "NightMarket", "91", "phu-quoc", 10.2185, 103.9610, "Đường Bạch Đằng, Dương Đông, Phú Quốc", null, new[] { "Chợ Đêm Dương Đông", "Chợ Đêm Phú Quốc" }, null, 1),
-            new("san-bay-phu-quoc", "Sân bay Quốc tế Phú Quốc", "Airport", "91", "phu-quoc", 10.1698, 103.9930, "Xã Dương Tơ, Phú Quốc", null, new[] { "Sân bay Phú Quốc", "PQC", "Phu Quoc Airport" }, null, 2),
-            new("grand-world-phu-quoc", "Grand World Phú Quốc (Thành phố không ngủ)", "ThemePark", "91", "phu-quoc", 10.3235, 103.8580, "Gành Dầu, Phú Quốc", null, new[] { "Grand World", "Thành phố không ngủ", "Vinpearl Phú Quốc" }, null, 3),
-            new("bai-sao-phu-quoc", "Bãi Sao Phú Quốc", "Beach", "91", "phu-quoc", 10.0553, 104.0326, "An Thới, Phú Quốc", null, new[] { "Bãi Sao", "Biển Bãi Sao" }, null, 4),
+            // Phú Quốc - An Giang (91)
+            new("cho-dem-phu-quoc", "Chợ Đêm Phú Quốc", "NightMarket", "91", "phu-quoc", 10.2185, 103.9610, "Đường Bạch Đằng, Đặc khu Phú Quốc, An Giang", null, new[] { "Chợ Đêm Dương Đông", "Chợ Đêm Phú Quốc" }, null, 1),
+            new("san-bay-phu-quoc", "Sân bay Quốc tế Phú Quốc", "Airport", "91", "phu-quoc", 10.1698, 103.9930, "Đặc khu Phú Quốc, An Giang", null, new[] { "Sân bay Phú Quốc", "PQC", "Phu Quoc Airport" }, null, 2),
+            new("grand-world-phu-quoc", "Grand World Phú Quốc (Thành phố không ngủ)", "ThemePark", "91", "phu-quoc", 10.3235, 103.8580, "Gành Dầu, Đặc khu Phú Quốc, An Giang", null, new[] { "Grand World", "Thành phố không ngủ", "Vinpearl Phú Quốc" }, null, 3),
+            new("bai-sao-phu-quoc", "Bãi Sao Phú Quốc", "Beach", "91", "phu-quoc", 10.0553, 104.0326, "An Thới, Đặc khu Phú Quốc, An Giang", null, new[] { "Bãi Sao", "Biển Bãi Sao" }, null, 4),
 
-            // Sa Pa (10)
-            new("dinh-fansipan", "Đỉnh Fansipan", "Heritage", "10", "sa-pa", 22.3033, 103.7753, "Sa Pa, Lào Cai", null, new[] { "Fansipan", "Nóc nhà Đông Dương", "Cáp treo Fansipan" }, null, 1),
-            new("nha-tho-da-sa-pa", "Nhà Thờ Đá Sa Pa", "CityCenter", "10", "sa-pa", 22.3354, 103.8427, "Trung tâm Sa Pa, Lào Cai", null, new[] { "Nhà Thờ Đá", "Nhà thờ Sa Pa", "Quảng trường Sa Pa" }, null, 2),
+            // Sa Pa - Lào Cai (15)
+            new("dinh-fansipan", "Đỉnh Fansipan", "Heritage", "15", "sa-pa", 22.3033, 103.7753, "Phường Sa Pa, Lào Cai", null, new[] { "Fansipan", "Nóc nhà Đông Dương", "Cáp treo Fansipan" }, null, 1),
+            new("nha-tho-da-sa-pa", "Nhà Thờ Đá Sa Pa", "CityCenter", "15", "sa-pa", 22.3354, 103.8427, "Phường Sa Pa, Lào Cai", null, new[] { "Nhà Thờ Đá", "Nhà thờ Sa Pa", "Quảng trường Sa Pa" }, null, 2),
 
-            // Hạ Long (22)
-            new("bai-chay-ha-long", "Bãi Cháy Hạ Long", "Beach", "22", "ha-long", 20.9575, 107.0392, "Bãi Cháy, TP. Hạ Long, Quảng Ninh", null, new[] { "Bãi Cháy", "Bãi biển Bãi Cháy", "Sun World Hạ Long" }, null, 1),
-            new("vinh-ha-long", "Vịnh Hạ Long", "Heritage", "22", "ha-long", 20.9101, 107.1839, "TP. Hạ Long, Quảng Ninh", null, new[] { "Vịnh Hạ Long", "Ha Long Bay", "Cảng tàu khách quốc tế Hạ Long" }, null, 2),
-            new("dao-tuan-chau", "Đảo Tuần Châu", "Beach", "22", "ha-long", 20.9298, 106.9922, "Tuần Châu, TP. Hạ Long, Quảng Ninh", null, new[] { "Tuần Châu", "Cảng Tuần Châu" }, null, 3),
+            // Hạ Long - Quảng Ninh (22)
+            new("bai-chay-ha-long", "Bãi Cháy Hạ Long", "Beach", "22", "ha-long", 20.9575, 107.0392, "Phường Bãi Cháy, Quảng Ninh", null, new[] { "Bãi Cháy", "Bãi biển Bãi Cháy", "Sun World Hạ Long" }, null, 1),
+            new("vinh-ha-long", "Vịnh Hạ Long", "Heritage", "22", "ha-long", 20.9101, 107.1839, "Phường Hồng Gai, Quảng Ninh", null, new[] { "Vịnh Hạ Long", "Ha Long Bay", "Cảng tàu khách quốc tế Hạ Long" }, null, 2),
+            new("dao-tuan-chau", "Đảo Tuần Châu", "Beach", "22", "ha-long", 20.9298, 106.9922, "Phường Tuần Châu, Quảng Ninh", null, new[] { "Tuần Châu", "Cảng Tuần Châu" }, null, 3),
 
-            // Phan Thiết - Mũi Né (60)
-            new("doi-cat-bay-mui-ne", "Đồi Cát Bay Mũi Né", "Heritage", "60", "phan-thiet-mui-ne", 10.9436, 108.2868, "Khu phố 5, Mũi Né, TP. Phan Thiết", null, new[] { "Đồi Cát Bay", "Đồi Cát Đỏ", "Đồi Cát Mũi Né" }, null, 1),
+            // Phan Thiết - Mũi Né - Lâm Đồng (68)
+            new("doi-cat-bay-mui-ne", "Đồi Cát Bay Mũi Né", "Heritage", "68", "phan-thiet-mui-ne", 10.9436, 108.2868, "Khu phố 5, Phường Mũi Né, Lâm Đồng", null, new[] { "Đồi Cát Bay", "Đồi Cát Đỏ", "Đồi Cát Mũi Né" }, null, 1),
 
-            // Quy Nhơn (52)
-            new("eo-gio-quy-nhon", "Eo Gió Quy Nhơn", "Beach", "52", "quy-nhon", 13.9242, 109.2882, "Xã Nhơn Lý, TP. Quy Nhơn, Bình Định", null, new[] { "Eo Gió", "Kỳ Co - Eo Gió" }, null, 1)
+            // Quy Nhơn - Gia Lai (52)
+            new("eo-gio-quy-nhon", "Eo Gió Quy Nhơn", "Beach", "52", "quy-nhon", 13.9242, 109.2882, "Xã Nhơn Lý, Quy Nhơn, Gia Lai", null, new[] { "Eo Gió", "Kỳ Co - Eo Gió" }, null, 1),
+
+            // Hà Giang - Tuyên Quang (08)
+            new("cong-troi-quan-ba", "Cổng Trời Quản Bạ", "Heritage", "08", "ha-giang", 23.0736, 104.9905, "Xã Quản Bạ, Tuyên Quang", null, new[] { "Quản Bạ", "Núi Đôi Cô Tiên" }, null, 1),
+
+            // Phú Yên - Đắk Lắk (66)
+            new("ganh-da-dia", "Gành Đá Đĩa", "Heritage", "66", "phu-yen", 13.3469, 109.2939, "Xã An Ninh Đông, Đắk Lắk", null, new[] { "Gành Đá Đĩa Phú Yên", "Ghềnh Đá Đĩa" }, null, 1),
+
+            // Măng Đen - Quảng Ngãi (51)
+            new("thac-pa-sy-mang-den", "Thác Pa Sỹ Măng Đen", "Heritage", "51", "mang-den", 14.6145, 108.2892, "Xã Măng Đen, Quảng Ngãi", null, new[] { "Thác Pa Sỹ", "Hồ Đăk Ke Măng Đen" }, null, 1)
         };
 
         foreach (var l in rawLandmarks)

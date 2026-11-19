@@ -110,6 +110,11 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+if (app.Environment.IsProduction())
+{
+    ValidateProductionJwtSecret(jwtSettings["SecretKey"]);
+}
+
 // ── Database Migration & Seeding Guard (Task C01) ──────────────────────
 var effectiveConnStr = DatabaseConnectionResolver.ResolveConnectionString(builder.Configuration);
 var isCloudDb = CloudDatabaseGuard.IsCloudDatabase(effectiveConnStr);
@@ -196,13 +201,52 @@ app.MapGet("/health/ready", async (ApplicationDbContext db, CancellationToken ct
         ? Results.Ok(new { status = "ready", database = "connected", timestamp = DateTime.UtcNow })
         : Results.Json(new { status = "degraded", database = "unreachable", timestamp = DateTime.UtcNow }, statusCode: StatusCodes.Status503ServiceUnavailable);
 });
-app.MapGet("/metrics", () => Results.Text(SystemMetricsRegistry.ExportPrometheusText(), "text/plain; version=0.0.4; charset=utf-8"));
+app.MapGet("/metrics", (HttpContext httpContext, IConfiguration configuration) =>
+{
+    if (!TenantPropertyContextMiddleware.IsAuthorizedMetricsRequest(
+            httpContext, configuration, out var isAuthenticatedNonSuperAdmin))
+    {
+        return isAuthenticatedNonSuperAdmin
+            ? Results.StatusCode(StatusCodes.Status403Forbidden)
+            : Results.Unauthorized();
+    }
+
+    return Results.Text(SystemMetricsRegistry.ExportPrometheusText(), "text/plain; version=0.0.4; charset=utf-8");
+});
 app.MapHub<HotelSaas.Infrastructure.Hubs.NotificationHub>("/hubs/notifications").RequireAuthorization();
 
 app.Run();
 
 public partial class Program
 {
+    private static readonly string[] KnownDevJwtSampleKeys =
+    [
+        "DevOnly_SuperSecretKey_ChangeInProduction_AtLeast32Chars!",
+        "HotelSaasPlatform2026EnterpriseSuperSecretKey32BytesLong!",
+        "YourSuperSecretKeyMustBeAtLeast32CharactersLongForJwt!"
+    ];
+
+    /// <summary>
+    /// Validates that Production environments never boot with a missing, short, or sample JWT signing key.
+    /// </summary>
+    public static void ValidateProductionJwtSecret(string? secretKey)
+    {
+        var validated = JwtKeyValidator.ValidateSecretKey(secretKey);
+        if (validated.Length < JwtKeyValidator.MinimumKeyLengthBytes)
+        {
+            throw new InvalidOperationException(
+                $"JwtSettings:SecretKey must be at least {JwtKeyValidator.MinimumKeyLengthBytes} characters in Production.");
+        }
+
+        if (KnownDevJwtSampleKeys.Contains(validated, StringComparer.Ordinal) ||
+            validated.Contains("DevOnly", StringComparison.OrdinalIgnoreCase) ||
+            validated.Contains("ChangeInProduction", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "JwtSettings:SecretKey cannot use a known development/sample placeholder key in Production.");
+        }
+    }
+
     public static void EnrichSerilogDiagnosticContext(IDiagnosticContext diagnosticContext, HttpContext httpContext)
     {
         var correlationId = httpContext.Items.TryGetValue(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, out var itemCorrId) &&

@@ -1,10 +1,10 @@
 using System;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Guest.DTOs;
+using HotelSaas.Application.Guest.Queries.GetGuestBookings;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -42,6 +42,13 @@ public sealed class GetGuestBookingDetailQueryHandler : IRequestHandler<GetGuest
             throw new NotFoundException("Đơn đặt phòng không tồn tại hoặc không thuộc quyền sở hữu của bạn.");
         }
 
+        var (rentalType, lookupToken) = GetGuestBookingsQueryHandler.ResolveSnapshotMetadata(
+            r.Notes,
+            r.GuestUserId,
+            userId,
+            r.CheckInDate,
+            r.CheckOutDate);
+
         return new GuestBookingDetailDto(
             r.Id,
             r.ConfirmationCode,
@@ -54,7 +61,7 @@ public sealed class GetGuestBookingDetailQueryHandler : IRequestHandler<GetGuest
             ),
             r.Room != null && r.Room.RoomType != null ? r.Room.RoomType.Name : "Phòng tiêu chuẩn",
             r.Room != null ? r.Room.RoomNumber : null,
-            r.CheckInDate == r.CheckOutDate ? "Hourly" : "Daily",
+            rentalType,
             r.CheckInDate,
             r.CheckOutDate,
             r.Status.ToString(),
@@ -66,7 +73,8 @@ public sealed class GetGuestBookingDetailQueryHandler : IRequestHandler<GetGuest
             r.BuyerTaxCode,
             r.BuyerAddress,
             "VND",
-            r.CreatedAtUtc
+            r.CreatedAtUtc,
+            lookupToken
         );
     }
 }

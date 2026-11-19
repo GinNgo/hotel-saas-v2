@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using HotelSaas.Application.Auth.DTOs;
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
@@ -35,6 +37,11 @@ public sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCom
     /// <inheritdoc />
     public async Task<LoginResponse> Handle(RefreshTokenCommand request, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.RefreshToken))
+        {
+            throw new UnauthorizedAccessException("Refresh token không hợp lệ hoặc đã hết hạn.");
+        }
+
         // 1. Validate expired access token structure and extract identity
         var principal = _jwtService.GetPrincipalFromExpiredToken(request.AccessToken);
         var userIdClaim = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
@@ -83,7 +90,9 @@ public sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCom
             .Where(rt => rt.UserId == userId)
             .ToListAsync(cancellationToken);
 
-        var storedToken = userTokens.FirstOrDefault(rt => rt.Token == request.RefreshToken);
+        var tokenHash = ComputeRefreshTokenHash(request.RefreshToken);
+        var storedToken = userTokens.FirstOrDefault(rt =>
+            rt.Token == tokenHash || rt.Token == request.RefreshToken);
 
         if (storedToken is null)
         {
@@ -222,13 +231,14 @@ public sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCom
             scope,
             staffRole);
 
-        storedToken.ReplacedByToken = newRefreshToken;
+        var newRefreshTokenHash = ComputeRefreshTokenHash(newRefreshToken);
+        storedToken.ReplacedByToken = newRefreshTokenHash;
 
         var refreshTokenEntity = new Domain.Entities.RefreshToken
         {
             Id = Guid.NewGuid(),
             UserId = user.Id,
-            Token = newRefreshToken,
+            Token = newRefreshTokenHash,
             ExpiresAtUtc = now.AddDays(_jwtService.GetRefreshTokenExpirationDays())
         };
 
@@ -285,5 +295,13 @@ public sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCom
         }
 
         return family;
+    }
+
+    /// <summary>
+    /// Computes the lowercase SHA-256 hex digest of a raw refresh token for secure database storage.
+    /// </summary>
+    internal static string ComputeRefreshTokenHash(string rawToken)
+    {
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rawToken))).ToLowerInvariant();
     }
 }

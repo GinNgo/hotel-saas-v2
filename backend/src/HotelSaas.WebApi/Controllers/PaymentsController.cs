@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,6 +15,8 @@ using HotelSaas.Application.Payments.Queries.GetPaymentSummary;
 using HotelSaas.Application.Payments.Queries.GetRefundRequests;
 using HotelSaas.Application.Payments.Queries.GetRefundRequestDetail;
 using HotelSaas.Application.Payments.Queries.GetShiftReport;
+using HotelSaas.Application.Reservations.DTOs;
+using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using HotelSaas.WebApi.Authorization;
 using HotelSaas.WebApi.Models;
@@ -21,6 +24,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace HotelSaas.WebApi.Controllers;
 
@@ -395,34 +399,192 @@ public sealed class PaymentsController : ControllerBase
         });
     }
 
+    private static readonly Dictionary<string, string> BankNameToBinMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["MB"] = "970422",
+        ["MBBANK"] = "970422",
+        ["MB BANK"] = "970422",
+        ["VIETINBANK"] = "970415",
+        ["ICB"] = "970415",
+        ["CTG"] = "970415",
+        ["VIETCOMBANK"] = "970436",
+        ["VCB"] = "970436",
+        ["TECHCOMBANK"] = "970407",
+        ["TCB"] = "970407",
+        ["BIDV"] = "970418",
+        ["TPBANK"] = "970423",
+        ["TPB"] = "970423",
+        ["VPBANK"] = "970432",
+        ["VPB"] = "970432",
+        ["OCB"] = "970448",
+        ["AGRIBANK"] = "970405",
+        ["VBA"] = "970405",
+        ["SACOMBANK"] = "970403",
+        ["STB"] = "970403",
+        ["ACB"] = "970416",
+        ["VIB"] = "970441",
+        ["MSB"] = "970426",
+        ["HDBANK"] = "970437",
+        ["SHB"] = "970443",
+        ["SEABANK"] = "970440",
+        ["EXIMBANK"] = "970431",
+        ["EIB"] = "970431"
+    };
+
     /// <summary>
     /// Generates dynamic VietQR code for bank transfer with confirmation code in description (Task A02).
+    /// Queries PrintTemplateConfigs for the reservation's PropertyId (or TenantId fallback) and returns 422 if bank info is not configured.
     /// </summary>
     [HttpPost("vietqr/generate")]
     [HttpPost("/api/public/payments/vietqr/generate")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<VietQrResult>), StatusCodes.Status200OK)]
-    public IActionResult GenerateVietQr(
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> GenerateVietQr(
         [FromBody] VietQrApiRequest request,
-        [FromServices] IVietQrService vietQrService)
+        [FromServices] IVietQrService vietQrService,
+        [FromServices] IApplicationDbContext dbContext,
+        CancellationToken cancellationToken = default)
     {
         if (request == null || request.Amount <= 0)
         {
             return BadRequest(ApiResponse.Fail("ERR_INVALID_AMOUNT", "Số tiền chuyển khoản không hợp lệ."));
         }
 
+        Reservation? reservation = null;
+        Guid targetTenantId = Guid.Empty;
+        Guid? targetPropertyId = null;
+
+        if (request.ReservationId.HasValue && request.ReservationId.Value != Guid.Empty)
+        {
+            reservation = await dbContext.Reservations
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.Id == request.ReservationId.Value, cancellationToken);
+
+            if (reservation == null)
+            {
+                return NotFound(ApiResponse.Fail("ERR_RESERVATION_NOT_FOUND", "Không tìm thấy hồ sơ đặt phòng."));
+            }
+
+            targetTenantId = reservation.TenantId;
+            targetPropertyId = reservation.PropertyId;
+        }
+        else if (!string.IsNullOrWhiteSpace(request.ConfirmationCode))
+        {
+            var codeOrToken = request.ConfirmationCode.Trim();
+            var candidates = await dbContext.Reservations
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(r =>
+                    (r.ConfirmationCode != null && r.ConfirmationCode.ToUpper() == codeOrToken.ToUpper()) ||
+                    (r.Notes != null && r.Notes.Contains(codeOrToken)))
+                .Take(10)
+                .ToListAsync(cancellationToken);
+
+            reservation = candidates.FirstOrDefault(r =>
+            {
+                if (string.Equals(r.ConfirmationCode, codeOrToken, StringComparison.OrdinalIgnoreCase))
+                    return true;
+                var snap = ReservationSnapshotHelper.TryDeserialize(r.Notes);
+                return snap != null &&
+                       !string.IsNullOrWhiteSpace(snap.LookupToken) &&
+                       string.Equals(snap.LookupToken, codeOrToken, StringComparison.OrdinalIgnoreCase);
+            });
+
+            if (reservation != null)
+            {
+                targetTenantId = reservation.TenantId;
+                targetPropertyId = reservation.PropertyId;
+            }
+        }
+
+        if (targetTenantId == Guid.Empty && request.PropertyId.HasValue && request.PropertyId.Value != Guid.Empty)
+        {
+            var property = await dbContext.Properties
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == request.PropertyId.Value, cancellationToken);
+
+            if (property != null)
+            {
+                targetTenantId = property.TenantId;
+                targetPropertyId = property.Id;
+            }
+        }
+
+        if (targetTenantId == Guid.Empty)
+        {
+            return UnprocessableEntity(ApiResponse.Fail(
+                "ERR_BANK_ACCOUNT_NOT_CONFIGURED",
+                "Không xác định được cơ sở lưu trú hoặc cơ sở chưa cấu hình tài khoản ngân hàng nhận chuyển khoản VietQR."));
+        }
+
+        var configs = await dbContext.PrintTemplateConfigs
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(c => c.TenantId == targetTenantId && (c.PropertyId == targetPropertyId || c.PropertyId == null))
+            .ToListAsync(cancellationToken);
+
+        var config = (targetPropertyId.HasValue
+                ? configs.FirstOrDefault(c => c.PropertyId == targetPropertyId.Value)
+                : null)
+            ?? configs.FirstOrDefault(c => c.PropertyId == null);
+
+        if (config == null ||
+            string.IsNullOrWhiteSpace(config.BankName) ||
+            string.IsNullOrWhiteSpace(config.BankAccountNumber))
+        {
+            return UnprocessableEntity(ApiResponse.Fail(
+                "ERR_BANK_ACCOUNT_NOT_CONFIGURED",
+                "Cơ sở lưu trú chưa cấu hình tài khoản ngân hàng nhận thanh toán VietQR. Vui lòng chọn phương thức thanh toán VNPay hoặc liên hệ lễ tân."));
+        }
+
+        var accountHolder = !string.IsNullOrWhiteSpace(config.BankAccountHolder)
+            ? config.BankAccountHolder.Trim()
+            : config.HeaderCompanyName?.Trim();
+
+        if (string.IsNullOrWhiteSpace(accountHolder))
+        {
+            return UnprocessableEntity(ApiResponse.Fail(
+                "ERR_BANK_ACCOUNT_NOT_CONFIGURED",
+                "Cơ sở lưu trú chưa cấu hình tên chủ tài khoản ngân hàng nhận thanh toán VietQR."));
+        }
+
+        var bankBin = ResolveBankBin(config.BankName);
+        var effectiveCode = !string.IsNullOrWhiteSpace(reservation?.ConfirmationCode)
+            ? reservation!.ConfirmationCode
+            : (!string.IsNullOrWhiteSpace(request.ConfirmationCode) ? request.ConfirmationCode.Trim() : "BOOKING");
+
         var payload = new VietQrPayload(
-            BankBin: request.BankBin ?? "970422",
-            AccountNumber: request.AccountNumber ?? "0345678910",
-            AccountName: request.AccountName ?? "HOTEL SAAS RESORT",
+            BankBin: bankBin,
+            AccountNumber: config.BankAccountNumber.Trim(),
+            AccountName: accountHolder,
             Amount: request.Amount,
-            Description: request.Description ?? $"DATPHONG {request.ConfirmationCode ?? "HOTEL"}",
-            ConfirmationCode: request.ConfirmationCode ?? "HOTEL",
-            ReservationId: request.ReservationId
+            Description: !string.IsNullOrWhiteSpace(request.Description) ? request.Description.Trim() : $"DATPHONG {effectiveCode}",
+            ConfirmationCode: effectiveCode,
+            ReservationId: reservation?.Id ?? request.ReservationId
         );
 
         var result = vietQrService.GenerateDynamicQr(payload);
         return Ok(ApiResponse.Ok(result, "Sinh mã VietQR thành công."));
+    }
+
+    private static string ResolveBankBin(string rawBankNameOrBin)
+    {
+        var trimmed = rawBankNameOrBin.Trim();
+        if (trimmed.Length == 6 && trimmed.All(char.IsDigit))
+        {
+            return trimmed;
+        }
+
+        if (BankNameToBinMap.TryGetValue(trimmed, out var mappedBin))
+        {
+            return mappedBin;
+        }
+
+        var compact = trimmed.Replace(" ", string.Empty, StringComparison.Ordinal);
+        return BankNameToBinMap.TryGetValue(compact, out mappedBin) ? mappedBin : trimmed;
     }
 
     private Guid? ResolveTargetPropertyId(Guid? queryPropertyId)
@@ -449,4 +611,12 @@ public sealed record CreateVnpayUrlApiRequest(
     string? LookupToken = null,
     string? ReturnUrl = null
 );
-public sealed record VietQrApiRequest(decimal Amount, string? ConfirmationCode = null, Guid? ReservationId = null, string? BankBin = null, string? AccountNumber = null, string? AccountName = null, string? Description = null);
+public sealed record VietQrApiRequest(
+    decimal Amount,
+    string? ConfirmationCode = null,
+    Guid? ReservationId = null,
+    string? BankBin = null,
+    string? AccountNumber = null,
+    string? AccountName = null,
+    string? Description = null,
+    Guid? PropertyId = null);

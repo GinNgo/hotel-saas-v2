@@ -223,7 +223,10 @@ public sealed class CreateReservationCommandHandler : IRequestHandler<CreateRese
             }
         }
 
-        // 2. Validate Room exists and belongs to Property and Tenant
+        // 2. Acquire exclusive row lock on Room before loading room state to serialize concurrent bookings and walk-in check-ins
+        await _context.LockRoomRowAsync(request.RoomId, tenantId.Value, request.PropertyId, cancellationToken);
+
+        // 3. Validate Room exists and belongs to Property and Tenant under lock
         var room = await _context.Rooms
             .Include(r => r.RoomType)
             .FirstOrDefaultAsync(r => r.Id == request.RoomId &&
@@ -242,8 +245,36 @@ public sealed class CreateReservationCommandHandler : IRequestHandler<CreateRese
             throw new BadRequestException("ERR_ROOM_INACTIVE", "Phòng này hiện đang tạm ngưng hoạt động.");
         }
 
-        // 3. Acquire exclusive row lock on Room to serialize concurrent bookings on the same physical room
-        await _context.LockRoomRowAsync(room.Id, tenantId.Value, request.PropertyId, cancellationToken);
+        if (request.ImmediateCheckIn)
+        {
+            if (room.Status == RoomStatus.Occupied)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw new ConflictException("ERR_ROOM_OCCUPIED",
+                    $"Phòng {room.RoomNumber} hiện đang có khách lưu trú (Occupied).");
+            }
+
+            if (room.Status == RoomStatus.Dirty || room.Status == RoomStatus.Cleaning)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw new ConflictException("ERR_ROOM_NOT_CLEAN",
+                    $"Phòng {room.RoomNumber} chưa được dọn dẹp sạch sẽ (trạng thái hiện tại: {room.Status}). Cần hoàn thành dọn phòng trước khi nhận phòng.");
+            }
+
+            if (room.Status == RoomStatus.OutOfService)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw new ConflictException("ERR_ROOM_OUT_OF_SERVICE",
+                    $"Phòng {room.RoomNumber} đang tạm ngưng phục vụ.");
+            }
+
+            if (room.Status != RoomStatus.Clean)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw new ConflictException("ERR_ROOM_UNAVAILABLE",
+                    $"Phòng {room.RoomNumber} không ở trạng thái sẵn sàng để nhận phòng (trạng thái: {room.Status}).");
+            }
+        }
 
         // 4. Query all active reservations on this room
         var activeReservations = await _context.Reservations
@@ -311,6 +342,12 @@ public sealed class CreateReservationCommandHandler : IRequestHandler<CreateRese
             IdempotencyKey = request.IdempotencyKey
         };
 
+        var isImmediateCheckIn = request.ImmediateCheckIn;
+        var smartLockPin = isImmediateCheckIn
+            ? RandomNumberGenerator.GetInt32(100000, 999999).ToString()
+            : null;
+        var nowUtcAction = DateTime.UtcNow;
+
         var reservation = new Reservation
         {
             Id = Guid.NewGuid(),
@@ -318,18 +355,27 @@ public sealed class CreateReservationCommandHandler : IRequestHandler<CreateRese
             PropertyId = request.PropertyId,
             RoomId = room.Id,
             GuestName = request.GuestName.Trim(),
-            GuestEmail = request.GuestEmail.Trim(),
+            GuestEmail = request.GuestEmail?.Trim() ?? string.Empty,
             GuestPhone = request.GuestPhone?.Trim(),
             CheckInDate = checkInDate,
             CheckOutDate = checkOutDate,
             NumberOfGuests = request.NumberOfGuests,
             TotalAmount = quote.TotalAmount,
-            Status = ReservationStatus.Confirmed,
+            Status = isImmediateCheckIn ? ReservationStatus.CheckedIn : ReservationStatus.Confirmed,
+            SmartLockPin = smartLockPin,
+            SmartLockStatus = isImmediateCheckIn ? "Active" : null,
+            SmartLockActivatedAtUtc = isImmediateCheckIn ? nowUtcAction : null,
             Notes = ReservationSnapshotHelper.Serialize(snapshot),
             ConfirmationCode = confirmationCode,
-            CreatedAtUtc = DateTime.UtcNow,
-            UpdatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = nowUtcAction,
+            UpdatedAtUtc = nowUtcAction
         };
+
+        if (isImmediateCheckIn)
+        {
+            room.Status = RoomStatus.Occupied;
+            room.UpdatedAtUtc = nowUtcAction;
+        }
 
         _context.Reservations.Add(reservation);
         await _context.SaveChangesAsync(cancellationToken);
@@ -378,6 +424,8 @@ public sealed class CreateReservationCommandHandler : IRequestHandler<CreateRese
             Status = reservation.Status,
             ConfirmationCode = reservation.ConfirmationCode,
             Notes = request.CustomerNotes,
+            SmartLockPin = reservation.SmartLockPin,
+            SmartLockStatus = reservation.SmartLockStatus,
             CreatedAtUtc = reservation.CreatedAtUtc,
             Breakdown = snapshot.Breakdown,
             AppliedPolicies = snapshot.AppliedPolicies
@@ -400,7 +448,7 @@ public sealed class CreateReservationCommandHandler : IRequestHandler<CreateRese
         if (ex.CheckInDate != checkInDate) return false;
         if (ex.CheckOutDate != checkOutDate) return false;
         if (!string.Equals(ex.GuestName.Trim(), request.GuestName.Trim(), StringComparison.OrdinalIgnoreCase)) return false;
-        if (!string.Equals(ex.GuestEmail.Trim(), request.GuestEmail.Trim(), StringComparison.OrdinalIgnoreCase)) return false;
+        if (!string.Equals(ex.GuestEmail.Trim(), request.GuestEmail?.Trim() ?? string.Empty, StringComparison.OrdinalIgnoreCase)) return false;
         if (!string.Equals(ex.GuestPhone?.Trim() ?? string.Empty, request.GuestPhone?.Trim() ?? string.Empty, StringComparison.OrdinalIgnoreCase)) return false;
         if (ex.NumberOfGuests != request.NumberOfGuests) return false;
         if (!string.Equals(snap.CustomerNotes?.Trim() ?? string.Empty, request.CustomerNotes?.Trim() ?? string.Empty, StringComparison.Ordinal)) return false;

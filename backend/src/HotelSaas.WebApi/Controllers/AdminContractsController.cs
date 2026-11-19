@@ -92,6 +92,8 @@ public sealed class AdminContractsController : ControllerBase
             Status = c.Status.ToString(),
             SignedAtUtc = c.SignedAtUtc,
             HasDigitalSignature = !string.IsNullOrEmpty(c.DigitalSignatureHash),
+            DigitalSignatureHash = c.DigitalSignatureHash,
+            Notes = c.Notes,
             CreatedAtUtc = c.CreatedAtUtc
         }).ToList();
 
@@ -194,7 +196,7 @@ public sealed class AdminContractsController : ControllerBase
             RepresentativePhone = request.RepresentativePhone?.Trim() ?? "",
             StartDate = request.StartDate,
             EndDate = request.EndDate > request.StartDate ? request.EndDate : request.StartDate.AddMonths(12),
-            BillingCycle = Enum.TryParse<BillingCycle>(request.BillingCycle, true, out var cycle) ? cycle : BillingCycle.Monthly,
+            BillingCycle = ParseBillingCycle(request.BillingCycle),
             ContractValue = request.ContractValue,
             Status = TenantContractStatus.Active,
             SignedAtUtc = DateTime.UtcNow,
@@ -239,7 +241,7 @@ public sealed class AdminContractsController : ControllerBase
     /// Thay đổi trạng thái hiệu lực hợp đồng (Kích hoạt, Tạm ngưng, Chấm dứt, Gia hạn).
     /// </summary>
     [HttpPatch("{id:guid}/status")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(TenantContractSummaryDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateContractStatus(
@@ -247,13 +249,14 @@ public sealed class AdminContractsController : ControllerBase
         [FromBody] UpdateContractStatusRequest request,
         CancellationToken cancellationToken)
     {
-        if (!Enum.TryParse<TenantContractStatus>(request.Status, true, out var newStatus))
+        if (request == null || !Enum.TryParse<TenantContractStatus>(request.Status, true, out var newStatus))
         {
             return BadRequest(new { code = "ERR_INVALID_STATUS", message = "Trạng thái hợp đồng không hợp lệ." });
         }
 
         var contract = await _context.TenantContracts
             .IgnoreQueryFilters()
+            .Include(c => c.Tenant)
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
         if (contract == null)
@@ -268,24 +271,51 @@ public sealed class AdminContractsController : ControllerBase
             contract.DigitalSignatureHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{contract.ContractNumber}-{contract.TenantId}-{DateTime.UtcNow:O}")));
         }
 
-        if (!string.IsNullOrWhiteSpace(request.Note))
+        var effectiveNote = !string.IsNullOrWhiteSpace(request.Note) ? request.Note : request.Notes;
+        if (!string.IsNullOrWhiteSpace(effectiveNote))
         {
+            var trimmedNote = effectiveNote.Trim();
             contract.Notes = string.IsNullOrWhiteSpace(contract.Notes)
-                ? $"[{DateTime.UtcNow:dd/MM/yyyy HH:mm}] {request.Note}"
-                : $"{contract.Notes}\n[{DateTime.UtcNow:dd/MM/yyyy HH:mm}] {request.Note}";
+                ? $"[{DateTime.UtcNow:dd/MM/yyyy HH:mm}] {trimmedNote}"
+                : $"{contract.Notes}\n[{DateTime.UtcNow:dd/MM/yyyy HH:mm}] {trimmedNote}";
         }
 
         contract.UpdatedAtUtc = DateTime.UtcNow;
         await _context.SaveChangesAsync(cancellationToken);
 
-        return Ok(new
+        return Ok(new TenantContractSummaryDto
         {
-            id = contract.Id,
-            contractNumber = contract.ContractNumber,
-            status = contract.Status.ToString(),
-            signedAtUtc = contract.SignedAtUtc,
-            notes = contract.Notes
+            Id = contract.Id,
+            TenantId = contract.TenantId,
+            TenantName = contract.Tenant?.Name ?? "Đối tác chưa đặt tên",
+            ContractNumber = contract.ContractNumber,
+            PlanCode = contract.PlanCode,
+            PlanName = contract.PlanName,
+            ContractType = contract.ContractType,
+            RepresentativeName = contract.RepresentativeName,
+            RepresentativeEmail = contract.RepresentativeEmail,
+            RepresentativePhone = contract.RepresentativePhone,
+            StartDate = contract.StartDate,
+            EndDate = contract.EndDate,
+            BillingCycle = contract.BillingCycle.ToString(),
+            ContractValue = contract.ContractValue,
+            Status = contract.Status.ToString(),
+            SignedAtUtc = contract.SignedAtUtc,
+            HasDigitalSignature = !string.IsNullOrEmpty(contract.DigitalSignatureHash),
+            DigitalSignatureHash = contract.DigitalSignatureHash,
+            Notes = contract.Notes,
+            CreatedAtUtc = contract.CreatedAtUtc
         });
+    }
+
+    private static BillingCycle ParseBillingCycle(string? rawCycle)
+    {
+        return rawCycle?.Trim().ToUpperInvariant() switch
+        {
+            "YEARLY" or "ANNUAL" => BillingCycle.Annual,
+            "MONTHLY" => BillingCycle.Monthly,
+            _ => Enum.TryParse<BillingCycle>(rawCycle, true, out var cycle) ? cycle : BillingCycle.Monthly
+        };
     }
 }
 
@@ -308,6 +338,8 @@ public sealed class TenantContractSummaryDto
     public string Status { get; set; } = string.Empty;
     public DateTime? SignedAtUtc { get; set; }
     public bool HasDigitalSignature { get; set; }
+    public string? DigitalSignatureHash { get; set; }
+    public string? Notes { get; set; }
     public DateTime CreatedAtUtc { get; set; }
 }
 
@@ -360,4 +392,5 @@ public sealed class UpdateContractStatusRequest
 {
     public string Status { get; set; } = string.Empty;
     public string? Note { get; set; }
+    public string? Notes { get; set; }
 }

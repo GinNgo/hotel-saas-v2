@@ -2,7 +2,7 @@ import { Component, OnInit, inject, signal, computed, ChangeDetectionStrategy } 
 import { CommonModule } from '@angular/common';
 import { DatePicker } from 'primeng/datepicker';
 import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-time.util';
-import { FormBuilder, FormGroup, ReactiveFormsModule, FormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, FormGroup, ReactiveFormsModule, FormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { RoomService } from '../../core/services/room.service';
 import { ReservationService } from '../../core/services/reservation.service';
 import { RoomTypeService } from '../../core/services/room-type.service';
@@ -22,6 +22,14 @@ import {
   EmptyStateComponent,
   LoadingSpinnerComponent
 } from '../../shared';
+
+function optionalTrimmedEmailValidator(control: AbstractControl): ValidationErrors | null {
+  const raw = typeof control.value === 'string' ? control.value.trim() : '';
+  if (!raw) {
+    return null;
+  }
+  return Validators.email({ value: raw } as AbstractControl);
+}
 
 export interface ExtendedRoomDto extends RoomDto {
   activeReservation?: ReservationDto;
@@ -799,7 +807,7 @@ export interface QuickMinibarCatalogItem {
             }
 
             <!-- Guest Info -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div class="space-y-1.5">
                 <label class="block text-xs font-bold text-slate-700">Tên khách hàng <span class="text-rose-500">*</span></label>
                 <input
@@ -816,6 +824,16 @@ export interface QuickMinibarCatalogItem {
                   type="tel"
                   formControlName="guestPhone"
                   placeholder="0912 345 678"
+                  class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
+                />
+              </div>
+
+              <div class="space-y-1.5">
+                <label class="block text-xs font-bold text-slate-700">Email <span class="text-slate-400 font-normal">(tùy chọn)</span></label>
+                <input
+                  type="email"
+                  formControlName="guestEmail"
+                  placeholder="khachhang@example.com"
                   class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs focus:outline-hidden bg-white"
                 />
               </div>
@@ -1320,6 +1338,7 @@ export class RoomsPage implements OnInit {
     checkOutDate: [this.addDays(this.getTodayVnDate(), 1)],
     guestName: ['', Validators.required],
     guestPhone: [''],
+    guestEmail: ['', optionalTrimmedEmailValidator],
     numberOfGuests: [2, [Validators.required, Validators.min(1)]],
     notes: ['Khách vãng lai tại quầy (Walk-in)']
   });
@@ -1609,6 +1628,7 @@ export class RoomsPage implements OnInit {
       checkOutDate: this.addDays(this.getTodayVnDate(), 1),
       guestName: '',
       guestPhone: '',
+      guestEmail: '',
       numberOfGuests: 2,
       notes: 'Khách vãng lai tại quầy (Walk-in)'
     });
@@ -1624,6 +1644,7 @@ export class RoomsPage implements OnInit {
       checkOutDate: this.addDays(this.getTodayVnDate(), 1),
       guestName: '',
       guestPhone: '',
+      guestEmail: '',
       numberOfGuests: 2,
       notes: 'Khách vãng lai tại quầy (Walk-in)'
     });
@@ -1680,6 +1701,8 @@ export class RoomsPage implements OnInit {
       endAt = outD.toISOString();
     }
 
+    const trimmedEmail = typeof formVal.guestEmail === 'string' ? formVal.guestEmail.trim() : '';
+
     const req: CreateReservationRequest = {
       propertyId: propId,
       roomId: selectedRoom.id,
@@ -1689,40 +1712,30 @@ export class RoomsPage implements OnInit {
       checkInDate: checkInDateStr,
       checkOutDate: checkOutDateStr,
       guestName: formVal.guestName,
-      guestEmail: 'walkin@hotel.internal',
+      guestEmail: trimmedEmail || undefined,
       guestPhone: formVal.guestPhone || undefined,
       numberOfGuests: formVal.numberOfGuests,
       customerNotes: formVal.notes,
-      idempotencyKey: crypto.randomUUID()
+      idempotencyKey: crypto.randomUUID(),
+      immediateCheckIn: true
     };
 
     this.reservationService.createReservation(req).subscribe({
       next: (res) => {
-        // Also update room status to Occupied
-        this.roomService.updateRoomStatus(selectedRoom.id, RoomStatus.Occupied, RoomStatus.Clean).subscribe({
-          next: () => {
-            this.isSubmittingWalkin.set(false);
-            this.isWalkinModalOpen.set(false);
-            this.alertService.toastSuccess(
-              `Đã tạo đặt phòng ${res.confirmationCode} cho khách ${formVal.guestName} tại phòng ${selectedRoom.roomNumber}.`,
-              'Nhận phòng thành công!'
-            );
-            this.loadData();
-          },
-          error: () => {
-            this.isSubmittingWalkin.set(false);
-            this.isWalkinModalOpen.set(false);
-            this.alertService.toastSuccess(
-              `Đã tạo đặt phòng ${res.confirmationCode} cho khách ${formVal.guestName}.`,
-              'Nhận phòng thành công!'
-            );
-            this.loadData();
-          }
-        });
-      },
-      error: () => {
         this.isSubmittingWalkin.set(false);
-        this.alertService.toastError('Không thể tạo đặt phòng nhận ngay. Vui lòng thử lại.', 'Lỗi');
+        this.isWalkinModalOpen.set(false);
+        this.alertService.toastSuccess(
+          `Đã nhận phòng Walk-in ${res.confirmationCode} cho khách ${formVal.guestName} tại phòng ${selectedRoom.roomNumber}.`,
+          'Nhận phòng thành công!'
+        );
+        this.loadData();
+      },
+      error: (err) => {
+        this.isSubmittingWalkin.set(false);
+        this.alertService.toastError(
+          err?.error?.message || 'Không thể tạo đặt phòng nhận ngay. Vui lòng thử lại.',
+          'Lỗi'
+        );
       }
     });
   }
@@ -1795,6 +1808,7 @@ export class RoomsPage implements OnInit {
       checkOutDate: this.addDays(dateStr, 1),
       guestName: '',
       guestPhone: '',
+      guestEmail: '',
       numberOfGuests: 2,
       notes: 'Đặt phòng nhanh từ sơ đồ Timeline Gantt'
     });

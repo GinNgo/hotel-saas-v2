@@ -38,21 +38,27 @@ import { PrintInvoiceDto } from '../../core/models/print-document.model';
           <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 pb-6 border-b-2 border-slate-900">
             <div class="space-y-1">
               <div class="flex items-center gap-3">
-                @if (inv.hotelInfo.logoUrl) {
-                  <img [src]="inv.hotelInfo.logoUrl" alt="Hotel Logo" class="h-12 w-auto object-contain rounded-lg border border-slate-200" />
+                @if (inv.logoUrl) {
+                  <img [src]="inv.logoUrl" alt="Hotel Logo" class="h-12 w-auto object-contain rounded-lg border border-slate-200" />
                 }
                 <div>
                   <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight uppercase">
-                    {{ inv.hotelInfo.headerCompanyName }}
+                    {{ inv.headerCompanyName }}
                   </h1>
                   <p class="text-xs text-slate-500 font-medium">Hệ thống khách sạn & nghỉ dưỡng cao cấp</p>
                 </div>
               </div>
               <div class="text-xs text-slate-600 pt-2 space-y-0.5">
-                <div><span class="font-semibold text-slate-700">Địa chỉ:</span> {{ inv.hotelInfo.headerAddress }}</div>
+                @if (inv.headerAddress) {
+                  <div><span class="font-semibold text-slate-700">Địa chỉ:</span> {{ inv.headerAddress }}</div>
+                }
                 <div class="flex flex-wrap gap-4">
-                  <span><span class="font-semibold text-slate-700">Mã số thuế:</span> {{ inv.hotelInfo.taxNumber }}</span>
-                  <span><span class="font-semibold text-slate-700">Hotline:</span> {{ inv.hotelInfo.hotline }}</span>
+                  @if (inv.taxNumber) {
+                    <span><span class="font-semibold text-slate-700">Mã số thuế:</span> {{ inv.taxNumber }}</span>
+                  }
+                  @if (inv.hotline) {
+                    <span><span class="font-semibold text-slate-700">Hotline:</span> {{ inv.hotline }}</span>
+                  }
                 </div>
               </div>
             </div>
@@ -63,10 +69,17 @@ import { PrintInvoiceDto } from '../../core/models/print-document.model';
                 HÓA ĐƠN DỊCH VỤ
               </div>
               <div class="text-xs text-slate-500 font-mono mt-1">Số: <span class="font-bold text-slate-900">{{ inv.invoiceNumber }}</span></div>
-              <div class="text-xs text-slate-500">Ngày in: <span class="font-semibold text-slate-700">{{ inv.issuedDate }}</span></div>
-              <div class="text-xs text-emerald-700 font-semibold flex sm:justify-end items-center gap-1">
-                <i class="pi pi-check-circle text-[11px]"></i> Đã thanh toán ({{ inv.paymentMethod }})
-              </div>
+              <div class="text-xs text-slate-500 font-mono">Mã đặt phòng: <span class="font-semibold text-slate-800">{{ inv.confirmationCode }}</span></div>
+              <div class="text-xs text-slate-500">Ngày in: <span class="font-semibold text-slate-700">{{ inv.issuedDate | slice:0:10 }}</span></div>
+              @if (inv.remainingAmount <= 0) {
+                <div class="text-xs text-emerald-700 font-semibold flex sm:justify-end items-center gap-1">
+                  <i class="pi pi-check-circle text-[11px]"></i> {{ inv.status }} ({{ inv.paymentMethod }})
+                </div>
+              } @else {
+                <div class="text-xs text-amber-700 font-semibold flex sm:justify-end items-center gap-1">
+                  <i class="pi pi-clock text-[11px]"></i> {{ inv.status }} — Còn lại: {{ inv.remainingAmount | number:'1.0-0' }} ₫
+                </div>
+              }
             </div>
           </div>
 
@@ -75,18 +88,21 @@ import { PrintInvoiceDto } from '../../core/models/print-document.model';
             <div class="space-y-1.5 p-3 rounded-xl bg-slate-50/70 border border-slate-100">
               <div class="font-bold text-slate-900 uppercase tracking-wider text-[11px] mb-1">Thông tin Khách hàng</div>
               <div><span class="text-slate-500">Họ và tên:</span> <span class="font-bold text-slate-900 text-sm ml-1">{{ inv.guestName }}</span></div>
-              <div><span class="text-slate-500">Số điện thoại:</span> <span class="font-semibold text-slate-800 ml-1">{{ inv.guestPhone }}</span></div>
-              <div><span class="text-slate-500">Cơ sở chi nhánh:</span> <span class="font-semibold text-slate-800 ml-1">{{ inv.propertyName }}</span></div>
+              <div><span class="text-slate-500">Số điện thoại:</span> <span class="font-semibold text-slate-800 ml-1">{{ inv.guestPhone || '—' }}</span></div>
+              @if (inv.guestEmail) {
+                <div><span class="text-slate-500">Email:</span> <span class="font-semibold text-slate-800 ml-1">{{ inv.guestEmail }}</span></div>
+              }
+              <div><span class="text-slate-500">Cơ sở chi nhánh:</span> <span class="font-semibold text-slate-800 ml-1">{{ inv.propertyName || inv.headerCompanyName }}</span></div>
             </div>
 
             <div class="space-y-1.5 p-3 rounded-xl bg-slate-50/70 border border-slate-100">
               <div class="font-bold text-slate-900 uppercase tracking-wider text-[11px] mb-1">Thông tin Phòng lưu trú</div>
               <div class="flex justify-between">
-                <div><span class="text-slate-500">Số phòng:</span> <span class="font-extrabold text-indigo-700 text-sm ml-1">{{ inv.roomNumber }}</span></div>
-                <div><span class="text-slate-500">Hạng:</span> <span class="font-semibold text-slate-800 ml-1">{{ inv.roomTypeName }}</span></div>
+                <div><span class="text-slate-500">Số phòng:</span> <span class="font-extrabold text-indigo-700 text-sm ml-1">{{ inv.roomNumber || '—' }}</span></div>
+                <div><span class="text-slate-500">Hạng:</span> <span class="font-semibold text-slate-800 ml-1">{{ inv.roomTypeName || '—' }}</span></div>
               </div>
-              <div><span class="text-slate-500">Thời gian ở:</span> <span class="font-semibold text-slate-800 ml-1">{{ inv.checkInActual }} — {{ inv.checkOutActual }}</span></div>
-              <div><span class="text-slate-500">Chế độ thuê:</span> <span class="font-semibold text-slate-800 ml-1">{{ inv.rentalType }} ({{ inv.durationText }})</span></div>
+              <div><span class="text-slate-500">Thời gian ở:</span> <span class="font-semibold text-slate-800 ml-1">{{ inv.checkInDate }} — {{ inv.checkOutDate }}</span></div>
+              <div><span class="text-slate-500">Chế độ thuê / Số khách:</span> <span class="font-semibold text-slate-800 ml-1">{{ inv.rentalType || 'Lưu trú' }} ({{ inv.numberOfGuests }} khách)</span></div>
             </div>
           </div>
 
@@ -104,18 +120,15 @@ import { PrintInvoiceDto } from '../../core/models/print-document.model';
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
-                @for (item of inv.lineItems; track $index) {
+                @for (item of inv.items; track $index) {
                   <tr>
                     <td class="py-2.5 px-3 text-slate-500 text-center">{{ $index + 1 }}</td>
                     <td class="py-2.5 px-3">
-                      <div class="font-semibold text-slate-900">{{ item.name }}</div>
-                      @if (item.note) {
-                        <div class="text-[11px] text-slate-500">{{ item.note }}</div>
-                      }
+                      <div class="font-semibold text-slate-900">{{ item.description }}</div>
                     </td>
                     <td class="py-2.5 px-3 text-center">{{ item.quantity }}</td>
                     <td class="py-2.5 px-3 text-right">{{ item.unitPrice | number:'1.0-0' }} ₫</td>
-                    <td class="py-2.5 px-3 text-right font-bold text-slate-900">{{ item.total | number:'1.0-0' }} ₫</td>
+                    <td class="py-2.5 px-3 text-right font-bold text-slate-900">{{ item.amount | number:'1.0-0' }} ₫</td>
                   </tr>
                 }
               </tbody>
@@ -126,54 +139,60 @@ import { PrintInvoiceDto } from '../../core/models/print-document.model';
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2 pb-6 border-b border-slate-200">
             <!-- Left: VietQR Instant Transfer -->
             <div class="flex items-start gap-4 p-3.5 rounded-xl border border-slate-200 bg-slate-50/50">
-              @if (inv.vietQrUrl && inv.hotelInfo.showVietQrCode) {
-                <img [src]="inv.vietQrUrl" alt="VietQR" class="w-28 h-28 object-contain rounded-lg border border-slate-200 bg-white p-1" />
-              }
-              <div class="text-xs space-y-1">
-                <div class="font-bold text-slate-900 flex items-center gap-1.5">
-                  <i class="pi pi-qrcode text-indigo-600"></i> Thanh toán VietQR 24/7
+              @if (inv.remainingAmount <= 0) {
+                <div class="text-xs space-y-1 text-emerald-700">
+                  <div class="font-bold flex items-center gap-1.5">
+                    <i class="pi pi-check-circle"></i> Đã hoàn tất thanh toán
+                  </div>
+                  <div class="text-slate-600">Toàn bộ công nợ cho hóa đơn {{ inv.invoiceNumber }} đã được thanh toán đầy đủ.</div>
                 </div>
-                <div class="text-slate-600">Ngân hàng: <strong class="text-slate-900">{{ inv.hotelInfo.bankName }}</strong></div>
-                <div class="text-slate-600">STK: <strong class="text-indigo-700 font-mono">{{ inv.hotelInfo.bankAccountNumber }}</strong></div>
-                <div class="text-slate-600">Chủ TK: <strong class="text-slate-900">{{ inv.hotelInfo.bankAccountHolder }}</strong></div>
-                <div class="text-[11px] text-slate-500 pt-1">Quét mã bằng app ngân hàng bất kỳ để thanh toán tức thì.</div>
-              </div>
+              } @else if (inv.bankAccountNumber) {
+                @if (inv.vietQrImageUrl && inv.showVietQrCode) {
+                  <img [src]="inv.vietQrImageUrl" alt="VietQR" class="w-28 h-28 object-contain rounded-lg border border-slate-200 bg-white p-1" />
+                }
+                <div class="text-xs space-y-1">
+                  <div class="font-bold text-slate-900 flex items-center gap-1.5">
+                    <i class="pi pi-qrcode text-indigo-600"></i> Thanh toán VietQR 24/7
+                  </div>
+                  <div class="text-slate-600">Ngân hàng: <strong class="text-slate-900">{{ inv.bankName }}</strong></div>
+                  <div class="text-slate-600">STK: <strong class="text-indigo-700 font-mono">{{ inv.bankAccountNumber }}</strong></div>
+                  @if (inv.bankAccountHolder) {
+                    <div class="text-slate-600">Chủ TK: <strong class="text-slate-900">{{ inv.bankAccountHolder }}</strong></div>
+                  }
+                  <div class="text-[11px] text-slate-500 pt-1">Quét mã bằng app ngân hàng bất kỳ để thanh toán phần còn lại.</div>
+                </div>
+              } @else {
+                <div class="text-xs space-y-1 text-slate-600">
+                  <div class="font-bold text-slate-800 flex items-center gap-1.5">
+                    <i class="pi pi-info-circle text-amber-600"></i> Chưa cấu hình tài khoản VietQR
+                  </div>
+                  <div>Cơ sở chưa cấu hình tài khoản ngân hàng nhận chuyển khoản. Vui lòng thanh toán tại quầy lễ tân.</div>
+                </div>
+              }
             </div>
 
             <!-- Right: Subtotal, VAT, Grand Total -->
             <div class="space-y-2 text-xs">
               <div class="flex justify-between py-1 text-slate-600">
-                <span>Tiền phòng & Dịch vụ:</span>
-                <span class="font-semibold text-slate-800">{{ (inv.roomTotal + inv.surchargeTotal + inv.serviceTotal) | number:'1.0-0' }} ₫</span>
+                <span>Tiền phòng & Dịch vụ (trước thuế):</span>
+                <span class="font-semibold text-slate-800">{{ inv.subTotal | number:'1.0-0' }} ₫</span>
               </div>
-              @if (inv.discountTotal > 0) {
-                <div class="flex justify-between py-1 text-emerald-600">
-                  <span>Giảm giá khuyến mãi:</span>
-                  <span class="font-semibold">-{{ inv.discountTotal | number:'1.0-0' }} ₫</span>
-                </div>
-              }
-              @if (inv.loyaltyPointsUsed > 0) {
-                <div class="flex justify-between py-1 text-indigo-600">
-                  <span>Điểm thưởng tích lũy ({{ inv.loyaltyPointsUsed }} điểm):</span>
-                  <span class="font-semibold">-{{ inv.loyaltyDiscountAmount | number:'1.0-0' }} ₫</span>
-                </div>
-              }
               <div class="flex justify-between py-1 text-slate-600 border-t border-slate-100">
                 <span>Thuế GTGT (VAT {{ inv.vatRate }}%):</span>
                 <span class="font-semibold text-slate-800">{{ inv.vatAmount | number:'1.0-0' }} ₫</span>
               </div>
               <div class="flex justify-between py-2 text-sm border-t-2 border-slate-900 font-black">
                 <span class="text-slate-900 uppercase">TỔNG THANH TOÁN:</span>
-                <span class="text-indigo-700 text-base">{{ inv.grandTotal | number:'1.0-0' }} ₫</span>
+                <span class="text-indigo-700 text-base">{{ inv.totalAmount | number:'1.0-0' }} ₫</span>
               </div>
               <div class="flex justify-between py-1 text-slate-600">
                 <span>Đã thanh toán:</span>
                 <span class="font-bold text-emerald-600">{{ inv.paidAmount | number:'1.0-0' }} ₫</span>
               </div>
-              @if (inv.balanceDue > 0) {
+              @if (inv.remainingAmount > 0) {
                 <div class="flex justify-between py-1 text-rose-600 font-bold">
                   <span>Còn lại cần thanh toán:</span>
-                  <span>{{ inv.balanceDue | number:'1.0-0' }} ₫</span>
+                  <span>{{ inv.remainingAmount | number:'1.0-0' }} ₫</span>
                 </div>
               }
             </div>
@@ -181,8 +200,12 @@ import { PrintInvoiceDto } from '../../core/models/print-document.model';
 
           <!-- Policies and Footer Note -->
           <div class="pt-4 pb-8 border-b border-slate-200 text-[11px] text-slate-500 space-y-1">
-            <div><strong class="text-slate-700">Quy định cơ sở:</strong> {{ inv.hotelInfo.checkInPolicyText }}</div>
-            <div class="italic">{{ inv.hotelInfo.footerNote }}</div>
+            @if (inv.checkInPolicyText) {
+              <div><strong class="text-slate-700">Quy định cơ sở:</strong> {{ inv.checkInPolicyText }}</div>
+            }
+            @if (inv.footerNote) {
+              <div class="italic">{{ inv.footerNote }}</div>
+            }
           </div>
 
           <!-- Signatures Section -->
@@ -198,9 +221,15 @@ import { PrintInvoiceDto } from '../../core/models/print-document.model';
               <div class="font-bold text-slate-900 uppercase tracking-wider">Đại Diện Khách Sạn</div>
               <div class="text-[11px] text-slate-400 italic">(Ký xác nhận & đóng dấu)</div>
               <div class="h-20 flex items-center justify-center">
-                <div class="border-2 border-dashed border-emerald-500/60 rounded-full px-4 py-1 text-emerald-600 font-bold uppercase text-[10px] rotate-[-5deg]">
-                  ĐÃ XÁC NHẬN THANH TOÁN
-                </div>
+                @if (inv.remainingAmount <= 0) {
+                  <div class="border-2 border-dashed border-emerald-500/60 rounded-full px-4 py-1 text-emerald-600 font-bold uppercase text-[10px] rotate-[-5deg]">
+                    ĐÃ XÁC NHẬN THANH TOÁN
+                  </div>
+                } @else {
+                  <div class="border border-dashed border-amber-400 rounded-full px-4 py-1 text-amber-700 font-semibold uppercase text-[10px]">
+                    CHỜ THANH TOÁN ĐỦ
+                  </div>
+                }
               </div>
               <div class="font-semibold text-slate-800">Bộ phận Thu Ngân / Lễ Tân</div>
             </div>
@@ -240,8 +269,12 @@ export class PrintInvoicePage implements OnInit {
 
   ngOnInit(): void {
     const reservationId = this.route.snapshot.paramMap.get('id');
+    const code = this.route.snapshot.queryParamMap?.get('code') ?? undefined;
     if (reservationId) {
-      this.printService.getInvoice(reservationId).subscribe({
+      const request$ = code
+        ? this.printService.getInvoice(reservationId, code)
+        : this.printService.getInvoice(reservationId);
+      request$.subscribe({
         next: data => {
           this.invoice.set(data);
           this.isLoading.set(false);
@@ -253,6 +286,10 @@ export class PrintInvoicePage implements OnInit {
     } else {
       this.isLoading.set(false);
     }
+  }
+
+  isPaidInFull(inv: PrintInvoiceDto): boolean {
+    return inv.remainingAmount <= 0;
   }
 
   windowPrint(): void {

@@ -195,7 +195,7 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 
                     <!-- Notes preview -->
                     <td class="px-5 py-3.5 max-w-[200px] truncate text-slate-500 text-[11px]">
-                      {{ guest.notes || '—' }}
+                      {{ sanitizeGuestNotes(guest.notes) || '—' }}
                     </td>
 
                     <!-- Action -->
@@ -457,9 +457,39 @@ export class GuestsPage implements OnInit {
     }
   }
 
+  sanitizeGuestNotes(rawNotes?: string | null): string {
+    const trimmed = rawNotes?.trim() || '';
+    if (!trimmed) {
+      return '';
+    }
+
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(trimmed) as { CustomerNotes?: unknown; customerNotes?: unknown; RentalType?: unknown };
+        if (parsed && typeof parsed === 'object') {
+          if (typeof parsed.CustomerNotes === 'string' && parsed.CustomerNotes.trim()) {
+            return parsed.CustomerNotes.trim();
+          }
+          if (typeof parsed.customerNotes === 'string' && parsed.customerNotes.trim()) {
+            return parsed.customerNotes.trim();
+          }
+          return '';
+        }
+      } catch {
+        // Fallback check below if malformed snapshot JSON
+      }
+    }
+
+    if (/"RentalType"\s*:|"LookupToken"\s*:|"AppliedPolicies"\s*:/i.test(trimmed)) {
+      return '';
+    }
+
+    return trimmed;
+  }
+
   viewGuestDetails(guest: GuestDirectoryItemDto): void {
     this.selectedGuest.set(guest);
-    this.noteContent = guest.notes || '';
+    this.noteContent = this.sanitizeGuestNotes(guest.notes);
     this.showDetailModal.set(true);
     this.loadingHistory.set(true);
 

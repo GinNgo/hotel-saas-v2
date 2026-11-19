@@ -170,7 +170,7 @@ export interface RecentSearchItem {
               [attr.aria-expanded]="showSuggestionsDropdown() && filteredSuggestions().length > 0"
               [attr.aria-controls]="showSuggestionsDropdown() && filteredSuggestions().length > 0 ? 'destination-options' : null"
               [attr.aria-activedescendant]="showSuggestionsDropdown() && activeSuggestion() >= 0 ? 'destination-option-' + activeSuggestion() : null"
-              placeholder="VD: Chợ đêm Đà Lạt, Bãi Sau, Quận 1, Nhà nghỉ..."
+              placeholder="VD: Chợ đêm Đà Lạt, Bãi Sau, Chợ Bến Thành, Nhà nghỉ..."
               class="w-full h-11 pl-10 pr-9 rounded-xl border border-slate-300 text-sm font-medium text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-2xs transition-colors"
             />
             @if (destinationKeyword()) {
@@ -510,8 +510,7 @@ export class BookingFilterBarComponent {
 
   readonly propertyTypeChips: PropertyTypeChip[] = [
     { type: 'Hotel', label: 'Khách sạn (Hotel)', icon: 'pi pi-building' },
-    { type: 'Guesthouse', label: 'Nhà nghỉ', icon: 'pi pi-home' },
-    { type: 'Motel', label: 'Motel', icon: 'pi pi-car' },
+    { type: 'Motel', label: 'Nhà nghỉ / Motel', icon: 'pi pi-home' },
     { type: 'Homestay', label: 'Homestay', icon: 'pi pi-heart' },
     { type: 'Resort', label: 'Resort / Villa', icon: 'pi pi-sun' },
   ];
@@ -531,10 +530,10 @@ export class BookingFilterBarComponent {
     latitude?: number;
     longitude?: number;
   }> = [
-    { name: 'Chợ Bến Thành (Quận 1)', slug: 'cho-ben-thanh', provinceCode: '79', latitude: 10.7725, longitude: 106.6980 },
+    { name: 'Chợ Bến Thành', slug: 'cho-ben-thanh', provinceCode: '79', latitude: 10.7725, longitude: 106.6980 },
     { name: 'Phố đi bộ Nguyễn Huệ', slug: 'pho-di-bo-nguyen-hue', provinceCode: '79', latitude: 10.7744, longitude: 106.7032 },
     { name: 'Sân bay Tân Sơn Nhất', slug: 'san-bay-tan-son-nhat', provinceCode: '79', latitude: 10.8185, longitude: 106.6588 },
-    { name: 'Bãi Sau Vũng Tàu', slug: 'bai-sau-vung-tau', provinceCode: '77', latitude: 10.3392, longitude: 107.0877 },
+    { name: 'Bãi Sau Vũng Tàu', slug: 'bai-sau-vung-tau', provinceCode: '79', latitude: 10.3392, longitude: 107.0877 },
     { name: 'Chợ đêm Đà Lạt', slug: 'cho-dem-da-lat', provinceCode: '68', latitude: 11.9424, longitude: 108.4373 },
   ];
 
@@ -719,7 +718,13 @@ export class BookingFilterBarComponent {
       if (init.landmarkSlug !== undefined)
         this.selectedLandmarkSlug.set(init.landmarkSlug);
       if (init.propertyTypes)
-        this.selectedPropertyTypes.set([...init.propertyTypes]);
+        this.selectedPropertyTypes.set(
+          Array.from(
+            new Set(
+              init.propertyTypes.map((pt) => (pt === 'Guesthouse' ? 'Motel' : pt))
+            )
+          )
+        );
       if (init.checkInDate) this.checkInDate.set(init.checkInDate);
       if (init.checkOutDate) this.checkOutDate.set(init.checkOutDate);
       if (init.checkInTime) this.checkInTime.set(init.checkInTime);

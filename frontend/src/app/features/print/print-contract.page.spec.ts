@@ -32,35 +32,38 @@ try {
 describe('PrintContractPage — Tenant Legal Agreement Print Layout Tests', () => {
   let fixture: ComponentFixture<PrintContractPage>;
   let component: PrintContractPage;
-  let mockPrintService: any;
+  let mockPrintService: { getContract: ReturnType<typeof vi.fn> };
 
   const sampleContract: PrintContractDto = {
     contractId: 'ct-999',
     contractNumber: 'HD-2026-0001',
-    providerName: 'CÔNG TY CỔ PHẦN CÔNG NGHỆ HOTEL SAAS VIỆT NAM',
-    providerAddress: 'Tầng 18, Bitexco Financial Tower, Quận 1, TP. Hồ Chí Minh',
-    providerTaxCode: '0316888999',
-    providerRepresentative: 'Tổng Giám Đốc Hệ Thống',
-    providerHotline: '1900 8888',
-    tenantName: 'Đà Lạt Pine Resort & Spa',
+    createdAtUtc: '2026-01-01T00:00:00Z',
+    signedDate: '2026-01-01T08:30:00Z',
+    signedAtUtc: '2026-01-01T08:30:00Z',
+    status: 'Active',
+    isSigned: true,
+    startDate: '2026-01-01',
+    endDate: '2027-01-01',
+    platformCompanyName: 'CÔNG TY CỔ PHẦN CÔNG NGHỆ NỀN TẢNG KHÁCH SẠN HOTEL SAAS VIỆT NAM',
+    platformAddress: 'Tầng 18, Tòa nhà Innovation Hub, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
+    platformTaxCode: '0318889999',
+    platformHotline: '1900 8899',
+    platformRepresentative: 'Đại diện Pháp luật Nền tảng Hotel SaaS',
+    tenantCompanyName: 'Đà Lạt Pine Resort & Spa',
     tenantCode: 'DALAT-PINE',
+    tenantRepresentative: 'Nguyễn Văn Quản Lý',
+    tenantEmail: 'manager@dalatpine.vn',
+    tenantPhone: '0901234567',
     tenantAddress: '12 Đường Hoàng Hoa Thám, Phường 10, TP. Đà Lạt, Tỉnh Lâm Đồng',
-    tenantTaxCode: '0315894321',
-    representativeName: 'Nguyễn Văn Quản Lý',
-    representativePhone: '0901234567',
-    representativeEmail: 'manager@dalatpine.vn',
     planCode: 'PRO',
     planName: 'Gói Chuyên Nghiệp (Pro)',
     contractType: 'Standard',
-    startDate: '01/01/2026',
-    endDate: '01/01/2027',
-    billingCycle: 'Thanh toán Hàng năm (Annual)',
+    billingCycle: 'Annual',
     contractValue: 6990000,
-    status: 'Active',
-    signedAtUtc: '2026-01-01T08:30:00Z',
-    digitalSignatureHash: 'SHA256:abcd1234efgh5678ijkl9012mnop3456',
-    termsAndConditions: 'Bên B cam kết tuân thủ chính sách bảo mật dữ liệu khách hàng theo Nghị định 13/2023/NĐ-CP.',
-    createdAt: '2026-01-01T00:00:00Z'
+    maxPropertiesAllowed: 3,
+    maxRoomsAllowed: 50,
+    digitalSignatureHash: 'ABCD1234EFGH5678IJKL9012MNOP3456',
+    termsAndConditions: 'Bên B cam kết tuân thủ chính sách bảo mật dữ liệu khách hàng theo Nghị định 13/2023/NĐ-CP.'
   };
 
   beforeEach(async () => {
@@ -95,6 +98,18 @@ describe('PrintContractPage — Tenant Legal Agreement Print Layout Tests', () =
     expect(mockPrintService.getContract).toHaveBeenCalledWith('ct-999');
     expect(component.contract()).toEqual(sampleContract);
     expect(component.isLoading()).toBe(false);
+    expect(component.isContractSigned(sampleContract)).toBe(true);
+  });
+
+  it('should report unsigned contract as not signed when hash or signedAtUtc is missing', () => {
+    const unsignedContract: PrintContractDto = {
+      ...sampleContract,
+      status: 'Draft',
+      isSigned: false,
+      signedAtUtc: null,
+      digitalSignatureHash: ''
+    };
+    expect(component.isContractSigned(unsignedContract)).toBe(false);
   });
 
   it('should handle contract load error gracefully', () => {

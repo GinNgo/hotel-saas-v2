@@ -7,7 +7,11 @@ import { Router } from '@angular/router';
 import { AdminContractsService } from '../../core/services/admin-contracts.service';
 import { AdminPlansService } from '../../core/services/admin-plans.service';
 import { AlertService } from '../../core/services/alert.service';
-import { TenantContractDto, CreateTenantContractRequest, TenantContractStatus } from '../../core/models/admin-contract.model';
+import {
+  TenantContractDto,
+  CreateTenantContractRequest,
+  ContractBillingCycle
+} from '../../core/models/admin-contract.model';
 import { AdminSubscriptionPlanDto } from '../../core/models/admin-plan.model';
 
 @Component({
@@ -132,7 +136,7 @@ import { AdminSubscriptionPlanDto } from '../../core/models/admin-plan.model';
                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-indigo-50 text-indigo-700">
                       {{ c.planName }}
                     </span>
-                    <div class="text-[11px] text-slate-500 mt-0.5">{{ c.contractType }} ({{ c.billingCycle }})</div>
+                    <div class="text-[11px] text-slate-500 mt-0.5">{{ c.contractType }} ({{ getBillingCycleLabel(c.billingCycle) }})</div>
                   </td>
                   <td class="py-3.5 px-4 text-xs">
                     <div>Từ: <span class="font-medium text-slate-700">{{ c.startDate }}</span></div>
@@ -226,16 +230,23 @@ import { AdminSubscriptionPlanDto } from '../../core/models/admin-plan.model';
 
     <!-- Create Contract Modal -->
     @if (showCreateModal()) {
-      <div class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
+      <div
+        class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-contract-modal-title"
+        (keydown.escape)="showCreateModal.set(false)"
+      >
           <div class="bg-white rounded-2xl shadow-2xl border border-slate-200/80 w-full max-w-2xl overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
             <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
               <div>
-                <h3 class="text-base sm:text-lg font-bold text-slate-900">Khởi Tạo Hợp Đồng Dịch Vụ SaaS Mới</h3>
+                <h3 id="create-contract-modal-title" class="text-base sm:text-lg font-bold text-slate-900">Khởi Tạo Hợp Đồng Dịch Vụ SaaS Mới</h3>
                 <p class="text-xs text-slate-500 mt-0.5">Ký kết cung cấp bản quyền phần mềm quản lý khách sạn</p>
               </div>
               <button
                 type="button"
                 (click)="showCreateModal.set(false)"
+                aria-label="Đóng cửa sổ tạo hợp đồng"
                 class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <i class="pi pi-times text-sm"></i>
@@ -243,13 +254,13 @@ import { AdminSubscriptionPlanDto } from '../../core/models/admin-plan.model';
             </div>
 
             <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label class="block text-xs font-semibold text-slate-700 mb-1">Mã Định Danh Tenant (TenantId)</label>
                   <input
                     type="text"
                     [(ngModel)]="newTenantId"
-                    placeholder="VD: Nhập GUID hoặc để mặc định"
+                    placeholder="Nhập GUID của doanh nghiệp đối tác"
                     class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-hidden focus:border-emerald-500"
                   />
                 </div>
@@ -265,6 +276,17 @@ import { AdminSubscriptionPlanDto } from '../../core/models/admin-plan.model';
                     }
                   </select>
                 </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Chu kỳ thanh toán</label>
+                  <select
+                    [(ngModel)]="newBillingCycle"
+                    (change)="onPlanSelected()"
+                    class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-hidden focus:border-emerald-500"
+                  >
+                    <option value="Annual">Hàng năm (Annual)</option>
+                    <option value="Monthly">Hàng tháng (Monthly)</option>
+                  </select>
+                </div>
               </div>
 
               <!-- Representative Info -->
@@ -272,16 +294,16 @@ import { AdminSubscriptionPlanDto } from '../../core/models/admin-plan.model';
                 <div class="text-xs font-bold text-slate-800 uppercase tracking-wider">Người đại diện pháp lý bên khách sạn</div>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label class="block text-xs text-slate-600 mb-1">Họ và tên</label>
-                    <input type="text" [(ngModel)]="newRepName" class="w-full px-2.5 py-1.5 text-sm rounded-lg border border-slate-300" />
+                    <label class="block text-xs text-slate-600 mb-1">Họ và tên <span class="text-rose-500">*</span></label>
+                    <input type="text" [(ngModel)]="newRepName" placeholder="Nhập họ tên người đại diện" class="w-full px-2.5 py-1.5 text-sm rounded-lg border border-slate-300 bg-white" />
                   </div>
                   <div>
-                    <label class="block text-xs text-slate-600 mb-1">Email</label>
-                    <input type="email" [(ngModel)]="newRepEmail" class="w-full px-2.5 py-1.5 text-sm rounded-lg border border-slate-300" />
+                    <label class="block text-xs text-slate-600 mb-1">Email <span class="text-rose-500">*</span></label>
+                    <input type="email" [(ngModel)]="newRepEmail" placeholder="email@khachsan.vn" class="w-full px-2.5 py-1.5 text-sm rounded-lg border border-slate-300 bg-white" />
                   </div>
                   <div>
                     <label class="block text-xs text-slate-600 mb-1">Số điện thoại</label>
-                    <input type="text" [(ngModel)]="newRepPhone" class="w-full px-2.5 py-1.5 text-sm rounded-lg border border-slate-300" />
+                    <input type="text" [(ngModel)]="newRepPhone" placeholder="09xx xxx xxx" class="w-full px-2.5 py-1.5 text-sm rounded-lg border border-slate-300 bg-white" />
                   </div>
                 </div>
               </div>
@@ -374,13 +396,14 @@ export class AdminContractsPage implements OnInit {
   readonly searchKeyword = signal('');
   readonly statusFilter = signal('ALL');
 
-  // New Contract Form
+  // New Contract Form (no hardcoded personal details)
   newTenantId = '';
   newPlanCode = 'PRO';
   newPlanName = 'Gói Chuyên Nghiệp (Pro)';
-  newRepName = 'Nguyễn Văn Toàn';
-  newRepEmail = 'owner@hotelsaas.local';
-  newRepPhone = '0909123456';
+  newBillingCycle: ContractBillingCycle = 'Annual';
+  newRepName = '';
+  newRepEmail = '';
+  newRepPhone = '';
   newStartDate = '';
   newEndDate = '';
 
@@ -460,18 +483,36 @@ export class AdminContractsPage implements OnInit {
     });
   }
 
+  getBillingCycleLabel(cycle?: string): string {
+    switch ((cycle || '').toLowerCase()) {
+      case 'monthly':
+        return 'Hàng tháng';
+      case 'quarterly':
+        return 'Hàng quý';
+      case 'annual':
+      case 'yearly':
+        return 'Hàng năm';
+      default:
+        return cycle || 'Hàng tháng';
+    }
+  }
+
   onPlanSelected(): void {
     const p = this.availablePlans().find(x => x.code === this.newPlanCode);
     if (p) {
       this.newPlanName = p.name;
-      this.newContractValue = p.yearlyPrice;
+      this.newContractValue = this.newBillingCycle === 'Monthly' ? p.monthlyPrice : p.yearlyPrice;
     }
   }
 
   openCreateModal(): void {
-    if (this.contracts().length > 0) {
+    if (this.contracts().length > 0 && !this.newTenantId) {
       this.newTenantId = this.contracts()[0].tenantId;
     }
+    this.newRepName = '';
+    this.newRepEmail = '';
+    this.newRepPhone = '';
+    this.newBillingCycle = 'Annual';
     this.onPlanSelected();
     this.showCreateModal.set(true);
   }
@@ -481,6 +522,10 @@ export class AdminContractsPage implements OnInit {
       this.alertService.error('Vui lòng nhập TenantId');
       return;
     }
+    if (!this.newRepName.trim() || !this.newRepEmail.trim()) {
+      this.alertService.error('Vui lòng nhập họ tên và email người đại diện hợp đồng');
+      return;
+    }
 
     this.isSaving.set(true);
     const req: CreateTenantContractRequest = {
@@ -488,12 +533,12 @@ export class AdminContractsPage implements OnInit {
       planCode: this.newPlanCode,
       planName: this.newPlanName,
       contractType: 'Standard',
-      representativeName: this.newRepName,
-      representativeEmail: this.newRepEmail,
-      representativePhone: this.newRepPhone,
+      representativeName: this.newRepName.trim(),
+      representativeEmail: this.newRepEmail.trim(),
+      representativePhone: this.newRepPhone.trim(),
       startDate: this.newStartDate,
       endDate: this.newEndDate,
-      billingCycle: 3, // Annual
+      billingCycle: this.newBillingCycle,
       contractValue: this.newContractValue,
       termsAndConditions: this.newTerms,
       notes: 'Hợp đồng tạo bởi SuperAdmin portal'
@@ -514,15 +559,13 @@ export class AdminContractsPage implements OnInit {
   }
 
   signContract(c: TenantContractDto): void {
-    const hash = 'SHA256:' + Math.random().toString(36).substring(2) + Date.now().toString(36);
     this.contractsService.updateContractStatus(c.id, {
       status: 'Active',
-      digitalSignatureHash: hash,
-      notes: 'Đã ký số và kích hoạt trực tuyến'
+      note: 'Đã ký số và kích hoạt trực tuyến'
     }).subscribe({
       next: updated => {
-        this.contracts.update(list => list.map(item => (item.id === updated.id ? updated : item)));
-        this.alertService.success(`Đã ký điện tử và kích hoạt hợp đồng ${updated.contractNumber}!`);
+        this.contracts.update(list => list.map(item => (item.id === updated.id ? { ...item, ...updated } : item)));
+        this.alertService.success(`Đã ký điện tử và kích hoạt hợp đồng ${updated.contractNumber || c.contractNumber}!`);
       },
       error: err => {
         this.alertService.error(err.error?.message || 'Lỗi khi ký số');
@@ -535,11 +578,11 @@ export class AdminContractsPage implements OnInit {
 
     this.contractsService.updateContractStatus(c.id, {
       status: 'Terminated',
-      notes: 'Chấm dứt trước hạn theo yêu cầu của đối tác hoặc quản trị viên'
+      note: 'Chấm dứt trước hạn theo yêu cầu của đối tác hoặc quản trị viên'
     }).subscribe({
       next: updated => {
-        this.contracts.update(list => list.map(item => (item.id === updated.id ? updated : item)));
-        this.alertService.success(`Đã chấm dứt hợp đồng ${updated.contractNumber}`);
+        this.contracts.update(list => list.map(item => (item.id === updated.id ? { ...item, ...updated } : item)));
+        this.alertService.success(`Đã chấm dứt hợp đồng ${updated.contractNumber || c.contractNumber}`);
       },
       error: err => {
         this.alertService.error(err.error?.message || 'Lỗi khi chấm dứt hợp đồng');

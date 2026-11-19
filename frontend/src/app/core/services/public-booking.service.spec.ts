@@ -1,7 +1,7 @@
 import '@angular/compiler';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Injector, runInInjectionContext } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpRequest } from '@angular/common/http';
 import { firstValueFrom, of } from 'rxjs';
 import { PublicBookingService } from './public-booking.service';
 import { environment } from '../../../environments/environment';
@@ -556,6 +556,46 @@ describe('PublicBookingService with HttpTestingController (P7 Contract Regressio
 
     expect(errorCaught).toBeDefined();
     expect(errorCaught.status).toBe(500);
+  });
+
+  it('9. should call GET /public/payments/vnpay/return with vnp_* params', () => {
+    let result: unknown = null;
+    service.verifyVnpayReturn({
+      vnp_ResponseCode: '00',
+      vnp_TxnRef: 'TXN-123',
+      vnp_SecureHash: 'abc'
+    }).subscribe(res => {
+      result = res;
+    });
+
+    const req = httpTesting.expectOne((r: HttpRequest<unknown>) =>
+      r.url === `${environment.apiUrl}/public/payments/vnpay/return` &&
+      r.params.get('vnp_ResponseCode') === '00' &&
+      r.params.get('vnp_TxnRef') === 'TXN-123' &&
+      r.params.get('vnp_SecureHash') === 'abc'
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      success: true,
+      data: {
+        rspCode: '00',
+        message: 'Giao dịch thanh toán thành công.',
+        txnRef: 'TXN-123',
+        transactionNo: '999999',
+        amount: 450000,
+        bankCode: 'NCB'
+      }
+    });
+
+    expect(result).toEqual({
+      success: true,
+      rspCode: '00',
+      message: 'Giao dịch thanh toán thành công.',
+      txnRef: 'TXN-123',
+      transactionNo: '999999',
+      amount: 450000,
+      bankCode: 'NCB'
+    });
   });
 });
 

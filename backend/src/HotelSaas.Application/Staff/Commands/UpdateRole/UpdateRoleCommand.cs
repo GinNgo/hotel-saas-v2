@@ -55,7 +55,7 @@ public sealed class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand
 
         if (role.IsSystemRole)
         {
-            throw new InvalidOperationException("Không thể chỉnh sửa chức vụ mặc định của hệ thống.");
+            throw new BadRequestException("ERR_SYSTEM_ROLE_IMMUTABLE", "Không thể chỉnh sửa chức vụ mặc định của hệ thống.");
         }
 
         if (tenantId.HasValue && role.TenantId.HasValue && role.TenantId.Value != tenantId.Value)

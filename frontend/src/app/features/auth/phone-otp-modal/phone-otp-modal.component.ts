@@ -8,6 +8,7 @@ import {
   Output,
   SimpleChanges,
   inject,
+  isDevMode,
   signal
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -26,7 +27,13 @@ export type PhoneOtpMode = 'login' | 'link' | 'verify-for-booking';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (visible) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
+      <div
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="phone-otp-modal-title"
+        (keydown.escape)="closeModal()"
+      >
         <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in duration-150">
           <!-- 1. Header -->
           <div class="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -35,7 +42,7 @@ export type PhoneOtpMode = 'login' | 'link' | 'verify-for-booking';
                 <i class="pi pi-phone text-sm"></i>
               </div>
               <div>
-                <h3 class="font-bold text-slate-900 text-sm">
+                <h3 id="phone-otp-modal-title" class="font-bold text-slate-900 text-sm">
                   {{ mode === 'link' ? 'Liên kết Số Điện Thoại' : (mode === 'verify-for-booking' ? 'Xác thực SĐT Giữ Phòng' : 'Đăng nhập qua SMS OTP') }}
                 </h3>
                 <p class="text-[11px] text-slate-500">Google Identity Platform &bull; reCAPTCHA Invisible</p>
@@ -44,6 +51,7 @@ export type PhoneOtpMode = 'login' | 'link' | 'verify-for-booking';
             <button
               type="button"
               (click)="closeModal()"
+              aria-label="Đóng hộp thoại xác thực OTP"
               class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
             >
               <i class="pi pi-times text-xs"></i>
@@ -128,13 +136,15 @@ export type PhoneOtpMode = 'login' | 'link' | 'verify-for-booking';
                   }
                 </button>
 
-                <button
-                  type="button"
-                  (click)="quickFillDemoPhone()"
-                  class="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] transition-colors cursor-pointer"
-                >
-                  Dùng số kiểm thử (+84 123 456 789 / Mã: 123456)
-                </button>
+                @if (devMode) {
+                  <button
+                    type="button"
+                    (click)="quickFillDemoPhone()"
+                    class="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] transition-colors cursor-pointer"
+                  >
+                    Dùng số kiểm thử (+84 123 456 789 / Mã: 123456)
+                  </button>
+                }
               </div>
             </div>
           }
@@ -203,13 +213,15 @@ export type PhoneOtpMode = 'login' | 'link' | 'verify-for-booking';
                     ← Đổi số điện thoại
                   </button>
 
-                  <button
-                    type="button"
-                    (click)="quickFillOtp('123456')"
-                    class="text-[11px] text-amber-600 hover:text-amber-700 font-bold cursor-pointer"
-                  >
-                    Nhập mã mẫu 123456
-                  </button>
+                  @if (devMode) {
+                    <button
+                      type="button"
+                      (click)="quickFillOtp('123456')"
+                      class="text-[11px] text-amber-600 hover:text-amber-700 font-bold cursor-pointer"
+                    >
+                      Nhập mã mẫu 123456
+                    </button>
+                  }
                 </div>
               </div>
             </div>
@@ -236,6 +248,7 @@ export class PhoneOtpModalComponent implements OnChanges {
     firebaseIdToken?: string;
   }>();
 
+  readonly devMode = isDevMode();
   step = signal<'phone' | 'otp'>('phone');
   loading = signal<boolean>(false);
   errorMessage = signal<string | null>(null);
@@ -247,7 +260,11 @@ export class PhoneOtpModalComponent implements OnChanges {
   fullName: string = '';
   otpCode: string = '';
 
-  private countdownInterval: any = null;
+  private countdownInterval: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    this.destroyRef.onDestroy(() => this.stopCountdown());
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['visible']?.currentValue === true) {
@@ -267,11 +284,13 @@ export class PhoneOtpModalComponent implements OnChanges {
   }
 
   quickFillDemoPhone(): void {
+    if (!isDevMode()) return;
     this.phoneNumber = '0123456789';
     this.fullName = 'Khách Kiểm Thử (+84123456789)';
   }
 
   quickFillOtp(code: string): void {
+    if (!isDevMode()) return;
     this.otpCode = code;
   }
 
@@ -300,9 +319,9 @@ export class PhoneOtpModalComponent implements OnChanges {
       this.statusMessage.set(res.message || 'Mã xác thực đã được gửi.');
       this.step.set('otp');
       this.startCountdown(60);
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.loading.set(false);
-      const msg = err?.message || 'Không thể gửi mã SMS OTP. Vui lòng thử lại sau.';
+      const msg = err instanceof Error && err.message ? err.message : 'Không thể gửi mã SMS OTP. Vui lòng thử lại sau.';
       this.errorMessage.set(msg);
     }
   }
@@ -356,9 +375,10 @@ export class PhoneOtpModalComponent implements OnChanges {
           this.errorMessage.set(detail);
         }
       });
-    } catch (firebaseErr: any) {
+    } catch (firebaseErr: unknown) {
       this.loading.set(false);
-      this.errorMessage.set(firebaseErr?.message || 'Mã OTP không hợp lệ hoặc đã hết hạn.');
+      const msg = firebaseErr instanceof Error && firebaseErr.message ? firebaseErr.message : 'Mã OTP không hợp lệ hoặc đã hết hạn.';
+      this.errorMessage.set(msg);
     }
   }
 

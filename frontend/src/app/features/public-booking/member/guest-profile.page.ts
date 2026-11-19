@@ -17,6 +17,9 @@ import { AlertService } from '../../../core/services/alert.service';
 import {
   GuestMeDto,
   GuestBookingSummaryDto,
+  GuestProfileResponseDto,
+  LoyaltyPointLedgerItemDto,
+  GuestInvoiceRecordDto,
 } from '../../../core/models/guest-account.model';
 import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-modal.component';
 
@@ -466,7 +469,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                         <div class="flex items-center justify-between sm:justify-end gap-3">
                           <span class="font-mono font-extrabold text-indigo-600 text-sm">{{ b.totalAmount | number }}₫</span>
                           <a
-                            [routerLink]="['/booking/status', b.id]"
+                            [routerLink]="['/booking/status', b.lookupToken || b.reference]"
                             class="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
                           >
                             Chi tiết
@@ -537,7 +540,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                           {{ b.totalAmount | number }}₫
                         </span>
                         <a
-                          [routerLink]="['/booking/status', b.id]"
+                          [routerLink]="['/booking/status', b.lookupToken || b.reference]"
                           class="inline-flex items-center gap-1 text-xs text-indigo-700 hover:underline font-semibold mt-1"
                         >
                           Xem chi tiết <i class="pi pi-arrow-right text-[10px]"></i>
@@ -547,6 +550,112 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                   }
                 </div>
               }
+
+              <!-- Danh sách Hóa đơn & Sổ cái (GET /api/guest/invoices) -->
+              <div class="pt-6 border-t border-slate-100 space-y-4">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h3 class="text-base font-bold text-slate-900">Hóa đơn lưu trú của bạn</h3>
+                    <p class="text-xs text-slate-500">Hóa đơn phát sinh từ các đơn đặt phòng đã xác nhận hoặc trả phòng</p>
+                  </div>
+                  <button
+                    type="button"
+                    (click)="loadInvoices()"
+                    class="text-xs text-indigo-600 hover:underline font-medium cursor-pointer"
+                  >
+                    Tải lại hóa đơn
+                  </button>
+                </div>
+
+                @if (isLoadingInvoices()) {
+                  <div class="py-6 text-center text-slate-500 text-xs">
+                    <i class="pi pi-spin pi-spinner text-indigo-600 mr-1"></i>
+                    <span>Đang tải danh sách hóa đơn...</span>
+                  </div>
+                } @else if (invoices().length === 0) {
+                  <div class="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-xs text-slate-500">
+                    Chưa có hóa đơn lưu trú nào được ghi nhận cho tài khoản này.
+                  </div>
+                } @else {
+                  <div class="space-y-3">
+                    @for (inv of invoices(); track inv.invoiceId) {
+                      <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="space-y-1">
+                          <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-mono font-bold text-slate-900 text-xs">{{ inv.invoiceNumber }}</span>
+                            <span class="text-xs font-semibold text-slate-700">{{ inv.propertyName }}</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">{{ inv.status }}</span>
+                          </div>
+                          <p class="text-xs text-slate-500">
+                            Mã đặt phòng: <span class="font-mono">{{ inv.reservationCode }}</span> • {{ inv.roomName }} • {{ inv.issuedAt }}
+                          </p>
+                        </div>
+                        <div class="flex items-center justify-between sm:justify-end gap-3">
+                          <span class="font-mono font-extrabold text-emerald-700 text-sm">{{ inv.grandTotal | number:'1.0-0' }}₫</span>
+                          <a
+                            [routerLink]="['/print/invoice', inv.reservationId || inv.invoiceId]"
+                            class="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
+                          >
+                            Xem hóa đơn
+                          </a>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+
+              <!-- Thông tin xuất hóa đơn VAT doanh nghiệp (PUT /api/guest/vat-profile) -->
+              <div class="pt-6 border-t border-slate-100 space-y-3">
+                <div>
+                  <h3 class="text-base font-bold text-slate-900">Thông tin xuất hóa đơn VAT</h3>
+                  <p class="text-xs text-slate-500">Lưu thông tin doanh nghiệp để sử dụng khi cần xuất hóa đơn GTGT</p>
+                </div>
+                <form (ngSubmit)="saveVatProfile()" class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <div>
+                    <label for="vat-company-name" class="block text-[11px] font-bold text-slate-600 mb-1">Tên công ty</label>
+                    <input
+                      id="vat-company-name"
+                      type="text"
+                      [(ngModel)]="vatCompanyName"
+                      name="vatCompanyName"
+                      placeholder="Công ty TNHH..."
+                      class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label for="vat-tax-code" class="block text-[11px] font-bold text-slate-600 mb-1">Mã số thuế</label>
+                    <input
+                      id="vat-tax-code"
+                      type="text"
+                      [(ngModel)]="vatTaxCode"
+                      name="vatTaxCode"
+                      placeholder="010xxxxxxx"
+                      class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label for="vat-company-address" class="block text-[11px] font-bold text-slate-600 mb-1">Địa chỉ xuất hóa đơn</label>
+                    <input
+                      id="vat-company-address"
+                      type="text"
+                      [(ngModel)]="vatAddress"
+                      name="vatAddress"
+                      placeholder="Địa chỉ đăng ký kinh doanh..."
+                      class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+                    />
+                  </div>
+                  <div class="sm:col-span-3 flex justify-end">
+                    <button
+                      type="submit"
+                      [disabled]="isSavingVat()"
+                      class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                    >
+                      {{ isSavingVat() ? 'Đang lưu...' : 'Lưu thông tin VAT' }}
+                    </button>
+                  </div>
+                </form>
+              </div>
             }
 
             @case ('loyalty') {
@@ -573,11 +682,86 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                     <span class="text-[11px] text-slate-500 mt-0.5 block">Tại các chuỗi liên kết</span>
                   </div>
                 </div>
+
+                @if (loyalty.memberships && loyalty.memberships.length > 0) {
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    @for (m of loyalty.memberships; track m.membershipId) {
+                      <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-1.5">
+                        <div class="flex items-center justify-between gap-2">
+                          <span class="font-bold text-slate-900 text-sm">{{ m.tenantBrandName || m.enrolledPropertyName }}</span>
+                          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">{{ m.tier }}</span>
+                        </div>
+                        <div class="text-xs text-slate-500">
+                          Mã thẻ: <span class="font-mono font-semibold text-slate-700">{{ m.memberCode }}</span> • {{ m.enrolledPropertyName }}
+                        </div>
+                        <div class="flex items-center justify-between text-xs pt-1">
+                          <span class="text-slate-600">Điểm hiện có: <strong class="font-mono text-indigo-700">{{ m.pointsBalance | number }}</strong></span>
+                          <span class="text-emerald-700 font-semibold">Ưu đãi {{ m.discountPercent }}%</span>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                }
               } @else {
                 <p class="text-sm text-slate-600">
                   Chưa có dữ liệu hội viên theo tài khoản. Điểm thưởng sẽ được tích lũy khi bạn hoàn tất chuyến lưu trú.
                 </p>
               }
+
+              <!-- Sổ cái biến động điểm thưởng (GET /api/guest/loyalty-ledger) -->
+              <div class="pt-6 border-t border-slate-100 space-y-3">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h3 class="text-base font-bold text-slate-900">Lịch sử sổ cái điểm thưởng</h3>
+                    <p class="text-xs text-slate-500">Chi tiết giao dịch tích điểm, tiêu điểm và hoàn điểm</p>
+                  </div>
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    @for (f of ledgerFilters; track f.value) {
+                      <button
+                        type="button"
+                        (click)="filterLedger(f.value)"
+                        class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border cursor-pointer transition-colors"
+                        [ngClass]="ledgerFilter() === f.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'"
+                      >
+                        {{ f.label }}
+                      </button>
+                    }
+                  </div>
+                </div>
+
+                @if (isLoadingLedger()) {
+                  <div class="py-6 text-center text-slate-500 text-xs">
+                    <i class="pi pi-spin pi-spinner text-indigo-600 mr-1"></i>
+                    <span>Đang tải lịch sử điểm thưởng...</span>
+                  </div>
+                } @else if (loyaltyLedger().length === 0) {
+                  <div class="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-xs text-slate-500">
+                    Chưa phát sinh giao dịch biến động điểm thưởng nào.
+                  </div>
+                } @else {
+                  <div class="space-y-2">
+                    @for (item of loyaltyLedger(); track item.id) {
+                      <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50/40 flex items-center justify-between gap-3 text-xs">
+                        <div class="space-y-0.5 min-w-0">
+                          <div class="font-bold text-slate-900 truncate">{{ item.description || item.type }}</div>
+                          <div class="text-slate-500 truncate">
+                            {{ item.propertyName }} • Mã đơn: <span class="font-mono">{{ item.reservationCode }}</span> • {{ item.createdAt }}
+                          </div>
+                        </div>
+                        <div class="text-right shrink-0">
+                          <div
+                            class="font-mono font-extrabold text-sm"
+                            [ngClass]="item.pointsDelta >= 0 ? 'text-emerald-700' : 'text-rose-700'"
+                          >
+                            {{ item.pointsDelta >= 0 ? '+' : '' }}{{ item.pointsDelta | number }} điểm
+                          </div>
+                          <div class="text-[11px] text-slate-500 font-mono">Số dư: {{ item.balanceAfter | number }}</div>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
             }
           }
         </section>
@@ -656,7 +840,24 @@ export class GuestProfilePageComponent implements OnInit {
   readonly bookings = signal<GuestBookingSummaryDto[]>([]);
   readonly isLoadingBookings = signal<boolean>(false);
 
-  readonly loyaltyData = signal<any>(null);
+  readonly loyaltyData = signal<GuestProfileResponseDto | null>(null);
+  readonly loyaltyLedger = signal<LoyaltyPointLedgerItemDto[]>([]);
+  readonly isLoadingLedger = signal<boolean>(false);
+  readonly ledgerFilter = signal<string>('');
+  readonly invoices = signal<GuestInvoiceRecordDto[]>([]);
+  readonly isLoadingInvoices = signal<boolean>(false);
+  readonly isSavingVat = signal<boolean>(false);
+
+  vatCompanyName = '';
+  vatTaxCode = '';
+  vatAddress = '';
+
+  readonly ledgerFilters = [
+    { value: '', label: 'Tất cả' },
+    { value: 'Earned', label: 'Cộng điểm' },
+    { value: 'Redeemed', label: 'Đổi điểm' },
+    { value: 'Refunded', label: 'Hoàn điểm' },
+  ];
 
   readonly activeBookingsCount = computed(() =>
     this.bookings().filter(
@@ -681,15 +882,25 @@ export class GuestProfilePageComponent implements OnInit {
       this.loadProfile();
       this.loadBookings();
       this.loadLoyalty();
+      this.loadInvoices();
     }
   }
 
   selectTab(tabId: string): void {
     this.activeTab.set(tabId);
-    if (tabId === 'bookings' && this.bookings().length === 0) {
-      this.loadBookings();
-    } else if (tabId === 'loyalty' && !this.loyaltyData()) {
-      this.loadLoyalty();
+    if (tabId === 'bookings') {
+      if (this.bookings().length === 0) {
+        this.loadBookings();
+      }
+      if (this.invoices().length === 0) {
+        this.loadInvoices();
+      }
+    } else if (tabId === 'loyalty') {
+      if (!this.loyaltyData()) {
+        this.loadLoyalty();
+      } else if (this.loyaltyLedger().length === 0) {
+        this.loadLoyaltyLedger();
+      }
     }
   }
 
@@ -770,9 +981,84 @@ export class GuestProfilePageComponent implements OnInit {
       .subscribe({
         next: (data) => {
           this.loyaltyData.set(data);
+          if (data) {
+            this.vatCompanyName = data.companyName || '';
+            this.vatTaxCode = data.companyTaxCode || '';
+            this.vatAddress = data.companyAddress || '';
+          }
         },
         error: () => {
           this.loyaltyData.set(null);
+        },
+      });
+    this.loadLoyaltyLedger();
+  }
+
+  loadLoyaltyLedger(): void {
+    if (typeof this.guestAccountService.getLoyaltyLedger !== 'function') {
+      return;
+    }
+    this.isLoadingLedger.set(true);
+    this.guestAccountService
+      .getLoyaltyLedger(this.ledgerFilter() || undefined)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (items) => {
+          this.isLoadingLedger.set(false);
+          this.loyaltyLedger.set(items || []);
+        },
+        error: () => {
+          this.isLoadingLedger.set(false);
+          this.loyaltyLedger.set([]);
+        },
+      });
+  }
+
+  filterLedger(filterType: string): void {
+    this.ledgerFilter.set(filterType);
+    this.loadLoyaltyLedger();
+  }
+
+  loadInvoices(): void {
+    if (typeof this.guestAccountService.getInvoices !== 'function') {
+      return;
+    }
+    this.isLoadingInvoices.set(true);
+    this.guestAccountService
+      .getInvoices()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (items) => {
+          this.isLoadingInvoices.set(false);
+          this.invoices.set(items || []);
+        },
+        error: () => {
+          this.isLoadingInvoices.set(false);
+          this.invoices.set([]);
+        },
+      });
+  }
+
+  saveVatProfile(): void {
+    if (typeof this.guestAccountService.updateVatProfile !== 'function') {
+      return;
+    }
+    this.isSavingVat.set(true);
+    this.guestAccountService
+      .updateVatProfile({
+        companyName: this.vatCompanyName.trim() || null,
+        companyTaxCode: this.vatTaxCode.trim() || null,
+        companyAddress: this.vatAddress.trim() || null,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.isSavingVat.set(false);
+          this.alert.success('Cập nhật thông tin xuất hóa đơn VAT thành công.');
+        },
+        error: (err) => {
+          this.isSavingVat.set(false);
+          this.alert.error(err?.error?.message || 'Không thể cập nhật thông tin VAT lúc này.');
         },
       });
   }
@@ -799,6 +1085,11 @@ export class GuestProfilePageComponent implements OnInit {
     this.currentAvatarUrl.set('');
     this.bookings.set([]);
     this.loyaltyData.set(null);
+    this.loyaltyLedger.set([]);
+    this.invoices.set([]);
+    this.vatCompanyName = '';
+    this.vatTaxCode = '';
+    this.vatAddress = '';
     this.auth.logout();
   }
 }

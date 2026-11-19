@@ -1,12 +1,17 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, isDevMode, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { of, take } from 'rxjs';
+import { take } from 'rxjs';
 import { PublicBookingService } from '../../core/services/public-booking.service';
 import { AlertService } from '../../core/services/alert.service';
-import { GuestBookingDetailDto, GuestCancellationPreviewDto, CancelGuestBookingRequest } from '../../core/models/public-booking.model';
+import {
+  GuestBookingDetailDto,
+  GuestCancellationPreviewDto,
+  CancelGuestBookingRequest,
+  VnpayReturnVerificationDto
+} from '../../core/models/public-booking.model';
 
 export interface StatusErrorState {
   title: string;
@@ -130,6 +135,60 @@ export interface StatusErrorState {
           </div>
         }
 
+        <!-- KẾT QUẢ XÁC THỰC VNPAY RETURN -->
+        @if (isVerifyingVnpay()) {
+          <div role="status" class="bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl p-4 flex items-center gap-3 text-xs font-semibold print:hidden">
+            <i class="pi pi-spin pi-spinner text-blue-600 text-base"></i>
+            <span>Đang xác thực chữ ký giao dịch VNPay từ máy chủ...</span>
+          </div>
+        } @else if (vnpayReturnResult(); as vnpRes) {
+          <div
+            [attr.role]="vnpRes.success ? 'status' : 'alert'"
+            class="rounded-2xl border p-4 sm:p-5 flex items-start justify-between gap-3 text-xs shadow-2xs print:hidden"
+            [ngClass]="vnpRes.success ? 'bg-emerald-50 border-emerald-200 text-emerald-950' : 'bg-rose-50 border-rose-200 text-rose-950'"
+          >
+            <div class="flex items-start gap-3">
+              <div
+                class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                [ngClass]="vnpRes.success ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'"
+              >
+                <i class="pi text-base" [ngClass]="vnpRes.success ? 'pi-check-circle' : 'pi-times-circle'"></i>
+              </div>
+              <div class="space-y-1">
+                <div class="font-bold text-sm">
+                  {{ vnpRes.success ? 'Thanh toán VNPay hợp lệ' : 'Kết quả thanh toán VNPay chưa thành công' }}
+                </div>
+                <p class="leading-relaxed">{{ vnpRes.message }}</p>
+                @if (vnpRes.txnRef || vnpRes.transactionNo) {
+                  <div class="font-mono text-[11px] opacity-85 flex flex-wrap gap-3 pt-0.5">
+                    @if (vnpRes.txnRef) { <span>Mã GD: {{ vnpRes.txnRef }}</span> }
+                    @if (vnpRes.transactionNo) { <span>VNPay No: {{ vnpRes.transactionNo }}</span> }
+                    @if (vnpRes.amount) { <span>Số tiền: {{ vnpRes.amount | number:'1.0-0' }} ₫</span> }
+                  </div>
+                }
+              </div>
+            </div>
+            <button
+              type="button"
+              (click)="vnpayReturnResult.set(null)"
+              aria-label="Đóng thông báo VNPay"
+              class="p-1.5 rounded-lg opacity-60 hover:opacity-100 cursor-pointer"
+            >
+              <i class="pi pi-times text-xs"></i>
+            </button>
+          </div>
+        } @else if (vnpayVerifyError()) {
+          <div role="alert" class="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs font-medium print:hidden">
+            <div class="flex items-center gap-2.5">
+              <i class="pi pi-exclamation-triangle text-amber-600"></i>
+              <span>{{ vnpayVerifyError() }}</span>
+            </div>
+            <button type="button" (click)="vnpayVerifyError.set('')" aria-label="Đóng cảnh báo VNPay" class="p-1 cursor-pointer">
+              <i class="pi pi-times text-xs"></i>
+            </button>
+          </div>
+        }
+
         <!-- 3. KẾT QUẢ THEO DÕI ĐẶT PHÒNG -->
         @if (booking(); as detail) {
           <article class="bg-white rounded-3xl border-2 border-stone-300 shadow-md overflow-hidden space-y-0 animate-in fade-in duration-200 print:hidden">
@@ -170,6 +229,14 @@ export interface StatusErrorState {
                     <span>Chỉ đường</span>
                   </a>
                 }
+
+                <a
+                  [routerLink]="['/print/voucher', detail.lookupToken || detail.confirmationCode]"
+                  class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-xs font-bold text-white flex items-center gap-2 cursor-pointer shadow-xs transition-colors"
+                >
+                  <i class="pi pi-file text-xs"></i>
+                  <span>In phiếu xác nhận (Voucher)</span>
+                </a>
 
                 <button
                   type="button"
@@ -802,8 +869,8 @@ export interface StatusErrorState {
               </section>
             }
 
-            <!-- C. KHÓA PHÒNG ĐIỆN TỬ SMART LOCK PIN (CHỈ HIỂN THỊ KHI ĐÃ NHẬN PHÒNG & CÓ PIN THẬT ACTIVE - ẨN HOÀN TOÀN KHI CHƯA CHECK-IN & KHI IN) -->
-            @if (detail.status === 'CheckedIn' && detail.smartLockPin && detail.smartLockStatus === 'Active') {
+            <!-- C. KHÓA PHÒNG ĐIỆN TỬ SMART LOCK PIN (HIỂN THỊ KHI CONFIRMED HOẶC CHECKEDIN & CÓ PIN THẬT ACTIVE - ẨN KHI CHƯA XÁC NHẬN & KHI IN) -->
+            @if ((detail.status === 'Confirmed' || detail.status === 'CheckedIn') && detail.smartLockPin && detail.smartLockStatus === 'Active') {
               <div class="mx-6 sm:mx-8 mb-6 p-6 sm:p-7 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white rounded-2xl sm:rounded-3xl border border-slate-800 shadow-inner relative overflow-hidden print:hidden">
                 <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
                   <div class="space-y-2">
@@ -974,7 +1041,7 @@ export interface StatusErrorState {
                                 <h4 class="text-xs sm:text-sm font-bold text-slate-900">
                                   Thanh toán qua VietQR NAPAS 24/7 hoặc VNPay
                                 </h4>
-                                <p class="text-[10px] text-slate-500">Đối soát tức thì &amp; xác nhận tự động qua Webhook IPN</p>
+                                <p class="text-[10px] text-slate-500">VNPay tự động đối soát qua Webhook IPN; VietQR / Chuyển khoản cần thu ngân đối soát thủ công</p>
                               </div>
                             </div>
                             <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -985,22 +1052,24 @@ export interface StatusErrorState {
                           <!-- 2-Option Cards Grid -->
                           <div class="grid grid-cols-1 gap-3.5">
                             
-                            <!-- Option 1: Cổng VNPAY Sandbox -->
+                            <!-- Option 1: Cổng VNPAY -->
                             <div class="p-4 sm:p-5 rounded-2xl bg-blue-50/90 border-2 border-blue-300 hover:border-[#005BAA] transition-all space-y-3"
                               [class.ring-2]="selectedPaymentMethod() === 'VNPay'" [class.ring-blue-600]="selectedPaymentMethod() === 'VNPay'">
                               <div class="flex items-center justify-between">
                                 <span class="px-2 py-0.5 rounded-md bg-[#005BAA] text-white text-[10px] font-black uppercase tracking-wider">
-                                  VNPAY SANDBOX
+                                  {{ devMode ? 'VNPAY SANDBOX' : 'VNPAY' }}
                                 </span>
-                                <span class="text-[11px] font-semibold text-blue-900">Cổng Quốc Gia</span>
+                                <span class="text-[11px] font-semibold text-blue-900">Tự động xác nhận (IPN)</span>
                               </div>
                               <p class="text-[11px] text-slate-600 leading-relaxed">
                                 Thẻ ATM nội địa (NCB, Vietcombank...), Thẻ quốc tế Visa/Mastercard hoặc VNPAY-QR.
                               </p>
-                              <div class="p-2 rounded-lg bg-white border border-blue-100 text-[10px] text-slate-600 space-y-0.5">
-                                <div>Thẻ test: <strong class="text-slate-800">NCB</strong> &bull; Số: <strong class="font-mono text-slate-900">9704198526191432198</strong></div>
-                                <div>Tên: <strong class="text-slate-800">NGUYEN VAN A</strong> &bull; OTP: <strong class="font-mono text-slate-900">123456</strong></div>
-                              </div>
+                              @if (devMode) {
+                                <div class="p-2 rounded-lg bg-white border border-blue-100 text-[10px] text-slate-600 space-y-0.5" data-testid="vnpay-sandbox-test-card">
+                                  <div>Thẻ test: <strong class="text-slate-800">NCB</strong> &bull; Số: <strong class="font-mono text-slate-900">9704198526191432198</strong></div>
+                                  <div>Tên: <strong class="text-slate-800">NGUYEN VAN A</strong> &bull; OTP: <strong class="font-mono text-slate-900">123456</strong></div>
+                                </div>
+                              }
                               <button
                                 type="button"
                                 (click)="payWithVnpay()"
@@ -1017,14 +1086,15 @@ export interface StatusErrorState {
                               </button>
                             </div>
 
-                            <!-- Option 2: VietQR NAPAS 24/7 -->
+                            <!-- Option 2: VietQR NAPAS 24/7 / Chuyển khoản ngân hàng -->
                             <div class="p-4 sm:p-5 rounded-2xl bg-amber-50/90 border-2 border-amber-300 hover:border-amber-500 transition-all space-y-3"
-                              [class.ring-2]="selectedPaymentMethod() === 'VietQR'" [class.ring-amber-500]="selectedPaymentMethod() === 'VietQR'">
+                              [class.ring-2]="selectedPaymentMethod() === 'VietQR' || selectedPaymentMethod() === 'BankTransfer'"
+                              [class.ring-amber-500]="selectedPaymentMethod() === 'VietQR' || selectedPaymentMethod() === 'BankTransfer'">
                               <div class="flex items-center justify-between">
                                 <span class="px-2 py-0.5 rounded-md bg-amber-600 text-white text-[10px] font-black uppercase tracking-wider">
-                                  VIETQR 24/7
+                                  {{ selectedPaymentMethod() === 'BankTransfer' ? 'CHUYỂN KHOẢN / VIETQR' : 'VIETQR 24/7' }}
                                 </span>
-                                <span class="text-[11px] font-semibold text-amber-900">Quét Mã Nhanh</span>
+                                <span class="text-[11px] font-semibold text-amber-900">Chờ thu ngân xác nhận</span>
                               </div>
 
                               <div class="p-2.5 bg-white rounded-xl border border-amber-200 flex items-center gap-3 shadow-2xs">
@@ -1036,7 +1106,7 @@ export interface StatusErrorState {
                                   </div>
                                 }
                                 <div class="text-[10px] space-y-0.5 min-w-0 flex-1">
-                                  <div class="font-bold text-slate-900 truncate">{{ vietQr()?.bankName || 'Đang tạo thông tin thanh toán…' }}</div>
+                                  <div class="font-bold text-slate-900 truncate">{{ vietQr()?.bankName || (vietQrError() ? 'Chưa cấu hình ngân hàng' : 'Đang tạo thông tin thanh toán…') }}</div>
                                   <div class="text-slate-500 text-[10px]">CTK: {{ vietQr()?.accountName || '—' }}</div>
                                   <div class="font-mono text-emerald-700 font-bold text-[11px]">
                                     Số tiền: {{ (vietQr()?.amount ?? getRemainingDeposit(detail)) | number:'1.0-0' }} ₫
@@ -1051,8 +1121,8 @@ export interface StatusErrorState {
                                   }
                                 </div>
                               </div>
-                              <p class="text-[10px] text-slate-500 leading-snug">
-                                Vui lòng chuyển đúng số tiền và nội dung trên mã để khách sạn đối soát khoản thanh toán.
+                              <p class="text-[10px] text-slate-600 leading-snug">
+                                Chuyển khoản thủ công / VietQR không tự động xác nhận qua IPN. Vui lòng chuyển đúng số tiền và nội dung để lễ tân/thu ngân đối soát và xác nhận đơn.
                               </p>
                             </div>
 
@@ -1630,12 +1700,17 @@ export class BookingStatusPage implements OnInit {
   private readonly publicBookingService = inject(PublicBookingService);
   private readonly alertService = inject(AlertService);
 
+  readonly devMode = isDevMode();
   searchToken: string = '';
   readonly tokenError = signal<string>('');
   readonly booking = signal<GuestBookingDetailDto | null>(null);
   readonly isSearching = signal<boolean>(false);
   readonly searchError = signal<StatusErrorState | null>(null);
-  readonly selectedPaymentMethod = signal<'VNPay' | 'VietQR' | 'PayAtHotel'>('VNPay');
+  readonly selectedPaymentMethod = signal<'VNPay' | 'VietQR' | 'PayAtHotel' | 'BankTransfer'>('VNPay');
+  readonly isVerifyingVnpay = signal<boolean>(false);
+  readonly vnpayReturnResult = signal<VnpayReturnVerificationDto | null>(null);
+  readonly vnpayVerifyError = signal<string>('');
+  private lastVnpayReturnKey = '';
 
   readonly remainingSeconds = signal<number>(0);
   readonly isHoldExpired = signal<boolean>(false);
@@ -1736,38 +1811,127 @@ export class BookingStatusPage implements OnInit {
   };
 
   ngOnInit(): void {
-    const queryParamMap$ = this.route.queryParamMap ?? of(this.route.snapshot?.queryParamMap ?? { get: () => null });
-    queryParamMap$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
-      const method = params.get('paymentMethod');
-      if (method === 'VNPay' || method === 'VietQR' || method === 'PayAtHotel') {
-        this.selectedPaymentMethod.set(method);
+    if (this.route.queryParamMap) {
+      this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+        const record: Record<string, string> = {};
+        for (const key of params.keys ?? []) {
+          const val = params.get(key);
+          if (val !== null) {
+            record[key] = val;
+          }
+        }
+        this.handleQueryParams(record);
+      });
+    } else if (this.route.queryParams) {
+      this.route.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+        const record: Record<string, string> = {};
+        for (const [key, val] of Object.entries(params ?? {})) {
+          if (val !== undefined && val !== null) {
+            record[key] = String(val);
+          }
+        }
+        this.handleQueryParams(record);
+      });
+    } else if (this.route.snapshot?.queryParamMap) {
+      const snap = this.route.snapshot.queryParamMap;
+      const record: Record<string, string> = {};
+      for (const key of snap.keys ?? []) {
+        const val = snap.get(key);
+        if (val !== null) {
+          record[key] = val;
+        }
       }
-    });
+      this.handleQueryParams(record);
+    }
+
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibilityChange);
     }
     this.initBroadcastSync();
-    if (false) {
+
+    if (this.route.paramMap) {
+      this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+        const token = params.get('token')?.trim();
+        if (token) {
+          if (token !== this.lastRouteToken) {
+            this.lastRouteToken = token;
+            this.searchToken = token;
+            this.fetchBooking(token);
+          }
+        } else {
+          const hadRouteToken = Boolean(this.lastRouteToken);
+          this.lastRouteToken = '';
+          if (hadRouteToken) {
+            this.searchToken = '';
+            this.resetToSearch();
+          }
+        }
+      });
+    } else if (this.route.snapshot?.paramMap) {
+      const token = this.route.snapshot.paramMap.get('token')?.trim();
+      if (token && token !== this.lastRouteToken) {
+        this.lastRouteToken = token;
+        this.searchToken = token;
+        this.fetchBooking(token);
+      }
+    }
+  }
+
+  private handleQueryParams(params: Record<string, string>): void {
+    const method = params['paymentMethod'];
+    if (method === 'VNPay' || method === 'VietQR' || method === 'PayAtHotel' || method === 'BankTransfer') {
+      this.selectedPaymentMethod.set(method);
     }
 
-    const paramMap$ = this.route.paramMap ?? of(this.route.snapshot?.paramMap ?? { get: () => null });
-    paramMap$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
-      const token = params.get('token')?.trim();
-      if (token) {
-        if (token !== this.lastRouteToken) {
-          this.lastRouteToken = token;
-          this.searchToken = token;
-          this.fetchBooking(token);
-        }
-      } else {
-        const hadRouteToken = Boolean(this.lastRouteToken);
-        this.lastRouteToken = '';
-        if (hadRouteToken) {
-          this.searchToken = '';
-          this.resetToSearch();
-        }
+    const vnpEntries = Object.entries(params).filter(([key]) => key.startsWith('vnp_'));
+    if (vnpEntries.length > 0 && (params['vnp_ResponseCode'] !== undefined || params['vnp_TxnRef'] !== undefined)) {
+      const vnpRecord = Object.fromEntries(vnpEntries);
+      const cacheKey = JSON.stringify(vnpRecord);
+      if (cacheKey !== this.lastVnpayReturnKey) {
+        this.lastVnpayReturnKey = cacheKey;
+        this.verifyVnpayCallback(vnpRecord);
       }
-    });
+    }
+  }
+
+  private verifyVnpayCallback(vnpParams: Record<string, string>): void {
+    if (typeof this.publicBookingService.verifyVnpayReturn !== 'function') {
+      return;
+    }
+
+    this.isVerifyingVnpay.set(true);
+    this.vnpayVerifyError.set('');
+
+    this.publicBookingService
+      .verifyVnpayReturn(vnpParams)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.isVerifyingVnpay.set(false);
+          this.vnpayReturnResult.set(result);
+          if (result.success) {
+            this.alertService.toastSuccess(result.message || 'Giao dịch thanh toán thành công.');
+            const token =
+              this.lastFetchedToken.trim() ||
+              this.searchToken.trim() ||
+              this.route.snapshot?.paramMap?.get('token')?.trim() ||
+              '';
+            if (token) {
+              this.syncHoldStateFromServer(token);
+            }
+          } else {
+            this.alertService.toastWarning(
+              result.message || 'Giao dịch thanh toán VNPay không thành công hoặc chữ ký không hợp lệ.'
+            );
+          }
+        },
+        error: () => {
+          this.isVerifyingVnpay.set(false);
+          this.vnpayVerifyError.set(
+            'Không thể xác thực kết quả VNPay lúc này. Hệ thống vẫn hiển thị trạng thái mới nhất từ máy chủ.'
+          );
+        }
+      });
   }
 
   clearTokenError(): void {
@@ -1803,6 +1967,9 @@ export class BookingStatusPage implements OnInit {
     this.isSearching.set(false);
     this.searchToken = '';
     this.lastFetchedToken = '';
+    this.isVerifyingVnpay.set(false);
+    this.vnpayReturnResult.set(null);
+    this.vnpayVerifyError.set('');
     // Reset review state
     this.reviewRating.set(5);
     this.reviewCleanliness.set(5);
@@ -2286,10 +2453,15 @@ export class BookingStatusPage implements OnInit {
         this.vietQr.set(qr);
         this.isVietQrLoading.set(false);
       },
-      error: () => {
+      error: (err) => {
         if (generation !== this.vietQrGeneration) return;
         this.isVietQrLoading.set(false);
-        this.vietQrError.set('Chưa tạo được mã VietQR. Vui lòng tải lại thông tin hoặc chọn VNPay.');
+        const serverMsg = err?.error?.message;
+        this.vietQrError.set(
+          typeof serverMsg === 'string' && serverMsg.trim().length > 0
+            ? serverMsg
+            : 'Chưa tạo được mã VietQR. Cơ sở lưu trú có thể chưa cấu hình tài khoản ngân hàng, vui lòng chọn cổng VNPay hoặc thanh toán tại quầy.'
+        );
       }
     });
   }

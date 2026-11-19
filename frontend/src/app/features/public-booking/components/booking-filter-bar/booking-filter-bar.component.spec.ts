@@ -117,9 +117,9 @@ describe('Destination picker dismissal', () => {
     const fixture = setup();
     const comp = fixture.componentInstance;
     fixture.componentRef.setInput('suggestions', [
-      { id: 'sapa', name: 'Sa Pa', slug: 'sa-pa', type: 'TouristZone', provinceCode: '10', provinceName: 'Lào Cai' },
+      { id: 'sapa', name: 'Sa Pa', slug: 'sa-pa', type: 'TouristZone', provinceCode: '15', provinceName: 'Lào Cai' },
       { id: 'dalat', name: 'Đà Lạt', slug: 'da-lat', type: 'Province', provinceCode: '68', provinceName: 'Lâm Đồng' },
-      { id: 'phuquoc', name: 'Phú Quốc', slug: 'phu-quoc', type: 'Province', provinceCode: '91', provinceName: 'Kiên Giang' },
+      { id: 'phuquoc', name: 'Phú Quốc', slug: 'phu-quoc', type: 'Province', provinceCode: '91', provinceName: 'An Giang' },
     ]);
     fixture.detectChanges();
 
@@ -240,5 +240,23 @@ describe('Destination picker dismissal', () => {
 
     expect(fixture.componentInstance.destinationKeyword()).toBe('📍 Gần Chợ Bến Thành (250m)');
     expect(fixture.componentInstance.userCoords()).toEqual({ lat: 10.7725, lng: 106.698 });
+  });
+
+  it('uses canonical 34-province 2-tier quick picks and normalizes Guesthouse to Motel', () => {
+    const fixture = setup();
+    const cmp = fixture.componentInstance;
+
+    const baiSau = cmp.quickLandmarkPicks.find((p) => p.slug === 'bai-sau-vung-tau');
+    expect(baiSau?.provinceCode).toBe('79');
+    expect(cmp.quickLandmarkPicks.some((p) => p.name.includes('Quận 1'))).toBe(false);
+    expect(cmp.propertyTypeChips.some((c) => c.type === 'Guesthouse')).toBe(false);
+    expect(cmp.propertyTypeChips.some((c) => c.type === 'Motel')).toBe(true);
+
+    fixture.componentRef.setInput('initialFilter', {
+      propertyTypes: ['Guesthouse', 'Hotel'],
+    });
+    fixture.detectChanges();
+
+    expect(cmp.selectedPropertyTypes()).toEqual(['Motel', 'Hotel']);
   });
 });

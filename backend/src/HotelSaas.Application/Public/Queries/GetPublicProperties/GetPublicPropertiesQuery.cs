@@ -342,11 +342,7 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
             var queryProvinceTitle = PublicPropertyMappingHelper.NormalizeProvinceTitle(effectiveQuery);
             if (!string.IsNullOrEmpty(queryProvinceTitle))
             {
-                var matchedProv = _locationService.GetProvinces()
-                    .FirstOrDefault(p => string.Equals(
-                        PublicPropertyMappingHelper.NormalizeProvinceTitle(p.Name),
-                        queryProvinceTitle,
-                        StringComparison.OrdinalIgnoreCase));
+                var matchedProv = PublicPropertyMappingHelper.FindProvinceByTitleOrAlias(_locationService, queryProvinceTitle);
 
                 if (matchedProv != null)
                 {
@@ -800,30 +796,176 @@ internal static class PublicPropertyMappingHelper
         return (provinceCode, provinceName, wardName);
     }
 
+    private static readonly IReadOnlyDictionary<string, string> LegacyProvinceCodeToCanonical =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["VN-SG"] = "79",
+            ["1"] = "01",
+            ["01"] = "01",
+            ["4"] = "04",
+            ["04"] = "04",
+            ["2"] = "08",
+            ["02"] = "08",
+            ["8"] = "08",
+            ["08"] = "08",
+            ["10"] = "15",
+            ["6"] = "19",
+            ["06"] = "19",
+            ["27"] = "24",
+            ["17"] = "25",
+            ["26"] = "25",
+            ["30"] = "31",
+            ["34"] = "33",
+            ["35"] = "37",
+            ["36"] = "37",
+            ["45"] = "44",
+            ["49"] = "48",
+            ["62"] = "51",
+            ["64"] = "52",
+            ["58"] = "56",
+            ["54"] = "66",
+            ["60"] = "68",
+            ["67"] = "68",
+            ["70"] = "75",
+            ["74"] = "79",
+            ["77"] = "79",
+            ["72"] = "80",
+            ["87"] = "82",
+            ["83"] = "86",
+            ["84"] = "86",
+            ["89"] = "91",
+            ["93"] = "92",
+            ["94"] = "92",
+            ["95"] = "96"
+        };
+
+    private static readonly IReadOnlyDictionary<string, string> LegacyProvinceTitleToCanonical =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ha giang"] = "08",
+            ["yen bai"] = "15",
+            ["sa pa"] = "15",
+            ["bac kan"] = "19",
+            ["bac can"] = "19",
+            ["bac giang"] = "24",
+            ["hoa binh"] = "25",
+            ["vinh phuc"] = "25",
+            ["hai duong"] = "31",
+            ["thai binh"] = "33",
+            ["ha nam"] = "37",
+            ["nam dinh"] = "37",
+            ["quang binh"] = "44",
+            ["thua thien hue"] = "46",
+            ["quang nam"] = "48",
+            ["hoi an"] = "48",
+            ["kon tum"] = "51",
+            ["mang den"] = "51",
+            ["binh dinh"] = "52",
+            ["quy nhon"] = "52",
+            ["ninh thuan"] = "56",
+            ["nha trang"] = "56",
+            ["phu yen"] = "66",
+            ["tuy hoa"] = "66",
+            ["binh thuan"] = "68",
+            ["phan thiet"] = "68",
+            ["mui ne"] = "68",
+            ["dak nong"] = "68",
+            ["da lat"] = "68",
+            ["binh phuoc"] = "75",
+            ["ba ria - vung tau"] = "79",
+            ["ba ria vung tau"] = "79",
+            ["vung tau"] = "79",
+            ["binh duong"] = "79",
+            ["sai gon"] = "79",
+            ["saigon"] = "79",
+            ["long an"] = "80",
+            ["tien giang"] = "82",
+            ["sa dec"] = "82",
+            ["ben tre"] = "86",
+            ["tra vinh"] = "86",
+            ["kien giang"] = "91",
+            ["phu quoc"] = "91",
+            ["chau doc"] = "91",
+            ["hau giang"] = "92",
+            ["soc trang"] = "92",
+            ["bac lieu"] = "96"
+        };
+
+    internal static string ResolveCanonicalProvinceCode(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return string.Empty;
+
+        var trimmed = code.Trim();
+        if (LegacyProvinceCodeToCanonical.TryGetValue(trimmed, out var canonical))
+        {
+            return canonical;
+        }
+
+        var stripped = trimmed.TrimStart('0');
+        if (!string.IsNullOrEmpty(stripped) && LegacyProvinceCodeToCanonical.TryGetValue(stripped, out var canonicalStripped))
+        {
+            return canonicalStripped;
+        }
+
+        if (trimmed.Length == 1 && char.IsDigit(trimmed[0]))
+        {
+            return "0" + trimmed;
+        }
+
+        return trimmed;
+    }
+
+    internal static ProvinceDto? FindProvinceByTitleOrAlias(ILocationLookupService locationService, string normalizedTitle)
+    {
+        if (string.IsNullOrEmpty(normalizedTitle)) return null;
+
+        var direct = locationService.GetProvinces()
+            .FirstOrDefault(p => string.Equals(
+                NormalizeProvinceTitle(p.Name),
+                normalizedTitle,
+                StringComparison.OrdinalIgnoreCase));
+        if (direct != null) return direct;
+
+        if (LegacyProvinceTitleToCanonical.TryGetValue(normalizedTitle, out var canonicalCode))
+        {
+            return FindProvinceByCode(locationService, canonicalCode);
+        }
+
+        return null;
+    }
+
     internal static bool MatchesProvinceCode(
         PublicPropertyDto dto,
         string requestedProvinceCode,
         ILocationLookupService? locationService)
     {
-        var reqKey = NormalizeProvinceCodeKey(requestedProvinceCode);
-        if (string.IsNullOrEmpty(reqKey))
+        var reqCanonical = ResolveCanonicalProvinceCode(requestedProvinceCode);
+        if (string.IsNullOrEmpty(reqCanonical))
         {
             return true;
         }
 
-        var dtoKey = NormalizeProvinceCodeKey(dto.ProvinceCode);
-        if (!string.IsNullOrEmpty(dtoKey) && string.Equals(dtoKey, reqKey, StringComparison.OrdinalIgnoreCase))
+        var dtoCanonical = ResolveCanonicalProvinceCode(dto.ProvinceCode);
+        if (!string.IsNullOrEmpty(dtoCanonical) &&
+            string.Equals(dtoCanonical, reqCanonical, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var dtoTitle = NormalizeProvinceTitle(dto.ProvinceName ?? dto.City);
+        if (!string.IsNullOrEmpty(dtoTitle) &&
+            LegacyProvinceTitleToCanonical.TryGetValue(dtoTitle, out var legacyDtoCanonical) &&
+            string.Equals(legacyDtoCanonical, reqCanonical, StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
         if (locationService != null)
         {
-            var targetProvince = FindProvinceByCode(locationService, requestedProvinceCode);
+            var targetProvince = FindProvinceByCode(locationService, reqCanonical);
             if (targetProvince != null)
             {
                 var targetTitle = NormalizeProvinceTitle(targetProvince.Name);
-                var dtoTitle = NormalizeProvinceTitle(dto.ProvinceName ?? dto.City);
                 if (!string.IsNullOrEmpty(targetTitle) && !string.IsNullOrEmpty(dtoTitle) &&
                     (string.Equals(dtoTitle, targetTitle, StringComparison.OrdinalIgnoreCase) ||
                      dtoTitle.Contains(targetTitle, StringComparison.OrdinalIgnoreCase)))
@@ -836,6 +978,18 @@ internal static class PublicPropertyMappingHelper
                 {
                     return true;
                 }
+
+                if (!string.IsNullOrEmpty(normAddress))
+                {
+                    foreach (var kvp in LegacyProvinceTitleToCanonical)
+                    {
+                        if (string.Equals(kvp.Value, targetProvince.Code, StringComparison.OrdinalIgnoreCase) &&
+                            normAddress.Contains(kvp.Key, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return true;
+                        }
+                    }
+                }
             }
         }
 
@@ -844,13 +998,14 @@ internal static class PublicPropertyMappingHelper
 
     internal static ProvinceDto? FindProvinceByCode(ILocationLookupService locationService, string code)
     {
-        var direct = locationService.GetProvinceByCode(code.Trim());
+        var canonical = ResolveCanonicalProvinceCode(code);
+        var direct = locationService.GetProvinceByCode(canonical);
         if (direct != null)
         {
             return direct;
         }
 
-        var key = NormalizeProvinceCodeKey(code);
+        var key = NormalizeProvinceCodeKey(canonical);
         return locationService.GetProvinces()
             .FirstOrDefault(p => string.Equals(NormalizeProvinceCodeKey(p.Code), key, StringComparison.OrdinalIgnoreCase));
     }
@@ -869,6 +1024,12 @@ internal static class PublicPropertyMappingHelper
             var exact = provinces.FirstOrDefault(pr =>
                 string.Equals(NormalizeProvinceTitle(pr.Name), cityTitle, StringComparison.OrdinalIgnoreCase));
             if (exact != null) return exact;
+
+            if (LegacyProvinceTitleToCanonical.TryGetValue(cityTitle, out var canonicalFromLegacyTitle))
+            {
+                var byLegacyTitle = FindProvinceByCode(locationService, canonicalFromLegacyTitle);
+                if (byLegacyTitle != null) return byLegacyTitle;
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(touristZoneSlug))
@@ -900,6 +1061,15 @@ internal static class PublicPropertyMappingHelper
                 return !string.IsNullOrEmpty(title) && normAddress.Contains(title, StringComparison.OrdinalIgnoreCase);
             });
             if (byAddress != null) return byAddress;
+
+            foreach (var kvp in LegacyProvinceTitleToCanonical)
+            {
+                if (normAddress.Contains(kvp.Key, StringComparison.OrdinalIgnoreCase))
+                {
+                    var byLegacyAddr = FindProvinceByCode(locationService, kvp.Value);
+                    if (byLegacyAddr != null) return byLegacyAddr;
+                }
+            }
         }
 
         return null;

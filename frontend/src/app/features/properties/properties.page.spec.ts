@@ -307,4 +307,35 @@ describe('PropertiesPage — PMS Properties & FormField Validation (Task T016)',
       })
     );
   });
+
+  it('10. should default provinceCode to canonical 79 on create and bind real provinceCode on openEditModal', () => {
+    component.openCreateModal();
+    expect(component.propertyForm.get('provinceCode')?.value).toBe('79');
+
+    component.propertyForm.patchValue({
+      name: 'Khách sạn Bến Thành',
+      code: 'BT01',
+      slug: 'khach-san-ben-thanh',
+      propertyType: 1,
+      address: '10 Lê Lợi',
+      city: 'TP. Hồ Chí Minh',
+    });
+    component.saveProperty();
+    expect(mockPropertyService.createProperty).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provinceCode: '79',
+      })
+    );
+
+    // Edit property in Đà Lạt (sampleProperties[1]) infers canonical code '68' instead of 'VN-SG'
+    component.openEditModal(sampleProperties[1]);
+    expect(component.propertyForm.get('provinceCode')?.value).toBe('68');
+
+    // Edit property with explicit provinceCode or legacy code resolves to canonical 34 code
+    component.openEditModal({ ...sampleProperties[0], provinceCode: '48' } as TenantPropertySummaryDto);
+    expect(component.propertyForm.get('provinceCode')?.value).toBe('48');
+
+    component.openEditModal({ ...sampleProperties[0], provinceCode: '77' } as TenantPropertySummaryDto);
+    expect(component.propertyForm.get('provinceCode')?.value).toBe('79');
+  });
 });

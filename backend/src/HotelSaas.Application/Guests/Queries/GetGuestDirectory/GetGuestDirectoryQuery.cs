@@ -1,6 +1,7 @@
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Guests.DTOs;
+using HotelSaas.Application.Reservations.DTOs;
 using HotelSaas.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -72,19 +73,27 @@ public sealed class GetGuestDirectoryQueryHandler : IRequestHandler<GetGuestDire
                 Notes = g.OrderByDescending(r => r.CreatedAtUtc).Select(r => r.Notes).FirstOrDefault()
             });
 
-        var totalCount = await grouped.CountAsync(cancellationToken);
         var page = Math.Max(1, request.Page);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
+        var hasPostFilters = !string.IsNullOrWhiteSpace(request.LoyaltyTier) || request.IsVip.HasValue;
 
-        var pagedRows = await grouped
+        var orderedQuery = grouped
             .OrderByDescending(g => g.TotalSpent)
-            .ThenByDescending(g => g.CompletedStays)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
+            .ThenByDescending(g => g.CompletedStays);
+
+        var candidateRows = hasPostFilters
+            ? await orderedQuery.ToListAsync(cancellationToken)
+            : await orderedQuery
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
+
+        var totalCount = hasPostFilters
+            ? 0
+            : await grouped.CountAsync(cancellationToken);
 
         // Fetch loyalty cards for users if any
-        var userIds = pagedRows
+        var userIds = candidateRows
             .Where(r => r.GuestUserId.HasValue)
             .Select(r => r.GuestUserId!.Value)
             .Distinct()
@@ -104,7 +113,7 @@ public sealed class GetGuestDirectoryQueryHandler : IRequestHandler<GetGuestDire
             }
         }
 
-        var items = pagedRows.Select(r =>
+        var items = candidateRows.Select(r =>
         {
             var tier = "Standard";
             var points = 0;
@@ -119,6 +128,8 @@ public sealed class GetGuestDirectoryQueryHandler : IRequestHandler<GetGuestDire
             }
 
             var isVip = r.TotalSpent >= 5_000_000 || r.CompletedStays >= 3 || tier != "Standard";
+            var snapshot = ReservationSnapshotHelper.TryDeserialize(r.Notes);
+            var cleanNotes = ReservationSnapshotHelper.CleanCustomerNotes(r.Notes, snapshot);
 
             return new GuestDirectoryItemDto
             {
@@ -137,9 +148,33 @@ public sealed class GetGuestDirectoryQueryHandler : IRequestHandler<GetGuestDire
                 PointsBalance = points,
                 IsVip = isVip,
                 IsBlacklisted = false,
-                Notes = r.Notes
+                Notes = cleanNotes
             };
         }).ToList();
+
+        if (hasPostFilters)
+        {
+            if (!string.IsNullOrWhiteSpace(request.LoyaltyTier))
+            {
+                var filterTier = request.LoyaltyTier.Trim();
+                items = items
+                    .Where(i => string.Equals(i.LoyaltyTier, filterTier, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+
+            if (request.IsVip.HasValue)
+            {
+                items = items
+                    .Where(i => i.IsVip == request.IsVip.Value)
+                    .ToList();
+            }
+
+            totalCount = items.Count;
+            items = items
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+        }
 
         return new PagedResult<GuestDirectoryItemDto>(items, totalCount, page, pageSize);
     }
