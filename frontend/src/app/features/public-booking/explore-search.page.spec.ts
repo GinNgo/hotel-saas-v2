@@ -190,7 +190,7 @@ describe('ExploreSearchPageComponent (Geo-Search, Canonical Catalog & Split Map)
     expect(comp.maxPrice()).toBe(2000000);
     expect(comp.selectedPriceRangeKey()).toBe('custom');
     expect(mockLocationService.reverseGeocode).toHaveBeenCalledWith(10.7725, 106.698);
-    expect(comp.activeGeoLabel()).toBe('📍 Gần Chợ Bến Thành, TP. Hồ Chí Minh (250m)');
+    expect(comp.activeGeoLabel()).toBe('Gần Chợ Bến Thành, TP. Hồ Chí Minh (250m)');
     expect(comp.pageTitle()).toContain('Chỗ nghỉ gần Gần Chợ Bến Thành');
 
     const el: HTMLElement = fixture.nativeElement;
@@ -253,5 +253,26 @@ describe('ExploreSearchPageComponent (Geo-Search, Canonical Catalog & Split Map)
 
     // First property has no lat/lng, so second property (with coordinates) should be auto-selected
     expect(comp.selectedMapProperty()?.propertyId).toBe('prop-with-coords');
+  });
+
+  it('hydrates promoCode from URL, forwards it in propertyLinkQueryParams, and clears it cleanly', () => {
+    queryParamsSubject.next({ promoCode: 'SUMMER20' });
+    const fixture = TestBed.createComponent(ExploreSearchPageComponent);
+    fixture.detectChanges();
+    const comp = fixture.componentInstance;
+    const el: HTMLElement = fixture.nativeElement;
+
+    expect(comp.promoCode()).toBe('SUMMER20');
+    expect(el.querySelector('[data-testid="active-promo-banner"]')?.textContent).toContain('SUMMER20');
+    expect(comp.propertyLinkQueryParams()['promoCode']).toBe('SUMMER20');
+
+    comp.clearPromoCode();
+    expect(comp.promoCode()).toBeNull();
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({
+        queryParams: expect.objectContaining({ promoCode: null }),
+      })
+    );
   });
 });

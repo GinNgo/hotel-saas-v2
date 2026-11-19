@@ -1,17 +1,27 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { of, switchMap } from 'rxjs';
 import { PublicBookingService } from '../../core/services/public-booking.service';
 import { AlertService } from '../../core/services/alert.service';
-import { CreateGuestHoldRequest, GuestBookingDetailDto, PublicPropertyDto } from '../../core/models/public-booking.model';
+import { CalculatePublicQuoteRequest, CreateGuestHoldRequest, GuestBookingDetailDto, PublicPropertyDto } from '../../core/models/public-booking.model';
 import { QuoteDto } from '../../core/models/reservation.model';
 import { PublicStayContext, publicStayInterval, readPublicStay } from '../../core/models/public-stay-context';
 import { FormFieldComponent, FormControlDirective } from '../../shared/components/form-field/form-field.component';
 import { PhoneOtpModalComponent } from '../auth/phone-otp-modal/phone-otp-modal.component';
 import { AuthService } from '../../core/services/auth.service';
+import { GuestAccountService } from '../../core/services/guest-account.service';
+import { GuestLoyaltyMembershipDto, GuestMeDto } from '../../core/models/guest-account.model';
+import { UserDto } from '../../core/models/auth.model';
+import { HasUnsavedChanges } from '../../core/guards/unsaved-changes.guard';
+
+type UserDtoWithVerification = UserDto & {
+  isPhoneVerified?: boolean;
+  isEmailVerified?: boolean;
+};
 
 export interface HoldErrorState {
   title: string;
@@ -21,13 +31,19 @@ export interface HoldErrorState {
   note?: string;
 }
 
+type QuoteWithPromo = QuoteDto & {
+  promoCode?: string | null;
+  promoDiscountAmount?: number | null;
+  depositRequired?: number | null;
+};
+
 @Component({
   selector: 'app-booking-hold-page',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, FormFieldComponent, FormControlDirective, PhoneOtpModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="bg-[#EFECE6] min-h-screen py-8 px-4 sm:px-6 lg:px-8 relative text-stone-800">
+    <div class="bg-[var(--surface-canvas)] min-h-screen py-8 px-4 sm:px-6 lg:px-8 relative text-stone-800">
       <!-- TOAST THÔNG BÁO HỆ THỐNG (LUXESTAY TOAST — VỊ TRÍ GÓC DƯỚI KHÔNG CHE HEADER/NAV) -->
       @if (toast(); as t) {
         <aside
@@ -187,7 +203,7 @@ export interface HoldErrorState {
                     <div class="flex items-center gap-2 flex-wrap">
                       <div class="text-xs font-bold uppercase tracking-wider text-amber-800">Thời hạn giữ phòng</div>
                       @if (isExpiringSoon()) {
-                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200 animate-pulse">
+                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200 animate-pulse motion-reduce:animate-none">
                           <i class="pi pi-exclamation-triangle text-[10px]"></i> Sắp hết hạn
                         </span>
                       }
@@ -204,10 +220,10 @@ export interface HoldErrorState {
                 </div>
                 <div class="flex items-center gap-3 shrink-0 self-start sm:self-center">
                   <div class="text-left sm:text-right">
-                    <div class="font-mono text-2xl sm:text-3xl font-black text-amber-900 tracking-tight">
+                    <div class="font-mono text-2xl sm:text-3xl font-black text-amber-900 tracking-tight tabular-nums">
                       {{ formattedTimeRemaining() }}
                     </div>
-                    <div class="text-[11px] text-slate-500">
+                    <div class="text-[11px] text-slate-500 tabular-nums">
                       Hết hạn lúc: {{ detail.holdExpiresAtUtc | date:'HH:mm:ss dd/MM':'+0700' }}
                     </div>
                   </div>
@@ -238,7 +254,7 @@ export interface HoldErrorState {
                         type="button"
                         (click)="extendHold()"
                         [disabled]="isExtendingHold()"
-                        class="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-all inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+                        class="min-h-11 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-all inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
                       >
                         @if (isExtendingHold()) {
                           <i class="pi pi-spin pi-spinner text-xs"></i>
@@ -263,7 +279,7 @@ export interface HoldErrorState {
                     <i class="pi pi-exclamation-circle text-rose-600 shrink-0"></i>
                     <span>{{ extendHoldError() }}</span>
                   </div>
-                  <button type="button" (click)="extendHoldError.set('')" class="text-rose-400 hover:text-rose-600 p-1 rounded cursor-pointer" aria-label="Đóng thông báo lỗi gia hạn">
+                  <button type="button" (click)="extendHoldError.set('')" class="min-h-11 min-w-11 flex items-center justify-center text-rose-400 hover:text-rose-600 p-1 rounded cursor-pointer" aria-label="Đóng thông báo lỗi gia hạn">
                     <i class="pi pi-times text-xs"></i>
                   </button>
                 </div>
@@ -271,7 +287,7 @@ export interface HoldErrorState {
             }
 
             <!-- Mã tra cứu & Hướng dẫn sao chép an toàn -->
-            <div class="p-4 sm:p-5 rounded-2xl bg-[#F5F2EB] border-2 border-stone-300 space-y-2.5">
+            <div class="p-4 sm:p-5 rounded-2xl bg-[var(--surface-subtle)] border-2 border-stone-300 space-y-2.5">
               <div class="flex items-center justify-between flex-wrap gap-2">
                 <div class="flex items-center gap-2">
                   <i class="pi pi-key text-indigo-600 text-xs"></i>
@@ -293,7 +309,7 @@ export interface HoldErrorState {
                 <button
                   type="button"
                   (click)="copyToken(detail.lookupToken)"
-                  class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                  class="min-h-11 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
                   title="Sao chép mã tra cứu"
                   aria-label="Sao chép mã tra cứu"
                 >
@@ -308,32 +324,40 @@ export interface HoldErrorState {
             </div>
 
             <!-- Lưới chi tiết đặt phòng -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-5 rounded-2xl bg-[#F5F2EB] border-2 border-stone-300">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-5 rounded-2xl bg-[var(--surface-subtle)] border-2 border-stone-300">
               <div>
                 <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Hạng phòng</span>
                 <span class="text-sm font-bold text-slate-800">{{ detail.roomTypeName }}</span>
               </div>
               <div>
                 <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Số lượng khách</span>
-                <span class="text-sm font-bold text-slate-800">{{ detail.numberOfGuests }} khách</span>
+                <span class="text-sm font-bold text-slate-800 tabular-nums">{{ detail.numberOfGuests }} khách</span>
               </div>
               <div class="sm:col-span-2">
                 <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Thời gian lưu trú</span>
-                <span class="text-xs sm:text-sm font-bold text-indigo-900">
-                  {{ detail.startAtUtc | date:'dd/MM/yyyy HH:mm':'+0700' }} → {{ detail.endAtUtc | date:'dd/MM/yyyy HH:mm':'+0700' }}
+                <span class="text-xs sm:text-sm font-bold text-indigo-900 tabular-nums inline-flex items-center gap-1.5 flex-wrap">
+                  <span>{{ detail.startAtUtc | date:'dd/MM/yyyy HH:mm':'+0700' }}</span>
+                  <i class="pi pi-arrow-right text-[10px]" aria-hidden="true"></i>
+                  <span>{{ detail.endAtUtc | date:'dd/MM/yyyy HH:mm':'+0700' }}</span>
                 </span>
               </div>
             </div>
 
             <!-- Tổng tiền & Cọc yêu cầu -->
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-2xl bg-[#FAF7F2] border-2 border-stone-300 gap-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-2xl bg-[var(--surface-card)] border-2 border-stone-300 gap-4">
               <div>
                 <div class="text-xs text-indigo-900 font-medium">Tổng tiền lưu trú dự tính</div>
-                <div class="text-2xl sm:text-3xl font-black text-indigo-700">{{ detail.totalAmount | number:'1.0-0' }} ₫</div>
+                <div class="text-2xl sm:text-3xl font-black text-indigo-700 tabular-nums">{{ detail.totalAmount | number:'1.0-0' }} ₫</div>
+                @if (detail.promoCode) {
+                  <div class="mt-1 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold tabular-nums">
+                    <i class="pi pi-ticket text-[10px]" aria-hidden="true"></i>
+                    <span>Mã {{ detail.promoCode }} (Giảm {{ (detail.promoDiscountAmount ?? 0) | number:'1.0-0' }} ₫)</span>
+                  </div>
+                }
               </div>
               <div class="sm:text-right">
                 <div class="text-xs text-amber-800 font-bold uppercase tracking-wide">Đặt cọc yêu cầu theo quy định</div>
-                <div class="text-xl font-extrabold text-amber-600">{{ detail.depositRequired | number:'1.0-0' }} ₫</div>
+                <div class="text-xl font-extrabold text-amber-600 tabular-nums">{{ detail.depositRequired | number:'1.0-0' }} ₫</div>
               </div>
             </div>
 
@@ -348,7 +372,7 @@ export interface HoldErrorState {
               @if (isHoldExpired()) {
                 <a
                   routerLink="/booking"
-                  class="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  class="min-h-11 w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <i class="pi pi-search text-xs"></i>
                   <span>Tìm phòng mới</span>
@@ -357,7 +381,7 @@ export interface HoldErrorState {
                 <a
                   [routerLink]="['/booking/status', detail.lookupToken]"
                   [queryParams]="{ paymentMethod: selectedPaymentMethod }"
-                  class="w-full sm:w-auto px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  class="min-h-11 w-full sm:w-auto px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>{{ paymentMethodActionLabel() }}</span>
                   <i class="pi pi-arrow-right text-xs"></i>
@@ -390,6 +414,7 @@ export interface HoldErrorState {
                     [appFormControl]="nameField"
                     name="name"
                     [(ngModel)]="guestName"
+                    (ngModelChange)="markUserInputDirty()"
                     #nameControl="ngModel"
                     [disabled]="isSubmitting() || loading()"
                     required
@@ -413,10 +438,11 @@ export interface HoldErrorState {
                       [ngModel]="selectedCountryCode()"
                       (ngModelChange)="selectedCountryCode.set($event)"
                       name="countryCode"
-                      class="bg-slate-50 border-r border-slate-300 px-2.5 py-2 text-xs font-bold text-slate-700 outline-none cursor-pointer hover:bg-slate-100 transition-colors shrink-0"
+                      aria-label="Chọn mã quốc gia"
+                      class="min-h-11 bg-slate-50 border-r border-slate-300 px-2.5 py-2 text-xs font-bold text-slate-700 outline-none cursor-pointer hover:bg-slate-100 transition-colors shrink-0"
                     >
                       @for (country of countryCodes; track country.code) {
-                        <option [value]="country.code">{{ country.flag }} {{ country.code }}</option>
+                        <option [value]="country.code">{{ country.name }}</option>
                       }
                     </select>
                     <input
@@ -424,6 +450,7 @@ export interface HoldErrorState {
                       id="hold-phone"
                       name="phone"
                       [(ngModel)]="guestPhone"
+                      (ngModelChange)="markUserInputDirty()"
                       #phoneControl="ngModel"
                       [disabled]="isSubmitting() || loading()"
                       required
@@ -432,13 +459,31 @@ export interface HoldErrorState {
                       maxlength="20"
                       autocomplete="tel"
                       placeholder="912 345 678"
-                      class="w-full px-3 py-2 text-xs text-slate-800 outline-none bg-transparent"
+                      class="w-full min-h-11 px-3 py-2 text-xs text-slate-800 outline-none bg-transparent"
                     />
                   </div>
-                  @if (isPhoneOtpVerified()) {
-                    <div class="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold mt-1">
+                  @if (isPhoneOtpVerified() || isAccountPhoneVerified()) {
+                    <div class="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold mt-1.5">
                       <i class="pi pi-check-circle text-xs text-emerald-600"></i>
-                      <span>Số điện thoại đã xác thực an toàn qua SMS OTP</span>
+                      <span>
+                        {{ isPhoneOtpVerified() ? 'Số điện thoại đã xác thực an toàn qua SMS OTP' : 'Số điện thoại tài khoản đã được xác thực' }}
+                      </span>
+                    </div>
+                  } @else {
+                    <div class="flex items-center justify-between gap-2 flex-wrap mt-1.5">
+                      <span class="text-[11px] text-amber-800 flex items-center gap-1">
+                        <i class="pi pi-shield text-[11px] text-amber-600"></i>
+                        <span>Cần xác thực SMS OTP trước khi giữ chỗ</span>
+                      </span>
+                      <button
+                        type="button"
+                        (click)="openPhoneVerifyModal()"
+                        [disabled]="isSubmitting() || loading()"
+                        class="min-h-11 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <i class="pi pi-mobile text-[11px] mr-1"></i>
+                        <span>Xác thực SĐT (OTP)</span>
+                      </button>
                     </div>
                   }
                 </app-form-field>
@@ -448,6 +493,7 @@ export interface HoldErrorState {
                     [appFormControl]="emailField"
                     name="email"
                     [(ngModel)]="guestEmail"
+                    (ngModelChange)="markUserInputDirty()"
                     #emailControl="ngModel"
                     [disabled]="isSubmitting() || loading()"
                     required
@@ -461,6 +507,26 @@ export interface HoldErrorState {
                     [class.focus:!ring-rose-100]="fieldError('email', emailControl.touched)"
                   />
                 </app-form-field>
+
+                <div class="space-y-1.5">
+                  <div class="flex items-center justify-between">
+                    <label for="hold-special-requests" class="block text-xs font-bold text-slate-700">
+                      Yêu cầu đặc biệt <span class="text-slate-400 font-normal">(tùy chọn)</span>
+                    </label>
+                    <span class="text-[11px] font-mono text-slate-400">{{ specialRequests().length }}/500</span>
+                  </div>
+                  <textarea
+                    id="hold-special-requests"
+                    name="specialRequests"
+                    rows="3"
+                    maxlength="500"
+                    [ngModel]="specialRequests()"
+                    (ngModelChange)="specialRequests.set($event); markUserInputDirty()"
+                    [disabled]="isSubmitting() || loading()"
+                    placeholder="Ví dụ: Nhận phòng trễ sau 21:00, phòng tầng cao yên tĩnh, chuẩn bị thêm gối..."
+                    class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y"
+                  ></textarea>
+                </div>
               </div>
 
               <section class="space-y-3" aria-labelledby="payment-method-label">
@@ -496,7 +562,7 @@ export interface HoldErrorState {
                 </div>
                 @if (selectedPaymentMethod === 'PayAtHotel') {
                   <div role="note" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-950">
-                    Tiền cọc dự kiến: <strong>{{ ((priceAny()?.depositRequired ?? (priceAny()?.totalAmount * 0.3)) | number:'1.0-0') }} ₫</strong>.
+                    Tiền cọc dự kiến: <strong>{{ ((priceAny()?.depositRequired ?? ((priceAny()?.totalAmount ?? 0) * 0.3)) | number:'1.0-0') }} ₫</strong>.
                     Đến quầy lễ tân và nộp cọc trước khi giữ phòng hết hạn. Nhân viên sẽ ghi nhận tiền mặt và xác nhận đặt phòng; nếu chưa nộp kịp, giữ phòng sẽ tự hết hạn.
                   </div>
                 }
@@ -510,7 +576,7 @@ export interface HoldErrorState {
               <button
                 type="submit"
                 [disabled]="loading() || isSubmitting() || !quote() || isQuoteExpired()"
-                class="w-full h-13 px-6 rounded-xl bg-[#0D2E28] hover:bg-[#14473D] active:bg-[#08201B] text-white font-bold text-sm sm:text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                class="w-full h-13 px-6 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] font-bold text-sm sm:text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 @if (isSubmitting()) {
                   <i class="pi pi-spin pi-spinner text-base"></i>
@@ -555,7 +621,7 @@ export interface HoldErrorState {
                     <button
                       type="button"
                       (click)="clearHoldError()"
-                      class="text-rose-400 hover:text-rose-600 active:text-rose-800 p-1 -mr-1 -mt-1 rounded-lg transition-colors cursor-pointer shrink-0"
+                      class="min-h-11 min-w-11 flex items-center justify-center text-rose-400 hover:text-rose-600 active:text-rose-800 p-1 -mr-1 -mt-1 rounded-lg transition-colors cursor-pointer shrink-0"
                       title="Đóng thông báo"
                       aria-label="Đóng thông báo"
                     >
@@ -567,7 +633,7 @@ export interface HoldErrorState {
             </form>
 
             <!-- Cột Phải: Báo giá & Chi tiết chỗ nghỉ (5 cột) -->
-            <section class="lg:col-span-5 bg-[#FAF7F2] rounded-3xl p-6 sm:p-7 border-2 border-stone-300 shadow-md space-y-5 lg:sticky lg:top-24">
+            <section class="lg:col-span-5 bg-[var(--surface-card)] rounded-3xl p-6 sm:p-7 border-2 border-stone-300 shadow-md space-y-5 lg:sticky lg:top-24">
               <div class="flex items-center gap-2.5 pb-3 border-b border-slate-100">
                 <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm">
                   <i class="pi pi-receipt"></i>
@@ -599,22 +665,24 @@ export interface HoldErrorState {
                     @if (stay()?.rentalType === 'Hourly') {
                       <div class="flex items-center justify-between text-slate-600">
                         <span>Thời gian:</span>
-                        <span class="font-bold text-indigo-900">
+                        <span class="font-bold text-indigo-900 tabular-nums">
                           {{ stay()?.checkInDate }} (từ {{ stay()?.checkInTime }}, {{ stay()?.durationHours }}h)
                         </span>
                       </div>
                     } @else {
                       <div class="flex items-center justify-between text-slate-600">
                         <span>Lịch lưu trú:</span>
-                        <span class="font-bold text-indigo-900">
-                          {{ stay()?.checkInDate }} → {{ stay()?.checkOutDate }} ({{ numberOfNights() }} đêm)
+                        <span class="font-bold text-indigo-900 tabular-nums inline-flex items-center gap-1">
+                          <span>{{ stay()?.checkInDate }}</span>
+                          <i class="pi pi-arrow-right text-[10px]" aria-hidden="true"></i>
+                          <span>{{ stay()?.checkOutDate }} ({{ numberOfNights() }} đêm)</span>
                         </span>
                       </div>
                     }
 
                     <div class="flex items-center justify-between text-slate-600">
                       <span>Số lượng khách:</span>
-                      <span class="font-bold text-slate-800">{{ stay()?.guests ?? 1 }} khách</span>
+                      <span class="font-bold text-slate-800 tabular-nums">{{ stay()?.guests ?? 1 }} khách</span>
                     </div>
                   </div>
 
@@ -622,25 +690,150 @@ export interface HoldErrorState {
                   <div class="space-y-2 pt-1 border-t border-slate-100 text-xs">
                     <div class="font-bold uppercase tracking-wider text-slate-400 text-[10px]">Khoản phí mục vụ</div>
                     @for (line of price.breakdown; track $index) {
-                      <div class="flex items-center justify-between text-slate-700 py-0.5">
+                      <div
+                        class="flex items-center justify-between py-0.5"
+                        [class.text-emerald-700]="line.amount < 0 || line.category === 'Discount'"
+                        [class.font-semibold]="line.amount < 0 || line.category === 'Discount'"
+                        [class.text-slate-700]="line.amount >= 0 && line.category !== 'Discount'"
+                      >
                         <span class="truncate pr-2">{{ line.description }}</span>
-                        <span class="font-semibold shrink-0">{{ line.amount | number:'1.0-0' }} ₫</span>
+                        <span class="font-semibold shrink-0 tabular-nums">{{ line.amount | number:'1.0-0' }} ₫</span>
                       </div>
                     }
                   </div>
 
+                  <!-- Mã khuyến mãi (Promo Code) -->
+                  <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2.5">
+                    <div class="flex items-center justify-between gap-2">
+                      <label for="hold-promo-input" class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <i class="pi pi-ticket text-indigo-600 text-xs" aria-hidden="true"></i>
+                        <span>Mã khuyến mãi</span>
+                      </label>
+                      @if (appliedPromoCode(); as applied) {
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-mono font-bold text-[11px]">
+                          {{ applied }}
+                        </span>
+                      }
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                      <input
+                        id="hold-promo-input"
+                        type="text"
+                        [ngModel]="promoCodeInput()"
+                        (ngModelChange)="promoCodeInput.set($event)"
+                        (keyup.enter)="applyPromoCode()"
+                        name="promoCode"
+                        placeholder="Nhập mã ưu đãi (VD: SUMMER20)"
+                        class="min-h-[44px] flex-1 min-w-0 px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono uppercase focus:outline-hidden focus:border-indigo-500"
+                      />
+                      @if (appliedPromoCode()) {
+                        <button
+                          type="button"
+                          (click)="clearPromoCode()"
+                          [disabled]="isApplyingPromo() || isSubmitting()"
+                          class="min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                        >
+                          Bỏ mã
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        (click)="applyPromoCode()"
+                        [disabled]="isApplyingPromo() || isSubmitting()"
+                        class="min-h-[44px] px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                      >
+                        {{ isApplyingPromo() ? 'Đang kiểm tra...' : 'Áp dụng' }}
+                      </button>
+                    </div>
+
+                    @if (promoError()) {
+                      <p role="alert" class="text-[11px] font-medium text-rose-700">
+                        {{ promoError() }}
+                      </p>
+                    } @else if (quoteWithPromo()?.promoDiscountAmount) {
+                      <p class="text-[11px] font-semibold text-emerald-700 tabular-nums">
+                        Đã giảm {{ quoteWithPromo()?.promoDiscountAmount | number:'1.0-0' }} ₫ từ mã {{ quoteWithPromo()?.promoCode }}.
+                      </p>
+                    }
+                  </div>
+
+                  <!-- Điểm thưởng thành viên (Loyalty Points Redemption) -->
+                  @if (activeMembershipForProperty(); as membership) {
+                    @if (availableLoyaltyPoints() > 0 && maxRedeemablePoints() > 0) {
+                      <div class="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/90 space-y-2.5">
+                        <div class="flex items-center justify-between gap-2">
+                          <label for="hold-use-points" class="flex items-center gap-2 text-xs font-bold text-amber-950 cursor-pointer">
+                            <input
+                              id="hold-use-points"
+                              type="checkbox"
+                              [ngModel]="useLoyaltyPoints()"
+                              (ngModelChange)="toggleUseLoyaltyPoints($event)"
+                              [disabled]="isSubmitting() || loading()"
+                              class="w-4 h-4 rounded border-amber-400 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            />
+                            <span>Dùng điểm thưởng thành viên</span>
+                          </label>
+                          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 tabular-nums">
+                            {{ membership.tier }} • {{ availableLoyaltyPoints() | number }} điểm
+                          </span>
+                        </div>
+
+                        @if (useLoyaltyPoints()) {
+                          <div class="space-y-2 pt-1">
+                            <div class="flex items-center gap-2">
+                              <input
+                                type="range"
+                                aria-label="Chọn số điểm thưởng quy đổi"
+                                [min]="0"
+                                [max]="maxRedeemablePoints()"
+                                [ngModel]="effectivePointsToRedeem()"
+                                (ngModelChange)="onPointsToRedeemChange($event)"
+                                class="flex-1 accent-indigo-600 cursor-pointer"
+                              />
+                              <input
+                                id="hold-points-input"
+                                type="number"
+                                aria-label="Số điểm thưởng quy đổi"
+                                [min]="0"
+                                [max]="maxRedeemablePoints()"
+                                [ngModel]="effectivePointsToRedeem()"
+                                (ngModelChange)="onPointsToRedeemChange($event)"
+                                class="w-24 min-h-[38px] px-2.5 py-1 rounded-lg border border-amber-300 bg-white text-xs font-mono font-bold text-slate-900 text-right tabular-nums"
+                              />
+                            </div>
+                            <div class="flex items-center justify-between text-[11px] text-amber-900 tabular-nums">
+                              <span>Tối đa {{ maxRedeemablePoints() | number }} điểm (50% đơn)</span>
+                              <span class="font-bold text-emerald-700">-{{ estimatedPointsDiscount() | number:'1.0-0' }} ₫</span>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    }
+                  }
+
                   <!-- Tổng tiền & Cọc -->
                   <div class="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100 space-y-2">
+                    @if (estimatedPointsDiscount() > 0) {
+                      <div class="flex items-center justify-between text-xs text-slate-600">
+                        <span>Tạm tính trước điểm thưởng:</span>
+                        <span class="font-mono tabular-nums">{{ price.totalAmount | number:'1.0-0' }} ₫</span>
+                      </div>
+                      <div class="flex items-center justify-between text-xs text-emerald-700 font-semibold">
+                        <span>Quy đổi {{ effectivePointsToRedeem() | number }} điểm thưởng:</span>
+                        <span class="font-mono tabular-nums">-{{ estimatedPointsDiscount() | number:'1.0-0' }} ₫</span>
+                      </div>
+                    }
                     <div class="flex items-baseline justify-between">
                       <span class="text-xs font-bold text-indigo-950 uppercase tracking-wide">Tổng tiền lưu trú:</span>
-                      <strong class="text-xl sm:text-2xl font-black text-indigo-700">
-                        {{ price.totalAmount | number:'1.0-0' }} ₫
+                      <strong class="text-xl sm:text-2xl font-black text-indigo-700 tabular-nums">
+                        {{ estimatedFinalTotal() | number:'1.0-0' }} ₫
                       </strong>
                     </div>
-                    @if ((priceAny().depositRequired) !== undefined && (priceAny().depositRequired) !== null) {
+                    @if (priceAny()?.depositRequired !== undefined && priceAny()?.depositRequired !== null) {
                       <div class="flex items-center justify-between text-xs text-amber-800 pt-1.5 border-t border-indigo-100/80 font-medium">
                         <span>Đặt cọc giữ chỗ:</span>
-                        <span class="font-bold text-amber-600">{{ priceAny().depositRequired | number:'1.0-0' }} ₫</span>
+                        <span class="font-bold text-amber-600 tabular-nums">{{ priceAny()?.depositRequired | number:'1.0-0' }} ₫</span>
                       </div>
                     } @else {
                       <div class="pt-2 border-t border-indigo-100/80 space-y-1 text-xs">
@@ -663,7 +856,7 @@ export interface HoldErrorState {
                         Báo giá còn hiệu lực:
                       </span>
                       <span
-                        class="font-mono text-sm px-2 py-0.5 rounded bg-white border border-amber-200 text-amber-800"
+                        class="font-mono text-sm px-2 py-0.5 rounded bg-white border border-amber-200 text-amber-800 tabular-nums"
                         [class.text-rose-600]="isQuoteExpired()"
                       >
                         {{ formatCountdown(quoteRemainingSeconds()) }}
@@ -691,7 +884,7 @@ export interface HoldErrorState {
                 type="button"
                 (click)="loadPreview()"
                 [disabled]="loading() || isSubmitting()"
-                class="w-full py-2.5 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 active:bg-slate-100 text-slate-700 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                class="min-h-11 w-full py-2.5 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 active:bg-slate-100 text-slate-700 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 <i class="pi pi-refresh text-xs" [class.animate-spin]="loading()"></i>
                 <span>Kiểm tra lại giá phòng</span>
@@ -711,14 +904,15 @@ export interface HoldErrorState {
     </div>
   `,
 })
-export class BookingHoldPageComponent implements OnInit, OnDestroy {
+export class BookingHoldPageComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   private readonly publicBookingService = inject(PublicBookingService);
   private readonly alertService = inject(AlertService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly element: ElementRef<HTMLElement> = inject(ElementRef);
-  private readonly authService = inject(AuthService);
+  private readonly authService = inject(AuthService, { optional: true });
+  private readonly guestAccountService = inject(GuestAccountService, { optional: true });
 
   readonly submitted = signal(false);
   readonly booking = signal<GuestBookingDetailDto | null>(null);
@@ -739,20 +933,43 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   readonly showPhoneOtpModal = signal<boolean>(false);
   readonly verifiedFirebaseIdToken = signal<string | null>(null);
   readonly isPhoneOtpVerified = signal<boolean>(false);
+  readonly promoCodeInput = signal<string>('');
+  readonly appliedPromoCode = signal<string | null>(null);
+  readonly isApplyingPromo = signal<boolean>(false);
+  readonly promoError = signal<string>('');
+  readonly specialRequests = signal<string>('');
+  readonly guestMe = signal<GuestMeDto | null>(null);
+  readonly guestMemberships = signal<GuestLoyaltyMembershipDto[]>([]);
+  readonly useLoyaltyPoints = signal<boolean>(false);
+  readonly pointsToRedeemInput = signal<number>(0);
+  private readonly guestPhoneSignal = signal<string>('');
+  private readonly hasDirtyUserInput = signal<boolean>(false);
+  private holdSubmittedSuccessfully = false;
+
+  markUserInputDirty(): void {
+    this.hasDirtyUserInput.set(true);
+  }
+
+  hasUnsavedChanges(): boolean {
+    if (this.booking() || this.holdSubmittedSuccessfully || this.isSubmitting()) {
+      return false;
+    }
+    return this.hasDirtyUserInput();
+  }
 
   readonly countryCodes = [
-    { code: '+84', name: 'Vietnam (+84)', flag: '🇻🇳' },
-    { code: '+1', name: 'USA/Canada (+1)', flag: '🇺🇸' },
-    { code: '+81', name: 'Japan (+81)', flag: '🇯🇵' },
-    { code: '+82', name: 'South Korea (+82)', flag: '🇰🇷' },
-    { code: '+86', name: 'China (+86)', flag: '🇨🇳' },
-    { code: '+65', name: 'Singapore (+65)', flag: '🇸🇬' },
-    { code: '+66', name: 'Thailand (+66)', flag: '🇹🇭' },
-    { code: '+60', name: 'Malaysia (+60)', flag: '🇲🇾' },
-    { code: '+61', name: 'Australia (+61)', flag: '🇦🇺' },
-    { code: '+44', name: 'UK (+44)', flag: '🇬🇧' },
-    { code: '+33', name: 'France (+33)', flag: '🇫🇷' },
-    { code: '+49', name: 'Germany (+49)', flag: '🇩🇪' },
+    { code: '+84', name: 'Vietnam (+84)' },
+    { code: '+1', name: 'USA/Canada (+1)' },
+    { code: '+81', name: 'Japan (+81)' },
+    { code: '+82', name: 'South Korea (+82)' },
+    { code: '+86', name: 'China (+86)' },
+    { code: '+65', name: 'Singapore (+65)' },
+    { code: '+66', name: 'Thailand (+66)' },
+    { code: '+60', name: 'Malaysia (+60)' },
+    { code: '+61', name: 'Australia (+61)' },
+    { code: '+44', name: 'UK (+44)' },
+    { code: '+33', name: 'France (+33)' },
+    { code: '+49', name: 'Germany (+49)' },
   ];
   selectedCountryCode = signal('+84');
 
@@ -768,8 +985,50 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
 
   private broadcastChannel?: BroadcastChannel;
 
-  readonly finalGrandTotal = computed(() => this.quote()?.totalAmount ?? this.booking()?.totalAmount ?? 0);
-  readonly priceAny = computed<any>(() => this.quote());
+  readonly finalGrandTotal = computed(() => this.estimatedFinalTotal() || this.booking()?.totalAmount || 0);
+  readonly quoteWithPromo = computed<QuoteWithPromo | null>(() => this.quote() as QuoteWithPromo | null);
+  readonly priceAny = computed<QuoteWithPromo | null>(() => this.quote() as QuoteWithPromo | null);
+
+  readonly activeMembershipForProperty = computed<GuestLoyaltyMembershipDto | null>(() => {
+    const tenantId = this.property()?.tenantId;
+    if (!tenantId) return null;
+    return this.guestMemberships().find(m => m.tenantId === tenantId) ?? null;
+  });
+
+  readonly availableLoyaltyPoints = computed<number>(() => this.activeMembershipForProperty()?.pointsBalance ?? 0);
+
+  readonly maxRedeemablePoints = computed<number>(() => {
+    const balance = this.availableLoyaltyPoints();
+    const quoteTotal = this.quote()?.totalAmount ?? 0;
+    if (balance <= 0 || quoteTotal <= 0) return 0;
+    const maxByHalfTotal = Math.floor(Math.round(quoteTotal * 0.5) / 1000);
+    return Math.max(0, Math.min(balance, maxByHalfTotal));
+  });
+
+  readonly effectivePointsToRedeem = computed<number>(() => {
+    if (!this.useLoyaltyPoints()) return 0;
+    const maxPts = this.maxRedeemablePoints();
+    const raw = Math.floor(Number(this.pointsToRedeemInput()) || 0);
+    return Math.max(0, Math.min(raw, maxPts));
+  });
+
+  readonly estimatedPointsDiscount = computed<number>(() => this.effectivePointsToRedeem() * 1000);
+
+  readonly estimatedFinalTotal = computed<number>(() =>
+    Math.max(0, (this.quote()?.totalAmount ?? 0) - this.estimatedPointsDiscount())
+  );
+
+  readonly isAccountPhoneVerified = computed<boolean>(() => {
+    const normalizedInput = this.normalizePhoneInput(this.guestPhoneSignal(), this.selectedCountryCode());
+    if (!normalizedInput) return false;
+    const currentUser = this.authService?.currentUser as UserDtoWithVerification | null | undefined;
+    const me = this.guestMe();
+    const verifiedPhone = (currentUser?.isPhoneVerified && currentUser.phoneNumber)
+      ? currentUser.phoneNumber
+      : (me?.phoneVerified && me.phoneNumber ? me.phoneNumber : null);
+    if (!verifiedPhone) return false;
+    return this.normalizePhoneSimple(verifiedPhone) === normalizedInput;
+  });
 
   readonly numberOfNights = computed(() => {
     const s = this.stay();
@@ -781,7 +1040,14 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   });
 
   guestName = '';
-  guestPhone = '';
+  private _guestPhone = '';
+  get guestPhone(): string {
+    return this._guestPhone;
+  }
+  set guestPhone(value: string) {
+    this._guestPhone = value;
+    this.guestPhoneSignal.set(value);
+  }
   guestEmail = '';
   selectedPaymentMethod: 'VNPay' | 'VietQR' | 'PayAtHotel' | 'BankTransfer' = 'VNPay';
 
@@ -797,7 +1063,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   private holdSubmissionGeneration = 0;
   private bookingGeneration = 0;
   private activeRouteToken?: string;
-  private currentQueryParams: any = {};
+  private currentQueryParams: Params = {};
   private lastPreviewParamsSig = '';
   private hasInitialized = false;
 
@@ -846,6 +1112,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.loadAuthenticatedGuestContext();
     const queryParamMap$ = this.route.queryParamMap ?? of(this.route.snapshot?.queryParamMap ?? { get: () => null });
     queryParamMap$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
       this.selectPaymentMethod(params.get('paymentMethod'));
@@ -884,7 +1151,8 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
       } else if (this.activeRouteToken) {
         this.handleRouteTokenChange('', this.currentQueryParams);
       } else if (!this.hasInitialized) {
-        const queryToken = (this.route.snapshot?.queryParams as any)?.['token']?.trim();
+        const snapshotQuery = this.route.snapshot?.queryParams as Params | undefined;
+        const queryToken = typeof snapshotQuery?.['token'] === 'string' ? snapshotQuery['token'].trim() : undefined;
         if (queryToken) {
           this.handleRouteTokenChange(queryToken, this.currentQueryParams);
         } else {
@@ -894,8 +1162,9 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
     });
 
     queryParams$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(query => {
-      this.currentQueryParams = query ?? this.route.snapshot?.queryParams ?? {};
-      const queryToken = (query as any)?.['token']?.trim();
+      this.currentQueryParams = (query ?? this.route.snapshot?.queryParams ?? {}) as Params;
+      const typedQuery = query as Params | undefined;
+      const queryToken = typeof typedQuery?.['token'] === 'string' ? typedQuery['token'].trim() : undefined;
       const paramToken = typeof this.route.snapshot?.paramMap?.get === 'function' ? this.route.snapshot.paramMap.get('token') : null;
       const token = (this.activeRouteToken || paramToken || queryToken || '').trim();
       if (token) {
@@ -906,7 +1175,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  handleRouteTokenChange(token: string, queryParams: any): void {
+  handleRouteTokenChange(token: string, queryParams: Params): void {
     const isFirstRun = !this.hasInitialized;
     this.hasInitialized = true;
 
@@ -948,13 +1217,25 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
         this.holdError.set(null);
       }
 
+      const incomingPromo = typeof queryParams?.['promoCode'] === 'string'
+        ? queryParams['promoCode'].trim().toUpperCase()
+        : '';
+      if (incomingPromo) {
+        this.promoCodeInput.set(incomingPromo);
+        this.appliedPromoCode.set(incomingPromo);
+      } else if (wasTokenActive) {
+        this.promoCodeInput.set('');
+        this.appliedPromoCode.set(null);
+      }
+
       const previewSig = JSON.stringify([
         queryParams?.['propertySlug'], queryParams?.['roomTypeId'],
         queryParams?.['checkInDate'], queryParams?.['checkOutDate'],
         queryParams?.['rentalType'], queryParams?.['guests'],
         queryParams?.['checkInTime'],
         queryParams?.['durationHours'] ?? queryParams?.['hours'],
-        queryParams?.['roomsCount']
+        queryParams?.['roomsCount'],
+        incomingPromo || null
       ]);
       if (wasTokenActive || (isFirstRun && previewSig) || (previewSig && previewSig !== this.lastPreviewParamsSig)) {
         this.lastPreviewParamsSig = previewSig;
@@ -967,6 +1248,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
     if (this.isSubmitting()) return;
     const generation = ++this.requestGeneration;
     this.error.set('');
+    this.promoError.set('');
     this.quote.set(null);
     this.isQuoteExpired.set(false);
     this.quoteRemainingSeconds.set(0);
@@ -981,16 +1263,19 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
       if (!params['propertySlug'] || !params['roomTypeId']) {
         throw new Error('Vui lòng chọn cơ sở và hạng phòng trước.');
       }
+      const activePromo = this.appliedPromoCode()?.trim().toUpperCase() || null;
       this.loading.set(true);
       this.publicBookingService.getPropertyBySlug(params['propertySlug']).pipe(
         switchMap(property => {
           if (generation !== this.requestGeneration) throw new Error('Yêu cầu đã thay đổi.');
           this.property.set(property);
-          return this.publicBookingService.calculateQuote({
+          const quotePayload: CalculatePublicQuoteRequest = {
             propertySlug: params['propertySlug'],
             roomTypeId: params['roomTypeId'],
-            ...publicStayInterval(stay, property)
-          });
+            ...publicStayInterval(stay, property),
+            ...(activePromo ? { promoCode: activePromo } : {})
+          };
+          return this.publicBookingService.calculateQuote(quotePayload);
         }),
         takeUntilDestroyed(this.destroyRef),
       ).subscribe({
@@ -999,13 +1284,46 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
             this.loading.set(false);
             return;
           }
+          const typedPrice = price as QuoteWithPromo;
+          if (typedPrice.promoCode) {
+            this.appliedPromoCode.set(typedPrice.promoCode);
+            this.promoCodeInput.set(typedPrice.promoCode);
+          }
           this.quote.set(price);
           this.loading.set(false);
           this.startQuoteCountdown(price.expiresAtUtc);
         },
-        error: () => {
+        error: err => {
+          if (generation !== this.requestGeneration) {
+            this.loading.set(false);
+            return;
+          }
+          if (activePromo && err instanceof HttpErrorResponse && err.status === 400) {
+            const msg = this.extractPromoErrorMessage(err);
+            this.appliedPromoCode.set(null);
+            this.promoError.set(msg);
+            const property = this.property();
+            if (property) {
+              this.publicBookingService.calculateQuote({
+                propertySlug: params['propertySlug'],
+                roomTypeId: params['roomTypeId'],
+                ...publicStayInterval(stay, property)
+              }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+                next: fallbackPrice => {
+                  if (generation !== this.requestGeneration) return;
+                  this.quote.set(fallbackPrice);
+                  this.loading.set(false);
+                  this.startQuoteCountdown(fallbackPrice.expiresAtUtc);
+                },
+                error: () => {
+                  this.loading.set(false);
+                  this.error.set('Chưa kiểm tra được giá. Vui lòng thử lại hoặc chọn lại phòng.');
+                }
+              });
+              return;
+            }
+          }
           this.loading.set(false);
-          if (generation !== this.requestGeneration) return;
           this.error.set('Chưa kiểm tra được giá. Vui lòng thử lại hoặc chọn lại phòng.');
         },
       });
@@ -1013,6 +1331,88 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
       this.loading.set(false);
       this.error.set(error instanceof Error ? error.message : 'Lựa chọn không hợp lệ.');
     }
+  }
+
+  applyPromoCode(): void {
+    const candidate = this.promoCodeInput().trim().toUpperCase();
+    if (!candidate) {
+      this.promoError.set('Vui lòng nhập mã khuyến mãi trước khi áp dụng.');
+      return;
+    }
+
+    this.requoteWithPromo(candidate);
+  }
+
+  clearPromoCode(): void {
+    this.promoCodeInput.set('');
+    this.appliedPromoCode.set(null);
+    this.promoError.set('');
+    this.requoteWithPromo(null);
+  }
+
+  private requoteWithPromo(promoCode: string | null): void {
+    const property = this.property();
+    const stay = this.stay();
+    const params = Object.keys(this.currentQueryParams || {}).length > 0
+      ? this.currentQueryParams
+      : (this.route.snapshot?.queryParams ?? {});
+
+    if (!property || !stay || !params['propertySlug'] || !params['roomTypeId']) {
+      this.promoError.set('Chưa có đủ thông tin phòng để kiểm tra mã khuyến mãi.');
+      return;
+    }
+
+    const generation = this.requestGeneration;
+    this.isApplyingPromo.set(true);
+    this.promoError.set('');
+
+    const payload: CalculatePublicQuoteRequest = {
+      propertySlug: params['propertySlug'],
+      roomTypeId: params['roomTypeId'],
+      ...publicStayInterval(stay, property),
+      ...(promoCode ? { promoCode } : {})
+    };
+
+    this.publicBookingService.calculateQuote(payload).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: price => {
+        if (generation !== this.requestGeneration) {
+          this.isApplyingPromo.set(false);
+          return;
+        }
+        const typedPrice = price as QuoteWithPromo;
+        const resolvedCode = promoCode ? (typedPrice.promoCode || promoCode) : null;
+        this.appliedPromoCode.set(resolvedCode);
+        if (resolvedCode) {
+          this.promoCodeInput.set(resolvedCode);
+        }
+        this.quote.set(price);
+        this.isApplyingPromo.set(false);
+        this.isQuoteExpired.set(false);
+        this.startQuoteCountdown(price.expiresAtUtc);
+        if (resolvedCode) {
+          this.showToast(
+            'Đã áp dụng mã khuyến mãi',
+            `Mã ${resolvedCode} đã được áp dụng vào báo giá chính thức.`,
+            'info'
+          );
+        }
+      },
+      error: err => {
+        this.isApplyingPromo.set(false);
+        this.promoError.set(this.extractPromoErrorMessage(err));
+      }
+    });
+  }
+
+  private extractPromoErrorMessage(err: unknown): string {
+    if (err instanceof HttpErrorResponse) {
+      const body = err.error as { message?: string; title?: string } | null;
+      if (body?.message) return body.message;
+      if (body?.title) return body.title;
+    }
+    return 'Mã khuyến mãi không hợp lệ, đã hết hạn hoặc không đủ điều kiện áp dụng.';
   }
 
   startQuoteCountdown(expiresAtUtc?: string): void {
@@ -1186,13 +1586,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
     }
 
     // ── Option A (Strict Gate) Verification Check ──
-    const normalizedPhone = this.getNormalizedPhone();
-    const currentUser = this.authService.currentUser;
-    const isUserPreVerified = Boolean(
-      currentUser &&
-      currentUser.phoneNumber &&
-      this.normalizePhoneSimple(currentUser.phoneNumber) === normalizedPhone
-    );
+    const isUserPreVerified = this.isAccountPhoneVerified();
 
     // If not verified in current session AND not a pre-verified logged-in user matching phone:
     if (!this.verifiedFirebaseIdToken() && !isUserPreVerified) {
@@ -1201,6 +1595,69 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
     }
 
     this.executeCreateHold(this.verifiedFirebaseIdToken() ?? undefined);
+  }
+
+  openPhoneVerifyModal(): void {
+    this.submitted.set(true);
+    if (this.fieldError('phone', true)) {
+      this.element.nativeElement.querySelector<HTMLInputElement>('#hold-phone')?.focus();
+      return;
+    }
+    this.showPhoneOtpModal.set(true);
+  }
+
+  toggleUseLoyaltyPoints(enabled: boolean): void {
+    this.useLoyaltyPoints.set(enabled);
+    if (enabled && this.pointsToRedeemInput() <= 0) {
+      this.pointsToRedeemInput.set(this.maxRedeemablePoints());
+    } else if (!enabled) {
+      this.pointsToRedeemInput.set(0);
+    }
+  }
+
+  onPointsToRedeemChange(value: number | string): void {
+    const parsed = Math.floor(Number(value) || 0);
+    const clamped = Math.max(0, Math.min(parsed, this.maxRedeemablePoints()));
+    this.pointsToRedeemInput.set(clamped);
+  }
+
+  private loadAuthenticatedGuestContext(): void {
+    if (!this.authService?.isLoggedIn) return;
+    const currentUser = this.authService.currentUser as UserDtoWithVerification | null | undefined;
+    if (currentUser) {
+      if (!this.guestName && currentUser.fullName) this.guestName = currentUser.fullName;
+      if (!this.guestEmail && currentUser.email && !currentUser.email.endsWith('@phone.hotelsaas.local')) {
+        this.guestEmail = currentUser.email;
+      }
+      if (!this.guestPhone && currentUser.phoneNumber) {
+        this.guestPhone = currentUser.phoneNumber;
+      }
+    }
+
+    if (this.guestAccountService && typeof this.guestAccountService.getMe === 'function') {
+      this.guestAccountService.getMe().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+        next: (me) => {
+          this.guestMe.set(me);
+          if (!this.guestName && me.fullName) this.guestName = me.fullName;
+          if (!this.guestEmail && me.email && !me.email.endsWith('@phone.hotelsaas.local')) {
+            this.guestEmail = me.email;
+          }
+          if (!this.guestPhone && me.phoneNumber) {
+            this.guestPhone = me.phoneNumber;
+          }
+        },
+        error: () => {}
+      });
+    }
+
+    if (this.guestAccountService && typeof this.guestAccountService.getLoyaltyProfile === 'function') {
+      this.guestAccountService.getLoyaltyProfile().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+        next: (profile) => {
+          this.guestMemberships.set(profile?.memberships ?? []);
+        },
+        error: () => {}
+      });
+    }
   }
 
   onPhoneVerifiedForHold(event: { success: boolean; phoneNumber: string; firebaseIdToken?: string }): void {
@@ -1212,16 +1669,19 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
   }
 
   getNormalizedPhone(): string {
-    const raw = this.guestPhone.trim().replace(/[\s.\-]/g, '');
+    return this.normalizePhoneInput(this.guestPhone, this.selectedCountryCode());
+  }
+
+  private normalizePhoneInput(phone: string, countryCode: string): string {
+    const raw = phone.trim().replace(/[\s.\-]/g, '');
     if (!raw) return '';
     if (raw.startsWith('+')) return raw;
-    const code = this.selectedCountryCode();
-    if (code === '+84') {
+    if (countryCode === '+84') {
       if (raw.startsWith('0')) return '+84' + raw.substring(1);
       return '+84' + raw;
     }
-    if (raw.startsWith('0')) return code + raw.substring(1);
-    return code + raw;
+    if (raw.startsWith('0')) return countryCode + raw.substring(1);
+    return countryCode + raw;
   }
 
   private normalizePhoneSimple(phone: string): string {
@@ -1245,7 +1705,13 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
 
       const interval = publicStayInterval(stay, property);
       const normalizedPhone = this.getNormalizedPhone();
-      const currentUser = this.authService.currentUser;
+      const currentUser = this.authService?.currentUser;
+
+      const activePromo = this.quoteWithPromo()?.promoCode?.trim().toUpperCase()
+        || this.appliedPromoCode()?.trim().toUpperCase()
+        || '';
+      const trimmedSpecialRequests = this.specialRequests().trim();
+      const pointsToRedeem = this.effectivePointsToRedeem();
 
       const requestPayload: CreateGuestHoldRequest = {
         propertySlug: params['propertySlug'],
@@ -1260,7 +1726,10 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
         expectedTotalAmount: price.totalAmount,
         firebaseIdToken: firebaseIdToken,
         guestUserId: currentUser?.id,
-        paymentMethodPreference: this.selectedPaymentMethod === 'PayAtHotel' ? 'Cash' : this.selectedPaymentMethod
+        paymentMethodPreference: this.selectedPaymentMethod === 'PayAtHotel' ? 'Cash' : this.selectedPaymentMethod,
+        ...(activePromo ? { promoCode: activePromo } : {}),
+        ...(pointsToRedeem > 0 ? { pointsToRedeem } : {}),
+        ...(trimmedSpecialRequests ? { specialRequests: trimmedSpecialRequests } : {})
       };
 
       const payloadSig = JSON.stringify({
@@ -1274,7 +1743,10 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
         guestPhone: requestPayload.guestPhone,
         numberOfGuests: requestPayload.numberOfGuests,
         expectedTotalAmount: requestPayload.expectedTotalAmount,
-        paymentMethodPreference: requestPayload.paymentMethodPreference
+        paymentMethodPreference: requestPayload.paymentMethodPreference,
+        promoCode: requestPayload.promoCode ?? null,
+        pointsToRedeem: requestPayload.pointsToRedeem ?? 0,
+        specialRequests: requestPayload.specialRequests ?? null
       });
 
       if (this.lastSubmittedPayloadSig && this.lastSubmittedPayloadSig !== payloadSig) {
@@ -1308,6 +1780,8 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
             this.toast.set(null);
             return;
           }
+          this.holdSubmittedSuccessfully = true;
+          this.hasDirtyUserInput.set(false);
           this.holdError.set(null);
           this.error.set('');
           this.toast.set(null);
@@ -1433,15 +1907,22 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
     this.error.set('');
   }
 
-  parseHoldError(err: any): HoldErrorState {
+  parseHoldError(err: unknown): HoldErrorState {
+    const httpErr = (err && typeof err === 'object' ? err : {}) as {
+      status?: number;
+      name?: string;
+      message?: string;
+      error?: { message?: string } | ProgressEvent;
+    };
+    const errMsg = httpErr.error && !(httpErr.error instanceof ProgressEvent) ? httpErr.error.message : undefined;
     const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
-    const isProgressEvent = typeof ProgressEvent !== 'undefined' && err?.error instanceof ProgressEvent;
-    const status = err?.status ?? (isProgressEvent ? 0 : undefined);
-    const rawMsg = String(err?.error?.message || err?.message || err || '');
+    const isProgressEvent = typeof ProgressEvent !== 'undefined' && httpErr.error instanceof ProgressEvent;
+    const status = httpErr.status ?? (isProgressEvent ? 0 : undefined);
+    const rawMsg = String(errMsg || httpErr.message || err || '');
     const isNetwork =
       isOffline ||
       status === 0 ||
-      err?.name === 'TimeoutError' ||
+      httpErr.name === 'TimeoutError' ||
       /failed to fetch|networkerror|network request failed|load failed|connection refused|timeout/i.test(rawMsg);
 
     if (isNetwork) {
@@ -1465,8 +1946,8 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
     }
 
     if (status === 409) {
-      const serverMsg = typeof err?.error?.message === 'string' && !/failed|exception|error/i.test(err.error.message)
-        ? err.error.message
+      const serverMsg = typeof errMsg === 'string' && !/failed|exception|error/i.test(errMsg)
+        ? errMsg
         : 'Hạng phòng này vừa được khách khác đặt hoặc đang trong phiên giữ chỗ. Vui lòng chọn thời gian hoặc hạng phòng khác.';
       return {
         title: 'Phòng không còn khả dụng',
@@ -1477,8 +1958,8 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
     }
 
     if (status === 400) {
-      const serverMsg = typeof err?.error?.message === 'string' && !/failed|exception|error/i.test(err.error.message)
-        ? err.error.message
+      const serverMsg = typeof errMsg === 'string' && !/failed|exception|error/i.test(errMsg)
+        ? errMsg
         : 'Thông tin giữ phòng chưa hợp lệ hoặc đã có thay đổi. Vui lòng kiểm tra lại thông tin.';
       return {
         title: 'Thông tin chưa hợp lệ',
@@ -1488,7 +1969,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy {
       };
     }
 
-    const candidateMsg = typeof err?.error?.message === 'string' ? err.error.message : '';
+    const candidateMsg = typeof errMsg === 'string' ? errMsg : '';
     const isClean = candidateMsg && !/failed to fetch|object Object|stacktrace|nullreference/i.test(candidateMsg);
     return {
       title: 'Chưa thể giữ phòng',

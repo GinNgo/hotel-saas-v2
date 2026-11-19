@@ -1,6 +1,9 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, effect, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, OnDestroy, inject, signal, computed, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { A11yModule } from '@angular/cdk/a11y';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePicker } from 'primeng/datepicker';
 import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-time.util';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -9,10 +12,19 @@ import { RateService } from '../../core/services/rate.service';
 import { RoomTypeService } from '../../core/services/room-type.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
+import { AiService, DynamicPricingSummaryDto, RoomTypePricingRecommendationDto } from '../../core/services/ai.service';
+import { HasUnsavedChanges } from '../../core/guards/unsaved-changes.guard';
 import { RoomTypeRateDto, RoomTypeRateAuditDto, CreateRoomTypeRateRequest } from '../../core/models/rate.model';
 import { RoomTypeDto } from '../../core/models/room-type.model';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { SkeletonTableComponent } from '../../shared/components/skeleton-table/skeleton-table.component';
+import { ContextSelectorDialogComponent } from '../auth/context-selector/context-selector.dialog';
+
+interface ApiErrorShape {
+  status?: number;
+  error?: { message?: string; title?: string };
+  message?: string;
+}
 
 /** Helper to get today's date formatted as YYYY-MM-DD in Vietnam timezone (UTC+7) */
 export function getTodayVnDateString(): string {
@@ -40,7 +52,8 @@ export function addDaysToDateString(dateStr: string, days: number): string {
 @Component({
   selector: 'app-rates',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, EmptyStateComponent, SkeletonTableComponent, DatePicker],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [CommonModule, A11yModule, FormsModule, ReactiveFormsModule, EmptyStateComponent, SkeletonTableComponent, DatePicker, ContextSelectorDialogComponent],
   template: `
     <div class="max-w-6xl mx-auto space-y-6">
       <!-- Page Header -->
@@ -76,6 +89,20 @@ export function addDaysToDateString(dateStr: string, days: number): string {
             <span>UTC+7</span>
           </div>
 
+          <!-- Nút Gợi ý giá AI -->
+          @if (canReadAi() && propertyId()) {
+            <button
+              type="button"
+              (click)="toggleAiPricingPanel()"
+              [disabled]="!propertyId()"
+              aria-label="Mở bảng gợi ý giá động AI"
+              class="min-h-[44px] inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 font-semibold text-xs transition-all cursor-pointer disabled:opacity-50"
+            >
+              <i class="pi pi-sparkles text-sm text-indigo-600" aria-hidden="true"></i>
+              <span>{{ showAiPanel() ? 'Ẩn gợi ý AI' : 'Gợi ý giá AI' }}</span>
+            </button>
+          }
+
           <!-- Nút Thiết lập bảng giá -->
           @if (canUpdate() && selectedRoomTypeId()) {
             <button
@@ -84,7 +111,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
               [disabled]="isSaving() || isLoadingRates() || !propertyId()"
               aria-label="Thiết lập bảng giá mới"
               title="Thiết lập bảng giá mới"
-              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs transition-all shadow-xs cursor-pointer disabled:cursor-not-allowed"
+              class="inline-flex items-center gap-2 min-h-11 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs transition-all shadow-xs cursor-pointer disabled:cursor-not-allowed"
             >
               <i class="pi pi-plus text-sm"></i>
               <span>Thiết lập bảng giá</span>
@@ -104,9 +131,160 @@ export function addDaysToDateString(dateStr: string, days: number): string {
         <app-empty-state
           iconClass="pi pi-building"
           title="Chưa chọn chi nhánh làm việc"
-          description="Vui lòng bấm vào bộ chuyển chi nhánh ở thanh tiêu đề trên cùng để chọn chi nhánh cần quản lý bảng giá."
+          description="Vui lòng chọn chi nhánh làm việc để xem và thiết lập bảng giá theo giờ/đêm của cơ sở."
+          actionLabel="Chọn chi nhánh làm việc"
+          actionIcon="pi pi-building"
+          (actionClick)="openContextSelector()"
         />
       } @else {
+        <!-- AI Dynamic Pricing Panel -->
+        @if (showAiPanel() && canReadAi()) {
+          <section aria-label="Đề xuất giá động AI" class="bg-gradient-to-br from-indigo-50 via-white to-emerald-50/40 rounded-2xl border border-indigo-200/90 p-5 shadow-2xs space-y-4">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-indigo-100 pb-4">
+              <div class="space-y-1">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                    <i class="pi pi-sparkles text-[10px]" aria-hidden="true"></i>
+                    AI Dynamic Pricing
+                  </span>
+                  @if (aiPricingSummary(); as summary) {
+                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+                      Công suất chung: {{ summary.overallOccupancyRate | number:'1.0-1' }}% ({{ summary.marketDemandLevel }})
+                    </span>
+                  }
+                </div>
+                <h2 class="text-sm sm:text-base font-bold text-slate-900">
+                  Đề xuất điều chỉnh giá đêm theo công suất phòng thực tế
+                </h2>
+                <p class="text-xs text-slate-600">
+                  Áp dụng 1 chạm sẽ tự động tách khoảng bảng giá đang hiệu lực (Interval Splitting) mà không ảnh hưởng các ngày khác.
+                </p>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2.5">
+                <div class="flex items-center gap-1.5">
+                  <label for="ai-target-date" class="text-xs font-semibold text-slate-700">Từ ngày:</label>
+                  <input
+                    id="ai-target-date"
+                    type="date"
+                    [ngModel]="aiTargetDate()"
+                    (ngModelChange)="aiTargetDate.set($event)"
+                    [min]="minEffectiveFromDate"
+                    class="min-h-[44px] px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                  />
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                  <label for="ai-duration-days" class="text-xs font-semibold text-slate-700">Số ngày:</label>
+                  <select
+                    id="ai-duration-days"
+                    [ngModel]="aiEffectiveDays()"
+                    (ngModelChange)="aiEffectiveDays.set(+$event)"
+                    class="min-h-[44px] px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                  >
+                    <option [value]="1">1 ngày</option>
+                    <option [value]="3">3 ngày</option>
+                    <option [value]="7">7 ngày</option>
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  (click)="loadAiPricingRecommendations()"
+                  [disabled]="isLoadingAiPricing()"
+                  class="min-h-[44px] inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <i class="pi pi-refresh text-xs" [class.pi-spin]="isLoadingAiPricing()" aria-hidden="true"></i>
+                  <span>Phân tích lại</span>
+                </button>
+              </div>
+            </div>
+
+            @if (aiPricingError()) {
+              <div role="alert" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800 flex items-center justify-between gap-3">
+                <span>{{ aiPricingError() }}</span>
+                <button
+                  type="button"
+                  (click)="loadAiPricingRecommendations()"
+                  class="min-h-[44px] px-3 py-1.5 rounded-lg bg-rose-600 text-white font-semibold text-xs cursor-pointer"
+                >
+                  Thử lại
+                </button>
+              </div>
+            } @else if (isLoadingAiPricing()) {
+              <div class="py-6 text-center text-xs text-slate-600">
+                <i class="pi pi-spin pi-spinner mr-2 text-indigo-600" aria-hidden="true"></i>
+                Đang tính toán mức giá đề xuất từ dữ liệu công suất phòng...
+              </div>
+            } @else if (aiPricingSummary()?.recommendations?.length) {
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                @for (rec of aiPricingSummary()!.recommendations; track rec.roomTypeId) {
+                  <div class="rounded-xl border border-slate-200 bg-white p-4 flex flex-col justify-between gap-3 shadow-2xs">
+                    <div class="space-y-2">
+                      <div class="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 class="text-sm font-bold text-slate-900">{{ rec.roomTypeName }}</h3>
+                          <p class="text-[11px] text-slate-500 tabular-nums">
+                            Đã đặt: {{ rec.bookedRooms }}/{{ rec.totalRooms }} phòng ({{ rec.occupancyRate | number:'1.0-1' }}%)
+                          </p>
+                        </div>
+                        <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 tabular-nums">
+                          {{ rec.strategy }} ({{ rec.surgeMultiplier }}x)
+                        </span>
+                      </div>
+
+                      <div class="flex items-baseline gap-3 pt-1">
+                        <div>
+                          <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Giá gốc / đêm</span>
+                          <span class="text-xs font-medium text-slate-500 line-through tabular-nums">{{ formatCurrency(rec.basePrice) }}</span>
+                        </div>
+                        <i class="pi pi-arrow-right text-[10px] text-slate-400" aria-hidden="true"></i>
+                        <div>
+                          <span class="block text-[10px] uppercase tracking-wider text-emerald-700 font-semibold">AI đề xuất / đêm</span>
+                          <strong class="text-base font-black text-emerald-700 tabular-nums">{{ formatCurrency(rec.recommendedPrice) }}</strong>
+                        </div>
+                      </div>
+
+                      <p class="text-xs text-slate-600 leading-relaxed">{{ rec.rationale }}</p>
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                      @if (canUpdate()) {
+                        <button
+                          type="button"
+                          (click)="prefillRateFromAiRecommendation(rec)"
+                          class="min-h-[44px] px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
+                        >
+                          Chỉnh tay
+                        </button>
+                      }
+                      @if (canApplyAi()) {
+                        <button
+                          type="button"
+                          (click)="applyAiRecommendation(rec)"
+                          [disabled]="applyingAiRoomTypeId() === rec.roomTypeId"
+                          class="min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          @if (applyingAiRoomTypeId() === rec.roomTypeId) {
+                            <i class="pi pi-spin pi-spinner text-xs" aria-hidden="true"></i>
+                          } @else {
+                            <i class="pi pi-check text-xs" aria-hidden="true"></i>
+                          }
+                          <span>Áp dụng 1 chạm</span>
+                        </button>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            } @else if (aiPricingSummary()) {
+              <div class="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-600">
+                {{ aiPricingSummary()?.message || 'Chưa có hạng phòng nào cần điều chỉnh giá cho ngày đã chọn.' }}
+              </div>
+            }
+          </section>
+        }
+
         <!-- Room Type Selector Bar -->
         <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div class="flex items-center gap-3">
@@ -127,8 +305,8 @@ export function addDaysToDateString(dateStr: string, days: number): string {
             <select
               id="roomTypeSelect"
               [value]="selectedRoomTypeId() || ''"
-              (change)="onRoomTypeChanged($any($event.target).value)"
-              class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+              (change)="onRoomTypeSelectChange($event)"
+              class="w-full min-h-11 px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
               aria-label="Chọn loại phòng"
             >
               <option value="" disabled>--- Chọn loại phòng ---</option>
@@ -173,7 +351,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                   </span>
                 </div>
                 <div class="text-xs text-slate-500">
-                  Giá tham chiếu cơ bản: <span class="font-semibold text-slate-700">{{ formatCurrency(currentRt.basePrice) }}</span>
+                  Giá tham chiếu cơ bản: <span class="font-semibold text-slate-700 tabular-nums">{{ formatCurrency(currentRt.basePrice) }}</span>
                 </div>
               </div>
               <p class="text-[11px] text-amber-800 bg-amber-50/80 px-3 py-1.5 rounded-lg border border-amber-200/60 leading-relaxed">
@@ -188,13 +366,13 @@ export function addDaysToDateString(dateStr: string, days: number): string {
             <button
               type="button"
               (click)="activeTab.set('rates')"
-              class="px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2"
+              class="min-h-11 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2"
               [ngClass]="activeTab() === 'rates' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'"
               aria-label="Xem bảng giá áp dụng"
             >
               <i class="pi pi-calendar"></i>
               <span>Bảng giá đang áp dụng & Sắp tới</span>
-              <span class="px-1.5 py-0.2 rounded-full text-[10px]" [ngClass]="activeTab() === 'rates' ? 'bg-emerald-700 text-white' : 'bg-slate-200 text-slate-700'">
+              <span class="px-1.5 py-0.2 rounded-full text-[10px] tabular-nums" [ngClass]="activeTab() === 'rates' ? 'bg-emerald-700 text-white' : 'bg-slate-200 text-slate-700'">
                 {{ rates().length }}
               </span>
             </button>
@@ -202,13 +380,13 @@ export function addDaysToDateString(dateStr: string, days: number): string {
             <button
               type="button"
               (click)="activeTab.set('history')"
-              class="px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2"
+              class="min-h-11 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2"
               [ngClass]="activeTab() === 'history' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'"
               aria-label="Xem lịch sử thay đổi và chia khoảng"
             >
               <i class="pi pi-history"></i>
               <span>Lịch sử thay đổi & Chia khoảng</span>
-              <span class="px-1.5 py-0.2 rounded-full text-[10px]" [ngClass]="activeTab() === 'history' ? 'bg-emerald-700 text-white' : 'bg-slate-200 text-slate-700'">
+              <span class="px-1.5 py-0.2 rounded-full text-[10px] tabular-nums" [ngClass]="activeTab() === 'history' ? 'bg-emerald-700 text-white' : 'bg-slate-200 text-slate-700'">
                 {{ rateHistory().length }}
               </span>
             </button>
@@ -221,7 +399,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                 <app-skeleton-table [rows]="4" />
               </div>
             } @else if (ratesErrorMessage()) {
-              <div class="p-6 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-3">
+              <div role="alert" class="p-6 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-3">
                 <div class="flex items-center gap-2.5">
                   <i class="pi pi-exclamation-triangle text-xl text-rose-600"></i>
                   <h3 class="font-bold text-sm">Không thể tải dữ liệu bảng giá</h3>
@@ -230,7 +408,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                 <button
                   type="button"
                   (click)="loadRatesData()"
-                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors cursor-pointer"
+                  class="inline-flex items-center gap-1.5 min-h-11 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors cursor-pointer"
                 >
                   <i class="pi pi-refresh"></i>
                   <span>Thử lại</span>
@@ -250,7 +428,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                     <button
                       type="button"
                       (click)="openCreateModal()"
-                      class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors cursor-pointer"
+                      class="inline-flex items-center gap-2 min-h-11 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors cursor-pointer"
                     >
                       <i class="pi pi-plus"></i>
                       <span>Thiết lập bảng giá ngay</span>
@@ -260,7 +438,61 @@ export function addDaysToDateString(dateStr: string, days: number): string {
               </div>
             } @else {
               <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-                <div class="overflow-x-auto">
+                <!-- Mobile Stacked Cards (<768px) -->
+                <div class="md:hidden divide-y divide-slate-100" data-testid="rates-mobile-cards">
+                  @for (rate of rates(); track rate.id) {
+                    <article class="p-4 space-y-3 text-xs">
+                      <div class="flex items-start justify-between gap-2">
+                        <div class="font-mono font-semibold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                          <i class="pi pi-calendar text-slate-400 text-xs" aria-hidden="true"></i>
+                          <span>{{ formatDate(rate.effectiveFrom) }}</span>
+                          <i class="pi pi-arrow-right text-xs text-slate-400" aria-hidden="true"></i>
+                          <span>{{ formatDate(rate.effectiveTo) }}</span>
+                        </div>
+                        @if (getRateStatus(rate) === 'active') {
+                          <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                            Đang áp dụng
+                          </span>
+                        } @else if (getRateStatus(rate) === 'upcoming') {
+                          <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
+                            <span class="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                            Sắp áp dụng
+                          </span>
+                        } @else {
+                          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 shrink-0">
+                            Hết hiệu lực
+                          </span>
+                        }
+                      </div>
+
+                      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 tabular-nums">
+                        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                          <span class="text-slate-500 block">Gói giờ đầu</span>
+                          <strong class="text-slate-800">{{ formatCurrency(rate.firstHoursPrice) }}</strong>
+                          <span class="text-slate-500"> / {{ rate.firstHours }} giờ</span>
+                        </div>
+                        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                          <span class="text-slate-500 block">Mỗi giờ thêm</span>
+                          <strong class="text-slate-800">{{ formatCurrency(rate.additionalHourPrice) }}</strong>
+                          <span class="text-slate-500"> / giờ</span>
+                        </div>
+                        <div class="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100">
+                          <span class="text-emerald-700 block font-semibold">Giá qua đêm</span>
+                          <strong class="text-emerald-800">{{ formatCurrency(rate.nightlyPrice) }}</strong>
+                          <span class="text-emerald-700"> / đêm</span>
+                        </div>
+                      </div>
+
+                      <div class="flex items-center justify-between gap-2 flex-wrap text-slate-500">
+                        <span class="italic truncate max-w-full">{{ rate.changeReason || '—' }}</span>
+                        <span class="font-mono tabular-nums">{{ formatDateTime(rate.createdAtUtc) }}</span>
+                      </div>
+                    </article>
+                  }
+                </div>
+
+                <div class="hidden md:block overflow-x-auto">
                   <table class="w-full text-left border-collapse" aria-label="Bảng giá phòng theo khoảng ngày hiệu lực">
                     <thead>
                       <tr class="border-b border-slate-200/80 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -290,7 +522,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                           <td class="py-3.5 px-4">
                             @if (getRateStatus(rate) === 'active') {
                               <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
                                 Đang áp dụng
                               </span>
                             } @else if (getRateStatus(rate) === 'upcoming') {
@@ -306,19 +538,19 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                           </td>
 
                           <!-- Giá giờ đầu -->
-                          <td class="py-3.5 px-4 text-slate-700">
+                          <td class="py-3.5 px-4 text-slate-700 tabular-nums">
                             <span class="font-bold text-slate-800">{{ formatCurrency(rate.firstHoursPrice) }}</span>
                             <span class="text-slate-400 text-[11px]"> / {{ rate.firstHours }} giờ</span>
                           </td>
 
                           <!-- Giá giờ thêm -->
-                          <td class="py-3.5 px-4 text-slate-700">
+                          <td class="py-3.5 px-4 text-slate-700 tabular-nums">
                             <span class="font-semibold text-slate-800">{{ formatCurrency(rate.additionalHourPrice) }}</span>
                             <span class="text-slate-400 text-[11px]"> / giờ</span>
                           </td>
 
                           <!-- Giá qua đêm -->
-                          <td class="py-3.5 px-4">
+                          <td class="py-3.5 px-4 tabular-nums">
                             <span class="font-bold text-emerald-700">{{ formatCurrency(rate.nightlyPrice) }}</span>
                             <span class="text-slate-400 text-[11px]"> / đêm</span>
                           </td>
@@ -329,7 +561,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                           </td>
 
                           <!-- Ngày tạo -->
-                          <td class="py-3.5 px-4 text-right text-slate-400 font-mono text-[11px]">
+                          <td class="py-3.5 px-4 text-right text-slate-400 font-mono text-[11px] tabular-nums">
                             {{ formatDateTime(rate.createdAtUtc) }}
                           </td>
                         </tr>
@@ -348,7 +580,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                 <app-skeleton-table [rows]="4" />
               </div>
             } @else if (historyErrorMessage()) {
-              <div class="p-6 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-3">
+              <div role="alert" class="p-6 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-3">
                 <div class="flex items-center gap-2.5">
                   <i class="pi pi-exclamation-triangle text-xl text-rose-600"></i>
                   <h3 class="font-bold text-sm">Không thể tải lịch sử thay đổi bảng giá</h3>
@@ -357,7 +589,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                 <button
                   type="button"
                   (click)="loadHistoryData()"
-                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors cursor-pointer"
+                  class="inline-flex items-center gap-1.5 min-h-11 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors cursor-pointer"
                 >
                   <i class="pi pi-refresh"></i>
                   <span>Thử lại tải lịch sử</span>
@@ -371,7 +603,52 @@ export function addDaysToDateString(dateStr: string, days: number): string {
               </div>
             } @else {
               <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-                <div class="overflow-x-auto">
+                <!-- Mobile Stacked Cards (<768px) -->
+                <div class="md:hidden divide-y divide-slate-100" data-testid="rate-history-mobile-cards">
+                  @for (item of rateHistory(); track item.id) {
+                    <article class="p-4 space-y-2.5 text-xs">
+                      <div class="flex items-start justify-between gap-2">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold border" [ngClass]="getActionBadgeClass(item.actionType)">
+                          {{ getActionLabel(item.actionType) }}
+                        </span>
+                        <span class="font-mono text-slate-500 tabular-nums">{{ formatDateTime(item.changedAtUtc) }}</span>
+                      </div>
+
+                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-100 font-mono">
+                          <span class="font-sans text-slate-500 block mb-0.5">Khoảng ngày áp dụng</span>
+                          @if (item.oldEffectiveFrom && item.oldEffectiveTo) {
+                            <div class="text-slate-400 line-through">
+                              {{ formatDate(item.oldEffectiveFrom) }} → {{ formatDate(item.oldEffectiveTo) }}
+                            </div>
+                          }
+                          <div class="font-semibold text-slate-800">
+                            {{ formatDate(item.newEffectiveFrom) }} → {{ formatDate(item.newEffectiveTo) }}
+                          </div>
+                        </div>
+
+                        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-100 tabular-nums">
+                          <span class="text-slate-500 block mb-0.5">Giá qua đêm</span>
+                          @if (item.oldNightlyPrice !== null && item.oldNightlyPrice !== undefined) {
+                            <div class="text-slate-400 line-through">
+                              {{ formatCurrency(item.oldNightlyPrice) }}
+                            </div>
+                          }
+                          <div class="font-bold text-emerald-700">
+                            {{ formatCurrency(item.newNightlyPrice) }}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="flex items-center justify-between gap-2 flex-wrap text-slate-500">
+                        <span class="italic">{{ item.changeReason || '—' }}</span>
+                        <span class="font-mono">{{ item.changedByUserId.substring(0, 8) }}...</span>
+                      </div>
+                    </article>
+                  }
+                </div>
+
+                <div class="hidden md:block overflow-x-auto">
                   <table class="w-full text-left border-collapse" aria-label="Lịch sử thay đổi bảng giá và chia khoảng">
                     <thead>
                       <tr class="border-b border-slate-200/80 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -410,7 +687,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                           </td>
 
                           <!-- Giá qua đêm -->
-                          <td class="py-3.5 px-4">
+                          <td class="py-3.5 px-4 tabular-nums">
                             @if (item.oldNightlyPrice !== null && item.oldNightlyPrice !== undefined) {
                               <div class="text-[11px] text-slate-400 line-through">
                                 {{ formatCurrency(item.oldNightlyPrice) }}
@@ -427,7 +704,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                           </td>
 
                           <!-- Thời gian ghi nhận -->
-                          <td class="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
+                          <td class="py-3.5 px-4 font-mono text-slate-500 text-[11px] tabular-nums">
                             {{ formatDateTime(item.changedAtUtc) }}
                           </td>
 
@@ -450,8 +727,17 @@ export function addDaysToDateString(dateStr: string, days: number): string {
 
     <!-- Modal: Thiết lập Bảng giá mới (Create / Split Rate) -->
     @if (showCreateModal()) {
-      <div class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
-          <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xl max-w-xl w-full p-6 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-150">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Thiết lập bảng giá mới"
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
+        (keydown.escape)="closeCreateModal()"
+        (click)="closeCreateModal()"
+        class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto"
+      >
+          <div (click)="$event.stopPropagation()" class="bg-white rounded-2xl border border-slate-200/80 shadow-2xl max-w-xl w-full p-6 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-150">
             <!-- Modal Header -->
             <div class="flex items-center justify-between pb-3.5 border-b border-slate-100">
               <div class="flex items-center gap-2.5">
@@ -469,8 +755,8 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                 type="button"
                 (click)="closeCreateModal()"
                 [disabled]="isSaving()"
-                class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-                aria-label="Đóng hộp thoại"
+                class="min-h-11 min-w-11 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                aria-label="Đóng hộp thoại thiết lập bảng giá"
               >
                 <i class="pi pi-times text-sm"></i>
               </button>
@@ -487,7 +773,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
 
             <!-- Validation Errors Alert -->
             @if (clientErrors().length > 0) {
-              <div class="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1">
+              <div role="alert" class="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1">
                 <div class="font-bold flex items-center gap-1.5 text-amber-800">
                   <i class="pi pi-exclamation-circle text-amber-600"></i>
                   <span>Vui lòng kiểm tra lại thông tin:</span>
@@ -502,7 +788,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
 
             <!-- Server Conflict Alert (409) -->
             @if (conflictError()) {
-              <div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs space-y-1">
+              <div role="alert" class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs space-y-1">
                 <div class="font-bold flex items-center gap-1.5 text-rose-700">
                   <i class="pi pi-ban text-rose-600"></i>
                   <span>Xung đột khoảng thời gian hiệu lực (409 Conflict):</span>
@@ -651,14 +937,14 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                   type="button"
                   (click)="closeCreateModal()"
                   [disabled]="isSaving()"
-                  class="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
+                  class="min-h-11 px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
                 >
                   Hủy bỏ
                 </button>
                 <button
                   type="submit"
                   [disabled]="isSaving() || !canUpdate()"
-                  class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs sm:text-sm transition-all shadow-sm shadow-emerald-600/30 cursor-pointer disabled:cursor-not-allowed"
+                  class="inline-flex items-center gap-2 min-h-11 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs sm:text-sm transition-all shadow-sm shadow-emerald-600/30 cursor-pointer disabled:cursor-not-allowed"
                 >
                   @if (isSaving()) {
                     <i class="pi pi-spin pi-spinner text-xs"></i>
@@ -673,9 +959,16 @@ export function addDaysToDateString(dateStr: string, days: number): string {
           </div>
         </div>
       }
+
+      @if (showContextSelector()) {
+        <app-context-selector-dialog
+          [visible]="showContextSelector()"
+          (visibleChange)="showContextSelector.set($event)"
+        />
+      }
   `
 })
-export class RatesPage implements OnInit, OnDestroy {
+export class RatesPage implements OnInit, OnDestroy, HasUnsavedChanges {
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -683,6 +976,17 @@ export class RatesPage implements OnInit, OnDestroy {
   private readonly rateService = inject(RateService);
   private readonly roomTypeService = inject(RoomTypeService);
   private readonly alertService = inject(AlertService);
+  private readonly aiService = inject(AiService, { optional: true });
+  private readonly cdr = inject(ChangeDetectorRef, { optional: true });
+
+  private fallbackDestroyCallbacks: Array<() => void> = [];
+  private isFallbackDestroyed = false;
+  private readonly destroyRef = inject(DestroyRef, { optional: true }) ?? this.createFallbackDestroyRef();
+
+  readonly showContextSelector = signal(false);
+  openContextSelector(): void {
+    this.showContextSelector.set(true);
+  }
 
   readonly isLoadingRates = signal(false);
   readonly isLoadingHistory = signal(false);
@@ -703,6 +1007,14 @@ export class RatesPage implements OnInit, OnDestroy {
 
   readonly activeTab = signal<'rates' | 'history'>('rates');
   readonly showCreateModal = signal(false);
+
+  readonly showAiPanel = signal(false);
+  readonly isLoadingAiPricing = signal(false);
+  readonly aiPricingSummary = signal<DynamicPricingSummaryDto | null>(null);
+  readonly aiPricingError = signal<string | null>(null);
+  readonly applyingAiRoomTypeId = signal<string | null>(null);
+  readonly aiTargetDate = signal<string>(getTodayVnDateString());
+  readonly aiEffectiveDays = signal<number>(1);
 
   readonly minEffectiveFromDate = getTodayVnDateString();
 
@@ -731,6 +1043,11 @@ export class RatesPage implements OnInit, OnDestroy {
   readonly propertyId = computed(() => this.authService.activePropertyId());
   readonly canRead = computed(() => this.authService.hasPermission('ROOM_TYPES', 1));
   readonly canUpdate = computed(() => this.authService.hasPermission('ROOM_TYPES', 4));
+  readonly canReadAi = computed(() => this.authService.hasPermission('AI_FEATURES', 1));
+  readonly canApplyAi = computed(() => this.authService.hasPermission('AI_FEATURES', 4) && this.canUpdate());
+
+  private aiSub?: Subscription;
+  private applyAiSub?: Subscription;
 
   readonly selectedRoomType = computed(() => {
     const id = this.selectedRoomTypeId();
@@ -769,19 +1086,22 @@ export class RatesPage implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     // Check query params for initial roomTypeId
-    this.routeQuerySub = this.route.queryParams.subscribe(params => {
-      const qRoomTypeId = params['roomTypeId'];
-      if (qRoomTypeId && qRoomTypeId !== this.selectedRoomTypeId()) {
-        if (this.showCreateModal() || this.isSaving()) {
-          this.cancelSave();
-          this.closeCreateModal();
+    this.routeQuerySub = this.route.queryParams
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(params => {
+        const qRoomTypeId = params['roomTypeId'];
+        if (qRoomTypeId && qRoomTypeId !== this.selectedRoomTypeId()) {
+          if (this.showCreateModal() || this.isSaving()) {
+            this.cancelSave();
+            this.closeCreateModal();
+          }
+          this.selectedRoomTypeId.set(qRoomTypeId);
+          if (this.propertyId() && this.canRead()) {
+            this.loadRatesData();
+          }
+          this.cdr?.markForCheck();
         }
-        this.selectedRoomTypeId.set(qRoomTypeId);
-        if (this.propertyId() && this.canRead()) {
-          this.loadRatesData();
-        }
-      }
-    });
+      });
 
     if (this.propertyId() && this.canRead()) {
       this.loadRoomTypes();
@@ -791,6 +1111,65 @@ export class RatesPage implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.cancelPendingRequests();
     this.routeQuerySub?.unsubscribe();
+    this.isFallbackDestroyed = true;
+    const callbacks = this.fallbackDestroyCallbacks.splice(0);
+    callbacks.forEach(cb => cb());
+  }
+
+  hasUnsavedChanges(): boolean {
+    if (!this.showCreateModal() || this.isSaving()) {
+      return false;
+    }
+    return Boolean(this.rateForm?.dirty);
+  }
+
+  onRoomTypeSelectChange(event: Event): void {
+    const target = event.target as HTMLSelectElement | null;
+    if (target?.value) {
+      this.onRoomTypeChanged(target.value);
+    }
+  }
+
+  private createFallbackDestroyRef(): DestroyRef {
+    const page = this;
+    return {
+      get destroyed(): boolean {
+        return page.isFallbackDestroyed;
+      },
+      onDestroy: (callback: () => void) => {
+        page.fallbackDestroyCallbacks.push(callback);
+        return () => {
+          page.fallbackDestroyCallbacks = page.fallbackDestroyCallbacks.filter(cb => cb !== callback);
+        };
+      }
+    };
+  }
+
+  private extractApiStatus(err: unknown): number | undefined {
+    if (err instanceof HttpErrorResponse) {
+      return err.status;
+    }
+    if (err && typeof err === 'object' && 'status' in err) {
+      const statusVal = (err as ApiErrorShape).status;
+      return typeof statusVal === 'number' ? statusVal : undefined;
+    }
+    return undefined;
+  }
+
+  private extractApiError(err: unknown, fallback: string): string {
+    if (err instanceof HttpErrorResponse) {
+      const body = err.error as { message?: string; title?: string } | null;
+      if (body?.message) return body.message;
+      if (body?.title) return body.title;
+      if (err.message) return err.message;
+    }
+    if (err && typeof err === 'object') {
+      const inner = err as ApiErrorShape;
+      if (inner.error?.message) return inner.error.message;
+      if (inner.error?.title) return inner.error.title;
+      if (inner.message) return inner.message;
+    }
+    return fallback;
   }
 
   private initForm(): void {
@@ -824,6 +1203,10 @@ export class RatesPage implements OnInit, OnDestroy {
     this.clientErrors.set([]);
     this.conflictError.set(null);
     this.showCreateModal.set(false);
+    this.aiPricingSummary.set(null);
+    this.aiPricingError.set(null);
+    this.isLoadingAiPricing.set(false);
+    this.applyingAiRoomTypeId.set(null);
 
     if (newPropId && this.canRead()) {
       this.loadRoomTypes();
@@ -836,28 +1219,32 @@ export class RatesPage implements OnInit, OnDestroy {
     this.isLoadingRoomTypes.set(true);
     this.roomTypesSub?.unsubscribe();
 
-    this.roomTypesSub = this.roomTypeService.getRoomTypes(undefined, 1, 100).subscribe({
-      next: res => {
-        this.isLoadingRoomTypes.set(false);
-        const rawItems = res.items || [];
-        const list = rawItems.filter((item, idx, arr) => arr.findIndex(x => x.id === item.id) === idx);
-        this.roomTypes.set(list);
+    this.roomTypesSub = this.roomTypeService
+      .getRoomTypes(undefined, 1, 100)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: res => {
+          this.isLoadingRoomTypes.set(false);
+          const rawItems = res.items || [];
+          const list = rawItems.filter((item, idx, arr) => arr.findIndex(x => x.id === item.id) === idx);
+          this.roomTypes.set(list);
 
-        // If there is an active selection already, keep it; otherwise pick first if available
-        const currentSelected = this.selectedRoomTypeId();
-        if (currentSelected && list.some(rt => rt.id === currentSelected)) {
-          this.loadRatesData();
-        } else if (list.length > 0) {
-          this.selectedRoomTypeId.set(list[0].id);
-          this.loadRatesData();
+          // If there is an active selection already, keep it; otherwise pick first if available
+          const currentSelected = this.selectedRoomTypeId();
+          if (currentSelected && list.some(rt => rt.id === currentSelected)) {
+            this.loadRatesData();
+          } else if (list.length > 0) {
+            this.selectedRoomTypeId.set(list[0].id);
+            this.loadRatesData();
+          }
+          this.cdr?.markForCheck();
+        },
+        error: (err: unknown) => {
+          this.isLoadingRoomTypes.set(false);
+          this.ratesErrorMessage.set(this.extractApiError(err, 'Không thể tải danh sách loại phòng.'));
+          this.cdr?.markForCheck();
         }
-      },
-      error: err => {
-        this.isLoadingRoomTypes.set(false);
-        const msg = err?.error?.message || err?.message || 'Không thể tải danh sách loại phòng.';
-        this.ratesErrorMessage.set(msg);
-      }
-    });
+      });
   }
 
   onRoomTypeChanged(roomTypeId: string): void {
@@ -894,19 +1281,23 @@ export class RatesPage implements OnInit, OnDestroy {
     const currentReqRtId = roomTypeId;
 
     // Load active rates
-    this.loadSub = this.rateService.getRates(roomTypeId, propId).subscribe({
-      next: (rates: RoomTypeRateDto[]) => {
-        if (this.propertyId() !== currentReqPropId || this.selectedRoomTypeId() !== currentReqRtId) return;
-        this.rates.set(rates || []);
-        this.isLoadingRates.set(false);
-      },
-      error: (err: any) => {
-        if (this.propertyId() !== currentReqPropId || this.selectedRoomTypeId() !== currentReqRtId) return;
-        this.isLoadingRates.set(false);
-        const msg = err?.error?.message || err?.message || 'Không thể tải bảng giá phòng.';
-        this.ratesErrorMessage.set(msg);
-      }
-    });
+    this.loadSub = this.rateService
+      .getRates(roomTypeId, propId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (rates: RoomTypeRateDto[]) => {
+          if (this.propertyId() !== currentReqPropId || this.selectedRoomTypeId() !== currentReqRtId) return;
+          this.rates.set(rates || []);
+          this.isLoadingRates.set(false);
+          this.cdr?.markForCheck();
+        },
+        error: (err: unknown) => {
+          if (this.propertyId() !== currentReqPropId || this.selectedRoomTypeId() !== currentReqRtId) return;
+          this.isLoadingRates.set(false);
+          this.ratesErrorMessage.set(this.extractApiError(err, 'Không thể tải bảng giá phòng.'));
+          this.cdr?.markForCheck();
+        }
+      });
 
     // Load audit history separately
     this.loadHistoryData();
@@ -925,19 +1316,23 @@ export class RatesPage implements OnInit, OnDestroy {
     const currentReqPropId = propId;
     const currentReqRtId = roomTypeId;
 
-    this.historySub = this.rateService.getRateHistory(roomTypeId, propId).subscribe({
-      next: (history: RoomTypeRateAuditDto[]) => {
-        if (this.propertyId() !== currentReqPropId || this.selectedRoomTypeId() !== currentReqRtId) return;
-        this.rateHistory.set(history || []);
-        this.isLoadingHistory.set(false);
-      },
-      error: (err: any) => {
-        if (this.propertyId() !== currentReqPropId || this.selectedRoomTypeId() !== currentReqRtId) return;
-        this.isLoadingHistory.set(false);
-        const msg = err?.error?.message || err?.message || 'Không thể tải lịch sử thay đổi bảng giá.';
-        this.historyErrorMessage.set(msg);
-      }
-    });
+    this.historySub = this.rateService
+      .getRateHistory(roomTypeId, propId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (history: RoomTypeRateAuditDto[]) => {
+          if (this.propertyId() !== currentReqPropId || this.selectedRoomTypeId() !== currentReqRtId) return;
+          this.rateHistory.set(history || []);
+          this.isLoadingHistory.set(false);
+          this.cdr?.markForCheck();
+        },
+        error: (err: unknown) => {
+          if (this.propertyId() !== currentReqPropId || this.selectedRoomTypeId() !== currentReqRtId) return;
+          this.isLoadingHistory.set(false);
+          this.historyErrorMessage.set(this.extractApiError(err, 'Không thể tải lịch sử thay đổi bảng giá.'));
+          this.cdr?.markForCheck();
+        }
+      });
   }
 
   openCreateModal(): void {
@@ -1065,41 +1460,49 @@ export class RatesPage implements OnInit, OnDestroy {
     this.isSaving.set(true);
     this.saveSub?.unsubscribe();
 
-    this.saveSub = this.rateService.createRate(targetRoomTypeId, payload).subscribe({
-      next: (createdRate: RoomTypeRateDto) => {
-        // Discard response if roomType or branch context changed while request was in-flight
-        if (
-          this.propertyId() !== targetPropertyId ||
-          this.selectedRoomTypeId() !== targetRoomTypeId ||
-          this.modalTargetRoomTypeId() !== targetRoomTypeId
-        ) {
-          return;
+    this.saveSub = this.rateService
+      .createRate(targetRoomTypeId, payload)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (createdRate: RoomTypeRateDto) => {
+          // Discard response if roomType or branch context changed while request was in-flight
+          if (
+            this.propertyId() !== targetPropertyId ||
+            this.selectedRoomTypeId() !== targetRoomTypeId ||
+            this.modalTargetRoomTypeId() !== targetRoomTypeId
+          ) {
+            return;
+          }
+          this.isSaving.set(false);
+          this.closeCreateModal();
+          this.alertService.toastSuccess('Thiết lập bảng giá thành công.');
+          this.loadRatesData();
+          this.cdr?.markForCheck();
+        },
+        error: (err: unknown) => {
+          // Discard error if context changed while request was in-flight
+          if (
+            this.propertyId() !== targetPropertyId ||
+            this.selectedRoomTypeId() !== targetRoomTypeId ||
+            this.modalTargetRoomTypeId() !== targetRoomTypeId
+          ) {
+            return;
+          }
+          this.isSaving.set(false);
+          if (this.extractApiStatus(err) === 409) {
+            const detail = this.extractApiError(
+              err,
+              'Khoảng ngày hiệu lực bị trùng lặp hoặc xung đột với bảng giá hiện có không thể chia tự động. Vui lòng kiểm tra lại ngày bắt đầu và kết thúc.'
+            );
+            this.conflictError.set(detail);
+            this.alertService.toastError(detail, 'Xung đột bảng giá (409)');
+          } else {
+            const detail = this.extractApiError(err, 'Lỗi khi thiết lập bảng giá.');
+            this.alertService.toastError(detail, 'Lỗi thiết lập');
+          }
+          this.cdr?.markForCheck();
         }
-        this.isSaving.set(false);
-        this.closeCreateModal();
-        this.alertService.toastSuccess('Thiết lập bảng giá thành công.');
-        this.loadRatesData();
-      },
-      error: (err: any) => {
-        // Discard error if context changed while request was in-flight
-        if (
-          this.propertyId() !== targetPropertyId ||
-          this.selectedRoomTypeId() !== targetRoomTypeId ||
-          this.modalTargetRoomTypeId() !== targetRoomTypeId
-        ) {
-          return;
-        }
-        this.isSaving.set(false);
-        if (err?.status === 409) {
-          const detail = err?.error?.message || 'Khoảng ngày hiệu lực bị trùng lặp hoặc xung đột với bảng giá hiện có không thể chia tự động. Vui lòng kiểm tra lại ngày bắt đầu và kết thúc.';
-          this.conflictError.set(detail);
-          this.alertService.toastError(detail, 'Xung đột bảng giá (409)');
-        } else {
-          const detail = err?.error?.message || err?.message || 'Lỗi khi thiết lập bảng giá.';
-          this.alertService.toastError(detail, 'Lỗi thiết lập');
-        }
-      }
-    });
+      });
   }
 
   getRateStatus(rate: RoomTypeRateDto): 'active' | 'upcoming' | 'expired' {
@@ -1121,6 +1524,10 @@ export class RatesPage implements OnInit, OnDestroy {
         return 'bg-sky-50 text-sky-700 border-sky-200';
       case 'Split_Shortened':
         return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'Split_TailCreated':
+        return 'bg-teal-50 text-teal-700 border-teal-200';
+      case 'Trimmed_Head':
+        return 'bg-orange-50 text-orange-700 border-orange-200';
       case 'Replaced':
         return 'bg-purple-50 text-purple-700 border-purple-200';
       case 'Replaced_Created':
@@ -1138,6 +1545,10 @@ export class RatesPage implements OnInit, OnDestroy {
         return 'Chia khoảng (Tạo mới)';
       case 'Split_Shortened':
         return 'Chia khoảng (Rút ngắn)';
+      case 'Split_TailCreated':
+        return 'Chia khoảng (Phần đuôi)';
+      case 'Trimmed_Head':
+        return 'Cắt đầu khoảng giá';
       case 'Replaced':
         return 'Thay thế (Hủy cũ)';
       case 'Replaced_Created':
@@ -1145,6 +1556,136 @@ export class RatesPage implements OnInit, OnDestroy {
       default:
         return actionType;
     }
+  }
+
+  toggleAiPricingPanel(): void {
+    const next = !this.showAiPanel();
+    this.showAiPanel.set(next);
+    if (next && !this.aiPricingSummary() && !this.isLoadingAiPricing()) {
+      this.loadAiPricingRecommendations();
+    }
+  }
+
+  loadAiPricingRecommendations(): void {
+    const propId = this.propertyId();
+    if (!propId || !this.canReadAi() || !this.aiService) {
+      return;
+    }
+
+    this.aiSub?.unsubscribe();
+    this.isLoadingAiPricing.set(true);
+    this.aiPricingError.set(null);
+
+    const targetDate = this.aiTargetDate() || getTodayVnDateString();
+    this.aiSub = this.aiService
+      .getDynamicPricingRecommendations(propId, targetDate)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: summary => {
+          if (this.propertyId() !== propId) return;
+          this.aiPricingSummary.set(summary);
+          this.isLoadingAiPricing.set(false);
+          this.cdr?.markForCheck();
+        },
+        error: (err: unknown) => {
+          if (this.propertyId() !== propId) return;
+          this.isLoadingAiPricing.set(false);
+          this.aiPricingError.set(this.extractAiErrorMessage(err, 'Không thể tải gợi ý giá động AI.'));
+          this.cdr?.markForCheck();
+        }
+      });
+  }
+
+  prefillRateFromAiRecommendation(rec: RoomTypePricingRecommendationDto): void {
+    const propId = this.propertyId();
+    if (!propId || !this.canUpdate()) return;
+
+    if (this.selectedRoomTypeId() !== rec.roomTypeId) {
+      this.selectedRoomTypeId.set(rec.roomTypeId);
+      this.loadRatesData();
+    }
+
+    const fromDate = this.aiTargetDate() || getTodayVnDateString();
+    const days = Math.max(1, Number(this.aiEffectiveDays() || 1));
+    const toDate = addDaysToDateString(fromDate, days);
+
+    this.modalTargetRoomTypeId.set(rec.roomTypeId);
+    this.modalTargetPropertyId.set(propId);
+    this.clientErrors.set([]);
+    this.conflictError.set(null);
+
+    const matchingRate = this.rates().find(
+      r => r.roomTypeId === rec.roomTypeId && r.effectiveFrom <= fromDate && fromDate < r.effectiveTo
+    );
+
+    this.rateForm.reset({
+      effectiveFrom: fromDate,
+      effectiveTo: toDate,
+      firstHours: matchingRate?.firstHours ?? 2,
+      firstHoursPrice: matchingRate?.firstHoursPrice ?? Math.round(rec.recommendedPrice * 0.4),
+      additionalHourPrice: matchingRate?.additionalHourPrice ?? Math.round(rec.recommendedPrice * 0.12),
+      nightlyPrice: rec.recommendedPrice,
+      changeReason: `AI đề xuất: ${rec.strategy}`
+    });
+
+    this.showCreateModal.set(true);
+  }
+
+  applyAiRecommendation(rec: RoomTypePricingRecommendationDto): void {
+    const propId = this.propertyId();
+    if (!propId || !this.canApplyAi() || !this.aiService || this.applyingAiRoomTypeId()) {
+      return;
+    }
+
+    const fromDate = this.aiTargetDate() || getTodayVnDateString();
+    const days = Math.max(1, Number(this.aiEffectiveDays() || 1));
+    const toDate = addDaysToDateString(fromDate, days);
+
+    this.applyAiSub?.unsubscribe();
+    this.applyingAiRoomTypeId.set(rec.roomTypeId);
+
+    this.applyAiSub = this.aiService
+      .applyDynamicPricing({
+        roomTypeId: rec.roomTypeId,
+        propertyId: propId,
+        nightlyPrice: rec.recommendedPrice,
+        effectiveFrom: fromDate,
+        effectiveTo: toDate,
+        changeReason: `Áp dụng AI Dynamic Pricing (${rec.strategy})`
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          if (this.propertyId() !== propId) return;
+          this.applyingAiRoomTypeId.set(null);
+          this.alertService.toastSuccess(`Đã áp dụng giá AI ${this.formatCurrency(rec.recommendedPrice)} cho hạng phòng ${rec.roomTypeName}.`);
+          if (this.selectedRoomTypeId() !== rec.roomTypeId) {
+            this.selectedRoomTypeId.set(rec.roomTypeId);
+          }
+          this.loadRatesData();
+          this.cdr?.markForCheck();
+        },
+        error: (err: unknown) => {
+          if (this.propertyId() !== propId) return;
+          this.applyingAiRoomTypeId.set(null);
+          this.alertService.toastError(this.extractAiErrorMessage(err, 'Không thể áp dụng đề xuất giá AI.'), 'Lỗi áp dụng giá AI');
+          this.cdr?.markForCheck();
+        }
+      });
+  }
+
+  private extractAiErrorMessage(err: unknown, fallback: string): string {
+    if (err instanceof HttpErrorResponse) {
+      const body = err.error as { message?: string; title?: string } | null;
+      if (body?.message) return body.message;
+      if (body?.title) return body.title;
+    }
+    if (err && typeof err === 'object' && 'error' in err) {
+      const inner = (err as { error?: { message?: string }; message?: string });
+      if (inner.error?.message) return inner.error.message;
+      if (inner.message) return inner.message;
+    }
+    return fallback;
   }
 
   formatCurrency(value?: number | null): string {
@@ -1199,6 +1740,10 @@ export class RatesPage implements OnInit, OnDestroy {
   private cancelPendingRequests(): void {
     this.cancelRateRequests();
     this.cancelSave();
+    this.aiSub?.unsubscribe();
+    this.aiSub = undefined;
+    this.applyAiSub?.unsubscribe();
+    this.applyAiSub = undefined;
     if (this.roomTypesSub) {
       this.roomTypesSub.unsubscribe();
       this.roomTypesSub = undefined;

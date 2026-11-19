@@ -18,7 +18,8 @@ public sealed record CalculatePublicQuoteQuery(
     DateTime StartAtUtc,
     DateTime EndAtUtc,
     DateOnly? CheckInDate = null,
-    DateOnly? CheckOutDate = null
+    DateOnly? CheckOutDate = null,
+    string? PromoCode = null
 ) : IRequest<QuoteDto>;
 
 public sealed class CalculatePublicQuoteQueryHandler : IRequestHandler<CalculatePublicQuoteQuery, QuoteDto>
@@ -73,6 +74,7 @@ public sealed class CalculatePublicQuoteQueryHandler : IRequestHandler<Calculate
             request.EndAtUtc,
             request.CheckInDate,
             request.CheckOutDate,
-            cancellationToken);
+            cancellationToken,
+            request.PromoCode);
     }
 }

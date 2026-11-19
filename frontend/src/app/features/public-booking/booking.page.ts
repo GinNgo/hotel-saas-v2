@@ -104,10 +104,10 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="min-h-screen bg-[#EFECE6] pb-24 font-sans text-stone-900">
+    <div class="min-h-screen bg-[var(--surface-canvas)] pb-24 font-sans text-stone-900">
       <!-- 1. HERO BANNER & THANH TÌM KIẾM ĐA NĂNG (SEAMLESS LIGHT CONTEMPORARY LUXURY) -->
       <section
-        class="bg-gradient-to-b from-white via-slate-50/90 to-stone-100/60 text-slate-900 pt-8 sm:pt-12 pb-12 sm:pb-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden border-b border-slate-200/80"
+        class="bg-gradient-to-b from-white via-slate-50/90 to-stone-100/60 dark:from-[#0E1715] dark:via-[#12201D] dark:to-[#0B1412] text-slate-900 dark:text-[var(--text-primary)] pt-8 sm:pt-12 pb-12 sm:pb-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden border-b border-slate-200/80 dark:border-[var(--border-subtle)]"
       >
         <!-- Subtle ambient radial warm glow -->
         <div class="absolute top-0 right-1/4 w-[500px] h-[350px] bg-amber-500/5 blur-[120px] rounded-full pointer-events-none"></div>
@@ -120,21 +120,18 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
             <!-- LEFT COLUMN: EDITORIAL HEADLINE & DESTINATION PILLS -->
             <div class="lg:col-span-7 space-y-4">
               <div class="inline-flex items-center gap-2.5 px-3.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-800 text-xs font-bold tracking-wide shadow-2xs">
-                <span class="flex h-2 w-2 relative">
-                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
-                  <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
-                </span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
                 <span>Nền Tảng Đặt Phòng &amp; Nghỉ Dưỡng Di Sản Việt Nam</span>
               </div>
 
               <div>
-                <h1 class="font-serif text-3xl sm:text-5xl lg:text-[52px] font-black text-slate-950 tracking-tight leading-[1.12]">
-                  Khám Phá Kỳ Nghỉ Tinh Hoa Giữa Lòng <span class="italic text-amber-600 font-serif">Di Sản Việt Nam</span>
+                <h1 class="font-display text-3xl sm:text-5xl lg:text-[52px] font-black text-slate-950 tracking-tight leading-[1.12]">
+                  Khám Phá Kỳ Nghỉ Tinh Hoa Giữa Lòng <span class="italic text-amber-600 font-display">Di Sản Việt Nam</span>
                 </h1>
               </div>
 
               <p class="text-sm sm:text-base text-slate-600 max-w-xl font-sans leading-relaxed">
-                Trải nghiệm 34+ khách sạn boutique, villa săn mây và resort ven biển cao cấp từ Sa Pa, Hạ Long đến Đà Lạt &amp; Phú Quốc. Minh bạch phòng trống thực tế và hỗ trợ giữ phòng tức thì.
+                Khám phá khách sạn, homestay, villa và resort tại 34 tỉnh thành Việt Nam. Minh bạch phòng trống thực tế và hỗ trợ giữ phòng trực tuyến.
               </p>
 
               <!-- Quick Category Tags -->
@@ -143,37 +140,42 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                 <button
                   type="button"
                   (click)="selectCategoryQuickTag('Đà Lạt')"
-                  class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
+                  class="min-h-11 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
                 >
-                  <span>🌸 Đà Lạt Săn Mây</span>
+                  <i class="pi pi-sun text-[11px] text-amber-600"></i>
+                  <span>Đà Lạt Săn Mây</span>
                 </button>
                 <button
                   type="button"
                   (click)="selectCategoryQuickTag('Phú Quốc')"
-                  class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
+                  class="min-h-11 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
                 >
-                  <span>🏝️ Đảo Ngọc Phú Quốc</span>
+                  <i class="pi pi-compass text-[11px] text-emerald-700"></i>
+                  <span>Đảo Ngọc Phú Quốc</span>
                 </button>
                 <button
                   type="button"
                   (click)="selectCategoryQuickTag('Đà Nẵng')"
-                  class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
+                  class="min-h-11 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
                 >
-                  <span>🌉 Đà Nẵng Biển Mỹ Khê</span>
+                  <i class="pi pi-map-marker text-[11px] text-indigo-600"></i>
+                  <span>Đà Nẵng Biển Mỹ Khê</span>
                 </button>
                 <button
                   type="button"
                   (click)="selectCategoryQuickTag('Vũng Tàu')"
-                  class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
+                  class="min-h-11 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
                 >
-                  <span>🌊 Vũng Tàu Bãi Sau</span>
+                  <i class="pi pi-sun text-[11px] text-sky-600"></i>
+                  <span>Vũng Tàu Bãi Sau</span>
                 </button>
                 <button
                   type="button"
                   (click)="selectCategoryQuickTag('Hà Nội')"
-                  class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
+                  class="min-h-11 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
                 >
-                  <span>🏛️ Hà Nội Phố Cổ</span>
+                  <i class="pi pi-building text-[11px] text-amber-700"></i>
+                  <span>Hà Nội Phố Cổ</span>
                 </button>
               </div>
 
@@ -181,93 +183,129 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
               <div class="pt-3 flex flex-wrap items-center gap-4 sm:gap-6 text-xs text-slate-500 font-medium border-t border-slate-200/80">
                 <span class="flex items-center gap-1.5 text-slate-700">
                   <i class="pi pi-clock text-amber-600 text-xs"></i>
-                  <span>Giữ phòng 15 phút không cần thẻ</span>
+                  <span>Giữ phòng tạm thời 15 phút</span>
                 </span>
                 <span class="flex items-center gap-1.5 text-slate-700">
-                  <i class="pi pi-key text-emerald-600 text-xs"></i>
-                  <span>Mã PIN khóa phòng bảo mật</span>
+                  <i class="pi pi-check-circle text-emerald-600 text-xs"></i>
+                  <span>Kiểm tra phòng trống trực tiếp</span>
                 </span>
                 <span class="flex items-center gap-1.5 text-slate-700">
                   <i class="pi pi-shield text-indigo-600 text-xs"></i>
-                  <span>Hoàn cọc 24h minh bạch</span>
+                  <span>Xem trước chính sách hủy rõ ràng</span>
                 </span>
               </div>
             </div>
 
-            <!-- RIGHT COLUMN: CURATED HERO VISUAL SHOWCASE CARD -->
+            <!-- RIGHT COLUMN: LIVE FEATURED PROPERTY SHOWCASE CARD (NO HARDCODED MOCK DATA) -->
             <div class="lg:col-span-5 hidden lg:block">
               <div class="relative group">
-                <!-- Soft glow halo -->
                 <div class="absolute -inset-1 bg-gradient-to-r from-amber-500/15 via-slate-400/10 to-indigo-500/15 rounded-3xl blur-xl opacity-70 group-hover:opacity-100 transition duration-500 pointer-events-none"></div>
 
-                <!-- Showcase container -->
-                <div class="relative bg-white rounded-3xl border border-slate-200/90 p-3.5 shadow-xl overflow-hidden transition-all duration-500 group-hover:-translate-y-1 group-hover:shadow-2xl">
-                  <!-- Main Resort Image -->
-                  <div class="relative h-[270px] rounded-2xl overflow-hidden bg-slate-100">
-                    <img
-                      src="/images/danang-ocean-suites.png"
-                      alt="Da Nang Ocean Suites &amp; Villas"
-                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-                    />
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent"></div>
-
-                    <!-- Top Badges -->
-                    <div class="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
-                      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-xs text-white text-[11px] font-bold shadow-xs">
-                        <i class="pi pi-star-fill text-amber-400 text-[10px]"></i>
-                        <span>Bộ Sưu Tập Tiêu Biểu 2026</span>
-                      </span>
-                      <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-600 text-white text-[11px] font-bold shadow-xs">
-                        <i class="pi pi-verified text-[10px]"></i>
-                        <span>Đã Kiểm Định</span>
-                      </span>
-                    </div>
-
-                    <!-- Bottom Info Overlay -->
-                    <div class="absolute bottom-3 left-3 right-3 text-white space-y-1">
-                      <div class="text-[11px] font-semibold text-amber-200 tracking-wider flex items-center gap-1">
-                        <i class="pi pi-map-marker text-[10px]"></i>
-                        <span>Đà Nẵng • Bãi biển Mỹ Khê</span>
-                      </div>
-                      <h3 class="font-serif text-lg font-bold text-white tracking-tight leading-snug">
-                        Da Nang Ocean Suites &amp; Spa Resort
-                      </h3>
-                      <div class="flex items-center justify-between pt-1">
-                        <div class="text-xs text-stone-200">
-                          <span>Giá từ: </span>
-                          <span class="font-mono font-bold text-amber-300 text-sm">1.250.000 ₫</span>
-                          <span class="text-[10px] text-stone-300"> / đêm</span>
+                @if (featuredProperty(); as heroProp) {
+                  <div class="relative bg-white rounded-3xl border border-slate-200/90 p-3.5 shadow-xl overflow-hidden transition-all duration-500 group-hover:-translate-y-1 group-hover:shadow-2xl">
+                    <div class="relative h-[270px] rounded-2xl overflow-hidden bg-slate-900">
+                      @if (heroProp.thumbnailUrl) {
+                        <img
+                          [src]="heroProp.thumbnailUrl"
+                          [alt]="heroProp.name"
+                          width="560"
+                          height="270"
+                          fetchpriority="high"
+                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                        />
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent"></div>
+                      } @else {
+                        <div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 via-slate-900 to-emerald-950 text-white/80 gap-2 pb-16">
+                          <i class="pi pi-building text-4xl text-amber-300"></i>
+                          <span class="text-xs font-semibold text-slate-200">
+                            {{ heroProp.propertyTypeName || getPropertyTypeLabel(heroProp.propertyType) }}
+                          </span>
                         </div>
-                        <button
-                          type="button"
-                          (click)="selectCategoryQuickTag('Đà Nẵng')"
-                          class="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-bold text-xs transition-colors cursor-pointer shadow-xs flex items-center gap-1"
-                        >
-                          <span>Khám phá</span>
-                          <i class="pi pi-arrow-right text-[10px]"></i>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                      }
 
-                  <!-- Micro-Stats Footer -->
-                  <div class="px-2 pt-3 pb-1 flex items-center justify-between text-xs text-slate-600">
-                    <div class="flex items-center gap-2">
-                      <div class="flex items-center text-amber-500 text-xs">
-                        <i class="pi pi-star-fill"></i>
-                        <i class="pi pi-star-fill"></i>
-                        <i class="pi pi-star-fill"></i>
-                        <i class="pi pi-star-fill"></i>
-                        <i class="pi pi-star-fill"></i>
+                      <div class="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-xs text-white text-[11px] font-bold shadow-xs">
+                          <i class="pi pi-building text-amber-400 text-[10px]"></i>
+                          <span>{{ heroProp.tenantBrandName || 'Cơ sở lưu trú' }}</span>
+                        </span>
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-600 text-white text-[11px] font-bold shadow-xs">
+                          <span>{{ heroProp.propertyTypeName || getPropertyTypeLabel(heroProp.propertyType) }}</span>
+                        </span>
                       </div>
-                      <span class="font-bold text-slate-900">4.9/5</span>
-                      <span class="text-slate-500 text-[11px]">(480+ đánh giá thực tế)</span>
+
+                      <div class="absolute bottom-3 left-3 right-3 text-white space-y-1">
+                        <div class="text-[11px] font-semibold text-amber-200 tracking-wider flex items-center gap-1">
+                          <i class="pi pi-map-marker text-[10px]"></i>
+                          <span>{{ heroProp.provinceName || heroProp.city || 'Việt Nam' }}</span>
+                        </div>
+                        <h3 class="font-display text-lg font-bold text-white tracking-tight leading-snug line-clamp-1">
+                          {{ heroProp.name }}
+                        </h3>
+                        <div class="flex items-center justify-between pt-1">
+                          <div class="text-xs text-stone-200">
+                            @if (heroProp.startingPriceForSelectedMode > 0) {
+                              <span>Giá từ: </span>
+                              <span class="font-mono font-bold text-amber-300 text-sm tabular-nums">
+                                {{ heroProp.startingPriceForSelectedMode | number:'1.0-0' }} ₫
+                              </span>
+                            } @else {
+                              <span class="text-stone-300 italic">Liên hệ báo giá</span>
+                            }
+                          </div>
+                          <a
+                            [routerLink]="['/booking/properties', heroProp.slug]"
+                            [queryParams]="searchFilter()"
+                            class="min-h-11 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-bold text-xs transition-colors cursor-pointer shadow-xs flex items-center gap-1"
+                          >
+                            <span>Xem phòng</span>
+                            <i class="pi pi-arrow-right text-[10px]"></i>
+                          </a>
+                        </div>
+                      </div>
                     </div>
-                    <span class="text-emerald-700 text-[11px] font-bold flex items-center gap-1">
-                      <i class="pi pi-shield text-[10px]"></i> An tâm 100%
-                    </span>
+
+                    <div class="px-2 pt-3 pb-1 flex items-center justify-between text-xs text-slate-600">
+                      @if (heroProp.reviewCount > 0 && heroProp.ratingAverage > 0) {
+                        <div class="flex items-center gap-2">
+                          <div class="flex items-center text-amber-500 text-xs">
+                            @for (star of [1, 2, 3, 4, 5]; track star) {
+                              <i class="pi" [class.pi-star-fill]="star <= Math.round(heroProp.ratingAverage)" [class.pi-star]="star > Math.round(heroProp.ratingAverage)"></i>
+                            }
+                          </div>
+                          <span class="font-bold text-slate-900">{{ heroProp.ratingAverage | number:'1.1-1' }}/5</span>
+                          <span class="text-slate-500 text-[11px]">({{ heroProp.reviewCount }} đánh giá thực tế)</span>
+                        </div>
+                      } @else {
+                        <span class="text-slate-500 text-[11px] font-medium">Chưa có đánh giá</span>
+                      }
+                      <span class="text-emerald-700 text-[11px] font-bold flex items-center gap-1">
+                        <i class="pi pi-check-circle text-[10px]"></i> Đặt giữ chỗ trực tiếp
+                      </span>
+                    </div>
                   </div>
-                </div>
+                } @else {
+                  <div class="relative bg-white rounded-3xl border border-slate-200/90 p-5 shadow-xl overflow-hidden space-y-4">
+                    <div class="h-[220px] rounded-2xl bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-800 p-6 flex flex-col justify-between text-white">
+                      <span class="inline-flex w-fit items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-amber-200 text-[11px] font-bold">
+                        <i class="pi pi-map-marker text-[10px]"></i>
+                        <span>34 Tỉnh Thành Việt Nam</span>
+                      </span>
+                      <div class="space-y-1.5">
+                        <h3 class="font-display text-xl font-bold text-white">Hệ Thống Đặt Phòng Trực Tuyến</h3>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                          Dữ liệu cơ sở lưu trú, giá phòng và lịch trống được đồng bộ trực tiếp từ hệ thống quản lý PMS.
+                        </p>
+                      </div>
+                    </div>
+                    <div class="flex items-center justify-between text-xs text-slate-600">
+                      <span>Hỗ trợ thuê theo giờ, qua đêm &amp; theo ngày</span>
+                      <a routerLink="/booking/explore" class="min-h-11 inline-flex items-center gap-1 font-bold text-indigo-600 hover:text-indigo-800">
+                        <span>Khám phá</span>
+                        <i class="pi pi-arrow-right text-[10px]"></i>
+                      </a>
+                    </div>
+                  </div>
+                }
               </div>
             </div>
 
@@ -277,6 +315,8 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
           <app-booking-filter-bar
             [initialFilter]="searchFilter()"
             [suggestions]="destinationSuggestions()"
+            [autoEmitOnToggle]="false"
+            (draftFilterChange)="onFilterDraftChange($event)"
             (filterChange)="onFilterBarChange($event)"
           />
         </div>
@@ -296,13 +336,13 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                 </span>
                 <span class="text-xs text-slate-500 font-medium">
                   @if (properties().length > 0) {
-                    {{ properties().length }} cơ sở lưu trú đã kiểm định phòng trống
+                    <span class="tabular-nums">{{ properties().length }}</span> cơ sở lưu trú đã kiểm định phòng trống
                   } @else {
                     Cơ sở lưu trú toàn quốc đã kiểm định phòng trống
                   }
                 </span>
               </div>
-              <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-serif">
+              <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-display">
                 Khu Nghỉ Dưỡng &amp; Khách Sạn Nổi Bật
               </h2>
               <p class="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">
@@ -313,7 +353,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
             <div class="flex flex-wrap items-center gap-2.5">
               <a
                 routerLink="/auth/partner-register"
-                class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold transition-all cursor-pointer"
+                class="min-h-11 inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold transition-all cursor-pointer"
               >
                 <i class="pi pi-plus-circle text-[11px]"></i>
                 <span>Đăng ký đối tác lưu trú mới</span>
@@ -321,7 +361,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
               <a
                 routerLink="/booking/explore"
                 [queryParams]="detailQueryParams()"
-                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                class="min-h-11 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
               >
                 <span>Xem tất cả trên bộ lọc &amp; bản đồ</span>
                 <i class="pi pi-arrow-right text-[10px]"></i>
@@ -340,7 +380,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                 <button
                   type="button"
                   (click)="resetSidebarFilters()"
-                  class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                  class="min-h-11 text-xs font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer px-2"
                 >
                   Đặt lại bộ lọc
                 </button>
@@ -353,7 +393,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                   role="tab"
                   [attr.aria-selected]="isPropertyTypeTabActive(tab)"
                   (click)="selectPropertyTypeTab(tab.key)"
-                  class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer"
+                  class="min-h-11 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer"
                   [class]="isPropertyTypeTabActive(tab)
                     ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
                     : 'bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50/40'"
@@ -361,7 +401,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                   <i [class]="'pi ' + tab.icon + ' text-[11px]'"></i>
                   <span>{{ tab.label }}</span>
                   <span
-                    class="px-1.5 py-0.5 rounded-md text-[10px] font-bold"
+                    class="px-1.5 py-0.5 rounded-md text-[10px] font-bold tabular-nums"
                     [class]="isPropertyTypeTabActive(tab) ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'"
                   >
                     {{ getPropertyTypeTabCount(tab) }}
@@ -387,7 +427,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                 <div class="flex items-center gap-3">
                   <a
                     routerLink="/booking/brands"
-                    class="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                    class="min-h-11 text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
                   >
                     <span>Khám phá {{ tenantBrandFacets().length }} thương hiệu</span>
                     <i class="pi pi-arrow-right text-[10px]"></i>
@@ -399,7 +439,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                 <button
                   type="button"
                   (click)="filterByTenantBrandInline(null)"
-                  class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer"
+                  class="min-h-11 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer"
                   [class]="!selectedTenantId() && !searchFilter().tenantSlug
                     ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
                     : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'"
@@ -416,7 +456,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                     <button
                       type="button"
                       (click)="filterByTenantBrandInline(brand)"
-                      class="px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                      class="min-h-11 px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                     >
                       <span>{{ brand.tenantBrandName }}</span>
                       <span
@@ -428,8 +468,9 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                     </button>
                     <a
                       [routerLink]="['/booking/brands', brand.tenantSlug || brand.tenantId]"
-                      class="px-2 py-1.5 border-l text-[10px] font-bold opacity-80 hover:opacity-100"
+                      class="min-h-11 min-w-11 flex items-center justify-center px-2 py-1.5 border-l text-[10px] font-bold opacity-80 hover:opacity-100"
                       [class]="isBrandFacetActive(brand) ? 'border-white/20 text-amber-300' : 'border-slate-200 text-indigo-600 hover:bg-indigo-50'"
+                      [attr.aria-label]="'Xem hồ sơ thương hiệu ' + brand.tenantBrandName"
                       [title]="'Xem hồ sơ thương hiệu ' + brand.tenantBrandName"
                     >
                       <i class="pi pi-external-link text-[10px]"></i>
@@ -444,7 +485,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
           @if (isLoading()) {
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               @for (item of [1, 2, 3, 4, 5, 6]; track item) {
-                <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs animate-pulse">
+                <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs animate-pulse motion-reduce:animate-none">
                   <div class="h-48 bg-slate-200"></div>
                   <div class="p-5 space-y-3">
                     <div class="h-4 bg-slate-200 rounded w-1/3"></div>
@@ -466,13 +507,22 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                 >
                   <!-- Ảnh Thumbnail & Huy hiệu -->
                   <div class="relative h-52 w-full overflow-hidden bg-slate-100">
-                    <img
-                      [src]="property.thumbnailUrl || '/images/danang-ocean-suites.png'"
-                      [alt]="property.name"
-                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-                      loading="lazy"
-                    />
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none"></div>
+                    @if (property.thumbnailUrl) {
+                      <img
+                        [src]="property.thumbnailUrl"
+                        [alt]="property.name"
+                        width="400"
+                        height="208"
+                        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+                        loading="lazy"
+                      />
+                      <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none"></div>
+                    } @else {
+                      <div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-stone-200 text-slate-400 gap-1.5">
+                        <i class="pi pi-building text-3xl text-slate-400"></i>
+                        <span class="text-[11px] font-semibold text-slate-500">Chưa có ảnh cơ sở</span>
+                      </div>
+                    }
 
                     <!-- Top Badges -->
                     <div class="absolute top-3 left-3 right-3 flex items-center justify-between">
@@ -482,7 +532,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                       @if (property.starRating && property.starRating >= 4) {
                         <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950 flex items-center gap-1 shadow-2xs">
                           <i class="pi pi-star-fill text-[9px]"></i>
-                          <span>{{ property.starRating }}★</span>
+                          <span>{{ property.starRating }} sao</span>
                         </span>
                       }
                     </div>
@@ -492,7 +542,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                       <button
                         type="button"
                         (click)="openPhotoGallery(property)"
-                        class="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-black/60 hover:bg-black/80 backdrop-blur-xs text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                        class="min-h-11 absolute bottom-3 right-3 px-3 py-1.5 rounded-lg bg-black/60 hover:bg-black/80 backdrop-blur-xs text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
                         title="Xem toàn bộ album ảnh"
                       >
                         <i class="pi pi-images text-xs"></i>
@@ -508,18 +558,18 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                         <span class="text-[11px] font-bold text-amber-800 uppercase tracking-wider truncate">
                           {{ property.tenantBrandName }}
                         </span>
-                        @if (property.ratingAverage > 0) {
-                          <span class="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        @if (property.reviewCount > 0 && property.ratingAverage > 0) {
+                          <span class="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 shrink-0 tabular-nums">
                             <i class="pi pi-star-fill text-amber-500 text-[10px]"></i>
-                            <span>{{ property.ratingAverage }}</span>
-                            @if (property.reviewCount > 0) {
-                              <span class="text-[10px] text-slate-500">({{ property.reviewCount }})</span>
-                            }
+                            <span>{{ property.ratingAverage | number:'1.1-1' }}</span>
+                            <span class="text-[10px] text-slate-500">({{ property.reviewCount }})</span>
                           </span>
+                        } @else {
+                          <span class="text-[11px] text-slate-400 font-medium shrink-0">Chưa có đánh giá</span>
                         }
                       </div>
 
-                      <h3 class="font-serif text-lg font-bold text-slate-900 group-hover:text-amber-800 transition-colors line-clamp-1">
+                      <h3 class="font-display text-lg font-bold text-slate-900 group-hover:text-amber-800 transition-colors line-clamp-1">
                         <a [routerLink]="['/booking/properties', property.slug]" [queryParams]="searchFilter()">
                           {{ property.name }}
                         </a>
@@ -537,7 +587,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                         <span class="text-[10px] text-slate-500 block uppercase font-medium">Giá chỉ từ</span>
                         @if (property.startingPriceForSelectedMode > 0) {
                           <div class="flex items-baseline gap-1">
-                            <span class="font-mono text-base sm:text-lg font-extrabold text-slate-900">
+                            <span class="font-mono text-base sm:text-lg font-extrabold text-slate-900 tabular-nums">
                               {{ property.startingPriceForSelectedMode | number:'1.0-0' }} ₫
                             </span>
                             <span class="text-[11px] text-slate-500">
@@ -552,7 +602,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                       <a
                         [routerLink]="['/booking/properties', property.slug]"
                         [queryParams]="searchFilter()"
-                        class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-bold transition-colors cursor-pointer shadow-2xs shrink-0 flex items-center gap-1"
+                        class="min-h-11 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-bold transition-colors cursor-pointer shadow-2xs shrink-0 flex items-center gap-1"
                       >
                         <span>Xem phòng</span>
                         <i class="pi pi-chevron-right text-[10px]"></i>
@@ -565,7 +615,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
 
             <!-- Thanh điều khiển hiển thị thêm / xem tất cả -->
             <div class="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-2xl border border-slate-200/80 px-5 py-4 shadow-2xs">
-              <p class="text-xs text-slate-600 font-medium">
+              <p class="text-xs text-slate-600 font-medium tabular-nums">
                 Đang hiển thị
                 <span class="font-bold text-slate-900">{{ filteredProperties().slice(0, visibleCount()).length }}</span>
                 /
@@ -578,7 +628,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                   <button
                     type="button"
                     (click)="showMoreProperties()"
-                    class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                    class="min-h-11 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
                   >
                     <i class="pi pi-plus text-[10px]"></i>
                     <span>Xem thêm cơ sở lưu trú (còn {{ filteredProperties().length - visibleCount() }} cơ sở)</span>
@@ -587,7 +637,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                   <button
                     type="button"
                     (click)="resetVisibleCount()"
-                    class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+                    class="min-h-11 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
                   >
                     <i class="pi pi-chevron-up text-[10px]"></i>
                     <span>Thu gọn danh sách</span>
@@ -597,7 +647,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                 <a
                   routerLink="/booking/explore"
                   [queryParams]="detailQueryParams()"
-                  class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all cursor-pointer"
+                  class="min-h-11 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all cursor-pointer"
                 >
                   <span>Xem tất cả trên bộ lọc &amp; bản đồ</span>
                   <i class="pi pi-map text-[11px]"></i>
@@ -611,7 +661,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
               <button
                 type="button"
                 (click)="resetSidebarFilters()"
-                class="mt-3 px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
+                class="min-h-11 mt-3 px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 Đặt lại bộ lọc tìm kiếm
               </button>
@@ -657,6 +707,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
   `,
 })
 export class BookingPageComponent implements OnInit {
+  protected readonly Math = Math;
   readonly stayTypes: readonly PropertyType[] = ALL_PROPERTY_TYPES;
   readonly propertyTypeTabs: readonly PropertyTypeTabOption[] = [
     { key: 'ALL', label: 'Tất cả', icon: 'pi-th-large', matchTypes: [] },
@@ -665,7 +716,7 @@ export class BookingPageComponent implements OnInit {
     { key: 'Homestay', label: 'Homestay', icon: 'pi-home', matchTypes: ['Homestay'] },
     { key: 'Villa', label: 'Biệt thự (Villa)', icon: 'pi-star', matchTypes: ['Villa'] },
     { key: 'Apartment', label: 'Căn hộ (Apartment)', icon: 'pi-key', matchTypes: ['Apartment'] },
-    { key: 'Motel', label: 'Nhà nghỉ / Motel', icon: 'pi-moon', matchTypes: ['Motel', 'Guesthouse'] },
+    { key: 'Motel', label: 'Nhà nghỉ / Motel', icon: 'pi-moon', matchTypes: ['Motel'] },
     { key: 'Hostel', label: 'Hostel / B&B', icon: 'pi-users', matchTypes: ['Hostel', 'BedAndBreakfast'] },
   ];
   private readonly publicBookingService = inject(PublicBookingService);
@@ -675,6 +726,7 @@ export class BookingPageComponent implements OnInit {
   // --- SIGNALS TRẠNG THÁI TRANG ---
   readonly isLoading = signal<boolean>(false);
   readonly properties = signal<PublicPropertyDto[]>([]);
+  readonly liveBrands = signal<TenantBrandFacet[]>([]);
   readonly liveZones = signal<TouristZoneDto[]>([]);
   readonly liveLandmarks = signal<LandmarkDto[]>([]);
   readonly destinationSuggestions = signal<DestinationSuggestionDto[]>([]);
@@ -745,6 +797,12 @@ export class BookingPageComponent implements OnInit {
   ];
 
   // --- COMPUTED SIGNALS ---
+  readonly featuredProperty = computed<PublicPropertyDto | null>(() => {
+    const props = this.properties();
+    if (!props.length) return null;
+    return props.find(p => !!p.thumbnailUrl) ?? props[0];
+  });
+
   readonly currentRentalModeLabel = computed<string>(() => {
     const mode = this.searchFilter().rentalType;
     if (mode === 'Hourly') return `Theo giờ (${this.searchFilter().durationHours} giờ)`;
@@ -770,6 +828,17 @@ export class BookingPageComponent implements OnInit {
           tenantSlug: prop.tenantSlug,
           branchCount: 1,
         });
+      }
+    }
+    if (map.size === 0) {
+      return [];
+    }
+    const apiBrands = this.liveBrands();
+    if (apiBrands.length > 0) {
+      for (const b of apiBrands) {
+        if (!map.has(b.tenantId)) {
+          map.set(b.tenantId, b);
+        }
       }
     }
     return Array.from(map.values());
@@ -876,10 +945,15 @@ export class BookingPageComponent implements OnInit {
         this.selectedPriceRangeKey.set(this.priceRangeOptions.find(range => range.min === this.minPrice() && range.max === this.maxPrice())?.key ?? 'custom');
         const sort = params['sortBy'];
         this.sortBy.set(['recommended', 'price_asc', 'price_desc', 'rating_desc', 'distance_asc'].includes(sort) ? sort : 'recommended');
-        const parsedTypes = String(params['propertyTypes'] ?? '')
-          .split(',')
-          .map(t => t.trim())
-          .filter((type): type is PropertyType => ALL_PROPERTY_TYPES.includes(type as PropertyType));
+        const parsedTypes = Array.from(
+          new Set(
+            String(params['propertyTypes'] ?? '')
+              .split(',')
+              .map(t => t.trim())
+              .map(t => (t === 'Guesthouse' ? 'Motel' : t))
+              .filter((type): type is PropertyType => ALL_PROPERTY_TYPES.includes(type as PropertyType))
+          )
+        );
         const tenantSlugParam = typeof params['tenantSlug'] === 'string' && params['tenantSlug'] ? params['tenantSlug'] : null;
 
         this.searchFilter.update(filter => ({ ...filter, ...readPublicStay(params), destinationKeyword: String(params['destinationKeyword'] ?? ''),
@@ -906,6 +980,26 @@ export class BookingPageComponent implements OnInit {
         this.smartFilterChips.set([]);
       }
     });
+  }
+
+  onFilterDraftChange(updatedFilter: PublicBookingSearchFilter): void {
+    this.searchFilter.set({
+      ...updatedFilter,
+      maxDistanceMeters: this.maxDistanceMeters(),
+      minPrice: this.minPrice(),
+      maxPrice: this.maxPrice(),
+      sortBy: this.sortBy(),
+    });
+    if (updatedFilter.propertyTypes.length === 1) {
+      const single = updatedFilter.propertyTypes[0];
+      this.selectedPropertyType.set(
+        single === 'Guesthouse' ? 'Motel' : single === 'BedAndBreakfast' ? 'Hostel' : single
+      );
+    } else {
+      this.selectedPropertyType.set('ALL');
+    }
+    this.visibleCount.set(12);
+    this.loadPublicProperties();
   }
 
   onFilterBarChange(updatedFilter: PublicBookingSearchFilter): void {
@@ -1104,14 +1198,14 @@ export class BookingPageComponent implements OnInit {
     if (keyword) {
       chips.push({
         id: 'chip-near-1km',
-        label: `📍 Gần ${keyword} (< 1km)`,
+        label: `Gần ${keyword} (< 1km)`,
         category: 'nearby',
         filterKey: 'maxDistanceMeters',
         filterValue: 1000,
       });
       chips.push({
         id: 'chip-near-3km',
-        label: `📍 Bán kính ${keyword} (< 3km)`,
+        label: `Bán kính ${keyword} (< 3km)`,
         category: 'nearby',
         filterKey: 'maxDistanceMeters',
         filterValue: 3000,
@@ -1132,7 +1226,7 @@ export class BookingPageComponent implements OnInit {
     for (const [name, count] of topLandmarks) {
       chips.push({
         id: `chip-lm-${name.toLowerCase().replace(/\s+/g, '-')}`,
-        label: `📍 ${name}`,
+        label: name,
         category: 'nearby',
         filterKey: 'destinationKeyword',
         filterValue: name,
@@ -1149,7 +1243,7 @@ export class BookingPageComponent implements OnInit {
       if (this.searchFilter().rentalType === 'Hourly') {
         chips.push({
           id: 'chip-price-hourly-120k',
-          label: '💰 Dưới 120k / 2h',
+          label: 'Dưới 120k / 2h',
           category: 'price',
           filterKey: 'maxPrice',
           filterValue: 120000,
@@ -1157,14 +1251,14 @@ export class BookingPageComponent implements OnInit {
       } else {
         chips.push({
           id: 'chip-price-350k',
-          label: '💰 Dưới 350k / đêm',
+          label: 'Dưới 350k / đêm',
           category: 'price',
           filterKey: 'maxPrice',
           filterValue: 350000,
         });
         chips.push({
           id: 'chip-price-600k',
-          label: '💰 Dưới 600k / đêm',
+          label: 'Dưới 600k / đêm',
           category: 'price',
           filterKey: 'maxPrice',
           filterValue: 600000,
@@ -1176,7 +1270,7 @@ export class BookingPageComponent implements OnInit {
     if (this.searchFilter().rentalType !== 'Hourly' && props.some((p) => p.allowedRentalTypes.includes('Hourly'))) {
       chips.push({
         id: 'chip-mode-hourly',
-        label: '⏰ Có cho thuê theo giờ',
+        label: 'Có cho thuê theo giờ',
         category: 'rentalType',
         filterKey: 'rentalType',
         filterValue: 'Hourly',
@@ -1185,7 +1279,7 @@ export class BookingPageComponent implements OnInit {
     if (this.searchFilter().rentalType !== 'Overnight' && props.some((p) => p.allowedRentalTypes.includes('Overnight'))) {
       chips.push({
         id: 'chip-mode-overnight',
-        label: '🌙 Thuê qua đêm',
+        label: 'Thuê qua đêm',
         category: 'rentalType',
         filterKey: 'rentalType',
         filterValue: 'Overnight',
@@ -1349,11 +1443,11 @@ export class BookingPageComponent implements OnInit {
   getRentalModeTag(mode: RentalType): string {
     switch (mode) {
       case 'Hourly':
-        return '⚡ Nhận theo giờ';
+        return 'Nhận theo giờ';
       case 'Overnight':
-        return '🌙 Nhận qua đêm';
+        return 'Nhận qua đêm';
       case 'Daily':
-        return '📅 Nhận theo ngày';
+        return 'Nhận theo ngày';
     }
   }
 
@@ -1387,8 +1481,11 @@ export class BookingPageComponent implements OnInit {
       maxDistanceMeters: filter.maxDistanceMeters ?? undefined,
       userLatitude: filter.userLatitude ?? undefined,
       userLongitude: filter.userLongitude ?? undefined,
-      page: filter.page,
-      pageSize: filter.pageSize,
+      minPrice: this.minPrice() ?? undefined,
+      maxPrice: this.maxPrice() ?? undefined,
+      guests: filter.guests > 0 ? filter.guests : undefined,
+      checkInDate: filter.checkInDate || undefined,
+      checkOutDate: filter.checkOutDate || undefined,
     };
 
     this.publicBookingService.getProperties(serviceFilter).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -1423,9 +1520,19 @@ export class BookingPageComponent implements OnInit {
                 ? p.overnightStartingPrice ?? p.overnightPriceFrom
                 : p.dailyStartingPrice ?? p.dailyPriceFrom) ?? p.startingPriceForSelectedMode ?? p.startingPrice ?? 0;
 
-            const pType: PropertyType = (typeof p.propertyType === 'string' && ALL_PROPERTY_TYPES.includes(p.propertyType as PropertyType)
-              ? p.propertyType
-              : (p.propertyTypeName || 'Hotel')) as PropertyType;
+            const rawTypeStr = p.propertyType === 'Guesthouse' ? 'Motel' : p.propertyType;
+            const pType: PropertyType = (typeof rawTypeStr === 'string' && ALL_PROPERTY_TYPES.includes(rawTypeStr as PropertyType)
+              ? rawTypeStr
+              : 'Hotel') as PropertyType;
+
+            const resolvedThumb = resolvePropertyThumbnail(
+              p.name || '',
+              `${p.addressLine || p.address || ''} ${p.provinceName || p.city || ''} ${p.touristZoneName || ''}`,
+              p.thumbnailUrl || p.imageUrl
+            );
+            const verifiedGallery = (p.galleryUrls ?? []).filter(
+              url => typeof url === 'string' && url.trim().length > 0 && !url.toLowerCase().includes('images.unsplash.com')
+            );
 
             return {
               propertyId: p.propertyId || p.id || '',
@@ -1448,9 +1555,9 @@ export class BookingPageComponent implements OnInit {
               touristZoneSlug: p.touristZoneSlug || '',
               latitude: p.latitude,
               longitude: p.longitude,
-              thumbnailUrl: resolvePropertyThumbnail(p.name || '', `${p.addressLine || p.address || ''} ${p.provinceName || p.city || ''} ${p.touristZoneName || ''}`, p.thumbnailUrl || p.imageUrl),
+              thumbnailUrl: resolvedThumb,
               imageUrl: p.imageUrl || p.thumbnailUrl,
-              galleryUrls: p.galleryUrls?.length ? p.galleryUrls : [resolvePropertyThumbnail(p.name || '', `${p.addressLine || p.address || ''} ${p.provinceName || p.city || ''} ${p.touristZoneName || ''}`, p.thumbnailUrl || p.imageUrl)],
+              galleryUrls: verifiedGallery.length > 0 ? verifiedGallery : (resolvedThumb ? [resolvedThumb] : []),
               allowedRentalTypes: allowedModes,
               allowHourlyBooking: p.allowHourlyBooking,
               allowOvernightBooking: p.allowOvernightBooking,
@@ -1543,6 +1650,23 @@ export class BookingPageComponent implements OnInit {
         this.liveLandmarks.set(landmarks ?? []);
         this.refreshDestinationSuggestions();
       });
+
+    this.publicBookingService
+      .getPublicBrands?.()
+      ?.pipe(
+        catchError(() => of([])),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      ?.subscribe((brands) => {
+        this.liveBrands.set(
+          (brands ?? []).map(b => ({
+            tenantId: b.tenantId,
+            tenantBrandName: b.name,
+            tenantSlug: b.slug,
+            branchCount: b.totalProperties,
+          }))
+        );
+      });
   }
 
   private refreshDestinationSuggestions(loadedProps: readonly PublicPropertyDto[] = this.properties()): void {
@@ -1574,7 +1698,17 @@ export class BookingPageComponent implements OnInit {
   }
 
   onApplyPromoCode(code: string): void {
-    // Promo code applied, ready for checkout
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(trimmed).catch(() => {});
+    }
+    this.router.navigate(['/booking/explore'], {
+      queryParams: {
+        ...this.detailQueryParams(),
+        promoCode: trimmed,
+      },
+    });
   }
 
   onSelectCuratedCategory(type: string): void {

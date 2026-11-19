@@ -88,6 +88,8 @@ export interface ReservationDto {
   currency: string;
   status: ReservationStatus;
   confirmationCode: string;
+  smartLockPin?: string | null;
+  smartLockStatus?: string | null;
   notes?: string;
   createdAtUtc: string;
 }
@@ -122,11 +124,12 @@ export interface CreateReservationRequest {
   checkInDate?: string;
   checkOutDate?: string;
   guestName: string;
-  guestEmail: string;
+  guestEmail?: string;
   guestPhone?: string;
   numberOfGuests: number;
   customerNotes?: string;
   expectedTotalAmount?: number;
   idempotencyKey?: string;
+  immediateCheckIn?: boolean;
 }
 

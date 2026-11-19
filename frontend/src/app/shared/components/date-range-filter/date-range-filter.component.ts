@@ -1,4 +1,4 @@
-import { Component, EventEmitter, HostListener, Input, OnInit, Output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, HostListener, Input, OnInit, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DatePicker } from 'primeng/datepicker';
@@ -40,31 +40,38 @@ export { BUSINESS_TIMEZONE_OFFSET_HOURS, getStartOfDayUtc, getStartOfNextDayUtc 
   selector: 'app-date-range-filter',
   standalone: true,
   imports: [CommonModule, FormsModule, DatePicker],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 p-2 bg-slate-50/80 rounded-xl border border-slate-200/80 text-xs">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 p-2 bg-slate-50/80 dark:bg-slate-900/70 rounded-xl border border-slate-200/80 dark:border-slate-700/80 text-xs">
       <!-- Mode Toggle -->
-      <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shrink-0 shadow-2xs" role="group" aria-label="Chế độ lọc thời gian">
+      <div class="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-0.5 shrink-0 shadow-2xs" role="group" aria-label="Chế độ lọc thời gian">
         <button
           type="button"
           (click)="setMode('single')"
+          [attr.aria-pressed]="mode === 'single'"
           aria-label="Chế độ lọc một ngày"
-          class="px-2.5 py-1 rounded-md font-medium transition-colors"
+          class="min-h-11 px-3 py-2 rounded-md font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
           [class.bg-emerald-600]="mode === 'single'"
           [class.text-white]="mode === 'single'"
           [class.text-slate-600]="mode !== 'single'"
+          [class.dark:text-slate-300]="mode !== 'single'"
           [class.hover:text-slate-900]="mode !== 'single'"
+          [class.dark:hover:text-white]="mode !== 'single'"
         >
           Một ngày
         </button>
         <button
           type="button"
           (click)="setMode('range')"
+          [attr.aria-pressed]="mode === 'range'"
           aria-label="Chế độ lọc khoảng ngày"
-          class="px-2.5 py-1 rounded-md font-medium transition-colors"
+          class="min-h-11 px-3 py-2 rounded-md font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
           [class.bg-emerald-600]="mode === 'range'"
           [class.text-white]="mode === 'range'"
           [class.text-slate-600]="mode !== 'range'"
+          [class.dark:text-slate-300]="mode !== 'range'"
           [class.hover:text-slate-900]="mode !== 'range'"
+          [class.dark:hover:text-white]="mode !== 'range'"
         >
           Khoảng ngày
         </button>
@@ -74,9 +81,9 @@ export { BUSINESS_TIMEZONE_OFFSET_HOURS, getStartOfDayUtc, getStartOfNextDayUtc 
       <div class="flex flex-wrap items-center gap-2">
         @if (mode === 'single') {
           <div class="flex items-center gap-1.5">
-            <label for="filterSingleDateInput" class="text-slate-500 font-medium whitespace-nowrap">{{ label }}:</label>
+            <label [for]="singleDateInputId" class="text-slate-600 dark:text-slate-300 font-medium whitespace-nowrap">{{ label }}:</label>
             <p-datepicker
-              inputId="filterSingleDateInput"
+              [inputId]="singleDateInputId"
               name="filterSingleDate"
               [(ngModel)]="fromDateValue"
               (ngModelChange)="onFromDateChange($event)"
@@ -91,14 +98,14 @@ export { BUSINESS_TIMEZONE_OFFSET_HOURS, getStartOfDayUtc, getStartOfNextDayUtc 
               placeholder="dd/mm/yyyy"
               [ariaLabel]="label + ' (dd/mm/yyyy)'"
               styleClass="w-44 sm:w-48 text-xs"
-              inputStyleClass="w-full text-xs py-1.5 pl-3 pr-14 rounded-lg border border-slate-200 bg-white text-slate-800 shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-medium"
+              inputStyleClass="w-full min-h-11 text-xs py-2 pl-3 pr-14 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 shadow-2xs focus-visible:outline-none focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500 font-medium tabular-nums"
             />
           </div>
         } @else {
           <div class="flex items-center gap-1.5">
-            <label for="filterFromDateInput" class="text-slate-500 font-medium whitespace-nowrap">Từ ngày:</label>
+            <label [for]="fromDateInputId" class="text-slate-600 dark:text-slate-300 font-medium whitespace-nowrap">Từ ngày:</label>
             <p-datepicker
-              inputId="filterFromDateInput"
+              [inputId]="fromDateInputId"
               name="filterFromDate"
               [(ngModel)]="fromDateValue"
               (ngModelChange)="onFromDateChange($event)"
@@ -113,13 +120,13 @@ export { BUSINESS_TIMEZONE_OFFSET_HOURS, getStartOfDayUtc, getStartOfNextDayUtc 
               placeholder="dd/mm/yyyy"
               ariaLabel="Từ ngày (dd/mm/yyyy)"
               styleClass="w-44 sm:w-48 text-xs"
-              inputStyleClass="w-full text-xs py-1.5 pl-3 pr-14 rounded-lg border border-slate-200 bg-white text-slate-800 shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-medium"
+              inputStyleClass="w-full min-h-11 text-xs py-2 pl-3 pr-14 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 shadow-2xs focus-visible:outline-none focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500 font-medium tabular-nums"
             />
           </div>
           <div class="flex items-center gap-1.5">
-            <label for="filterToDateInput" class="text-slate-500 font-medium whitespace-nowrap">Đến ngày:</label>
+            <label [for]="toDateInputId" class="text-slate-600 dark:text-slate-300 font-medium whitespace-nowrap">Đến ngày:</label>
             <p-datepicker
-              inputId="filterToDateInput"
+              [inputId]="toDateInputId"
               name="filterToDate"
               [(ngModel)]="toDateValue"
               (ngModelChange)="onToDateChange($event)"
@@ -134,7 +141,7 @@ export { BUSINESS_TIMEZONE_OFFSET_HOURS, getStartOfDayUtc, getStartOfNextDayUtc 
               placeholder="dd/mm/yyyy"
               ariaLabel="Đến ngày (dd/mm/yyyy)"
               styleClass="w-44 sm:w-48 text-xs"
-              inputStyleClass="w-full text-xs py-1.5 pl-3 pr-14 rounded-lg border border-slate-200 bg-white text-slate-800 shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-medium"
+              inputStyleClass="w-full min-h-11 text-xs py-2 pl-3 pr-14 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 shadow-2xs focus-visible:outline-none focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500 font-medium tabular-nums"
             />
           </div>
         }
@@ -144,11 +151,11 @@ export { BUSINESS_TIMEZONE_OFFSET_HOURS, getStartOfDayUtc, getStartOfNextDayUtc 
           <button
             type="button"
             (click)="resetFilter()"
-            class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer border border-transparent hover:border-rose-200"
+            class="inline-flex items-center justify-center gap-1.5 min-h-11 min-w-11 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer border border-transparent hover:border-rose-200 dark:hover:border-rose-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
             title="Xóa toàn bộ bộ lọc ngày"
             aria-label="Xóa toàn bộ bộ lọc ngày"
           >
-            <i class="pi pi-times text-[10px]"></i>
+            <i class="pi pi-times text-xs" aria-hidden="true"></i>
             <span>Xóa lọc</span>
           </button>
         }
@@ -156,8 +163,8 @@ export { BUSINESS_TIMEZONE_OFFSET_HOURS, getStartOfDayUtc, getStartOfNextDayUtc 
 
       <!-- Validation Error -->
       @if (errorMessage()) {
-        <div class="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1 sm:mt-0" role="alert" aria-live="polite">
-          <i class="pi pi-exclamation-circle"></i>
+        <div class="text-xs text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1.5 mt-1 sm:mt-0" role="alert" aria-live="polite">
+          <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
           <span>{{ errorMessage() }}</span>
         </div>
       }
@@ -165,6 +172,13 @@ export { BUSINESS_TIMEZONE_OFFSET_HOURS, getStartOfDayUtc, getStartOfNextDayUtc 
   `
 })
 export class DateRangeFilterComponent implements OnInit {
+  private static nextInstanceId = 0;
+  private readonly uid = ++DateRangeFilterComponent.nextInstanceId;
+
+  readonly singleDateInputId = `filterSingleDateInput-${this.uid}`;
+  readonly fromDateInputId = `filterFromDateInput-${this.uid}`;
+  readonly toDateInputId = `filterToDateInput-${this.uid}`;
+
   @Input() label: string = 'Ngày tạo';
   @Input() initialFromDate: string = '';
   @Input() initialToDate: string = '';

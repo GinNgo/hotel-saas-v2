@@ -31,6 +31,9 @@ export class AuditLogService {
     if (params.entityId) {
       httpParams = httpParams.set('entityId', params.entityId);
     }
+    if (params.search?.trim()) {
+      httpParams = httpParams.set('search', params.search.trim());
+    }
     if (params.fromUtc) {
       httpParams = httpParams.set('fromUtc', params.fromUtc);
     }
@@ -66,8 +69,8 @@ export class AuditLogService {
     entityName: string;
     entityId: string;
     propertyId?: string | null;
-    oldValues?: any;
-    newValues?: any;
+    oldValues?: unknown;
+    newValues?: unknown;
   }): Observable<ApiResponse<string>> {
     return this.http.post<ApiResponse<string>>(`${this.apiUrl}/events`, event);
   }

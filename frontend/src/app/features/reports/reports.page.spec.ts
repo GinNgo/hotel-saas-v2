@@ -1,9 +1,11 @@
 import '@angular/compiler';
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReportsPage } from './reports.page';
 import { ReportService } from '../../core/services/report.service';
+import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
 import { GroupAnalyticsDto, PmsKpiDto, RevenueSummaryDto } from '../../core/models/report.model';
 
@@ -26,6 +28,12 @@ describe('ReportsPage (Multi-Property Group Analytics & Branch Reports)', () => 
     toastError: ReturnType<typeof vi.fn>;
     error: ReturnType<typeof vi.fn>;
     success: ReturnType<typeof vi.fn>;
+  };
+
+  let mockAuthService: {
+    isTenantWide: boolean;
+    activePropertyId: ReturnType<typeof signal<string | null>>;
+    activePropertyName: ReturnType<typeof signal<string | null>>;
   };
 
   const sampleGroupAnalytics: GroupAnalyticsDto = {
@@ -167,10 +175,17 @@ describe('ReportsPage (Multi-Property Group Analytics & Branch Reports)', () => 
       success: vi.fn()
     };
 
+    mockAuthService = {
+      isTenantWide: true,
+      activePropertyId: signal<string | null>(null),
+      activePropertyName: signal<string | null>(null)
+    };
+
     TestBed.configureTestingModule({
       imports: [ReportsPage],
       providers: [
         { provide: ReportService, useValue: mockReportService },
+        { provide: AuthService, useValue: mockAuthService },
         { provide: AlertService, useValue: mockAlertService }
       ]
     });
@@ -293,5 +308,73 @@ describe('ReportsPage (Multi-Property Group Analytics & Branch Reports)', () => 
     removeSpy.mockRestore();
     createUrlSpy.mockRestore();
     revokeUrlSpy.mockRestore();
+  });
+
+  it('9. should default to "branch", hide "group" tab, and send propertyId when user is single-branch staff', () => {
+    mockAuthService.isTenantWide = false;
+    mockAuthService.activePropertyId.set('prop-branch-01');
+
+    const branchFixture = TestBed.createComponent(ReportsPage);
+    const branchComponent = branchFixture.componentInstance;
+    branchFixture.detectChanges();
+
+    expect(branchComponent.activeTab()).toBe('branch');
+    expect(branchFixture.nativeElement.textContent).not.toContain('Toàn bộ Chuỗi Khách sạn');
+    expect(mockReportService.getGroupAnalytics).not.toHaveBeenCalled();
+    expect(mockReportService.getPmsKpi).toHaveBeenCalledWith(
+      branchComponent.fromDate,
+      branchComponent.toDate,
+      'prop-branch-01',
+      ''
+    );
+    expect(mockReportService.getRevenueSummary).toHaveBeenCalledWith(
+      branchComponent.fromDate,
+      branchComponent.toDate,
+      'prop-branch-01',
+      ''
+    );
+
+    branchComponent.switchTab('group');
+    expect(branchComponent.activeTab()).toBe('branch');
+    expect(mockReportService.getGroupAnalytics).not.toHaveBeenCalled();
+  });
+
+  it('10. should default to "branch" while keeping "group" tab accessible when tenant-wide user has an active property', () => {
+    mockAuthService.isTenantWide = true;
+    mockAuthService.activePropertyId.set('prop-branch-02');
+
+    const scopedFixture = TestBed.createComponent(ReportsPage);
+    const scopedComponent = scopedFixture.componentInstance;
+    scopedFixture.detectChanges();
+
+    expect(scopedComponent.activeTab()).toBe('branch');
+    expect(scopedFixture.nativeElement.textContent).toContain('Toàn bộ Chuỗi Khách sạn');
+    expect(mockReportService.getPmsKpi).toHaveBeenCalledWith(
+      scopedComponent.fromDate,
+      scopedComponent.toDate,
+      'prop-branch-02',
+      ''
+    );
+
+    const appendSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(() => null as any);
+    const removeSpy = vi.spyOn(document.body, 'removeChild').mockImplementation(() => null as any);
+    const createUrlSpy = vi.spyOn(window.URL, 'createObjectURL').mockReturnValue('blob:http://localhost/blob-id');
+    const revokeUrlSpy = vi.spyOn(window.URL, 'revokeObjectURL').mockImplementation(() => {});
+
+    scopedComponent.exportExcel();
+    expect(mockReportService.exportExcel).toHaveBeenCalledWith(
+      scopedComponent.fromDate,
+      scopedComponent.toDate,
+      'prop-branch-02'
+    );
+
+    appendSpy.mockRestore();
+    removeSpy.mockRestore();
+    createUrlSpy.mockRestore();
+    revokeUrlSpy.mockRestore();
+
+    scopedComponent.switchTab('group');
+    expect(scopedComponent.activeTab()).toBe('group');
+    expect(mockReportService.getGroupAnalytics).toHaveBeenCalled();
   });
 });

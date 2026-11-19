@@ -84,7 +84,10 @@ public sealed class VerifyPhoneFirebaseTests
             ["Firebase:ProjectId"] = "hotelsaas-platform-test"
         };
         var config = new ConfigurationBuilder().AddInMemoryCollection(dict).Build();
-        return new FirebaseAuthService(config, NullLogger<FirebaseAuthService>.Instance);
+        return new FirebaseAuthService(
+            config,
+            NullLogger<FirebaseAuthService>.Instance,
+            new StubHostEnvironment("Testing"));
     }
 
     [Fact]
@@ -445,5 +448,21 @@ public sealed class VerifyPhoneFirebaseTests
         Assert.False(result.IsValid);
         Assert.Null(result.PhoneNumber);
         Assert.Contains("Production", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Staging")]
+    public async Task VerifyIdTokenAsync_WhenEnvironmentNullOrStaging_RejectsDevMockToken(string? environmentName)
+    {
+        var dict = new Dictionary<string, string?> { ["Firebase:ProjectId"] = "hotelsaas-platform-test" };
+        var config = new ConfigurationBuilder().AddInMemoryCollection(dict).Build();
+        var env = environmentName == null ? null : new StubHostEnvironment(environmentName);
+        var service = new FirebaseAuthService(config, NullLogger<FirebaseAuthService>.Instance, env);
+
+        var result = await service.VerifyIdTokenAsync("dev-mock-token:+84901234567", CancellationToken.None);
+
+        Assert.False(result.IsValid);
+        Assert.Null(result.PhoneNumber);
     }
 }

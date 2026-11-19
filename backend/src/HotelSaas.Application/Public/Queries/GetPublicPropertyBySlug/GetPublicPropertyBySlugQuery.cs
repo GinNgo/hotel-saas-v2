@@ -54,6 +54,7 @@ public sealed class GetPublicPropertyBySlugQueryHandler : IRequestHandler<GetPub
         var tenant = await PublicPropertyMappingHelper.LoadActiveTenantByIdAsync(_context, property.TenantId, cancellationToken);
         var rates = await PublicPropertyMappingHelper.LoadActiveRatesAsync(_context, propertyIds, cancellationToken);
         var reviewStats = await PublicPropertyMappingHelper.LoadPublishedReviewStatsAsync(_context, propertyIds, cancellationToken);
+        var (roomTypes, _) = await PublicPropertyMappingHelper.LoadRoomTypesAsync(_context, propertyIds, cancellationToken);
         reviewStats.TryGetValue(property.Id, out var reviewStat);
 
         return PublicPropertyMappingHelper.BuildDto(
@@ -62,6 +63,7 @@ public sealed class GetPublicPropertyBySlugQueryHandler : IRequestHandler<GetPub
             rates,
             reviewStat,
             rentalType: null,
-            _locationService);
+            _locationService,
+            roomTypes: roomTypes);
     }
 }

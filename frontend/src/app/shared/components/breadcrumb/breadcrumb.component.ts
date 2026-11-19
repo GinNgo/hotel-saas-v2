@@ -1,4 +1,4 @@
-import { Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { Router, NavigationEnd, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -14,6 +14,7 @@ import { BreadcrumbItem, buildBreadcrumbItems } from '../../../core/services/bre
   selector: 'app-breadcrumb',
   standalone: true,
   imports: [CommonModule, RouterLink],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (items().length > 0) {
       <nav aria-label="Điều hướng phân cấp" class="flex items-center min-w-0 py-1" data-testid="app-breadcrumb">
@@ -22,40 +23,40 @@ import { BreadcrumbItem, buildBreadcrumbItems } from '../../../core/services/bre
           <button
             type="button"
             (click)="navigateBack()"
-            class="mr-2.5 inline-flex items-center justify-center w-7 h-7 rounded-lg border border-[var(--surface-border)] bg-[var(--surface-card)] text-[var(--text-muted)] hover:text-emerald-700 hover:border-emerald-300 dark:hover:text-emerald-400 transition-all cursor-pointer shadow-2xs shrink-0"
+            class="mr-2.5 inline-flex items-center justify-center min-w-11 min-h-11 rounded-lg border border-[var(--border-subtle,var(--surface-border))] bg-[var(--surface-card)] text-[var(--text-muted)] hover:text-emerald-700 hover:border-emerald-300 dark:hover:text-emerald-400 dark:hover:border-emerald-700 transition-all cursor-pointer shadow-2xs shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1"
             title="Quay lại trang trước"
             aria-label="Quay lại trang trước"
             data-testid="breadcrumb-back-btn"
           >
-            <i class="pi pi-arrow-left text-xs"></i>
+            <i class="pi pi-arrow-left text-xs" aria-hidden="true"></i>
           </button>
         }
 
-        <ol class="flex items-center flex-wrap gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium min-w-0">
+        <ol class="flex items-center flex-wrap gap-1 sm:gap-1.5 text-xs sm:text-sm font-medium min-w-0">
           @for (item of items(); track item.url; let i = $index) {
-            <li class="inline-flex items-center gap-1.5 min-w-0">
+            <li class="inline-flex items-center gap-1 min-w-0">
               @if (!item.isLast) {
                 <a
                   [routerLink]="item.url"
-                  class="inline-flex items-center gap-1.5 text-[var(--text-muted)] hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors rounded-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-500/40"
+                  class="inline-flex items-center min-h-11 px-1.5 gap-1.5 text-[var(--text-muted)] hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1"
                   [attr.aria-label]="item.label"
                 >
                   @if (item.icon) {
-                    <i [class]="item.icon + ' text-xs opacity-70'"></i>
+                    <i [class]="item.icon + ' text-xs opacity-75'" aria-hidden="true"></i>
                   }
                   <span class="truncate">{{ item.label }}</span>
                 </a>
                 <i
-                  class="pi pi-chevron-right text-[10px] text-[var(--text-muted)] opacity-50 select-none ml-1 shrink-0"
+                  class="pi pi-chevron-right text-xs text-[var(--text-muted)] opacity-60 select-none ml-0.5 shrink-0"
                   aria-hidden="true"
                 ></i>
               } @else {
                 <span
-                  class="inline-flex items-center gap-1.5 text-[var(--text-main)] font-semibold truncate max-w-[240px] sm:max-w-md"
+                  class="inline-flex items-center min-h-11 px-1 gap-1.5 text-[var(--text-primary,var(--text-main))] font-semibold truncate max-w-[240px] sm:max-w-md"
                   aria-current="page"
                 >
                   @if (item.icon) {
-                    <i [class]="item.icon + ' text-xs text-emerald-600 dark:text-emerald-400'"></i>
+                    <i [class]="item.icon + ' text-xs text-emerald-600 dark:text-emerald-400'" aria-hidden="true"></i>
                   }
                   <span class="truncate">{{ item.label }}</span>
                 </span>

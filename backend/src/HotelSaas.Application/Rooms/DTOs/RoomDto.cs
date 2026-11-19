@@ -15,6 +15,7 @@ namespace HotelSaas.Application.Rooms.DTOs;
 /// <param name="RoomTypeCode">The code of the associated room type.</param>
 /// <param name="BasePrice">The base nightly price for this room from its room type.</param>
 /// <param name="CreatedAtUtc">Timestamp when the room was created (UTC).</param>
+/// <param name="PropertyName">Display name of the branch owning this room.</param>
 public sealed record RoomDto(
     Guid Id,
     Guid PropertyId,
@@ -27,4 +28,5 @@ public sealed record RoomDto(
     string RoomTypeName,
     string RoomTypeCode,
     decimal BasePrice,
-    DateTime CreatedAtUtc);
+    DateTime CreatedAtUtc,
+    string? PropertyName = null);

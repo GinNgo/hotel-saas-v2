@@ -35,6 +35,8 @@ public sealed record QuoteDto
     public string RoomTypeName { get; init; } = string.Empty;
     public string RentalType { get; init; } = string.Empty;
     public decimal TotalAmount { get; init; }
+    public string? PromoCode { get; init; }
+    public decimal PromoDiscountAmount { get; init; }
     public string Currency { get; init; } = "VND";
     public DateTime ExpiresAtUtc { get; init; }
     public IReadOnlyList<QuoteBreakdownItemDto> Breakdown { get; init; } = Array.Empty<QuoteBreakdownItemDto>();

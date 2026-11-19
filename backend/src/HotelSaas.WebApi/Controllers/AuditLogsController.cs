@@ -43,6 +43,7 @@ public sealed class AuditLogsController : ControllerBase
     /// <param name="to">Optional alias for toUtc.</param>
     /// <param name="page">1-based page number (default: 1).</param>
     /// <param name="pageSize">Items per page (default: 20, max: 100).</param>
+    /// <param name="search">Optional free-text keyword filter across action, entity name, entity ID, sanitized change values, or IP address.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<AuditLogListItemDto>>), StatusCodes.Status200OK)]
@@ -61,6 +62,7 @@ public sealed class AuditLogsController : ControllerBase
         [FromQuery] DateTime? to = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
         CancellationToken cancellationToken = default)
     {
         var query = new GetAuditLogsQuery(
@@ -72,7 +74,8 @@ public sealed class AuditLogsController : ControllerBase
             FromUtc: fromUtc ?? from,
             ToUtc: toUtc ?? to,
             Page: page,
-            PageSize: pageSize);
+            PageSize: pageSize,
+            Search: search);
 
         var result = await _mediator.Send(query, cancellationToken);
         return Ok(result);

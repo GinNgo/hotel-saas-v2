@@ -235,4 +235,97 @@ public sealed class JwtService : IJwtService
             return (false, Guid.Empty, string.Empty);
         }
     }
+
+    /// <inheritdoc />
+    public string GeneratePasswordResetToken(
+        Guid userId,
+        string email,
+        string passwordHashFingerprint,
+        TimeSpan validity)
+    {
+        var jwtSettings = _configuration.GetSection("JwtSettings");
+        var secretKey = JwtKeyValidator.ValidateSecretKey(jwtSettings["SecretKey"]);
+        var issuer = jwtSettings["Issuer"] ?? "HotelSaas";
+        var audience = jwtSettings["Audience"] ?? "HotelSaasClient";
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new(JwtRegisteredClaimNames.Email, email),
+            new("purpose", "pwd-reset"),
+            new("phf", passwordHashFingerprint ?? string.Empty),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        };
+
+        var token = new JwtSecurityToken(
+            issuer: issuer,
+            audience: audience,
+            claims: claims,
+            expires: DateTime.UtcNow.Add(validity),
+            signingCredentials: credentials);
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    /// <inheritdoc />
+    public (bool isValid, Guid userId, string email, string passwordHashFingerprint) ValidatePasswordResetToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return (false, Guid.Empty, string.Empty, string.Empty);
+        }
+
+        try
+        {
+            var jwtSettings = _configuration.GetSection("JwtSettings");
+            var secretKey = JwtKeyValidator.ValidateSecretKey(jwtSettings["SecretKey"]);
+            var issuer = jwtSettings["Issuer"] ?? "HotelSaas";
+            var audience = jwtSettings["Audience"] ?? "HotelSaasClient";
+
+            var tokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateAudience = true,
+                ValidateIssuer = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = issuer,
+                ValidAudience = audience,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromMinutes(1)
+            };
+
+            var tokenHandler = new JwtSecurityTokenHandler();
+            tokenHandler.InboundClaimTypeMap.Clear();
+            var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out var securityToken);
+
+            if (securityToken is not JwtSecurityToken jwtSecurityToken ||
+                !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
+            {
+                return (false, Guid.Empty, string.Empty, string.Empty);
+            }
+
+            if (principal.FindFirst("purpose")?.Value != "pwd-reset")
+            {
+                return (false, Guid.Empty, string.Empty, string.Empty);
+            }
+
+            var sub = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            var email = principal.FindFirst(JwtRegisteredClaimNames.Email)?.Value;
+            var phf = principal.FindFirst("phf")?.Value ?? string.Empty;
+
+            if (Guid.TryParse(sub, out var userId) && !string.IsNullOrWhiteSpace(email))
+            {
+                return (true, userId, email, phf);
+            }
+
+            return (false, Guid.Empty, string.Empty, string.Empty);
+        }
+        catch
+        {
+            return (false, Guid.Empty, string.Empty, string.Empty);
+        }
+    }
 }

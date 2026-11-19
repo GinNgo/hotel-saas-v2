@@ -31,6 +31,16 @@ export const ROUTE_SEGMENT_MAP: Record<string, { label: string; icon?: string }>
   'ops-readiness': { label: 'Giám sát SRE', icon: 'pi pi-server' },
   plans: { label: 'Cấu hình gói Tenant', icon: 'pi pi-sliders-v' },
   contracts: { label: 'Hợp đồng Đối tác', icon: 'pi pi-file-edit' },
+  'platform-tenants': { label: 'Đối tác & Chi nhánh', icon: 'pi pi-building' },
+  tenants: { label: 'Đối tác & Chi nhánh', icon: 'pi pi-building' },
+  'platform-users': { label: 'Người dùng & Admin', icon: 'pi pi-users' },
+  users: { label: 'Người dùng & Admin', icon: 'pi pi-users' },
+  'admin-banners': { label: 'Banner Nền tảng', icon: 'pi pi-megaphone' },
+  banners: { label: 'Banner Nền tảng', icon: 'pi pi-megaphone' },
+  'support-grants': { label: 'Ủy quyền hỗ trợ', icon: 'pi pi-key' },
+  'support-access': { label: 'Ủy quyền hỗ trợ', icon: 'pi pi-key' },
+  promotions: { label: 'Khuyến mãi & Voucher', icon: 'pi pi-ticket' },
+  reviews: { label: 'Đánh giá khách hàng', icon: 'pi pi-star' },
 
   // Public Booking / Portal Modules
   booking: { label: 'Cổng Đặt phòng', icon: 'pi pi-globe' },
@@ -46,7 +56,10 @@ export const ROUTE_SEGMENT_MAP: Record<string, { label: string; icon?: string }>
   auth: { label: 'Xác thực', icon: 'pi pi-lock' },
   login: { label: 'Đăng nhập', icon: 'pi pi-sign-in' },
   register: { label: 'Đăng ký', icon: 'pi pi-user-plus' },
-  'partner-register': { label: 'Đăng ký Đối tác', icon: 'pi pi-briefcase' }
+  'partner-register': { label: 'Đăng ký Đối tác', icon: 'pi pi-briefcase' },
+  'confirm-email': { label: 'Xác thực email', icon: 'pi pi-envelope' },
+  'forgot-password': { label: 'Quên mật khẩu', icon: 'pi pi-key' },
+  'reset-password': { label: 'Đặt lại mật khẩu', icon: 'pi pi-lock-open' }
 };
 
 /**

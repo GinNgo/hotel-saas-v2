@@ -60,7 +60,9 @@ public static class DependencyInjection
         services.AddSignalR();
         services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+        services.AddScoped<ISubscriptionQuotaGuard, SubscriptionQuotaGuard>();
         services.AddHostedService<ExpiredHoldSweepBackgroundService>();
+        services.AddHostedService<NightAuditBackgroundService>();
 
         return services;
     }

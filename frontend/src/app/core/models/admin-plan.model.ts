@@ -15,6 +15,8 @@ export interface AdminSubscriptionPlanDto {
   hasVnPay: boolean;
   hasAdvancedReports: boolean;
   isActive: boolean;
+  activeTenantsCount?: number;
+  estimatedMonthlyRevenue?: number;
   createdAtUtc?: string;
 }
 

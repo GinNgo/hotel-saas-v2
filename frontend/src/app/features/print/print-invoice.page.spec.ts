@@ -32,61 +32,55 @@ try {
 describe('PrintInvoicePage — Electronic Invoice & VietQR Print Layout Tests', () => {
   let fixture: ComponentFixture<PrintInvoicePage>;
   let component: PrintInvoicePage;
-  let mockPrintService: any;
+  let mockPrintService: { getInvoice: ReturnType<typeof vi.fn> };
 
   const sampleInvoice: PrintInvoiceDto = {
-    hotelInfo: {
-      headerCompanyName: 'TẬP ĐOÀN KHÁCH SẠN SAAS PINE',
-      headerAddress: '12 Đường Hoàng Hoa Thám, Phường 10, TP. Đà Lạt',
-      taxNumber: '0315894321',
-      hotline: '1900 8888',
-      bankName: 'MBBank',
-      bankAccountNumber: '0909123456',
-      bankAccountHolder: 'NGUYEN VAN QUAN LY',
-      footerNote: 'Cảm ơn Quý khách đã nghỉ dưỡng tại Đà Lạt Pine Resort!',
-      checkInPolicyText: 'Nhận phòng từ 14:00, trả phòng trước 12:00',
-      showVietQrCode: true,
-      defaultPaperSize: 'A4'
-    },
     reservationId: 'res-12345',
     invoiceNumber: 'INV-20261017-001',
-    issuedDate: '17/10/2026',
+    confirmationCode: 'RES-12345',
+    issuedDate: '2026-10-17T08:00:00Z',
+    headerCompanyName: 'TẬP ĐOÀN KHÁCH SẠN SAAS PINE',
+    headerAddress: '12 Đường Hoàng Hoa Thám, Phường 10, TP. Đà Lạt',
+    taxNumber: '0315894321',
+    hotline: '1900 8888',
+    logoUrl: null,
     propertyName: 'Đà Lạt Pine Resort & Spa',
     guestName: 'Nguyễn Văn Du Khách',
+    guestEmail: 'guest@example.vn',
     guestPhone: '0988776655',
     roomNumber: '102 - Biệt thự thông reo',
     roomTypeName: 'Deluxe Pine View',
     rentalType: 'Daily',
-    checkInActual: '17/10/2026 14:00',
-    checkOutActual: '19/10/2026 12:00',
-    roomRate: 1200000,
-    durationText: '2 ngày',
-    roomTotal: 2400000,
-    surchargeTotal: 0,
-    serviceTotal: 300000,
-    discountTotal: 100000,
-    loyaltyPointsUsed: 0,
-    loyaltyDiscountAmount: 0,
-    subTotal: 2700000,
+    checkInDate: '2026-10-17',
+    checkOutDate: '2026-10-19',
+    numberOfGuests: 2,
+    subTotal: 2600000,
     vatRate: 8,
     vatAmount: 216000,
-    grandTotal: 2816000,
+    totalAmount: 2816000,
     paidAmount: 2816000,
-    balanceDue: 0,
-    paymentMethod: 'Chuyển khoản VietQR',
-    vietQrUrl: 'https://img.vietqr.io/image/970422-0909123456-compact2.png',
-    lineItems: [
+    remainingAmount: 0,
+    status: 'ĐÃ THANH TOÁN ĐỦ',
+    paymentMethod: 'BankTransfer',
+    vietQrImageUrl: '',
+    showVietQrCode: false,
+    bankAccountNumber: '0909123456',
+    bankAccountHolder: 'NGUYEN VAN QUAN LY',
+    bankName: 'MBBank',
+    checkInPolicyText: 'Nhận phòng từ 14:00, trả phòng trước 12:00',
+    footerNote: 'Cảm ơn Quý khách đã nghỉ dưỡng tại Đà Lạt Pine Resort!',
+    items: [
       {
-        name: 'Tiền phòng 2 đêm',
+        description: 'Tiền phòng 2 đêm',
         quantity: 2,
         unitPrice: 1200000,
-        total: 2400000
+        amount: 2400000
       },
       {
-        name: 'Phí dịch vụ BBQ sân vườn',
+        description: 'Phí dịch vụ BBQ sân vườn',
         quantity: 1,
-        unitPrice: 300000,
-        total: 300000
+        unitPrice: 200000,
+        amount: 200000
       }
     ]
   };
@@ -107,6 +101,9 @@ describe('PrintInvoicePage — Electronic Invoice & VietQR Print Layout Tests', 
             snapshot: {
               paramMap: {
                 get: vi.fn().mockReturnValue('res-12345')
+              },
+              queryParamMap: {
+                get: vi.fn().mockReturnValue(null)
               }
             }
           }
@@ -123,6 +120,17 @@ describe('PrintInvoicePage — Electronic Invoice & VietQR Print Layout Tests', 
     expect(mockPrintService.getInvoice).toHaveBeenCalledWith('res-12345');
     expect(component.invoice()).toEqual(sampleInvoice);
     expect(component.isLoading()).toBe(false);
+    expect(component.isPaidInFull(sampleInvoice)).toBe(true);
+  });
+
+  it('should not mark invoice as paid in full when remainingAmount > 0', () => {
+    const unpaidInvoice: PrintInvoiceDto = {
+      ...sampleInvoice,
+      paidAmount: 1000000,
+      remainingAmount: 1816000,
+      status: 'CÒN CÔNG NỢ'
+    };
+    expect(component.isPaidInFull(unpaidInvoice)).toBe(false);
   });
 
   it('should handle invoice load error gracefully', () => {

@@ -18,15 +18,18 @@ public sealed class EnrollPropertyMembershipCommandHandler : IRequestHandler<Enr
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserContext _userContext;
     private readonly ILoyaltyTierRules _tierRules;
+    private readonly ICurrentTenantService? _tenantService;
 
     public EnrollPropertyMembershipCommandHandler(
         IApplicationDbContext context,
         ICurrentUserContext userContext,
-        ILoyaltyTierRules tierRules)
+        ILoyaltyTierRules tierRules,
+        ICurrentTenantService? tenantService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _tierRules = tierRules ?? throw new ArgumentNullException(nameof(tierRules));
+        _tenantService = tenantService;
     }
 
     public async Task<GuestLoyaltyMembershipDto> Handle(EnrollPropertyMembershipCommand request, CancellationToken cancellationToken)
@@ -38,6 +41,8 @@ public sealed class EnrollPropertyMembershipCommandHandler : IRequestHandler<Enr
         }
 
         var property = await _context.Properties
+            .IgnoreQueryFilters()
+            .AsNoTracking()
             .Include(p => p.Tenant)
             .FirstOrDefaultAsync(p => p.Id == request.PropertyId, cancellationToken);
 
@@ -48,13 +53,15 @@ public sealed class EnrollPropertyMembershipCommandHandler : IRequestHandler<Enr
 
         // Check if user already enrolled in this tenant chain
         var existing = await _context.GuestLoyaltyMemberships
+            .IgnoreQueryFilters()
+            .AsNoTracking()
             .Include(m => m.Tenant)
             .Include(m => m.EnrolledProperty)
             .FirstOrDefaultAsync(m => m.TenantId == property.TenantId && m.UserId == userId, cancellationToken);
 
         if (existing != null)
         {
-            var (tier, nextTierName, staysToNextTier) = _tierRules.CalculateTierProgress(existing.CompletedStaysCount);
+            var (_, nextTierName, staysToNextTier) = _tierRules.CalculateTierProgress(existing.CompletedStaysCount);
             return new GuestLoyaltyMembershipDto
             {
                 MembershipId = existing.Id,
@@ -105,6 +112,11 @@ public sealed class EnrollPropertyMembershipCommandHandler : IRequestHandler<Enr
             Description = $"Tặng 50 điểm chào mừng khi gia nhập hội viên {property.Name}",
             CreatedAtUtc = nowUtc
         };
+
+        if (_tenantService != null && !_tenantService.TenantId.HasValue)
+        {
+            _tenantService.TenantId = property.TenantId;
+        }
 
         _context.GuestLoyaltyMemberships.Add(membership);
         _context.LoyaltyPointTransactions.Add(welcomeTx);

@@ -79,6 +79,8 @@ export interface GalleryPhotoItem {
               *ngIf="currentPhoto() && !currentImageFailed(); else missingImage"
               [src]="currentPhoto()?.url"
               [alt]="currentPhoto()?.title || title"
+              width="1200"
+              height="800"
               class="w-full h-full min-h-0 object-contain rounded-xl shadow-2xl transition-all duration-300 ease-out"
               loading="eager"
               (error)="onImageError($event)"
@@ -123,6 +125,8 @@ export interface GalleryPhotoItem {
               <img
                 [src]="photo.url"
                 [alt]="photo.title"
+                width="80"
+                height="56"
                 class="w-full h-full object-cover"
                 loading="lazy"
               />

@@ -105,6 +105,11 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
         confirmationCode: 'RES-A111',
         quickPayDeepLink: 'vietqr://pay'
       })),
+      verifyVnpayReturn: vi.fn().mockReturnValue(of({
+        success: false,
+        rspCode: '99',
+        message: 'Chưa xác nhận'
+      })),
       extendHold: vi.fn(),
       getCancellationPreview: vi.fn(),
       cancelBooking: vi.fn()
@@ -265,8 +270,8 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
     expect(component.getPrintButtonLabel('CheckedOut')).toBe('In phiếu xác nhận');
   });
 
-  // 10. Chỉ hiển thị Smart Lock PIN khi đã CheckedIn và Backend cung cấp PIN hợp lệ, Confirmed không hiển thị
-  it('10. should only display Smart Lock PIN when CheckedIn with valid backend pin, and not display when Confirmed', () => {
+  // 10. Chỉ hiển thị Smart Lock PIN khi Confirmed hoặc CheckedIn và Backend cung cấp PIN Active (G0-03)
+  it('10. should display Smart Lock PIN when Confirmed or CheckedIn with active backend pin, and hide when PendingPayment or inactive', () => {
     // Đơn PendingPayment không có Smart Lock PIN
     component.booking.set(sampleBookingA);
     fixture.detectChanges();
@@ -274,12 +279,18 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
     expect(compiled.textContent).not.toContain('886912'); // Không hiển thị mã PIN giả
     expect(compiled.textContent).not.toContain('Chạm NFC'); // Không có nút giả lập NFC
 
-    // Đơn Confirmed KHÔNG hiển thị PIN (theo V3)
+    // Đơn Confirmed có PIN Active HIỂN THỊ PIN (G0-03)
     component.booking.set(sampleBookingB);
     fixture.detectChanges();
     compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.textContent).toContain('123456');
+    expect(compiled.textContent).toContain('Sao chép PIN');
+
+    // Đơn Confirmed nhưng SmartLockStatus không Active KHÔNG hiển thị PIN
+    component.booking.set({ ...sampleBookingB, smartLockStatus: 'Revoked' });
+    fixture.detectChanges();
+    compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.textContent).not.toContain('123456');
-    expect(compiled.textContent).not.toContain('Sao chép PIN');
 
     // Đơn CheckedIn hiển thị Smart Lock PIN
     const checkedInBooking = { ...sampleBookingB, status: 'CheckedIn' };
@@ -1356,17 +1367,23 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
       expect(compiled.querySelector('section[aria-label="Tiến trình đặt phòng"]')).toBeNull();
     });
 
-    // 54. V3 Redesign: Smart Lock PIN is completely hidden on Confirmed (no digits, no copy button, no active label)
-    it('54. should not display any Smart Lock PIN elements or copy button when status is Confirmed', () => {
+    // 54. G0-03: Smart Lock PIN displays on Confirmed when Active and stays hidden when status is CheckedOut or inactive
+    it('54. should display Smart Lock PIN on Confirmed when active and hide on CheckedOut or inactive status', () => {
       mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
       component.fetchBooking('tok-confirmed');
       fixture.detectChanges();
 
-      const compiled = fixture.nativeElement as HTMLElement;
-      expect(compiled.textContent).not.toContain('MÃ PIN SMART LOCK');
+      let compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('123456');
+      expect(compiled.textContent).toContain('Sao chép PIN');
+
+      mockBookingService.getBookingByToken.mockReturnValue(of({ ...sampleBookingB, status: 'CheckedOut' }));
+      component.fetchBooking('tok-checkedout');
+      fixture.detectChanges();
+
+      compiled = fixture.nativeElement as HTMLElement;
       expect(compiled.textContent).not.toContain('123456');
       expect(compiled.textContent).not.toContain('Sao chép PIN');
-      expect(compiled.textContent).not.toContain('PIN chưa khả dụng');
     });
 
     // 55. V3 Redesign: Resetting state resets isCodeCopied
@@ -1967,6 +1984,197 @@ describe('T04-B — Guest Booking Cancellation Workflow & Preview UI', () => {
       expect(strongs.some(t => t?.includes('12 giờ trước nhận phòng'))).toBe(true);
       expect(strongs.some(t => t?.includes('phí hủy 25%'))).toBe(true);
       expect(strongs.some(t => t?.includes('1,500,000 ₫'))).toBe(true);
+    });
+  });
+
+  describe('Wave 1 P0 VNPay Return, BankTransfer, Copy & Voucher Link', () => {
+    it('should verify vnp_* callback params via backend API, show immediate feedback, and refresh booking state', () => {
+      mockBookingService.verifyVnpayReturn.mockReturnValue(of({
+        success: true,
+        rspCode: '00',
+        message: 'Giao dịch thanh toán thành công.',
+        txnRef: 'TXN-999',
+        transactionNo: '145678',
+        amount: 450000
+      }));
+
+      const paramMap$ = new Subject<{ get: (k: string) => string | null }>();
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        imports: [BookingStatusPage],
+        providers: [
+          { provide: PublicBookingService, useValue: mockBookingService },
+          { provide: AlertService, useValue: mockAlertService },
+          {
+            provide: ActivatedRoute,
+            useValue: {
+              paramMap: paramMap$,
+              queryParams: of({
+                vnp_ResponseCode: '00',
+                vnp_TxnRef: 'TXN-999',
+                vnp_SecureHash: 'validhash'
+              })
+            }
+          }
+        ]
+      });
+
+      const vnpFixture = TestBed.createComponent(BookingStatusPage);
+      const vnpComp = vnpFixture.componentInstance;
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+
+      vnpFixture.detectChanges();
+      paramMap$.next({ get: (k: string) => (k === 'token' ? 'tok-token-bbb' : null) });
+      vnpFixture.detectChanges();
+
+      expect(mockBookingService.verifyVnpayReturn).toHaveBeenCalledWith({
+        vnp_ResponseCode: '00',
+        vnp_TxnRef: 'TXN-999',
+        vnp_SecureHash: 'validhash'
+      });
+      expect(vnpComp.vnpayReturnResult()?.success).toBe(true);
+      expect((vnpFixture.nativeElement as HTMLElement).textContent).toContain('Thanh toán VNPay hợp lệ');
+      vnpFixture.destroy();
+    });
+
+    it('should preserve BankTransfer paymentMethod from query params and avoid promising auto-IPN for VietQR', () => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        imports: [BookingStatusPage],
+        providers: [
+          { provide: PublicBookingService, useValue: mockBookingService },
+          { provide: AlertService, useValue: mockAlertService },
+          {
+            provide: ActivatedRoute,
+            useValue: {
+              paramMap: of({ get: (k: string) => (k === 'token' ? 'tok-token-aaa' : null) }),
+              queryParams: of({ paymentMethod: 'BankTransfer' })
+            }
+          }
+        ]
+      });
+
+      const btFixture = TestBed.createComponent(BookingStatusPage);
+      const btComp = btFixture.componentInstance;
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      btFixture.detectChanges();
+
+      expect(btComp.selectedPaymentMethod()).toBe('BankTransfer');
+      const text = (btFixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('CHUYỂN KHOẢN / VIETQR');
+      expect(text).toContain('không tự động xác nhận qua IPN');
+      btFixture.destroy();
+    });
+
+    it('should render Voucher print link pointing to /print/voucher/:token', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingB));
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      const voucherLink = Array.from(el.querySelectorAll('a')).find(a =>
+        a.textContent?.includes('In phiếu xác nhận (Voucher)')
+      );
+      expect(voucherLink).toBeDefined();
+      expect(voucherLink?.getAttribute('href')).toContain('/print/voucher/tok-token-bbb');
+    });
+  });
+
+  describe('T015 — B2C Review State Synchronization (CheckedIn/CheckedOut & F5 Hydration)', () => {
+    it('should hydrate hasReviewed and existingReview including ownerReply on reload and hide duplicate submit form', () => {
+      const reviewedBooking: GuestBookingDetailDto = {
+        ...sampleBookingB,
+        status: 'CheckedOut',
+        hasReviewed: true,
+        existingReview: {
+          id: 'rev-existing-1',
+          rating: 4,
+          cleanlinessRating: 5,
+          locationRating: 4,
+          serviceRating: 4,
+          valueRating: 4,
+          comment: 'Phòng sạch, nhân viên thân thiện.',
+          ownerReply: 'Cảm ơn quý khách đã ghé thăm LuxeStay!',
+          repliedAtUtc: '2026-11-18T10:00:00Z',
+          createdAtUtc: '2026-11-18T08:00:00Z'
+        }
+      };
+
+      mockBookingService.getBookingByToken.mockReturnValue(of(reviewedBooking));
+      component.fetchBooking('tok-token-bbb');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(component.reviewSubmitted()).toBe(true);
+      expect(component.isAlreadyReviewed()).toBe(true);
+      expect(compiled.textContent).toContain('Cảm ơn bạn đã gửi đánh giá!');
+      expect(compiled.textContent).toContain('4/5 sao');
+      expect(compiled.textContent).toContain('Phòng sạch, nhân viên thân thiện.');
+      expect(compiled.textContent).toContain('Phản hồi từ cơ sở lưu trú');
+      expect(compiled.textContent).toContain('Cảm ơn quý khách đã ghé thăm LuxeStay!');
+      expect(compiled.textContent).not.toContain('Gửi đánh giá xác thực');
+
+      // Guard prevents duplicate API submission
+      mockBookingService.submitReview = vi.fn();
+      component.submitGuestReview();
+      expect(mockBookingService.submitReview).not.toHaveBeenCalled();
+    });
+
+    it('should render guest review form when status is CheckedIn and not yet reviewed (G0-06)', () => {
+      const checkedInBooking: GuestBookingDetailDto = {
+        ...sampleBookingB,
+        status: 'CheckedIn',
+        hasReviewed: false,
+        existingReview: null
+      };
+
+      mockBookingService.getBookingByToken.mockReturnValue(of(checkedInBooking));
+      component.fetchBooking('tok-token-bbb');
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('#review-section')).not.toBeNull();
+      expect(compiled.textContent).toContain('Đánh giá kỳ nghỉ của bạn');
+      expect(compiled.textContent).toContain('Gửi đánh giá xác thực');
+    });
+
+    it('should sync booking state when submitGuestReview fails with ERR_ALREADY_REVIEWED', () => {
+      const unreviewedBooking: GuestBookingDetailDto = {
+        ...sampleBookingB,
+        status: 'CheckedOut',
+        hasReviewed: false
+      };
+      const syncedBooking: GuestBookingDetailDto = {
+        ...unreviewedBooking,
+        hasReviewed: true,
+        existingReview: {
+          id: 'rev-server-99',
+          rating: 5,
+          comment: 'Đã gửi từ tab khác',
+          createdAtUtc: '2026-11-18T09:00:00Z'
+        }
+      };
+
+      mockBookingService.getBookingByToken.mockReturnValue(of(unreviewedBooking));
+      component.fetchBooking('tok-token-bbb');
+      fixture.detectChanges();
+
+      mockBookingService.submitReview = vi.fn().mockReturnValue(
+        throwError(() => ({
+          status: 400,
+          error: {
+            errorCode: 'ERR_ALREADY_REVIEWED',
+            message: 'Đơn đặt phòng này đã được gửi đánh giá xác thực.'
+          }
+        }))
+      );
+      mockBookingService.getBookingByToken.mockReturnValue(of(syncedBooking));
+
+      component.submitGuestReview();
+      fixture.detectChanges();
+
+      expect(component.isAlreadyReviewed()).toBe(true);
+      expect(component.booking()?.existingReview?.comment).toBe('Đã gửi từ tab khác');
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Đã gửi từ tab khác');
     });
   });
 });

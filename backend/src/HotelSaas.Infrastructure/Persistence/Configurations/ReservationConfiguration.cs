@@ -42,6 +42,10 @@ public class ReservationConfiguration : IEntityTypeConfiguration<Reservation>
             .OnDelete(DeleteBehavior.Restrict)
             .HasConstraintName("FK_Reservations_Tenants_TenantId");
 
+        // Lookup index on ConfirmationCode for guest portal & front-desk search
+        builder.HasIndex(res => res.ConfirmationCode)
+            .HasDatabaseName("IX_Reservations_ConfirmationCode");
+
         // Alternate key for composite payment validation
         builder.HasAlternateKey(res => new { res.PropertyId, res.Id })
             .HasName("UX_Reservations_PropertyId_Id");

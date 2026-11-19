@@ -98,4 +98,24 @@ describe('Marketplace guest header', () => {
     fixture.detectChanges();
     expect(element.querySelector('header a[href*="portal=guest"]')).not.toBeNull();
   });
+
+  it('prevents wrapping on desktop nav links and uses semantic marketplace styling for authenticated pill', () => {
+    const fixture = TestBed.createComponent(GuestLayoutComponent);
+    users.next({ fullName: 'Nguyễn An', globalRole: 'Customer' } as UserDto);
+    fixture.detectChanges();
+    const element: HTMLElement = fixture.nativeElement;
+
+    const desktopNavLinks = Array.from(element.querySelectorAll('header nav[aria-label="Điều hướng chính"] a'));
+    expect(desktopNavLinks.length).toBe(4);
+    for (const link of desktopNavLinks) {
+      expect(link.className).toContain('whitespace-nowrap');
+    }
+
+    const partnerLink = element.querySelector('header a[href="/auth/partner-register"]');
+    expect(partnerLink?.className).toContain('whitespace-nowrap');
+
+    const authPill = element.querySelector('header a[href="/booking/profile"]');
+    expect(authPill?.className).toContain('whitespace-nowrap');
+    expect(authPill?.className).not.toContain('bg-indigo-50');
+  });
 });

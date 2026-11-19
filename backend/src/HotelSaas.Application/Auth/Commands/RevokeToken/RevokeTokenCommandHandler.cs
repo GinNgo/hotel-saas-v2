@@ -22,9 +22,13 @@ public sealed class RevokeTokenCommandHandler : IRequestHandler<RevokeTokenComma
     /// <inheritdoc />
     public async Task<bool> Handle(RevokeTokenCommand request, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.RefreshToken))
+            return false;
+
+        var tokenHash = RefreshToken.RefreshTokenCommandHandler.ComputeRefreshTokenHash(request.RefreshToken);
         var token = await _context.RefreshTokens
             .FirstOrDefaultAsync(rt =>
-                rt.Token == request.RefreshToken &&
+                (rt.Token == tokenHash || rt.Token == request.RefreshToken) &&
                 rt.RevokedAtUtc == null,
                 cancellationToken);
 

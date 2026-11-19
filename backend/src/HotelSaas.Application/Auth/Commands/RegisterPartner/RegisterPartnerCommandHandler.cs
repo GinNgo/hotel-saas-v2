@@ -99,10 +99,16 @@ public sealed class RegisterPartnerCommandHandler : IRequestHandler<RegisterPart
             }
         }
 
-        // Format physical address: "123 Street, Ward, Province"
-        var formattedAddress = ward != null
-            ? $"{request.Address.Trim()}, {ward.Name}, {province.Name}"
-            : $"{request.Address.Trim()}, {province.Name}";
+        // Format physical address: "123 Street, Ward, Province" without duplicating segments already present
+        var formattedAddress = request.Address.Trim();
+        if (ward != null && !formattedAddress.Contains(ward.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            formattedAddress = $"{formattedAddress}, {ward.Name}";
+        }
+        if (!formattedAddress.Contains(province.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            formattedAddress = $"{formattedAddress}, {province.Name}";
+        }
 
         // 3. Resolve system OWNER role
         var ownerRole = await _context.AccessRoles

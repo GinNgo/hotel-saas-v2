@@ -1,4 +1,6 @@
-import { Component, ElementRef, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { A11yModule } from '@angular/cdk/a11y';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -7,10 +9,11 @@ import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ContextSelectorDialogComponent } from '../context-selector/context-selector.dialog';
-import { UserMembershipDto } from '../../../core/models/auth.model';
+import { LoginResponse, UserMembershipDto } from '../../../core/models/auth.model';
 import { FormFieldComponent, FormControlDirective } from '../../../shared/components/form-field/form-field.component';
 import { PhoneOtpModalComponent } from '../phone-otp-modal/phone-otp-modal.component';
 import { SocialAuthService } from '../../../core/services/social-auth.service';
+import { environment } from '../../../../environments/environment';
 
 export type PortalType = 'guest' | 'admin';
 
@@ -23,12 +26,14 @@ export type PortalType = 'guest' | 'admin';
 @Component({
   selector: 'app-login',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
     RouterLink,
     Password,
+    A11yModule,
     ContextSelectorDialogComponent,
     FormFieldComponent,
     FormControlDirective,
@@ -41,7 +46,7 @@ export type PortalType = 'guest' | 'admin';
         <button
           type="button"
           (click)="setPortal('guest')"
-          class="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
+          class="flex-1 min-h-11 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
           [ngClass]="portal() === 'guest' ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/80 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'"
         >
           <i class="pi pi-user text-xs" [ngClass]="portal() === 'guest' ? 'text-indigo-600' : 'text-slate-400'"></i>
@@ -51,7 +56,7 @@ export type PortalType = 'guest' | 'admin';
         <button
           type="button"
           (click)="setPortal('admin')"
-          class="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
+          class="flex-1 min-h-11 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
           [ngClass]="portal() === 'admin' ? 'bg-white text-emerald-800 shadow-sm border border-slate-200/80 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'"
         >
           <i class="pi pi-shield text-xs" [ngClass]="portal() === 'admin' ? 'text-emerald-600' : 'text-slate-400'"></i>
@@ -100,15 +105,14 @@ export type PortalType = 'guest' | 'admin';
 
         <!-- Password Field -->
         <app-form-field #passwordField controlId="password" label="Mật khẩu" [required]="true" [error]="passwordError">
-          @if (portal() === 'guest') {
-            <a
-              slot="action"
-              routerLink="/booking/lookup"
-              class="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
-            >
-              Quên mật khẩu?
-            </a>
-          }
+          <button
+            slot="action"
+            type="button"
+            (click)="openForgotPasswordModal()"
+            class="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors cursor-pointer"
+          >
+            Quên mật khẩu?
+          </button>
           <p-password
             inputId="password"
             formControlName="password"
@@ -145,7 +149,7 @@ export type PortalType = 'guest' | 'admin';
         </div>
       </form>
 
-      <!-- 4B. SOCIAL LOGIN BUTTONS (GOOGLE & FACEBOOK CHO CỔNG KHÁCH HÀNG) -->
+      <!-- 4B. SOCIAL LOGIN BUTTONS (GOOGLE & SMS OTP CHO CỔNG KHÁCH HÀNG - G0-02 Ẩn Facebook) -->
       @if (portal() === 'guest') {
         <div class="mt-4 space-y-3">
           <div class="relative flex items-center justify-center py-1">
@@ -157,43 +161,28 @@ export type PortalType = 'guest' | 'admin';
             </span>
           </div>
 
-          <div class="grid grid-cols-2 gap-2.5">
-            <!-- Google Button -->
-            <button
-              type="button"
-              (click)="loginWithGoogle()"
-              [disabled]="loading()"
-              class="flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
-            >
-              <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-              </svg>
-              <span>Google</span>
-            </button>
-
-            <!-- Facebook Button -->
-            <button
-              type="button"
-              (click)="loginWithFacebook()"
-              [disabled]="loading()"
-              class="flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
-            >
-              <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="#1877F2">
-                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-              </svg>
-              <span>Facebook</span>
-            </button>
-          </div>
+          <!-- Google Button -->
+          <button
+            type="button"
+            (click)="loginWithGoogle()"
+            [disabled]="loading()"
+            class="w-full min-h-11 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
+          >
+            <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            <span>Tiếp tục với Google</span>
+          </button>
 
           <!-- Nút Đăng nhập nhanh bằng SĐT qua SMS OTP (Firebase Phone Auth) -->
           <button
             type="button"
             (click)="showPhoneOtpModal.set(true)"
             [disabled]="loading()"
-            class="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100/70 text-indigo-900 text-xs font-bold shadow-2xs hover:border-indigo-300 transition-all cursor-pointer"
+            class="w-full min-h-11 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100/70 text-indigo-900 text-xs font-bold shadow-2xs hover:border-indigo-300 transition-all cursor-pointer"
           >
             <i class="pi pi-phone text-indigo-600 text-xs"></i>
             <span>Đăng nhập bằng Số điện thoại (SMS OTP)</span>
@@ -201,18 +190,18 @@ export type PortalType = 'guest' | 'admin';
         </div>
       }
 
-      <!-- 5. TÀI KHOẢN MẪU KIỂM THỬ TƯƠNG ỨNG TỪNG PHÂN HỆ -->
-      <div class="mt-5 pt-4 border-t border-slate-100">
-        <div class="flex items-center justify-between mb-2.5">
-          <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-            <i class="pi pi-key text-xs text-amber-500"></i>
-            <span>Đăng nhập nhanh 1-chạm (Demo Roles)</span>
-          </span>
-          <span class="text-[10px] text-slate-400">Bấm để đăng nhập ngay</span>
-        </div>
+      <!-- 5. TÀI KHOẢN KIỂM THỬ (CHỈ HIỂN THỊ TRONG MÔI TRƯỜNG DEV) -->
+      @if (isDevDemoVisible) {
+        <div class="mt-5 pt-4 border-t border-slate-100" data-testid="dev-quick-accounts">
+          <div class="flex items-center justify-between mb-2.5">
+            <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <i class="pi pi-key text-xs text-amber-500"></i>
+              <span>Điền nhanh Email kiểm thử (Dev Mode)</span>
+            </span>
+            <span class="text-[10px] text-slate-400">Không lưu mật khẩu</span>
+          </div>
 
-        @if (portal() === 'guest') {
-          <div class="space-y-2">
+          @if (portal() === 'guest') {
             <div class="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200/80 flex items-center justify-between gap-3">
               <div class="flex items-center gap-2.5 min-w-0">
                 <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
@@ -225,130 +214,126 @@ export type PortalType = 'guest' | 'admin';
               </div>
               <button
                 type="button"
-                (click)="quickLogin('guest.vip@hotelsaas.local', 'guest')"
+                (click)="quickFill('guest.vip@hotelsaas.local')"
                 [disabled]="loading()"
                 class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
               >
-                Vào ngay
+                Điền email
               </button>
             </div>
-
-            <!-- Banner chuyển sang Cổng Quản trị PMS -->
-            <div class="p-3 rounded-xl bg-slate-50 border border-dashed border-slate-300 text-center">
-              <div class="text-xs text-slate-600 font-medium mb-1.5">
-                Bạn muốn truy cập Cổng Quản trị Khách sạn & Admin Nền tảng?
+          } @else {
+            <div class="space-y-2">
+              <div class="p-2.5 rounded-xl bg-indigo-50/60 border border-indigo-200/90 flex items-center justify-between gap-3 hover:bg-indigo-50 transition-colors">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="w-8 h-8 rounded-lg bg-indigo-700 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                    <i class="pi pi-shield text-xs"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-xs font-bold text-indigo-950 truncate">Admin Nền tảng (SuperAdmin)</span>
+                      <span class="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-indigo-200 text-indigo-800">SaaS</span>
+                    </div>
+                    <div class="text-[10px] text-slate-500 truncate">superadmin&#64;hotelsaas.platform</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  (click)="quickFill('superadmin@hotelsaas.platform')"
+                  [disabled]="loading()"
+                  class="px-3 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-800 text-white text-[11px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+                >
+                  Điền email
+                </button>
               </div>
-              <button
-                type="button"
-                (click)="setPortal('admin')"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer"
-              >
-                <i class="pi pi-shield text-xs"></i>
-                <span>Chuyển sang Cổng Quản trị (PMS & SuperAdmin) →</span>
-              </button>
+
+              <div class="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-200/90 flex items-center justify-between gap-3 hover:bg-emerald-50 transition-colors">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="w-8 h-8 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                    <i class="pi pi-building text-xs"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-xs font-bold text-emerald-950 truncate">Chủ Khách sạn (Owner / HQ)</span>
+                      <span class="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-emerald-200 text-emerald-800">Toàn chuỗi</span>
+                    </div>
+                    <div class="text-[10px] text-slate-500 truncate">owner&#64;hotelsaas.local</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  (click)="quickFill('owner@hotelsaas.local')"
+                  [disabled]="loading()"
+                  class="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+                >
+                  Điền email
+                </button>
+              </div>
+
+              <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3 hover:bg-slate-100/70 transition-colors">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="w-8 h-8 rounded-lg bg-slate-700 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                    <i class="pi pi-briefcase text-xs"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-xs font-bold text-slate-800 truncate">Quản lý Chi nhánh (Manager)</span>
+                    </div>
+                    <div class="text-[10px] text-slate-500 truncate">manager.both&#64;hotelsaas.local</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  (click)="quickFill('manager.both@hotelsaas.local')"
+                  [disabled]="loading()"
+                  class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+                >
+                  Điền email
+                </button>
+              </div>
+
+              <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3 hover:bg-slate-100/70 transition-colors">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                    <i class="pi pi-id-card text-xs"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-xs font-bold text-slate-800 truncate">Lễ tân Cơ sở Q1</span>
+                    </div>
+                    <div class="text-[10px] text-slate-500 truncate">staff.single&#64;hotelsaas.local</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  (click)="quickFill('staff.single@hotelsaas.local')"
+                  [disabled]="loading()"
+                  class="px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white text-[11px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+                >
+                  Điền email
+                </button>
+              </div>
             </div>
+          }
+        </div>
+      }
+
+      <!-- Banner chuyển sang Cổng Quản trị PMS -->
+      @if (portal() === 'guest') {
+        <div class="mt-4 p-3 rounded-xl bg-slate-50 border border-dashed border-slate-300 text-center">
+          <div class="text-xs text-slate-600 font-medium mb-1.5">
+            Bạn muốn truy cập Cổng Quản trị Khách sạn &amp; Admin Nền tảng?
           </div>
-        } @else {
-          <!-- Danh sách tài khoản Admin & Quản lý Khách sạn -->
-          <div class="space-y-2">
-            <!-- 1. SuperAdmin Nền tảng -->
-            <div class="p-2.5 rounded-xl bg-indigo-50/60 border border-indigo-200/90 flex items-center justify-between gap-3 hover:bg-indigo-50 transition-colors">
-              <div class="flex items-center gap-2.5 min-w-0">
-                <div class="w-8 h-8 rounded-lg bg-indigo-700 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
-                  <i class="pi pi-shield text-xs"></i>
-                </div>
-                <div class="min-w-0">
-                  <div class="flex items-center gap-1.5">
-                    <span class="text-xs font-bold text-indigo-950 truncate">Admin Nền tảng (SuperAdmin)</span>
-                    <span class="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-indigo-200 text-indigo-800">SaaS</span>
-                  </div>
-                  <div class="text-[10px] text-slate-500 truncate">superadmin&#64;hotelsaas.platform</div>
-                </div>
-              </div>
-              <button
-                type="button"
-                (click)="quickLogin('superadmin@hotelsaas.platform', 'admin')"
-                [disabled]="loading()"
-                class="px-3 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-800 text-white text-[11px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
-              >
-                Vào ngay
-              </button>
-            </div>
-
-            <!-- 2. Chủ Khách sạn (Tenant Owner) -->
-            <div class="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-200/90 flex items-center justify-between gap-3 hover:bg-emerald-50 transition-colors">
-              <div class="flex items-center gap-2.5 min-w-0">
-                <div class="w-8 h-8 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
-                  <i class="pi pi-building text-xs"></i>
-                </div>
-                <div class="min-w-0">
-                  <div class="flex items-center gap-1.5">
-                    <span class="text-xs font-bold text-emerald-950 truncate">Chủ Khách sạn (Owner / HQ)</span>
-                    <span class="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-emerald-200 text-emerald-800">Toàn chuỗi</span>
-                  </div>
-                  <div class="text-[10px] text-slate-500 truncate">owner&#64;hotelsaas.local &bull; Cấp quyền tài khoản con</div>
-                </div>
-              </div>
-              <button
-                type="button"
-                (click)="quickLogin('owner@hotelsaas.local', 'admin')"
-                [disabled]="loading()"
-                class="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
-              >
-                Vào ngay
-              </button>
-            </div>
-
-            <!-- 3. Quản lý Chi nhánh (Branch Manager) -->
-            <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3 hover:bg-slate-100/70 transition-colors">
-              <div class="flex items-center gap-2.5 min-w-0">
-                <div class="w-8 h-8 rounded-lg bg-slate-700 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                  <i class="pi pi-briefcase text-xs"></i>
-                </div>
-                <div class="min-w-0">
-                  <div class="flex items-center gap-1.5">
-                    <span class="text-xs font-bold text-slate-800 truncate">Quản lý Chi nhánh (Manager)</span>
-                    <span class="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-slate-200 text-slate-700">2 Cơ sở</span>
-                  </div>
-                  <div class="text-[10px] text-slate-500 truncate">manager.both&#64;hotelsaas.local</div>
-                </div>
-              </div>
-              <button
-                type="button"
-                (click)="quickLogin('manager.both@hotelsaas.local', 'admin')"
-                [disabled]="loading()"
-                class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
-              >
-                Vào ngay
-              </button>
-            </div>
-
-            <!-- 4. Lễ tân Chi nhánh (Receptionist) -->
-            <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3 hover:bg-slate-100/70 transition-colors">
-              <div class="flex items-center gap-2.5 min-w-0">
-                <div class="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                  <i class="pi pi-id-card text-xs"></i>
-                </div>
-                <div class="min-w-0">
-                  <div class="flex items-center gap-1.5">
-                    <span class="text-xs font-bold text-slate-800 truncate">Lễ tân Cơ sở Q1</span>
-                    <span class="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-teal-100 text-teal-800">CN-Q1</span>
-                  </div>
-                  <div class="text-[10px] text-slate-500 truncate">staff.single&#64;hotelsaas.local</div>
-                </div>
-              </div>
-              <button
-                type="button"
-                (click)="quickLogin('staff.single@hotelsaas.local', 'admin')"
-                [disabled]="loading()"
-                class="px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white text-[11px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
-              >
-                Vào ngay
-              </button>
-            </div>
-          </div>
-        }
-      </div>
+          <button
+            type="button"
+            (click)="setPortal('admin')"
+            class="min-h-11 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+          >
+            <i class="pi pi-shield text-xs"></i>
+            <span>Chuyển sang Cổng Quản trị (PMS &amp; SuperAdmin)</span>
+            <i class="pi pi-arrow-right text-[11px]"></i>
+          </button>
+        </div>
+      }
 
       <!-- 6. LIÊN KẾT ĐIỀU HƯỚNG PHỤ TRỢ (FOOTER LINKS) -->
       <div class="mt-4 pt-3 border-t border-slate-100 text-center text-xs text-slate-500 space-y-2">
@@ -401,6 +386,94 @@ export type PortalType = 'guest' | 'admin';
       [mode]="'login'"
       (verified)="onPhoneLoginSuccess($event)"
     />
+
+    <!-- Modal Hướng dẫn Khôi phục Mật khẩu / Tài khoản -->
+    @if (showForgotPasswordModal()) {
+      <div
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="forgot-password-title"
+        (keydown.escape)="closeForgotPasswordModal()"
+      >
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                <i class="pi pi-lock-open text-sm"></i>
+              </div>
+              <h3 id="forgot-password-title" class="text-sm font-bold text-slate-900">
+                Hướng dẫn khôi phục truy cập tài khoản
+              </h3>
+            </div>
+            <button
+              type="button"
+              (click)="closeForgotPasswordModal()"
+              aria-label="Đóng hướng dẫn khôi phục mật khẩu"
+              class="min-h-11 min-w-11 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+            >
+              <i class="pi pi-times text-xs"></i>
+            </button>
+          </div>
+
+          <div class="space-y-3 text-xs text-slate-600 leading-relaxed">
+            <div class="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200 text-indigo-950 space-y-2">
+              <div class="font-bold">Đặt lại mật khẩu tự động qua Email:</div>
+              <p>
+                Bạn có thể yêu cầu gửi liên kết đặt lại mật khẩu an toàn trực tiếp tới email đã đăng ký tài khoản.
+              </p>
+              <a
+                routerLink="/auth/forgot-password"
+                (click)="closeForgotPasswordModal()"
+                class="min-h-11 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-2xs transition-colors"
+              >
+                <i class="pi pi-envelope text-xs"></i>
+                <span>Khôi phục mật khẩu qua Email</span>
+                <i class="pi pi-arrow-right text-[11px]"></i>
+              </a>
+            </div>
+            @if (portal() === 'guest') {
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 space-y-1.5">
+                <div class="font-bold">Lựa chọn nhanh khác cho Khách lưu trú:</div>
+                <ul class="list-disc list-inside space-y-1">
+                  <li>Đăng nhập nhanh bằng <strong>Google</strong> hoặc <strong>Số điện thoại (SMS OTP)</strong> nếu đã liên kết tài khoản.</li>
+                  <li>Hoặc tra cứu nhanh đơn giữ chỗ ở mục <strong>Tra cứu mã giữ chỗ / SĐT</strong> bên dưới.</li>
+                </ul>
+              </div>
+            } @else {
+              <div class="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-emerald-950 space-y-1.5">
+                <div class="font-bold">Lưu ý cho Nhân sự &amp; Chủ khách sạn (PMS):</div>
+                <ul class="list-disc list-inside space-y-1">
+                  <li>Sử dụng liên kết khôi phục qua email công việc ở trên nếu tự quên mật khẩu.</li>
+                  <li>Nhân sự chi nhánh cũng có thể nhờ <strong>Chủ cơ sở (Owner)</strong> hoặc <strong>Quản lý</strong> cấp lại tài khoản khi cần.</li>
+                </ul>
+              </div>
+            }
+          </div>
+
+          <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            @if (portal() === 'guest') {
+              <button
+                type="button"
+                (click)="closeForgotPasswordModal(); showPhoneOtpModal.set(true)"
+                class="px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold border border-indigo-200 cursor-pointer"
+              >
+                Đăng nhập SMS OTP
+              </button>
+            }
+            <button
+              type="button"
+              (click)="closeForgotPasswordModal()"
+              class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer"
+            >
+              Đã hiểu
+            </button>
+          </div>
+        </div>
+      </div>
+    }
   `
 })
 export class LoginPage implements OnInit {
@@ -423,57 +496,59 @@ export class LoginPage implements OnInit {
     return control.touched && control.hasError('required') ? 'Mật khẩu không được để trống' : '';
   }
 
+  private readonly destroyRef = inject(DestroyRef);
+  readonly isDevDemoVisible = !environment.production;
   portal = signal<PortalType>('guest');
   loading = signal(false);
   errorMessage = signal<string | null>(null);
   showBranchSelector = signal(false);
   showPhoneOtpModal = signal(false);
+  showForgotPasswordModal = signal(false);
 
-  onPhoneLoginSuccess(event: { success: boolean; loginResponse?: any; phoneNumber: string }): void {
+  onPhoneLoginSuccess(_event: { success: boolean; loginResponse?: LoginResponse; phoneNumber: string }): void {
     const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
     this.router.navigate([returnUrl || '/booking/profile']);
   }
 
   loginForm = this.fb.group({
-    email: ['guest.vip@hotelsaas.local', [Validators.required, Validators.email]],
-    password: ['HotelDev@2026!', [Validators.required]]
+    email: ['', [Validators.required, Validators.email]],
+    password: ['', [Validators.required]]
   });
 
   ngOnInit(): void {
     // Đọc query param 'portal' nếu có trên URL (e.g. /auth/login?portal=admin)
-    this.route.queryParamMap.subscribe(params => {
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
       const p = params.get('portal');
       if (p === 'admin' || p === 'guest') {
-        this.setPortal(p, true);
+        this.setPortal(p, false);
       }
     });
   }
 
-  setPortal(type: PortalType, updateForm: boolean = true): void {
+  setPortal(type: PortalType, resetPassword: boolean = true): void {
     this.portal.set(type);
     this.errorMessage.set(null);
 
-    if (updateForm) {
-      if (type === 'guest') {
-        this.quickFill('guest.vip@hotelsaas.local');
-      } else {
-        this.quickFill('superadmin@hotelsaas.platform');
-      }
+    if (resetPassword) {
+      this.loginForm.patchValue({ password: '' });
     }
   }
 
   quickFill(email: string): void {
-    const defaultPwd = email === 'superadmin@hotelsaas.platform' ? 'Admin@123456' : 'HotelDev@2026!';
+    if (!this.isDevDemoVisible) return;
     this.loginForm.patchValue({
       email,
-      password: defaultPwd
+      password: ''
     });
+    this.element.nativeElement.querySelector<HTMLInputElement>('#password')?.focus();
   }
 
-  quickLogin(email: string, portalType: PortalType = 'admin'): void {
-    this.setPortal(portalType, false);
-    this.quickFill(email);
-    this.onSubmit();
+  openForgotPasswordModal(): void {
+    this.showForgotPasswordModal.set(true);
+  }
+
+  closeForgotPasswordModal(): void {
+    this.showForgotPasswordModal.set(false);
   }
 
   onSubmit(): void {
@@ -489,11 +564,11 @@ export class LoginPage implements OnInit {
     this.errorMessage.set(null);
 
     const { email, password } = this.loginForm.getRawValue();
-    this.attemptLogin(email!, password!, true);
+    this.attemptLogin(email!, password!);
   }
 
-  private attemptLogin(email: string, password: string, allowSuperAdminFallback: boolean): void {
-    this.authService.login({ email, password }).subscribe({
+  private attemptLogin(email: string, password: string): void {
+    this.authService.login({ email, password }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (response) => {
         this.loading.set(false);
         const globalRole = response.user.globalRole;
@@ -528,7 +603,7 @@ export class LoginPage implements OnInit {
         // Trường hợp 3b: Nhân viên có duy nhất 1 chi nhánh -> Tự động kích hoạt ngữ cảnh chi nhánh đó
         if (branchMemberships.length === 1) {
           const soleBranch = branchMemberships[0];
-          this.authService.switchContext(soleBranch.propertyId!).subscribe({
+          this.authService.switchContext(soleBranch.propertyId!).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
             next: () => {
               this.notification.success(`Đăng nhập thành công chi nhánh: ${soleBranch.propertyName || soleBranch.propertyCode}`);
               this.router.navigate(['/dashboard']);
@@ -545,11 +620,6 @@ export class LoginPage implements OnInit {
         this.router.navigate(['/dashboard']);
       },
       error: (err: HttpErrorResponse) => {
-        if (allowSuperAdminFallback && email === 'superadmin@hotelsaas.platform') {
-          const altPwd = password === 'Admin@123456' ? 'HotelDev@2026!' : 'Admin@123456';
-          this.attemptLogin(email, altPwd, false);
-          return;
-        }
         this.loading.set(false);
         const detail = err.error?.title || err.error?.message || 'Email hoặc mật khẩu không chính xác.';
         this.errorMessage.set(detail);
@@ -557,7 +627,7 @@ export class LoginPage implements OnInit {
     });
   }
 
-  onBranchSelected(membership: UserMembershipDto): void {
+  onBranchSelected(_membership: UserMembershipDto): void {
     this.showBranchSelector.set(false);
     this.router.navigate(['/dashboard']);
   }
@@ -574,7 +644,7 @@ export class LoginPage implements OnInit {
         throw new Error('Không nhận được mã xác thực Google.');
       }
 
-      this.authService.googleLogin(idToken).subscribe({
+      this.authService.googleLogin(idToken).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (response) => {
           this.loading.set(false);
           this.notification.success(`Đăng nhập Google thành công! Chào mừng ${response.user.fullName}`);
@@ -586,41 +656,9 @@ export class LoginPage implements OnInit {
           this.errorMessage.set(err.error?.detail || err.error?.message || 'Đăng nhập Google thất bại.');
         }
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.loading.set(false);
-      const msg = err?.message || 'Đăng nhập Google không thành công.';
-      this.errorMessage.set(msg);
-    }
-  }
-
-  async loginWithFacebook(): Promise<void> {
-    if (this.loading()) return;
-    this.loading.set(true);
-    this.errorMessage.set(null);
-
-    try {
-      const user = await this.socialAuth.signInWithFacebook();
-      this.authService.socialLogin({
-        provider: 'Facebook',
-        providerSubject: user.providerSubject,
-        providerEmail: user.providerEmail,
-        fullName: user.fullName,
-        avatarUrl: user.avatarUrl
-      }).subscribe({
-        next: (response) => {
-          this.loading.set(false);
-          this.notification.success(`Đăng nhập Facebook thành công! Chào mừng ${response.user.fullName}`);
-          const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-          this.router.navigate([returnUrl || '/booking/profile']);
-        },
-        error: (err: HttpErrorResponse) => {
-          this.loading.set(false);
-          this.errorMessage.set(err.error?.detail || err.error?.message || 'Đăng nhập Facebook thất bại.');
-        }
-      });
-    } catch (err: any) {
-      this.loading.set(false);
-      const msg = err?.message || 'Đăng nhập Facebook không thành công.';
+      const msg = err instanceof Error && err.message ? err.message : 'Đăng nhập Google không thành công.';
       this.errorMessage.set(msg);
     }
   }

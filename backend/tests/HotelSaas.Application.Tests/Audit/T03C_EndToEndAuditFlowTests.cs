@@ -266,6 +266,7 @@ public sealed class T03C_EndToEndAuditFlowTests
                     {
                         Id = staffUserId,
                         TenantId = tenantId,
+                        Username = "staff.e2e",
                         Email = "staff.e2e@luxestay.vn",
                         FullName = "Nguyễn Văn Nhân Viên",
                         PasswordHash = "hashed_pw"
@@ -274,6 +275,7 @@ public sealed class T03C_EndToEndAuditFlowTests
                     {
                         Id = ownerUserId,
                         TenantId = tenantId,
+                        Username = "owner.e2e",
                         Email = "owner.e2e@luxestay.vn",
                         FullName = "Trần Đại Gia (Owner)",
                         PasswordHash = "hashed_pw"

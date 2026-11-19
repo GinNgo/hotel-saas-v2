@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, catchError, map, of } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { Province, Ward, VIETNAM_63_PROVINCES, removeVietnameseAccents } from '../models/location.model';
+import { Province, Ward, VIETNAM_34_ADMIN_PROVINCES, removeVietnameseAccents } from '../models/location.model';
 import { ApiResponse } from '../models/api-response.model';
 import { ReverseGeocodeInfo } from '../models/public-booking.model';
 
@@ -14,18 +14,18 @@ export class LocationService {
   private readonly apiUrl = `${environment.apiUrl}/locations`;
 
   /**
-   * Lấy danh sách toàn bộ 63 Tỉnh / Thành phố Việt Nam.
-   * Luôn đảm bảo đủ 63 đơn vị hành chính và sắp xếp theo bảng chữ cái tiếng Việt.
+   * Lấy danh sách toàn bộ 34 Tỉnh / Thành phố Việt Nam (mô hình hành chính 2 cấp).
+   * Luôn đảm bảo đủ 34 đơn vị hành chính và sắp xếp theo bảng chữ cái tiếng Việt.
    */
   getProvinces(): Observable<Province[]> {
     return this.http.get<ApiResponse<Province[]>>(`${this.apiUrl}/provinces`).pipe(
       map(res => {
-        const list = res.data && res.data.length > 0 ? res.data : [...VIETNAM_63_PROVINCES];
+        const list = res.data && res.data.length > 0 ? res.data : [...VIETNAM_34_ADMIN_PROVINCES];
         return this.sortProvincesAlphabetical(list);
       }),
       catchError(() => {
         // Fallback tức thì nếu kết nối mạng chậm hoặc backend offline
-        return of(this.sortProvincesAlphabetical([...VIETNAM_63_PROVINCES]));
+        return of(this.sortProvincesAlphabetical([...VIETNAM_34_ADMIN_PROVINCES]));
       })
     );
   }
@@ -78,13 +78,15 @@ export class LocationService {
   private sortProvincesAlphabetical(list: Province[]): Province[] {
     return list.slice().sort((a, b) => {
       // Ưu tiên 2 đô thị đặc biệt TP.HCM & Hà Nội lên đầu để thuận tiện người dùng
-      if (a.code === '79' || a.code === '1') {
-        if (b.code === '79' || b.code === '1') {
+      const aIsTop = a.code === '79' || a.code === '01' || a.code === '1';
+      const bIsTop = b.code === '79' || b.code === '01' || b.code === '1';
+      if (aIsTop) {
+        if (bIsTop) {
           return a.name.localeCompare(b.name, 'vi');
         }
         return -1;
       }
-      if (b.code === '79' || b.code === '1') {
+      if (bIsTop) {
         return 1;
       }
       return a.name.localeCompare(b.name, 'vi');

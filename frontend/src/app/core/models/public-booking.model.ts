@@ -9,6 +9,7 @@ export type PropertyType =
   | 'Villa'
   | 'Apartment'
   | 'Motel'
+  /** @deprecated Legacy alias mapped cleanly to 'Motel'. */
   | 'Guesthouse'
   | 'Hostel'
   | 'BedAndBreakfast';
@@ -20,10 +21,17 @@ export const ALL_PROPERTY_TYPES: readonly PropertyType[] = [
   'Villa',
   'Apartment',
   'Motel',
-  'Guesthouse',
   'Hostel',
   'BedAndBreakfast',
 ];
+
+export function normalizeCanonicalPropertyType(type: PropertyType | string | undefined): PropertyType {
+  if (type === 'Guesthouse') return 'Motel';
+  if (type && ALL_PROPERTY_TYPES.includes(type as PropertyType)) {
+    return type as PropertyType;
+  }
+  return 'Hotel';
+}
 
 export type DestinationSuggestionType = 'Province' | 'TouristZone' | 'Landmark' | 'Property';
 
@@ -103,20 +111,46 @@ export interface LandmarkDto {
   addressHint?: string;
 }
 
-export interface SuggestedFilterChipDto {
+export interface SuggestedFilterChipBaseDto {
   id: string;
   label: string;
   category: 'nearby' | 'price' | 'rating' | 'rentalType' | 'amenity';
-  filterKey: string;
-  filterValue: any;
   count?: number;
   isActive?: boolean;
+}
+
+export type SuggestedFilterChipDto =
+  | (SuggestedFilterChipBaseDto & {
+      filterKey: 'maxDistanceMeters' | 'maxPrice' | 'minStarRating';
+      filterValue: number;
+    })
+  | (SuggestedFilterChipBaseDto & {
+      filterKey: 'destinationKeyword' | 'amenity';
+      filterValue: string;
+    })
+  | (SuggestedFilterChipBaseDto & {
+      filterKey: 'rentalType';
+      filterValue: RentalType;
+    });
+
+export interface AiSmartExtractedFiltersDto {
+  rentalType?: RentalType | number | null;
+  destinationKeyword?: string | null;
+  provinceCode?: string | null;
+  touristZoneSlug?: string | null;
+  landmarkSlug?: string | null;
+  landmarkName?: string | null;
+  propertyTypes?: Array<PropertyType | number>;
+  minGuests?: number | null;
+  maxPrice?: number | null;
+  maxDistanceMeters?: number | null;
+  amenities?: string[];
 }
 
 export interface AiSmartSearchResponseDto {
   query: string;
   summaryMessage: string;
-  extractedFilters: any;
+  extractedFilters: AiSmartExtractedFiltersDto;
   suggestedFilterChips: SuggestedFilterChipDto[];
   properties: PublicPropertyDto[];
   totalResults: number;
@@ -226,6 +260,8 @@ export interface PublicPropertyDto {
   hourlyPriceFrom?: number;
   overnightPriceFrom?: number;
   dailyPriceFrom?: number;
+  taxRatePercent?: number;
+  serviceFeeRatePercent?: number;
   availableRoomTypes: PublicRoomTypeAvailabilityDto[];
   distanceMeters?: number;
   distanceFormatted?: string;
@@ -247,6 +283,13 @@ export interface PublicPropertiesFilter {
   userLongitude?: number;
   latitude?: number;
   longitude?: number;
+  minPrice?: number;
+  maxPrice?: number;
+  guests?: number;
+  checkInDate?: string;
+  checkOutDate?: string;
+  onlyPublished?: boolean;
+  sortBy?: BookingSortOption;
   page?: number;
   pageSize?: number;
 }
@@ -347,6 +390,8 @@ export interface GuestHoldDto {
   canExtendHold?: boolean;
   status?: string;
   isPhoneVerified?: boolean;
+  promoCode?: string | null;
+  promoDiscountAmount?: number | null;
   breakdown?: QuoteBreakdownItemDto[];
 }
 
@@ -397,7 +442,24 @@ export interface GuestBookingDetailDto {
   cancellationFee?: number;
   refundableAmount?: number;
   refundStatus?: string;
+  promoCode?: string | null;
+  promoDiscountAmount?: number | null;
+  hasReviewed?: boolean;
+  existingReview?: GuestBookingReviewSummaryDto | null;
   breakdown: QuoteBreakdownItemDto[];
+}
+
+export interface GuestBookingReviewSummaryDto {
+  id: string;
+  rating: number;
+  cleanlinessRating?: number | null;
+  locationRating?: number | null;
+  serviceRating?: number | null;
+  valueRating?: number | null;
+  comment?: string | null;
+  ownerReply?: string | null;
+  repliedAtUtc?: string | null;
+  createdAtUtc: string;
 }
 
 export interface CalculatePublicQuoteRequest {
@@ -408,6 +470,7 @@ export interface CalculatePublicQuoteRequest {
   endAtUtc: string;
   checkInDate?: string;
   checkOutDate?: string;
+  promoCode?: string | null;
 }
 
 export interface CreateGuestHoldRequest {
@@ -425,9 +488,19 @@ export interface CreateGuestHoldRequest {
   expectedTotalAmount?: number;
   idempotencyKey?: string;
   pointsToRedeem?: number;
+  promoCode?: string | null;
+  specialRequests?: string | null;
   guestUserId?: string;
   firebaseIdToken?: string;
   paymentMethodPreference?: 'Cash' | 'VietQR' | 'VNPay' | 'BankTransfer';
+}
+
+export interface RescheduleGuestBookingRequest {
+  newStartAtUtc: string;
+  newEndAtUtc: string;
+  newCheckInDate?: string;
+  newCheckOutDate?: string;
+  reason?: string;
 }
 
 export interface ConfirmGuestBookingRequest {
@@ -446,6 +519,7 @@ export interface TenantBrandDto {
   totalProperties: number;
   ratingAverage: number;
   reviewCount: number;
+  startingPrice?: number | null;
   properties: PublicPropertyDto[];
   provinces: string[];
   propertyTypes?: PropertyType[];
@@ -509,11 +583,21 @@ export interface SubmitGuestReviewRequest {
 export interface PromotionDealDto {
   id: string;
   code: string;
+  name?: string;
   title: string;
   description: string;
   discountBadge: string;
-  discountType: 'Percent' | 'Amount';
+  discountType: 'Percent' | 'Amount' | 'FreeNight';
+  type?: number;
+  value?: number;
   discountValue: number;
+  minNights?: number;
+  maxUsage?: number | null;
+  currentUsage?: number;
+  startsAtUtc?: string;
+  endsAtUtc?: string;
+  tenantName?: string;
+  propertySlug?: string | null;
   rentalType?: RentalType;
   applicableDestinations?: string[];
   expiresAt: string;
@@ -554,4 +638,14 @@ export interface CancelGuestBookingRequest {
   verificationEmailOrPhone?: string;
   reason?: string;
   idempotencyKey?: string;
+}
+
+export interface VnpayReturnVerificationDto {
+  success: boolean;
+  rspCode: string;
+  message: string;
+  txnRef?: string;
+  transactionNo?: string;
+  amount?: number;
+  bankCode?: string;
 }

@@ -1,12 +1,15 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  computed,
-  EventEmitter,
-  Input,
+  DestroyRef,
   OnInit,
-  Output,
+  computed,
+  effect,
+  inject,
+  input,
+  output,
   signal,
+  untracked,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -32,28 +35,34 @@ export interface BookingDateRange {
           <!-- Cột Từ ngày (Check-in) -->
           <div class="relative flex flex-col">
             <div class="flex items-center justify-between mb-1.5 h-6">
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
+              <label
+                [for]="checkInInputId"
+                class="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 truncate"
+              >
                 Nhận phòng
               </label>
-              <span class="text-[11px] text-indigo-600 font-medium shrink-0">Từ 14:00</span>
+              <span class="text-xs text-indigo-600 dark:text-indigo-400 font-medium shrink-0 tabular-nums">Từ {{ checkInTimeHint() }}</span>
             </div>
             <div class="relative">
               <p-datepicker
-                [(ngModel)]="inDateObject"
+                [inputId]="checkInInputId"
+                name="bookingCheckInDate"
+                [ngModel]="inDateObject()"
                 (ngModelChange)="onInDateChange($event)"
                 dateFormat="dd/mm/yy"
                 [showIcon]="false"
                 [minDate]="minDate"
+                [touchUI]="isMobileViewport()"
                 appendTo="body"
                 [firstDayOfWeek]="1"
                 placeholder="dd/mm/yyyy"
                 ariaLabel="Ngày nhận phòng"
                 styleClass="w-full"
-                inputStyleClass="w-full h-11 pl-10 pr-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors cursor-pointer shadow-2xs"
+                inputStyleClass="w-full min-h-11 h-11 pl-10 pr-3.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 hover:border-slate-400 dark:hover:border-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:border-indigo-500 transition-colors cursor-pointer shadow-2xs tabular-nums"
               />
-              <i class="pi pi-calendar absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm z-10"></i>
+              <i class="pi pi-calendar absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 pointer-events-none text-sm z-10" aria-hidden="true"></i>
             </div>
-            <p class="text-[11px] text-slate-500 mt-1 truncate h-4">
+            <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate h-4 tabular-nums">
               {{ getFormattedDayOfWeek(inDateObject()) }}
             </p>
           </div>
@@ -61,30 +70,36 @@ export interface BookingDateRange {
           <!-- Cột Đến ngày (Check-out) -->
           <div class="relative flex flex-col">
             <div class="flex items-center justify-between mb-1.5 h-6">
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
+              <label
+                [for]="checkOutInputId"
+                class="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 truncate"
+              >
                 Trả phòng
               </label>
-              <span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
+              <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 shrink-0 tabular-nums">
                 {{ computedNights() }} đêm
               </span>
             </div>
             <div class="relative">
               <p-datepicker
-                [(ngModel)]="outDateObject"
+                [inputId]="checkOutInputId"
+                name="bookingCheckOutDate"
+                [ngModel]="outDateObject()"
                 (ngModelChange)="onOutDateChange($event)"
                 dateFormat="dd/mm/yy"
                 [showIcon]="false"
                 [minDate]="minCheckOutDate()"
+                [touchUI]="isMobileViewport()"
                 appendTo="body"
                 [firstDayOfWeek]="1"
                 placeholder="dd/mm/yyyy"
                 ariaLabel="Ngày trả phòng"
                 styleClass="w-full"
-                inputStyleClass="w-full h-11 pl-10 pr-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors cursor-pointer shadow-2xs"
+                inputStyleClass="w-full min-h-11 h-11 pl-10 pr-3.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 hover:border-slate-400 dark:hover:border-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:border-indigo-500 transition-colors cursor-pointer shadow-2xs tabular-nums"
               />
-              <i class="pi pi-calendar-times absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm z-10"></i>
+              <i class="pi pi-calendar-times absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 pointer-events-none text-sm z-10" aria-hidden="true"></i>
             </div>
-            <p class="text-[11px] text-slate-500 mt-1 truncate h-4">
+            <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate h-4 tabular-nums">
               {{ getFormattedDayOfWeek(outDateObject()) }}
             </p>
           </div>
@@ -97,27 +112,33 @@ export interface BookingDateRange {
           <!-- Ngày sử dụng -->
           <div class="flex flex-col">
             <div class="flex items-center justify-between mb-1.5 h-6">
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
+              <label
+                [for]="hourlyDateInputId"
+                class="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 truncate"
+              >
                 Ngày sử dụng
               </label>
             </div>
             <div class="relative">
               <p-datepicker
-                [(ngModel)]="inDateObject"
+                [inputId]="hourlyDateInputId"
+                name="bookingHourlyDate"
+                [ngModel]="inDateObject()"
                 (ngModelChange)="onInDateChange($event)"
                 dateFormat="dd/mm/yy"
                 [showIcon]="false"
                 [minDate]="minDate"
+                [touchUI]="isMobileViewport()"
                 appendTo="body"
                 [firstDayOfWeek]="1"
                 placeholder="dd/mm/yyyy"
                 ariaLabel="Ngày nhận phòng theo giờ"
                 styleClass="w-full"
-                inputStyleClass="w-full h-11 pl-10 pr-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors cursor-pointer shadow-2xs"
+                inputStyleClass="w-full min-h-11 h-11 pl-10 pr-3.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 hover:border-slate-400 dark:hover:border-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:border-indigo-500 transition-colors cursor-pointer shadow-2xs tabular-nums"
               />
-              <i class="pi pi-calendar absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm z-10"></i>
+              <i class="pi pi-calendar absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 pointer-events-none text-sm z-10" aria-hidden="true"></i>
             </div>
-            <p class="text-[11px] text-slate-500 mt-1 truncate h-4">
+            <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate h-4 tabular-nums">
               {{ getFormattedDayOfWeek(inDateObject()) }}
             </p>
           </div>
@@ -125,47 +146,59 @@ export interface BookingDateRange {
           <!-- Giờ nhận phòng -->
           <div class="flex flex-col">
             <div class="flex items-center justify-between mb-1.5 h-6">
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
+              <label
+                [for]="checkInTimeSelectId"
+                class="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 truncate"
+              >
                 Giờ nhận
               </label>
             </div>
             <div class="relative">
               <select
-                [ngModel]="checkInTime"
+                [id]="checkInTimeSelectId"
+                name="bookingCheckInTime"
+                [ngModel]="checkInTime()"
                 (ngModelChange)="onCheckInTimeChange($event)"
-                class="w-full h-11 pl-8 pr-7 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer appearance-none shadow-2xs transition-colors"
+                aria-label="Giờ nhận phòng"
+                class="w-full min-h-11 h-11 pl-8 pr-7 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 hover:border-slate-400 dark:hover:border-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:border-indigo-500 cursor-pointer appearance-none shadow-2xs transition-colors tabular-nums"
               >
                 @for (slot of hourlyTimeSlots; track slot) {
                   <option [value]="slot">{{ slot }}</option>
                 }
               </select>
-              <i class="pi pi-clock absolute left-2.5 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm z-10"></i>
-              <i class="pi pi-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs z-10"></i>
+              <i class="pi pi-clock absolute left-2.5 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 pointer-events-none text-sm z-10" aria-hidden="true"></i>
+              <i class="pi pi-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 pointer-events-none text-xs z-10" aria-hidden="true"></i>
             </div>
-            <p class="text-[11px] text-slate-400 mt-1 truncate h-4">Khung giờ nhận phòng</p>
+            <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate h-4">Khung giờ nhận phòng</p>
           </div>
 
           <!-- Số giờ sử dụng -->
           <div class="flex flex-col">
             <div class="flex items-center justify-between mb-1.5 h-6">
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
+              <label
+                [for]="durationHoursSelectId"
+                class="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 truncate"
+              >
                 Thời lượng
               </label>
             </div>
             <div class="relative">
               <select
-                [ngModel]="durationHours"
+                [id]="durationHoursSelectId"
+                name="bookingDurationHours"
+                [ngModel]="durationHours()"
                 (ngModelChange)="onDurationHoursChange($event)"
-                class="w-full h-11 pl-8 pr-7 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer appearance-none shadow-2xs transition-colors"
+                aria-label="Thời lượng lưu trú theo giờ"
+                class="w-full min-h-11 h-11 pl-8 pr-7 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 hover:border-slate-400 dark:hover:border-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:border-indigo-500 cursor-pointer appearance-none shadow-2xs transition-colors tabular-nums"
               >
                 @for (h of durationOptions; track h) {
                   <option [value]="h">{{ h }} giờ</option>
                 }
               </select>
-              <i class="pi pi-hourglass absolute left-2.5 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm z-10"></i>
-              <i class="pi pi-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs z-10"></i>
+              <i class="pi pi-hourglass absolute left-2.5 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 pointer-events-none text-sm z-10" aria-hidden="true"></i>
+              <i class="pi pi-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 pointer-events-none text-xs z-10" aria-hidden="true"></i>
             </div>
-            <p class="text-[11px] text-slate-400 mt-1 truncate h-4">Thời gian lưu trú</p>
+            <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate h-4">Thời gian lưu trú</p>
           </div>
         </div>
       }
@@ -176,28 +209,34 @@ export interface BookingDateRange {
           <!-- Đêm nhận phòng -->
           <div class="flex flex-col">
             <div class="flex items-center justify-between mb-1.5 h-6">
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
+              <label
+                [for]="overnightDateInputId"
+                class="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 truncate"
+              >
                 Đêm nhận phòng
               </label>
-              <span class="text-[11px] text-indigo-600 font-medium shrink-0">Nhận 21:00 - 23:00</span>
+              <span class="text-xs text-indigo-600 dark:text-indigo-400 font-medium shrink-0 tabular-nums">{{ overnightWindowHint() }}</span>
             </div>
             <div class="relative">
               <p-datepicker
-                [(ngModel)]="inDateObject"
+                [inputId]="overnightDateInputId"
+                name="bookingOvernightDate"
+                [ngModel]="inDateObject()"
                 (ngModelChange)="onInDateChange($event)"
                 dateFormat="dd/mm/yy"
                 [showIcon]="false"
                 [minDate]="minDate"
+                [touchUI]="isMobileViewport()"
                 appendTo="body"
                 [firstDayOfWeek]="1"
                 placeholder="dd/mm/yyyy"
                 ariaLabel="Đêm nhận phòng qua đêm"
                 styleClass="w-full"
-                inputStyleClass="w-full h-11 pl-10 pr-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer shadow-2xs transition-colors"
+                inputStyleClass="w-full min-h-11 h-11 pl-10 pr-3.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 hover:border-slate-400 dark:hover:border-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:border-indigo-500 cursor-pointer shadow-2xs transition-colors tabular-nums"
               />
-              <i class="pi pi-moon absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none text-sm z-10"></i>
+              <i class="pi pi-moon absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 pointer-events-none text-sm z-10" aria-hidden="true"></i>
             </div>
-            <p class="text-[11px] text-slate-500 mt-1 truncate h-4">
+            <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate h-4 tabular-nums">
               {{ getFormattedDayOfWeek(inDateObject()) }}
             </p>
           </div>
@@ -205,21 +244,28 @@ export interface BookingDateRange {
           <!-- Trả phòng sáng hôm sau -->
           <div class="flex flex-col">
             <div class="flex items-center justify-between mb-1.5 h-6">
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
+              <label
+                [for]="overnightCheckOutId"
+                class="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 truncate"
+              >
                 Trả phòng sáng hôm sau
               </label>
-              <span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
+              <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 shrink-0 tabular-nums">
                 1 Đêm
               </span>
             </div>
-            <div class="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700 flex items-center justify-between shadow-2xs">
-              <div class="flex items-center gap-2 truncate">
-                <i class="pi pi-sun text-amber-500"></i>
+            <output
+              [id]="overnightCheckOutId"
+              [attr.for]="overnightDateInputId"
+              class="w-full min-h-11 h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between shadow-2xs tabular-nums"
+            >
+              <span class="flex items-center gap-2 truncate">
+                <i class="pi pi-sun text-amber-500 dark:text-amber-400" aria-hidden="true"></i>
                 <span class="truncate">{{ overnightCheckOutDateStr() }}</span>
-              </div>
-              <span class="text-xs text-slate-500 shrink-0">Trước 12:00 trưa</span>
-            </div>
-            <p class="text-[11px] text-slate-400 mt-1 truncate h-4">
+              </span>
+              <span class="text-xs text-slate-600 dark:text-slate-400 shrink-0 tabular-nums">Trước {{ checkOutTimeHint() }}</span>
+            </output>
+            <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate h-4">
               Khung giờ trả phòng tiêu chuẩn qua đêm
             </p>
           </div>
@@ -240,34 +286,50 @@ export interface BookingDateRange {
   `]
 })
 export class BookingDatePickerComponent implements OnInit {
-  @Input() rentalType: RentalType | string | number = 'Daily';
-  @Input() checkInDate: string = '';
-  @Input() checkOutDate: string = '';
-  @Input() checkInTime: string = '12:00';
-  @Input() durationHours: number = 2;
+  private static nextInstanceId = 0;
+  private readonly uid = ++BookingDatePickerComponent.nextInstanceId;
+  private readonly destroyRef = inject(DestroyRef);
 
-  @Output() checkInDateChange = new EventEmitter<string>();
-  @Output() checkOutDateChange = new EventEmitter<string>();
-  @Output() checkInTimeChange = new EventEmitter<string>();
-  @Output() durationHoursChange = new EventEmitter<number>();
-  @Output() rangeChange = new EventEmitter<BookingDateRange>();
+  readonly checkInInputId = `booking-checkin-date-${this.uid}`;
+  readonly checkOutInputId = `booking-checkout-date-${this.uid}`;
+  readonly hourlyDateInputId = `booking-hourly-date-${this.uid}`;
+  readonly checkInTimeSelectId = `booking-checkin-time-${this.uid}`;
+  readonly durationHoursSelectId = `booking-duration-hours-${this.uid}`;
+  readonly overnightDateInputId = `booking-overnight-date-${this.uid}`;
+  readonly overnightCheckOutId = `booking-overnight-checkout-${this.uid}`;
+
+  readonly rentalType = input<RentalType | string | number>('Daily');
+  readonly checkInDate = input<string>('');
+  readonly checkOutDate = input<string>('');
+  readonly checkInTime = input<string>('12:00');
+  readonly durationHours = input<number>(2);
+  readonly checkInTimeHint = input<string>('14:00');
+  readonly checkOutTimeHint = input<string>('12:00');
+  readonly overnightWindowHint = input<string>('21:00 - 10:00');
+
+  readonly checkInDateChange = output<string>();
+  readonly checkOutDateChange = output<string>();
+  readonly checkInTimeChange = output<string>();
+  readonly durationHoursChange = output<number>();
+  readonly rangeChange = output<BookingDateRange>();
 
   readonly minDate: Date = new Date();
 
   // Internal reactive Date objects for PrimeNG DatePicker
   readonly inDateObject = signal<Date | null>(null);
   readonly outDateObject = signal<Date | null>(null);
+  readonly isMobileViewport = signal<boolean>(this.detectMobileViewport());
 
-  readonly hourlyTimeSlots: string[] = [
-    '08:00', '09:00', '10:00', '11:00', '12:00',
-    '13:00', '14:00', '15:00', '16:00', '17:00',
-    '18:00', '19:00', '20:00', '21:00', '22:00', '23:00'
+  readonly hourlyTimeSlots: readonly string[] = [
+    '07:00', '08:00', '09:00', '10:00', '11:00', '12:00',
+    '13:00', '14:00', '15:00', '16:00', '17:00', '18:00',
+    '19:00', '20:00', '21:00', '22:00', '23:00'
   ];
 
-  readonly durationOptions: number[] = [1, 2, 3, 4, 5, 6, 8, 12];
+  readonly durationOptions: readonly number[] = [1, 2, 3, 4, 5, 6, 8, 12];
 
   readonly normalizedRentalType = computed<'Daily' | 'Hourly' | 'Overnight'>(() => {
-    const val = this.rentalType;
+    const val = this.rentalType();
     if (val === 'Hourly' || val === 1) return 'Hourly';
     if (val === 'Overnight' || val === 2) return 'Overnight';
     return 'Daily';
@@ -301,23 +363,86 @@ export class BookingDatePickerComponent implements OnInit {
     return `${day}/${month}/${year}`;
   });
 
+  constructor() {
+    this.registerViewportListeners();
+
+    effect(() => {
+      const inStr = this.checkInDate();
+      if (inStr) {
+        const currentIn = untracked(() => this.inDateObject());
+        if (!currentIn || this.formatDateString(currentIn) !== inStr) {
+          const parsed = this.parseDateString(inStr);
+          if (parsed) {
+            this.inDateObject.set(parsed);
+          }
+        }
+      }
+    });
+
+    effect(() => {
+      const outStr = this.checkOutDate();
+      if (outStr) {
+        const currentOut = untracked(() => this.outDateObject());
+        if (!currentOut || this.formatDateString(currentOut) !== outStr) {
+          const parsed = this.parseDateString(outStr);
+          if (parsed) {
+            this.outDateObject.set(parsed);
+          }
+        }
+      }
+    });
+  }
+
   ngOnInit(): void {
     this.syncInitialDates();
   }
 
+  private detectMobileViewport(): boolean {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    if (typeof window.matchMedia === 'function') {
+      return window.matchMedia('(max-width: 767px)').matches;
+    }
+    return window.innerWidth < 768;
+  }
+
+  private registerViewportListeners(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    if (typeof window.matchMedia === 'function') {
+      const mediaQuery = window.matchMedia('(max-width: 767px)');
+      const handleMediaChange = (event: MediaQueryListEvent) => {
+        this.isMobileViewport.set(event.matches);
+      };
+      if (typeof mediaQuery.addEventListener === 'function') {
+        mediaQuery.addEventListener('change', handleMediaChange);
+        this.destroyRef.onDestroy(() => mediaQuery.removeEventListener('change', handleMediaChange));
+      }
+    }
+    const handleResize = () => {
+      this.isMobileViewport.set(this.detectMobileViewport());
+    };
+    window.addEventListener('resize', handleResize, { passive: true });
+    this.destroyRef.onDestroy(() => window.removeEventListener('resize', handleResize));
+  }
+
   private syncInitialDates(): void {
     const now = new Date();
+    const initialIn = this.checkInDate();
+    const initialOut = this.checkOutDate();
 
-    if (this.checkInDate) {
-      const parsed = this.parseDateString(this.checkInDate);
+    if (initialIn) {
+      const parsed = this.parseDateString(initialIn);
       this.inDateObject.set(parsed || now);
     } else {
       this.inDateObject.set(now);
       this.checkInDateChange.emit(this.formatDateString(now));
     }
 
-    if (this.checkOutDate) {
-      const parsedOut = this.parseDateString(this.checkOutDate);
+    if (initialOut) {
+      const parsedOut = this.parseDateString(initialOut);
       this.outDateObject.set(parsedOut || this.calculateDefaultCheckOut(this.inDateObject() || now));
     } else {
       const defaultOut = this.calculateDefaultCheckOut(this.inDateObject() || now);
@@ -372,8 +497,11 @@ export class BookingDatePickerComponent implements OnInit {
     this.checkInTimeChange.emit(time);
   }
 
-  onDurationHoursChange(hours: any): void {
-    this.durationHoursChange.emit(+hours);
+  onDurationHoursChange(hours: number | string): void {
+    const parsed = Number(hours);
+    if (!Number.isNaN(parsed)) {
+      this.durationHoursChange.emit(parsed);
+    }
   }
 
   private emitRange(): void {

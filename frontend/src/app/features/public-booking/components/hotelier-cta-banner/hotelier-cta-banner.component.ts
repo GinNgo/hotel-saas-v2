@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
@@ -6,6 +6,7 @@ import { RouterLink } from '@angular/router';
   selector: 'app-hotelier-cta-banner',
   standalone: true,
   imports: [CommonModule, RouterLink],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="mt-14 mb-8" aria-label="Kêu gọi hợp tác đối tác khách sạn">
       <div
@@ -28,7 +29,7 @@ import { RouterLink } from '@angular/router';
             </h2>
 
             <p class="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-              Gia nhập hệ sinh thái PMS &amp; Booking đa chi nhánh. Tự động hóa sơ đồ phòng Rack, điều phối buồng phòng, hạch toán doanh thu và mở khóa Smart Lock không chạm chỉ trong 2 phút thiết lập.
+              Gia nhập hệ sinh thái PMS &amp; Booking đa chi nhánh. Tự động hóa sơ đồ phòng Rack, điều phối buồng phòng, hạch toán doanh thu và quản lý nhận/trả phòng trực tuyến chỉ trong 2 phút thiết lập.
             </p>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
@@ -38,7 +39,7 @@ import { RouterLink } from '@angular/router';
               </div>
               <div class="flex items-center gap-2 text-slate-200">
                 <i class="pi pi-check text-emerald-400 text-xs font-bold"></i>
-                <span>Tích hợp Smart Lock 24/7</span>
+                <span>Quản lý đặt phòng &amp; lễ tân 24/7</span>
               </div>
               <div class="flex items-center gap-2 text-slate-200">
                 <i class="pi pi-check text-emerald-400 text-xs font-bold"></i>

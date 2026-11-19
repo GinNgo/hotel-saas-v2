@@ -277,4 +277,44 @@ describe('RoomsPage — Timeline Gantt Chart & Minibar Folio Tests', () => {
       })
     );
   });
+
+  it('8. should submit Walk-in atomically with immediateCheckIn=true, without fake email or separate updateRoomStatus call', () => {
+    component.openQuickWalkinForRoom(sampleRooms[0]);
+    component.walkinForm.patchValue({
+      guestName: 'Trần Văn Walkin',
+      guestPhone: '0909888777',
+      guestEmail: ''
+    });
+
+    component.submitWalkin();
+
+    expect(mockReservationService.createReservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roomId: 'room-101',
+        guestName: 'Trần Văn Walkin',
+        guestEmail: undefined,
+        immediateCheckIn: true
+      })
+    );
+    expect(mockRoomService.updateRoomStatus).not.toHaveBeenCalled();
+    expect(mockAlertService.toastSuccess).toHaveBeenCalled();
+  });
+
+  it('9. should forward trimmed optional guestEmail when entered on Walk-in form', () => {
+    component.openQuickWalkinForRoom(sampleRooms[0]);
+    component.walkinForm.patchValue({
+      guestName: 'Lê Thị Email',
+      guestEmail: '  le.thi@example.com  '
+    });
+
+    component.submitWalkin();
+
+    expect(mockReservationService.createReservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        guestName: 'Lê Thị Email',
+        guestEmail: 'le.thi@example.com',
+        immediateCheckIn: true
+      })
+    );
+  });
 });

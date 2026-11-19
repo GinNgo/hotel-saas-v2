@@ -4,6 +4,8 @@ export interface UserDto {
   email: string;
   fullName: string;
   phoneNumber?: string | null;
+  isPhoneVerified?: boolean;
+  isEmailVerified?: boolean;
   avatarUrl?: string | null;
   globalRole: string;
   tenantId: string | null;
@@ -119,4 +121,43 @@ export interface SwitchContextResponse {
   refreshToken: string;
   expiresAtUtc: string;
   currentContext: CurrentContextDto;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+  appUrl?: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface ResendConfirmationRequest {
+  email?: string;
+  appUrl?: string;
+}
+
+export interface SocialIdentityDto {
+  id: string;
+  provider: string;
+  providerEmail: string;
+  avatarUrl?: string | null;
+  lastLoginAtUtc: string;
+  createdAtUtc: string;
+}
+
+export interface SocialAccountsResponseDto {
+  hasPassword: boolean;
+  accounts: SocialIdentityDto[];
+}
+
+export interface LinkSocialAccountRequest {
+  idToken: string;
+  provider?: string;
 }

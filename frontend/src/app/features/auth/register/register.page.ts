@@ -1,4 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -9,15 +10,49 @@ import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ApiResponse } from '../../../core/models/api-response.model';
+import { LoginResponse, RegisterResponse } from '../../../core/models/auth.model';
 import { PhoneOtpModalComponent } from '../phone-otp-modal/phone-otp-modal.component';
 import { SocialAuthService } from '../../../core/services/social-auth.service';
 
+function passwordComplexityValidator(control: AbstractControl): ValidationErrors | null {
+  const value = typeof control.value === 'string' ? control.value : '';
+  if (!value) {
+    return null;
+  }
+
+  const errors: ValidationErrors = {};
+  if (!/[A-Z]/.test(value)) {
+    errors['requiresUppercase'] = true;
+  }
+  if (!/[a-z]/.test(value)) {
+    errors['requiresLowercase'] = true;
+  }
+  if (!/[0-9]/.test(value)) {
+    errors['requiresDigit'] = true;
+  }
+  if (!/[^a-zA-Z0-9]/.test(value)) {
+    errors['requiresSpecialChar'] = true;
+  }
+
+  return Object.keys(errors).length > 0 ? errors : null;
+}
+
 function passwordMatchValidator(control: AbstractControl): ValidationErrors | null {
   const password = control.get('password')?.value;
-  const confirmPassword = control.get('confirmPassword')?.value;
+  const confirmControl = control.get('confirmPassword');
+  const confirmPassword = confirmControl?.value;
+  if (!confirmControl) return null;
+
   if (password && confirmPassword && password !== confirmPassword) {
-    control.get('confirmPassword')?.setErrors({ passwordMismatch: true });
+    const existingErrors = confirmControl.errors ? { ...confirmControl.errors } : {};
+    existingErrors['passwordMismatch'] = true;
+    confirmControl.setErrors(existingErrors);
     return { passwordMismatch: true };
+  }
+
+  if (confirmControl.hasError('passwordMismatch')) {
+    const { passwordMismatch: _removed, ...rest } = confirmControl.errors ?? {};
+    confirmControl.setErrors(Object.keys(rest).length > 0 ? rest : null);
   }
   return null;
 }
@@ -28,11 +63,12 @@ export type RegisterTab = 'email' | 'phone';
  * Trang Đăng ký tài khoản Hội viên Khách lưu trú (Guest Portal Registration) phân hệ kép:
  * - Tab 1: Đăng ký bằng Email (Tinh gọn: Họ tên, Email, Mật khẩu — không ép nhập SĐT ngay).
  * - Tab 2: Đăng ký bằng Số điện thoại (SMS OTP Firebase — đăng ký 1-chạm không cần nhớ mật khẩu).
- * - Phía dưới: Đăng ký / Đăng nhập 1-chạm qua Google OAuth & Facebook OAuth (Mở popup native).
+ * - Phía dưới: Đăng ký / Đăng nhập 1-chạm qua Google OAuth (Mở popup native).
  */
 @Component({
   selector: 'app-register',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     FormsModule,
@@ -58,7 +94,7 @@ export type RegisterTab = 'email' | 'phone';
         <button
           type="button"
           (click)="setTab('email')"
-          class="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
+          class="flex-1 min-h-11 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
           [ngClass]="activeTab() === 'email' ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/80 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'"
         >
           <i class="pi pi-envelope text-xs" [ngClass]="activeTab() === 'email' ? 'text-indigo-600' : 'text-slate-400'"></i>
@@ -68,7 +104,7 @@ export type RegisterTab = 'email' | 'phone';
         <button
           type="button"
           (click)="setTab('phone')"
-          class="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
+          class="flex-1 min-h-11 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer"
           [ngClass]="activeTab() === 'phone' ? 'bg-white text-emerald-800 shadow-sm border border-slate-200/80 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'"
         >
           <i class="pi pi-phone text-xs" [ngClass]="activeTab() === 'phone' ? 'text-emerald-600' : 'text-slate-400'"></i>
@@ -136,7 +172,7 @@ export type RegisterTab = 'email' | 'phone';
               formControlName="password"
               [feedback]="true"
               [toggleMask]="true"
-              placeholder="Tối thiểu 8 ký tự (hoa, số, ký tự đặc biệt)"
+              placeholder="Tối thiểu 8 ký tự (hoa, thường, số, ký tự đặc biệt)"
               promptLabel="Nhập mật khẩu an toàn"
               weakLabel="Yếu"
               mediumLabel="Trung bình"
@@ -149,6 +185,18 @@ export type RegisterTab = 'email' | 'phone';
             }
             @if (emailRegisterForm.get('password')?.hasError('minlength') && emailRegisterForm.get('password')?.touched) {
               <p class="text-xs text-rose-600 mt-1">Mật khẩu cần ít nhất 8 ký tự</p>
+            }
+            @if (emailRegisterForm.get('password')?.hasError('requiresUppercase') && emailRegisterForm.get('password')?.touched) {
+              <p class="text-xs text-rose-600 mt-1">Mật khẩu cần ít nhất 1 chữ hoa (A-Z)</p>
+            }
+            @if (emailRegisterForm.get('password')?.hasError('requiresLowercase') && emailRegisterForm.get('password')?.touched) {
+              <p class="text-xs text-rose-600 mt-1">Mật khẩu cần ít nhất 1 chữ thường (a-z)</p>
+            }
+            @if (emailRegisterForm.get('password')?.hasError('requiresDigit') && emailRegisterForm.get('password')?.touched) {
+              <p class="text-xs text-rose-600 mt-1">Mật khẩu cần ít nhất 1 chữ số (0-9)</p>
+            }
+            @if (emailRegisterForm.get('password')?.hasError('requiresSpecialChar') && emailRegisterForm.get('password')?.touched) {
+              <p class="text-xs text-rose-600 mt-1">Mật khẩu cần ít nhất 1 ký tự đặc biệt</p>
             }
           </div>
 
@@ -220,12 +268,13 @@ export type RegisterTab = 'email' | 'phone';
               <div class="relative shrink-0">
                 <select
                   [(ngModel)]="selectedDialCode"
-                  class="h-10 pl-3 pr-8 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 cursor-pointer appearance-none shadow-2xs transition-all"
+                  class="min-h-11 h-11 pl-3 pr-8 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 cursor-pointer appearance-none shadow-2xs transition-all"
+                  aria-label="Chọn mã vùng quốc gia"
                   title="Chọn mã vùng quốc gia"
                 >
                   @for (c of countryCodes; track c.code) {
                     <option [value]="c.dialCode">
-                      {{ c.flag }} {{ c.dialCode }}
+                      {{ c.code }} ({{ c.dialCode }})
                     </option>
                   }
                 </select>
@@ -258,7 +307,7 @@ export type RegisterTab = 'email' | 'phone';
               type="button"
               (click)="startPhoneRegistration()"
               [disabled]="loading() || !rawPhoneNumber.trim()"
-              class="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-md shadow-emerald-600/25 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              class="w-full min-h-11 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-md shadow-emerald-600/25 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <i class="pi pi-send text-sm"></i>
               <span>Gửi mã SMS OTP xác thực</span>
@@ -267,7 +316,7 @@ export type RegisterTab = 'email' | 'phone';
         </div>
       }
 
-      <!-- 3. SOCIAL REGISTRATION ONE-TAP BUTTONS (GOOGLE & FACEBOOK OAUTH POPUPS) -->
+      <!-- 3. SOCIAL REGISTRATION ONE-TAP BUTTON (GOOGLE OAUTH POPUP - G0-02) -->
       <div class="mt-5 space-y-3">
         <div class="relative flex items-center justify-center py-1">
           <div class="absolute inset-0 flex items-center" aria-hidden="true">
@@ -278,36 +327,21 @@ export type RegisterTab = 'email' | 'phone';
           </span>
         </div>
 
-        <div class="grid grid-cols-2 gap-2.5">
-          <!-- Google Button -->
-          <button
-            type="button"
-            (click)="registerWithGoogle()"
-            [disabled]="loading()"
-            class="flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
-          >
-            <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-            </svg>
-            <span>Google</span>
-          </button>
-
-          <!-- Facebook Button -->
-          <button
-            type="button"
-            (click)="registerWithFacebook()"
-            [disabled]="loading()"
-            class="flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
-          >
-            <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="#1877F2">
-              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-            </svg>
-            <span>Facebook</span>
-          </button>
-        </div>
+        <!-- Google Button -->
+        <button
+          type="button"
+          (click)="registerWithGoogle()"
+          [disabled]="loading()"
+          class="w-full min-h-11 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
+        >
+          <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          <span>Tiếp tục với Google</span>
+        </button>
       </div>
 
       <!-- 4. FOOTER LINKS -->
@@ -343,6 +377,7 @@ export class RegisterPage {
   private readonly socialAuth = inject(SocialAuthService);
   private readonly router = inject(Router);
   private readonly notification = inject(NotificationService);
+  private readonly destroyRef = inject(DestroyRef);
 
   activeTab = signal<RegisterTab>('email');
   loading = signal(false);
@@ -355,24 +390,24 @@ export class RegisterPage {
   formattedPhoneForModal: string = '';
 
   readonly countryCodes = [
-    { code: 'VN', dialCode: '+84', flag: '🇻🇳', label: 'Việt Nam (+84)' },
-    { code: 'US', dialCode: '+1', flag: '🇺🇸', label: 'Hoa Kỳ / Canada (+1)' },
-    { code: 'KR', dialCode: '+82', flag: '🇰🇷', label: 'Hàn Quốc (+82)' },
-    { code: 'JP', dialCode: '+81', flag: '🇯🇵', label: 'Nhật Bản (+81)' },
-    { code: 'SG', dialCode: '+65', flag: '🇸🇬', label: 'Singapore (+65)' },
-    { code: 'TH', dialCode: '+66', flag: '🇹🇭', label: 'Thái Lan (+66)' },
-    { code: 'CN', dialCode: '+86', flag: '🇨🇳', label: 'Trung Quốc (+86)' },
-    { code: 'GB', dialCode: '+44', flag: '🇬🇧', label: 'Vương quốc Anh (+44)' },
-    { code: 'AU', dialCode: '+61', flag: '🇦🇺', label: 'Úc (+61)' },
-    { code: 'FR', dialCode: '+33', flag: '🇫🇷', label: 'Pháp (+33)' },
-    { code: 'DE', dialCode: '+49', flag: '🇩🇪', label: 'Đức (+49)' },
-    { code: 'RU', dialCode: '+7', flag: '🇷🇺', label: 'Nga (+7)' },
+    { code: 'VN', dialCode: '+84', label: 'Việt Nam (+84)' },
+    { code: 'US', dialCode: '+1', label: 'Hoa Kỳ / Canada (+1)' },
+    { code: 'KR', dialCode: '+82', label: 'Hàn Quốc (+82)' },
+    { code: 'JP', dialCode: '+81', label: 'Nhật Bản (+81)' },
+    { code: 'SG', dialCode: '+65', label: 'Singapore (+65)' },
+    { code: 'TH', dialCode: '+66', label: 'Thái Lan (+66)' },
+    { code: 'CN', dialCode: '+86', label: 'Trung Quốc (+86)' },
+    { code: 'GB', dialCode: '+44', label: 'Vương quốc Anh (+44)' },
+    { code: 'AU', dialCode: '+61', label: 'Úc (+61)' },
+    { code: 'FR', dialCode: '+33', label: 'Pháp (+33)' },
+    { code: 'DE', dialCode: '+49', label: 'Đức (+49)' },
+    { code: 'RU', dialCode: '+7', label: 'Nga (+7)' },
   ];
 
   emailRegisterForm = this.fb.group({
     fullName: ['', [Validators.required, Validators.maxLength(100)]],
     email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required, Validators.minLength(8)]],
+    password: ['', [Validators.required, Validators.minLength(8), passwordComplexityValidator]],
     confirmPassword: ['', [Validators.required]]
   }, { validators: passwordMatchValidator });
 
@@ -398,12 +433,14 @@ export class RegisterPage {
       phoneNumber: undefined, // Không bắt buộc SĐT ở bước đăng ký Email
       password: password!,
       appUrl: typeof window !== 'undefined' ? window.location.origin : undefined
-    }).subscribe({
-      next: (response) => {
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (response: ApiResponse<RegisterResponse>) => {
         this.loading.set(false);
-        if (response.success || (response as any).userId || (response as any).data) {
+        if (response.success || response.data?.userId || response.data) {
           this.notification.success('Đăng ký tài khoản thành công! Thư xác thực tài khoản đã được gửi đến email của bạn. Vui lòng mở hộp thư để bấm liên kết kích hoạt.');
           this.router.navigate(['/login']);
+        } else if (response.message) {
+          this.errorMessage.set(response.message);
         }
       },
       error: (err: HttpErrorResponse) => {
@@ -433,7 +470,7 @@ export class RegisterPage {
     this.showPhoneOtpModal.set(true);
   }
 
-  onPhoneRegistered(event: { success: boolean; loginResponse?: any; phoneNumber: string }): void {
+  onPhoneRegistered(event: { success: boolean; loginResponse?: LoginResponse; phoneNumber: string }): void {
     if (event.success) {
       this.notification.success(`Chào mừng quý khách! Đăng ký thành công số điện thoại ${event.phoneNumber}`);
       this.router.navigate(['/booking/profile']);
@@ -450,7 +487,7 @@ export class RegisterPage {
       const idToken = user.idToken;
       if (!idToken) throw new Error('Không nhận được mã xác thực Google.');
 
-      this.authService.googleLogin(idToken).subscribe({
+      this.authService.googleLogin(idToken).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (response) => {
           this.loading.set(false);
           this.notification.success(`Đăng ký Google thành công! Chào mừng ${response.user.fullName}`);
@@ -461,39 +498,9 @@ export class RegisterPage {
           this.errorMessage.set(err.error?.detail || err.error?.message || 'Đăng ký Google thất bại.');
         }
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.loading.set(false);
-      this.errorMessage.set(err?.message || 'Đăng ký Google không thành công.');
-    }
-  }
-
-  async registerWithFacebook(): Promise<void> {
-    if (this.loading()) return;
-    this.loading.set(true);
-    this.errorMessage.set(null);
-
-    try {
-      const user = await this.socialAuth.signInWithFacebook();
-      this.authService.socialLogin({
-        provider: 'Facebook',
-        providerSubject: user.providerSubject,
-        providerEmail: user.providerEmail,
-        fullName: user.fullName,
-        avatarUrl: user.avatarUrl
-      }).subscribe({
-        next: (response) => {
-          this.loading.set(false);
-          this.notification.success(`Đăng ký Facebook thành công! Chào mừng ${response.user.fullName}`);
-          this.router.navigate(['/booking/profile']);
-        },
-        error: (err: HttpErrorResponse) => {
-          this.loading.set(false);
-          this.errorMessage.set(err.error?.detail || err.error?.message || 'Đăng ký Facebook thất bại.');
-        }
-      });
-    } catch (err: any) {
-      this.loading.set(false);
-      this.errorMessage.set(err?.message || 'Đăng ký Facebook không thành công.');
+      this.errorMessage.set(err instanceof Error && err.message ? err.message : 'Đăng ký Google không thành công.');
     }
   }
 }

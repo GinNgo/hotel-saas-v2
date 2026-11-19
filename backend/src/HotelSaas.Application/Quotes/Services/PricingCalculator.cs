@@ -40,11 +40,14 @@ public sealed class PricingCalculator : IPricingCalculator
         DateTime endAtUtc,
         DateOnly? checkInDate,
         DateOnly? checkOutDate,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? promoCode = null)
     {
         var tz = GetVietnamTimeZone();
         var breakdown = new List<QuoteBreakdownItemDto>();
         decimal totalAmount = 0m;
+        int nights = 0;
+        decimal? firstNightPrice = null;
 
         if (rentalType == RentalType.Hourly)
         {
@@ -152,6 +155,7 @@ public sealed class PricingCalculator : IPricingCalculator
                     "Thời gian thuê qua đêm phải có ngày trả phòng sau ngày nhận phòng (tối thiểu 1 đêm).");
             }
 
+            nights = actualCheckOut.DayNumber - actualCheckIn.DayNumber;
             RoomTypeRate? firstNightRate = null;
             RoomTypeRate? lastNightRate = null;
 
@@ -173,7 +177,11 @@ public sealed class PricingCalculator : IPricingCalculator
                         $"Không tìm thấy bảng giá thuê đêm cho ngày {d:yyyy-MM-dd}.");
                 }
 
-                if (d == actualCheckIn) firstNightRate = rate;
+                if (d == actualCheckIn)
+                {
+                    firstNightRate = rate;
+                    firstNightPrice = Math.Round(rate.NightlyPrice, 0, MidpointRounding.AwayFromZero);
+                }
                 if (d == actualCheckOut.AddDays(-1)) lastNightRate = rate;
 
                 var nightlyPrice = Math.Round(rate.NightlyPrice, 0, MidpointRounding.AwayFromZero);
@@ -285,6 +293,19 @@ public sealed class PricingCalculator : IPricingCalculator
                 "Tổng tiền báo giá không hợp lệ (nhỏ hơn hoặc bằng 0).");
         }
 
+        var (appliedPromoCode, promoDiscountAmount) = await ApplyPromoCodeAsync(
+            _context,
+            property.TenantId,
+            promoCode,
+            rentalType,
+            nights,
+            totalAmount,
+            firstNightPrice,
+            breakdown,
+            cancellationToken);
+
+        totalAmount = Math.Max(0m, totalAmount - promoDiscountAmount);
+
         return new QuoteDto
         {
             PropertyId = property.Id,
@@ -301,7 +322,118 @@ public sealed class PricingCalculator : IPricingCalculator
                 BufferMinutes = property.BufferMinutes,
                 CheckInTime = property.CheckInTime,
                 CheckOutTime = property.CheckOutTime
-            }
+            },
+            PromoCode = appliedPromoCode,
+            PromoDiscountAmount = promoDiscountAmount
         };
+    }
+
+    internal static void ValidatePromotionEligibility(
+        Promotion promo,
+        RentalType rentalType,
+        int nights,
+        DateTime utcNow)
+    {
+        if (!promo.IsActive)
+        {
+            throw new BadRequestException("ERR_INVALID_PROMO_CODE",
+                $"Mã khuyến mãi '{promo.Code}' hiện đã tạm ngừng áp dụng.");
+        }
+
+        if (utcNow < promo.StartsAtUtc || utcNow > promo.EndsAtUtc)
+        {
+            throw new BadRequestException("ERR_INVALID_PROMO_CODE",
+                $"Mã khuyến mãi '{promo.Code}' chưa đến thời gian áp dụng hoặc đã hết hạn.");
+        }
+
+        if (promo.MaxUsage.HasValue && promo.CurrentUsage >= promo.MaxUsage.Value)
+        {
+            throw new BadRequestException("ERR_INVALID_PROMO_CODE",
+                $"Mã khuyến mãi '{promo.Code}' đã đạt giới hạn lượt sử dụng.");
+        }
+
+        if (rentalType == RentalType.Hourly)
+        {
+            if (promo.Type == PromotionType.FreeNight)
+            {
+                throw new BadRequestException("ERR_INVALID_PROMO_CODE",
+                    $"Mã khuyến mãi '{promo.Code}' tặng đêm miễn phí không áp dụng cho đặt phòng theo giờ.");
+            }
+
+            if (promo.MinNights > 1)
+            {
+                throw new BadRequestException("ERR_INVALID_PROMO_CODE",
+                    $"Mã khuyến mãi '{promo.Code}' yêu cầu lưu trú tối thiểu {promo.MinNights} đêm.");
+            }
+        }
+        else if (nights < promo.MinNights)
+        {
+            throw new BadRequestException("ERR_INVALID_PROMO_CODE",
+                $"Mã khuyến mãi '{promo.Code}' yêu cầu lưu trú tối thiểu {promo.MinNights} đêm.");
+        }
+    }
+
+    internal static async Task<(string? AppliedPromoCode, decimal DiscountAmount)> ApplyPromoCodeAsync(
+        IApplicationDbContext context,
+        Guid tenantId,
+        string? promoCode,
+        RentalType rentalType,
+        int nights,
+        decimal subTotal,
+        decimal? firstNightPrice,
+        List<QuoteBreakdownItemDto> breakdown,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(promoCode))
+        {
+            return (null, 0m);
+        }
+
+        var normalizedCode = promoCode.Trim().ToUpperInvariant();
+        Promotion? promo;
+        try
+        {
+            promo = await context.Promotions
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.TenantId == tenantId && p.Code == normalizedCode, cancellationToken);
+        }
+        catch (NotImplementedException)
+        {
+            promo = null;
+        }
+
+        if (promo == null)
+        {
+            throw new BadRequestException("ERR_INVALID_PROMO_CODE",
+                $"Mã khuyến mãi '{normalizedCode}' không tồn tại hoặc không thuộc chi nhánh này.");
+        }
+
+        ValidatePromotionEligibility(promo, rentalType, nights, DateTime.UtcNow);
+
+        decimal rawDiscount = promo.Type switch
+        {
+            PromotionType.PercentDiscount => Math.Round(subTotal * promo.Value / 100m, 0, MidpointRounding.AwayFromZero),
+            PromotionType.FixedDiscount => Math.Round(promo.Value, 0, MidpointRounding.AwayFromZero),
+            PromotionType.FreeNight => nights >= 1
+                ? (firstNightPrice ?? Math.Round(subTotal / nights, 0, MidpointRounding.AwayFromZero))
+                : 0m,
+            _ => 0m
+        };
+
+        var discountAmount = Math.Max(0m, Math.Min(subTotal, rawDiscount));
+        if (discountAmount > 0m)
+        {
+            breakdown.Add(new QuoteBreakdownItemDto
+            {
+                Description = $"Khuyến mãi {promo.Code} ({promo.Name})",
+                UnitPrice = -discountAmount,
+                Quantity = 1,
+                Amount = -discountAmount,
+                Category = "Discount"
+            });
+        }
+
+        return (promo.Code, discountAmount);
     }
 }

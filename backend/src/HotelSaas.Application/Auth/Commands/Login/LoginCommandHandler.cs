@@ -169,12 +169,12 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
             scope,
             staffRole);
 
-        // Create and persist refresh token
+        // Create and persist refresh token (stored as SHA-256 hex digest; raw token returned to client)
         var refreshTokenEntity = new Domain.Entities.RefreshToken
         {
             Id = Guid.NewGuid(),
             UserId = user.Id,
-            Token = refreshToken,
+            Token = RefreshToken.RefreshTokenCommandHandler.ComputeRefreshTokenHash(refreshToken),
             ExpiresAtUtc = DateTime.UtcNow.AddDays(_jwtService.GetRefreshTokenExpirationDays())
         };
 
@@ -186,7 +186,10 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
             user.Email,
             user.FullName,
             user.GlobalRole.ToString(),
-            tenantId);
+            tenantId,
+            user.PhoneNumber,
+            user.PhoneVerifiedAtUtc.HasValue,
+            user.EmailVerifiedAtUtc.HasValue);
 
         return new LoginResponse(accessToken, refreshToken, expiresAtUtc, userDto, validMemberships);
     }

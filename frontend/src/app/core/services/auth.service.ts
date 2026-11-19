@@ -1,9 +1,10 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { BehaviorSubject, Observable, map, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { ApiResponse } from '../models/api-response.model';
+import { ApiEnvelope, ApiResponse, unwrapApiEnvelope } from '../models/api-response.model';
 import {
   LoginRequest,
   LoginResponse,
@@ -16,7 +17,14 @@ import {
   UserDto,
   UserMembershipDto,
   SwitchContextRequest,
-  SwitchContextResponse
+  SwitchContextResponse,
+  ForgotPasswordRequest,
+  ResetPasswordRequest,
+  ChangePasswordRequest,
+  ResendConfirmationRequest,
+  SocialAccountsResponseDto,
+  SocialIdentityDto,
+  LinkSocialAccountRequest
 } from '../models/auth.model';
 import { TokenStorageService } from './token-storage.service';
 
@@ -25,6 +33,7 @@ export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly tokenStorage = inject(TokenStorageService);
+  private readonly destroyRef = inject(DestroyRef, { optional: true });
   private readonly apiUrl = `${environment.apiUrl}/auth`;
 
   private currentUserSubject = new BehaviorSubject<UserDto | null>(null);
@@ -77,24 +86,23 @@ export class AuthService {
    * Tự động xác thực tài khoản và cấp thẻ thành viên Silver theo cơ chế Soft-Gating.
    */
   googleLogin(idToken: string): Observable<LoginResponse> {
-    return this.http.post<any>(`${this.apiUrl}/google-login`, { idToken }).pipe(
-      map(res => {
-        const data: LoginResponse = res.accessToken ? res : (res.data || res);
-        return data;
-      }),
-      tap(data => {
-        if (data?.accessToken) {
-          this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
-          this.currentUserSubject.next(data.user);
-          const memberships = data.memberships || [];
-          this.tokenStorage.setMemberships(memberships);
-          this.membershipsSubject.next(memberships);
-          if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
-            this.clearPropertyContext();
+    return this.http
+      .post<ApiEnvelope<LoginResponse> | LoginResponse>(`${this.apiUrl}/google-login`, { idToken })
+      .pipe(
+        map(res => this.unwrapLoginPayload(res)),
+        tap(data => {
+          if (data?.accessToken) {
+            this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
+            this.currentUserSubject.next(data.user);
+            const memberships = data.memberships || [];
+            this.tokenStorage.setMemberships(memberships);
+            this.membershipsSubject.next(memberships);
+            if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
+              this.clearPropertyContext();
+            }
           }
-        }
-      })
-    );
+        })
+      );
   }
 
   /**
@@ -108,24 +116,23 @@ export class AuthService {
     fullName?: string;
     avatarUrl?: string;
   }): Observable<LoginResponse> {
-    return this.http.post<any>(`${this.apiUrl}/social-login`, request).pipe(
-      map(res => {
-        const data: LoginResponse = res.accessToken ? res : (res.data || res);
-        return data;
-      }),
-      tap(data => {
-        if (data?.accessToken) {
-          this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
-          this.currentUserSubject.next(data.user);
-          const memberships = data.memberships || [];
-          this.tokenStorage.setMemberships(memberships);
-          this.membershipsSubject.next(memberships);
-          if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
-            this.clearPropertyContext();
+    return this.http
+      .post<ApiEnvelope<LoginResponse> | LoginResponse>(`${this.apiUrl}/social-login`, request)
+      .pipe(
+        map(res => this.unwrapLoginPayload(res)),
+        tap(data => {
+          if (data?.accessToken) {
+            this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
+            this.currentUserSubject.next(data.user);
+            const memberships = data.memberships || [];
+            this.tokenStorage.setMemberships(memberships);
+            this.membershipsSubject.next(memberships);
+            if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
+              this.clearPropertyContext();
+            }
           }
-        }
-      })
-    );
+        })
+      );
   }
 
   /**
@@ -133,24 +140,23 @@ export class AuthService {
    * Kèm token idToken do Firebase cấp sau khi nhập đúng SMS OTP.
    */
   verifyPhoneFirebase(request: { firebaseIdToken: string; fullName?: string }): Observable<LoginResponse> {
-    return this.http.post<any>(`${this.apiUrl}/verify-phone-firebase`, request).pipe(
-      map(res => {
-        const data: LoginResponse = res.accessToken ? res : (res.data || res);
-        return data;
-      }),
-      tap(data => {
-        if (data?.accessToken) {
-          this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
-          this.currentUserSubject.next(data.user);
-          const memberships = data.memberships || [];
-          this.tokenStorage.setMemberships(memberships);
-          this.membershipsSubject.next(memberships);
-          if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
-            this.clearPropertyContext();
+    return this.http
+      .post<ApiEnvelope<LoginResponse> | LoginResponse>(`${this.apiUrl}/verify-phone-firebase`, request)
+      .pipe(
+        map(res => this.unwrapLoginPayload(res)),
+        tap(data => {
+          if (data?.accessToken) {
+            this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
+            this.currentUserSubject.next(data.user);
+            const memberships = data.memberships || [];
+            this.tokenStorage.setMemberships(memberships);
+            this.membershipsSubject.next(memberships);
+            if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
+              this.clearPropertyContext();
+            }
           }
-        }
-      })
-    );
+        })
+      );
   }
 
   /**
@@ -159,47 +165,51 @@ export class AuthService {
    * Hỗ trợ đồng thời cả format bọc ApiResponse<{...}> phòng hờ.
    */
   login(request: LoginRequest): Observable<LoginResponse> {
-    return this.http.post<any>(`${this.apiUrl}/login`, request).pipe(
-      map(res => {
-        // Chuẩn hóa response payload
-        const data: LoginResponse = res.accessToken ? res : res.data;
-        return data;
-      }),
-      tap(data => {
-        if (data?.accessToken) {
-          this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
-          this.currentUserSubject.next(data.user);
+    return this.http
+      .post<ApiEnvelope<LoginResponse> | LoginResponse>(`${this.apiUrl}/login`, request)
+      .pipe(
+        map(res => this.unwrapLoginPayload(res)),
+        tap(data => {
+          if (data?.accessToken) {
+            this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
+            this.currentUserSubject.next(data.user);
 
-          const memberships = data.memberships || [];
-          this.tokenStorage.setMemberships(memberships);
-          this.membershipsSubject.next(memberships);
+            const memberships = data.memberships || [];
+            this.tokenStorage.setMemberships(memberships);
+            this.membershipsSubject.next(memberships);
 
-          // Kiểm tra xem token đã có propertyId chưa (trường hợp user chỉ có 1 branch hoặc token đã gán)
-          if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
-            this.clearPropertyContext();
-            return;
+            // Kiểm tra xem token đã có propertyId chưa (trường hợp user chỉ có 1 branch hoặc token đã gán)
+            if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
+              this.clearPropertyContext();
+              return;
+            }
+            const decoded = this.tokenStorage.getDecodedToken();
+            const propId = decoded?.propertyId || decoded?.pid;
+            if (propId) {
+              const matched = memberships.find(m => m.propertyId?.toLowerCase() === propId.toLowerCase());
+              this.setActivePropertyContext(propId, matched?.propertyName, matched?.propertyCode, matched?.roleName);
+            } else {
+              this.tokenStorage.clearContextMode?.();
+              if (!memberships.some(m => !!m.propertyId)) {
+                // Tải danh sách chi nhánh mở rộng (cho tài khoản Tenant-Wide)
+                this.pipeDestroy(this.fetchMyMemberships()).subscribe({
+                  next: (fullList) => {
+                    if (this.tokenStorage.getContextMode?.() === 'hq') {
+                      return;
+                    }
+                    const branchMembers = fullList.filter(m => !!m.propertyId);
+                    if (branchMembers.length > 0 && !this.activePropertyId()) {
+                      const defaultBranch = branchMembers[0];
+                      this.setActivePropertyContext(defaultBranch.propertyId!, defaultBranch.propertyName, defaultBranch.propertyCode, defaultBranch.roleName);
+                    }
+                  },
+                  error: () => {}
+                });
+              }
+            }
           }
-          const decoded = this.tokenStorage.getDecodedToken();
-          const propId = decoded?.propertyId || decoded?.pid;
-          if (propId) {
-            const matched = memberships.find(m => m.propertyId?.toLowerCase() === propId.toLowerCase());
-            this.setActivePropertyContext(propId, matched?.propertyName, matched?.propertyCode, matched?.roleName);
-          } else if (!memberships.some(m => !!m.propertyId)) {
-            // Tải danh sách chi nhánh mở rộng (cho tài khoản Tenant-Wide)
-            this.fetchMyMemberships().subscribe({
-              next: (fullList) => {
-                const branchMembers = fullList.filter(m => !!m.propertyId);
-                if (branchMembers.length > 0 && !this.activePropertyId()) {
-                  const defaultBranch = branchMembers[0];
-                  this.setActivePropertyContext(defaultBranch.propertyId!, defaultBranch.propertyName, defaultBranch.propertyCode, defaultBranch.roleName);
-                }
-              },
-              error: () => {}
-            });
-          }
-        }
-      })
-    );
+        })
+      );
   }
 
   /**
@@ -245,6 +255,7 @@ export class AuthService {
             const previousRoleName = this.activeRoleName();
             this.tokenStorage.setTokens(payload.accessToken, payload.refreshToken);
             this.clearPropertyContext();
+            this.tokenStorage.setContextMode?.('hq');
             const tenantWideRole = this.memberships.find(m => m.isTenantWide || !m.propertyId)?.roleName || null;
             const nextRoleName = payload.currentContext?.roleName || previousRoleName || tenantWideRole;
             if (nextRoleName) {
@@ -259,16 +270,15 @@ export class AuthService {
    * Lấy danh sách memberships của user hiện tại từ GET /api/auth/me/memberships
    */
   fetchMyMemberships(): Observable<UserMembershipDto[]> {
-    return this.http.get<any>(`${this.apiUrl}/me/memberships`).pipe(
-      map(res => {
-        const list: UserMembershipDto[] = Array.isArray(res) ? res : (res.data || []);
-        return list;
-      }),
-      tap(list => {
-        this.tokenStorage.setMemberships(list);
-        this.membershipsSubject.next(list);
-      })
-    );
+    return this.http
+      .get<ApiEnvelope<UserMembershipDto[]> | UserMembershipDto[]>(`${this.apiUrl}/me/memberships`)
+      .pipe(
+        map(res => (Array.isArray(res) ? res : (res?.data ?? []))),
+        tap(list => {
+          this.tokenStorage.setMemberships(list);
+          this.membershipsSubject.next(list);
+        })
+      );
   }
 
   refreshToken(): Observable<LoginResponse> {
@@ -276,15 +286,17 @@ export class AuthService {
       accessToken: this.tokenStorage.getAccessToken() || '',
       refreshToken: this.tokenStorage.getRefreshToken() || ''
     };
-    return this.http.post<any>(`${this.apiUrl}/refresh-token`, request).pipe(
-      map(res => (res.accessToken ? res : res.data) as LoginResponse),
-      tap(data => {
-        if (data?.accessToken) {
-          this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
-          this.currentUserSubject.next(data.user);
-        }
-      })
-    );
+    return this.http
+      .post<ApiEnvelope<LoginResponse> | LoginResponse>(`${this.apiUrl}/refresh-token`, request)
+      .pipe(
+        map(res => this.unwrapLoginPayload(res)),
+        tap(data => {
+          if (data?.accessToken) {
+            this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
+            this.currentUserSubject.next(data.user);
+          }
+        })
+      );
   }
 
   updateCurrentUser(partial: Partial<UserDto>): void {
@@ -297,7 +309,9 @@ export class AuthService {
   logout(): void {
     const refreshToken = this.tokenStorage.getRefreshToken();
     if (refreshToken) {
-      this.http.post(`${this.apiUrl}/revoke-token`, { refreshToken }).subscribe({
+      this.pipeDestroy(
+        this.http.post<ApiEnvelope<unknown> | void>(`${this.apiUrl}/revoke-token`, { refreshToken })
+      ).subscribe({
         error: () => { /* Không chặn logout nếu revoke lỗi */ }
       });
     }
@@ -333,6 +347,17 @@ export class AuthService {
       const cachedMemberships = this.tokenStorage.getMemberships();
       this.membershipsSubject.next(cachedMemberships);
 
+      const savedContextMode = this.tokenStorage.getContextMode?.();
+      if (savedContextMode === 'hq') {
+        this.clearPropertyContext();
+        this.tokenStorage.setContextMode?.('hq');
+        const tenantWideRole = cachedMemberships.find(m => m.isTenantWide || !m.propertyId)?.roleName || null;
+        if (tenantWideRole) {
+          this.activeRoleName.set(tenantWideRole);
+        }
+        return;
+      }
+
       const savedPropId = this.tokenStorage.getActivePropertyId();
       if (savedPropId) {
         const matched = cachedMemberships.find(m => m.propertyId?.toLowerCase() === savedPropId.toLowerCase());
@@ -346,8 +371,11 @@ export class AuthService {
 
       // Nếu cached memberships chưa có chi nhánh cụ thể, làm mới từ API
       if (!cachedMemberships.some(m => !!m.propertyId)) {
-        this.fetchMyMemberships().subscribe({
+        this.pipeDestroy(this.fetchMyMemberships()).subscribe({
           next: (fullList) => {
+            if (this.tokenStorage.getContextMode?.() === 'hq') {
+              return;
+            }
             const branchMembers = fullList.filter(m => !!m.propertyId);
             if (branchMembers.length > 0 && !this.activePropertyId()) {
               const defaultBranch = branchMembers[0];
@@ -358,6 +386,17 @@ export class AuthService {
         });
       }
     }
+  }
+
+  private pipeDestroy<T>(source: Observable<T>): Observable<T> {
+    return this.destroyRef ? source.pipe(takeUntilDestroyed(this.destroyRef)) : source;
+  }
+
+  private unwrapLoginPayload(res: ApiEnvelope<LoginResponse> | LoginResponse): LoginResponse {
+    if (res && typeof res === 'object' && 'accessToken' in res && typeof res.accessToken === 'string' && res.accessToken) {
+      return res;
+    }
+    return unwrapApiEnvelope(res);
   }
 
   hasPermission(functionCode: string, action: number = 1): boolean {
@@ -374,11 +413,55 @@ export class AuthService {
 
   setActivePropertyContext(propertyId: string, propertyName?: string | null, propertyCode?: string | null, roleName?: string | null): void {
     this.tokenStorage.setActiveProperty(propertyId, propertyName, propertyCode);
+    this.tokenStorage.setContextMode?.('branch');
     this.activePropertyId.set(propertyId);
     this.activePropertyName.set(propertyName || null);
     this.activePropertyCode.set(propertyCode || null);
     if (roleName) {
       this.activeRoleName.set(roleName);
     }
+  }
+
+  forgotPassword(request: ForgotPasswordRequest): Observable<ApiResponse<unknown>> {
+    const payload: ForgotPasswordRequest = {
+      ...request,
+      appUrl: request.appUrl || (typeof window !== 'undefined' ? window.location.origin : undefined)
+    };
+    return this.http.post<ApiResponse<unknown>>(`${this.apiUrl}/forgot-password`, payload);
+  }
+
+  resetPassword(request: ResetPasswordRequest): Observable<ApiResponse<unknown>> {
+    return this.http.post<ApiResponse<unknown>>(`${this.apiUrl}/reset-password`, request);
+  }
+
+  changePassword(request: ChangePasswordRequest): Observable<ApiResponse<unknown>> {
+    return this.http.post<ApiResponse<unknown>>(`${this.apiUrl}/change-password`, request);
+  }
+
+  resendConfirmation(request: ResendConfirmationRequest): Observable<ApiResponse<unknown>> {
+    const payload: ResendConfirmationRequest = {
+      ...request,
+      appUrl: request.appUrl || (typeof window !== 'undefined' ? window.location.origin : undefined)
+    };
+    return this.http.post<ApiResponse<unknown>>(`${this.apiUrl}/resend-confirmation`, payload);
+  }
+
+  getSocialAccounts(): Observable<SocialAccountsResponseDto> {
+    return this.http
+      .get<ApiResponse<SocialAccountsResponseDto>>(`${this.apiUrl}/social-accounts`)
+      .pipe(map(res => res.data ?? { hasPassword: true, accounts: [] }));
+  }
+
+  linkSocialAccount(request: LinkSocialAccountRequest): Observable<SocialIdentityDto> {
+    return this.http
+      .post<ApiResponse<SocialIdentityDto>>(`${this.apiUrl}/social-accounts/link`, {
+        idToken: request.idToken,
+        provider: request.provider || 'Google'
+      })
+      .pipe(map(res => res.data as SocialIdentityDto));
+  }
+
+  unlinkSocialAccount(provider: string): Observable<ApiResponse<unknown>> {
+    return this.http.delete<ApiResponse<unknown>>(`${this.apiUrl}/social-accounts/${encodeURIComponent(provider)}`);
   }
 }

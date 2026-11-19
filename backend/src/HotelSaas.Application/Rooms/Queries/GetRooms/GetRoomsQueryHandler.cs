@@ -28,6 +28,7 @@ public sealed class GetRoomsQueryHandler : IRequestHandler<GetRoomsQuery, PagedR
         var query = _context.Rooms
             .AsNoTracking()
             .Include(r => r.RoomType)
+            .Include(r => r.Property)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -96,7 +97,8 @@ public sealed class GetRoomsQueryHandler : IRequestHandler<GetRoomsQuery, PagedR
                 r.RoomType != null ? r.RoomType.Name : string.Empty,
                 r.RoomType != null ? r.RoomType.Code : string.Empty,
                 r.RoomType != null ? r.RoomType.BasePrice : 0m,
-                r.CreatedAtUtc))
+                r.CreatedAtUtc,
+                r.Property != null ? r.Property.Name : null))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<RoomDto>(items, totalCount, page, pageSize);

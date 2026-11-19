@@ -18,6 +18,8 @@ public sealed class ReservationSnapshot
     public Guid RoomTypeId { get; set; }
     public string RoomTypeName { get; set; } = string.Empty;
     public decimal TotalAmount { get; set; }
+    public string? PromoCode { get; set; }
+    public decimal PromoDiscountAmount { get; set; }
     public string Currency { get; set; } = "VND";
     public IReadOnlyList<QuoteBreakdownItemDto> Breakdown { get; set; } = Array.Empty<QuoteBreakdownItemDto>();
     public AppliedPoliciesDto AppliedPolicies { get; set; } = null!;

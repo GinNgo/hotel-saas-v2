@@ -1,7 +1,7 @@
 import '@angular/compiler';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Injector, runInInjectionContext } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpRequest } from '@angular/common/http';
 import { firstValueFrom, of } from 'rxjs';
 import { PublicBookingService } from './public-booking.service';
 import { environment } from '../../../environments/environment';
@@ -556,6 +556,121 @@ describe('PublicBookingService with HttpTestingController (P7 Contract Regressio
 
     expect(errorCaught).toBeDefined();
     expect(errorCaught.status).toBe(500);
+  });
+
+  it('9. should call GET /public/payments/vnpay/return with vnp_* params', () => {
+    let result: unknown = null;
+    service.verifyVnpayReturn({
+      vnp_ResponseCode: '00',
+      vnp_TxnRef: 'TXN-123',
+      vnp_SecureHash: 'abc'
+    }).subscribe(res => {
+      result = res;
+    });
+
+    const req = httpTesting.expectOne((r: HttpRequest<unknown>) =>
+      r.url === `${environment.apiUrl}/public/payments/vnpay/return` &&
+      r.params.get('vnp_ResponseCode') === '00' &&
+      r.params.get('vnp_TxnRef') === 'TXN-123' &&
+      r.params.get('vnp_SecureHash') === 'abc'
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      success: true,
+      data: {
+        rspCode: '00',
+        message: 'Giao dịch thanh toán thành công.',
+        txnRef: 'TXN-123',
+        transactionNo: '999999',
+        amount: 450000,
+        bankCode: 'NCB'
+      }
+    });
+
+    expect(result).toEqual({
+      success: true,
+      rspCode: '00',
+      message: 'Giao dịch thanh toán thành công.',
+      txnRef: 'TXN-123',
+      transactionNo: '999999',
+      amount: 450000,
+      bankCode: 'NCB'
+    });
+  });
+
+  it('10. should call GET /public/promotions and normalize live promotion deals', () => {
+    let result: unknown = null;
+    service.getPromotions('sunset-brand').subscribe(res => {
+      result = res;
+    });
+
+    const req = httpTesting.expectOne((r: HttpRequest<unknown>) =>
+      r.url === `${environment.apiUrl}/public/promotions` &&
+      r.params.get('tenantSlug') === 'sunset-brand'
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush([
+      {
+        id: 'promo-1',
+        code: 'SUMMER20',
+        name: 'Ưu đãi mùa hè 20%',
+        description: 'Áp dụng cho tất cả hạng phòng.',
+        discountBadge: 'GIẢM 20%',
+        discountType: 'Percent',
+        type: 'PercentDiscount',
+        value: 20,
+        minNights: 1,
+        currentUsage: 2,
+        startsAtUtc: '2026-10-01T00:00:00Z',
+        endsAtUtc: '2026-12-31T23:59:59Z',
+        tenantName: 'Sunset Hospitality',
+        applicableDestinations: ['Đà Nẵng']
+      }
+    ]);
+
+    expect(Array.isArray(result)).toBe(true);
+    expect((result as Array<Record<string, unknown>>)[0]).toMatchObject({
+      id: 'promo-1',
+      code: 'SUMMER20',
+      title: 'Ưu đãi mùa hè 20%',
+      discountValue: 20,
+      expiresAt: '2026-12-31T23:59:59Z'
+    });
+  });
+
+  it('11. should forward normalized promoCode in POST /public/quotes when provided', () => {
+    let quoteResult: unknown = null;
+    service.calculateQuote({
+      propertySlug: 'danang-beach',
+      roomTypeId: 'rt-1',
+      rentalType: 2,
+      startAtUtc: '2026-10-15T07:00:00Z',
+      endAtUtc: '2026-10-16T05:00:00Z',
+      promoCode: ' summer20 '
+    }).subscribe(res => {
+      quoteResult = res;
+    });
+
+    const req = httpTesting.expectOne((r: HttpRequest<unknown>) =>
+      r.url === `${environment.apiUrl}/public/quotes` &&
+      r.params.get('promoCode') === 'SUMMER20'
+    );
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toMatchObject({
+      promoCode: 'SUMMER20'
+    });
+    req.flush({
+      totalAmount: 800000,
+      promoCode: 'SUMMER20',
+      promoDiscountAmount: 200000,
+      breakdown: []
+    });
+
+    expect(quoteResult).toMatchObject({
+      totalAmount: 800000,
+      promoCode: 'SUMMER20',
+      promoDiscountAmount: 200000
+    });
   });
 });
 

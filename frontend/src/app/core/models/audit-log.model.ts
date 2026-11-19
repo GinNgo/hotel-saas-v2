@@ -38,6 +38,7 @@ export interface AuditLogFilterParams {
   action?: string | null;
   entityName?: string | null;
   entityId?: string | null;
+  search?: string | null;
   fromUtc?: string | null;
   toUtc?: string | null;
   page?: number;

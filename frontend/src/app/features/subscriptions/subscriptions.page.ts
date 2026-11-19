@@ -1,311 +1,622 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnInit,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { SubscriptionService } from '../../core/services/subscription.service';
 import { AlertService } from '../../core/services/alert.service';
-import { TenantSubscriptionDto, SubscriptionPackageDto } from '../../core/models/subscription.model';
+import {
+  SubscriptionPackageDto,
+  SubscriptionUpgradeInitiationDto,
+  TenantSubscriptionDto
+} from '../../core/models/subscription.model';
+import { PageHeaderComponent } from '../../shared/components/page-header/page-header';
+import { StatusBadgeComponent } from '../../shared/components/status-badge/status-badge.component';
+import { ChartCardComponent, ChartCardDataset } from '../../shared/components/chart-card/chart-card.component';
+import { BusinessDatePipe, BusinessDateTimePipe } from '../../shared/pipes/business-date.pipe';
 
 @Component({
   selector: 'app-subscriptions-page',
   standalone: true,
-  imports: [CommonModule],
+  imports: [
+    CommonModule,
+    RouterLink,
+    PageHeaderComponent,
+    StatusBadgeComponent,
+    ChartCardComponent,
+    BusinessDatePipe,
+    BusinessDateTimePipe
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="space-y-8 max-w-7xl mx-auto pb-12">
-      <!-- Header Section -->
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div class="flex items-center gap-2">
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
-              <i class="pi pi-bolt text-[11px]"></i> Multi-Tenant SaaS Quota
-            </span>
-            <span class="text-xs text-slate-600">Thanh toán chu kỳ tháng</span>
-          </div>
-          <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-            Gói cước & Hạn ngạch tài nguyên
-          </h1>
-          <p class="text-sm text-slate-600 mt-1">
-            Quản trị dung lượng phòng khách sạn, mở rộng số chi nhánh và tính năng trợ lý thông minh AI.
-          </p>
-        </div>
 
+      <app-page-header
+        title="Gói cước & Hạn ngạch tài nguyên (SaaS Billing)"
+        subtitle="Quản trị dung lượng phòng, chi nhánh, nhân sự, thanh toán nâng cấp qua VNPay và quản lý quyền hỗ trợ kỹ thuật."
+      >
+        <a
+          routerLink="/support-grants"
+          class="inline-flex items-center justify-center gap-2 min-h-11 px-4 py-2 text-sm font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-700/70 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+        >
+          <i class="pi pi-shield" aria-hidden="true"></i>
+          <span>Ủy quyền Hỗ trợ (D24)</span>
+        </a>
         <button
           type="button"
           (click)="loadData()"
-          class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer self-start sm:self-auto"
+          class="inline-flex items-center justify-center gap-2 min-h-11 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
         >
-          <i class="pi pi-refresh" [class.animate-spin]="isLoading()"></i>
-          Làm mới trạng thái
+          <i class="pi pi-refresh" [class.animate-spin]="isLoading()" aria-hidden="true"></i>
+          <span>Làm mới trạng thái</span>
         </button>
-      </div>
+      </app-page-header>
 
-      <!-- Current Subscription Banner Card -->
+      <!-- Pending VNPay Payment Banner -->
+      @if (activePendingPayment(); as pending) {
+        <div
+          role="region"
+          aria-label="Hóa đơn nâng cấp đang chờ thanh toán"
+          class="rounded-2xl border-2 border-amber-300 dark:border-amber-700 bg-amber-50/90 dark:bg-amber-950/40 p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xs"
+        >
+          <div class="space-y-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200">
+                Chờ xác nhận thanh toán VNPay
+              </span>
+              <span class="text-xs font-mono font-bold text-slate-700 dark:text-slate-300 tabular-nums">{{ pending.invoiceNumber }}</span>
+            </div>
+            <p class="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">
+              Yêu cầu nâng cấp trị giá {{ pending.amount | number:'1.0-0' }} ₫ ({{ pending.billingCycle || 'Monthly' }})
+              — Mã tham chiếu: <span class="font-mono">{{ pending.transactionRef }}</span>
+            </p>
+            <p class="text-xs text-slate-600 dark:text-slate-400">
+              Gói cước hiện tại chỉ được kích hoạt hạng mức mới sau khi giao dịch VNPay hoàn tất hoặc được xác thực thành công.
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2.5 flex-wrap shrink-0">
+            @if (pendingPaymentUrl(); as checkoutUrl) {
+              <a
+                [href]="checkoutUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex items-center justify-center gap-2 min-h-11 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              >
+                <i class="pi pi-external-link" aria-hidden="true"></i>
+                <span>Thanh toán qua VNPay</span>
+              </a>
+            }
+            <button
+              type="button"
+              (click)="loadData()"
+              [disabled]="isLoading()"
+              class="inline-flex items-center justify-center gap-2 min-h-11 px-4 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-amber-300 dark:border-amber-700 text-xs font-bold disabled:opacity-50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            >
+              <i class="pi pi-refresh" [class.animate-spin]="isLoading()" aria-hidden="true"></i>
+              <span>{{ isLoading() ? 'Đang kiểm tra...' : 'Kiểm tra trạng thái thanh toán' }}</span>
+            </button>
+          </div>
+        </div>
+      }
+
+      <!-- Current Subscription Banner Card + Quota ChartCard -->
       @if (currentSub(); as sub) {
-        <div class="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-8 shadow-xs">
-          <!-- Subtle background glow -->
-          <div class="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-emerald-50 blur-3xl pointer-events-none"></div>
-
-          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 relative z-10">
-            <!-- Left Info -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          <div class="lg:col-span-5 relative overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-900 p-6 shadow-xs flex flex-col justify-between gap-5">
             <div class="space-y-3">
-              <div class="flex items-center gap-3">
+              <div class="flex items-center gap-3 flex-wrap">
                 <span class="px-3 py-1 rounded-lg text-sm font-bold bg-emerald-600 text-white shadow-2xs">
                   {{ sub.tierName }}
                 </span>
-                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  Đang kích hoạt ({{ sub.status }})
-                </span>
+                <app-status-badge
+                  [status]="sub.status"
+                  [customLabel]="'Đang kích hoạt (' + sub.status + ')'"
+                  color="emerald"
+                />
               </div>
 
               <div>
-                <div class="text-3xl font-extrabold text-slate-900 tracking-tight">
+                <div class="text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight tabular-nums">
                   {{ sub.pricePerCycle | number:'1.0-0' }} ₫
-                  <span class="text-sm font-normal text-slate-600">/ tháng</span>
+                  <span class="text-sm font-normal text-slate-600 dark:text-slate-400">
+                    / {{ sub.billingCycle === 'Annual' ? 'năm' : 'tháng' }}
+                  </span>
                 </div>
-                <div class="text-xs text-slate-600 mt-0.5">
-                  Chu kỳ hiện tại đến hết: <strong>{{ sub.currentPeriodEndUtc | date:'dd/MM/yyyy' }}</strong>
+                <div class="text-xs text-slate-600 dark:text-slate-400 mt-1 tabular-nums">
+                  Chu kỳ hiện tại đến hết: <strong>{{ sub.currentPeriodEndUtc | businessDate }}</strong>
                   (Tự động gia hạn: {{ sub.autoRenew ? 'Bật' : 'Tắt' }})
                 </div>
               </div>
             </div>
 
-            <!-- Right Quota Progress Bars -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:w-1/2">
-              <!-- Room Quota -->
-              <div class="p-4 rounded-xl bg-slate-50 border border-slate-100">
-                <div class="flex items-center justify-between text-xs mb-1.5">
-                  <span class="font-semibold text-slate-700 flex items-center gap-1.5">
-                    <i class="pi pi-th-large text-emerald-600"></i> Số phòng quản lý
+            <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-3">
+              <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2">
+                <div>
+                  <span class="font-semibold text-xs text-slate-700 dark:text-slate-300 block">Phòng lưu trú</span>
+                  <span class="text-xs text-slate-500 dark:text-slate-400">
+                    @if (computeQuotaUtilizationPercent(sub.currentRoomCount, sub.maxRoomsAllowed); as pct) {
+                      <span class="tabular-nums">Đã dùng {{ pct }}%</span>
+                    } @else {
+                      <span>Không giới hạn</span>
+                    }
                   </span>
-                  <span class="font-bold text-slate-900">
-                    {{ sub.currentRoomCount }} / {{ sub.maxRoomsAllowed >= 999 ? '∞' : sub.maxRoomsAllowed }}
-                  </span>
                 </div>
-                <!-- Progress bar -->
-                <div class="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
-                  <div
-                    class="h-full rounded-full transition-all duration-500"
-                    [class.bg-emerald-500]="sub.roomUsagePercentage < 80"
-                    [class.bg-amber-500]="sub.roomUsagePercentage >= 80 && sub.roomUsagePercentage < 95"
-                    [class.bg-rose-500]="sub.roomUsagePercentage >= 95"
-                    [style.width.%]="sub.roomUsagePercentage"
-                  ></div>
-                </div>
-                <div class="text-[11px] text-slate-600 mt-1 flex justify-between">
-                  <span>Tỷ lệ sử dụng: {{ sub.roomUsagePercentage }}%</span>
-                  @if (sub.isNearQuota) {
-                    <span class="text-amber-600 font-medium">Sắp chạm hạn mức!</span>
-                  }
-                </div>
+                <span class="font-bold font-mono text-sm text-slate-900 dark:text-slate-100 tabular-nums">
+                  {{ sub.currentRoomCount }} / {{ isUnlimitedQuota(sub.maxRoomsAllowed) ? 'Không giới hạn' : sub.maxRoomsAllowed }}
+                </span>
               </div>
 
-              <!-- Property Quota -->
-              <div class="p-4 rounded-xl bg-slate-50 border border-slate-100">
-                <div class="flex items-center justify-between text-xs mb-1.5">
-                  <span class="font-semibold text-slate-700 flex items-center gap-1.5">
-                    <i class="pi pi-building text-emerald-600"></i> Số cơ sở / chi nhánh
+              <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2">
+                <div>
+                  <span class="font-semibold text-xs text-slate-700 dark:text-slate-300 block">Chi nhánh</span>
+                  <span class="text-xs text-slate-500 dark:text-slate-400">
+                    @if (computeQuotaUtilizationPercent(sub.currentPropertyCount, sub.maxPropertiesAllowed); as pct) {
+                      <span class="tabular-nums">Đã dùng {{ pct }}%</span>
+                    } @else {
+                      <span>Không giới hạn</span>
+                    }
                   </span>
-                  <span class="font-bold text-slate-900">
-                    {{ sub.currentPropertyCount }} / {{ sub.maxPropertiesAllowed >= 999 ? '∞' : sub.maxPropertiesAllowed }}
+                </div>
+                <span class="font-bold font-mono text-sm text-slate-900 dark:text-slate-100 tabular-nums">
+                  {{ sub.currentPropertyCount }} / {{ isUnlimitedQuota(sub.maxPropertiesAllowed) ? 'Không giới hạn' : sub.maxPropertiesAllowed }}
+                </span>
+              </div>
+
+              <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2">
+                <div>
+                  <span class="font-semibold text-xs text-slate-700 dark:text-slate-300 block">Nhân sự RBAC</span>
+                  <span class="text-xs text-slate-500 dark:text-slate-400">
+                    @if (computeQuotaUtilizationPercent(sub.currentStaffCount ?? 0, sub.maxStaffAllowed); as pct) {
+                      <span class="tabular-nums">Đã dùng {{ pct }}%</span>
+                    } @else {
+                      <span>Không giới hạn</span>
+                    }
                   </span>
                 </div>
-                <div class="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
-                  <div
-                    class="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                    [style.width.%]="(sub.currentPropertyCount / (sub.maxPropertiesAllowed >= 999 ? 10 : sub.maxPropertiesAllowed)) * 100"
-                  ></div>
-                </div>
-                <div class="text-[11px] text-slate-600 mt-1">
-                  Đã kết nối {{ sub.currentPropertyCount }} chi nhánh hoạt động
-                </div>
+                <span class="font-bold font-mono text-sm text-slate-900 dark:text-slate-100 tabular-nums">
+                  {{ sub.currentStaffCount ?? 0 }} / {{ isUnlimitedQuota(sub.maxStaffAllowed) ? 'Không giới hạn' : sub.maxStaffAllowed }}
+                </span>
               </div>
             </div>
           </div>
 
-          <!-- Quota Alert if Near Limit -->
-          @if (sub.isNearQuota) {
-            <div class="mt-6 p-4 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center gap-3">
-              <i class="pi pi-exclamation-triangle text-amber-600 text-lg shrink-0"></i>
-              <div class="text-xs text-amber-800">
-                <strong>Cảnh báo hạn mức:</strong> Khách sạn của bạn đã sử dụng trên 80% số lượng phòng cho phép trong gói.
-                Để tiếp tục thêm phòng mới hoặc mở chi nhánh tiếp theo, vui lòng nâng cấp lên gói cao hơn bên dưới.
-              </div>
-            </div>
-          }
+          <div class="lg:col-span-7">
+            <app-chart-card
+              title="Mức tiêu thụ hạn ngạch tài nguyên SaaS"
+              [subtitle]="quotaChartSubtitle()"
+              chartType="bar"
+              [labels]="quotaChartLabels()"
+              [datasets]="quotaChartDatasets()"
+              [loading]="isLoading()"
+              [error]="loadError()"
+              valueUnit="đơn vị"
+              [heightPx]="250"
+              emptyTitle="Chưa có dữ liệu hạn ngạch"
+              emptyDescription="Chưa nhận được thông tin hạn ngạch gói cước hiện tại."
+              (retry)="loadData()"
+            />
+          </div>
         </div>
+      } @else if (isLoading() || loadError()) {
+        <app-chart-card
+          title="Mức tiêu thụ hạn ngạch tài nguyên SaaS"
+          subtitle="Theo dõi dung lượng phòng, chi nhánh và nhân sự theo gói cước"
+          chartType="bar"
+          [labels]="[]"
+          [datasets]="[]"
+          [loading]="isLoading()"
+          [error]="loadError()"
+          (retry)="loadData()"
+        />
       }
 
-      <!-- Package Comparison Catalog -->
+      <!-- Billing Cycle Switch & Plans Grid -->
       <div class="space-y-4">
-        <div>
-          <h2 class="text-xl font-bold text-slate-900">Danh mục gói cước chuyển đổi số khách sạn</h2>
-          <p class="text-xs text-slate-600">Lựa chọn gói dịch vụ tối ưu theo quy mô buồng phòng thực tế của khách sạn.</p>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">Bảng giá gói dịch vụ</h2>
+            <p class="text-xs text-slate-600 dark:text-slate-400">Cập nhật trực tiếp từ danh mục gói cước của nền tảng.</p>
+          </div>
+
+          <div class="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 self-start">
+            <button
+              type="button"
+              (click)="billingCycle.set(0)"
+              [attr.aria-pressed]="billingCycle() === 0"
+              class="min-h-11 px-4 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              [ngClass]="billingCycle() === 0 ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs' : 'text-slate-600 dark:text-slate-300'"
+            >
+              Thanh toán Tháng
+            </button>
+            <button
+              type="button"
+              (click)="billingCycle.set(1)"
+              [attr.aria-pressed]="billingCycle() === 1"
+              class="min-h-11 px-4 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              [ngClass]="billingCycle() === 1 ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-300'"
+            >
+              Thanh toán Năm (Tiết kiệm)
+            </button>
+          </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           @for (plan of plans(); track plan.tier) {
             <div
-              class="relative flex flex-col rounded-2xl bg-white border transition-all duration-200 p-6 sm:p-7 shadow-xs hover:shadow-md"
+              class="relative rounded-2xl border bg-white dark:bg-slate-900 p-6 flex flex-col justify-between transition-all"
               [class.border-emerald-500]="plan.isPopular"
-              [class.ring-2]="plan.isPopular"
-              [class.ring-emerald-500/20]="plan.isPopular"
+              [class.shadow-md]="plan.isPopular"
               [class.border-slate-200]="!plan.isPopular"
+              [class.dark:border-slate-700]="!plan.isPopular"
             >
-              <!-- Popular Badge -->
-              @if (plan.badge) {
-                <div class="absolute -top-3 right-6">
-                  <span
-                    class="px-3 py-0.5 rounded-full text-[11px] font-bold shadow-xs"
-                    [class.bg-emerald-600]="plan.isPopular"
-                    [class.text-white]="plan.isPopular"
-                    [class.bg-slate-800]="!plan.isPopular"
-                    [class.text-slate-100]="!plan.isPopular"
-                  >
-                    {{ plan.badge }}
-                  </span>
-                </div>
+              @if (plan.isPopular) {
+                <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-xs font-bold px-3 py-0.5 rounded-full">
+                  {{ plan.badge || 'Phổ biến nhất' }}
+                </span>
               }
 
-              <!-- Plan Header -->
-              <div class="space-y-2">
-                <h3 class="text-lg font-bold text-slate-900">{{ plan.name }}</h3>
-                <p class="text-xs text-slate-600 min-h-[36px]">{{ plan.description }}</p>
-                <div class="pt-2">
-                  <div class="text-3xl font-extrabold text-slate-900 tracking-tight">
-                    {{ plan.monthlyPrice | number:'1.0-0' }} ₫
-                    <span class="text-xs font-normal text-slate-600">/ tháng</span>
-                  </div>
-                  <div class="text-[11px] text-emerald-700 font-medium mt-0.5">
-                    Thanh toán năm: {{ plan.annualPrice | number:'1.0-0' }} ₫ (Tiết kiệm 2 tháng)
-                  </div>
-                </div>
-              </div>
-
-              <!-- Key Limits -->
-              <div class="my-6 py-4 border-y border-slate-100 space-y-2 text-xs">
-                <div class="flex items-center justify-between text-slate-700">
-                  <span class="flex items-center gap-2">
-                    <i class="pi pi-th-large text-emerald-600"></i> Quy mô phòng
-                  </span>
-                  <span class="font-bold text-slate-900">
-                    {{ plan.maxRooms >= 999 ? 'Không giới hạn' : plan.maxRooms + ' phòng' }}
-                  </span>
-                </div>
-                <div class="flex items-center justify-between text-slate-700">
-                  <span class="flex items-center gap-2">
-                    <i class="pi pi-building text-emerald-600"></i> Số chi nhánh
-                  </span>
-                  <span class="font-bold text-slate-900">
-                    {{ plan.maxProperties >= 999 ? 'Không giới hạn' : plan.maxProperties + ' chi nhánh' }}
-                  </span>
-                </div>
-                <div class="flex items-center justify-between text-slate-700">
-                  <span class="flex items-center gap-2">
-                    <i class="pi pi-users text-emerald-600"></i> Tài khoản nhân sự
-                  </span>
-                  <span class="font-bold text-slate-900">
-                    {{ plan.maxStaff >= 999 ? 'Không giới hạn' : plan.maxStaff + ' nhân viên' }}
-                  </span>
-                </div>
-              </div>
-
-              <!-- Feature List -->
-              <div class="flex-1 space-y-2.5 mb-8">
-                <div class="text-xs font-bold text-slate-900 uppercase tracking-wider">Tính năng đi kèm:</div>
-                @for (feat of plan.features; track feat) {
-                  <div class="flex items-start gap-2.5 text-xs text-slate-600">
-                    <i class="pi pi-check text-emerald-600 mt-0.5 shrink-0"></i>
-                    <span>{{ feat }}</span>
-                  </div>
-                }
-              </div>
-
-              <!-- Action Button -->
               <div>
-                @if (currentSub()?.tier === plan.tier) {
-                  <button
-                    type="button"
-                    disabled
-                    class="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200 cursor-not-allowed text-center"
-                  >
-                    <i class="pi pi-check-circle mr-1.5"></i> Đang sử dụng gói này
-                  </button>
-                } @else {
-                  <button
-                    type="button"
-                    (click)="upgradeTo(plan)"
-                    [disabled]="isUpgrading()"
-                    class="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white transition-all shadow-xs cursor-pointer text-center"
-                    [class.bg-emerald-600]="plan.isPopular"
-                    [class.hover:bg-emerald-700]="plan.isPopular"
-                    [class.bg-slate-900]="!plan.isPopular"
-                    [class.hover:bg-slate-800]="!plan.isPopular"
-                  >
-                    @if (isUpgrading()) {
-                      <i class="pi pi-spin pi-spinner mr-1.5"></i> Đang nâng cấp...
-                    } @else {
-                      <i class="pi pi-arrow-up-right mr-1.5"></i> Chuyển sang gói này
-                    }
-                  </button>
-                }
+                <h3 class="text-lg font-bold text-slate-900 dark:text-slate-100">{{ plan.name }}</h3>
+                <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 min-h-[36px]">{{ plan.description }}</p>
+
+                <div class="my-5 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700">
+                  <div class="text-2xl font-black text-slate-900 dark:text-slate-100 tabular-nums">
+                    {{ (billingCycle() === 1 ? plan.annualPrice : plan.monthlyPrice) | number:'1.0-0' }} ₫
+                    <span class="text-xs font-normal text-slate-600 dark:text-slate-400">
+                      / {{ billingCycle() === 1 ? 'năm' : 'tháng' }}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="my-4 py-3 border-y border-slate-100 dark:border-slate-800 space-y-2 text-xs">
+                  <div class="flex justify-between">
+                    <span class="text-slate-600 dark:text-slate-400">Quy mô phòng</span>
+                    <span class="font-bold text-slate-900 dark:text-slate-100 tabular-nums">
+                      {{ isUnlimitedQuota(plan.maxRooms) ? 'Không giới hạn' : plan.maxRooms + ' phòng' }}
+                    </span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-slate-600 dark:text-slate-400">Số chi nhánh</span>
+                    <span class="font-bold text-slate-900 dark:text-slate-100 tabular-nums">
+                      {{ isUnlimitedQuota(plan.maxProperties) ? 'Không giới hạn' : plan.maxProperties + ' chi nhánh' }}
+                    </span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-slate-600 dark:text-slate-400">Tài khoản nhân sự</span>
+                    <span class="font-bold text-slate-900 dark:text-slate-100 tabular-nums">
+                      {{ isUnlimitedQuota(plan.maxStaff) ? 'Không giới hạn' : plan.maxStaff + ' nhân viên' }}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="space-y-2 mb-6">
+                  @for (feat of plan.features; track feat) {
+                    <div class="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300">
+                      <i class="pi pi-check text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" aria-hidden="true"></i>
+                      <span>{{ feat }}</span>
+                    </div>
+                  }
+                </div>
               </div>
+
+              @if (currentSub()?.tier === plan.tier) {
+                <button
+                  type="button"
+                  disabled
+                  class="w-full min-h-11 py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed"
+                >
+                  <i class="pi pi-check-circle mr-1.5" aria-hidden="true"></i> Đang sử dụng gói này
+                </button>
+              } @else {
+                <button
+                  type="button"
+                  (click)="upgradeTo(plan)"
+                  [disabled]="isUpgrading()"
+                  class="w-full min-h-11 py-2.5 px-4 rounded-xl text-xs font-bold text-white transition-colors cursor-pointer disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                  [class.bg-emerald-600]="plan.isPopular"
+                  [class.hover:bg-emerald-700]="plan.isPopular"
+                  [class.bg-slate-900]="!plan.isPopular"
+                  [class.hover:bg-slate-800]="!plan.isPopular"
+                >
+                  {{ isUpgrading() ? 'Đang khởi tạo hóa đơn...' : 'Nâng cấp qua VNPay' }}
+                </button>
+              }
             </div>
           }
         </div>
       </div>
+
+      <!-- Recent Payments History -->
+      @if ((currentSub()?.recentPayments?.length ?? 0) > 0) {
+        <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700/80 overflow-hidden shadow-2xs">
+          <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+            <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">Lịch sử thanh toán gói cước SaaS</h2>
+          </div>
+
+          <!-- Mobile Stacked Cards (<768px) -->
+          <div class="md:hidden divide-y divide-slate-100 dark:divide-slate-800" data-testid="subscriptions-payments-mobile-cards">
+            @for (p of currentSub()?.recentPayments ?? []; track p.id) {
+              <article class="p-4 space-y-2.5 text-xs">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums truncate">
+                      {{ p.invoiceNumber || '—' }}
+                    </div>
+                    <div class="font-mono text-slate-500 dark:text-slate-400 tabular-nums truncate mt-0.5">
+                      Mã GD: {{ p.transactionRef || '—' }}
+                    </div>
+                  </div>
+                  <app-status-badge [status]="p.status" type="payment" />
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 pt-1 tabular-nums">
+                  <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700">
+                    <span class="text-slate-500 dark:text-slate-400 block">Số tiền</span>
+                    <strong class="font-mono font-bold text-slate-900 dark:text-slate-100">{{ p.amount | number:'1.0-0' }} ₫</strong>
+                  </div>
+                  <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700">
+                    <span class="text-slate-500 dark:text-slate-400 block">Cổng thanh toán</span>
+                    <strong class="text-slate-800 dark:text-slate-200">{{ p.method }}</strong>
+                  </div>
+                </div>
+
+                <div class="font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                  Thời gian (UTC+7): {{ (p.paidAtUtc || p.createdAtUtc) | businessDateTime }}
+                </div>
+              </article>
+            }
+          </div>
+
+          <div class="hidden md:block overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+              <thead class="bg-slate-50 dark:bg-slate-800 text-xs font-bold uppercase text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
+                <tr>
+                  <th scope="col" class="py-3 px-4">Số hóa đơn</th>
+                  <th scope="col" class="py-3 px-4">Mã giao dịch</th>
+                  <th scope="col" class="py-3 px-4 text-right">Số tiền</th>
+                  <th scope="col" class="py-3 px-4">Cổng</th>
+                  <th scope="col" class="py-3 px-4">Trạng thái</th>
+                  <th scope="col" class="py-3 px-4">Thời gian (UTC+7)</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                @for (p of currentSub()?.recentPayments ?? []; track p.id) {
+                  <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition-colors">
+                    <td class="py-3 px-4 font-mono font-semibold text-slate-900 dark:text-slate-100 tabular-nums">{{ p.invoiceNumber || '—' }}</td>
+                    <td class="py-3 px-4 font-mono tabular-nums">{{ p.transactionRef || '—' }}</td>
+                    <td class="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{{ p.amount | number:'1.0-0' }} ₫</td>
+                    <td class="py-3 px-4">{{ p.method }}</td>
+                    <td class="py-3 px-4">
+                      <app-status-badge [status]="p.status" type="payment" />
+                    </td>
+                    <td class="py-3 px-4 font-mono tabular-nums">{{ (p.paidAtUtc || p.createdAtUtc) | businessDateTime }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      }
     </div>
   `
 })
 export class SubscriptionsPage implements OnInit {
   private readonly subscriptionService = inject(SubscriptionService);
   private readonly alertService = inject(AlertService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
 
-  isLoading = signal(false);
-  isUpgrading = signal(false);
-  currentSub = signal<TenantSubscriptionDto | null>(null);
-  plans = signal<SubscriptionPackageDto[]>([]);
+  readonly isLoading = signal(false);
+  readonly isUpgrading = signal(false);
+  readonly isConfirming = signal(false);
+  readonly loadError = signal<string | null>(null);
+  readonly billingCycle = signal<0 | 1>(0);
+  readonly currentSub = signal<TenantSubscriptionDto | null>(null);
+  readonly plans = signal<SubscriptionPackageDto[]>([]);
+  readonly lastInitiation = signal<SubscriptionUpgradeInitiationDto | null>(null);
+
+  readonly quotaChartLabels = computed<readonly string[]>(() => {
+    const sub = this.currentSub();
+    if (!sub) return [];
+    return [
+      `Phòng (${this.formatQuotaLimit(sub.maxRoomsAllowed)})`,
+      `Chi nhánh (${this.formatQuotaLimit(sub.maxPropertiesAllowed)})`,
+      `Nhân sự (${this.formatQuotaLimit(sub.maxStaffAllowed)})`
+    ];
+  });
+
+  readonly quotaChartSubtitle = computed(() => {
+    const sub = this.currentSub();
+    if (!sub) return '';
+    const hasUnlimited =
+      this.isUnlimitedQuota(sub.maxRoomsAllowed) ||
+      this.isUnlimitedQuota(sub.maxPropertiesAllowed) ||
+      this.isUnlimitedQuota(sub.maxStaffAllowed);
+    return hasUnlimited
+      ? 'Các tài nguyên ở mức Không giới hạn được hiển thị theo số lượng sử dụng thực tế.'
+      : 'So sánh số lượng đang sử dụng và phần hạn mức còn lại của gói cước hiện tại.';
+  });
+
+  readonly quotaChartDatasets = computed<readonly ChartCardDataset[]>(() => {
+    const sub = this.currentSub();
+    if (!sub) return [];
+
+    const usedRooms = sub.currentRoomCount ?? 0;
+    const usedProps = sub.currentPropertyCount ?? 0;
+    const usedStaff = sub.currentStaffCount ?? 0;
+
+    const remRooms = this.isUnlimitedQuota(sub.maxRoomsAllowed)
+      ? 0
+      : Math.max(0, sub.maxRoomsAllowed - usedRooms);
+    const remProps = this.isUnlimitedQuota(sub.maxPropertiesAllowed)
+      ? 0
+      : Math.max(0, sub.maxPropertiesAllowed - usedProps);
+    const remStaff = this.isUnlimitedQuota(sub.maxStaffAllowed)
+      ? 0
+      : Math.max(0, (sub.maxStaffAllowed ?? 0) - usedStaff);
+
+    const datasets: ChartCardDataset[] = [
+      {
+        label: 'Đang sử dụng',
+        data: [usedRooms, usedProps, usedStaff],
+        backgroundColor: '#059669',
+        borderColor: '#047857'
+      }
+    ];
+
+    const hasAnyFiniteLimit =
+      !this.isUnlimitedQuota(sub.maxRoomsAllowed) ||
+      !this.isUnlimitedQuota(sub.maxPropertiesAllowed) ||
+      !this.isUnlimitedQuota(sub.maxStaffAllowed);
+
+    if (hasAnyFiniteLimit) {
+      datasets.push({
+        label: 'Còn lại theo hạn mức',
+        data: [remRooms, remProps, remStaff],
+        backgroundColor: '#cbd5e1',
+        borderColor: '#94a3b8'
+      });
+    }
+
+    return datasets;
+  });
+
+  readonly activePendingPayment = computed(() => {
+    const subPending = this.currentSub()?.pendingPayment;
+    if (subPending) return subPending;
+    const init = this.lastInitiation();
+    if (!init || init.paymentStatus !== 'Pending') return null;
+    return {
+      id: init.paymentId,
+      amount: init.amount,
+      method: 'VNPay',
+      status: init.paymentStatus,
+      transactionRef: init.transactionRef,
+      invoiceNumber: init.invoiceNumber,
+      createdAtUtc: new Date().toISOString(),
+      targetTier: init.targetTier,
+      billingCycle: init.billingCycle
+    };
+  });
+
+  readonly pendingPaymentUrl = computed(() => this.lastInitiation()?.paymentUrl ?? null);
+
+  isUnlimitedQuota(max: number | undefined | null): boolean {
+    return max === undefined || max === null || max >= 999;
+  }
+
+  formatQuotaLimit(max: number | undefined | null): string {
+    return this.isUnlimitedQuota(max) ? 'Không giới hạn' : `Tối đa ${max}`;
+  }
+
+  computeQuotaUtilizationPercent(used: number, max: number | undefined | null): number | null {
+    if (this.isUnlimitedQuota(max) || !max || max <= 0) {
+      return null;
+    }
+    return Math.min(100, Math.round((used / max) * 100));
+  }
 
   ngOnInit(): void {
+    const vnpQuery: Record<string, string> = {};
+    const snapshotParams = this.route.snapshot.queryParamMap;
+    for (const key of snapshotParams.keys) {
+      const val = snapshotParams.get(key);
+      if (key.startsWith('vnp_') && val) {
+        vnpQuery[key] = val;
+      }
+    }
+
+    if (vnpQuery['vnp_TxnRef'] && vnpQuery['vnp_SecureHash']) {
+      this.isConfirming.set(true);
+      this.subscriptionService
+        .verifyVnpayReturn(vnpQuery)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: res => {
+            this.isConfirming.set(false);
+            this.alertService.toastSuccess(res.message, 'Thanh toán hoàn tất');
+            this.loadData();
+          },
+          error: err => {
+            this.isConfirming.set(false);
+            this.alertService.error(err?.error?.message || 'Xác thực chữ ký VNPay thất bại.');
+            this.loadData();
+          }
+        });
+      return;
+    }
+
     this.loadData();
   }
 
   loadData(): void {
     this.isLoading.set(true);
+    this.loadError.set(null);
 
-    this.subscriptionService.getCurrentSubscription().subscribe({
-      next: res => {
-        this.currentSub.set(res);
-        this.isLoading.set(false);
-      },
-      error: err => {
-        this.isLoading.set(false);
-        this.alertService.error('Không thể tải thông tin gói cước: ' + (err?.error?.message || err?.message || 'Lỗi kết nối'));
-      }
-    });
-
-    this.subscriptionService.getAvailablePlans().subscribe({
-      next: res => {
-        this.plans.set(res);
-      },
-      error: err => {
-        this.alertService.error('Không thể tải danh sách gói cước: ' + (err?.error?.message || err?.message || 'Lỗi kết nối'));
-      }
-    });
-  }
-
-  upgradeTo(plan: SubscriptionPackageDto): void {
-    if (confirm(`Xác nhận chuyển đổi sang "${plan.name}" với giá ${plan.monthlyPrice.toLocaleString('vi-VN')} ₫/tháng?`)) {
-      this.isUpgrading.set(true);
-      this.subscriptionService.upgradeSubscription(plan.tier).subscribe({
-        next: updated => {
-          this.currentSub.set(updated);
-          this.isUpgrading.set(false);
-          this.alertService.toastSuccess(`Đã chuyển đổi sang ${plan.name}. Hạn mức tài nguyên đã được cập nhật ngay lập tức.`, 'Nâng cấp thành công');
+    this.subscriptionService
+      .getCurrentSubscription()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: res => {
+          this.currentSub.set(res);
+          this.isLoading.set(false);
         },
-        error: () => {
-          this.isUpgrading.set(false);
-          this.alertService.toastError('Có lỗi xảy ra trong quá trình cập nhật gói cước. Vui lòng thử lại.', 'Nâng cấp thất bại');
+        error: err => {
+          this.isLoading.set(false);
+          const msg = err?.error?.message || err?.message || 'Lỗi kết nối';
+          this.loadError.set(`Không thể tải thông tin gói cước: ${msg}`);
+          this.alertService.error('Không thể tải thông tin gói cước: ' + msg);
         }
       });
+
+    this.subscriptionService
+      .getAvailablePlans()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: res => this.plans.set(res || []),
+        error: err => this.alertService.error('Không thể tải danh sách gói cước: ' + (err?.error?.message || err?.message || 'Lỗi kết nối'))
+      });
+  }
+
+  async upgradeTo(plan: SubscriptionPackageDto): Promise<void> {
+    const cycle = this.billingCycle();
+    const price = cycle === 1 ? plan.annualPrice : plan.monthlyPrice;
+    const cycleText = cycle === 1 ? 'năm' : 'tháng';
+    const confirmed = await this.alertService.confirmAction({
+      title: 'Khởi tạo hóa đơn nâng cấp?',
+      text: `Khởi tạo hóa đơn nâng cấp "${plan.name}" (${price.toLocaleString('vi-VN')} ₫/${cycleText}) qua VNPay?`,
+      confirmButtonText: 'Khởi tạo thanh toán',
+      cancelButtonText: 'Hủy',
+      icon: 'question'
+    });
+    if (!confirmed) {
+      return;
     }
+
+    const returnUrl = typeof window !== 'undefined' ? `${window.location.origin}/subscriptions` : undefined;
+    this.isUpgrading.set(true);
+    this.subscriptionService
+      .upgradeSubscription(plan.tier, cycle, returnUrl)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: init => {
+          this.isUpgrading.set(false);
+          this.lastInitiation.set(init);
+          this.alertService.toastInfo(init.message, 'Chờ hoàn tất thanh toán');
+          this.loadData();
+        },
+        error: err => {
+          this.isUpgrading.set(false);
+          this.alertService.toastError(err?.error?.message || 'Không thể khởi tạo yêu cầu nâng cấp.', 'Lỗi khởi tạo');
+        }
+      });
   }
 }

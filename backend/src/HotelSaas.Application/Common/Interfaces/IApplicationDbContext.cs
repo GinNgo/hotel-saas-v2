@@ -47,11 +47,23 @@ public interface IApplicationDbContext
     /// <summary>Tenant subscriptions.</summary>
     DbSet<Subscription> Subscriptions { get; }
 
+    /// <summary>SaaS subscription billing payment records.</summary>
+    DbSet<SubscriptionPayment> SubscriptionPayments => throw new NotImplementedException();
+
     /// <summary>Cấu hình gói dịch vụ hệ thống.</summary>
     DbSet<SubscriptionPlan> SubscriptionPlans { get; }
 
     /// <summary>Banner thông báo và quảng cáo hệ thống.</summary>
     DbSet<SystemBanner> SystemBanners { get; }
+
+    /// <summary>In-app notifications stored for users within a tenant.</summary>
+    DbSet<Notification> Notifications => throw new NotImplementedException();
+
+    /// <summary>Time-boxed platform support access grants authorized by tenant owners.</summary>
+    DbSet<SupportAccessGrant> SupportAccessGrants => throw new NotImplementedException();
+
+    /// <summary>Audit trail of platform support access actions under grants.</summary>
+    DbSet<SupportAuditLog> SupportAuditLogs => throw new NotImplementedException();
 
     /// <summary>Branch-specific early check-in and late check-out surcharge policies.</summary>
     DbSet<PropertySurchargePolicy> PropertySurchargePolicies { get; }
@@ -88,6 +100,12 @@ public interface IApplicationDbContext
 
     /// <summary>Đánh giá và nhận xét của khách lưu trú (Guest Reviews).</summary>
     DbSet<GuestReview> GuestReviews { get; }
+
+    /// <summary>Hàng đợi công việc dọn phòng (Housekeeping Tasks).</summary>
+    DbSet<HousekeepingTask> HousekeepingTasks => throw new NotImplementedException();
+
+    /// <summary>Mã khuyến mãi và ưu đãi giảm giá.</summary>
+    DbSet<Promotion> Promotions => throw new NotImplementedException();
 
     /// <summary>Nhật ký sử dụng các tính năng AI (AI Usage Logs).</summary>
     DbSet<AiUsageLog> AiUsageLogs { get; }

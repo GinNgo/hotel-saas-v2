@@ -55,11 +55,11 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=hotel_saas_production;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres};Pooling=true;"
       ConnectionStrings__RedisConnection: "redis:6379"
-      JwtSettings__SecretKey: "${JWT_SECRET_KEY:-HotelSaasPlatform2026EnterpriseSuperSecretKey32BytesLong!}"
+      JwtSettings__SecretKey: "${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}"
       JwtSettings__Issuer: "HotelSaas"
       JwtSettings__Audience: "HotelSaasClient"
       JwtSettings__AccessTokenExpirationMinutes: "120"
-      AllowCloudDevSeed: "true"
+      AllowCloudDevSeed: "false"
     ports:
       - "5000:5000"
     depends_on:

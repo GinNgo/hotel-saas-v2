@@ -31,6 +31,14 @@ namespace HotelSaas.Application.Tests.Public;
 [Collection("RealDatabaseTests")]
 public sealed class CreateGuestHoldPhoneVerificationTests
 {
+    private sealed class StubHostEnvironment(string environmentName) : Microsoft.Extensions.Hosting.IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = environmentName;
+        public string ApplicationName { get; set; } = "HotelSaas.Tests";
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
+    }
+
     private static IFirebaseAuthService CreateFirebaseAuthService()
     {
         var dict = new Dictionary<string, string?>
@@ -38,7 +46,10 @@ public sealed class CreateGuestHoldPhoneVerificationTests
             ["Firebase:ProjectId"] = "hotelsaas-platform-test"
         };
         var config = new ConfigurationBuilder().AddInMemoryCollection(dict).Build();
-        return new FirebaseAuthService(config, NullLogger<FirebaseAuthService>.Instance);
+        return new FirebaseAuthService(
+            config,
+            NullLogger<FirebaseAuthService>.Instance,
+            new StubHostEnvironment("Testing"));
     }
 
     [Fact]
