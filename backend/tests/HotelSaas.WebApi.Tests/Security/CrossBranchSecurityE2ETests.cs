@@ -193,7 +193,7 @@ public sealed class CrossBranchSecurityE2ETests
         var resBId = Guid.NewGuid();
         var resCId = Guid.NewGuid();
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
         var nowUtc = DateTime.UtcNow;
 
         try
