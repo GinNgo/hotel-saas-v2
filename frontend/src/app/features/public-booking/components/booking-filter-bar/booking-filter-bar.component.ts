@@ -137,8 +137,8 @@ export interface RecentSearchItem {
 
       <!-- 2. LƯỚI INPUT TÌM KIẾM CHÍNH -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-        <!-- Cột 1: Điểm đến / Địa danh / Khu du lịch / Tên cơ sở (4 cột) -->
-        <div #destinationGroup class="lg:col-span-4 relative flex flex-col">
+        <!-- Cột 1: Điểm đến / Địa danh / Khu du lịch / Tên cơ sở (3 cột) -->
+        <div #destinationGroup class="lg:col-span-3 relative flex flex-col">
           <div class="flex items-center justify-between mb-1.5 min-h-11">
             <label for="booking-destination" class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
               Địa danh, Khu du lịch hoặc Cơ sở
@@ -322,10 +322,10 @@ export interface RecentSearchItem {
           />
         </div>
 
-        <!-- Cột 3: Số khách & Nút Tìm kiếm (3 cột) -->
-        <div class="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
+        <!-- Cột 3: Số khách & Nút Tìm kiếm (4 cột) -->
+        <div class="lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
           <div class="flex flex-col">
-            <div class="flex items-center justify-between mb-1.5 h-6">
+            <div class="flex items-center justify-between mb-1.5 min-h-11">
               <label
                 class="block text-xs font-semibold uppercase tracking-wider text-slate-500 truncate"
               >
@@ -343,7 +343,7 @@ export interface RecentSearchItem {
               >
                 -
               </button>
-              <div class="flex-1 text-center text-xs font-semibold text-slate-800 truncate tabular-nums" aria-live="polite" aria-atomic="true">
+              <div class="flex-1 text-center text-xs font-semibold text-slate-800 whitespace-nowrap px-1 tabular-nums" aria-live="polite" aria-atomic="true">
                 {{ guests() }} khách
               </div>
               <button
@@ -360,13 +360,13 @@ export interface RecentSearchItem {
           </div>
 
           <div class="flex flex-col">
-            <div class="mb-1.5 h-6 invisible" aria-hidden="true">
+            <div class="mb-1.5 min-h-11 invisible" aria-hidden="true">
               <span class="block text-xs font-semibold uppercase">Tìm kiếm</span>
             </div>
             <button
               type="button"
               (click)="emitSearch()"
-              class="w-full h-11 px-4 bg-[var(--brand-cta)] hover:bg-[var(--brand-cta-hover)] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+              class="w-full h-11 px-4 bg-[var(--brand-cta)] hover:bg-[var(--brand-cta-hover)] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer"
             >
               <i class="pi pi-search"></i>
               <span>Tìm phòng</span>

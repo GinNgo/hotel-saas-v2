@@ -34,7 +34,7 @@ export interface BookingDateRange {
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
           <!-- Cột Từ ngày (Check-in) -->
           <div class="relative flex flex-col">
-            <div class="flex items-center justify-between mb-1.5 h-6">
+            <div class="flex items-center justify-between mb-1.5 min-h-11">
               <label
                 [for]="checkInInputId"
                 class="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 truncate"
@@ -69,7 +69,7 @@ export interface BookingDateRange {
 
           <!-- Cột Đến ngày (Check-out) -->
           <div class="relative flex flex-col">
-            <div class="flex items-center justify-between mb-1.5 h-6">
+            <div class="flex items-center justify-between mb-1.5 min-h-11">
               <label
                 [for]="checkOutInputId"
                 class="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 truncate"
@@ -111,7 +111,7 @@ export interface BookingDateRange {
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-start">
           <!-- Ngày sử dụng -->
           <div class="flex flex-col">
-            <div class="flex items-center justify-between mb-1.5 h-6">
+            <div class="flex items-center justify-between mb-1.5 min-h-11">
               <label
                 [for]="hourlyDateInputId"
                 class="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 truncate"
@@ -145,7 +145,7 @@ export interface BookingDateRange {
 
           <!-- Giờ nhận phòng -->
           <div class="flex flex-col">
-            <div class="flex items-center justify-between mb-1.5 h-6">
+            <div class="flex items-center justify-between mb-1.5 min-h-11">
               <label
                 [for]="checkInTimeSelectId"
                 class="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 truncate"
@@ -174,7 +174,7 @@ export interface BookingDateRange {
 
           <!-- Số giờ sử dụng -->
           <div class="flex flex-col">
-            <div class="flex items-center justify-between mb-1.5 h-6">
+            <div class="flex items-center justify-between mb-1.5 min-h-11">
               <label
                 [for]="durationHoursSelectId"
                 class="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 truncate"
@@ -208,7 +208,7 @@ export interface BookingDateRange {
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
           <!-- Đêm nhận phòng -->
           <div class="flex flex-col">
-            <div class="flex items-center justify-between mb-1.5 h-6">
+            <div class="flex items-center justify-between mb-1.5 min-h-11">
               <label
                 [for]="overnightDateInputId"
                 class="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 truncate"
@@ -243,7 +243,7 @@ export interface BookingDateRange {
 
           <!-- Trả phòng sáng hôm sau -->
           <div class="flex flex-col">
-            <div class="flex items-center justify-between mb-1.5 h-6">
+            <div class="flex items-center justify-between mb-1.5 min-h-11">
               <label
                 [for]="overnightCheckOutId"
                 class="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 truncate"
