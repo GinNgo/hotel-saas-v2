@@ -44,6 +44,7 @@ public static class SeedData
             ("PROMOTIONS",    "Promotions",           "PROMOTIONS"),
             ("REVIEWS",       "Guest Reviews",        "REVIEWS"),
             ("AI_FEATURES",   "AI Features",          "AI_FEATURES"),
+            ("AUDIT_LOGS",    "Audit Logs",           "STAFF"),
         };
 
         foreach (var (code, name, module) in permissionDefs)
@@ -105,7 +106,7 @@ public static class SeedData
             ("HOUSEKEEPING", All), ("PAYMENTS", All), ("INVOICES", All),
             ("REPORTS", All), ("STAFF", All), ("ROLES", All),
             ("SETTINGS", All), ("SUBSCRIPTIONS", All), ("PROMOTIONS", All),
-            ("REVIEWS", All), ("AI_FEATURES", All));
+            ("REVIEWS", All), ("AI_FEATURES", All), ("AUDIT_LOGS", All));
 
         // ── OWNER ─────────────────────────────────────────────────────────
         var ownerId = Guid.NewGuid();
@@ -123,7 +124,7 @@ public static class SeedData
             ("HOUSEKEEPING", All), ("PAYMENTS", All), ("INVOICES", All),
             ("REPORTS", All), ("STAFF", All), ("ROLES", All),
             ("SETTINGS", All), ("SUBSCRIPTIONS", All), ("PROMOTIONS", All),
-            ("REVIEWS", All), ("AI_FEATURES", All));
+            ("REVIEWS", All), ("AI_FEATURES", All), ("AUDIT_LOGS", Read));
 
         // ── MANAGER ───────────────────────────────────────────────────────
         var managerId = Guid.NewGuid();
@@ -140,7 +141,7 @@ public static class SeedData
             ("RESERVATIONS", All), ("GUESTS", All), ("CHECK_IN_OUT", All), ("HOUSEKEEPING", All),
             ("PAYMENTS", All), ("INVOICES", All), ("REPORTS", All),
             ("STAFF", ReadCreate), ("ROLES", Read), ("SETTINGS", Read),
-            ("PROMOTIONS", All), ("REVIEWS", All), ("AI_FEATURES", All));
+            ("PROMOTIONS", All), ("REVIEWS", All), ("AI_FEATURES", All), ("AUDIT_LOGS", Read));
 
         // ── RECEPTIONIST ──────────────────────────────────────────────────
         var receptionistId = Guid.NewGuid();
@@ -383,6 +384,10 @@ public static class SeedData
             ["OWNER", "MANAGER", "SUPER_ADMIN"], All, exactMatch: false);
         await UpsertRolePermissionAsync(context, "HOUSEKEEPING", "Housekeeping", "HOUSEKEEPING",
             ["HOUSEKEEPER"], 7, exactMatch: false);
+        await UpsertRolePermissionAsync(context, "AUDIT_LOGS", "Audit Logs", "STAFF",
+            ["OWNER", "MANAGER"], Read, exactMatch: false);
+        await UpsertRolePermissionAsync(context, "AUDIT_LOGS", "Audit Logs", "STAFF",
+            ["SUPER_ADMIN"], All, exactMatch: false);
 
         // Also ensure platform admin data is seeded even if roles already exist
         await SeedPlatformAdminDataAsync(context);
@@ -415,7 +420,7 @@ public static class SeedData
         }
 
         var roles = await context.AccessRoles
-            .Where(r => roleCodes.Contains(r.Code))
+            .Where(r => r.IsSystemRole && roleCodes.Contains(r.Code))
             .ToListAsync();
 
         var modified = false;

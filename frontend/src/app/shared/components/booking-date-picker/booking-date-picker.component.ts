@@ -41,7 +41,7 @@ export interface BookingDateRange {
               >
                 Nhận phòng
               </label>
-              <span class="text-xs text-indigo-600 dark:text-indigo-400 font-medium shrink-0 tabular-nums">Từ 14:00</span>
+              <span class="text-xs text-indigo-600 dark:text-indigo-400 font-medium shrink-0 tabular-nums">Từ {{ checkInTimeHint() }}</span>
             </div>
             <div class="relative">
               <p-datepicker
@@ -215,7 +215,7 @@ export interface BookingDateRange {
               >
                 Đêm nhận phòng
               </label>
-              <span class="text-xs text-indigo-600 dark:text-indigo-400 font-medium shrink-0 tabular-nums">Nhận 21:00 - 23:00</span>
+              <span class="text-xs text-indigo-600 dark:text-indigo-400 font-medium shrink-0 tabular-nums">{{ overnightWindowHint() }}</span>
             </div>
             <div class="relative">
               <p-datepicker
@@ -263,7 +263,7 @@ export interface BookingDateRange {
                 <i class="pi pi-sun text-amber-500 dark:text-amber-400" aria-hidden="true"></i>
                 <span class="truncate">{{ overnightCheckOutDateStr() }}</span>
               </span>
-              <span class="text-xs text-slate-600 dark:text-slate-400 shrink-0">Trước 12:00 trưa</span>
+              <span class="text-xs text-slate-600 dark:text-slate-400 shrink-0 tabular-nums">Trước {{ checkOutTimeHint() }}</span>
             </output>
             <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate h-4">
               Khung giờ trả phòng tiêu chuẩn qua đêm
@@ -303,6 +303,9 @@ export class BookingDatePickerComponent implements OnInit {
   readonly checkOutDate = input<string>('');
   readonly checkInTime = input<string>('12:00');
   readonly durationHours = input<number>(2);
+  readonly checkInTimeHint = input<string>('14:00');
+  readonly checkOutTimeHint = input<string>('12:00');
+  readonly overnightWindowHint = input<string>('21:00 - 10:00');
 
   readonly checkInDateChange = output<string>();
   readonly checkOutDateChange = output<string>();
@@ -318,9 +321,9 @@ export class BookingDatePickerComponent implements OnInit {
   readonly isMobileViewport = signal<boolean>(this.detectMobileViewport());
 
   readonly hourlyTimeSlots: readonly string[] = [
-    '08:00', '09:00', '10:00', '11:00', '12:00',
-    '13:00', '14:00', '15:00', '16:00', '17:00',
-    '18:00', '19:00', '20:00', '21:00', '22:00', '23:00'
+    '07:00', '08:00', '09:00', '10:00', '11:00', '12:00',
+    '13:00', '14:00', '15:00', '16:00', '17:00', '18:00',
+    '19:00', '20:00', '21:00', '22:00', '23:00'
   ];
 
   readonly durationOptions: readonly number[] = [1, 2, 3, 4, 5, 6, 8, 12];

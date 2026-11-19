@@ -117,7 +117,9 @@ public sealed class GetPrintableInvoiceQueryHandler : IRequestHandler<GetPrintab
         else
         {
             var roomTypeName = reservation.Room?.RoomType?.Name ?? snapshot?.RoomTypeName ?? "Phòng Tiêu Chuẩn";
-            var roomNumber = reservation.Room?.RoomNumber ?? "Chưa chỉ định";
+            var roomNumber = isAuthorizedFullPii
+                ? (reservation.Room?.RoomNumber ?? "Chưa chỉ định")
+                : (string.IsNullOrWhiteSpace(reservation.Room?.RoomNumber) ? "Chưa chỉ định" : "***");
             if (snapshot?.RentalType == RentalType.Hourly)
             {
                 var hours = Math.Max(1, (int)Math.Ceiling((snapshot.EndAtUtc - snapshot.StartAtUtc).TotalHours));
@@ -154,10 +156,12 @@ public sealed class GetPrintableInvoiceQueryHandler : IRequestHandler<GetPrintab
             Hotline = hotline,
             LogoUrl = logoUrl,
             PropertyName = propertyName,
-            GuestName = reservation.GuestName,
+            GuestName = isAuthorizedFullPii ? reservation.GuestName : MaskGuestName(reservation.GuestName),
             GuestEmail = isAuthorizedFullPii ? reservation.GuestEmail : PrintHelper.MaskEmail(reservation.GuestEmail),
             GuestPhone = isAuthorizedFullPii ? (reservation.GuestPhone ?? string.Empty) : PrintHelper.MaskPhone(reservation.GuestPhone),
-            RoomNumber = reservation.Room?.RoomNumber ?? string.Empty,
+            RoomNumber = isAuthorizedFullPii
+                ? (reservation.Room?.RoomNumber ?? string.Empty)
+                : (string.IsNullOrWhiteSpace(reservation.Room?.RoomNumber) ? string.Empty : "***"),
             RoomTypeName = reservation.Room?.RoomType?.Name ?? snapshot?.RoomTypeName ?? string.Empty,
             RentalType = rentalType,
             CheckInDate = reservation.CheckInDate,
@@ -172,14 +176,41 @@ public sealed class GetPrintableInvoiceQueryHandler : IRequestHandler<GetPrintab
             Status = remainingAmount <= 0 ? "ĐÃ THANH TOÁN ĐỦ" : "CÒN CÔNG NỢ",
             PaymentMethod = completedNonRefundPayments.OrderByDescending(p => p.CreatedAtUtc).Select(p => p.Method.ToString()).FirstOrDefault()
                 ?? reservation.PaymentMethodPreference.ToString(),
-            VietQrImageUrl = vietQrUrl,
-            ShowVietQrCode = showVietQr,
-            BankAccountNumber = bankAcc,
+            VietQrImageUrl = isAuthorizedFullPii ? vietQrUrl : string.Empty,
+            ShowVietQrCode = isAuthorizedFullPii && showVietQr,
+            BankAccountNumber = isAuthorizedFullPii ? bankAcc : MaskBankAccountNumber(bankAcc),
             BankAccountHolder = bankHolder,
             BankName = bankName,
             CheckInPolicyText = printConfig?.CheckInPolicyText ?? "Nhận phòng từ 14:00 - Trả phòng trước 12:00. Vui lòng xuất trình CCCD/Hộ chiếu khi làm thủ tục.",
             FooterNote = printConfig?.FooterNote ?? "Cảm ơn Quý khách đã tin tưởng và sử dụng dịch vụ của chúng tôi! Hẹn gặp lại Quý khách.",
             Items = lineItems
         };
+    }
+
+    private static string MaskGuestName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return string.Empty;
+        }
+
+        var words = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(' ', words.Select(w => w.Length <= 1 ? "*" : $"{w[0]}***"));
+    }
+
+    private static string MaskBankAccountNumber(string? accountNumber)
+    {
+        if (string.IsNullOrWhiteSpace(accountNumber))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = accountNumber.Trim();
+        if (trimmed.Length <= 4)
+        {
+            return "****";
+        }
+
+        return $"{new string('*', trimmed.Length - 3)}{trimmed[^3..]}";
     }
 }

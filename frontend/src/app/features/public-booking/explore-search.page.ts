@@ -66,7 +66,7 @@ interface TenantBrandFacet {
   template: `
     <div class="min-h-screen bg-[var(--surface-canvas)] font-sans pb-20">
       <!-- 1. TOP HEADER & SEARCH BAR BANNER -->
-      <div class="bg-[var(--brand-primary)] text-white pt-10 pb-12 px-4 sm:px-6 lg:px-8 border-b border-white/10">
+      <div class="bg-[#0D2E28] dark:bg-[#0B1916] text-white pt-10 pb-12 px-4 sm:px-6 lg:px-8 border-b border-white/10">
         <div class="max-w-7xl mx-auto space-y-4">
           <!-- Breadcrumb -->
           <nav class="flex items-center gap-2 text-xs text-slate-300">
@@ -77,7 +77,7 @@ interface TenantBrandFacet {
 
           <div class="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h1 class="font-display text-2xl sm:text-4xl font-normal text-[var(--surface-canvas)] tracking-tight">
+              <h1 class="font-display text-2xl sm:text-4xl font-normal text-white tracking-tight">
                 {{ pageTitle() }}
               </h1>
               <p class="text-xs sm:text-sm text-slate-300 mt-1">
@@ -312,6 +312,36 @@ interface TenantBrandFacet {
 
           <!-- CỘT PHẢI: KẾT QUẢ TÌM KIẾM & DANH SÁCH KHÁCH SẠN (9 CỘT) -->
           <main class="lg:col-span-9 space-y-5">
+            @if (promoCode(); as activePromo) {
+              <div
+                data-testid="active-promo-banner"
+                class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-2xs"
+              >
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <span class="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                    <i class="pi pi-ticket text-sm" aria-hidden="true"></i>
+                  </span>
+                  <div class="min-w-0">
+                    <p class="text-xs font-bold text-emerald-950 truncate">
+                      Đang áp dụng mã khuyến mãi: <span class="font-mono uppercase">{{ activePromo }}</span>
+                    </p>
+                    <p class="text-[11px] text-emerald-800">
+                      Mã ưu đãi sẽ được tự động mang sang trang chi tiết và giữ phòng.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  (click)="clearPromoCode()"
+                  aria-label="Xóa mã khuyến mãi"
+                  class="min-h-11 px-3 py-1.5 rounded-xl bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <i class="pi pi-times text-[11px]" aria-hidden="true"></i>
+                  <span>Bỏ mã</span>
+                </button>
+              </div>
+            }
+
             @if (searchFilter().userLatitude != null && searchFilter().userLongitude != null) {
               <div
                 data-testid="active-gps-banner"
@@ -398,12 +428,12 @@ interface TenantBrandFacet {
                     (click)="switchViewMode('map')"
                     class="min-h-11 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
                     [class.bg-[var(--brand-primary)]]="viewMode() === 'map'"
-                    [class.text-white]="viewMode() === 'map'"
+                    [class.text-[var(--brand-primary-fg)]]="viewMode() === 'map'"
                     [class.shadow-2xs]="viewMode() === 'map'"
                     [class.text-slate-500]="viewMode() !== 'map'"
                     [class.hover:text-slate-800]="viewMode() !== 'map'"
                   >
-                    <i class="pi pi-map text-xs text-amber-300"></i>
+                    <i class="pi pi-map text-xs" [class.text-amber-500]="viewMode() !== 'map'"></i>
                     <span>Bản đồ Google Maps</span>
                   </button>
                 </div>
@@ -525,7 +555,7 @@ interface TenantBrandFacet {
                                 {{ property.tenantBrandName }}
                               </span>
                               <h3 class="font-display text-base sm:text-lg font-bold text-slate-900 group-hover:text-[var(--brand-cta)] transition-colors mt-0.5">
-                                <a [routerLink]="['/booking/properties', property.slug]" [queryParams]="searchFilter()">
+                                <a [routerLink]="['/booking/properties', property.slug]" [queryParams]="propertyLinkQueryParams()">
                                   {{ property.name }}
                                 </a>
                               </h3>
@@ -618,7 +648,7 @@ interface TenantBrandFacet {
                             </button>
                             <a
                               [routerLink]="['/booking/properties', property.slug]"
-                              [queryParams]="searchFilter()"
+                              [queryParams]="propertyLinkQueryParams()"
                               class="min-h-11 px-5 py-2.5 rounded-xl text-xs font-bold bg-[var(--brand-cta)] hover:bg-[var(--brand-cta-hover)] text-white transition-all cursor-pointer shadow-sm hover:shadow inline-flex items-center gap-1.5"
                             >
                               <span>Xem phòng &amp; Đặt ngay</span>
@@ -718,7 +748,7 @@ interface TenantBrandFacet {
                               </span>
                               <span
                                 class="text-[10px] px-2 py-0.5 rounded-md font-semibold border"
-                                [ngClass]="selectedMapProperty()?.propertyId === property.propertyId ? 'bg-[var(--brand-primary)] text-white border-[var(--brand-primary)]' : 'bg-emerald-50 text-emerald-700 border-emerald-100'"
+                                [ngClass]="selectedMapProperty()?.propertyId === property.propertyId ? 'bg-[var(--brand-primary)] text-[var(--brand-primary-fg)] border-[var(--brand-primary)]' : 'bg-emerald-50 text-emerald-700 border-emerald-100'"
                               >
                                 {{ selectedMapProperty()?.propertyId === property.propertyId ? 'Đang hiển thị' : 'Định vị' }}
                               </span>
@@ -783,10 +813,10 @@ interface TenantBrandFacet {
                               [href]="getGoogleMapsDirectionsUrl(selected)"
                               target="_blank"
                               rel="noopener noreferrer"
-                              class="min-h-11 px-3 py-1.5 rounded-lg bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white text-[11px] font-semibold inline-flex items-center gap-1 transition-colors"
+                              class="min-h-11 px-3 py-1.5 rounded-lg bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] text-[11px] font-semibold inline-flex items-center gap-1 transition-colors"
                               title="Chỉ đường Google Maps"
                             >
-                              <i class="pi pi-directions text-amber-300 text-[10px]"></i>
+                              <i class="pi pi-directions text-[var(--brand-primary-fg)] text-[10px]"></i>
                               <span>Chỉ đường</span>
                             </a>
                             @if (selected.latitude && selected.longitude) {
@@ -833,7 +863,7 @@ interface TenantBrandFacet {
                                 <button
                                   type="button"
                                   (click)="mapDisplayMode.set('embed')"
-                                  class="min-h-11 px-3.5 py-2 rounded-lg bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white text-xs font-semibold cursor-pointer inline-flex items-center"
+                                  class="min-h-11 px-3.5 py-2 rounded-lg bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] text-xs font-semibold cursor-pointer inline-flex items-center"
                                 >
                                   Chuyển sang Google Maps tìm theo địa chỉ
                                 </button>
@@ -848,7 +878,7 @@ interface TenantBrandFacet {
                                   [style.top.%]="pin.yPercent"
                                   [attr.aria-label]="pin.property.name"
                                   class="absolute -translate-x-1/2 -translate-y-1/2 min-h-11 px-2.5 py-1 rounded-full text-[11px] font-bold tabular-nums shadow-md border transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                                  [ngClass]="selectedMapProperty()?.propertyId === pin.property.propertyId ? 'bg-[var(--brand-primary)] text-amber-300 border-amber-300 scale-110 z-20' : 'bg-white text-slate-900 border-stone-300 hover:z-10'"
+                                  [ngClass]="selectedMapProperty()?.propertyId === pin.property.propertyId ? 'bg-[var(--brand-primary)] text-[var(--brand-primary-fg)] border-[var(--brand-primary-fg)]/40 scale-110 z-20' : 'bg-white text-slate-900 border-stone-300 hover:z-10'"
                                   [title]="pin.property.name"
                                 >
                                   <i class="pi pi-map-marker text-[10px]"></i>
@@ -885,7 +915,7 @@ interface TenantBrandFacet {
                           <div class="flex items-center gap-2">
                             <a
                               [routerLink]="['/booking/properties', selected.slug]"
-                              [queryParams]="searchFilter()"
+                              [queryParams]="propertyLinkQueryParams()"
                               class="min-h-11 px-4 py-2 rounded-xl bg-[var(--brand-cta)] hover:bg-[var(--brand-cta-hover)] text-white text-xs font-bold inline-flex items-center gap-1.5 transition-all shadow-sm"
                             >
                               <span>Xem phòng &amp; Đặt</span>
@@ -933,6 +963,7 @@ export class ExploreSearchPageComponent implements OnInit {
   readonly destinationSuggestions = signal<DestinationSuggestionDto[]>([]);
   readonly smartFilterChips = signal<SuggestedFilterChipDto[]>([]);
   readonly activeGeoLabel = signal<string | null>(null);
+  readonly promoCode = signal<string | null>(null);
   readonly isMapLocating = signal<boolean>(false);
   readonly mapGeoError = signal<string | null>(null);
 
@@ -1115,11 +1146,14 @@ export class ExploreSearchPageComponent implements OnInit {
     if (kw) return `Kết quả tìm kiếm cho "${kw}"`;
     if (filter.userLatitude != null && filter.userLongitude != null) {
       const label = this.activeGeoLabel();
-      return label
-        ? `Chỗ nghỉ gần ${label.replace(/^📍\s*/, '')}`
-        : 'Chỗ nghỉ gần vị trí của bạn';
+      return label ? `Chỗ nghỉ gần ${label}` : 'Chỗ nghỉ gần vị trí của bạn';
     }
     return 'Khám phá Chỗ Nghỉ & Khách Sạn';
+  });
+
+  readonly propertyLinkQueryParams = computed<Record<string, unknown>>(() => {
+    const code = this.promoCode();
+    return code ? { ...this.searchFilter(), promoCode: code } : { ...this.searchFilter() };
   });
 
   readonly tenantBrandFacets = computed<TenantBrandFacet[]>(() => {
@@ -1235,10 +1269,13 @@ export class ExploreSearchPageComponent implements OnInit {
         };
 
         const stay = readPublicStay(params);
+        const promoParam =
+          typeof params['promoCode'] === 'string' && params['promoCode'].trim()
+            ? params['promoCode'].trim()
+            : null;
+        this.promoCode.set(promoParam);
         const rawKw = String(params['destinationKeyword'] ?? params['destination'] ?? params['search'] ?? '');
         const isGpsText =
-          rawKw.startsWith('📍 ') ||
-          rawKw.includes('📍') ||
           rawKw.includes('GPS') ||
           rawKw.includes('Vị trí hiện tại') ||
           rawKw.includes('Gần vị trí');
@@ -1322,7 +1359,7 @@ export class ExploreSearchPageComponent implements OnInit {
   }
 
   private resolveActiveGeoLabel(lat: number, lng: number): void {
-    this.activeGeoLabel.set('📍 Đang tìm chỗ nghỉ gần vị trí GPS của bạn');
+    this.activeGeoLabel.set('Đang tìm chỗ nghỉ gần vị trí GPS của bạn');
     this.locationService
       ?.reverseGeocode(lat, lng)
       ?.pipe(takeUntilDestroyed(this.destroyRef))
@@ -1330,10 +1367,7 @@ export class ExploreSearchPageComponent implements OnInit {
         const filter = this.searchFilter();
         if (filter.userLatitude !== lat || filter.userLongitude !== lng) return;
         if (info?.displayLabel) {
-          const label = info.displayLabel.startsWith('📍')
-            ? info.displayLabel
-            : `📍 ${info.displayLabel}`;
-          this.activeGeoLabel.set(label);
+          this.activeGeoLabel.set(info.displayLabel.trim());
         }
       });
   }
@@ -1345,8 +1379,6 @@ export class ExploreSearchPageComponent implements OnInit {
     const filter = this.searchFilter();
     const rawKw = filter.destinationKeyword?.trim() || '';
     const isGpsText =
-      rawKw.startsWith('📍 ') ||
-      rawKw.includes('📍') ||
       rawKw.includes('GPS') ||
       rawKw.includes('Vị trí hiện tại') ||
       rawKw.includes('Gần vị trí');
@@ -1656,6 +1688,11 @@ export class ExploreSearchPageComponent implements OnInit {
     return false;
   }
 
+  clearPromoCode(): void {
+    this.promoCode.set(null);
+    this.syncUrlQueryParams();
+  }
+
   private syncUrlQueryParams(): void {
     const filter = this.searchFilter();
     this.router.navigate([], {
@@ -1670,6 +1707,7 @@ export class ExploreSearchPageComponent implements OnInit {
         page: this.currentPage(),
         pageSize: this.pageSize(),
         propertyTypes: filter.propertyTypes.join(','),
+        promoCode: this.promoCode() || null,
       },
     });
   }

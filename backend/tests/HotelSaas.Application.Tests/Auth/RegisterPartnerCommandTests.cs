@@ -426,4 +426,67 @@ public sealed class RegisterPartnerCommandTests
         Assert.Equal(3, property.StarRating);
         Assert.True(property.IsPublished);
     }
+
+    [Fact]
+    public async Task Handle_AddressFormatting_DoesNotDuplicatePreFormattedMapPickerAddress_AndAppendsForBareStreet()
+    {
+        var daNangProvince = LocationService.GetProvinces()
+            .First(p => p.Name.Contains("Đà Nẵng", StringComparison.OrdinalIgnoreCase));
+        var haiChauWard = LocationService.GetWardsByProvince(daNangProvince.Code)
+            .First(w => w.Name.Contains("Hải Châu", StringComparison.OrdinalIgnoreCase));
+
+        // 1. Pre-formatted Map Picker address already containing ward & province (case-insensitive)
+        var ctxPreformatted = new PartnerDbContextStub(includeInventoryDbSets: true);
+        var handlerPreformatted = CreateHandler(ctxPreformatted);
+        var preformattedAddress = $"  88 Bạch Đằng, {haiChauWard.Name}, {daNangProvince.Name}  ";
+
+        await handlerPreformatted.Handle(new RegisterPartnerCommand(
+            FullName: "Nguyễn Map Picker",
+            Email: "mappicker@hotel.vn",
+            Password: "Password@123",
+            PhoneNumber: "0901112233",
+            PropertyName: "Đà Nẵng River Hotel",
+            Address: preformattedAddress,
+            ProvinceCode: daNangProvince.Code,
+            WardCode: haiChauWard.Code), CancellationToken.None);
+
+        var expectedPreformatted = $"88 Bạch Đằng, {haiChauWard.Name}, {daNangProvince.Name}";
+        Assert.Equal(expectedPreformatted, Assert.Single(ctxPreformatted.TenantsSet.Items).Address);
+        Assert.Equal(expectedPreformatted, Assert.Single(ctxPreformatted.PropertiesSet.Items).Address);
+
+        // 2. Case-insensitive check when pre-formatted address uses lowercase ward/province
+        var ctxCase = new PartnerDbContextStub(includeInventoryDbSets: true);
+        var handlerCase = CreateHandler(ctxCase);
+        var lowerCaseAddress = $"88 Bạch Đằng, {haiChauWard.Name.ToLowerInvariant()}, {daNangProvince.Name.ToLowerInvariant()}";
+
+        await handlerCase.Handle(new RegisterPartnerCommand(
+            FullName: "Nguyễn Case Test",
+            Email: "casetest@hotel.vn",
+            Password: "Password@123",
+            PhoneNumber: "0901112244",
+            PropertyName: "Đà Nẵng Case Hotel",
+            Address: lowerCaseAddress,
+            ProvinceCode: daNangProvince.Code,
+            WardCode: haiChauWard.Code), CancellationToken.None);
+
+        Assert.Equal(lowerCaseAddress, Assert.Single(ctxCase.PropertiesSet.Items).Address);
+
+        // 3. Bare street address still appends ward and province cleanly
+        var ctxBare = new PartnerDbContextStub(includeInventoryDbSets: true);
+        var handlerBare = CreateHandler(ctxBare);
+
+        await handlerBare.Handle(new RegisterPartnerCommand(
+            FullName: "Lê Bare Street",
+            Email: "barestreet@hotel.vn",
+            Password: "Password@123",
+            PhoneNumber: "0901112255",
+            PropertyName: "Hàng Bè Boutique",
+            Address: "25 Hàng Bè",
+            ProvinceCode: daNangProvince.Code,
+            WardCode: haiChauWard.Code), CancellationToken.None);
+
+        var expectedBare = $"25 Hàng Bè, {haiChauWard.Name}, {daNangProvince.Name}";
+        Assert.Equal(expectedBare, Assert.Single(ctxBare.TenantsSet.Items).Address);
+        Assert.Equal(expectedBare, Assert.Single(ctxBare.PropertiesSet.Items).Address);
+    }
 }

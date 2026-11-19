@@ -438,7 +438,61 @@ export function addDaysToDateString(dateStr: string, days: number): string {
               </div>
             } @else {
               <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-                <div class="overflow-x-auto">
+                <!-- Mobile Stacked Cards (<768px) -->
+                <div class="md:hidden divide-y divide-slate-100" data-testid="rates-mobile-cards">
+                  @for (rate of rates(); track rate.id) {
+                    <article class="p-4 space-y-3 text-xs">
+                      <div class="flex items-start justify-between gap-2">
+                        <div class="font-mono font-semibold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                          <i class="pi pi-calendar text-slate-400 text-xs" aria-hidden="true"></i>
+                          <span>{{ formatDate(rate.effectiveFrom) }}</span>
+                          <i class="pi pi-arrow-right text-xs text-slate-400" aria-hidden="true"></i>
+                          <span>{{ formatDate(rate.effectiveTo) }}</span>
+                        </div>
+                        @if (getRateStatus(rate) === 'active') {
+                          <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                            Đang áp dụng
+                          </span>
+                        } @else if (getRateStatus(rate) === 'upcoming') {
+                          <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
+                            <span class="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                            Sắp áp dụng
+                          </span>
+                        } @else {
+                          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 shrink-0">
+                            Hết hiệu lực
+                          </span>
+                        }
+                      </div>
+
+                      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 tabular-nums">
+                        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                          <span class="text-slate-500 block">Gói giờ đầu</span>
+                          <strong class="text-slate-800">{{ formatCurrency(rate.firstHoursPrice) }}</strong>
+                          <span class="text-slate-500"> / {{ rate.firstHours }} giờ</span>
+                        </div>
+                        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                          <span class="text-slate-500 block">Mỗi giờ thêm</span>
+                          <strong class="text-slate-800">{{ formatCurrency(rate.additionalHourPrice) }}</strong>
+                          <span class="text-slate-500"> / giờ</span>
+                        </div>
+                        <div class="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100">
+                          <span class="text-emerald-700 block font-semibold">Giá qua đêm</span>
+                          <strong class="text-emerald-800">{{ formatCurrency(rate.nightlyPrice) }}</strong>
+                          <span class="text-emerald-700"> / đêm</span>
+                        </div>
+                      </div>
+
+                      <div class="flex items-center justify-between gap-2 flex-wrap text-slate-500">
+                        <span class="italic truncate max-w-full">{{ rate.changeReason || '—' }}</span>
+                        <span class="font-mono tabular-nums">{{ formatDateTime(rate.createdAtUtc) }}</span>
+                      </div>
+                    </article>
+                  }
+                </div>
+
+                <div class="hidden md:block overflow-x-auto">
                   <table class="w-full text-left border-collapse" aria-label="Bảng giá phòng theo khoảng ngày hiệu lực">
                     <thead>
                       <tr class="border-b border-slate-200/80 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -549,7 +603,52 @@ export function addDaysToDateString(dateStr: string, days: number): string {
               </div>
             } @else {
               <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-                <div class="overflow-x-auto">
+                <!-- Mobile Stacked Cards (<768px) -->
+                <div class="md:hidden divide-y divide-slate-100" data-testid="rate-history-mobile-cards">
+                  @for (item of rateHistory(); track item.id) {
+                    <article class="p-4 space-y-2.5 text-xs">
+                      <div class="flex items-start justify-between gap-2">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold border" [ngClass]="getActionBadgeClass(item.actionType)">
+                          {{ getActionLabel(item.actionType) }}
+                        </span>
+                        <span class="font-mono text-slate-500 tabular-nums">{{ formatDateTime(item.changedAtUtc) }}</span>
+                      </div>
+
+                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-100 font-mono">
+                          <span class="font-sans text-slate-500 block mb-0.5">Khoảng ngày áp dụng</span>
+                          @if (item.oldEffectiveFrom && item.oldEffectiveTo) {
+                            <div class="text-slate-400 line-through">
+                              {{ formatDate(item.oldEffectiveFrom) }} → {{ formatDate(item.oldEffectiveTo) }}
+                            </div>
+                          }
+                          <div class="font-semibold text-slate-800">
+                            {{ formatDate(item.newEffectiveFrom) }} → {{ formatDate(item.newEffectiveTo) }}
+                          </div>
+                        </div>
+
+                        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-100 tabular-nums">
+                          <span class="text-slate-500 block mb-0.5">Giá qua đêm</span>
+                          @if (item.oldNightlyPrice !== null && item.oldNightlyPrice !== undefined) {
+                            <div class="text-slate-400 line-through">
+                              {{ formatCurrency(item.oldNightlyPrice) }}
+                            </div>
+                          }
+                          <div class="font-bold text-emerald-700">
+                            {{ formatCurrency(item.newNightlyPrice) }}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="flex items-center justify-between gap-2 flex-wrap text-slate-500">
+                        <span class="italic">{{ item.changeReason || '—' }}</span>
+                        <span class="font-mono">{{ item.changedByUserId.substring(0, 8) }}...</span>
+                      </div>
+                    </article>
+                  }
+                </div>
+
+                <div class="hidden md:block overflow-x-auto">
                   <table class="w-full text-left border-collapse" aria-label="Lịch sử thay đổi bảng giá và chia khoảng">
                     <thead>
                       <tr class="border-b border-slate-200/80 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">

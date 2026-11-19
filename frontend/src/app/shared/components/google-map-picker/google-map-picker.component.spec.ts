@@ -119,7 +119,7 @@ describe('GoogleMapPickerComponent', () => {
 
     component.onSearchQueryChange('10.7725, 106.6980');
     expect(component.showSuggestions()).toBe(true);
-    expect(component.suggestions()[0].name).toContain('📌 Ghim tọa độ GPS');
+    expect(component.suggestions()[0].name).toContain('Ghim tọa độ GPS');
 
     const enterEvent = { preventDefault: vi.fn() } as unknown as Event;
     component.onSearchEnter(enterEvent);

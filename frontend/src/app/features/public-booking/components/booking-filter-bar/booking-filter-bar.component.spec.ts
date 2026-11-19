@@ -168,10 +168,10 @@ describe('Destination picker dismissal', () => {
       expect(alertSpy).not.toHaveBeenCalled();
       expect(reverseGeocodeMock).toHaveBeenCalledWith(10.7725, 106.698);
       expect(fixture.componentInstance.destinationKeyword()).toBe(
-        '📍 Gần Chợ Bến Thành, TP. Hồ Chí Minh (250m)'
+        'Gần Chợ Bến Thành, TP. Hồ Chí Minh (250m)'
       );
       expect(fixture.componentInstance.gpsDisplayLabel()).toBe(
-        '📍 Gần Chợ Bến Thành, TP. Hồ Chí Minh (250m)'
+        'Gần Chợ Bến Thành, TP. Hồ Chí Minh (250m)'
       );
 
       fixture.componentInstance.emitSearch();
@@ -230,7 +230,7 @@ describe('Destination picker dismissal', () => {
 
   it('preserves gpsDisplayLabel when initialFilter passes coordinates with empty destinationKeyword', () => {
     const fixture = setup();
-    fixture.componentInstance.gpsDisplayLabel.set('📍 Gần Chợ Bến Thành (250m)');
+    fixture.componentInstance.gpsDisplayLabel.set('Gần Chợ Bến Thành (250m)');
     fixture.componentRef.setInput('initialFilter', {
       destinationKeyword: '',
       userLatitude: 10.7725,
@@ -238,7 +238,7 @@ describe('Destination picker dismissal', () => {
     });
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.destinationKeyword()).toBe('📍 Gần Chợ Bến Thành (250m)');
+    expect(fixture.componentInstance.destinationKeyword()).toBe('Gần Chợ Bến Thành (250m)');
     expect(fixture.componentInstance.userCoords()).toEqual({ lat: 10.7725, lng: 106.698 });
   });
 
@@ -258,5 +258,34 @@ describe('Destination picker dismissal', () => {
     fixture.detectChanges();
 
     expect(cmp.selectedPropertyTypes()).toEqual(['Motel', 'Hotel']);
+  });
+
+  it('emits draftFilterChange instead of filterChange on toggles when autoEmitOnToggle is false', () => {
+    const fixture = setup();
+    const cmp = fixture.componentInstance;
+    fixture.componentRef.setInput('autoEmitOnToggle', false);
+    fixture.detectChanges();
+
+    const submitted: PublicBookingSearchFilter[] = [];
+    const drafted: PublicBookingSearchFilter[] = [];
+    cmp.filterChange.subscribe((f) => submitted.push(f));
+    cmp.draftFilterChange.subscribe((f) => drafted.push(f));
+
+    cmp.selectRentalType('Hourly');
+    cmp.togglePropertyType('Hotel');
+    cmp.clearPropertyTypes();
+    cmp.destinationKeyword.set('Đà Lạt');
+    cmp.clearDestination();
+
+    expect(submitted).toEqual([]);
+    expect(drafted.length).toBe(4);
+    expect(drafted[0].rentalType).toBe('Hourly');
+    expect(drafted[1].propertyTypes).toEqual(['Hotel']);
+    expect(drafted[2].propertyTypes).toEqual([]);
+    expect(drafted[3].destinationKeyword).toBe('');
+
+    cmp.emitSearch();
+    expect(submitted.length).toBe(1);
+    expect(cmp.hourlyDurationOptions).toEqual([1, 2, 3, 4, 5, 6, 8, 12]);
   });
 });

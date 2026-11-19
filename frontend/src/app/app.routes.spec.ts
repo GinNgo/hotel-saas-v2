@@ -49,9 +49,16 @@ describe('Public and management route boundaries', () => {
     router = TestBed.inject(Router);
   });
 
-  it.each(['/', '/booking', '/booking/properties/demo', '/booking/lookup'])('opens %s without a session', async url => {
+  it.each(['/', '/booking', '/booking/properties/demo', '/booking/lookup', '/booking/vnpay-return'])('opens %s without a session', async url => {
     await router.navigateByUrl(url);
     expect(router.url).toBe(url === '/' ? '/booking' : url);
+  });
+
+  it('resolves /booking/vnpay-return with VNPay query params publicly without redirecting', async () => {
+    await router.navigateByUrl('/booking/vnpay-return?vnp_ResponseCode=00&vnp_TxnRef=RES-A111');
+    const destination = router.parseUrl(router.url);
+    expect(destination.root.children['primary'].segments.map(s => s.path)).toEqual(['booking', 'vnpay-return']);
+    expect(destination.queryParams).toEqual({ vnp_ResponseCode: '00', vnp_TxnRef: 'RES-A111' });
   });
 
   it('sends unauthenticated management traffic to its own login portal', async () => {

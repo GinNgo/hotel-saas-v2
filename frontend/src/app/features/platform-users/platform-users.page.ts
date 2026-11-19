@@ -229,7 +229,130 @@ function extractApiErrorMessage(err: unknown, fallback: string): string {
         </div>
       } @else {
         <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-700/80 shadow-2xs overflow-hidden">
-          <div class="overflow-x-auto">
+          <!-- Mobile Stacked Cards (<768px) -->
+          <div class="md:hidden divide-y divide-slate-100 dark:divide-slate-800" data-testid="platform-users-mobile-cards">
+            @for (u of users(); track u.id) {
+              <article class="p-4 space-y-3 text-xs">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <div
+                      class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 border"
+                      [ngClass]="normalizeRole(u.globalRole) === 'SuperAdmin'
+                        ? 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-200 dark:border-indigo-500/35'
+                        : 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30'"
+                    >
+                      {{ getUserInitial(u) }}
+                    </div>
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-bold text-sm text-slate-900 dark:text-slate-100 truncate">
+                          {{ u.fullName }}
+                        </span>
+                        @if (isCurrentUser(u)) {
+                          <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                            Đang đăng nhập
+                          </span>
+                        }
+                      </div>
+                      <div class="text-xs font-mono text-slate-500 dark:text-slate-400 truncate">
+                        &#64;{{ u.username }}
+                      </div>
+                    </div>
+                  </div>
+                  <app-status-badge
+                    [status]="u.isActive"
+                    [customLabel]="u.isActive ? 'Đang hoạt động' : 'Đã khóa'"
+                    [color]="u.isActive ? 'emerald' : 'rose'"
+                  />
+                </div>
+
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                  <app-status-badge
+                    [status]="normalizeRole(u.globalRole)"
+                    [customLabel]="getRoleLabel(u)"
+                    [color]="getRoleBadgeColor(u.globalRole)"
+                  />
+                  <span class="font-mono tabular-nums text-xs text-slate-500 dark:text-slate-400">
+                    {{ u.createdAtUtc | businessDateTime }}
+                  </span>
+                </div>
+
+                <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700 space-y-1.5">
+                  <div class="font-medium text-slate-800 dark:text-slate-200 break-all">
+                    <i class="pi pi-envelope mr-1.5 text-slate-400" aria-hidden="true"></i>{{ u.email }}
+                  </div>
+                  <div class="text-slate-600 dark:text-slate-400 tabular-nums">
+                    <i class="pi pi-phone mr-1.5 text-slate-400" aria-hidden="true"></i>{{ u.phoneNumber || 'Chưa cập nhật SĐT' }}
+                  </div>
+                  <div class="flex items-center justify-between gap-2 flex-wrap pt-1 border-t border-slate-200/70 dark:border-slate-700">
+                    <span class="font-semibold text-slate-800 dark:text-slate-200">
+                      {{ u.defaultTenantName || 'Nền tảng SaaS' }}
+                    </span>
+                    <span class="text-slate-500 dark:text-slate-400 tabular-nums">
+                      {{ u.membershipsCount }} phân quyền cơ sở
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    <span
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border"
+                      [ngClass]="u.emailVerified
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30'
+                        : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'"
+                    >
+                      <i [class]="u.emailVerified ? 'pi pi-check-circle text-xs' : 'pi pi-clock text-xs'" aria-hidden="true"></i>
+                      <span>{{ u.emailVerified ? 'Email xác thực' : 'Email chưa xác thực' }}</span>
+                    </span>
+                    <span
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border"
+                      [ngClass]="u.phoneVerified
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30'
+                        : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'"
+                    >
+                      <i [class]="u.phoneVerified ? 'pi pi-check-circle text-xs' : 'pi pi-minus-circle text-xs'" aria-hidden="true"></i>
+                      <span>{{ u.phoneVerified ? 'SĐT xác thực' : 'SĐT chưa xác thực' }}</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    [attr.data-testid]="'mobile-toggle-status-btn-' + u.id"
+                    [disabled]="isCurrentUser(u) || busyUserId() === u.id"
+                    (click)="toggleUserStatus(u)"
+                    class="inline-flex items-center justify-center gap-1.5 min-h-11 px-3 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                    [ngClass]="u.isActive
+                      ? 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-500/35 dark:bg-rose-500/15 dark:text-rose-300'
+                      : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-500/35 dark:bg-emerald-500/15 dark:text-emerald-300'"
+                  >
+                    <i [class]="u.isActive ? 'pi pi-lock text-xs' : 'pi pi-unlock text-xs'" aria-hidden="true"></i>
+                    <span>{{ u.isActive ? 'Khóa' : 'Mở khóa' }}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    [attr.data-testid]="'mobile-change-role-btn-' + u.id"
+                    [disabled]="isCurrentUser(u) || busyUserId() === u.id"
+                    (click)="changeUserRole(u)"
+                    class="inline-flex items-center justify-center gap-1.5 min-h-11 px-3 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                    [ngClass]="normalizeRole(u.globalRole) === 'SuperAdmin'
+                      ? 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                      : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-500/35 dark:bg-indigo-500/15 dark:text-indigo-300'"
+                  >
+                    <i
+                      [class]="normalizeRole(u.globalRole) === 'SuperAdmin' ? 'pi pi-user-minus text-xs' : 'pi pi-shield text-xs'"
+                      aria-hidden="true"
+                    ></i>
+                    <span>
+                      {{ normalizeRole(u.globalRole) === 'SuperAdmin' ? 'Chuyển về Khách hàng' : 'Cấp SuperAdmin' }}
+                    </span>
+                  </button>
+                </div>
+              </article>
+            }
+          </div>
+
+          <div class="hidden md:block overflow-x-auto">
             <table class="w-full text-left text-xs text-slate-600 dark:text-slate-300">
               <thead class="bg-slate-50 dark:bg-slate-800 text-xs font-bold uppercase text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
                 <tr>

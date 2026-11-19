@@ -420,6 +420,51 @@ describe('Public Booking Pages Suite — Angular 22 Signals Architecture', () =>
         })
       );
     });
+
+    it('updates searchFilter and reloads properties locally on onFilterDraftChange without navigating away', () => {
+      component.ngOnInit();
+      component.maxDistanceMeters.set(1000);
+      component.minPrice.set(300000);
+      component.maxPrice.set(900000);
+      component.sortBy.set('price_asc');
+      mockBookingService.getProperties.mockClear();
+      mockRouter.navigate.mockClear();
+
+      component.onFilterDraftChange({
+        ...component.searchFilter(),
+        rentalType: 'Hourly',
+        propertyTypes: ['Motel'],
+      });
+
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+      expect(mockBookingService.getProperties).toHaveBeenCalledWith(
+        expect.objectContaining({ rentalType: 1, propertyTypes: ['Motel'] })
+      );
+      expect(component.searchFilter().rentalType).toBe('Hourly');
+      expect(component.searchFilter().maxDistanceMeters).toBe(1000);
+      expect(component.searchFilter().minPrice).toBe(300000);
+      expect(component.searchFilter().maxPrice).toBe(900000);
+      expect(component.searchFilter().sortBy).toBe('price_asc');
+    });
+
+    it('trims promoCode and navigates to /booking/explore with search context on onApplyPromoCode', () => {
+      component.ngOnInit();
+      mockRouter.navigate.mockClear();
+
+      component.onApplyPromoCode('   ');
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+
+      component.onApplyPromoCode('  SUMMER20  ');
+      expect(mockRouter.navigate).toHaveBeenCalledWith(
+        ['/booking/explore'],
+        expect.objectContaining({
+          queryParams: expect.objectContaining({
+            promoCode: 'SUMMER20',
+            rentalType: 'Daily',
+          }),
+        })
+      );
+    });
   });
 
   // =========================================================================

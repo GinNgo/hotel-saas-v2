@@ -576,7 +576,7 @@ type QuoteWithPromo = QuoteDto & {
               <button
                 type="submit"
                 [disabled]="loading() || isSubmitting() || !quote() || isQuoteExpired()"
-                class="w-full h-13 px-6 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-bold text-sm sm:text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                class="w-full h-13 px-6 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] font-bold text-sm sm:text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 @if (isSubmitting()) {
                   <i class="pi pi-spin pi-spinner text-base"></i>

@@ -202,7 +202,7 @@ export interface StatusErrorState {
           <article class="bg-white rounded-3xl border-2 border-stone-300 shadow-md overflow-hidden space-y-0 animate-in fade-in duration-200 print:hidden">
 
             <!-- A. HEADER & TRẠNG THÁI TỔNG QUAN -->
-            <div class="p-6 sm:p-8 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[var(--brand-primary)] text-white rounded-t-3xl shadow-xs">
+            <div class="p-6 sm:p-8 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[var(--brand-primary)] text-[var(--brand-primary-fg)] rounded-t-3xl shadow-xs">
               <div class="space-y-2">
                 <div class="flex flex-wrap items-center gap-2">
                   <span [class]="getStatusBadgeClass(detail.status)" class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full border shadow-2xs">
@@ -210,15 +210,15 @@ export interface StatusErrorState {
                     <span>{{ getStatusLabel(detail.status) }}</span>
                   </span>
                   @if (detail.status !== 'Confirmed') {
-                    <span class="text-xs text-amber-200 font-mono font-bold bg-white/10 px-3 py-1 rounded-lg border border-amber-400/30 backdrop-blur-xs">
+                    <span class="text-xs text-[var(--brand-primary-fg)] font-mono font-bold bg-black/15 px-3 py-1 rounded-lg border border-current/25 backdrop-blur-xs">
                       Mã đơn: {{ detail.confirmationCode }}
                     </span>
                   }
                 </div>
-                <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight">{{ detail.propertyName }}</h1>
+                <h1 class="text-2xl sm:text-3xl font-black text-[var(--brand-primary-fg)] tracking-tight">{{ detail.propertyName }}</h1>
                 @if (detail.propertyAddress) {
-                  <p class="text-xs text-emerald-200/90 flex items-center gap-1.5 font-medium">
-                    <i class="pi pi-map-marker text-amber-400 text-xs"></i>
+                  <p class="text-xs text-[var(--brand-primary-fg)] opacity-85 flex items-center gap-1.5 font-medium">
+                    <i class="pi pi-map-marker text-[var(--brand-primary-fg)] text-xs"></i>
                     <span>{{ detail.propertyAddress }}</span>
                   </p>
                 }
@@ -2113,6 +2113,14 @@ export class BookingStatusPage implements OnInit {
         }
       }
       this.handleQueryParams(record);
+    } else if (this.route.snapshot?.queryParams) {
+      const record: Record<string, string> = {};
+      for (const [key, val] of Object.entries(this.route.snapshot.queryParams ?? {})) {
+        if (val !== undefined && val !== null) {
+          record[key] = String(val);
+        }
+      }
+      this.handleQueryParams(record);
     }
 
     if (typeof document !== 'undefined') {
@@ -2166,6 +2174,13 @@ export class BookingStatusPage implements OnInit {
       this.selectedPaymentMethod.set(method);
     }
 
+    const queryLookup = (params['token'] || params['lookupToken'] || '').trim();
+    const hasRouteToken = Boolean(this.lastRouteToken || this.route.snapshot?.paramMap?.get('token')?.trim());
+    if (queryLookup && !hasRouteToken && queryLookup !== this.lastFetchedToken) {
+      this.searchToken = queryLookup;
+      this.fetchBooking(queryLookup);
+    }
+
     const vnpEntries = Object.entries(params).filter(([key]) => key.startsWith('vnp_'));
     if (vnpEntries.length > 0 && (params['vnp_ResponseCode'] !== undefined || params['vnp_TxnRef'] !== undefined)) {
       const vnpRecord = Object.fromEntries(vnpEntries);
@@ -2192,29 +2207,75 @@ export class BookingStatusPage implements OnInit {
         next: (result) => {
           this.isVerifyingVnpay.set(false);
           this.vnpayReturnResult.set(result);
+          const activeToken =
+            this.lastFetchedToken.trim() ||
+            this.searchToken.trim() ||
+            this.route.snapshot?.paramMap?.get('token')?.trim() ||
+            '';
+          const fallbackRef = (result.txnRef || vnpParams['vnp_TxnRef'] || '').trim();
+
           if (result.success) {
             this.alertService.toastSuccess(result.message || 'Giao dịch thanh toán thành công.');
-            const token =
-              this.lastFetchedToken.trim() ||
-              this.searchToken.trim() ||
-              this.route.snapshot?.paramMap?.get('token')?.trim() ||
-              '';
-            if (token) {
-              this.syncHoldStateFromServer(token);
+            if (activeToken) {
+              this.syncHoldStateFromServer(activeToken);
+            } else if (fallbackRef && !this.booking()) {
+              this.searchToken = fallbackRef;
+              this.loadBookingForVnpayReturn(fallbackRef);
             }
           } else {
             this.alertService.toastWarning(
               result.message || 'Giao dịch thanh toán VNPay không thành công hoặc chữ ký không hợp lệ.'
             );
+            if (!activeToken && fallbackRef && !this.booking()) {
+              this.searchToken = fallbackRef;
+              this.loadBookingForVnpayReturn(fallbackRef);
+            }
           }
         },
         error: () => {
           this.isVerifyingVnpay.set(false);
+          const fallbackRef = (vnpParams['vnp_TxnRef'] || '').trim();
+          if (!this.searchToken.trim() && fallbackRef && !this.lastRouteToken) {
+            this.searchToken = fallbackRef;
+          }
           this.vnpayVerifyError.set(
             'Không thể xác thực kết quả VNPay lúc này. Hệ thống vẫn hiển thị trạng thái mới nhất từ máy chủ.'
           );
         }
       });
+  }
+
+  private loadBookingForVnpayReturn(tokenOrCode: string): void {
+    if (!tokenOrCode || this.isDestroyed || typeof this.publicBookingService.getBookingByToken !== 'function') {
+      return;
+    }
+    const gen = ++this.fetchGeneration;
+    this.publicBookingService.getBookingByToken(tokenOrCode).pipe(
+      take(1),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: (fresh) => {
+        if (this.isDestroyed || gen !== this.fetchGeneration) return;
+        const resolvedToken = fresh.lookupToken || tokenOrCode;
+        this.lastFetchedToken = resolvedToken;
+        this.applyBookingDetail(fresh);
+        if (fresh.status === 'PendingPayment') {
+          this.loadVietQr(fresh);
+          if (fresh.holdExpiresAtUtc) {
+            this.startHoldCountdown(fresh.holdExpiresAtUtc, fresh.status);
+            this.startPolling(resolvedToken);
+          }
+        } else {
+          this.clearTimer();
+          this.stopPolling();
+          this.remainingSeconds.set(0);
+          this.isHoldExpired.set(fresh.status === 'Expired');
+        }
+      },
+      error: () => {
+        // Giữ nguyên banner VNPay và form tra cứu nếu vnp_TxnRef không phải mã tra cứu hợp lệ
+      }
+    });
   }
 
   clearTokenError(): void {

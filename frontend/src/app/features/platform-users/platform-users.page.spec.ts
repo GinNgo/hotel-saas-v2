@@ -297,4 +297,42 @@ describe('PlatformUsersPage — SuperAdmin Platform Users & Admin Management', (
     expect(togglePlatformUserStatusSpy).not.toHaveBeenCalled();
     expect(updatePlatformUserRoleSpy).not.toHaveBeenCalled();
   });
+
+  it('5. renders responsive md:hidden mobile cards with >=44px action targets and self-action protection', async () => {
+    const mobileList = fixture.nativeElement.querySelector(
+      '[data-testid="platform-users-mobile-cards"]'
+    ) as HTMLElement | null;
+    expect(mobileList).not.toBeNull();
+    expect(mobileList?.className).toContain('md:hidden');
+
+    const cards = mobileList?.querySelectorAll('article') ?? [];
+    expect(cards.length).toBe(3);
+
+    const mobileText = mobileList?.textContent ?? '';
+    expect(mobileText).toContain('Root SuperAdmin');
+    expect(mobileText).toContain('owner@saigonhotel.vn');
+    expect(mobileText).toContain('Golden Hospitality Group');
+    expect(mobileText).toContain('guest@gmail.com');
+
+    const selfMobileLock = mobileList?.querySelector(
+      '[data-testid="mobile-toggle-status-btn-admin-self-001"]'
+    ) as HTMLButtonElement | null;
+    const otherMobileLock = mobileList?.querySelector(
+      '[data-testid="mobile-toggle-status-btn-staff-owner-002"]'
+    ) as HTMLButtonElement | null;
+    const otherMobileRole = mobileList?.querySelector(
+      '[data-testid="mobile-change-role-btn-customer-003"]'
+    ) as HTMLButtonElement | null;
+
+    expect(selfMobileLock?.disabled).toBe(true);
+    expect(otherMobileLock?.disabled).toBe(false);
+    expect(otherMobileLock?.className).toContain('min-h-11');
+    expect(otherMobileRole?.className).toContain('min-h-11');
+
+    otherMobileLock?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(alertConfirmSpy).toHaveBeenCalledTimes(1);
+    expect(togglePlatformUserStatusSpy).toHaveBeenCalledWith('staff-owner-002', expect.objectContaining({ targetIsActive: false }));
+  });
 });

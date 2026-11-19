@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Exceptions;
@@ -32,6 +33,14 @@ public sealed class SavePrintTemplateConfigCommandHandler : IRequestHandler<Save
             throw new ForbiddenException("ERR_FORBIDDEN", "Không có quyền cập nhật cấu hình in của doanh nghiệp khác.");
         }
 
+        if (_currentUser.GlobalRole == GlobalUserRole.SuperAdmin &&
+            _currentUser.TenantId.HasValue &&
+            request.TenantId != Guid.Empty &&
+            request.TenantId != _currentUser.TenantId.Value)
+        {
+            throw new ForbiddenException("ERR_FORBIDDEN", "Không có quyền cập nhật cấu hình in của doanh nghiệp khác.");
+        }
+
         // Fail-Closed: Strictly resolve tenantId from authenticated user context, never blind client payload
         var tenantId = _currentUser.TenantId ??
             (_currentUser.GlobalRole == GlobalUserRole.SuperAdmin && request.TenantId != Guid.Empty
@@ -41,6 +50,29 @@ public sealed class SavePrintTemplateConfigCommandHandler : IRequestHandler<Save
         if (tenantId == Guid.Empty)
         {
             throw new BadRequestException("ERR_TENANT_REQUIRED", "Yêu cầu TenantId hợp lệ từ phiên đăng nhập.");
+        }
+
+        if (_currentUser.GlobalRole == GlobalUserRole.SuperAdmin && !_currentUser.TenantId.HasValue)
+        {
+            var nowUtc = DateTime.UtcNow;
+            var hasDiagnosticGrant = _currentUser.IsAuthenticated && _currentUser.UserId != Guid.Empty &&
+                (await _context.SupportAccessGrants
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(g =>
+                        g.TargetSupportUserId == _currentUser.UserId &&
+                        g.TenantId == tenantId &&
+                        g.RevokedAtUtc == null &&
+                        g.ExpiresAtUtc > nowUtc)
+                    .ToListAsync(cancellationToken))
+                .Any(g => string.Equals(g.Scope, "DIAGNOSTIC", StringComparison.OrdinalIgnoreCase));
+
+            if (!hasDiagnosticGrant)
+            {
+                throw new ForbiddenException(
+                    "ERR_SUPPORT_GRANT_REQUIRED",
+                    "SuperAdmin cần SupportAccessGrant hợp lệ (DIAGNOSTIC) để cập nhật cấu hình in của Tenant.");
+            }
         }
 
         var targetPropertyId = request.QueryPropertyId.HasValue && request.QueryPropertyId.Value != Guid.Empty

@@ -93,7 +93,7 @@ export interface RecentSearchItem {
               (click)="selectRentalType(tab.type)"
               class="min-h-11 flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer"
               [class.bg-[var(--brand-primary)]]="rentalType() === tab.type"
-              [class.text-white]="rentalType() === tab.type"
+              [class.text-[var(--brand-primary-fg)]]="rentalType() === tab.type"
               [class.shadow-sm]="rentalType() === tab.type"
               [class.text-slate-700]="rentalType() !== tab.type"
               [class.hover:bg-white/70]="rentalType() !== tab.type"
@@ -116,7 +116,7 @@ export interface RecentSearchItem {
                 </div>
                 <p
                   class="text-[11px] font-normal hidden md:block"
-                  [class.text-indigo-100]="rentalType() === tab.type"
+                  [class.opacity-85]="rentalType() === tab.type"
                   [class.text-slate-500]="rentalType() !== tab.type"
                 >
                   {{ tab.subLabel }}
@@ -406,7 +406,7 @@ export interface RecentSearchItem {
               (click)="togglePropertyType(chip.type)"
               class="min-h-11 px-3.5 py-2 rounded-full text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer"
               [class.bg-[var(--brand-primary)]]="isPropertyTypeSelected(chip.type)"
-              [class.text-white]="isPropertyTypeSelected(chip.type)"
+              [class.text-[var(--brand-primary-fg)]]="isPropertyTypeSelected(chip.type)"
               [class.border-[var(--brand-primary)]]="isPropertyTypeSelected(chip.type)"
               [class.bg-white]="!isPropertyTypeSelected(chip.type)"
               [class.text-slate-700]="!isPropertyTypeSelected(chip.type)"
@@ -484,8 +484,14 @@ export class BookingFilterBarComponent {
   /** Danh sách gợi ý địa danh, khu du lịch, tỉnh/thành truyền từ trang cha hoặc LocationService */
   readonly suggestions = input<DestinationSuggestionDto[]>([]);
 
-  /** Output phát sự kiện mỗi khi người dùng bấm Tìm phòng hoặc đổi chế độ thuê */
+  /** Có tự động phát filterChange khi người dùng chuyển tab/chip hay chỉ phát draftFilterChange */
+  readonly autoEmitOnToggle = input<boolean>(true);
+
+  /** Output phát sự kiện mỗi khi người dùng bấm Tìm phòng hoặc đổi chế độ thuê (khi autoEmitOnToggle=true) */
   readonly filterChange = output<PublicBookingSearchFilter>();
+
+  /** Output phát nháp bộ lọc khi người dùng đổi tab/chip lúc autoEmitOnToggle=false */
+  readonly draftFilterChange = output<PublicBookingSearchFilter>();
 
   // --- CẤU HÌNH CÁC TAB & CHIPS ---
   readonly rentalModeTabs: RentalModeTab[] = [
@@ -524,7 +530,7 @@ export class BookingFilterBarComponent {
     '19:00', '20:00', '21:00', '22:00', '23:00',
   ];
 
-  readonly hourlyDurationOptions: number[] = [1, 2, 3, 4, 5, 6];
+  readonly hourlyDurationOptions: number[] = [1, 2, 3, 4, 5, 6, 8, 12];
 
   readonly quickLandmarkPicks: Array<{
     name: string;
@@ -704,7 +710,7 @@ export class BookingFilterBarComponent {
       );
       if (init.destinationKeyword !== undefined) {
         if (hasCoords && !init.destinationKeyword) {
-          this.destinationKeyword.set(this.gpsDisplayLabel() || '📍 Gần vị trí của tôi');
+          this.destinationKeyword.set(this.gpsDisplayLabel() || 'Gần vị trí của tôi');
         } else {
           this.destinationKeyword.set(init.destinationKeyword);
           if (!hasCoords) {
@@ -712,7 +718,7 @@ export class BookingFilterBarComponent {
           }
         }
       } else if (hasCoords && !this.destinationKeyword()) {
-        this.destinationKeyword.set(this.gpsDisplayLabel() || '📍 Gần vị trí của tôi');
+        this.destinationKeyword.set(this.gpsDisplayLabel() || 'Gần vị trí của tôi');
       }
       if (init.provinceCode !== undefined)
         this.selectedProvinceCode.set(init.provinceCode);
@@ -749,7 +755,7 @@ export class BookingFilterBarComponent {
         this.checkOutDate.set(this.addDays(this.checkInDate(), 1));
       }
     }
-    this.emitSearch();
+    this.notifyToggleChange();
   }
 
   onDestinationInput(value: string): void {
@@ -771,7 +777,7 @@ export class BookingFilterBarComponent {
     this.selectedProvinceCode.set(null);
     this.selectedTouristZoneSlug.set(null);
     this.selectedLandmarkSlug.set(null);
-    this.emitSearch();
+    this.notifyToggleChange();
   }
 
   private loadRecentSearches(): void {
@@ -792,9 +798,10 @@ export class BookingFilterBarComponent {
   saveSearchToHistory(keyword: string, label?: string, type?: DestinationSuggestionDto['type'], provinceName?: string): void {
     const trimmed = keyword.trim();
     const lower = trimmed.toLowerCase();
+    const activeGps = this.gpsDisplayLabel().trim().toLowerCase();
     if (
       !trimmed ||
-      trimmed.startsWith('📍 ') ||
+      (activeGps.length > 0 && lower === activeGps) ||
       lower.includes('gps') ||
       lower.includes('vị trí hiện tại') ||
       lower.includes('gần vị trí')
@@ -936,18 +943,18 @@ export class BookingFilterBarComponent {
   }
 
   togglePropertyType(type: PropertyType): void {
-    const current = this.selectedPropertyTypes();
-    if (current.includes(type)) {
-      this.selectedPropertyTypes.set(current.filter((t) => t !== type));
+    const cur = this.selectedPropertyTypes();
+    if (cur.includes(type)) {
+      this.selectedPropertyTypes.set(cur.filter((t) => t !== type));
     } else {
-      this.selectedPropertyTypes.set([...current, type]);
+      this.selectedPropertyTypes.set([...cur, type]);
     }
-    this.emitSearch();
+    this.notifyToggleChange();
   }
 
   clearPropertyTypes(): void {
     this.selectedPropertyTypes.set([]);
-    this.emitSearch();
+    this.notifyToggleChange();
   }
 
   useCurrentLocation(): void {
@@ -962,7 +969,7 @@ export class BookingFilterBarComponent {
     const onSuccess = (pos: GeolocationPosition): void => {
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
-      const defaultLabel = '📍 Gần vị trí của tôi';
+      const defaultLabel = 'Gần vị trí của tôi';
 
       this.isLocating.set(false);
       this.userCoords.set({ lat, lng });
@@ -981,9 +988,7 @@ export class BookingFilterBarComponent {
           const current = this.userCoords();
           if (!current || current.lat !== lat || current.lng !== lng) return;
           if (info?.displayLabel) {
-            const enriched = info.displayLabel.startsWith('📍')
-              ? info.displayLabel
-              : `📍 ${info.displayLabel}`;
+            const enriched = info.displayLabel.trim();
             this.gpsDisplayLabel.set(enriched);
             this.destinationKeyword.set(enriched);
           }
@@ -1025,29 +1030,19 @@ export class BookingFilterBarComponent {
     );
   }
 
-  emitSearch(): void {
-    try {
-      readPublicStay({ rentalType: this.rentalType(), checkInDate: this.checkInDate(),
-        checkOutDate: this.checkOutDate(), checkInTime: this.checkInTime(),
-        durationHours: this.durationHours(), guests: this.guests(), roomsCount: this.roomsCount() });
-      this.searchError.set('');
-    } catch (error) {
-      this.searchError.set(error instanceof Error ? error.message : 'Thông tin tìm kiếm không hợp lệ.');
-      return;
-    }
-    this.showSuggestionsDropdown.set(false);
+  private buildFilterPayload(): PublicBookingSearchFilter {
     const rawKw = this.destinationKeyword().trim();
+    const activeGpsLabel = this.gpsDisplayLabel().trim();
     const isGpsText =
       this.userCoords() !== null &&
-      (rawKw.startsWith('📍 ') ||
+      ((activeGpsLabel.length > 0 && rawKw === activeGpsLabel) ||
         rawKw.includes('GPS') ||
         rawKw.includes('Vị trí hiện tại') ||
-        rawKw.includes('Gần vị trí'));
+        rawKw.includes('Gần vị trí') ||
+        rawKw.startsWith('Gần '));
     const effectiveKw = isGpsText ? '' : rawKw;
-    if (effectiveKw) {
-      this.saveSearchToHistory(effectiveKw);
-    }
-    this.filterChange.emit({
+
+    return {
       rentalType: this.rentalType(),
       destinationKeyword: effectiveKw,
       provinceCode: this.selectedProvinceCode(),
@@ -1069,7 +1064,40 @@ export class BookingFilterBarComponent {
       sortBy: this.userCoords() ? 'distance_asc' : 'recommended',
       page: 1,
       pageSize: 10,
-    });
+    };
+  }
+
+  private notifyToggleChange(): void {
+    if (this.autoEmitOnToggle()) {
+      this.emitSearch();
+      return;
+    }
+    this.showSuggestionsDropdown.set(false);
+    this.draftFilterChange.emit(this.buildFilterPayload());
+  }
+
+  emitSearch(): void {
+    try {
+      readPublicStay({
+        rentalType: this.rentalType(),
+        checkInDate: this.checkInDate(),
+        checkOutDate: this.checkOutDate(),
+        checkInTime: this.checkInTime(),
+        durationHours: this.durationHours(),
+        guests: this.guests(),
+        roomsCount: this.roomsCount(),
+      });
+      this.searchError.set('');
+    } catch (error) {
+      this.searchError.set(error instanceof Error ? error.message : 'Thông tin tìm kiếm không hợp lệ.');
+      return;
+    }
+    this.showSuggestionsDropdown.set(false);
+    const payload = this.buildFilterPayload();
+    if (payload.destinationKeyword) {
+      this.saveSearchToHistory(payload.destinationKeyword);
+    }
+    this.filterChange.emit(payload);
   }
 
   // --- UI HELPERS CHO AUTOCOMPLETE ---

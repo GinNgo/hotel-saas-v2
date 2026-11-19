@@ -107,7 +107,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
     <div class="min-h-screen bg-[var(--surface-canvas)] pb-24 font-sans text-stone-900">
       <!-- 1. HERO BANNER & THANH TÌM KIẾM ĐA NĂNG (SEAMLESS LIGHT CONTEMPORARY LUXURY) -->
       <section
-        class="bg-gradient-to-b from-white via-slate-50/90 to-stone-100/60 text-slate-900 pt-8 sm:pt-12 pb-12 sm:pb-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden border-b border-slate-200/80"
+        class="bg-gradient-to-b from-white via-slate-50/90 to-stone-100/60 dark:from-[#0E1715] dark:via-[#12201D] dark:to-[#0B1412] text-slate-900 dark:text-[var(--text-primary)] pt-8 sm:pt-12 pb-12 sm:pb-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden border-b border-slate-200/80 dark:border-[var(--border-subtle)]"
       >
         <!-- Subtle ambient radial warm glow -->
         <div class="absolute top-0 right-1/4 w-[500px] h-[350px] bg-amber-500/5 blur-[120px] rounded-full pointer-events-none"></div>
@@ -315,6 +315,8 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
           <app-booking-filter-bar
             [initialFilter]="searchFilter()"
             [suggestions]="destinationSuggestions()"
+            [autoEmitOnToggle]="false"
+            (draftFilterChange)="onFilterDraftChange($event)"
             (filterChange)="onFilterBarChange($event)"
           />
         </div>
@@ -978,6 +980,26 @@ export class BookingPageComponent implements OnInit {
         this.smartFilterChips.set([]);
       }
     });
+  }
+
+  onFilterDraftChange(updatedFilter: PublicBookingSearchFilter): void {
+    this.searchFilter.set({
+      ...updatedFilter,
+      maxDistanceMeters: this.maxDistanceMeters(),
+      minPrice: this.minPrice(),
+      maxPrice: this.maxPrice(),
+      sortBy: this.sortBy(),
+    });
+    if (updatedFilter.propertyTypes.length === 1) {
+      const single = updatedFilter.propertyTypes[0];
+      this.selectedPropertyType.set(
+        single === 'Guesthouse' ? 'Motel' : single === 'BedAndBreakfast' ? 'Hostel' : single
+      );
+    } else {
+      this.selectedPropertyType.set('ALL');
+    }
+    this.visibleCount.set(12);
+    this.loadPublicProperties();
   }
 
   onFilterBarChange(updatedFilter: PublicBookingSearchFilter): void {
@@ -1676,7 +1698,17 @@ export class BookingPageComponent implements OnInit {
   }
 
   onApplyPromoCode(code: string): void {
-    // Promo code applied, ready for checkout
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(trimmed).catch(() => {});
+    }
+    this.router.navigate(['/booking/explore'], {
+      queryParams: {
+        ...this.detailQueryParams(),
+        promoCode: trimmed,
+      },
+    });
   }
 
   onSelectCuratedCategory(type: string): void {

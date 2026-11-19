@@ -340,7 +340,42 @@ import { BusinessDatePipe, BusinessDateTimePipe } from '../../shared/pipes/busin
           <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
             <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">Lịch sử thanh toán gói cước SaaS</h2>
           </div>
-          <div class="overflow-x-auto">
+
+          <!-- Mobile Stacked Cards (<768px) -->
+          <div class="md:hidden divide-y divide-slate-100 dark:divide-slate-800" data-testid="subscriptions-payments-mobile-cards">
+            @for (p of currentSub()?.recentPayments ?? []; track p.id) {
+              <article class="p-4 space-y-2.5 text-xs">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums truncate">
+                      {{ p.invoiceNumber || '—' }}
+                    </div>
+                    <div class="font-mono text-slate-500 dark:text-slate-400 tabular-nums truncate mt-0.5">
+                      Mã GD: {{ p.transactionRef || '—' }}
+                    </div>
+                  </div>
+                  <app-status-badge [status]="p.status" type="payment" />
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 pt-1 tabular-nums">
+                  <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700">
+                    <span class="text-slate-500 dark:text-slate-400 block">Số tiền</span>
+                    <strong class="font-mono font-bold text-slate-900 dark:text-slate-100">{{ p.amount | number:'1.0-0' }} ₫</strong>
+                  </div>
+                  <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700">
+                    <span class="text-slate-500 dark:text-slate-400 block">Cổng thanh toán</span>
+                    <strong class="text-slate-800 dark:text-slate-200">{{ p.method }}</strong>
+                  </div>
+                </div>
+
+                <div class="font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                  Thời gian (UTC+7): {{ (p.paidAtUtc || p.createdAtUtc) | businessDateTime }}
+                </div>
+              </article>
+            }
+          </div>
+
+          <div class="hidden md:block overflow-x-auto">
             <table class="w-full text-left text-xs text-slate-600 dark:text-slate-300">
               <thead class="bg-slate-50 dark:bg-slate-800 text-xs font-bold uppercase text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
                 <tr>

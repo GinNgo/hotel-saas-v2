@@ -142,6 +142,13 @@ export const routes: Routes = [
           )
       },
       {
+        path: 'vnpay-return',
+        loadComponent: () =>
+          import('./features/public-booking/booking-status.page').then(
+            m => m.BookingStatusPageComponent
+          )
+      },
+      {
         path: 'profile',
         loadComponent: () =>
           import('./features/public-booking/member/guest-profile.page').then(

@@ -5,9 +5,11 @@ using System.Text;
 using System.Text.Json;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
+using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -122,7 +124,15 @@ public sealed class TenantPropertyContextMiddleware
         }
 
         // ── 2b. Pipeline Classification: Print & Document Templates for SuperAdmin ──
-        if (path.StartsWith("/api/print/", StringComparison.OrdinalIgnoreCase) && globalRole == GlobalUserRole.SuperAdmin)
+        var isReadOnlyHttpMethod = HttpMethods.IsGet(context.Request.Method) ||
+                                   HttpMethods.IsHead(context.Request.Method) ||
+                                   HttpMethods.IsOptions(context.Request.Method);
+        var hasSupportGrantHeader = context.Request.Headers.ContainsKey("X-Support-Grant-Id");
+
+        if (path.StartsWith("/api/print/", StringComparison.OrdinalIgnoreCase) &&
+            globalRole == GlobalUserRole.SuperAdmin &&
+            isReadOnlyHttpMethod &&
+            !hasSupportGrantHeader)
         {
             userContext.SetUser(userId, string.Empty, globalRole);
 
@@ -130,9 +140,13 @@ public sealed class TenantPropertyContextMiddleware
             return;
         }
 
-        // ── 3. Pipeline Classification: Group 3 - Context-Bootstrap & Switching Endpoints ──
+        // ── 3. Pipeline Classification: Group 3 - Context-Bootstrap, Switching & Self-Auth Endpoints ──
         if (path.Equals("/api/auth/switch-context", StringComparison.OrdinalIgnoreCase) ||
-            path.Equals("/api/auth/me/memberships", StringComparison.OrdinalIgnoreCase))
+            path.Equals("/api/auth/me/memberships", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/api/auth/revoke-token", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/api/auth/change-password", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/api/auth/social-accounts", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/api/auth/social-accounts/", StringComparison.OrdinalIgnoreCase))
         {
             userContext.SetUser(userId, string.Empty, globalRole);
 
@@ -154,11 +168,194 @@ public sealed class TenantPropertyContextMiddleware
 
         // ── 4. Pipeline Classification: Group 4 - Business Endpoints ───────────
 
-        // SuperAdmin isolation per P0-D24 / GAP-04: Forbidden from business endpoints without Support Grant
+        // SuperAdmin isolation per P0-D24 / GAP-04: Forbidden from business endpoints without valid SupportAccessGrant
         if (globalRole == GlobalUserRole.SuperAdmin)
         {
-            await WriteErrorResponseAsync(context, StatusCodes.Status403Forbidden, "ERR_FORBIDDEN",
-                "Platform Admin không được phép truy cập trực tiếp dữ liệu nghiệp vụ của khách hàng.");
+            if (!context.Request.Headers.TryGetValue("X-Support-Grant-Id", out var xSupportGrantVal))
+            {
+                await WriteErrorResponseAsync(context, StatusCodes.Status403Forbidden, "ERR_FORBIDDEN",
+                    "Platform Admin không được phép truy cập trực tiếp dữ liệu nghiệp vụ của khách hàng.");
+                return;
+            }
+
+            if (!Guid.TryParse(xSupportGrantVal.ToString(), out var grantId) || grantId == Guid.Empty)
+            {
+                await WriteErrorResponseAsync(context, StatusCodes.Status403Forbidden, "ERR_SUPPORT_GRANT_INVALID",
+                    "Mã quyền hỗ trợ X-Support-Grant-Id không hợp lệ.");
+                return;
+            }
+
+            var db = context.RequestServices?.GetService<IApplicationDbContext>();
+            if (db == null)
+            {
+                await WriteErrorResponseAsync(context, StatusCodes.Status403Forbidden, "ERR_FORBIDDEN",
+                    "Platform Admin không được phép truy cập trực tiếp dữ liệu nghiệp vụ của khách hàng.");
+                return;
+            }
+
+            SupportAccessGrant? grant;
+            try
+            {
+                var nowUtc = DateTime.UtcNow;
+                grant = await db.SupportAccessGrants
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(g =>
+                        g.Id == grantId &&
+                        g.TargetSupportUserId == userId &&
+                        g.RevokedAtUtc == null &&
+                        g.ExpiresAtUtc > nowUtc,
+                        context.RequestAborted);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Fail-Closed: Database error while validating SupportAccessGrant {GrantId}.", grantId);
+                await WriteErrorResponseAsync(context, StatusCodes.Status503ServiceUnavailable, "ERR_SERVICE_UNAVAILABLE",
+                    "Hệ thống xác thực cơ sở dữ liệu tạm thời không phản hồi. Vui lòng thử lại sau.");
+                return;
+            }
+
+            if (grant == null)
+            {
+                await WriteErrorResponseAsync(context, StatusCodes.Status403Forbidden, "ERR_SUPPORT_GRANT_INVALID",
+                    "SupportAccessGrant không tồn tại, đã hết hạn, bị thu hồi hoặc không thuộc tài khoản hiện tại.");
+                return;
+            }
+
+            if (context.Request.Headers.TryGetValue("X-Tenant-Id", out var xSupportTenantVal))
+            {
+                if (!Guid.TryParse(xSupportTenantVal.ToString(), out var headerTenantId) || headerTenantId != grant.TenantId)
+                {
+                    await WriteErrorResponseAsync(context, StatusCodes.Status400BadRequest, "ERR_CONTEXT_MISMATCH",
+                        "X-Tenant-Id gửi trong header không khớp với TenantId của SupportAccessGrant.");
+                    return;
+                }
+            }
+
+            var isReadOnlyGrant = string.Equals(grant.Scope, "READ_ONLY", StringComparison.OrdinalIgnoreCase);
+            var isDiagnosticGrant = string.Equals(grant.Scope, "DIAGNOSTIC", StringComparison.OrdinalIgnoreCase);
+            if (!isReadOnlyGrant && !isDiagnosticGrant)
+            {
+                await WriteErrorResponseAsync(context, StatusCodes.Status403Forbidden, "ERR_SUPPORT_GRANT_INVALID",
+                    "Phạm vi của SupportAccessGrant không hợp lệ.");
+                return;
+            }
+
+            if (isReadOnlyGrant &&
+                !HttpMethods.IsGet(context.Request.Method) &&
+                !HttpMethods.IsHead(context.Request.Method) &&
+                !HttpMethods.IsOptions(context.Request.Method))
+            {
+                await WriteErrorResponseAsync(context, StatusCodes.Status403Forbidden, "ERR_SUPPORT_GRANT_READ_ONLY",
+                    "SupportAccessGrant ở chế độ READ_ONLY chỉ cho phép các thao tác đọc dữ liệu.");
+                return;
+            }
+
+            tenantService.TenantId = grant.TenantId;
+
+            Guid? resolvedSupportPropertyId = null;
+            if (context.Request.Headers.TryGetValue("X-Property-Id", out var xSupportPropVal))
+            {
+                if (!Guid.TryParse(xSupportPropVal.ToString(), out var headerPropId))
+                {
+                    await WriteErrorResponseAsync(context, StatusCodes.Status400BadRequest, "ERR_CONTEXT_MISMATCH",
+                        "Header X-Property-Id không đúng định dạng GUID hợp lệ.");
+                    return;
+                }
+
+                bool propertyExists;
+                try
+                {
+                    propertyExists = await db.Properties
+                        .IgnoreQueryFilters()
+                        .AsNoTracking()
+                        .AnyAsync(p => p.Id == headerPropId && p.TenantId == grant.TenantId, context.RequestAborted);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Fail-Closed: Database error while validating PropertyId {PropertyId} for SupportAccessGrant {GrantId}.", headerPropId, grantId);
+                    await WriteErrorResponseAsync(context, StatusCodes.Status503ServiceUnavailable, "ERR_SERVICE_UNAVAILABLE",
+                        "Hệ thống xác thực cơ sở dữ liệu tạm thời không phản hồi. Vui lòng thử lại sau.");
+                    return;
+                }
+
+                if (!propertyExists)
+                {
+                    await WriteErrorResponseAsync(context, StatusCodes.Status404NotFound, "ERR_PROPERTY_NOT_FOUND",
+                        "Chi nhánh không tồn tại hoặc không thuộc tổ chức doanh nghiệp này.");
+                    return;
+                }
+
+                resolvedSupportPropertyId = headerPropId;
+                propertyService.PropertyId = headerPropId;
+                propertyService.HeaderPropertyId = headerPropId;
+                propertyService.IsTenantWide = true;
+            }
+            else
+            {
+                propertyService.PropertyId = null;
+                propertyService.IsTenantWide = true;
+            }
+
+            AccessRole? supportAccessRole = null;
+            try
+            {
+                var preferredCodes = isDiagnosticGrant
+                    ? new[] { "OWNER", "SUPER_ADMIN", "MANAGER" }
+                    : new[] { "OWNER", "MANAGER", "RECEPTIONIST" };
+
+                var candidateRoles = await db.AccessRoles
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(r => (r.IsSystemRole && r.TenantId == null) || r.TenantId == grant.TenantId)
+                    .OrderByDescending(r => r.IsSystemRole && r.TenantId == null)
+                    .ToListAsync(context.RequestAborted);
+
+                foreach (var code in preferredCodes)
+                {
+                    supportAccessRole = candidateRoles.FirstOrDefault(r =>
+                        string.Equals(r.Code, code, StringComparison.OrdinalIgnoreCase));
+                    if (supportAccessRole != null)
+                    {
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Fail-Closed: Database error while resolving AccessRole for SupportAccessGrant {GrantId}.", grantId);
+                await WriteErrorResponseAsync(context, StatusCodes.Status503ServiceUnavailable, "ERR_SERVICE_UNAVAILABLE",
+                    "Hệ thống xác thực cơ sở dữ liệu tạm thời không phản hồi. Vui lòng thử lại sau.");
+                return;
+            }
+
+            var resolvedStaffRole = supportAccessRole?.Code?.ToUpperInvariant() switch
+            {
+                "OWNER" or "SUPER_ADMIN" => StaffRole.Owner,
+                "MANAGER" => StaffRole.Manager,
+                "RECEPTIONIST" => StaffRole.Receptionist,
+                "HOUSEKEEPER" => StaffRole.Housekeeper,
+                _ => StaffRole.Owner
+            };
+
+            userContext.SetUser(userId, string.Empty, globalRole);
+            userContext.SetMembershipContext(
+                grant.TenantId,
+                TenantStatus.Active,
+                resolvedSupportPropertyId,
+                resolvedSupportPropertyId.HasValue ? PropertyStatus.Active : null,
+                resolvedStaffRole,
+                supportAccessRole?.Id,
+                isTenantWide: true);
+
+            var supportLogPropertyId = resolvedSupportPropertyId?.ToString() ?? "tenant-wide";
+            using (LogContext.PushProperty("TenantId", grant.TenantId.ToString()))
+            using (LogContext.PushProperty("PropertyId", supportLogPropertyId))
+            using (LogContext.PushProperty("UserId", userId.ToString()))
+            using (LogContext.PushProperty("SupportGrantId", grant.Id.ToString()))
+            {
+                await _next(context);
+            }
             return;
         }
 

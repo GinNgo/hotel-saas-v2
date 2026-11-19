@@ -412,7 +412,7 @@ export class GoogleMapPickerComponent implements OnInit, OnChanges {
     const rawCoordSuggestion: PopularLocationPreset[] = parsedCoords
       ? [
           {
-            name: `📌 Ghim tọa độ GPS: ${parsedCoords.lat.toFixed(4)}, ${parsedCoords.lng.toFixed(4)}`,
+            name: `Ghim tọa độ GPS: ${parsedCoords.lat.toFixed(4)}, ${parsedCoords.lng.toFixed(4)}`,
             provinceName: 'Tọa độ GPS',
             provinceCode: '',
             address: `Vị trí GPS (${parsedCoords.lat.toFixed(4)}, ${parsedCoords.lng.toFixed(4)})`,

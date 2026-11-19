@@ -188,7 +188,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
             <section class="bg-white rounded-3xl border-2 border-stone-300 shadow-md p-6 sm:p-7 space-y-5" aria-labelledby="stay-title">
               <div class="flex items-center justify-between pb-3 border-b border-stone-100">
                 <div class="flex items-center gap-2.5">
-                  <div class="w-9 h-9 rounded-xl bg-[var(--brand-primary)] text-amber-200 flex items-center justify-center font-bold text-sm">
+                  <div class="w-9 h-9 rounded-xl bg-[var(--brand-primary)] text-[var(--brand-primary-fg)] flex items-center justify-center font-bold text-sm">
                     <i class="pi pi-calendar-clock"></i>
                   </div>
                   <div>
@@ -218,7 +218,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                   >
                     @for (mode of supportedModes(); track mode) {
                       <option [value]="mode">
-                        {{ mode === 'Daily' ? 'Theo ngày (Nhận 14:00 - Trả 12:00)' : mode === 'Hourly' ? 'Theo giờ linh hoạt' : 'Qua đêm (21:00 - 10:00)' }}
+                        {{ mode === 'Daily' ? 'Theo ngày (Nhận ' + (hotel.checkInTime || '14:00') + ' - Trả ' + (hotel.checkOutTime || '12:00') + ')' : mode === 'Hourly' ? 'Theo giờ linh hoạt' : 'Qua đêm (' + (hotel.overnightCheckInTime || '21:00') + ' - ' + (hotel.overnightCheckOutTime || '10:00') + ')' }}
                       </option>
                     }
                   </select>
@@ -320,13 +320,13 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                 type="button"
                 (click)="checkAvailability()"
                 [disabled]="loading() || availabilityLoading()"
-                class="w-full sm:w-auto h-11 px-6 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-bold text-xs uppercase tracking-wider shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                class="w-full sm:w-auto h-11 px-6 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] font-bold text-xs uppercase tracking-wider shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 @if (availabilityLoading()) {
-                  <i class="pi pi-spin pi-spinner text-sm text-amber-300"></i>
+                  <i class="pi pi-spin pi-spinner text-sm text-[var(--brand-primary-fg)]"></i>
                   <span>Đang kiểm tra phòng trống…</span>
                 } @else {
-                  <i class="pi pi-search text-sm text-amber-300"></i>
+                  <i class="pi pi-search text-sm text-[var(--brand-primary-fg)]"></i>
                   <span>Kiểm Tra Phòng Trống</span>
                 }
               </button>
@@ -447,14 +447,14 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                       [disabled]="availabilityLoading()"
                       class="min-h-11 px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                       [class.bg-[var(--brand-primary)]]="selectedRoom()?.roomTypeId === room.roomTypeId"
-                      [class.text-white]="selectedRoom()?.roomTypeId === room.roomTypeId"
+                      [class.text-[var(--brand-primary-fg)]]="selectedRoom()?.roomTypeId === room.roomTypeId"
                       [class.shadow-sm]="selectedRoom()?.roomTypeId === room.roomTypeId"
                       [class.bg-stone-100]="selectedRoom()?.roomTypeId !== room.roomTypeId"
                       [class.text-stone-800]="selectedRoom()?.roomTypeId !== room.roomTypeId"
                       [class.hover:bg-stone-200]="selectedRoom()?.roomTypeId !== room.roomTypeId"
                     >
                       @if (selectedRoom()?.roomTypeId === room.roomTypeId) {
-                        <i class="pi pi-check text-xs text-amber-300"></i>
+                        <i class="pi pi-check text-xs text-[var(--brand-primary-fg)]"></i>
                         <span>Đã chọn — Bấm để tính lại giá</span>
                       } @else {
                         <span>Chọn phòng &amp; xem báo giá</span>
@@ -497,10 +497,10 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                     [href]="googleMapsDirectionsUrl()"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="min-h-11 px-3.5 py-2 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs transition-colors"
+                    class="min-h-11 px-3.5 py-2 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs transition-colors"
                     title="Chỉ đường tới cơ sở trên Google Maps"
                   >
-                    <i class="pi pi-directions text-amber-300 text-xs"></i>
+                    <i class="pi pi-directions text-[var(--brand-primary-fg)] text-xs"></i>
                     <span>Chỉ đường</span>
                   </a>
                   @if (hasGpsCoordinates()) {
@@ -701,7 +701,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                     <article class="pt-4 first:pt-0 space-y-2.5">
                       <div class="flex items-start justify-between gap-3">
                         <div class="flex items-center gap-3">
-                          <div class="w-10 h-10 rounded-full bg-[var(--brand-primary)] text-amber-200 font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                          <div class="w-10 h-10 rounded-full bg-[var(--brand-primary)] text-[var(--brand-primary-fg)] font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
                             {{ rev.guestName.substring(0, 2).toUpperCase() }}
                           </div>
                           <div>
@@ -771,6 +771,19 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
               </div>
             </div>
 
+            @if (promoCode(); as activePromo) {
+              <div
+                data-testid="detail-promo-pill"
+                class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900"
+              >
+                <span class="inline-flex items-center gap-1.5 font-semibold">
+                  <i class="pi pi-ticket text-emerald-700 text-xs" aria-hidden="true"></i>
+                  <span>Mã ưu đãi: <strong class="font-mono uppercase">{{ activePromo }}</strong></span>
+                </span>
+                <span class="text-[11px] font-medium text-emerald-700">Áp dụng tự động</span>
+              </div>
+            }
+
             @if (quoteLoading()) {
               <div role="status" class="p-6 text-center text-xs text-stone-500 flex flex-col items-center gap-2">
                 <i class="pi pi-spin pi-spinner text-xl text-[var(--brand-primary)]"></i>
@@ -794,15 +807,15 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                   }
                 </div>
 
-                <div class="p-4 rounded-2xl bg-[var(--brand-primary)] text-white space-y-1">
-                  <span class="text-[10px] uppercase font-bold text-stone-300 tracking-wider block">Tổng thanh toán dự kiến</span>
-                  <div class="text-2xl font-mono font-black text-amber-300 tabular-nums">{{ price.totalAmount | number:'1.0-0' }} ₫</div>
+                <div class="p-4 rounded-2xl bg-[var(--brand-primary)] text-[var(--brand-primary-fg)] space-y-1">
+                  <span class="text-[10px] uppercase font-bold text-[var(--brand-primary-fg)] opacity-85 tracking-wider block">Tổng thanh toán dự kiến</span>
+                  <div class="text-2xl font-mono font-black text-[var(--brand-primary-fg)] tabular-nums">{{ price.totalAmount | number:'1.0-0' }} ₫</div>
                   @if ((hotel.taxRatePercent ?? 0) > 0 || (hotel.serviceFeeRatePercent ?? 0) > 0) {
-                    <p class="text-[10px] text-stone-300 tabular-nums">
+                    <p class="text-[10px] text-[var(--brand-primary-fg)] opacity-85 tabular-nums">
                       Chính sách cơ sở: thuế VAT {{ hotel.taxRatePercent ?? 0 }}%, phí dịch vụ {{ hotel.serviceFeeRatePercent ?? 0 }}%
                     </p>
                   } @else {
-                    <p class="text-[10px] text-stone-300">Báo giá tính theo biểu giá niêm yết của cơ sở</p>
+                    <p class="text-[10px] text-[var(--brand-primary-fg)] opacity-85">Báo giá tính theo biểu giá niêm yết của cơ sở</p>
                   }
                 </div>
 
@@ -882,6 +895,7 @@ export class PropertyDetailPageComponent implements OnInit {
 
   readonly property = signal<PublicPropertyDto | null>(null);
   readonly stay = signal<PublicStayContext>(readPublicStay({}));
+  readonly promoCode = signal<string>('');
   readonly rooms = signal<PublicRoomTypeAvailabilityDto[]>([]);
   readonly selectedRoom = signal<PublicRoomTypeAvailabilityDto | null>(null);
   readonly quote = signal<QuoteDto | null>(null);
@@ -991,8 +1005,10 @@ export class PropertyDetailPageComponent implements OnInit {
       'destinationKeyword', 'provinceCode', 'touristZoneSlug', 'landmarkSlug', 'propertyTypes',
       'selectedTenantId', 'maxDistanceMeters', 'minPrice', 'maxPrice', 'sortBy', 'userLatitude', 'userLongitude'
     ] as const;
+    const promo = this.promoCode();
     return {
       ...this.stay(),
+      ...(promo ? { promoCode: promo } : {}),
       ...Object.fromEntries(
         discoveryKeys
           .filter(key => params[key] !== undefined && params[key] !== null && params[key] !== '')
@@ -1006,9 +1022,14 @@ export class PropertyDetailPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    combineLatest([this.route.paramMap, this.route.queryParams ?? of(this.route.snapshot.queryParams)])
+    const queryParams$ = this.route.queryParams ?? of(this.route.snapshot?.queryParams ?? {});
+    combineLatest([this.route.paramMap, queryParams$])
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.refresh());
+      .subscribe(([, qp]) => {
+        const rawPromo = qp?.['promoCode'] ?? this.route.snapshot?.queryParams?.['promoCode'];
+        this.promoCode.set(typeof rawPromo === 'string' ? rawPromo.trim() : '');
+        this.refresh();
+      });
   }
 
   refresh(): void {
@@ -1044,6 +1065,12 @@ export class PropertyDetailPageComponent implements OnInit {
     });
 
     try {
+      const snapPromo = this.route.snapshot?.queryParams?.['promoCode'];
+      if (typeof snapPromo === 'string') {
+        this.promoCode.set(snapPromo.trim());
+      } else if (!this.route.queryParams) {
+        this.promoCode.set('');
+      }
       this.stay.set(readPublicStay(this.route.snapshot.queryParams));
     } catch (error) {
       this.loading.set(false);
@@ -1136,10 +1163,12 @@ export class PropertyDetailPageComponent implements OnInit {
     this.error.set('');
 
     try {
+      const promo = this.promoCode();
       this.service.calculateQuote({
         propertySlug: property.slug,
         roomTypeId: room.roomTypeId,
-        ...publicStayInterval(this.stay(), property)
+        ...publicStayInterval(this.stay(), property),
+        ...(promo ? { promoCode: promo } : {})
       }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: quote => {
           if (generation !== this.quoteGeneration) return;
@@ -1172,11 +1201,13 @@ export class PropertyDetailPageComponent implements OnInit {
       this.error.set('Báo giá đã hết hiệu lực. Vui lòng chọn lại phòng.');
       return;
     }
+    const promo = this.promoCode();
     this.router.navigate(['/booking/hold'], {
       queryParams: {
         propertySlug: property.slug,
         roomTypeId: room.roomTypeId,
-        ...this.stay()
+        ...this.stay(),
+        ...(promo ? { promoCode: promo } : {})
       }
     });
   }

@@ -36,13 +36,13 @@ import { toSignal } from '@angular/core/rxjs-interop';
       <header class="bg-[var(--surface-card)]/95 text-[var(--text-primary)] border-b border-[var(--border-subtle)] sticky top-0 z-30 shadow-xs backdrop-blur-md transition-colors duration-200">
         <!-- Top Micro Utility Bar -->
         <div class="border-b border-[var(--border-subtle)] bg-[var(--surface-subtle)]/80">
-          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-9 py-1 flex items-center justify-between text-xs text-[var(--text-muted)]">
+          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-9 py-1 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
             <div class="flex items-center gap-4">
-              <span class="inline-flex items-center gap-1.5 hover:text-[var(--brand-primary)] transition-colors">
+              <span class="inline-flex items-center gap-1.5 hover:text-[var(--brand-primary)] transition-colors whitespace-nowrap">
                 <i class="pi pi-phone text-xs text-amber-600" aria-hidden="true"></i>
                 <span>Hotline 24/7: <strong class="text-[var(--text-primary)] font-bold num-tabular">1900 6868</strong></span>
               </span>
-              <span class="hidden md:inline-flex items-center gap-1.5 text-[var(--text-muted)]">
+              <span class="hidden md:inline-flex items-center gap-1.5 text-[var(--text-muted)] whitespace-nowrap">
                 <i class="pi pi-shield text-xs text-emerald-600" aria-hidden="true"></i>
                 <span>Chính sách hủy &amp; hoàn tiền minh bạch theo từng cơ sở</span>
               </span>
@@ -51,13 +51,13 @@ import { toSignal } from '@angular/core/rxjs-interop';
             <div class="flex items-center gap-3.5">
               <a
                 routerLink="/auth/partner-register"
-                class="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-400 hover:text-amber-600 transition-colors font-bold"
+                class="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-400 hover:text-amber-600 transition-colors font-bold whitespace-nowrap"
               >
                 <i class="pi pi-building text-xs" aria-hidden="true"></i>
                 <span>Dành cho Chủ khách sạn: Đăng ký cơ sở</span>
               </a>
               <span class="text-slate-300 dark:text-slate-700" aria-hidden="true">|</span>
-              <span class="inline-flex items-center gap-1.5 text-[var(--text-muted)] font-semibold cursor-default">
+              <span class="inline-flex items-center gap-1.5 text-[var(--text-muted)] font-semibold cursor-default whitespace-nowrap">
                 <i class="pi pi-globe text-xs" aria-hidden="true"></i>
                 <span>VN &bull; VND</span>
               </span>
@@ -75,7 +75,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
             <a
               routerLink="/booking/destinations"
               routerLinkActive="bg-[var(--surface-subtle)] text-[var(--brand-primary)] font-bold"
-              class="px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5"
+              class="px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             >
               <i class="pi pi-compass text-xs text-[var(--brand-primary)]" aria-hidden="true"></i>
               <span>Khám Phá Địa Danh</span>
@@ -83,7 +83,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
             <a
               routerLink="/booking/deals"
               routerLinkActive="bg-[var(--surface-subtle)] text-[var(--brand-primary)] font-bold"
-              class="px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5"
+              class="px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             >
               <i class="pi pi-tag text-xs text-amber-600" aria-hidden="true"></i>
               <span>Ưu Đãi Đặc Quyền</span>
@@ -91,7 +91,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
             <a
               routerLink="/booking/brands"
               routerLinkActive="bg-[var(--surface-subtle)] text-[var(--brand-primary)] font-bold"
-              class="px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5"
+              class="px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             >
               <i class="pi pi-star text-xs text-amber-500" aria-hidden="true"></i>
               <span>Chuỗi Thương Hiệu</span>
@@ -99,7 +99,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
             <a
               routerLink="/booking/lookup"
               routerLinkActive="bg-[var(--surface-subtle)] text-[var(--brand-primary)] font-bold"
-              class="px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5"
+              class="px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             >
               <i class="pi pi-search text-xs text-[var(--text-muted)]" aria-hidden="true"></i>
               <span>Tra Cứu Đặt Phòng</span>
@@ -133,7 +133,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
             <!-- Partner B2B CTA Button -->
             <a
               routerLink="/auth/partner-register"
-              class="hidden sm:inline-flex items-center gap-1.5 min-h-11 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-300 dark:hover:bg-amber-500/25 border border-amber-300/80 dark:border-amber-500/30 transition-all shadow-2xs"
+              class="hidden sm:inline-flex items-center gap-1.5 min-h-11 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-300 dark:hover:bg-amber-500/25 border border-amber-300/80 dark:border-amber-500/30 transition-all shadow-2xs whitespace-nowrap"
             >
               <i class="pi pi-building text-xs text-amber-600 dark:text-amber-400" aria-hidden="true"></i>
               <span>Mở Khách Sạn</span>
@@ -143,10 +143,10 @@ import { toSignal } from '@angular/core/rxjs-interop';
             <a
               [routerLink]="isAuthenticated() ? (isCustomer() ? '/booking/profile' : '/dashboard') : '/auth/login'"
               [queryParams]="isAuthenticated() ? {} : { portal: 'guest' }"
-              class="inline-flex items-center justify-center gap-2 min-h-11 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shadow-xs border"
-              [class]="isAuthenticated() ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-500/15 dark:text-indigo-300 dark:border-indigo-500/30' : 'bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] border-transparent shadow-xs'"
+              class="inline-flex items-center justify-center gap-2 min-h-11 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shadow-xs border whitespace-nowrap"
+              [class]="isAuthenticated() ? 'bg-[var(--surface-subtle)] text-[var(--text-primary)] border-[var(--border-strong)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]' : 'bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] border-transparent shadow-xs'"
             >
-              <i [class]="isAuthenticated() ? 'pi pi-user-check text-indigo-600 dark:text-indigo-300 text-xs' : 'pi pi-user text-xs'" aria-hidden="true"></i>
+              <i [class]="isAuthenticated() ? 'pi pi-user-check text-[var(--brand-primary)] text-xs' : 'pi pi-user text-xs'" aria-hidden="true"></i>
               <span class="truncate max-w-28">{{ isAuthenticated() ? (isCustomer() ? userFirstName() : 'Quản trị PMS') : 'Đăng nhập' }}</span>
             </a>
 
@@ -218,13 +218,13 @@ import { toSignal } from '@angular/core/rxjs-interop';
       </div>
 
       <!-- 4. FOOTER CHUYÊN NGHIỆP -->
-      <footer class="bg-slate-900 text-slate-400 text-xs pt-12 pb-8 border-t border-slate-800">
+      <footer class="bg-[#0B1916] dark:bg-[#07110F] text-slate-300 text-xs pt-12 pb-8 border-t border-slate-800 dark:border-[var(--border-subtle)]">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div>
             <div class="mb-3">
               <app-brand-logo size="md" variant="light" [showTagline]="false" />
             </div>
-            <p class="leading-relaxed text-slate-400">
+            <p class="leading-relaxed text-slate-300">
               Nền tảng Quản lý & Đặt phòng đa loại hình lưu trú (Khách sạn, Nhà nghỉ, Motel,
               Homestay, Resort) theo Địa danh, Khu du lịch và Khung giờ linh hoạt.
             </p>
@@ -267,7 +267,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
           </div>
         </div>
 
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 border-t border-slate-800 flex flex-wrap justify-between items-center gap-4 text-slate-500">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 border-t border-slate-800 dark:border-[var(--border-subtle)] flex flex-wrap justify-between items-center gap-4 text-slate-300">
           <span>© 2026 Hotel SaaS Platform v2 (.NET 10 + Angular 22). All rights reserved.</span>
           <span>Xem phòng trống và giá theo lịch lưu trú bạn chọn</span>
         </div>

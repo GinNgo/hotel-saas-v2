@@ -52,37 +52,43 @@ type PropertySortField = 'propertyName' | 'totalRooms' | 'revenue' | 'occupancyR
           title="Báo cáo Doanh thu & Chỉ số Hiệu suất PMS"
           subtitle="Phân tích tỷ lệ lấp đầy (Occupancy), giá phòng bình quân (ADR), hiệu suất doanh thu (RevPAR) và báo cáo chuỗi đa chi nhánh."
         >
-          <button type="button" (click)="selectCalendarPeriod('week')" class="min-h-11 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">Tuần này</button>
-          <button type="button" (click)="selectCalendarPeriod('month')" class="min-h-11 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">Tháng này</button>
-          <button type="button" (click)="selectCalendarPeriod('quarter')" class="min-h-11 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">Quý này</button>
-          <button type="button" (click)="selectCalendarPeriod('year')" class="min-h-11 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">Năm nay</button>
-          <button
-            type="button"
-            (click)="exportPdf()"
-            [disabled]="isExporting()"
-            class="min-h-11 inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-rose-700 hover:bg-rose-800 rounded-xl transition-colors shadow-2xs cursor-pointer disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
-          >
-            <i class="pi pi-file-pdf" [class.pi-spin]="isExporting()" aria-hidden="true"></i>
-            <span>{{ isExporting() ? 'Đang xuất PDF...' : 'Tải PDF' }}</span>
-          </button>
-          <button
-            type="button"
-            (click)="exportExcel()"
-            [disabled]="isExporting()"
-            class="min-h-11 inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl transition-colors shadow-2xs cursor-pointer disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-          >
-            <i class="pi pi-file-excel" [class.pi-spin]="isExporting()" aria-hidden="true"></i>
-            <span>{{ isExporting() ? 'Đang xuất Excel...' : 'Tải Excel (.xlsx)' }}</span>
-          </button>
-          <button
-            type="button"
-            (click)="exportCsv()"
-            [disabled]="isExporting()"
-            class="min-h-11 inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-2xs cursor-pointer disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-          >
-            <i class="pi pi-file-excel" [class.pi-spin]="isExporting()" [class.pi-spinner]="isExporting()" aria-hidden="true"></i>
-            <span>{{ isExporting() ? 'Đang xuất CSV...' : 'Xuất Excel / CSV (BOM)' }}</span>
-          </button>
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Chọn nhanh kỳ báo cáo">
+              <button type="button" (click)="selectCalendarPeriod('week')" class="min-h-11 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">Tuần này</button>
+              <button type="button" (click)="selectCalendarPeriod('month')" class="min-h-11 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">Tháng này</button>
+              <button type="button" (click)="selectCalendarPeriod('quarter')" class="min-h-11 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">Quý này</button>
+              <button type="button" (click)="selectCalendarPeriod('year')" class="min-h-11 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">Năm nay</button>
+            </div>
+            <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Xuất báo cáo">
+              <button
+                type="button"
+                (click)="exportPdf()"
+                [disabled]="isExporting()"
+                class="min-h-11 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-rose-700 hover:bg-rose-800 rounded-xl transition-colors shadow-2xs cursor-pointer disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+              >
+                <i class="pi pi-file-pdf" [class.pi-spin]="isExporting()" aria-hidden="true"></i>
+                <span>{{ isExporting() ? 'Đang xuất PDF...' : 'Tải PDF' }}</span>
+              </button>
+              <button
+                type="button"
+                (click)="exportExcel()"
+                [disabled]="isExporting()"
+                class="min-h-11 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl transition-colors shadow-2xs cursor-pointer disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              >
+                <i class="pi pi-file-excel" [class.pi-spin]="isExporting()" aria-hidden="true"></i>
+                <span>{{ isExporting() ? 'Đang xuất Excel...' : 'Tải Excel (.xlsx)' }}</span>
+              </button>
+              <button
+                type="button"
+                (click)="exportCsv()"
+                [disabled]="isExporting()"
+                class="min-h-11 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-2xs cursor-pointer disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              >
+                <i class="pi pi-file-excel" [class.pi-spin]="isExporting()" [class.pi-spinner]="isExporting()" aria-hidden="true"></i>
+                <span>{{ isExporting() ? 'Đang xuất CSV...' : 'Xuất Excel / CSV (BOM)' }}</span>
+              </button>
+            </div>
+          </div>
         </app-page-header>
       </div>
 
@@ -722,11 +728,11 @@ export class ReportsPage implements OnInit {
   });
 
   readonly groupDailyChartLabels = computed<readonly string[]>(() =>
-    (this.groupAnalytics()?.dailyTrends ?? []).slice(-10).map(point => point.displayDate)
+    (this.groupAnalytics()?.dailyTrends ?? []).slice(-31).map(point => point.displayDate)
   );
 
   readonly groupDailyChartDatasets = computed<readonly ChartCardDataset[]>(() => {
-    const points = (this.groupAnalytics()?.dailyTrends ?? []).slice(-10);
+    const points = (this.groupAnalytics()?.dailyTrends ?? []).slice(-31);
     if (points.length === 0) return [];
     return [
       {
@@ -739,11 +745,11 @@ export class ReportsPage implements OnInit {
   });
 
   readonly branchDailyChartLabels = computed<readonly string[]>(() =>
-    (this.revenueSummary()?.dailySeries ?? []).slice(-10).map(point => point.displayDate)
+    (this.revenueSummary()?.dailySeries ?? []).slice(-31).map(point => point.displayDate)
   );
 
   readonly branchDailyChartDatasets = computed<readonly ChartCardDataset[]>(() => {
-    const points = (this.revenueSummary()?.dailySeries ?? []).slice(-10);
+    const points = (this.revenueSummary()?.dailySeries ?? []).slice(-31);
     if (points.length === 0) return [];
     return [
       {

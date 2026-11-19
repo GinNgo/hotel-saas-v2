@@ -10,10 +10,12 @@ using HotelSaas.Application.Ai.DTOs;
 using HotelSaas.Application.Ai.Queries.GetDynamicPricingRecommendations;
 using HotelSaas.Application.Ai.Queries.ProcessAiChat;
 using HotelSaas.Application.Ai.Queries.ProcessAiConcierge;
+using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Payments.Queries.GenerateVietQr;
 using HotelSaas.Application.Pricing.Services;
+using HotelSaas.Application.Print.Commands.SavePrintTemplateConfig;
 using HotelSaas.Application.Print.DTOs;
 using HotelSaas.Application.Print.Queries.GetPrintableContract;
 using HotelSaas.Application.Print.Queries.GetPrintableInvoice;
@@ -31,6 +33,7 @@ using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -252,6 +255,7 @@ public sealed class LocationsAndAiChatTests
 
     private sealed class TrackingAsyncDbSet<T> : DbSet<T>, IQueryable<T>, IAsyncEnumerable<T> where T : class
     {
+        private readonly List<T> _items;
         private readonly IQueryable<T> _queryable;
         private readonly Action<Expression> _onExecute;
         private readonly TrackingAsyncQueryProvider<T> _provider;
@@ -259,8 +263,15 @@ public sealed class LocationsAndAiChatTests
         public TrackingAsyncDbSet(IEnumerable<T> data, Action<Expression> onExecute)
         {
             _onExecute = onExecute;
-            _queryable = data.AsQueryable();
+            _items = data.ToList();
+            _queryable = _items.AsQueryable();
             _provider = new TrackingAsyncQueryProvider<T>(_queryable, _onExecute);
+        }
+
+        public override EntityEntry<T> Add(T entity)
+        {
+            _items.Add(entity);
+            return null!;
         }
 
         public override IEntityType EntityType => null!;
@@ -289,7 +300,8 @@ public sealed class LocationsAndAiChatTests
             IEnumerable<TenantContract>? tenantContracts = null,
             IEnumerable<PrintTemplateConfig>? printTemplateConfigs = null,
             IEnumerable<Invoice>? invoices = null,
-            IEnumerable<Room>? rooms = null)
+            IEnumerable<Room>? rooms = null,
+            IEnumerable<SupportAccessGrant>? supportAccessGrants = null)
         {
             Properties = new TrackingAsyncDbSet<Property>(properties, e => ExecutedExpressions.Add(e.ToString()));
             RoomTypes = new TrackingAsyncDbSet<RoomType>(roomTypes, e => ExecutedExpressions.Add(e.ToString()));
@@ -298,6 +310,7 @@ public sealed class LocationsAndAiChatTests
             PrintTemplateConfigs = new TrackingAsyncDbSet<PrintTemplateConfig>(printTemplateConfigs ?? Array.Empty<PrintTemplateConfig>(), e => ExecutedExpressions.Add(e.ToString()));
             Invoices = new TrackingAsyncDbSet<Invoice>(invoices ?? Array.Empty<Invoice>(), e => ExecutedExpressions.Add(e.ToString()));
             Rooms = new TrackingAsyncDbSet<Room>(rooms ?? Array.Empty<Room>(), e => ExecutedExpressions.Add(e.ToString()));
+            SupportAccessGrants = new TrackingAsyncDbSet<SupportAccessGrant>(supportAccessGrants ?? Array.Empty<SupportAccessGrant>(), e => ExecutedExpressions.Add(e.ToString()));
         }
 
         public DbSet<Property> Properties { get; }
@@ -325,6 +338,7 @@ public sealed class LocationsAndAiChatTests
         public DbSet<LoyaltyPointTransaction> LoyaltyPointTransactions => throw new NotImplementedException();
         public DbSet<TenantContract> TenantContracts { get; }
         public DbSet<PrintTemplateConfig> PrintTemplateConfigs { get; }
+        public DbSet<SupportAccessGrant> SupportAccessGrants { get; }
         public DbSet<SocialIdentity> SocialIdentities => throw new NotImplementedException();
         public DbSet<GuestReview> GuestReviews => throw new NotImplementedException();
         public DbSet<AiUsageLog> AiUsageLogs => throw new NotImplementedException();
@@ -336,7 +350,7 @@ public sealed class LocationsAndAiChatTests
         public Task LockReservationRowAsync(Guid reservationId, Guid tenantId, Guid propertyId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task LockIdempotencyKeyAsync(Guid propertyId, string idempotencyKey, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> UpdateRoomStatusAtomicAsync(Guid roomId, Guid tenantId, Guid propertyId, RoomStatus expectedOldStatus, RoomStatus newStatus, DateTime updatedAtUtc, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
     }
 
     private sealed class StubDynamicPricingService : IDynamicPricingService
@@ -734,12 +748,13 @@ public sealed class LocationsAndAiChatTests
     {
         var tenantId = Guid.NewGuid();
         var otherTenantId = Guid.NewGuid();
+        var propertyId = Guid.NewGuid();
         var guestUserId = Guid.NewGuid();
         var reservation = new Reservation
         {
             Id = Guid.NewGuid(),
             TenantId = tenantId,
-            PropertyId = Guid.NewGuid(),
+            PropertyId = propertyId,
             GuestUserId = guestUserId,
             ConfirmationCode = "LUX8899",
             GuestName = "Nguyen Van Khach",
@@ -749,45 +764,95 @@ public sealed class LocationsAndAiChatTests
             CheckOutDate = new DateOnly(2026, 6, 3),
             NumberOfGuests = 2,
             TotalAmount = 2_400_000m,
+            Room = new Room
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                PropertyId = propertyId,
+                RoomNumber = "305",
+                RoomType = new RoomType
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenantId,
+                    PropertyId = propertyId,
+                    Name = "Deluxe River View"
+                }
+            },
             Payments = new List<Payment>()
+        };
+
+        var printConfig = new PrintTemplateConfig
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            PropertyId = propertyId,
+            HeaderCompanyName = "Khách sạn Sông Hàn",
+            BankName = "MBBank",
+            BankAccountNumber = "999988887777",
+            BankAccountHolder = "CTY KHACH SAN SONG HAN",
+            ShowVietQrCode = true
         };
 
         var fakeDb = new AiFakeDbContext(
             Array.Empty<Property>(),
             Array.Empty<RoomType>(),
-            reservations: new[] { reservation });
+            reservations: new[] { reservation },
+            printTemplateConfigs: new[] { printConfig });
 
-        // 1. Anonymous without confirmation code -> masked PII
+        // 1. Anonymous without confirmation code -> masked PII & hidden VietQR
         var anonController = CreatePrintController(fakeDb, CreateAnonymousUserContext());
         var anonOk = Assert.IsType<OkObjectResult>(await anonController.GetPrintableInvoice(reservation.Id, null, CancellationToken.None));
         var anonDto = Assert.IsType<PrintableInvoiceDto>(anonOk.Value);
+        Assert.NotEqual("Nguyen Van Khach", anonDto.GuestName);
+        Assert.Equal("N*** V*** K***", anonDto.GuestName);
         Assert.Equal("g***@example.com", anonDto.GuestEmail);
         Assert.Equal("090****567", anonDto.GuestPhone);
+        Assert.Equal("***", anonDto.RoomNumber);
+        Assert.False(anonDto.ShowVietQrCode);
+        Assert.Equal(string.Empty, anonDto.VietQrImageUrl);
+        Assert.NotEqual("999988887777", anonDto.BankAccountNumber);
+        Assert.EndsWith("777", anonDto.BankAccountNumber);
+        Assert.DoesNotContain("305", anonDto.Items[0].Description);
 
-        // 2. Anonymous with matching confirmation code -> unmasked PII
+        // 2. Anonymous with matching confirmation code -> unmasked PII & VietQR visible
         var codeOk = Assert.IsType<OkObjectResult>(await anonController.GetPrintableInvoice(reservation.Id, "lux8899", CancellationToken.None));
         var codeDto = Assert.IsType<PrintableInvoiceDto>(codeOk.Value);
+        Assert.Equal("Nguyen Van Khach", codeDto.GuestName);
         Assert.Equal("guest.secret@example.com", codeDto.GuestEmail);
         Assert.Equal("0901234567", codeDto.GuestPhone);
+        Assert.Equal("305", codeDto.RoomNumber);
+        Assert.True(codeDto.ShowVietQrCode);
+        Assert.Contains("img.vietqr.io", codeDto.VietQrImageUrl);
+        Assert.Equal("999988887777", codeDto.BankAccountNumber);
 
-        // 3. Authenticated guest owner -> unmasked PII
+        // 3. Authenticated guest owner -> unmasked PII & VietQR visible
         var guestContext = CreateAnonymousUserContext();
         guestContext.SetUser(guestUserId, "guest.secret@example.com", GlobalUserRole.Customer);
         var guestController = CreatePrintController(fakeDb, guestContext);
         var guestOk = Assert.IsType<OkObjectResult>(await guestController.GetPrintableInvoice(reservation.Id, null, CancellationToken.None));
         var guestDto = Assert.IsType<PrintableInvoiceDto>(guestOk.Value);
+        Assert.Equal("Nguyen Van Khach", guestDto.GuestName);
         Assert.Equal("guest.secret@example.com", guestDto.GuestEmail);
         Assert.Equal("0901234567", guestDto.GuestPhone);
+        Assert.Equal("305", guestDto.RoomNumber);
+        Assert.True(guestDto.ShowVietQrCode);
+        Assert.Contains("img.vietqr.io", guestDto.VietQrImageUrl);
+        Assert.Equal("999988887777", guestDto.BankAccountNumber);
 
-        // 4. Authenticated unrelated user in different tenant without code -> masked PII
+        // 4. Authenticated unrelated user in different tenant without code -> masked PII & hidden VietQR
         var outsiderContext = CreateAnonymousUserContext();
         outsiderContext.SetUser(Guid.NewGuid(), "outsider@other.vn", GlobalUserRole.TenantStaff);
         outsiderContext.SetMembershipContext(otherTenantId, TenantStatus.Active, null, null, StaffRole.Manager, null, isTenantWide: true);
         var outsiderController = CreatePrintController(fakeDb, outsiderContext);
         var outsiderOk = Assert.IsType<OkObjectResult>(await outsiderController.GetPrintableInvoice(reservation.Id, null, CancellationToken.None));
         var outsiderDto = Assert.IsType<PrintableInvoiceDto>(outsiderOk.Value);
+        Assert.NotEqual("Nguyen Van Khach", outsiderDto.GuestName);
         Assert.Equal("g***@example.com", outsiderDto.GuestEmail);
         Assert.Equal("090****567", outsiderDto.GuestPhone);
+        Assert.Equal("***", outsiderDto.RoomNumber);
+        Assert.False(outsiderDto.ShowVietQrCode);
+        Assert.Equal(string.Empty, outsiderDto.VietQrImageUrl);
+        Assert.NotEqual("999988887777", outsiderDto.BankAccountNumber);
     }
 
     [Fact]
@@ -1120,5 +1185,78 @@ public sealed class LocationsAndAiChatTests
         Assert.Equal("1122334455", apiResp.Data.AccountNumber);
         Assert.Equal("KHACH SAN SAO MAI", apiResp.Data.AccountName);
         Assert.NotEqual("0345678910", apiResp.Data.AccountNumber);
+    }
+
+    [Fact]
+    public async Task SavePrintTemplateConfigCommandHandler_SuperAdminWithoutTenant_RequiresActiveDiagnosticGrant()
+    {
+        var supportUserId = Guid.NewGuid();
+        var targetTenantId = Guid.NewGuid();
+        var cmd = new SavePrintTemplateConfigCommand(
+            TenantId: targetTenantId,
+            BodyPropertyId: null,
+            QueryPropertyId: null,
+            HeaderCompanyName: "Grand Test Hotel",
+            HeaderAddress: "88 Bach Dang",
+            TaxNumber: "0312345678",
+            Hotline: "1900 1234",
+            LogoUrl: null,
+            BankName: "Vietcombank",
+            BankAccountNumber: "0071000999888",
+            BankAccountHolder: "CTY TEST",
+            FooterNote: "Cam on quy khach",
+            CheckInPolicyText: "14:00 - 12:00",
+            ShowVietQrCode: true,
+            DefaultPaperSize: "A4");
+
+        // 1. No grants -> ERR_SUPPORT_GRANT_REQUIRED
+        var noGrantDb = new AiFakeDbContext(Array.Empty<Property>(), Array.Empty<RoomType>());
+        var superAdminNoTenant = CreateAnonymousUserContext();
+        superAdminNoTenant.SetUser(supportUserId, "support@platform.vn", GlobalUserRole.SuperAdmin);
+        var noGrantHandler = new SavePrintTemplateConfigCommandHandler(noGrantDb, superAdminNoTenant);
+
+        var exNoGrant = await Assert.ThrowsAsync<ForbiddenException>(() => noGrantHandler.Handle(cmd, CancellationToken.None));
+        Assert.Equal("ERR_SUPPORT_GRANT_REQUIRED", exNoGrant.ErrorCode);
+
+        // 2. Only READ_ONLY grant -> ERR_SUPPORT_GRANT_REQUIRED
+        var readOnlyDb = new AiFakeDbContext(
+            Array.Empty<Property>(),
+            Array.Empty<RoomType>(),
+            supportAccessGrants: new[]
+            {
+                new SupportAccessGrant
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = targetTenantId,
+                    TargetSupportUserId = supportUserId,
+                    Scope = "READ_ONLY",
+                    ExpiresAtUtc = DateTime.UtcNow.AddHours(2),
+                    RevokedAtUtc = null
+                }
+            });
+        var readOnlyHandler = new SavePrintTemplateConfigCommandHandler(readOnlyDb, superAdminNoTenant);
+        var exReadOnly = await Assert.ThrowsAsync<ForbiddenException>(() => readOnlyHandler.Handle(cmd, CancellationToken.None));
+        Assert.Equal("ERR_SUPPORT_GRANT_REQUIRED", exReadOnly.ErrorCode);
+
+        // 3. Active DIAGNOSTIC grant -> succeeds
+        var diagnosticDb = new AiFakeDbContext(
+            Array.Empty<Property>(),
+            Array.Empty<RoomType>(),
+            supportAccessGrants: new[]
+            {
+                new SupportAccessGrant
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = targetTenantId,
+                    TargetSupportUserId = supportUserId,
+                    Scope = "DIAGNOSTIC",
+                    ExpiresAtUtc = DateTime.UtcNow.AddHours(2),
+                    RevokedAtUtc = null
+                }
+            });
+        var diagnosticHandler = new SavePrintTemplateConfigCommandHandler(diagnosticDb, superAdminNoTenant);
+        var saved = await diagnosticHandler.Handle(cmd, CancellationToken.None);
+        Assert.Equal(targetTenantId, saved.TenantId);
+        Assert.Equal("Vietcombank", saved.BankName);
     }
 }

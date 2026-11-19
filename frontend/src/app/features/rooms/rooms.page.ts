@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, DestroyRef, ChangeDetectorRef, inject, si
 import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
 import { DatePicker } from 'primeng/datepicker';
 import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-time.util';
 import { AbstractControl, FormBuilder, FormGroup, ReactiveFormsModule, FormsModule, ValidationErrors, Validators } from '@angular/forms';
@@ -1015,6 +1016,41 @@ export interface QuickMinibarCatalogItem {
             </button>
           </div>
 
+          <!-- Quick PMS Actions for Active Reservation (GAP-B21) -->
+          @if (activeFolioReservation(); as activeRes) {
+            <div class="flex flex-wrap items-center justify-between gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/90">
+              <div class="text-xs text-slate-600">
+                <span class="font-semibold text-slate-800">Thao tác nhanh lưu trú:</span>
+                @if (activeRes.confirmationCode) {
+                  <span class="font-mono font-bold text-indigo-700 ml-1">{{ activeRes.confirmationCode }}</span>
+                }
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <a
+                  [href]="getReservationSearchUrl(activeRes)"
+                  (click)="navigateToReservation($event, activeRes)"
+                  data-testid="room-drawer-reservations-link"
+                  class="min-h-11 inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                >
+                  <i class="pi pi-sign-out text-xs" aria-hidden="true"></i>
+                  <span>Check-out / Chi tiết đơn</span>
+                </a>
+
+                @if (activeRes.id) {
+                  <a
+                    [href]="'/print/invoice/' + activeRes.id"
+                    (click)="navigateToPrintInvoice($event, activeRes.id)"
+                    data-testid="room-drawer-print-invoice-link"
+                    class="min-h-11 inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    <i class="pi pi-print text-xs" aria-hidden="true"></i>
+                    <span>In hóa đơn</span>
+                  </a>
+                }
+              </div>
+            </div>
+          }
+
           <!-- Folio Financial Balance Card -->
           @if (currentFolio(); as folio) {
             <div class="bg-linear-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-4.5 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-white/10">
@@ -1375,6 +1411,7 @@ export class RoomsPage implements OnInit, OnDestroy {
   readonly authService = inject(AuthService);
   private readonly alertService = inject(AlertService);
   private readonly fb = inject(FormBuilder);
+  private readonly router = inject(Router, { optional: true });
   private readonly cdr = inject(ChangeDetectorRef, { optional: true });
 
   private fallbackDestroyCallbacks: Array<() => void> = [];
@@ -1807,6 +1844,13 @@ export class RoomsPage implements OnInit, OnDestroy {
     } else if (room.status === 'Cleaning') {
       this.changeRoomStatus(room, RoomStatus.Clean);
     } else if (room.status === 'Occupied') {
+      const activeRes =
+        room.activeReservation ||
+        this.allTimelineReservations().find(r => r.roomId === room.id && r.status === 3);
+      if (activeRes) {
+        this.openFolioModalForReservation(activeRes, room);
+        return;
+      }
       const guest = room.activeReservation?.guestName || 'Khách đang ở';
       this.alertService.toastInfo(`Đang có khách lưu trú: ${guest}`, `Phòng ${room.roomNumber}`);
     }
@@ -2093,6 +2137,47 @@ export class RoomsPage implements OnInit, OnDestroy {
     this.selectedFolioRoom.set(null);
     this.activeFolioReservation.set(null);
     this.currentFolio.set(null);
+  }
+
+  getReservationQueryParams(res: ReservationDto): { search: string; code?: string; reservationId?: string } {
+    const searchTerm = res.confirmationCode || res.roomNumber || this.selectedFolioRoom()?.roomNumber || '';
+    return {
+      search: searchTerm,
+      ...(res.confirmationCode ? { code: res.confirmationCode } : {}),
+      ...(res.id ? { reservationId: res.id } : {})
+    };
+  }
+
+  getReservationSearchUrl(res: ReservationDto): string {
+    const params = this.getReservationQueryParams(res);
+    const searchParams = new URLSearchParams();
+    if (params.search) searchParams.set('search', params.search);
+    if (params.code) searchParams.set('code', params.code);
+    if (params.reservationId) searchParams.set('reservationId', params.reservationId);
+    const qs = searchParams.toString();
+    return qs ? `/reservations?${qs}` : '/reservations';
+  }
+
+  navigateToReservation(event: Event, res: ReservationDto): void {
+    event.preventDefault();
+    const queryParams = this.getReservationQueryParams(res);
+    this.closeFolioModal();
+    if (this.router) {
+      void this.router.navigate(['/reservations'], { queryParams });
+    } else if (typeof window !== 'undefined') {
+      window.location.assign(this.getReservationSearchUrl(res));
+    }
+  }
+
+  navigateToPrintInvoice(event: Event, reservationId: string): void {
+    event.preventDefault();
+    if (!reservationId) return;
+    this.closeFolioModal();
+    if (this.router) {
+      void this.router.navigate(['/print/invoice', reservationId]);
+    } else if (typeof window !== 'undefined') {
+      window.open(`/print/invoice/${reservationId}`, '_blank');
+    }
   }
 
   addQuickMinibarItem(item: QuickMinibarCatalogItem): void {
