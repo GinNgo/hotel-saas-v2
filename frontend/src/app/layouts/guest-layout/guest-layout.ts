@@ -39,11 +39,11 @@ import { toSignal } from '@angular/core/rxjs-interop';
           <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-9 py-1 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
             <div class="flex items-center gap-4">
               <span class="inline-flex items-center gap-1.5 hover:text-[var(--brand-primary)] transition-colors whitespace-nowrap">
-                <i class="pi pi-phone text-xs text-amber-600" aria-hidden="true"></i>
+                <i class="pi pi-phone text-xs text-[var(--text-muted)]" aria-hidden="true"></i>
                 <span>Hotline 24/7: <strong class="text-[var(--text-primary)] font-bold num-tabular">1900 6868</strong></span>
               </span>
               <span class="hidden md:inline-flex items-center gap-1.5 text-[var(--text-muted)] whitespace-nowrap">
-                <i class="pi pi-shield text-xs text-emerald-600" aria-hidden="true"></i>
+                <i class="pi pi-shield text-xs text-[var(--brand-primary)]" aria-hidden="true"></i>
                 <span>Chính sách hủy &amp; hoàn tiền minh bạch theo từng cơ sở</span>
               </span>
             </div>
@@ -51,12 +51,12 @@ import { toSignal } from '@angular/core/rxjs-interop';
             <div class="flex items-center gap-3.5">
               <a
                 routerLink="/auth/partner-register"
-                class="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-400 hover:text-amber-600 transition-colors font-bold whitespace-nowrap"
+                class="inline-flex items-center gap-1.5 text-[var(--brand-primary)] hover:opacity-80 transition-colors font-semibold whitespace-nowrap"
               >
                 <i class="pi pi-building text-xs" aria-hidden="true"></i>
                 <span>Dành cho Chủ khách sạn: Đăng ký cơ sở</span>
               </a>
-              <span class="text-slate-300 dark:text-slate-700" aria-hidden="true">|</span>
+              <span class="text-[var(--border-strong)]" aria-hidden="true">|</span>
               <span class="inline-flex items-center gap-1.5 text-[var(--text-muted)] font-semibold cursor-default whitespace-nowrap">
                 <i class="pi pi-globe text-xs" aria-hidden="true"></i>
                 <span>VN &bull; VND</span>
@@ -87,7 +87,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
               routerLinkActive="bg-[var(--surface-subtle)] text-[var(--brand-primary)] font-bold"
               class="px-2.5 xl:px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             >
-              <i class="pi pi-tag text-xs text-amber-600" aria-hidden="true"></i>
+              <i class="pi pi-tag text-xs text-[var(--text-muted)]" aria-hidden="true"></i>
               <span>Ưu Đãi Đặc Quyền</span>
             </a>
             <a
@@ -95,7 +95,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
               routerLinkActive="bg-[var(--surface-subtle)] text-[var(--brand-primary)] font-bold"
               class="px-2.5 xl:px-3.5 min-h-11 py-2 rounded-xl hover:text-[var(--brand-primary)] hover:bg-[var(--surface-subtle)] transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             >
-              <i class="pi pi-star text-xs text-amber-500" aria-hidden="true"></i>
+              <i class="pi pi-star text-xs text-[var(--text-muted)]" aria-hidden="true"></i>
               <span>Chuỗi Thương Hiệu</span>
             </a>
             <a
@@ -135,9 +135,9 @@ import { toSignal } from '@angular/core/rxjs-interop';
             <!-- Partner B2B CTA Button -->
             <a
               routerLink="/auth/partner-register"
-              class="hidden sm:inline-flex items-center gap-1.5 min-h-11 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-300 dark:hover:bg-amber-500/25 border border-amber-300/80 dark:border-amber-500/30 transition-all shadow-2xs whitespace-nowrap"
+              class="hidden sm:inline-flex items-center gap-1.5 min-h-11 px-3.5 py-2 rounded-xl text-xs font-semibold bg-[var(--surface-card)] hover:bg-[var(--surface-subtle)] text-[var(--text-primary)] border border-[var(--border-subtle)] transition-all shadow-2xs whitespace-nowrap"
             >
-              <i class="pi pi-building text-xs text-amber-600 dark:text-amber-400" aria-hidden="true"></i>
+              <i class="pi pi-building text-xs text-[var(--brand-primary)]" aria-hidden="true"></i>
               <span>Mở Khách Sạn</span>
             </a>
 
@@ -153,7 +153,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
             </a>
 
             <!-- Mobile & Explore Dropdown -->
-            <div #discoveryGroup class="relative" (keydown.escape)="closeMenu(menuToggle)">
+            <div #discoveryGroup class="relative lg:hidden" (keydown.escape)="closeMenu(menuToggle)">
               <button
                 #menuToggle
                 type="button"
@@ -220,56 +220,56 @@ import { toSignal } from '@angular/core/rxjs-interop';
       </div>
 
       <!-- 4. FOOTER CHUYÊN NGHIỆP -->
-      <footer class="bg-[#0B1916] dark:bg-[#07110F] text-slate-300 text-xs pt-12 pb-8 border-t border-slate-800 dark:border-[var(--border-subtle)]">
+      <footer class="bg-[var(--surface-subtle)] text-[var(--text-secondary)] text-xs pt-12 pb-8 border-t border-[var(--border-subtle)] transition-colors duration-200">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div>
             <div class="mb-3">
-              <app-brand-logo size="md" variant="light" [showTagline]="false" />
+              <app-brand-logo size="md" [variant]="themeService.isDark() ? 'light' : 'dark'" [showTagline]="false" />
             </div>
-            <p class="leading-relaxed text-slate-300">
+            <p class="leading-relaxed text-[var(--text-secondary)]">
               Nền tảng Quản lý & Đặt phòng đa loại hình lưu trú (Khách sạn, Nhà nghỉ, Motel,
               Homestay, Resort) theo Địa danh, Khu du lịch và Khung giờ linh hoạt.
             </p>
           </div>
 
           <div>
-            <h4 class="text-white font-bold uppercase tracking-wider mb-3">
+            <h4 class="text-[var(--text-primary)] font-bold uppercase tracking-wider mb-3">
               Hình thức Đặt phòng
             </h4>
             <ul class="space-y-2">
-              <li><a routerLink="/booking" [queryParams]="{ rentalType: 'Hourly' }" class="hover:text-white transition-colors">Thuê phòng theo giờ (Nhà nghỉ / Motel)</a></li>
-              <li><a routerLink="/booking" [queryParams]="{ rentalType: 'Overnight' }" class="hover:text-white transition-colors">Đặt phòng qua đêm theo chính sách cơ sở</a></li>
-              <li><a routerLink="/booking" [queryParams]="{ rentalType: 'Daily' }" class="hover:text-white transition-colors">Đặt khách sạn & resort theo ngày</a></li>
-              <li><a routerLink="/booking/brands" class="hover:text-white transition-colors">Đặt theo chuỗi thương hiệu</a></li>
+              <li><a routerLink="/booking" [queryParams]="{ rentalType: 'Hourly' }" class="hover:text-[var(--brand-primary)] transition-colors">Thuê phòng theo giờ (Nhà nghỉ / Motel)</a></li>
+              <li><a routerLink="/booking" [queryParams]="{ rentalType: 'Overnight' }" class="hover:text-[var(--brand-primary)] transition-colors">Đặt phòng qua đêm theo chính sách cơ sở</a></li>
+              <li><a routerLink="/booking" [queryParams]="{ rentalType: 'Daily' }" class="hover:text-[var(--brand-primary)] transition-colors">Đặt khách sạn & resort theo ngày</a></li>
+              <li><a routerLink="/booking/brands" class="hover:text-[var(--brand-primary)] transition-colors">Đặt theo chuỗi thương hiệu</a></li>
             </ul>
           </div>
 
           <div>
-            <h4 class="text-white font-bold uppercase tracking-wider mb-3">
+            <h4 class="text-[var(--text-primary)] font-bold uppercase tracking-wider mb-3">
               Địa danh Du lịch Nổi bật
             </h4>
             <ul class="space-y-2">
-              <li><a routerLink="/booking/destinations/cho-dem-da-lat" class="hover:text-white transition-colors">Gần Chợ đêm Đà Lạt & Hồ Xuân Hương</a></li>
-              <li><a routerLink="/booking/destinations/bai-sau-vung-tau" class="hover:text-white transition-colors">Gần Bãi Sau & Bãi Trước Vũng Tàu</a></li>
-              <li><a routerLink="/booking/destinations/pho-di-bo-nguyen-hue" class="hover:text-white transition-colors">Gần Phố đi bộ Nguyễn Huệ & Bùi Viện</a></li>
-              <li><a routerLink="/booking/destinations/cau-rong-da-nang" class="hover:text-white transition-colors">Gần Cầu Rồng & Biển Mỹ Khê Đà Nẵng</a></li>
+              <li><a routerLink="/booking/destinations/cho-dem-da-lat" class="hover:text-[var(--brand-primary)] transition-colors">Gần Chợ đêm Đà Lạt & Hồ Xuân Hương</a></li>
+              <li><a routerLink="/booking/destinations/bai-sau-vung-tau" class="hover:text-[var(--brand-primary)] transition-colors">Gần Bãi Sau & Bãi Trước Vũng Tàu</a></li>
+              <li><a routerLink="/booking/destinations/pho-di-bo-nguyen-hue" class="hover:text-[var(--brand-primary)] transition-colors">Gần Phố đi bộ Nguyễn Huệ & Bùi Viện</a></li>
+              <li><a routerLink="/booking/destinations/cau-rong-da-nang" class="hover:text-[var(--brand-primary)] transition-colors">Gần Cầu Rồng & Biển Mỹ Khê Đà Nẵng</a></li>
             </ul>
           </div>
 
           <div>
-            <h4 class="text-white font-bold uppercase tracking-wider mb-3">
+            <h4 class="text-[var(--text-primary)] font-bold uppercase tracking-wider mb-3">
               Hỗ trợ Khách hàng & Đối tác
             </h4>
             <ul class="space-y-2">
-              <li><a routerLink="/booking/lookup" class="hover:text-white transition-colors">Tra cứu mã giữ chỗ / Đặt phòng</a></li>
-              <li><a routerLink="/booking/profile" class="hover:text-white transition-colors">Tài khoản khách hàng</a></li>
-              <li><a routerLink="/auth/partner-register" class="hover:text-white transition-colors">Đăng ký mở chuỗi Khách sạn / Nhà nghỉ</a></li>
-              <li><a routerLink="/auth/login" [queryParams]="{ portal: 'admin' }" class="hover:text-white transition-colors">Cổng vận hành Lễ tân & Chủ cơ sở</a></li>
+              <li><a routerLink="/booking/lookup" class="hover:text-[var(--brand-primary)] transition-colors">Tra cứu mã giữ chỗ / Đặt phòng</a></li>
+              <li><a routerLink="/booking/profile" class="hover:text-[var(--brand-primary)] transition-colors">Tài khoản khách hàng</a></li>
+              <li><a routerLink="/auth/partner-register" class="hover:text-[var(--brand-primary)] transition-colors">Đăng ký mở chuỗi Khách sạn / Nhà nghỉ</a></li>
+              <li><a routerLink="/auth/login" [queryParams]="{ portal: 'admin' }" class="hover:text-[var(--brand-primary)] transition-colors">Cổng vận hành Lễ tân & Chủ cơ sở</a></li>
             </ul>
           </div>
         </div>
 
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 border-t border-slate-800 dark:border-[var(--border-subtle)] flex flex-wrap justify-between items-center gap-4 text-slate-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 border-t border-[var(--border-subtle)] flex flex-wrap justify-between items-center gap-4 text-[var(--text-muted)]">
           <span>© 2026 Hotel SaaS Platform v2 (.NET 10 + Angular 22). All rights reserved.</span>
           <span>Xem phòng trống và giá theo lịch lưu trú bạn chọn</span>
         </div>

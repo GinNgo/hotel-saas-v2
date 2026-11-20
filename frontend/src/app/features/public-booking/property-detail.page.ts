@@ -185,15 +185,15 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
           <!-- CỘT TRÁI: CONCIERGE BAR & ROOM LIST (2 CỘT) -->
           <div class="lg:col-span-2 space-y-6">
             <!-- CONCIERGE BOOKING SELECTOR -->
-            <section class="bg-white rounded-3xl border-2 border-stone-300 shadow-md p-6 sm:p-7 space-y-5" aria-labelledby="stay-title">
-              <div class="flex items-center justify-between pb-3 border-b border-stone-100">
+            <section class="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 sm:p-7 space-y-5" aria-labelledby="stay-title">
+              <div class="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div class="flex items-center gap-2.5">
-                  <div class="w-9 h-9 rounded-xl bg-[var(--brand-primary)] text-[var(--brand-primary-fg)] flex items-center justify-center font-bold text-sm">
+                  <div class="w-9 h-9 rounded-xl bg-slate-100 text-[var(--brand-primary)] flex items-center justify-center font-bold text-sm">
                     <i class="pi pi-calendar-clock"></i>
                   </div>
                   <div>
-                    <h2 id="stay-title" class="text-base font-bold text-stone-900">Chọn Lịch &amp; Kiểm Tra Phòng Trống</h2>
-                    <p class="text-xs text-stone-500">Đồng bộ lịch phòng thực từ hệ thống PMS thời gian thực</p>
+                    <h2 id="stay-title" class="text-base font-bold text-slate-900">Chọn Lịch &amp; Kiểm Tra Phòng Trống</h2>
+                    <p class="text-xs text-slate-500">Đồng bộ lịch phòng thực từ hệ thống PMS thời gian thực</p>
                   </div>
                 </div>
 
@@ -320,13 +320,13 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                 type="button"
                 (click)="checkAvailability()"
                 [disabled]="loading() || availabilityLoading()"
-                class="w-full sm:w-auto h-11 px-6 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] font-bold text-xs uppercase tracking-wider shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                class="w-full sm:w-auto h-11 px-6 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider shadow-2xs hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 @if (availabilityLoading()) {
-                  <i class="pi pi-spin pi-spinner text-sm text-[var(--brand-primary-fg)]"></i>
+                  <i class="pi pi-spin pi-spinner text-sm text-white"></i>
                   <span>Đang kiểm tra phòng trống…</span>
                 } @else {
-                  <i class="pi pi-search text-sm text-[var(--brand-primary-fg)]"></i>
+                  <i class="pi pi-search text-sm text-white"></i>
                   <span>Kiểm Tra Phòng Trống</span>
                 }
               </button>
@@ -339,7 +339,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                   Hạng Phòng Sẵn Sàng Đón Khách
                 </h2>
                 @if (rooms().length > 0) {
-                  <span class="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200/80 tabular-nums">
+                  <span class="text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 tabular-nums">
                     {{ rooms().length }} hạng phòng trống
                   </span>
                 }
@@ -362,11 +362,11 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
 
               @for (room of rooms(); track room.roomTypeId) {
                 <article
-                  class="p-5 sm:p-6 bg-white rounded-3xl border transition-all space-y-4 shadow-sm"
-                  [class.border-[var(--brand-cta)]]="selectedRoom()?.roomTypeId === room.roomTypeId"
-                  [class.ring-2]="selectedRoom()?.roomTypeId === room.roomTypeId"
-                  [class.ring-amber-200]="selectedRoom()?.roomTypeId === room.roomTypeId"
-                  [class.border-stone-200]="selectedRoom()?.roomTypeId !== room.roomTypeId"
+                  class="p-5 sm:p-6 bg-white rounded-3xl border transition-all space-y-4 shadow-2xs"
+                  [class.border-[var(--brand-primary)]]="selectedRoom()?.roomTypeId === room.roomTypeId"
+                  [class.ring-1]="selectedRoom()?.roomTypeId === room.roomTypeId"
+                  [class.ring-[var(--brand-primary)]/25]="selectedRoom()?.roomTypeId === room.roomTypeId"
+                  [class.border-slate-200]="selectedRoom()?.roomTypeId !== room.roomTypeId"
                 >
                   <div class="flex flex-col sm:flex-row items-start gap-4">
                     <div class="w-full sm:w-44 h-32 rounded-2xl overflow-hidden shrink-0 bg-stone-100 shadow-inner border border-stone-200/80">
@@ -416,9 +416,9 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
 
                     @if (startingPrice(room) !== null) {
                       <div class="sm:text-right">
-                        <span class="text-[10px] text-stone-400 uppercase font-bold tracking-wider block">Giá cơ bản:</span>
-                        <span class="text-lg sm:text-xl font-mono font-black text-[var(--brand-cta)] tabular-nums">
-                          {{ startingPrice(room) | number:'1.0-0' }} ₫
+                        <span class="text-[10px] text-slate-500 uppercase font-semibold tracking-wider block">Giá cơ bản:</span>
+                        <span class="text-lg sm:text-xl font-sans font-bold tracking-tight text-slate-900 tabular-nums">
+                          {{ startingPrice(room) | number:'1.0-0' }} <span class="text-sm font-semibold">₫</span>
                         </span>
                       </div>
                     } @else {
@@ -760,14 +760,14 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
           </div>
 
           <!-- CỘT PHẢI: STICKY LIVE QUOTE SUMMARY (ASIDE) (1 CỘT) -->
-          <aside class="bg-[var(--surface-card)] border border-[var(--border-subtle)] rounded-3xl p-6 space-y-5 shadow-sm lg:sticky lg:top-24 ring-1 ring-amber-900/5" aria-label="Báo giá">
-            <div class="flex items-center gap-2.5 pb-3 border-b border-stone-100">
-              <div class="w-9 h-9 rounded-xl bg-amber-50 text-[var(--brand-cta)] flex items-center justify-center font-bold text-sm">
+          <aside class="bg-[var(--surface-card)] border border-[var(--border-subtle)] rounded-3xl p-6 space-y-5 shadow-xs lg:sticky lg:top-24" aria-label="Báo giá">
+            <div class="flex items-center gap-2.5 pb-3 border-b border-[var(--border-subtle)]">
+              <div class="w-9 h-9 rounded-xl bg-[var(--surface-subtle)] text-[var(--text-secondary)] flex items-center justify-center font-bold text-sm">
                 <i class="pi pi-receipt"></i>
               </div>
               <div>
-                <h2 class="text-base font-bold text-stone-900">Báo Giá Từ Cơ Sở</h2>
-                <p class="text-xs text-stone-500">Tính toán minh bạch, không phí ẩn</p>
+                <h2 class="text-base font-bold text-[var(--text-primary)]">Báo Giá Từ Cơ Sở</h2>
+                <p class="text-xs text-[var(--text-muted)]">Tính toán minh bạch, không phí ẩn</p>
               </div>
             </div>
 
@@ -785,7 +785,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
             }
 
             @if (quoteLoading()) {
-              <div role="status" class="p-6 text-center text-xs text-stone-500 flex flex-col items-center gap-2">
+              <div role="status" class="p-6 text-center text-xs text-[var(--text-muted)] flex flex-col items-center gap-2">
                 <i class="pi pi-spin pi-spinner text-xl text-[var(--brand-primary)]"></i>
                 <span>Đang kết nối Quote Engine tính giá…</span>
               </div>
@@ -793,53 +793,55 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
 
             @if (quote(); as price) {
               <div class="space-y-4">
-                <div class="p-3.5 rounded-2xl bg-[var(--surface-canvas)] border border-amber-200/80">
-                  <div class="text-[10px] uppercase font-bold text-[var(--brand-cta)] tracking-wider">Hạng phòng đã chọn</div>
-                  <div class="text-sm font-bold text-stone-900 mt-0.5 font-display">{{ price.roomTypeName }}</div>
+                <div class="p-3.5 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--border-subtle)]">
+                  <div class="text-[10px] uppercase font-semibold text-[var(--text-muted)] tracking-wider">Hạng phòng đã chọn</div>
+                  <div class="text-sm font-bold text-[var(--text-primary)] mt-0.5 font-display">{{ price.roomTypeName }}</div>
                 </div>
 
-                <div class="space-y-1.5 text-xs divide-y divide-stone-100">
+                <div class="space-y-1.5 text-xs divide-y divide-[var(--border-subtle)]">
                   @for (line of price.breakdown; track $index) {
-                    <div class="flex justify-between items-center text-stone-600 pt-1.5">
+                    <div class="flex justify-between items-center text-[var(--text-secondary)] pt-1.5">
                       <span class="truncate pr-2">{{ line.description }}</span>
-                      <span class="font-mono font-semibold text-stone-800 shrink-0 tabular-nums">{{ line.amount | number:'1.0-0' }} ₫</span>
+                      <span class="font-sans font-semibold text-[var(--text-primary)] shrink-0 tabular-nums">{{ line.amount | number:'1.0-0' }} ₫</span>
                     </div>
                   }
                 </div>
 
-                <div class="p-4 rounded-2xl bg-[var(--brand-primary)] text-[var(--brand-primary-fg)] space-y-1">
-                  <span class="text-[10px] uppercase font-bold text-[var(--brand-primary-fg)] opacity-85 tracking-wider block">Tổng thanh toán dự kiến</span>
-                  <div class="text-2xl font-mono font-black text-[var(--brand-primary-fg)] tabular-nums">{{ price.totalAmount | number:'1.0-0' }} ₫</div>
+                <div class="p-4 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--border-strong)] space-y-1">
+                  <span class="text-[11px] uppercase font-semibold text-[var(--text-secondary)] tracking-wider block">Tổng thanh toán dự kiến</span>
+                  <div class="text-2xl sm:text-3xl font-sans font-bold tracking-tight text-[var(--text-primary)] tabular-nums">
+                    {{ price.totalAmount | number:'1.0-0' }} <span class="text-base font-semibold">₫</span>
+                  </div>
                   @if ((hotel.taxRatePercent ?? 0) > 0 || (hotel.serviceFeeRatePercent ?? 0) > 0) {
-                    <p class="text-[10px] text-[var(--brand-primary-fg)] opacity-85 tabular-nums">
+                    <p class="text-[11px] text-[var(--text-muted)] tabular-nums">
                       Chính sách cơ sở: thuế VAT {{ hotel.taxRatePercent ?? 0 }}%, phí dịch vụ {{ hotel.serviceFeeRatePercent ?? 0 }}%
                     </p>
                   } @else {
-                    <p class="text-[10px] text-[var(--brand-primary-fg)] opacity-85">Báo giá tính theo biểu giá niêm yết của cơ sở</p>
+                    <p class="text-[11px] text-[var(--text-muted)]">Báo giá tính theo biểu giá niêm yết của cơ sở</p>
                   }
                 </div>
 
                 <!-- Live SignalR & Payment Guarantees -->
-                <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200/70 text-xs text-emerald-800 space-y-1">
-                  <div class="flex items-center gap-1.5 font-bold">
+                <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600 space-y-1">
+                  <div class="flex items-center gap-1.5 font-semibold text-[var(--text-primary)]">
                     <i class="pi pi-bolt text-emerald-600"></i>
                     <span>Xác nhận tức thì qua VietQR / VNPay</span>
                   </div>
-                  <p class="text-[11px] text-emerald-700 leading-relaxed">
+                  <p class="text-[11px] text-[var(--text-muted)] leading-relaxed">
                     Thông báo trực tiếp cho Lễ tân cơ sở qua SignalR Realtime ngay khi thanh toán thành công.
                   </p>
                 </div>
 
-                <p class="text-[11px] text-stone-400 flex items-center gap-1 tabular-nums">
+                <p class="text-[11px] text-[var(--text-muted)] flex items-center gap-1 tabular-nums">
                   <i class="pi pi-clock text-[10px]"></i>
                   <span>Báo giá có hiệu lực đến {{ price.expiresAtUtc | date:'HH:mm:ss':'+0700' }}</span>
                 </p>
               </div>
             } @else if (!quoteLoading()) {
-              <div class="p-6 rounded-2xl bg-stone-50 border border-stone-200/70 text-center space-y-1.5">
-                <i class="pi pi-info-circle text-xl text-stone-400"></i>
-                <p class="text-xs font-bold text-stone-800">Chưa chọn hạng phòng</p>
-                <p class="text-[11px] text-stone-500 leading-relaxed">
+              <div class="p-6 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--border-subtle)] text-center space-y-1.5">
+                <i class="pi pi-info-circle text-xl text-[var(--text-muted)]"></i>
+                <p class="text-xs font-bold text-[var(--text-primary)]">Chưa chọn hạng phòng</p>
+                <p class="text-[11px] text-[var(--text-muted)] leading-relaxed">
                   Kiểm tra lịch và chọn một hạng phòng ở danh sách bên cạnh để xem bảng báo giá chi tiết.
                 </p>
               </div>
@@ -849,7 +851,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
               type="button"
               (click)="proceedToHold()"
               [disabled]="!quote() || quoteLoading() || availabilityLoading()"
-              class="w-full h-12 rounded-xl bg-[var(--brand-cta)] hover:bg-[var(--brand-cta-hover)] text-white font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              class="w-full h-12 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] font-bold text-xs uppercase tracking-wider shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <span>Tiếp Tục Giữ Phòng &amp; Đặt Ngay</span>
               <i class="pi pi-arrow-right text-xs"></i>

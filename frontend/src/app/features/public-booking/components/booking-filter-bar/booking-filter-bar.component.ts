@@ -100,15 +100,15 @@ export interface RecentSearchItem {
             >
               <i [class]="tab.icon + ' text-base'"></i>
               <div class="text-left">
-                <div class="flex items-center gap-1.5">
+                  <div class="flex items-center gap-1.5">
                   <span>{{ tab.label }}</span>
                   @if (tab.badgeText) {
                     <span
-                      class="text-[10px] uppercase px-1.5 py-0.5 rounded-full font-bold"
-                      [class.bg-amber-300]="rentalType() === tab.type"
-                      [class.text-slate-900]="rentalType() === tab.type"
-                      [class.bg-amber-100]="rentalType() !== tab.type"
-                      [class.text-amber-800]="rentalType() !== tab.type"
+                      class="text-[10px] uppercase px-1.5 py-0.5 rounded-full font-semibold"
+                      [class.bg-white/20]="rentalType() === tab.type"
+                      [class.text-white]="rentalType() === tab.type"
+                      [class.bg-slate-200]="rentalType() !== tab.type"
+                      [class.text-slate-700]="rentalType() !== tab.type"
                     >
                       {{ tab.badgeText }}
                     </span>
@@ -128,9 +128,9 @@ export interface RecentSearchItem {
 
         <!-- Tóm tắt khung giờ nhận - trả phòng tự động -->
         <div
-          class="flex items-center gap-2 text-xs md:text-sm bg-amber-50/80 text-amber-950 px-3.5 py-2 rounded-xl border border-amber-200/80"
+          class="flex items-center gap-2 text-xs md:text-sm bg-slate-100 text-slate-700 px-3.5 py-2 rounded-xl border border-slate-200"
         >
-          <i class="pi pi-clock text-[var(--brand-cta)]"></i>
+          <i class="pi pi-clock text-[var(--brand-primary)]"></i>
           <span class="tabular-nums">{{ computedStaySummary() }}</span>
         </div>
       </div>
@@ -146,7 +146,7 @@ export interface RecentSearchItem {
             <button
               type="button"
               (click)="useCurrentLocation()"
-              class="min-h-11 px-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0"
+              class="min-h-11 px-2 text-xs text-[var(--brand-primary)] hover:underline font-medium inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0"
               title="Tìm cơ sở lưu trú gần vị trí của tôi"
             >
               <i class="pi text-xs" [ngClass]="isLocating() ? 'pi-spin pi-compass' : 'pi-map-marker'"></i>
@@ -155,7 +155,7 @@ export interface RecentSearchItem {
           </div>
           <div class="relative">
             <i
-              class="pi pi-map-marker absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-600 pointer-events-none"
+              class="pi pi-map-marker absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--brand-primary)] pointer-events-none"
             ></i>
             <input
               id="booking-destination"
@@ -421,12 +421,12 @@ export interface RecentSearchItem {
 
         <!-- Gợi ý Địa danh Hot có thể bấm 1 chạm -->
         <div class="flex flex-wrap items-center gap-1.5 text-xs">
-          <span class="text-slate-400">Địa danh phổ biến:</span>
+          <span class="text-slate-500">Địa danh phổ biến:</span>
           @for (quickSpot of quickLandmarkPicks; track quickSpot.slug) {
             <button
               type="button"
               (click)="selectQuickLandmark(quickSpot)"
-              class="min-h-11 inline-flex items-center text-indigo-600 hover:text-indigo-800 hover:underline font-medium px-2.5 py-1 rounded bg-indigo-50/60 cursor-pointer"
+              class="min-h-11 inline-flex items-center text-[var(--brand-primary)] hover:underline font-medium px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 cursor-pointer"
             >
               #{{ quickSpot.name }}
             </button>

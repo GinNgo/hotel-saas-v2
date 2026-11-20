@@ -66,27 +66,27 @@ interface TenantBrandFacet {
   template: `
     <div class="min-h-screen bg-[var(--surface-canvas)] font-sans pb-20">
       <!-- 1. TOP HEADER & SEARCH BAR BANNER -->
-      <div class="bg-[#0D2E28] dark:bg-[#0B1916] text-white pt-10 pb-12 px-4 sm:px-6 lg:px-8 border-b border-white/10">
+      <div class="bg-[var(--surface-card)] text-[var(--text-primary)] pt-6 pb-8 px-4 sm:px-6 lg:px-8 border-b border-[var(--border-subtle)]">
         <div class="max-w-7xl mx-auto space-y-4">
           <!-- Breadcrumb -->
-          <nav class="flex items-center gap-2 text-xs text-slate-300">
-            <a routerLink="/booking" class="hover:text-white transition-colors">Trang chủ</a>
+          <nav class="flex items-center gap-2 text-xs text-slate-500">
+            <a routerLink="/booking" class="hover:text-[var(--brand-primary)] transition-colors">Trang chủ</a>
             <span>/</span>
-            <span class="text-indigo-200 font-semibold">Tìm kiếm &amp; Lọc Chỗ Nghỉ</span>
+            <span class="text-[var(--brand-primary)] font-semibold">Tìm kiếm &amp; Lọc Chỗ Nghỉ</span>
           </nav>
 
           <div class="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h1 class="font-display text-2xl sm:text-4xl font-normal text-white tracking-tight">
+              <h1 class="font-display text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
                 {{ pageTitle() }}
               </h1>
-              <p class="text-xs sm:text-sm text-slate-300 mt-1">
-                Tìm thấy <span class="tabular-nums font-semibold">{{ totalResultCount() }}</span> cơ sở lưu trú phù hợp với tiêu chí của bạn
+              <p class="text-xs sm:text-sm text-slate-600 mt-1">
+                Tìm thấy <span class="tabular-nums font-semibold text-slate-900">{{ totalResultCount() }}</span> cơ sở lưu trú phù hợp với tiêu chí của bạn
               </p>
             </div>
             <a
               routerLink="/booking"
-              class="min-h-11 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/10 transition-colors"
+              class="min-h-11 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-200 transition-colors"
             >
               <i class="pi pi-arrow-left text-[11px]"></i>
               <span>Về Trang Chủ</span>
@@ -109,12 +109,12 @@ interface TenantBrandFacet {
         <!-- SMART AI FILTER CHIPS ROW -->
         @if (smartFilterChips().length > 0) {
           <div
-            class="mb-6 bg-white p-3.5 rounded-2xl border border-indigo-100 shadow-2xs flex items-center gap-2 overflow-x-auto"
+            class="mb-6 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-2 overflow-x-auto"
             aria-label="Gợi ý bộ lọc thông minh AI"
           >
-            <div class="flex items-center gap-1.5 text-xs font-bold text-indigo-700 shrink-0 mr-1">
-              <i class="pi pi-sparkles text-amber-500"></i>
-              <span>Gợi ý nhanh AI:</span>
+            <div class="flex items-center gap-1.5 text-xs font-bold text-slate-700 shrink-0 mr-1">
+              <i class="pi pi-sparkles text-[var(--brand-primary)]"></i>
+              <span>Gợi ý nhanh:</span>
             </div>
             <div class="flex items-center gap-2 flex-nowrap">
               @for (chip of smartFilterChips(); track chip.id) {
@@ -122,20 +122,20 @@ interface TenantBrandFacet {
                   type="button"
                   (click)="onSmartChipClick(chip)"
                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border whitespace-nowrap"
-                  [class.bg-indigo-600]="isChipActive(chip)"
+                  [class.bg-[var(--brand-primary)]]="isChipActive(chip)"
                   [class.text-white]="isChipActive(chip)"
-                  [class.border-indigo-600]="isChipActive(chip)"
-                  [class.bg-indigo-50]="!isChipActive(chip)"
-                  [class.text-indigo-900]="!isChipActive(chip)"
-                  [class.border-indigo-200]="!isChipActive(chip)"
-                  [class.hover:bg-indigo-100]="!isChipActive(chip)"
+                  [class.border-[var(--brand-primary)]]="isChipActive(chip)"
+                  [class.bg-slate-100]="!isChipActive(chip)"
+                  [class.text-slate-700]="!isChipActive(chip)"
+                  [class.border-slate-200]="!isChipActive(chip)"
+                  [class.hover:bg-slate-200]="!isChipActive(chip)"
                 >
                   <span>{{ chip.label }}</span>
                   @if (chip.count) {
                     <span
-                      class="text-[10px] px-1.5 py-0.2 rounded-full"
+                      class="text-[10px] px-1.5 py-0.2 rounded-full tabular-nums"
                       [class.bg-white/20]="isChipActive(chip)"
-                      [class.bg-indigo-200/80]="!isChipActive(chip)"
+                      [class.bg-slate-200]="!isChipActive(chip)"
                     >
                       {{ chip.count }}
                     </span>
@@ -153,13 +153,13 @@ interface TenantBrandFacet {
           >
             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
               <h2 class="font-bold text-slate-800 text-sm flex items-center gap-2">
-                <i class="pi pi-sliders-h text-indigo-600"></i>
+                <i class="pi pi-sliders-h text-[var(--brand-primary)]"></i>
                 <span>Bộ lọc chuyên sâu</span>
               </h2>
               <button
                 type="button"
                 (click)="resetSidebarFilters()"
-                class="text-xs text-indigo-600 hover:underline font-medium cursor-pointer"
+                class="text-xs text-[var(--brand-primary)] hover:underline font-medium cursor-pointer"
               >
                 Đặt lại
               </button>
@@ -237,15 +237,15 @@ interface TenantBrandFacet {
                     type="button"
                     (click)="applyPriceRange(range.key, range.min, range.max)"
                     class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer flex items-center justify-between"
-                    [class.bg-indigo-50]="selectedPriceRangeKey() === range.key"
-                    [class.text-indigo-700]="selectedPriceRangeKey() === range.key"
+                    [class.bg-slate-100]="selectedPriceRangeKey() === range.key"
+                    [class.text-[var(--brand-primary)]]="selectedPriceRangeKey() === range.key"
                     [class.font-bold]="selectedPriceRangeKey() === range.key"
                     [class.text-slate-700]="selectedPriceRangeKey() !== range.key"
                     [class.hover:bg-slate-50]="selectedPriceRangeKey() !== range.key"
                   >
                     <span>{{ range.label }}</span>
                     @if (selectedPriceRangeKey() === range.key) {
-                      <i class="pi pi-check text-xs text-indigo-600"></i>
+                      <i class="pi pi-check text-xs text-[var(--brand-primary)]"></i>
                     }
                   </button>
                 }
@@ -262,9 +262,9 @@ interface TenantBrandFacet {
                   type="button"
                   (click)="setMaxDistance(null)"
                   class="px-2.5 py-1.5 rounded-lg border text-xs font-medium text-center transition-all cursor-pointer"
-                  [class.bg-indigo-600]="maxDistanceMeters() === null"
+                  [class.bg-[var(--brand-primary)]]="maxDistanceMeters() === null"
                   [class.text-white]="maxDistanceMeters() === null"
-                  [class.border-indigo-600]="maxDistanceMeters() === null"
+                  [class.border-[var(--brand-primary)]]="maxDistanceMeters() === null"
                   [class.border-slate-200]="maxDistanceMeters() !== null"
                   [class.text-slate-700]="maxDistanceMeters() !== null"
                 >
@@ -274,9 +274,9 @@ interface TenantBrandFacet {
                   type="button"
                   (click)="setMaxDistance(1000)"
                   class="px-2.5 py-1.5 rounded-lg border text-xs font-medium text-center transition-all cursor-pointer"
-                  [class.bg-indigo-600]="maxDistanceMeters() === 1000"
+                  [class.bg-[var(--brand-primary)]]="maxDistanceMeters() === 1000"
                   [class.text-white]="maxDistanceMeters() === 1000"
-                  [class.border-indigo-600]="maxDistanceMeters() === 1000"
+                  [class.border-[var(--brand-primary)]]="maxDistanceMeters() === 1000"
                   [class.border-slate-200]="maxDistanceMeters() !== 1000"
                   [class.text-slate-700]="maxDistanceMeters() !== 1000"
                 >
@@ -286,9 +286,9 @@ interface TenantBrandFacet {
                   type="button"
                   (click)="setMaxDistance(3000)"
                   class="px-2.5 py-1.5 rounded-lg border text-xs font-medium text-center transition-all cursor-pointer"
-                  [class.bg-indigo-600]="maxDistanceMeters() === 3000"
+                  [class.bg-[var(--brand-primary)]]="maxDistanceMeters() === 3000"
                   [class.text-white]="maxDistanceMeters() === 3000"
-                  [class.border-indigo-600]="maxDistanceMeters() === 3000"
+                  [class.border-[var(--brand-primary)]]="maxDistanceMeters() === 3000"
                   [class.border-slate-200]="maxDistanceMeters() !== 3000"
                   [class.text-slate-700]="maxDistanceMeters() !== 3000"
                 >
@@ -298,9 +298,9 @@ interface TenantBrandFacet {
                   type="button"
                   (click)="setMaxDistance(5000)"
                   class="px-2.5 py-1.5 rounded-lg border text-xs font-medium text-center transition-all cursor-pointer"
-                  [class.bg-indigo-600]="maxDistanceMeters() === 5000"
+                  [class.bg-[var(--brand-primary)]]="maxDistanceMeters() === 5000"
                   [class.text-white]="maxDistanceMeters() === 5000"
-                  [class.border-indigo-600]="maxDistanceMeters() === 5000"
+                  [class.border-[var(--brand-primary)]]="maxDistanceMeters() === 5000"
                   [class.border-slate-200]="maxDistanceMeters() !== 5000"
                   [class.text-slate-700]="maxDistanceMeters() !== 5000"
                 >
@@ -551,23 +551,23 @@ interface TenantBrandFacet {
                           <!-- Chuỗi & Tên khách sạn -->
                           <div class="flex items-start justify-between gap-2">
                             <div>
-                              <span class="text-[11px] font-bold text-[var(--brand-primary)] uppercase tracking-wider">
+                              <span class="text-[11px] font-semibold text-[var(--brand-primary)] uppercase tracking-wider">
                                 {{ property.tenantBrandName }}
                               </span>
-                              <h3 class="font-display text-base sm:text-lg font-bold text-slate-900 group-hover:text-[var(--brand-cta)] transition-colors mt-0.5">
+                              <h3 class="font-display text-base sm:text-lg font-bold text-slate-900 group-hover:text-[var(--brand-primary)] transition-colors mt-0.5">
                                 <a [routerLink]="['/booking/properties', property.slug]" [queryParams]="propertyLinkQueryParams()">
                                   {{ property.name }}
                                 </a>
                               </h3>
                               <p class="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                                <i class="pi pi-map-marker text-indigo-600 shrink-0"></i>
+                                <i class="pi pi-map-marker text-slate-400 shrink-0"></i>
                                 <span>{{ getPropertyAddress(property) }}</span>
                               </p>
                             </div>
 
                             <div class="shrink-0 text-right">
                               @if (property.reviewCount > 0 && property.ratingAverage > 0) {
-                                <span class="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 tabular-nums">
+                                <span class="inline-flex items-center gap-1 text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 tabular-nums">
                                   <i class="pi pi-star-fill text-amber-500 text-[10px]"></i>
                                   <span>{{ property.ratingAverage | number:'1.1-1' }}</span>
                                   <span class="text-[10px] text-slate-500">({{ property.reviewCount }})</span>
@@ -583,9 +583,9 @@ interface TenantBrandFacet {
                             @if (property.distanceFormatted || property.distanceMeters != null) {
                               <span
                                 data-testid="property-distance-badge"
-                                class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200"
+                                class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 tabular-nums"
                               >
-                                <i class="pi pi-map-marker text-[10px]"></i>
+                                <i class="pi pi-map-marker text-[10px] text-[var(--brand-primary)]"></i>
                                 <span>{{ property.distanceFormatted || ('Cách ' + formatDistance(property.distanceMeters)) }}</span>
                               </span>
                             }
@@ -593,22 +593,22 @@ interface TenantBrandFacet {
                             @if (property.isExpandedNearbySuggestion) {
                               <span
                                 data-testid="expanded-nearby-badge"
-                                class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200"
+                                class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200"
                               >
                                 Gợi ý mở rộng lân cận
                               </span>
                             }
 
                             @if (property.touristZoneName) {
-                              <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                <i class="pi pi-compass text-[10px]"></i>
+                              <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                                <i class="pi pi-compass text-[10px] text-[var(--brand-primary)]"></i>
                                 <span>{{ sanitizeVn(property.touristZoneName) }}</span>
                               </span>
                             }
 
                             @for (landmark of property.nearbyLandmarks; track (landmark.landmarkId || landmark.name || $index)) {
-                              <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
-                                <i class="pi pi-flag-fill text-[9px] text-amber-600"></i>
+                              <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 tabular-nums">
+                                <i class="pi pi-flag-fill text-[9px] text-slate-400"></i>
                                 <span>
                                   Cách {{ sanitizeVn(landmark.landmarkName || landmark.name) }}
                                   {{ formatDistance(landmark.distanceMeters) }}
@@ -626,12 +626,12 @@ interface TenantBrandFacet {
                             </span>
                             <div class="flex items-baseline gap-1">
                               @if (property.startingPriceForSelectedMode > 0) {
-                                <span class="text-lg font-mono tabular-nums font-extrabold text-[var(--brand-cta)]">
-                                  {{ property.startingPriceForSelectedMode | number: '1.0-0' }}đ
+                                <span class="text-lg sm:text-xl font-sans tabular-nums font-bold tracking-tight text-slate-900">
+                                  {{ property.startingPriceForSelectedMode | number: '1.0-0' }} <span class="text-sm font-semibold">₫</span>
                                 </span>
-                                <span class="text-[11px] text-slate-400">/ {{ getPriceUnitShort(searchFilter().rentalType) }}</span>
+                                <span class="text-[11px] text-slate-500">/ {{ getPriceUnitShort(searchFilter().rentalType) }}</span>
                               } @else {
-                                <span class="text-sm font-bold text-slate-600">Liên hệ báo giá</span>
+                                <span class="text-sm font-semibold text-slate-600">Liên hệ báo giá</span>
                               }
                             </div>
                           </div>
@@ -640,16 +640,16 @@ interface TenantBrandFacet {
                             <button
                               type="button"
                               (click)="selectPropertyForMap(property); switchViewMode('map')"
-                              class="min-h-11 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-stone-100 hover:bg-stone-200 text-stone-700 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                              class="min-h-11 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors inline-flex items-center gap-1 cursor-pointer"
                               title="Định vị trên Google Maps"
                             >
-                              <i class="pi pi-map text-amber-600 text-xs"></i>
+                              <i class="pi pi-map text-slate-500 text-xs"></i>
                               <span>Bản đồ</span>
                             </button>
                             <a
                               [routerLink]="['/booking/properties', property.slug]"
                               [queryParams]="propertyLinkQueryParams()"
-                              class="min-h-11 px-5 py-2.5 rounded-xl text-xs font-bold bg-[var(--brand-cta)] hover:bg-[var(--brand-cta-hover)] text-white transition-all cursor-pointer shadow-sm hover:shadow inline-flex items-center gap-1.5"
+                              class="min-h-11 px-5 py-2.5 rounded-xl text-xs font-bold bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] transition-all cursor-pointer shadow-2xs hover:shadow-xs inline-flex items-center gap-1.5"
                             >
                               <span>Xem phòng &amp; Đặt ngay</span>
                               <i class="pi pi-arrow-right text-[10px]"></i>

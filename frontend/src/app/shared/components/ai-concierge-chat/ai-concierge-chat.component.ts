@@ -26,17 +26,17 @@ import { AiConciergeService, ChatMessage, ChatResponse } from '../../../core/ser
         <button
           type="button"
           (click)="toggleOpen()"
-          class="group relative min-h-11 flex items-center gap-2.5 px-3.5 sm:px-4 py-2.5 max-w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-700 hover:to-indigo-700 text-white rounded-full shadow-lg shadow-emerald-900/20 hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer"
+          class="group relative min-h-11 flex items-center gap-2.5 px-3.5 sm:px-4 py-2.5 max-w-full bg-slate-900 hover:bg-slate-800 text-white rounded-full shadow-lg border border-slate-700/60 hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer"
           aria-label="Mở Trợ lý AI Hotel SaaS"
         >
-          <div class="relative flex items-center justify-center w-7 h-7 rounded-full bg-white/20 backdrop-blur-xs shrink-0">
-            <i class="pi pi-sparkles text-sm text-amber-300"></i>
+          <div class="relative flex items-center justify-center w-7 h-7 rounded-full bg-white/15 shrink-0">
+            <i class="pi pi-sparkles text-sm text-teal-300"></i>
           </div>
           <div class="text-left min-w-0">
             <div class="text-xs font-bold tracking-wide flex items-center gap-1.5">
               <span class="truncate">Trợ lý AI Hotel SaaS</span>
             </div>
-            <div class="hidden xl:block text-[10px] text-emerald-100 font-medium truncate">Hỏi phòng, địa điểm &amp; ăn uống</div>
+            <div class="hidden xl:block text-[10px] text-slate-300 font-medium truncate">Hỏi phòng, địa điểm &amp; ăn uống</div>
           </div>
         </button>
       }

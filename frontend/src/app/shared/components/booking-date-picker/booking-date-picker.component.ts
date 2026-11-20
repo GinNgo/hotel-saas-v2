@@ -41,7 +41,7 @@ export interface BookingDateRange {
               >
                 Nhận phòng
               </label>
-              <span class="text-xs text-indigo-600 dark:text-indigo-400 font-medium shrink-0 tabular-nums">Từ {{ checkInTimeHint() }}</span>
+              <span class="text-xs text-[var(--brand-primary)] font-medium shrink-0 tabular-nums">Từ {{ checkInTimeHint() }}</span>
             </div>
             <div class="relative">
               <p-datepicker
@@ -60,7 +60,7 @@ export interface BookingDateRange {
                 styleClass="w-full"
                 inputStyleClass="w-full min-h-11 h-11 pl-10 pr-3.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 hover:border-slate-400 dark:hover:border-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:border-indigo-500 transition-colors cursor-pointer shadow-2xs tabular-nums"
               />
-              <i class="pi pi-calendar absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 pointer-events-none text-sm z-10" aria-hidden="true"></i>
+              <i class="pi pi-calendar absolute left-3 top-1/2 -translate-y-1/2 text-[var(--brand-primary)] pointer-events-none text-sm z-10" aria-hidden="true"></i>
             </div>
             <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate h-4 tabular-nums">
               {{ getFormattedDayOfWeek(inDateObject()) }}
@@ -76,7 +76,7 @@ export interface BookingDateRange {
               >
                 Trả phòng
               </label>
-              <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 shrink-0 tabular-nums">
+              <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shrink-0 tabular-nums">
                 {{ computedNights() }} đêm
               </span>
             </div>
@@ -97,7 +97,7 @@ export interface BookingDateRange {
                 styleClass="w-full"
                 inputStyleClass="w-full min-h-11 h-11 pl-10 pr-3.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 hover:border-slate-400 dark:hover:border-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:border-indigo-500 transition-colors cursor-pointer shadow-2xs tabular-nums"
               />
-              <i class="pi pi-calendar-times absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 pointer-events-none text-sm z-10" aria-hidden="true"></i>
+              <i class="pi pi-calendar-times absolute left-3 top-1/2 -translate-y-1/2 text-[var(--brand-primary)] pointer-events-none text-sm z-10" aria-hidden="true"></i>
             </div>
             <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate h-4 tabular-nums">
               {{ getFormattedDayOfWeek(outDateObject()) }}
@@ -136,7 +136,7 @@ export interface BookingDateRange {
                 styleClass="w-full"
                 inputStyleClass="w-full min-h-11 h-11 pl-10 pr-3.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 hover:border-slate-400 dark:hover:border-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:border-indigo-500 transition-colors cursor-pointer shadow-2xs tabular-nums"
               />
-              <i class="pi pi-calendar absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 pointer-events-none text-sm z-10" aria-hidden="true"></i>
+              <i class="pi pi-calendar absolute left-3 top-1/2 -translate-y-1/2 text-[var(--brand-primary)] pointer-events-none text-sm z-10" aria-hidden="true"></i>
             </div>
             <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate h-4 tabular-nums">
               {{ getFormattedDayOfWeek(inDateObject()) }}
@@ -166,7 +166,7 @@ export interface BookingDateRange {
                   <option [value]="slot">{{ slot }}</option>
                 }
               </select>
-              <i class="pi pi-clock absolute left-2.5 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 pointer-events-none text-sm z-10" aria-hidden="true"></i>
+              <i class="pi pi-clock absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--brand-primary)] pointer-events-none text-sm z-10" aria-hidden="true"></i>
               <i class="pi pi-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 pointer-events-none text-xs z-10" aria-hidden="true"></i>
             </div>
             <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate h-4">Khung giờ nhận phòng</p>
@@ -195,7 +195,7 @@ export interface BookingDateRange {
                   <option [value]="h">{{ h }} giờ</option>
                 }
               </select>
-              <i class="pi pi-hourglass absolute left-2.5 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 pointer-events-none text-sm z-10" aria-hidden="true"></i>
+              <i class="pi pi-hourglass absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--brand-primary)] pointer-events-none text-sm z-10" aria-hidden="true"></i>
               <i class="pi pi-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 pointer-events-none text-xs z-10" aria-hidden="true"></i>
             </div>
             <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate h-4">Thời gian lưu trú</p>
@@ -215,7 +215,7 @@ export interface BookingDateRange {
               >
                 Đêm nhận phòng
               </label>
-              <span class="text-xs text-indigo-600 dark:text-indigo-400 font-medium shrink-0 tabular-nums">{{ overnightWindowHint() }}</span>
+              <span class="text-xs text-[var(--brand-primary)] font-medium shrink-0 tabular-nums">{{ overnightWindowHint() }}</span>
             </div>
             <div class="relative">
               <p-datepicker
@@ -234,7 +234,7 @@ export interface BookingDateRange {
                 styleClass="w-full"
                 inputStyleClass="w-full min-h-11 h-11 pl-10 pr-3.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 hover:border-slate-400 dark:hover:border-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:border-indigo-500 cursor-pointer shadow-2xs transition-colors tabular-nums"
               />
-              <i class="pi pi-moon absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 pointer-events-none text-sm z-10" aria-hidden="true"></i>
+              <i class="pi pi-moon absolute left-3 top-1/2 -translate-y-1/2 text-[var(--brand-primary)] pointer-events-none text-sm z-10" aria-hidden="true"></i>
             </div>
             <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate h-4 tabular-nums">
               {{ getFormattedDayOfWeek(inDateObject()) }}
@@ -250,7 +250,7 @@ export interface BookingDateRange {
               >
                 Trả phòng sáng hôm sau
               </label>
-              <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 shrink-0 tabular-nums">
+              <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shrink-0 tabular-nums">
                 1 Đêm
               </span>
             </div>
