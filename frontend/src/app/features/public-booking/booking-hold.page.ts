@@ -347,17 +347,17 @@ type QuoteWithPromo = QuoteDto & {
             <div class="flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-2xl bg-[var(--surface-card)] border-2 border-stone-300 gap-4">
               <div>
                 <div class="text-xs text-indigo-900 font-medium">Tổng tiền lưu trú dự tính</div>
-                <div class="text-2xl sm:text-3xl font-black text-indigo-700 tabular-nums">{{ detail.totalAmount | number:'1.0-0' }} ₫</div>
+                <div class="text-2xl sm:text-3xl font-sans font-bold tracking-tight text-slate-900 tabular-nums">{{ detail.totalAmount | number:'1.0-0' }} <span class="text-lg font-semibold">₫</span></div>
                 @if (detail.promoCode) {
-                  <div class="mt-1 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold tabular-nums">
+                  <div class="mt-1 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold tabular-nums">
                     <i class="pi pi-ticket text-[10px]" aria-hidden="true"></i>
                     <span>Mã {{ detail.promoCode }} (Giảm {{ (detail.promoDiscountAmount ?? 0) | number:'1.0-0' }} ₫)</span>
                   </div>
                 }
               </div>
               <div class="sm:text-right">
-                <div class="text-xs text-amber-800 font-bold uppercase tracking-wide">Đặt cọc yêu cầu theo quy định</div>
-                <div class="text-xl font-extrabold text-amber-600 tabular-nums">{{ detail.depositRequired | number:'1.0-0' }} ₫</div>
+                <div class="text-xs text-slate-600 font-semibold uppercase tracking-wide">Đặt cọc yêu cầu theo quy định</div>
+                <div class="text-xl font-sans font-bold text-slate-900 tabular-nums">{{ detail.depositRequired | number:'1.0-0' }} ₫</div>
               </div>
             </div>
 
@@ -381,7 +381,7 @@ type QuoteWithPromo = QuoteDto & {
                 <a
                   [routerLink]="['/booking/status', detail.lookupToken]"
                   [queryParams]="{ paymentMethod: selectedPaymentMethod }"
-                  class="min-h-11 w-full sm:w-auto px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  class="min-h-11 w-full sm:w-auto px-6 py-3 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>{{ paymentMethodActionLabel() }}</span>
                   <i class="pi pi-arrow-right text-xs"></i>
@@ -646,33 +646,33 @@ type QuoteWithPromo = QuoteDto & {
 
               @if (quote(); as price) {
                 <div class="space-y-3.5">
-                  <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
-                    <div class="font-bold text-sm text-slate-900">{{ property()?.name }}</div>
-                    <div class="text-xs text-indigo-700 font-semibold flex items-center gap-1.5">
+                  <div class="p-3.5 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--border-subtle)] space-y-1">
+                    <div class="font-bold text-sm text-[var(--text-primary)]">{{ property()?.name }}</div>
+                    <div class="text-xs text-[var(--brand-primary)] font-semibold flex items-center gap-1.5">
                       <i class="pi pi-bed"></i> {{ price.roomTypeName }}
                     </div>
                   </div>
 
                   <!-- Thông tin lịch & khách từ context -->
-                  <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2 text-xs">
-                    <div class="flex items-center justify-between text-slate-600">
+                  <div class="p-3.5 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--border-subtle)] space-y-2 text-xs">
+                    <div class="flex items-center justify-between text-[var(--text-secondary)]">
                       <span>Hình thức thuê:</span>
-                      <span class="font-bold text-slate-800">
+                      <span class="font-bold text-[var(--text-primary)]">
                         {{ stay()?.rentalType === 'Hourly' ? 'Thuê theo giờ' : (stay()?.rentalType === 'Overnight' ? 'Thuê qua đêm' : 'Thuê theo ngày') }}
                       </span>
                     </div>
 
                     @if (stay()?.rentalType === 'Hourly') {
-                      <div class="flex items-center justify-between text-slate-600">
+                      <div class="flex items-center justify-between text-[var(--text-secondary)]">
                         <span>Thời gian:</span>
-                        <span class="font-bold text-indigo-900 tabular-nums">
+                        <span class="font-bold text-[var(--text-primary)] tabular-nums">
                           {{ stay()?.checkInDate }} (từ {{ stay()?.checkInTime }}, {{ stay()?.durationHours }}h)
                         </span>
                       </div>
                     } @else {
-                      <div class="flex items-center justify-between text-slate-600">
+                      <div class="flex items-center justify-between text-[var(--text-secondary)]">
                         <span>Lịch lưu trú:</span>
-                        <span class="font-bold text-indigo-900 tabular-nums inline-flex items-center gap-1">
+                        <span class="font-bold text-[var(--text-primary)] tabular-nums inline-flex items-center gap-1">
                           <span>{{ stay()?.checkInDate }}</span>
                           <i class="pi pi-arrow-right text-[10px]" aria-hidden="true"></i>
                           <span>{{ stay()?.checkOutDate }} ({{ numberOfNights() }} đêm)</span>
@@ -706,7 +706,7 @@ type QuoteWithPromo = QuoteDto & {
                   <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2.5">
                     <div class="flex items-center justify-between gap-2">
                       <label for="hold-promo-input" class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <i class="pi pi-ticket text-indigo-600 text-xs" aria-hidden="true"></i>
+                        <i class="pi pi-ticket text-[var(--brand-primary)] text-xs" aria-hidden="true"></i>
                         <span>Mã khuyến mãi</span>
                       </label>
                       @if (appliedPromoCode(); as applied) {
@@ -725,7 +725,7 @@ type QuoteWithPromo = QuoteDto & {
                         (keyup.enter)="applyPromoCode()"
                         name="promoCode"
                         placeholder="Nhập mã ưu đãi (VD: SUMMER20)"
-                        class="min-h-[44px] flex-1 min-w-0 px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono uppercase focus:outline-hidden focus:border-indigo-500"
+                        class="min-h-[44px] flex-1 min-w-0 px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono uppercase focus:outline-hidden focus:border-[var(--focus-ring)]"
                       />
                       @if (appliedPromoCode()) {
                         <button
@@ -741,7 +741,7 @@ type QuoteWithPromo = QuoteDto & {
                         type="button"
                         (click)="applyPromoCode()"
                         [disabled]="isApplyingPromo() || isSubmitting()"
-                        class="min-h-[44px] px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                        class="min-h-[44px] px-4 py-2 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] font-bold text-xs transition-colors cursor-pointer shrink-0 disabled:opacity-50"
                       >
                         {{ isApplyingPromo() ? 'Đang kiểm tra...' : 'Áp dụng' }}
                       </button>
@@ -812,41 +812,41 @@ type QuoteWithPromo = QuoteDto & {
                     }
                   }
 
-                  <!-- Tổng tiền & Cọc -->
-                  <div class="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100 space-y-2">
-                    @if (estimatedPointsDiscount() > 0) {
-                      <div class="flex items-center justify-between text-xs text-slate-600">
-                        <span>Tạm tính trước điểm thưởng:</span>
-                        <span class="font-mono tabular-nums">{{ price.totalAmount | number:'1.0-0' }} ₫</span>
-                      </div>
-                      <div class="flex items-center justify-between text-xs text-emerald-700 font-semibold">
-                        <span>Quy đổi {{ effectivePointsToRedeem() | number }} điểm thưởng:</span>
-                        <span class="font-mono tabular-nums">-{{ estimatedPointsDiscount() | number:'1.0-0' }} ₫</span>
-                      </div>
-                    }
-                    <div class="flex items-baseline justify-between">
-                      <span class="text-xs font-bold text-indigo-950 uppercase tracking-wide">Tổng tiền lưu trú:</span>
-                      <strong class="text-xl sm:text-2xl font-black text-indigo-700 tabular-nums">
-                        {{ estimatedFinalTotal() | number:'1.0-0' }} ₫
-                      </strong>
-                    </div>
-                    @if (priceAny()?.depositRequired !== undefined && priceAny()?.depositRequired !== null) {
-                      <div class="flex items-center justify-between text-xs text-amber-800 pt-1.5 border-t border-indigo-100/80 font-medium">
-                        <span>Đặt cọc giữ chỗ:</span>
-                        <span class="font-bold text-amber-600 tabular-nums">{{ priceAny()?.depositRequired | number:'1.0-0' }} ₫</span>
-                      </div>
-                    } @else {
-                      <div class="pt-2 border-t border-indigo-100/80 space-y-1 text-xs">
-                        <div class="flex items-center justify-between text-amber-900 font-medium">
-                          <span>Đặt cọc giữ chỗ:</span>
-                          <span class="text-amber-700 font-semibold">Xác định khi tạo giữ phòng</span>
-                        </div>
-                        <p class="text-[11px] text-slate-500 leading-relaxed">
-                          Mức tiền đặt cọc chính thức sẽ do máy chủ tính toán theo chính sách cơ sở và hiển thị ngay sau khi tạo giữ chỗ (hệ thống không tự tính trước ở bước này).
-                        </p>
-                      </div>
-                    }
+              <!-- Tổng tiền & Cọc -->
+              <div class="p-4 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--border-strong)] space-y-2">
+                @if (estimatedPointsDiscount() > 0) {
+                  <div class="flex items-center justify-between text-xs text-slate-600">
+                    <span>Tạm tính trước điểm thưởng:</span>
+                    <span class="font-sans tabular-nums">{{ price.totalAmount | number:'1.0-0' }} ₫</span>
                   </div>
+                  <div class="flex items-center justify-between text-xs text-emerald-700 font-semibold">
+                    <span>Quy đổi {{ effectivePointsToRedeem() | number }} điểm thưởng:</span>
+                    <span class="font-sans tabular-nums">-{{ estimatedPointsDiscount() | number:'1.0-0' }} ₫</span>
+                  </div>
+                }
+                <div class="flex items-baseline justify-between">
+                  <span class="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">Tổng tiền lưu trú:</span>
+                  <strong class="text-2xl font-sans font-bold tracking-tight text-[var(--text-primary)] tabular-nums">
+                    {{ estimatedFinalTotal() | number:'1.0-0' }} <span class="text-base font-semibold">₫</span>
+                  </strong>
+                </div>
+                @if (priceAny()?.depositRequired !== undefined && priceAny()?.depositRequired !== null) {
+                  <div class="flex items-center justify-between text-xs text-[var(--text-secondary)] pt-1.5 border-t border-[var(--border-subtle)] font-medium">
+                    <span>Đặt cọc giữ chỗ:</span>
+                    <span class="font-bold text-[var(--text-primary)] tabular-nums">{{ priceAny()?.depositRequired | number:'1.0-0' }} ₫</span>
+                  </div>
+                } @else {
+                  <div class="pt-2 border-t border-[var(--border-subtle)] space-y-1 text-xs">
+                    <div class="flex items-center justify-between text-[var(--text-secondary)] font-medium">
+                      <span>Đặt cọc giữ chỗ:</span>
+                      <span class="text-[var(--brand-primary)] font-semibold">Xác định khi tạo giữ phòng</span>
+                    </div>
+                    <p class="text-[11px] text-[var(--text-muted)] leading-relaxed">
+                      Mức tiền đặt cọc chính thức sẽ do máy chủ tính toán theo chính sách cơ sở và hiển thị ngay sau khi tạo giữ chỗ (hệ thống không tự tính trước ở bước này).
+                    </p>
+                  </div>
+                }
+              </div>
 
                   <!-- Đồng hồ báo giá còn hiệu lực -->
                   <div class="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80 space-y-1">

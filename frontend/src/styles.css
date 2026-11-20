@@ -127,15 +127,15 @@ body.dark-theme {
   color-scheme: dark;
 
   /* Layer 2: Semantic Dark Surfaces, Text & Borders */
-  --surface-canvas: #0B1120;
-  --surface-card: #111827;
-  --surface-subtle: #1E293B;
-  --surface-elevated: #1F2937;
+  --surface-canvas: #0F172A;
+  --surface-card: #1E293B;
+  --surface-subtle: #273549;
+  --surface-elevated: #273549;
   --text-primary: #F8FAFC;
   --text-secondary: #CBD5E1;
   --text-muted: #94A3B8;
-  --border-subtle: #1E293B;
-  --border-strong: #334155;
+  --border-subtle: #334155;
+  --border-strong: #475569;
 
   --status-success-bg: rgba(16, 185, 129, 0.16);
   --status-success-fg: #6EE7B7;
@@ -150,13 +150,13 @@ body.dark-theme {
   --status-info-fg: #93C5FD;
   --status-info-border: rgba(59, 130, 246, 0.35);
 
-  --brand-primary: #10B981;
-  --brand-primary-hover: #34D399;
-  --brand-primary-fg: #052E16;
-  --brand-cta: #EA580C;
-  --brand-cta-hover: #C2410C;
-  --brand-accent: #818CF8;
-  --focus-ring: #818CF8;
+  --brand-primary: #14B8A6;
+  --brand-primary-hover: #2DD4BF;
+  --brand-primary-fg: #042F2E;
+  --brand-cta: #14B8A6;
+  --brand-cta-hover: #2DD4BF;
+  --brand-accent: #14B8A6;
+  --focus-ring: #14B8A6;
 
   /* Brand Primary Tokens (Emerald - Dark Mode Adjusted) */
   --brand-primary-50: rgba(16, 185, 129, 0.12);
@@ -203,48 +203,52 @@ body.dark-theme {
    LAYER 3: PERSONA SHELL OVERRIDES (marketplace / pms-ops / governance)
    ========================================================================== */
 [data-shell="marketplace"] {
-  --surface-canvas: #FBF9F5;
+  --surface-canvas: #F8FAFC;
   --surface-card: #FFFFFF;
-  --surface-subtle: #F3EDE2;
+  --surface-subtle: #F1F5F9;
   --surface-elevated: #FFFFFF;
-  --text-primary: #142420;
-  --text-secondary: #374B45;
-  --border-subtle: #E6DFD3;
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  --border-subtle: #E2E8F0;
 
   --surface-ground: var(--surface-canvas);
   --surface-border: var(--border-subtle);
   --text-main: var(--text-primary);
 
-  --brand-primary: #0D2E28;
-  --brand-primary-hover: #0F3D35;
+  --brand-primary: #0F766E;
+  --brand-primary-hover: #115E59;
   --brand-primary-fg: #FFFFFF;
-  --brand-cta: #C05621;
-  --brand-cta-hover: #9C4215;
-  --brand-accent: #B45309;
-  --focus-ring: #0D2E28;
+  --brand-cta: #0F766E;
+  --brand-cta-hover: #115E59;
+  --brand-accent: #0F766E;
+  --focus-ring: #0F766E;
 }
 
 [data-theme="dark"][data-shell="marketplace"],
 [data-theme="dark"] [data-shell="marketplace"],
 body.dark-theme [data-shell="marketplace"] {
-  --surface-canvas: #0E1715;
-  --surface-card: #15221F;
-  --surface-subtle: #1D2E2A;
-  --surface-elevated: #1D2E2A;
-  --text-primary: #F5F2EB;
+  --surface-canvas: #0F172A;
+  --surface-card: #1E293B;
+  --surface-subtle: #273549;
+  --surface-elevated: #273549;
+  --text-primary: #F8FAFC;
   --text-secondary: #CBD5E1;
-  --border-subtle: #283D38;
+  --text-muted: #94A3B8;
+  --border-subtle: #334155;
+  --border-strong: #475569;
 
   --surface-ground: var(--surface-canvas);
   --surface-border: var(--border-subtle);
   --text-main: var(--text-primary);
 
-  --brand-primary: #2DD4BF;
-  --brand-primary-hover: #5EEAD4;
-  --brand-primary-fg: #0B1916;
-  --brand-cta: #EA580C;
-  --brand-cta-hover: #C2410C;
-  --focus-ring: #2DD4BF;
+  --brand-primary: #14B8A6;
+  --brand-primary-hover: #2DD4BF;
+  --brand-primary-fg: #042F2E;
+  --brand-cta: #14B8A6;
+  --brand-cta-hover: #2DD4BF;
+  --brand-accent: #14B8A6;
+  --focus-ring: #14B8A6;
 }
 
 [data-shell="pms-ops"] {
@@ -1236,8 +1240,12 @@ body.dark-theme ::-webkit-scrollbar-thumb {
    STANDARDIZED UTILITY CLASSES (TYPOGRAPHY, TOUCH, FOCUS)
    ═══════════════════════════════════════════════════════════════ */
 @layer utilities {
-  .num-tabular {
-    font-variant-numeric: tabular-nums;
+  .num-tabular,
+  .tabular-nums,
+  .font-mono.tabular-nums {
+    font-family: var(--font-sans) !important;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1, "zero" 0;
   }
 
   .touch-target {

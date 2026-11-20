@@ -66,25 +66,25 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
            ════════════════════════════════════════════════════════════════════════ -->
       @if (isSuperAdmin()) {
         <!-- Platform Welcome Header -->
-        <div class="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 text-white rounded-2xl p-5 sm:p-6 shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4 border border-indigo-800/60">
+        <div class="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4 border border-slate-200 dark:border-slate-700">
           <div class="space-y-1.5">
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-200 border border-indigo-400/30">
-                <i class="pi pi-shield text-xs text-amber-400" aria-hidden="true"></i>
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                <i class="pi pi-shield text-xs text-[var(--brand-primary)]" aria-hidden="true"></i>
                 <span>PLATFORM CONTROL CENTER</span>
               </span>
-              <span class="text-xs text-indigo-300 font-medium">
+              <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">
                 Hệ sinh thái Quản trị Đa Thuê Bao (Multi-Tenant SaaS)
               </span>
             </div>
-            <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+            <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
               Tổng quan Nền tảng Hotel SaaS — {{ currentUser()?.fullName || 'SuperAdmin' }}
             </h1>
-            <p class="text-xs sm:text-sm text-indigo-200 flex items-center gap-2 flex-wrap">
+            <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2 flex-wrap">
               <span class="capitalize">{{ todayDateString() }}</span>
               <span aria-hidden="true">&bull;</span>
-              <span class="inline-flex items-center gap-1.5 text-emerald-300 font-semibold">
-                <span class="w-2 h-2 rounded-full bg-emerald-400" aria-hidden="true"></span>
+              <span class="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-semibold">
+                <span class="w-2 h-2 rounded-full bg-emerald-500" aria-hidden="true"></span>
                 SLA Cam kết 99.9% Online
               </span>
             </p>
@@ -94,28 +94,28 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
             <button
               type="button"
               (click)="loadPlatformDashboard()"
-              class="inline-flex items-center gap-2 min-h-11 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/15 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              class="inline-flex items-center gap-2 min-h-11 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
             >
               <i class="pi pi-refresh text-xs" [class.animate-spin]="loadingPlatform()" aria-hidden="true"></i>
               <span>Làm mới</span>
             </button>
             <a
               routerLink="/platform-tenants"
-              class="inline-flex items-center gap-2 min-h-11 px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              class="inline-flex items-center gap-2 min-h-11 px-4 py-2 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] text-xs font-bold shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
             >
               <i class="pi pi-building text-xs" aria-hidden="true"></i>
               <span>Thuê bao & Duyệt KS</span>
             </a>
             <a
               routerLink="/plans"
-              class="inline-flex items-center gap-2 min-h-11 px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-bold shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              class="inline-flex items-center gap-2 min-h-11 px-4 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
             >
               <i class="pi pi-sliders-v text-xs" aria-hidden="true"></i>
               <span>Cấu hình Gói cước</span>
             </a>
             <a
               routerLink="/contracts"
-              class="inline-flex items-center gap-2 min-h-11 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              class="inline-flex items-center gap-2 min-h-11 px-4 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
             >
               <i class="pi pi-file-edit text-xs" aria-hidden="true"></i>
               <span>Hợp đồng Đối tác</span>
@@ -456,22 +456,22 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
              ════════════════════════════════════════════════════════════════════════ -->
         @if (viewMode() === 'HQ') {
           <!-- HQ Welcome Banner -->
-          <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-5 sm:p-6 shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div class="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-2xl p-5 sm:p-6 shadow-xs border border-slate-200 dark:border-slate-700 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div class="space-y-1.5">
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                  <i class="pi pi-crown text-xs" aria-hidden="true"></i>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                  <i class="pi pi-crown text-xs text-[var(--brand-primary)]" aria-hidden="true"></i>
                   <span>TRUNG TÂM ĐIỀU HÀNH CHUỖI (HQ)</span>
                 </span>
-                <span class="text-xs text-slate-300 font-medium">
-                  Thương hiệu: <strong class="text-white">{{ tenantBrandName() }}</strong>
+                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                  Thương hiệu: <strong class="text-slate-900 dark:text-slate-100">{{ tenantBrandName() }}</strong>
                 </span>
               </div>
-              <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+              <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
                 Tổng quan Cơ sở tổng & Chuỗi Chi nhánh
               </h1>
-              <p class="text-xs sm:text-sm text-slate-300 flex items-center gap-2 flex-wrap">
-                <span>Chủ sở hữu / Quản lý: <strong class="text-white">{{ currentUser()?.fullName }}</strong></span>
+              <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2 flex-wrap">
+                <span>Chủ sở hữu / Quản lý: <strong class="text-slate-900 dark:text-slate-100">{{ currentUser()?.fullName }}</strong></span>
                 <span aria-hidden="true">&bull;</span>
                 <span class="capitalize">{{ todayDateString() }}</span>
               </p>
@@ -481,21 +481,21 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
               <button
                 type="button"
                 (click)="loadChainHqData()"
-                class="min-h-11 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/15 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                class="min-h-11 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
               >
                 <i class="pi pi-refresh text-xs" [class.animate-spin]="loadingHq()" aria-hidden="true"></i>
                 <span>Đồng bộ chuỗi</span>
               </button>
               <a
                 routerLink="/properties"
-                class="min-h-11 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                class="min-h-11 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] text-xs font-bold shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
               >
                 <i class="pi pi-plus text-xs" aria-hidden="true"></i>
                 <span>Quản lý Chi nhánh</span>
               </a>
               <a
                 routerLink="/reports"
-                class="min-h-11 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-bold shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                class="min-h-11 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
               >
                 <i class="pi pi-chart-bar text-xs" aria-hidden="true"></i>
                 <span>Báo cáo Doanh thu</span>

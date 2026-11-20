@@ -119,14 +119,14 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
             
             <!-- LEFT COLUMN: EDITORIAL HEADLINE & DESTINATION PILLS -->
             <div class="lg:col-span-7 space-y-4">
-              <div class="inline-flex items-center gap-2.5 px-3.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-800 text-xs font-bold tracking-wide shadow-2xs">
-                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
+              <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold tracking-wide shadow-2xs">
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-[var(--brand-primary)]"></span>
                 <span>Nền Tảng Đặt Phòng &amp; Nghỉ Dưỡng Di Sản Việt Nam</span>
               </div>
 
               <div>
-                <h1 class="font-display text-3xl sm:text-5xl lg:text-[52px] font-black text-slate-950 tracking-tight leading-[1.12]">
-                  Khám Phá Kỳ Nghỉ Tinh Hoa Giữa Lòng <span class="italic text-amber-600 font-display">Di Sản Việt Nam</span>
+                <h1 class="font-display text-3xl sm:text-5xl lg:text-[52px] font-bold text-slate-950 tracking-tight leading-[1.12]">
+                  Khám Phá Kỳ Nghỉ Tinh Hoa Giữa Lòng <span class="italic text-[var(--brand-primary)] font-display">Di Sản Việt Nam</span>
                 </h1>
               </div>
 
@@ -142,7 +142,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                   (click)="selectCategoryQuickTag('Đà Lạt')"
                   class="min-h-11 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
                 >
-                  <i class="pi pi-sun text-[11px] text-amber-600"></i>
+                  <i class="pi pi-sun text-[11px] text-[var(--brand-primary)]"></i>
                   <span>Đà Lạt Săn Mây</span>
                 </button>
                 <button
@@ -150,7 +150,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                   (click)="selectCategoryQuickTag('Phú Quốc')"
                   class="min-h-11 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
                 >
-                  <i class="pi pi-compass text-[11px] text-emerald-700"></i>
+                  <i class="pi pi-compass text-[11px] text-[var(--brand-primary)]"></i>
                   <span>Đảo Ngọc Phú Quốc</span>
                 </button>
                 <button
@@ -158,7 +158,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                   (click)="selectCategoryQuickTag('Đà Nẵng')"
                   class="min-h-11 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
                 >
-                  <i class="pi pi-map-marker text-[11px] text-indigo-600"></i>
+                  <i class="pi pi-map-marker text-[11px] text-[var(--brand-primary)]"></i>
                   <span>Đà Nẵng Biển Mỹ Khê</span>
                 </button>
                 <button
@@ -166,7 +166,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                   (click)="selectCategoryQuickTag('Vũng Tàu')"
                   class="min-h-11 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
                 >
-                  <i class="pi pi-sun text-[11px] text-sky-600"></i>
+                  <i class="pi pi-sun text-[11px] text-[var(--brand-primary)]"></i>
                   <span>Vũng Tàu Bãi Sau</span>
                 </button>
                 <button
@@ -174,7 +174,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                   (click)="selectCategoryQuickTag('Hà Nội')"
                   class="min-h-11 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-semibold transition-all border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5"
                 >
-                  <i class="pi pi-building text-[11px] text-amber-700"></i>
+                  <i class="pi pi-building text-[11px] text-[var(--brand-primary)]"></i>
                   <span>Hà Nội Phố Cổ</span>
                 </button>
               </div>
@@ -182,15 +182,15 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
               <!-- Quick Trust Indicators Strip -->
               <div class="pt-3 flex flex-wrap items-center gap-4 sm:gap-6 text-xs text-slate-500 font-medium border-t border-slate-200/80">
                 <span class="flex items-center gap-1.5 text-slate-700">
-                  <i class="pi pi-clock text-amber-600 text-xs"></i>
+                  <i class="pi pi-clock text-[var(--brand-primary)] text-xs"></i>
                   <span>Giữ phòng tạm thời 15 phút</span>
                 </span>
                 <span class="flex items-center gap-1.5 text-slate-700">
-                  <i class="pi pi-check-circle text-emerald-600 text-xs"></i>
+                  <i class="pi pi-check-circle text-[var(--brand-primary)] text-xs"></i>
                   <span>Kiểm tra phòng trống trực tiếp</span>
                 </span>
                 <span class="flex items-center gap-1.5 text-slate-700">
-                  <i class="pi pi-shield text-indigo-600 text-xs"></i>
+                  <i class="pi pi-shield text-[var(--brand-primary)] text-xs"></i>
                   <span>Xem trước chính sách hủy rõ ràng</span>
                 </span>
               </div>
@@ -213,10 +213,10 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                           fetchpriority="high"
                           class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                         />
-                        <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent"></div>
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent"></div>
                       } @else {
-                        <div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 via-slate-900 to-emerald-950 text-white/80 gap-2 pb-16">
-                          <i class="pi pi-building text-4xl text-amber-300"></i>
+                        <div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 via-slate-900 to-teal-950 text-white/80 gap-2 pb-16">
+                          <i class="pi pi-building text-4xl text-slate-200"></i>
                           <span class="text-xs font-semibold text-slate-200">
                             {{ heroProp.propertyTypeName || getPropertyTypeLabel(heroProp.propertyType) }}
                           </span>
@@ -224,17 +224,17 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                       }
 
                       <div class="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-xs text-white text-[11px] font-bold shadow-xs">
-                          <i class="pi pi-building text-amber-400 text-[10px]"></i>
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 backdrop-blur-xs text-slate-800 text-[11px] font-semibold shadow-xs">
+                          <i class="pi pi-building text-[var(--brand-primary)] text-[10px]"></i>
                           <span>{{ heroProp.tenantBrandName || 'Cơ sở lưu trú' }}</span>
                         </span>
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-600 text-white text-[11px] font-bold shadow-xs">
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-900/80 text-white text-[11px] font-semibold shadow-xs">
                           <span>{{ heroProp.propertyTypeName || getPropertyTypeLabel(heroProp.propertyType) }}</span>
                         </span>
                       </div>
 
                       <div class="absolute bottom-3 left-3 right-3 text-white space-y-1">
-                        <div class="text-[11px] font-semibold text-amber-200 tracking-wider flex items-center gap-1">
+                        <div class="text-[11px] font-semibold text-slate-200 tracking-wider flex items-center gap-1">
                           <i class="pi pi-map-marker text-[10px]"></i>
                           <span>{{ heroProp.provinceName || heroProp.city || 'Việt Nam' }}</span>
                         </div>
@@ -242,20 +242,20 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                           {{ heroProp.name }}
                         </h3>
                         <div class="flex items-center justify-between pt-1">
-                          <div class="text-xs text-stone-200">
+                          <div class="text-xs text-slate-200">
                             @if (heroProp.startingPriceForSelectedMode > 0) {
                               <span>Giá từ: </span>
-                              <span class="font-mono font-bold text-amber-300 text-sm tabular-nums">
+                              <span class="font-sans font-bold text-white text-base tabular-nums">
                                 {{ heroProp.startingPriceForSelectedMode | number:'1.0-0' }} ₫
                               </span>
                             } @else {
-                              <span class="text-stone-300 italic">Liên hệ báo giá</span>
+                              <span class="text-slate-300 italic">Liên hệ báo giá</span>
                             }
                           </div>
                           <a
                             [routerLink]="['/booking/properties', heroProp.slug]"
                             [queryParams]="searchFilter()"
-                            class="min-h-11 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-bold text-xs transition-colors cursor-pointer shadow-xs flex items-center gap-1"
+                            class="min-h-11 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs transition-colors cursor-pointer shadow-xs flex items-center gap-1"
                           >
                             <span>Xem phòng</span>
                             <i class="pi pi-arrow-right text-[10px]"></i>
@@ -330,8 +330,8 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
           <div class="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-4 border-b border-slate-200/80 pb-4">
             <div>
               <div class="flex items-center gap-2 mb-1.5">
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-widest uppercase bg-amber-500/10 text-amber-700 border border-amber-500/20">
-                  <i class="pi pi-crown text-[10px] text-amber-600"></i>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-slate-100 text-slate-700 border border-slate-200">
+                  <i class="pi pi-crown text-[10px] text-[var(--brand-primary)]"></i>
                   Lựa Chọn Hàng Đầu
                 </span>
                 <span class="text-xs text-slate-500 font-medium">
@@ -342,7 +342,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                   }
                 </span>
               </div>
-              <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-display">
+              <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight font-display">
                 Khu Nghỉ Dưỡng &amp; Khách Sạn Nổi Bật
               </h2>
               <p class="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">
@@ -353,9 +353,9 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
             <div class="flex flex-wrap items-center gap-2.5">
               <a
                 routerLink="/auth/partner-register"
-                class="min-h-11 inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold transition-all cursor-pointer"
+                class="min-h-11 inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold transition-all cursor-pointer"
               >
-                <i class="pi pi-plus-circle text-[11px]"></i>
+                <i class="pi pi-plus-circle text-[11px] text-[var(--brand-primary)]"></i>
                 <span>Đăng ký đối tác lưu trú mới</span>
               </a>
               <a
@@ -373,14 +373,14 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
           <div class="mb-5" role="tablist" aria-label="Lọc theo loại hình lưu trú">
             <div class="flex items-center justify-between gap-2 mb-2.5">
               <span class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                <i class="pi pi-building text-indigo-600 text-xs"></i>
+                <i class="pi pi-building text-[var(--brand-primary)] text-xs"></i>
                 Loại hình lưu trú
               </span>
               @if (selectedPropertyType() !== 'ALL' || selectedTenantId() || searchFilter().propertyTypes.length > 0) {
                 <button
                   type="button"
                   (click)="resetSidebarFilters()"
-                  class="min-h-11 text-xs font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer px-2"
+                  class="min-h-11 text-xs font-semibold text-[var(--brand-primary)] hover:underline cursor-pointer px-2"
                 >
                   Đặt lại bộ lọc
                 </button>
@@ -395,8 +395,8 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                   (click)="selectPropertyTypeTab(tab.key)"
                   class="min-h-11 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer"
                   [class]="isPropertyTypeTabActive(tab)
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                    : 'bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50/40'"
+                    ? 'bg-[var(--brand-primary)] text-white border-[var(--brand-primary)] shadow-xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50'"
                 >
                   <i [class]="'pi ' + tab.icon + ' text-[11px]'"></i>
                   <span>{{ tab.label }}</span>
@@ -416,7 +416,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
             <div class="mb-7 bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs">
               <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
                 <div class="flex items-center gap-2">
-                  <span class="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
+                  <span class="w-7 h-7 rounded-lg bg-slate-100 text-[var(--brand-primary)] flex items-center justify-center">
                     <i class="pi pi-verified text-xs"></i>
                   </span>
                   <div>
@@ -427,7 +427,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                 <div class="flex items-center gap-3">
                   <a
                     routerLink="/booking/brands"
-                    class="min-h-11 text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                    class="min-h-11 text-xs font-semibold text-[var(--brand-primary)] hover:underline flex items-center gap-1"
                   >
                     <span>Khám phá {{ tenantBrandFacets().length }} thương hiệu</span>
                     <i class="pi pi-arrow-right text-[10px]"></i>
@@ -441,7 +441,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                   (click)="filterByTenantBrandInline(null)"
                   class="min-h-11 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer"
                   [class]="!selectedTenantId() && !searchFilter().tenantSlug
-                    ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
                     : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'"
                 >
                   Tất cả hệ thống ({{ properties().length }})
@@ -451,7 +451,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                   <div class="inline-flex items-center rounded-xl border overflow-hidden transition-all"
                     [class]="isBrandFacetActive(brand)
                       ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
-                      : 'bg-white text-slate-700 border-slate-200 hover:border-amber-300'"
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'"
                   >
                     <button
                       type="button"
@@ -460,7 +460,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                     >
                       <span>{{ brand.tenantBrandName }}</span>
                       <span
-                        class="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                        class="px-1.5 py-0.5 rounded text-[10px] font-bold tabular-nums"
                         [class]="isBrandFacetActive(brand) ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'"
                       >
                         {{ brand.branchCount }} cơ sở
@@ -469,7 +469,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                     <a
                       [routerLink]="['/booking/brands', brand.tenantSlug || brand.tenantId]"
                       class="min-h-11 min-w-11 flex items-center justify-center px-2 py-1.5 border-l text-[10px] font-bold opacity-80 hover:opacity-100"
-                      [class]="isBrandFacetActive(brand) ? 'border-white/20 text-amber-300' : 'border-slate-200 text-indigo-600 hover:bg-indigo-50'"
+                      [class]="isBrandFacetActive(brand) ? 'border-white/20 text-white' : 'border-slate-200 text-[var(--brand-primary)] hover:bg-slate-50'"
                       [attr.aria-label]="'Xem hồ sơ thương hiệu ' + brand.tenantBrandName"
                       [title]="'Xem hồ sơ thương hiệu ' + brand.tenantBrandName"
                     >
@@ -503,7 +503,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               @for (property of filteredProperties().slice(0, visibleCount()); track property.propertyId) {
                 <article
-                  class="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-xs hover:shadow-xl hover:border-amber-300 transition-all duration-300 flex flex-col group"
+                  class="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-2xs hover:shadow-md hover:border-slate-300 transition-all duration-200 flex flex-col group"
                 >
                   <!-- Ảnh Thumbnail & Huy hiệu -->
                   <div class="relative h-52 w-full overflow-hidden bg-slate-100">
@@ -516,7 +516,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                         loading="lazy"
                       />
-                      <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none"></div>
+                      <div class="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent pointer-events-none"></div>
                     } @else {
                       <div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-stone-200 text-slate-400 gap-1.5">
                         <i class="pi pi-building text-3xl text-slate-400"></i>
@@ -526,12 +526,12 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
 
                     <!-- Top Badges -->
                     <div class="absolute top-3 left-3 right-3 flex items-center justify-between">
-                      <span [class]="'px-2.5 py-1 rounded-full text-[10px] font-bold backdrop-blur-xs shadow-2xs ' + getPropertyTypeBadgeClass(property.propertyType)">
+                      <span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white/90 text-slate-800 border border-slate-200/80 backdrop-blur-xs shadow-2xs">
                         {{ property.propertyTypeName || getPropertyTypeLabel(property.propertyType) }}
                       </span>
                       @if (property.starRating && property.starRating >= 4) {
-                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950 flex items-center gap-1 shadow-2xs">
-                          <i class="pi pi-star-fill text-[9px]"></i>
+                        <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-white/95 text-slate-900 border border-slate-200/80 flex items-center gap-1 shadow-2xs tabular-nums">
+                          <i class="pi pi-star-fill text-[10px] text-amber-500"></i>
                           <span>{{ property.starRating }} sao</span>
                         </span>
                       }
@@ -542,7 +542,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                       <button
                         type="button"
                         (click)="openPhotoGallery(property)"
-                        class="min-h-11 absolute bottom-3 right-3 px-3 py-1.5 rounded-lg bg-black/60 hover:bg-black/80 backdrop-blur-xs text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                        class="min-h-11 absolute bottom-3 right-3 px-3 py-1.5 rounded-lg bg-slate-900/70 hover:bg-slate-900/85 backdrop-blur-xs text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
                         title="Xem toàn bộ album ảnh"
                       >
                         <i class="pi pi-images text-xs"></i>
@@ -555,11 +555,11 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                   <div class="p-5 flex-1 flex flex-col justify-between space-y-4">
                     <div class="space-y-1.5">
                       <div class="flex items-center justify-between gap-2">
-                        <span class="text-[11px] font-bold text-amber-800 uppercase tracking-wider truncate">
+                        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
                           {{ property.tenantBrandName }}
                         </span>
                         @if (property.reviewCount > 0 && property.ratingAverage > 0) {
-                          <span class="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 shrink-0 tabular-nums">
+                          <span class="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 shrink-0 tabular-nums">
                             <i class="pi pi-star-fill text-amber-500 text-[10px]"></i>
                             <span>{{ property.ratingAverage | number:'1.1-1' }}</span>
                             <span class="text-[10px] text-slate-500">({{ property.reviewCount }})</span>
@@ -569,14 +569,14 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                         }
                       </div>
 
-                      <h3 class="font-display text-lg font-bold text-slate-900 group-hover:text-amber-800 transition-colors line-clamp-1">
+                      <h3 class="font-display text-lg font-bold text-slate-900 group-hover:text-[var(--brand-primary)] transition-colors line-clamp-1">
                         <a [routerLink]="['/booking/properties', property.slug]" [queryParams]="searchFilter()">
                           {{ property.name }}
                         </a>
                       </h3>
 
                       <p class="text-xs text-slate-500 flex items-center gap-1.5 line-clamp-1">
-                        <i class="pi pi-map-marker text-amber-600 text-xs shrink-0"></i>
+                        <i class="pi pi-map-marker text-slate-400 text-xs shrink-0"></i>
                         <span>{{ getPropertyAddress(property) }}</span>
                       </p>
                     </div>
@@ -587,8 +587,8 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                         <span class="text-[10px] text-slate-500 block uppercase font-medium">Giá chỉ từ</span>
                         @if (property.startingPriceForSelectedMode > 0) {
                           <div class="flex items-baseline gap-1">
-                            <span class="font-mono text-base sm:text-lg font-extrabold text-slate-900 tabular-nums">
-                              {{ property.startingPriceForSelectedMode | number:'1.0-0' }} ₫
+                            <span class="font-sans text-lg font-bold tracking-tight text-slate-900 tabular-nums">
+                              {{ property.startingPriceForSelectedMode | number:'1.0-0' }} <span class="text-sm font-semibold">₫</span>
                             </span>
                             <span class="text-[11px] text-slate-500">
                               / {{ searchFilter().rentalType === 'Hourly' ? 'giờ' : (searchFilter().rentalType === 'Overnight' ? 'đêm' : 'ngày') }}
@@ -602,7 +602,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                       <a
                         [routerLink]="['/booking/properties', property.slug]"
                         [queryParams]="searchFilter()"
-                        class="min-h-11 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-bold transition-colors cursor-pointer shadow-2xs shrink-0 flex items-center gap-1"
+                        class="min-h-11 px-4 py-2 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] text-xs font-bold transition-colors cursor-pointer shadow-2xs shrink-0 flex items-center gap-1"
                       >
                         <span>Xem phòng</span>
                         <i class="pi pi-chevron-right text-[10px]"></i>
@@ -628,7 +628,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                   <button
                     type="button"
                     (click)="showMoreProperties()"
-                    class="min-h-11 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                    class="min-h-11 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold transition-all shadow-2xs cursor-pointer"
                   >
                     <i class="pi pi-plus text-[10px]"></i>
                     <span>Xem thêm cơ sở lưu trú (còn {{ filteredProperties().length - visibleCount() }} cơ sở)</span>

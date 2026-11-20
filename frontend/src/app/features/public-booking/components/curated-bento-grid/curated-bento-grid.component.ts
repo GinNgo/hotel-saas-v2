@@ -23,13 +23,13 @@ export interface TravelLifestyle {
     <section class="mt-14 mb-14" aria-label="Khám phá theo phong cách nghỉ dưỡng">
       <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6">
         <div>
-          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold uppercase tracking-wider mb-2">
-            <i class="pi pi-compass"></i> Danh Mục Lưu Trú
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold uppercase tracking-wider mb-2">
+            <i class="pi pi-compass text-[var(--brand-primary)]"></i> Danh Mục Lưu Trú
           </span>
           <h2 class="font-display text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Khám Phá Theo Loại Hình Lưu Trú
           </h2>
-          <p class="text-xs sm:text-sm text-slate-500 mt-1">
+          <p class="text-xs sm:text-sm text-slate-600 mt-1">
             Chọn nhanh nhóm cơ sở phù hợp với lịch trình di chuyển và nhu cầu lưu trú của bạn.
           </p>
         </div>
@@ -41,37 +41,36 @@ export interface TravelLifestyle {
             type="button"
             [attr.aria-label]="'Khám phá ' + item.filterType"
             (click)="onSelect(item)"
-            [class]="'group relative rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer min-h-[260px] flex flex-col justify-between p-5 border border-slate-200/70 text-left ' + item.cardGradient"
+            class="group rounded-2xl overflow-hidden bg-white border border-slate-200 hover:border-slate-300 shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col text-left"
           >
-            <img [src]="item.imageUrl" [alt]="item.title" width="640" height="420" loading="lazy" class="absolute inset-0 w-full h-full object-cover opacity-45 group-hover:scale-105 transition-transform duration-500" />
-            <div class="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/55 to-slate-900/30"></div>
-
-            <!-- Top Badge & Subtle Architectural Icon -->
-            <div class="relative z-10 flex items-center justify-between gap-2 w-full">
-              <span
-                class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider backdrop-blur-md border border-white/20 text-white"
-                [ngClass]="item.badgeColor"
-              >
+            <div class="relative h-40 w-full overflow-hidden bg-slate-100">
+              <img
+                [src]="item.imageUrl"
+                [alt]="item.title"
+                width="640"
+                height="420"
+                loading="lazy"
+                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              <span class="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[11px] font-bold bg-white/90 backdrop-blur-xs text-slate-800 border border-slate-200/80 shadow-2xs">
                 {{ item.badge }}
-              </span>
-              <span class="w-9 h-9 rounded-xl bg-white/15 border border-white/20 text-white flex items-center justify-center shrink-0">
-                <i [class]="'pi ' + item.icon + ' text-sm'"></i>
               </span>
             </div>
 
-            <!-- Bottom Content -->
-            <div class="relative z-10 text-white pt-8">
-              <p class="text-xs text-amber-200 font-semibold mb-1 flex items-center gap-1">
-                <i class="pi pi-map-marker text-[11px]"></i> {{ item.destinationHint }}
-              </p>
-              <h3 class="text-base sm:text-lg font-black tracking-tight leading-snug group-hover:text-amber-200 transition-colors">
-                {{ item.title }}
-              </h3>
-              <p class="text-xs text-slate-200 mt-1 line-clamp-2 leading-relaxed">
-                {{ item.tagline }}
-              </p>
+            <div class="p-4 flex-1 flex flex-col justify-between space-y-2 w-full">
+              <div>
+                <p class="text-xs font-medium text-[var(--brand-primary)] mb-1 flex items-center gap-1">
+                  <i class="pi pi-map-marker text-[11px]"></i> {{ item.destinationHint }}
+                </p>
+                <h3 class="text-base font-bold text-slate-900 tracking-tight leading-snug group-hover:text-[var(--brand-primary)] transition-colors">
+                  {{ item.title }}
+                </h3>
+                <p class="text-xs text-slate-600 mt-1 line-clamp-2 leading-relaxed">
+                  {{ item.tagline }}
+                </p>
+              </div>
 
-              <div class="mt-4 pt-2.5 border-t border-white/15 flex items-center justify-between text-xs font-bold text-white">
+              <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-[var(--brand-primary)]">
                 <span>Lọc các cơ sở thực tế</span>
                 <i class="pi pi-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
               </div>
