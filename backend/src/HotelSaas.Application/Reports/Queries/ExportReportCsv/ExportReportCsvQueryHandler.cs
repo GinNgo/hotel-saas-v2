@@ -34,6 +34,7 @@ public sealed class ExportReportCsvQueryHandler : IRequestHandler<ExportReportCs
         var effectiveTo = request.ToDate ?? today;
 
         var query = _context.Reservations
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Include(r => r.Property)
             .Include(r => r.Room)

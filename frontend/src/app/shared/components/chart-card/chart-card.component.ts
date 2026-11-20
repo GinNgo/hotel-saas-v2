@@ -69,7 +69,7 @@ const DEFAULT_LINE_FILL_COLORS: readonly string[] = [
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section
-      class="rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-[var(--surface-card,#ffffff)] dark:bg-slate-900 p-4 sm:p-5 shadow-xs"
+      class="min-w-0 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-[var(--surface-card,#ffffff)] dark:bg-slate-900 p-4 sm:p-5 shadow-xs"
       [attr.aria-label]="title()"
     >
       <!-- Header -->
@@ -195,7 +195,7 @@ const DEFAULT_LINE_FILL_COLORS: readonly string[] = [
           </div>
 
           <!-- Always keep an accessible sr-only table in chart mode for Screen Readers -->
-          <table class="sr-only" data-testid="chart-sr-table">
+          <table class="sr-only left-0 top-0" data-testid="chart-sr-table">
             <caption>
               {{ title() }}@if (valueUnit()) { ({{ valueUnit() }}) }
             </caption>

@@ -4,11 +4,18 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ApiResponse, PagedResult } from '../models/api-response.model';
 import { AuditLogDetail, AuditLogFilterParams, AuditLogListItem } from '../models/audit-log.model';
+import { TokenStorageService } from './token-storage.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuditLogService {
   private readonly http = inject(HttpClient);
+  private readonly tokenStorage = inject(TokenStorageService);
   private readonly apiUrl = `${environment.apiUrl}/audit-logs`;
+  private readonly platformApiUrl = `${environment.apiUrl}/platform/audit-logs`;
+
+  private getEndpointUrl(): string {
+    return this.tokenStorage.getDecodedToken()?.globalRole === 'SuperAdmin' ? this.platformApiUrl : this.apiUrl;
+  }
 
   /**
    * Tra cứu danh sách nhật ký kiểm toán với bộ lọc và phân trang server-side.
@@ -47,7 +54,7 @@ export class AuditLogService {
       httpParams = httpParams.set('pageSize', params.pageSize.toString());
     }
 
-    return this.http.get<ApiResponse<PagedResult<AuditLogListItem>>>(this.apiUrl, { params: httpParams });
+    return this.http.get<ApiResponse<PagedResult<AuditLogListItem>>>(this.getEndpointUrl(), { params: httpParams });
   }
 
   /**
@@ -58,7 +65,7 @@ export class AuditLogService {
     if (propertyId) {
       httpParams = httpParams.set('propertyId', propertyId);
     }
-    return this.http.get<ApiResponse<AuditLogDetail>>(`${this.apiUrl}/${id}`, { params: httpParams });
+    return this.http.get<ApiResponse<AuditLogDetail>>(`${this.getEndpointUrl()}/${id}`, { params: httpParams });
   }
 
   /**

@@ -2,8 +2,10 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentValidation;
+using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
+using HotelSaas.Domain.Enums;
 using MediatR;
 
 namespace HotelSaas.Application.AuditLogs.Commands.RecordAuditEvent;
@@ -39,16 +41,29 @@ public sealed class RecordAuditEventCommandValidator : AbstractValidator<RecordA
 public sealed class RecordAuditEventCommandHandler : IRequestHandler<RecordAuditEventCommand, ApiResponse<Guid>>
 {
     private readonly IAuditLogService _auditLogService;
+    private readonly ICurrentUserContext? _userContext;
 
-    public RecordAuditEventCommandHandler(IAuditLogService auditLogService)
+    public RecordAuditEventCommandHandler(
+        IAuditLogService auditLogService,
+        ICurrentUserContext? userContext = null)
     {
         _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
+        _userContext = userContext;
     }
 
     public async Task<ApiResponse<Guid>> Handle(
         RecordAuditEventCommand request,
         CancellationToken cancellationToken)
     {
+        if (_userContext is { IsAuthenticated: true } &&
+            _userContext.GlobalRole != GlobalUserRole.SuperAdmin &&
+            _userContext.StaffRole is not (StaffRole.Owner or StaffRole.Manager))
+        {
+            throw new ForbiddenException(
+                "ERR_FORBIDDEN",
+                "Chỉ Chủ khách sạn (Owner) hoặc Quản lý (Manager) mới có quyền ghi nhận sự kiện kiểm toán.");
+        }
+
         var log = await _auditLogService.RecordActionAsync(
             request.Action,
             request.EntityName,

@@ -28,6 +28,7 @@ public sealed class GetReportRoomTypesQueryHandler : IRequestHandler<GetReportRo
         var effectivePropertyId = ReportScopeHelper.ResolveScopedPropertyId(_currentUser, request.PropertyId);
 
         var query = _context.RoomTypes
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(type => type.TenantId == tenantId);
 

@@ -21,6 +21,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { DatePicker } from 'primeng/datepicker';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 import { PaymentService, GetPaymentsFilter } from '../../core/services/payment.service';
 import { ReservationService } from '../../core/services/reservation.service';
 import { ReservationDto } from '../../core/models/reservation.model';
@@ -105,6 +106,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
     PageHeaderComponent,
     BusinessDatePipe,
     BusinessDateTimePipe,
+    VndCurrencyPipe,
     EmptyStateComponent,
     PaginationComponent,
     RefundApprovalComponent,
@@ -286,7 +288,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                     <i class="pi pi-wallet text-emerald-600 text-base"></i>
                   </div>
                   <div class="text-xl sm:text-2xl font-extrabold text-emerald-900 tracking-tight tabular-nums">
-                    {{ s.totalCollected | number:'1.0-0' }} <span class="text-xs font-semibold text-emerald-700">VNĐ</span>
+                    {{ s.totalCollected | vndCurrency }}
                   </div>
                   <div class="text-[11px] text-emerald-700 flex items-center gap-1 pt-1 tabular-nums">
                     <i class="pi pi-check-circle text-[10px]"></i>
@@ -301,7 +303,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                     <i class="pi pi-money-bill text-emerald-600 text-base"></i>
                   </div>
                   <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight tabular-nums">
-                    {{ s.cashCollected | number:'1.0-0' }} <span class="text-xs font-medium text-slate-500">VNĐ</span>
+                    {{ s.cashCollected | vndCurrency }}
                   </div>
                   <div class="text-[11px] text-slate-400 pt-1">
                     Thực thu tiền mặt tại quầy
@@ -315,7 +317,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                     <i class="pi pi-arrow-right-arrow-left text-blue-600 text-base"></i>
                   </div>
                   <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight tabular-nums">
-                    {{ s.bankTransferCollected | number:'1.0-0' }} <span class="text-xs font-medium text-slate-500">VNĐ</span>
+                    {{ s.bankTransferCollected | vndCurrency }}
                   </div>
                   <div class="text-[11px] text-slate-400 pt-1">
                     Giao dịch qua ngân hàng
@@ -329,7 +331,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                     <i class="pi pi-credit-card text-purple-600 text-base"></i>
                   </div>
                   <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight tabular-nums">
-                    {{ s.creditCardCollected | number:'1.0-0' }} <span class="text-xs font-medium text-slate-500">VNĐ</span>
+                    {{ s.creditCardCollected | vndCurrency }}
                   </div>
                   <div class="text-[11px] text-slate-400 pt-1">
                     Thanh toán qua POS/Thẻ
@@ -454,7 +456,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                       <i class="pi pi-calculator text-amber-600 text-base"></i>
                     </div>
                     <div class="text-xl sm:text-2xl font-extrabold text-amber-900 tracking-tight tabular-nums">
-                      {{ sr.totalCollected | number:'1.0-0' }} <span class="text-xs font-semibold text-amber-700">VNĐ</span>
+                      {{ sr.totalCollected | vndCurrency }}
                     </div>
                     <div class="text-[11px] text-amber-700 flex items-center gap-1 pt-1 tabular-nums">
                       <i class="pi pi-check-circle text-[10px]"></i>
@@ -468,7 +470,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                       <i class="pi pi-money-bill text-emerald-600 text-base"></i>
                     </div>
                     <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight tabular-nums">
-                      {{ sr.cashCollected | number:'1.0-0' }} <span class="text-xs font-medium text-slate-500">VNĐ</span>
+                      {{ sr.cashCollected | vndCurrency }}
                     </div>
                     <div class="text-[11px] text-slate-400 pt-1">Giao dịch tiền mặt ghi nhận hệ thống</div>
                   </div>
@@ -479,7 +481,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                       <i class="pi pi-arrow-right-arrow-left text-blue-600 text-base"></i>
                     </div>
                     <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight tabular-nums">
-                      {{ sr.bankTransferCollected | number:'1.0-0' }} <span class="text-xs font-medium text-slate-500">VNĐ</span>
+                      {{ sr.bankTransferCollected | vndCurrency }}
                     </div>
                     <div class="text-[11px] text-slate-400 pt-1">Giao dịch ngân hàng nhận trong ca</div>
                   </div>
@@ -490,7 +492,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                       <i class="pi pi-credit-card text-purple-600 text-base"></i>
                     </div>
                     <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight tabular-nums">
-                      {{ sr.creditCardCollected | number:'1.0-0' }} <span class="text-xs font-medium text-slate-500">VNĐ</span>
+                      {{ sr.creditCardCollected | vndCurrency }}
                     </div>
                     <div class="text-[11px] text-slate-400 pt-1">Giao dịch thẻ POS ghi nhận hệ thống</div>
                   </div>
@@ -521,7 +523,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                             @if (p.transactionRef) {
                               <span class="text-[11px] text-slate-500 font-mono">Ref: {{ p.transactionRef }}</span>
                             }
-                            <span class="font-bold text-slate-800 tabular-nums">+{{ p.amount | number:'1.0-0' }} VNĐ</span>
+                            <span class="font-bold text-slate-800 tabular-nums">+{{ p.amount | vndCurrency }}</span>
                           </div>
                         </div>
                       }
@@ -683,12 +685,12 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                     </span>
                     @if (f.depositRequired && f.depositRequired > 0) {
                       <div class="flex items-center gap-2 flex-wrap">
-                        <span class="text-[11px] font-normal text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                          Cọc yêu cầu: {{ f.depositRequired | number:'1.0-0' }} VNĐ
+                        <span class="text-[11px] font-normal text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 tabular-nums">
+                          Cọc yêu cầu: {{ f.depositRequired | vndCurrency }}
                         </span>
                         @if (f.depositPaid !== null && f.depositPaid !== undefined) {
-                          <span class="text-[11px] font-normal text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                            Cọc đã thực thu: {{ f.depositPaid | number:'1.0-0' }} VNĐ
+                          <span class="text-[11px] font-normal text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 tabular-nums">
+                            Cọc đã thực thu: {{ f.depositPaid | vndCurrency }}
                           </span>
                         } @else {
                           <span class="text-[11px] font-normal text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-300" title="Đã có thanh toán nhưng không có giao dịch gắn thẻ cọc có cấu trúc [PURPOSE:DEPOSIT]">
@@ -705,7 +707,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                       @for (item of f.breakdown; track $index) {
                         <div class="flex justify-between items-center text-slate-600">
                           <span class="truncate max-w-[240px]" [title]="item.description">{{ item.description }}</span>
-                          <span class="font-mono font-medium text-slate-700">{{ item.amount | number:'1.0-0' }} VNĐ</span>
+                          <span class="font-mono font-medium text-slate-700 tabular-nums">{{ item.amount | vndCurrency }}</span>
                         </div>
                       }
                     </div>
@@ -714,9 +716,9 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                   <!-- Subtotal rows -->
                   <div class="space-y-1 pt-1 text-slate-600">
                     @if (f.baseRoomAmount !== null && f.baseRoomAmount !== undefined) {
-                      <div class="flex justify-between items-center">
+                      <div class="flex justify-between items-center tabular-nums">
                         <span>Tiền phòng gốc:</span>
-                        <span class="font-medium text-slate-800">{{ f.baseRoomAmount | number:'1.0-0' }} VNĐ</span>
+                        <span class="font-medium text-slate-800">{{ f.baseRoomAmount | vndCurrency }}</span>
                       </div>
                     } @else {
                       <div class="flex justify-between items-center text-slate-400 italic text-[11px]">
@@ -725,31 +727,31 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                       </div>
                     }
                     @if (f.surchargesAmount !== null && f.surchargesAmount !== undefined && f.surchargesAmount > 0) {
-                      <div class="flex justify-between items-center text-amber-700">
+                      <div class="flex justify-between items-center text-amber-700 tabular-nums">
                         <span>Phụ thu nhận sớm / trả muộn / lễ:</span>
-                        <span class="font-medium">+{{ f.surchargesAmount | number:'1.0-0' }} VNĐ</span>
+                        <span class="font-medium">+{{ f.surchargesAmount | vndCurrency }}</span>
                       </div>
                     }
                     @if (f.servicesAmount !== null && f.servicesAmount !== undefined && f.servicesAmount > 0) {
-                      <div class="flex justify-between items-center text-blue-700">
+                      <div class="flex justify-between items-center text-blue-700 tabular-nums">
                         <span>Dịch vụ & Minibar:</span>
-                        <span class="font-medium">+{{ f.servicesAmount | number:'1.0-0' }} VNĐ</span>
+                        <span class="font-medium">+{{ f.servicesAmount | vndCurrency }}</span>
                       </div>
                     }
                     <div class="flex justify-between items-center font-semibold text-slate-800 pt-1 border-t border-slate-100 tabular-nums">
                       <span>Tổng cộng tiền phòng & phụ phí:</span>
-                      <span>{{ f.totalAmount | number:'1.0-0' }} VNĐ</span>
+                      <span>{{ f.totalAmount | vndCurrency }}</span>
                     </div>
                     <div class="flex justify-between items-center text-emerald-700 font-medium tabular-nums">
                       <span>Đã thanh toán (Chỉ trừ các giao dịch hoàn tất):</span>
-                      <span>- {{ f.paidAmount | number:'1.0-0' }} VNĐ</span>
+                      <span>- {{ f.paidAmount | vndCurrency }}</span>
                     </div>
                   </div>
 
                   <div class="border-t border-slate-200 pt-2 flex justify-between items-center text-sm font-bold tabular-nums">
                     <span class="text-slate-800">Số dư còn phải thu:</span>
                     <span [class]="f.remainingBalance > 0 ? 'text-rose-600 text-base font-extrabold' : 'text-emerald-600'">
-                      {{ f.remainingBalance | number:'1.0-0' }} VNĐ
+                      {{ f.remainingBalance | vndCurrency }}
                     </span>
                   </div>
                 </div>
@@ -766,7 +768,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                             <span class="font-mono tabular-nums text-[11px] text-slate-700">{{ p.createdAtUtc | businessDateTime }} (Giờ VN)</span>
                             <span class="font-mono tabular-nums text-[10px] text-slate-400">({{ formatUtc(p.createdAtUtc) }})</span>
                           </div>
-                          <span class="font-bold text-slate-800 tabular-nums shrink-0">+{{ p.amount | number:'1.0-0' }} VNĐ</span>
+                          <span class="font-bold text-slate-800 tabular-nums shrink-0">+{{ p.amount | vndCurrency }}</span>
                         </div>
                       }
                     </div>
@@ -900,7 +902,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                       <span>Đang xử lý giao dịch...</span>
                     } @else {
                       <i class="pi pi-check-circle text-xs"></i>
-                      <span>Xác nhận thu {{ paymentAmount | number:'1.0-0' }} VNĐ</span>
+                      <span>Xác nhận thu {{ paymentAmount | vndCurrency }}</span>
                     }
                   </button>
                 </div>
@@ -1060,7 +1062,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                 <div class="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs space-y-2.5">
                   <div class="flex items-center justify-between">
                     <span class="font-bold text-sm text-slate-900 tabular-nums">
-                      {{ p.amount | number:'1.0-0' }} <span class="text-xs font-normal text-slate-500">{{ p.currency || 'VND' }}</span>
+                      {{ (!p.currency || p.currency === 'VND') ? (p.amount | vndCurrency) : (p.amount | number:'1.0-0') + ' ' + p.currency }}
                     </span>
                     <span [class]="getStatusBadgeClass(p.status)">
                       {{ p.statusName || getStatusLabel(p.status) }}
@@ -1139,7 +1141,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
 
                       <!-- Amount -->
                       <td class="py-3 px-3.5 font-bold text-slate-900 tabular-nums">
-                        {{ p.amount | number:'1.0-0' }} <span class="text-[10px] font-normal text-slate-500">{{ p.currency || 'VND' }}</span>
+                        {{ (!p.currency || p.currency === 'VND') ? (p.amount | vndCurrency) : (p.amount | number:'1.0-0') + ' ' + p.currency }}
                       </td>
 
                       <!-- Method Badge -->
@@ -1276,7 +1278,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center">
                 <span class="text-[11px] text-slate-500 uppercase block font-bold tracking-wider">Số tiền đã thu</span>
                 <span class="text-2xl font-black text-emerald-700 font-mono tabular-nums mt-0.5 block">
-                  {{ voucher.amount | number:'1.0-0' }} VNĐ
+                  {{ voucher.amount | vndCurrency }}
                 </span>
               </div>
 

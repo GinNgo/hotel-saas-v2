@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Exceptions;
@@ -34,10 +35,37 @@ public sealed class GetPrintableContractQueryHandler : IRequestHandler<GetPrinta
             throw new NotFoundException("Không tìm thấy hợp đồng.");
         }
 
-        if (_currentUser.GlobalRole != GlobalUserRole.SuperAdmin &&
-            (!_currentUser.TenantId.HasValue || _currentUser.TenantId.Value != contract.TenantId))
+        if (_currentUser.GlobalRole != GlobalUserRole.SuperAdmin)
         {
-            throw new ForbiddenException("ERR_FORBIDDEN", "Bạn không có quyền truy cập hợp đồng của doanh nghiệp khác.");
+            if (!_currentUser.TenantId.HasValue || _currentUser.TenantId.Value != contract.TenantId)
+            {
+                throw new ForbiddenException("ERR_FORBIDDEN", "Bạn không có quyền truy cập hợp đồng của doanh nghiệp khác.");
+            }
+
+            var hasContractAccess = _currentUser.StaffRole == StaffRole.Owner;
+            if (!hasContractAccess && _currentUser.RoleId.HasValue && _currentUser.RoleId.Value != Guid.Empty)
+            {
+                try
+                {
+                    hasContractAccess = await _context.RolePermissions
+                        .AsNoTracking()
+                        .AnyAsync(
+                            rp => rp.RoleId == _currentUser.RoleId.Value &&
+                                  rp.Function != null &&
+                                  rp.Function.Code == "SUBSCRIPTIONS" &&
+                                  (rp.ActionMask & 1) == 1,
+                            cancellationToken);
+                }
+                catch (NotImplementedException)
+                {
+                    hasContractAccess = false;
+                }
+            }
+
+            if (!hasContractAccess)
+            {
+                throw new ForbiddenException("ERR_FORBIDDEN", "Chỉ Chủ cơ sở hoặc nhân sự được cấp quyền Gói cước mới được xem hợp đồng SaaS.");
+            }
         }
 
         var propertiesCount = await _context.Properties

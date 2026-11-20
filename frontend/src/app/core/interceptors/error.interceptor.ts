@@ -60,7 +60,9 @@ export const errorInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, n
           requestPath.startsWith(`${apiPath}/properties`) ||
           requestPath.startsWith(`${apiPath}/rooms`) ||
           requestPath.startsWith(`${apiPath}/audit-logs`) ||
-          requestPath.startsWith(`${apiPath}/reports`);
+          requestPath.startsWith(`${apiPath}/reports`) ||
+          requestPath.startsWith(`${apiPath}/subscriptions`) ||
+          requestPath.startsWith(`${apiPath}/guests`);
         const isSuperAdmin = authService.currentUser?.globalRole === 'SuperAdmin';
         if (isStaffOrPropertyEndpoint || isSuperAdmin || req.method !== 'GET') {
           return throwError(() => error);

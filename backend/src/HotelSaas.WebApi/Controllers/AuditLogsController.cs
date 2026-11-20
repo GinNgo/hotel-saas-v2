@@ -5,6 +5,7 @@ using HotelSaas.Application.AuditLogs.DTOs;
 using HotelSaas.Application.AuditLogs.Queries.GetAuditLogById;
 using HotelSaas.Application.AuditLogs.Queries.GetAuditLogs;
 using HotelSaas.Application.Common.Models;
+using HotelSaas.WebApi.Authorization;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -107,6 +108,7 @@ public sealed class AuditLogsController : ControllerBase
     /// Explicitly records an administrative or user action across branches for security and compliance tracking.
     /// </summary>
     [HttpPost("events")]
+    [RequireAnyPermission("AUDIT_LOGS", 1, "SETTINGS", 4)]
     [ProducesResponseType(typeof(ApiResponse<Guid>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

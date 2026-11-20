@@ -5,11 +5,12 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
 import { PrintDocumentsService } from '../../core/services/print-documents.service';
 import { PrintInvoiceDto } from '../../core/models/print-document.model';
 import { BusinessDatePipe } from '../../shared/pipes/business-date.pipe';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 
 @Component({
   selector: 'app-print-invoice-page',
   standalone: true,
-  imports: [CommonModule, RouterModule, BusinessDatePipe],
+  imports: [CommonModule, RouterModule, BusinessDatePipe, VndCurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="min-h-screen bg-slate-100 p-4 sm:p-8 print:p-0 print:bg-white text-slate-800 font-sans">
@@ -75,11 +76,11 @@ import { BusinessDatePipe } from '../../shared/pipes/business-date.pipe';
               <div class="text-xs text-slate-500">Ngày in: <span class="font-semibold text-slate-700 tabular-nums">{{ inv.issuedDate | businessDate }}</span></div>
               @if (inv.remainingAmount <= 0) {
                 <div class="text-xs text-emerald-700 font-semibold flex sm:justify-end items-center gap-1">
-                  <i class="pi pi-check-circle text-[11px]" aria-hidden="true"></i> {{ inv.status }} ({{ inv.paymentMethod }})
+                  <i class="pi pi-check-circle text-[11px]" aria-hidden="true"></i> {{ getStatusLabel(inv.status) }} ({{ getPaymentMethodLabel(inv.paymentMethod) }})
                 </div>
               } @else {
                 <div class="text-xs text-amber-700 font-semibold flex sm:justify-end items-center gap-1">
-                  <i class="pi pi-clock text-[11px]" aria-hidden="true"></i> {{ inv.status }} — Còn lại: <span class="tabular-nums">{{ inv.remainingAmount | number:'1.0-0' }} ₫</span>
+                  <i class="pi pi-clock text-[11px]" aria-hidden="true"></i> {{ getStatusLabel(inv.status) }} — Còn lại: <span class="tabular-nums">{{ inv.remainingAmount | vndCurrency }}</span>
                 </div>
               }
             </div>
@@ -103,8 +104,8 @@ import { BusinessDatePipe } from '../../shared/pipes/business-date.pipe';
                 <div><span class="text-slate-500">Số phòng:</span> <span class="font-extrabold text-indigo-700 text-sm ml-1">{{ inv.roomNumber || '—' }}</span></div>
                 <div><span class="text-slate-500">Hạng:</span> <span class="font-semibold text-slate-800 ml-1">{{ inv.roomTypeName || '—' }}</span></div>
               </div>
-              <div><span class="text-slate-500">Thời gian ở:</span> <span class="font-semibold text-slate-800 ml-1">{{ inv.checkInDate }} — {{ inv.checkOutDate }}</span></div>
-              <div><span class="text-slate-500">Chế độ thuê / Số khách:</span> <span class="font-semibold text-slate-800 ml-1">{{ inv.rentalType || 'Lưu trú' }} ({{ inv.numberOfGuests }} khách)</span></div>
+              <div><span class="text-slate-500">Thời gian ở:</span> <span class="font-semibold text-slate-800 ml-1 tabular-nums">{{ inv.checkInDate | businessDate }} — {{ inv.checkOutDate | businessDate }}</span></div>
+              <div><span class="text-slate-500">Chế độ thuê / Số khách:</span> <span class="font-semibold text-slate-800 ml-1">{{ getRentalTypeLabel(inv.rentalType) }} ({{ inv.numberOfGuests }} khách)</span></div>
             </div>
           </div>
 
@@ -129,8 +130,8 @@ import { BusinessDatePipe } from '../../shared/pipes/business-date.pipe';
                       <div class="font-semibold text-slate-900">{{ item.description }}</div>
                     </td>
                     <td class="py-2.5 px-3 text-center tabular-nums">{{ item.quantity }}</td>
-                    <td class="py-2.5 px-3 text-right tabular-nums">{{ item.unitPrice | number:'1.0-0' }} ₫</td>
-                    <td class="py-2.5 px-3 text-right font-bold text-slate-900 tabular-nums">{{ item.amount | number:'1.0-0' }} ₫</td>
+                    <td class="py-2.5 px-3 text-right tabular-nums">{{ item.unitPrice | vndCurrency }}</td>
+                    <td class="py-2.5 px-3 text-right font-bold text-slate-900 tabular-nums">{{ item.amount | vndCurrency }}</td>
                   </tr>
                 }
               </tbody>
@@ -177,24 +178,24 @@ import { BusinessDatePipe } from '../../shared/pipes/business-date.pipe';
             <div class="space-y-2 text-xs">
               <div class="flex justify-between py-1 text-slate-600">
                 <span>Tiền phòng & Dịch vụ (trước thuế):</span>
-                <span class="font-semibold text-slate-800 tabular-nums">{{ inv.subTotal | number:'1.0-0' }} ₫</span>
+                <span class="font-semibold text-slate-800 tabular-nums">{{ inv.subTotal | vndCurrency }}</span>
               </div>
               <div class="flex justify-between py-1 text-slate-600 border-t border-slate-100">
                 <span>Thuế GTGT (VAT {{ inv.vatRate }}%):</span>
-                <span class="font-semibold text-slate-800 tabular-nums">{{ inv.vatAmount | number:'1.0-0' }} ₫</span>
+                <span class="font-semibold text-slate-800 tabular-nums">{{ inv.vatAmount | vndCurrency }}</span>
               </div>
               <div class="flex justify-between py-2 text-sm border-t-2 border-slate-900 font-black">
                 <span class="text-slate-900 uppercase">TỔNG THANH TOÁN:</span>
-                <span class="text-indigo-700 text-base tabular-nums">{{ inv.totalAmount | number:'1.0-0' }} ₫</span>
+                <span class="text-indigo-700 text-base tabular-nums">{{ inv.totalAmount | vndCurrency }}</span>
               </div>
               <div class="flex justify-between py-1 text-slate-600">
                 <span>Đã thanh toán:</span>
-                <span class="font-bold text-emerald-600 tabular-nums">{{ inv.paidAmount | number:'1.0-0' }} ₫</span>
+                <span class="font-bold text-emerald-600 tabular-nums">{{ inv.paidAmount | vndCurrency }}</span>
               </div>
               @if (inv.remainingAmount > 0) {
                 <div class="flex justify-between py-1 text-rose-600 font-bold">
                   <span>Còn lại cần thanh toán:</span>
-                  <span class="tabular-nums">{{ inv.remainingAmount | number:'1.0-0' }} ₫</span>
+                  <span class="tabular-nums">{{ inv.remainingAmount | vndCurrency }}</span>
                 </div>
               }
             </div>
@@ -293,6 +294,41 @@ export class PrintInvoicePage implements OnInit {
 
   isPaidInFull(inv: PrintInvoiceDto): boolean {
     return inv.remainingAmount <= 0;
+  }
+
+  getStatusLabel(status?: string | null): string {
+    switch ((status || '').toLowerCase()) {
+      case 'paid': return 'Đã thanh toán';
+      case 'partiallypaid': return 'Thanh toán một phần';
+      case 'pending':
+      case 'pendingpayment':
+      case 'unpaid': return 'Chờ thanh toán';
+      case 'refunded': return 'Đã hoàn tiền';
+      case 'cancelled': return 'Đã hủy';
+      default: return status || 'Đang xử lý';
+    }
+  }
+
+  getPaymentMethodLabel(method?: string | null): string {
+    switch ((method || '').toLowerCase()) {
+      case 'cash': return 'Tiền mặt';
+      case 'banktransfer':
+      case 'transfer': return 'Chuyển khoản / QR';
+      case 'creditcard':
+      case 'card': return 'Thẻ tín dụng';
+      case 'vnpay': return 'VNPay';
+      case 'pending': return 'Chưa thu';
+      default: return method || 'Khác';
+    }
+  }
+
+  getRentalTypeLabel(rentalType?: string | null): string {
+    switch ((rentalType || '').toLowerCase()) {
+      case 'overnight': return 'Qua đêm';
+      case 'daily': return 'Theo ngày';
+      case 'hourly': return 'Theo giờ';
+      default: return rentalType || 'Lưu trú';
+    }
   }
 
   windowPrint(): void {

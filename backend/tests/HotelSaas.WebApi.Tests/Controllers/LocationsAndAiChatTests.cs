@@ -7,6 +7,7 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Ai.DTOs;
+using HotelSaas.Application.AuditLogs.Services;
 using HotelSaas.Application.Ai.Queries.GetDynamicPricingRecommendations;
 using HotelSaas.Application.Ai.Queries.ProcessAiChat;
 using HotelSaas.Application.Ai.Queries.ProcessAiConcierge;
@@ -741,6 +742,13 @@ public sealed class LocationsAndAiChatTests
         var superAdminOk = Assert.IsType<OkObjectResult>(superAdminResult);
         var superAdminDto = Assert.IsType<PrintableContractDocumentDto>(superAdminOk.Value);
         Assert.Equal("HD-2026-PRO-009", superAdminDto.ContractNumber);
+
+        // Same-tenant Receptionist without SUBSCRIPTIONS permission -> 403 Forbid
+        var sameTenantReceptionist = CreateAnonymousUserContext();
+        sameTenantReceptionist.SetUser(Guid.NewGuid(), "receptionist@tenantb.vn", GlobalUserRole.TenantStaff);
+        sameTenantReceptionist.SetMembershipContext(tenantB, TenantStatus.Active, Guid.NewGuid(), PropertyStatus.Active, StaffRole.Receptionist, null, isTenantWide: false);
+        var receptionistController = CreatePrintController(fakeDb, sameTenantReceptionist);
+        Assert.IsType<ForbidResult>(await receptionistController.GetPrintableContract(contract.Id, CancellationToken.None));
     }
 
     [Fact]
@@ -812,6 +820,7 @@ public sealed class LocationsAndAiChatTests
         Assert.Equal(string.Empty, anonDto.VietQrImageUrl);
         Assert.NotEqual("999988887777", anonDto.BankAccountNumber);
         Assert.EndsWith("777", anonDto.BankAccountNumber);
+        Assert.Equal("C*** K*** S*** S*** H***", anonDto.BankAccountHolder);
         Assert.DoesNotContain("305", anonDto.Items[0].Description);
 
         // 2. Anonymous with matching confirmation code -> unmasked PII & VietQR visible
@@ -1021,6 +1030,9 @@ public sealed class LocationsAndAiChatTests
         Assert.Equal(500_000m, dto.RemainingAmount);
         Assert.Equal("CÒN CÔNG NỢ", dto.Status);
         Assert.Equal(string.Empty, dto.BankAccountNumber);
+        Assert.Equal(1_851_852m, dto.SubTotal);
+        Assert.Equal(148_148m, dto.VatAmount);
+        Assert.Equal(dto.TotalAmount, dto.SubTotal + dto.VatAmount);
     }
 
     [Fact]
@@ -1258,5 +1270,22 @@ public sealed class LocationsAndAiChatTests
         var saved = await diagnosticHandler.Handle(cmd, CancellationToken.None);
         Assert.Equal(targetTenantId, saved.TenantId);
         Assert.Equal("Vietcombank", saved.BankName);
+    }
+
+    [Fact]
+    public void AuditPayloadSanitizer_RedactsNestedLookupTokenInSerializedReservationNotes()
+    {
+        var rawNewValues = "{\"ConfirmationCode\":\"RES-334QY5\",\"Notes\":\"{\\\"RentalType\\\":2,\\\"LookupToken\\\":\\\"secret-lookup-token-999\\\",\\\"RoomTypeName\\\":\\\"Deluxe\\\"}\"}";
+
+        var sanitized = AuditPayloadSanitizer.SanitizeAndSummarize(
+            "Update",
+            "Reservation",
+            null,
+            rawNewValues);
+
+        Assert.NotNull(sanitized.SanitizedNewValuesJson);
+        Assert.DoesNotContain("secret-lookup-token-999", sanitized.SanitizedNewValuesJson!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("[REDACTED]", sanitized.SanitizedNewValuesJson!, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret-lookup-token-999", sanitized.ChangeSummary, StringComparison.OrdinalIgnoreCase);
     }
 }

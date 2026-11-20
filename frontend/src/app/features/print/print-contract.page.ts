@@ -2,24 +2,26 @@ import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal 
 import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterModule } from '@angular/router';
+import { TokenStorageService } from '../../core/services/token-storage.service';
 import { PrintDocumentsService } from '../../core/services/print-documents.service';
 import { PrintContractDto } from '../../core/models/print-document.model';
 import { BusinessDatePipe, BusinessDateTimePipe } from '../../shared/pipes/business-date.pipe';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 
 @Component({
   selector: 'app-print-contract-page',
   standalone: true,
-  imports: [CommonModule, RouterModule, BusinessDatePipe, BusinessDateTimePipe],
+  imports: [CommonModule, RouterModule, BusinessDatePipe, BusinessDateTimePipe, VndCurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="min-h-screen bg-slate-100 p-4 sm:p-8 print:p-0 print:bg-white text-slate-800 font-sans">
       <!-- Action Toolbar -->
       <div class="max-w-4xl mx-auto mb-6 flex items-center justify-between print:hidden font-sans">
         <a
-          routerLink="/contracts"
+          [routerLink]="isSuperAdmin ? '/contracts' : '/subscriptions'"
           class="inline-flex items-center gap-2 min-h-11 text-sm font-medium text-slate-600 hover:text-slate-900 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-2xs"
         >
-          <i class="pi pi-arrow-left" aria-hidden="true"></i> Về danh sách hợp đồng
+          <i class="pi pi-arrow-left" aria-hidden="true"></i> {{ isSuperAdmin ? 'Về danh sách hợp đồng' : 'Về gói cước & Hợp đồng' }}
         </a>
 
         <div class="flex items-center gap-3">
@@ -101,9 +103,9 @@ import { BusinessDatePipe, BusinessDateTimePipe } from '../../shared/pipes/busin
             <div>
               <strong class="text-slate-900">ĐIỀU 2: THỜI HẠN VÀ GIÁ TRỊ HỢP ĐỒNG</strong>
               <div class="mt-1 space-y-1">
-                <div>- Thời hạn hiệu lực: Từ ngày <strong class="text-slate-900 tabular-nums">{{ c.startDate }}</strong> đến hết ngày <strong class="text-slate-900 tabular-nums">{{ c.endDate }}</strong>.</div>
-                <div>- Chu kỳ thanh toán: <strong class="text-slate-900">{{ c.billingCycle }}</strong>.</div>
-                <div>- Tổng giá trị hợp đồng: <strong class="text-indigo-700 text-sm tabular-nums">{{ c.contractValue | number:'1.0-0' }} VNĐ</strong> (Đã bao gồm thuế GTGT và phí vận hành máy chủ).</div>
+                <div>- Thời hạn hiệu lực: Từ ngày <strong class="text-slate-900 tabular-nums">{{ c.startDate | businessDate }}</strong> đến hết ngày <strong class="text-slate-900 tabular-nums">{{ c.endDate | businessDate }}</strong>.</div>
+                <div>- Chu kỳ thanh toán: <strong class="text-slate-900">{{ getBillingCycleLabel(c.billingCycle) }}</strong>.</div>
+                <div>- Tổng giá trị hợp đồng: <strong class="text-indigo-700 text-sm tabular-nums">{{ c.contractValue | vndCurrency }}</strong> (Đã bao gồm thuế GTGT và phí vận hành máy chủ).</div>
               </div>
             </div>
 
@@ -129,7 +131,7 @@ import { BusinessDatePipe, BusinessDateTimePipe } from '../../shared/pipes/busin
                 <i class="pi pi-shield"></i> Xác thực Chữ Ký Điện Tử Hợp Lệ
               </div>
               <div class="text-slate-700">
-                Trạng thái hợp đồng: <strong class="text-emerald-700">{{ c.status }}</strong>
+                Trạng thái hợp đồng: <strong class="text-emerald-700">{{ getStatusLabel(c.status) }}</strong>
                 <span> — Ký lúc: <strong class="tabular-nums">{{ c.signedAtUtc | businessDateTime }}</strong></span>
               </div>
               <div class="font-mono text-[11px] text-slate-500 break-all">
@@ -142,7 +144,7 @@ import { BusinessDatePipe, BusinessDateTimePipe } from '../../shared/pipes/busin
                 <i class="pi pi-clock"></i> Hợp đồng chưa ký kết điện tử
               </div>
               <div class="text-slate-700">
-                Trạng thái hợp đồng: <strong class="text-amber-800">{{ c.status || 'Draft' }}</strong> — Chưa có chữ ký số xác thực từ hệ thống.
+                Trạng thái hợp đồng: <strong class="text-amber-800">{{ getStatusLabel(c.status || 'Draft') }}</strong> — Chưa có chữ ký số xác thực từ hệ thống.
               </div>
             </div>
           }
@@ -215,7 +217,34 @@ import { BusinessDatePipe, BusinessDateTimePipe } from '../../shared/pipes/busin
 export class PrintContractPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly printService = inject(PrintDocumentsService);
+  private readonly tokenStorage = inject(TokenStorageService);
   private readonly destroyRef = inject(DestroyRef);
+
+  get isSuperAdmin(): boolean {
+    return this.tokenStorage.getDecodedToken()?.globalRole === 'SuperAdmin';
+  }
+
+  getBillingCycleLabel(cycle?: string | null): string {
+    switch ((cycle || '').toLowerCase()) {
+      case 'monthly': return 'Hàng tháng';
+      case 'quarterly': return 'Hàng quý';
+      case 'annual':
+      case 'yearly': return 'Hàng năm';
+      default: return cycle || 'Theo kỳ';
+    }
+  }
+
+  getStatusLabel(status?: string | null): string {
+    switch ((status || '').toLowerCase()) {
+      case 'active': return 'Đang hiệu lực';
+      case 'pendingsignature': return 'Chờ ký số';
+      case 'draft': return 'Bản nháp';
+      case 'expired': return 'Hết hạn';
+      case 'cancelled':
+      case 'terminated': return 'Đã chấm dứt';
+      default: return status || 'Đang xử lý';
+    }
+  }
 
   readonly contract = signal<PrintContractDto | null>(null);
   readonly isLoading = signal(true);

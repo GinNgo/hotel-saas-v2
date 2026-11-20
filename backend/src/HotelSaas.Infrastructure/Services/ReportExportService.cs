@@ -24,7 +24,9 @@ public sealed class ReportExportService(
         var tenantId = currentUser.TenantId
             ?? throw new InvalidOperationException("Tenant context is required to export reports.");
 
-        var query = context.Reservations.AsNoTracking()
+        var query = context.Reservations
+            .IgnoreQueryFilters()
+            .AsNoTracking()
             .Include(reservation => reservation.Property)
             .Include(reservation => reservation.Room)
             .Include(reservation => reservation.Payments)
@@ -35,7 +37,10 @@ public sealed class ReportExportService(
         if (effectivePropertyId.HasValue && effectivePropertyId.Value != Guid.Empty)
             query = query.Where(reservation => reservation.PropertyId == effectivePropertyId.Value);
 
-        var propertiesQuery = context.Properties.AsNoTracking().Where(property => property.TenantId == tenantId);
+        var propertiesQuery = context.Properties
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(property => property.TenantId == tenantId);
         if (effectivePropertyId.HasValue && effectivePropertyId.Value != Guid.Empty)
             propertiesQuery = propertiesQuery.Where(property => property.Id == effectivePropertyId.Value);
         var propertyInfo = await propertiesQuery
@@ -136,7 +141,9 @@ public sealed class ReportExportService(
     {
         var tenantId = currentUser.TenantId
             ?? throw new InvalidOperationException("Tenant context is required to export reports.");
-        var query = context.Reservations.AsNoTracking()
+        var query = context.Reservations
+            .IgnoreQueryFilters()
+            .AsNoTracking()
             .Include(reservation => reservation.Property)
             .Include(reservation => reservation.Payments)
             .Where(reservation => reservation.TenantId == tenantId &&

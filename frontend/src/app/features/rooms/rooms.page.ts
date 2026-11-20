@@ -23,7 +23,8 @@ import {
   StatCardComponent,
   StatusBadgeComponent,
   EmptyStateComponent,
-  LoadingSpinnerComponent
+  LoadingSpinnerComponent,
+  VndCurrencyPipe
 } from '../../shared';
 import { ContextSelectorDialogComponent } from '../auth/context-selector/context-selector.dialog';
 
@@ -70,7 +71,8 @@ export interface QuickMinibarCatalogItem {
     EmptyStateComponent,
     LoadingSpinnerComponent,
     DatePicker,
-    ContextSelectorDialogComponent
+    ContextSelectorDialogComponent,
+    VndCurrencyPipe
   ],
   template: `
     <div class="max-w-7xl mx-auto space-y-6 pb-12">
@@ -377,7 +379,7 @@ export interface QuickMinibarCatalogItem {
                             </div>
                           } @else {
                             <span class="block text-[10px] text-slate-500 font-mono tabular-nums">
-                              {{ room.basePrice | number:'1.0-0' }}₫
+                              {{ room.basePrice | vndCurrency }}
                             </span>
                           }
                         </div>
@@ -464,7 +466,7 @@ export interface QuickMinibarCatalogItem {
                     </td>
                     <td class="py-3 px-4 text-slate-700">Tầng {{ room.floor }}</td>
                     <td class="py-3 px-4 font-semibold text-slate-800">{{ room.roomTypeName }}</td>
-                    <td class="py-3 px-4 font-mono text-slate-700">{{ room.basePrice | number:'1.0-0' }}₫</td>
+                    <td class="py-3 px-4 font-mono tabular-nums text-slate-700">{{ room.basePrice | vndCurrency }}</td>
                     <td class="py-3 px-4">
                       <app-status-badge
                         [status]="room.status"
@@ -695,7 +697,7 @@ export interface QuickMinibarCatalogItem {
                                 <span class="text-[9px] opacity-80 uppercase">{{ getBookingStatusShort(booking.status) }}</span>
                               </div>
                               <div class="text-[9px] font-mono tabular-nums opacity-90 truncate">
-                                {{ booking.totalAmount | number:'1.0-0' }}₫
+                                {{ booking.totalAmount | vndCurrency }}
                               </div>
                             </button>
                             <!-- Mini button in chip -->
@@ -781,7 +783,7 @@ export interface QuickMinibarCatalogItem {
               >
                 <option value="">-- Chọn phòng sạch trống --</option>
                 @for (r of cleanRoomsList(); track r.id) {
-                  <option [value]="r.id">Phòng {{ r.roomNumber }} - Tầng {{ r.floor }} ({{ r.roomTypeName }} - {{ r.basePrice | number:'1.0-0' }}₫)</option>
+                  <option [value]="r.id">Phòng {{ r.roomNumber }} - Tầng {{ r.floor }} ({{ r.roomTypeName }} - {{ r.basePrice | vndCurrency }})</option>
                 }
               </select>
             </div>
@@ -1057,21 +1059,21 @@ export interface QuickMinibarCatalogItem {
               <div>
                 <span class="text-[10px] uppercase font-bold tracking-wider text-slate-300">Tổng hóa đơn hiện tại</span>
                 <div class="text-2xl sm:text-3xl font-black text-amber-300 mt-0.5 font-mono tabular-nums">
-                  {{ folio.totalAmount | number:'1.0-0' }}₫
+                  {{ folio.totalAmount | vndCurrency }}
                 </div>
                 <div class="text-xs text-slate-300 flex items-center gap-3 mt-1.5 font-medium tabular-nums">
-                  <span>Tiền phòng: {{ (folio.baseRoomAmount || folio.totalAmount) | number:'1.0-0' }}₫</span>
+                  <span>Tiền phòng: {{ (folio.baseRoomAmount || folio.totalAmount) | vndCurrency }}</span>
                   <span>•</span>
-                  <span>Phụ phí: {{ (folio.surchargesAmount || 0) | number:'1.0-0' }}₫</span>
+                  <span>Phụ phí: {{ (folio.surchargesAmount || 0) | vndCurrency }}</span>
                 </div>
               </div>
               <div class="sm:text-right border-t sm:border-t-0 pt-3 sm:pt-0 border-white/10 w-full sm:w-auto">
                 <span class="text-[10px] uppercase font-bold tracking-wider text-slate-300">Đã thanh toán / Còn lại</span>
                 <div class="text-sm font-semibold mt-1">
-                  Đã trả: <span class="font-mono tabular-nums text-emerald-300 font-bold">{{ folio.paidAmount | number:'1.0-0' }}₫</span>
+                  Đã trả: <span class="font-mono tabular-nums text-emerald-300 font-bold">{{ folio.paidAmount | vndCurrency }}</span>
                 </div>
                 <div class="text-xs font-bold mt-1" [ngClass]="folio.remainingBalance > 0 ? 'text-rose-300' : 'text-emerald-300'">
-                  Còn lại: <span class="font-mono tabular-nums text-lg font-black">{{ folio.remainingBalance | number:'1.0-0' }}₫</span>
+                  Còn lại: <span class="font-mono tabular-nums text-lg font-black">{{ folio.remainingBalance | vndCurrency }}</span>
                 </div>
               </div>
             </div>
@@ -1108,8 +1110,8 @@ export interface QuickMinibarCatalogItem {
                   <div class="font-bold text-xs text-slate-800 mt-2 line-clamp-1" [title]="item.name">
                     {{ item.name }}
                   </div>
-                  <div class="text-[11px] font-mono text-emerald-700 font-bold mt-0.5">
-                    {{ item.price | number:'1.0-0' }}₫
+                  <div class="text-[11px] font-mono text-emerald-700 font-bold mt-0.5 tabular-nums">
+                    {{ item.price | vndCurrency }}
                   </div>
                 </button>
               }
@@ -1171,7 +1173,7 @@ export interface QuickMinibarCatalogItem {
                       }
                     </div>
                     <div class="text-right">
-                      <span class="font-bold text-slate-900 font-mono">{{ b.amount | number:'1.0-0' }}₫</span>
+                      <span class="font-bold text-slate-900 font-mono tabular-nums">{{ b.amount | vndCurrency }}</span>
                     </div>
                   </div>
                 }
@@ -1274,7 +1276,7 @@ export interface QuickMinibarCatalogItem {
               >
                 <option value="">-- Chọn hạng phòng --</option>
                 @for (rt of roomTypes(); track rt.id) {
-                  <option [value]="rt.id">{{ rt.name }} ({{ rt.code }} - {{ rt.basePrice | number:'1.0-0' }}₫)</option>
+                  <option [value]="rt.id">{{ rt.name }} ({{ rt.code }} - {{ rt.basePrice | vndCurrency }})</option>
                 }
               </select>
             </div>

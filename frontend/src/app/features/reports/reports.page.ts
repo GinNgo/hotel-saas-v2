@@ -20,6 +20,7 @@ import {
   PropertyPerformanceDto
 } from '../../core/models/report.model';
 import { DateRangeFilterComponent, DateRangeFilterValue } from '../../shared/components/date-range-filter/date-range-filter.component';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header';
 import { ChartCardComponent, ChartCardDataset } from '../../shared/components/chart-card/chart-card.component';
 import { formatCalendarDate } from '../../core/utils/date-time.util';
@@ -33,6 +34,7 @@ type PropertySortField = 'propertyName' | 'totalRooms' | 'revenue' | 'occupancyR
     CommonModule,
     FormsModule,
     DateRangeFilterComponent,
+    VndCurrencyPipe,
     PageHeaderComponent,
     ChartCardComponent
   ],
@@ -241,7 +243,7 @@ type PropertySortField = 'propertyName' | 'totalRooms' | 'revenue' | 'occupancyR
               </div>
               <div class="mt-3">
                 <div class="text-3xl font-extrabold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-                  {{ group.totalRevenue | number:'1.0-0' }} ₫
+                  {{ group.totalRevenue | vndCurrency }}
                 </div>
                 <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 tabular-nums">
                   Phục vụ <strong>{{ group.totalGuests }}</strong> lượt khách ({{ group.totalBookings }} đơn đặt)
@@ -284,7 +286,7 @@ type PropertySortField = 'propertyName' | 'totalRooms' | 'revenue' | 'occupancyR
               </div>
               <div class="mt-3">
                 <div class="text-3xl font-extrabold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-                  {{ group.portfolioRevPar | number:'1.0-0' }} ₫
+                  {{ group.portfolioRevPar | vndCurrency }}
                 </div>
                 <p class="text-xs text-slate-600 dark:text-slate-400 mt-1">Doanh thu bình quân trên mỗi phòng sẵn có</p>
               </div>
@@ -303,7 +305,7 @@ type PropertySortField = 'propertyName' | 'totalRooms' | 'revenue' | 'occupancyR
               </div>
               <div class="mt-3">
                 <div class="text-3xl font-extrabold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-                  {{ group.portfolioAdr | number:'1.0-0' }} ₫
+                  {{ group.portfolioAdr | vndCurrency }}
                 </div>
                 <p class="text-xs text-slate-600 dark:text-slate-400 mt-1">Doanh thu trung bình mỗi đêm phòng bán được</p>
               </div>
@@ -360,7 +362,7 @@ type PropertySortField = 'propertyName' | 'totalRooms' | 'revenue' | 'occupancyR
                   <div class="grid grid-cols-2 gap-2 text-xs tabular-nums">
                     <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800">
                       <span class="text-slate-500 block">Doanh thu</span>
-                      <strong class="font-mono text-slate-900 dark:text-slate-100">{{ prop.revenue | number:'1.0-0' }} ₫</strong>
+                      <strong class="font-mono text-slate-900 dark:text-slate-100">{{ prop.revenue | vndCurrency }}</strong>
                     </div>
                     <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800">
                       <span class="text-slate-500 block">Công suất</span>
@@ -368,11 +370,11 @@ type PropertySortField = 'propertyName' | 'totalRooms' | 'revenue' | 'occupancyR
                     </div>
                     <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800">
                       <span class="text-slate-500 block">ADR</span>
-                      <strong class="font-mono text-slate-900 dark:text-slate-100">{{ prop.adr | number:'1.0-0' }} ₫</strong>
+                      <strong class="font-mono text-slate-900 dark:text-slate-100">{{ prop.adr | vndCurrency }}</strong>
                     </div>
                     <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800">
                       <span class="text-slate-500 block">RevPAR</span>
-                      <strong class="font-mono text-purple-700 dark:text-purple-300">{{ prop.revPar | number:'1.0-0' }} ₫</strong>
+                      <strong class="font-mono text-purple-700 dark:text-purple-300">{{ prop.revPar | vndCurrency }}</strong>
                     </div>
                   </div>
                 </article>
@@ -450,7 +452,7 @@ type PropertySortField = 'propertyName' | 'totalRooms' | 'revenue' | 'occupancyR
                         <div class="text-xs text-emerald-600 dark:text-emerald-400">Trống: {{ prop.availableRooms }}</div>
                       </td>
                       <td class="py-4 px-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">
-                        {{ prop.revenue | number:'1.0-0' }} ₫
+                        {{ prop.revenue | vndCurrency }}
                         <div class="text-xs text-slate-500 dark:text-slate-400 font-normal font-sans">{{ prop.bookingsCount }} đơn đặt</div>
                       </td>
                       <td class="py-4 px-3 text-center tabular-nums">
@@ -474,10 +476,10 @@ type PropertySortField = 'propertyName' | 'totalRooms' | 'revenue' | 'occupancyR
                         </div>
                       </td>
                       <td class="py-4 px-3 text-right font-mono text-slate-800 dark:text-slate-200 font-medium tabular-nums">
-                        {{ prop.adr | number:'1.0-0' }} ₫
+                        {{ prop.adr | vndCurrency }}
                       </td>
                       <td class="py-4 px-3 text-right font-mono text-purple-700 dark:text-purple-300 font-bold tabular-nums">
-                        {{ prop.revPar | number:'1.0-0' }} ₫
+                        {{ prop.revPar | vndCurrency }}
                       </td>
                       <td class="py-4 px-4 text-center">
                         <span
@@ -532,7 +534,7 @@ type PropertySortField = 'propertyName' | 'totalRooms' | 'revenue' | 'occupancyR
                     <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 space-y-1">
                       <div class="flex justify-between items-center text-xs font-bold text-slate-800 dark:text-slate-100">
                         <span>{{ ch.channel }}</span>
-                        <span class="font-mono text-indigo-700 dark:text-indigo-300 tabular-nums">{{ ch.revenue | number:'1.0-0' }} ₫</span>
+                        <span class="font-mono text-indigo-700 dark:text-indigo-300 tabular-nums">{{ ch.revenue | vndCurrency }}</span>
                       </div>
                       <div class="flex justify-between items-center text-xs text-slate-600 dark:text-slate-400 tabular-nums">
                         <span>{{ ch.bookingsCount }} lượt đặt</span>
@@ -585,7 +587,7 @@ type PropertySortField = 'propertyName' | 'totalRooms' | 'revenue' | 'occupancyR
               </div>
               <div class="mt-3">
                 <div class="text-3xl font-extrabold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-                  {{ data.averageDailyRate | number:'1.0-0' }} ₫
+                  {{ data.averageDailyRate | vndCurrency }}
                 </div>
                 <p class="text-xs text-slate-600 dark:text-slate-400 mt-1">Doanh thu trung bình mỗi đêm phòng bán được</p>
               </div>
@@ -602,7 +604,7 @@ type PropertySortField = 'propertyName' | 'totalRooms' | 'revenue' | 'occupancyR
               </div>
               <div class="mt-3">
                 <div class="text-3xl font-extrabold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-                  {{ data.revPAR | number:'1.0-0' }} ₫
+                  {{ data.revPAR | vndCurrency }}
                 </div>
                 <p class="text-xs text-slate-600 dark:text-slate-400 mt-1">Doanh thu trên tổng số phòng sẵn có</p>
               </div>
@@ -619,7 +621,7 @@ type PropertySortField = 'propertyName' | 'totalRooms' | 'revenue' | 'occupancyR
               </div>
               <div class="mt-3">
                 <div class="text-3xl font-extrabold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-                  {{ data.totalRevenue | number:'1.0-0' }} ₫
+                  {{ data.totalRevenue | vndCurrency }}
                 </div>
                 <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 tabular-nums">
                   Phục vụ <strong>{{ data.totalGuests }}</strong> khách ({{ data.totalBookings }} lượt đặt)
@@ -665,7 +667,7 @@ type PropertySortField = 'propertyName' | 'totalRooms' | 'revenue' | 'occupancyR
                             <i class="pi pi-credit-card text-emerald-600 dark:text-emerald-400" aria-hidden="true"></i>
                             {{ method.method }}
                           </span>
-                          <span class="font-mono font-bold tabular-nums">{{ method.amount | number:'1.0-0' }} ₫</span>
+                          <span class="font-mono font-bold tabular-nums">{{ method.amount | vndCurrency }}</span>
                         </div>
                         <div class="flex justify-between items-center text-xs text-slate-600 dark:text-slate-400 mt-1 tabular-nums">
                           <span>{{ method.count }} giao dịch</span>

@@ -495,6 +495,12 @@ public static class SeedData
                 user.PhoneVerifiedAtUtc = now;
                 anyModified = true;
             }
+            if (string.Equals(user.Email, "guest.vip@hotelsaas.local", StringComparison.OrdinalIgnoreCase) &&
+                string.IsNullOrWhiteSpace(user.PhoneNumber))
+            {
+                user.PhoneNumber = "+84908889999";
+                anyModified = true;
+            }
         }
 
         if (anyModified)

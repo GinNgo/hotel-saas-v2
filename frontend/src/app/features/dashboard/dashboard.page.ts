@@ -44,6 +44,7 @@ import {
   computeChainHqMetrics,
   computePropertyRoomMetrics
 } from '../../core/utils/dashboard-metrics.util';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 
 export type DashboardViewMode = 'PLATFORM' | 'HQ' | 'PROPERTY';
 type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValue' | 'status';
@@ -58,7 +59,7 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
   selector: 'app-dashboard',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, RouterLink, Button, ChartCardComponent, BusinessDatePipe],
+  imports: [CommonModule, RouterLink, Button, ChartCardComponent, BusinessDatePipe, VndCurrencyPipe],
   template: `
     <div class="max-w-7xl mx-auto space-y-6 pb-10">
       <!-- ════════════════════════════════════════════════════════════════════════
@@ -154,11 +155,11 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
             </div>
             <div class="mt-3">
               <div class="text-2xl sm:text-3xl font-extrabold text-emerald-700 dark:text-emerald-400 font-mono truncate tabular-nums">
-                {{ (platformOverview()?.mrrVnd ?? platformMetrics().totalCommittedValue) | number:'1.0-0' }}₫
+                {{ (platformOverview()?.mrrVnd ?? platformMetrics().totalCommittedValue) | vndCurrency }}
               </div>
               <div class="mt-1.5 text-xs text-slate-500 dark:text-slate-400 truncate tabular-nums">
-                Đã thu: <strong class="text-slate-700 dark:text-slate-200">{{ (platformOverview()?.totalCollectedSaasRevenue ?? 0) | number:'1.0-0' }}₫</strong> &bull;
-                HĐ: {{ (platformOverview()?.totalCommittedContractValue ?? platformMetrics().totalCommittedValue) | number:'1.0-0' }}₫
+                Đã thu: <strong class="text-slate-700 dark:text-slate-200">{{ (platformOverview()?.totalCollectedSaasRevenue ?? 0) | vndCurrency }}</strong> &bull;
+                HĐ: {{ (platformOverview()?.totalCommittedContractValue ?? platformMetrics().totalCommittedValue) | vndCurrency }}
               </div>
             </div>
           </div>
@@ -245,7 +246,7 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
                     <article class="py-3 space-y-1.5 text-xs">
                       <div class="flex items-center justify-between gap-2">
                         <span class="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{{ c.contractNumber }}</span>
-                        <span class="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{{ c.contractValue | number:'1.0-0' }}₫</span>
+                        <span class="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{{ c.contractValue | vndCurrency }}</span>
                       </div>
                       <div class="font-semibold text-slate-800 dark:text-slate-200">{{ c.tenantName }}</div>
                       <div class="flex items-center justify-between text-slate-500 dark:text-slate-400">
@@ -304,7 +305,7 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
                             </span>
                           </td>
                           <td class="py-3 px-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap tabular-nums">
-                            {{ c.contractValue | number:'1.0-0' }}₫
+                            {{ c.contractValue | vndCurrency }}
                           </td>
                           <td class="py-3 px-3 whitespace-nowrap">
                             @if (c.status === 'Active') {
@@ -360,7 +361,7 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
                   </div>
                   <div class="flex items-baseline justify-between text-xs tabular-nums">
                     <span class="text-slate-500 dark:text-slate-400">Đơn giá tháng:</span>
-                    <span class="font-mono font-extrabold text-indigo-700 dark:text-indigo-300">{{ plan.monthlyPrice | number:'1.0-0' }}₫/tháng</span>
+                    <span class="font-mono font-extrabold text-indigo-700 dark:text-indigo-300 tabular-nums">{{ plan.monthlyPrice | vndCurrency:'/tháng' }}</span>
                   </div>
                   <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-200/60 dark:border-slate-700 tabular-nums">
                     <span>Tối đa {{ plan.maxProperties >= 999 ? 'Không giới hạn' : plan.maxProperties + ' cơ sở' }}</span>
@@ -560,7 +561,7 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
               </div>
               <div class="mt-3">
                 <div class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-slate-100 font-mono truncate tabular-nums">
-                  {{ chainMetrics().todayChainRevenue | number:'1.0-0' }}₫
+                  {{ chainMetrics().todayChainRevenue | vndCurrency }}
                 </div>
                 <div class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                   Cộng dồn thời gian thực toàn chuỗi
@@ -653,7 +654,7 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
                           <div class="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700">
                             <span class="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold block">Doanh thu ngày</span>
                             <span class="text-sm font-extrabold font-mono text-emerald-700 dark:text-emerald-400">
-                              {{ (prop.todayRevenue || 0) | number:'1.0-0' }}₫
+                              {{ (prop.todayRevenue || 0) | vndCurrency }}
                             </span>
                           </div>
                         </div>
@@ -722,7 +723,7 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
                     </div>
                     <div class="text-lg font-extrabold text-white">{{ sub.tierName }}</div>
                     <div class="text-xs text-indigo-200 font-mono tabular-nums">
-                      {{ sub.pricePerCycle | number:'1.0-0' }} {{ sub.currency || 'VND' }} / kỳ
+                      {{ sub.pricePerCycle | vndCurrency:' / kỳ' }}
                     </div>
                   </div>
 
@@ -1011,7 +1012,7 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
                         >
                           {{ getStatusLabel(r.status) }}
                         </span>
-                        <span class="text-xs font-mono text-slate-500 dark:text-slate-400 tabular-nums">{{ r.basePrice | number:'1.0-0' }}₫</span>
+                        <span class="text-xs font-mono text-slate-500 dark:text-slate-400 tabular-nums">{{ r.basePrice | vndCurrency }}</span>
                       </div>
                     </div>
                   }
@@ -1072,7 +1073,7 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
                           </div>
                         </div>
                         <div class="text-right shrink-0">
-                          <div class="text-xs font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{{ res.totalAmount | number:'1.0-0' }}₫</div>
+                          <div class="text-xs font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{{ res.totalAmount | vndCurrency }}</div>
                           <span class="inline-block text-xs font-semibold px-1.5 py-0.5 rounded" [ngClass]="getReservationBadgeClass(res.status)">
                             {{ getReservationStatusLabel(res.status) }}
                           </span>
@@ -1103,7 +1104,7 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
                 <div class="p-4 rounded-xl bg-slate-900 text-white space-y-1">
                   <span class="text-xs uppercase tracking-wider text-slate-400 font-bold">Thực thu ca hôm nay</span>
                   <div class="text-2xl font-extrabold font-mono text-emerald-400 tabular-nums">
-                    {{ (paymentSummary()?.totalCollected || 0) | number:'1.0-0' }}₫
+                    {{ (paymentSummary()?.totalCollected || 0) | vndCurrency }}
                   </div>
                   <div class="text-xs text-slate-300 flex items-center justify-between pt-1 tabular-nums">
                     <span>Giao dịch hoàn tất:</span>
@@ -1114,17 +1115,17 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
                 <div class="grid grid-cols-2 gap-2.5 text-xs tabular-nums">
                   <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
                     <span class="text-xs text-slate-500 dark:text-slate-400 block">Tiền mặt</span>
-                    <span class="font-mono font-bold text-slate-800 dark:text-slate-100">{{ (paymentSummary()?.cashCollected || 0) | number:'1.0-0' }}₫</span>
+                    <span class="font-mono font-bold text-slate-800 dark:text-slate-100">{{ (paymentSummary()?.cashCollected || 0) | vndCurrency }}</span>
                   </div>
                   <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
                     <span class="text-xs text-slate-500 dark:text-slate-400 block">Chuyển khoản / QR</span>
-                    <span class="font-mono font-bold text-slate-800 dark:text-slate-100">{{ (paymentSummary()?.bankTransferCollected || 0) | number:'1.0-0' }}₫</span>
+                    <span class="font-mono font-bold text-slate-800 dark:text-slate-100">{{ (paymentSummary()?.bankTransferCollected || 0) | vndCurrency }}</span>
                   </div>
                 </div>
 
                 <div class="pt-1 flex items-center justify-between text-xs border-t border-slate-100 dark:border-slate-800 tabular-nums">
                   <span class="text-slate-500 dark:text-slate-400">Tổng giá trị booking:</span>
-                  <span class="font-mono font-bold text-emerald-700 dark:text-emerald-400">{{ totalBookingRevenue() | number:'1.0-0' }}₫</span>
+                  <span class="font-mono font-bold text-emerald-700 dark:text-emerald-400">{{ totalBookingRevenue() | vndCurrency }}</span>
                 </div>
 
                 <a
@@ -1509,18 +1510,24 @@ export class DashboardPage implements OnInit {
         }
       });
 
-    this.subscriptionService
-      .getCurrentSubscription()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: sub => {
-          this.subscription.set(sub);
-        },
-        error: () => {}
-      });
+    if (this.authService.hasPermission('SUBSCRIPTIONS', 1)) {
+      this.subscriptionService
+        .getCurrentSubscription()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: sub => {
+            this.subscription.set(sub);
+          },
+          error: () => {}
+        });
+    }
 
     const propId = this.authService.activePropertyId();
-    if (propId) {
+    if (
+      propId &&
+      (this.authService.hasPermission('AUDIT_LOGS', 1) ||
+        this.authService.hasPermission('SETTINGS', 1))
+    ) {
       this.auditLogService
         .getAuditLogs({ propertyId: propId, page: 1, pageSize: 6 })
         .pipe(takeUntilDestroyed(this.destroyRef))

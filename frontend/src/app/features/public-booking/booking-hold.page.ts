@@ -5,12 +5,13 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { of, switchMap } from 'rxjs';
-import { PublicBookingService } from '../../core/services/public-booking.service';
+import { LIVE_CHANNEL_SENDER_ID, PublicBookingService } from '../../core/services/public-booking.service';
 import { AlertService } from '../../core/services/alert.service';
 import { CalculatePublicQuoteRequest, CreateGuestHoldRequest, GuestBookingDetailDto, PublicPropertyDto } from '../../core/models/public-booking.model';
 import { QuoteDto } from '../../core/models/reservation.model';
 import { PublicStayContext, publicStayInterval, readPublicStay } from '../../core/models/public-stay-context';
 import { FormFieldComponent, FormControlDirective } from '../../shared/components/form-field/form-field.component';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 import { PhoneOtpModalComponent } from '../auth/phone-otp-modal/phone-otp-modal.component';
 import { AuthService } from '../../core/services/auth.service';
 import { GuestAccountService } from '../../core/services/guest-account.service';
@@ -40,7 +41,7 @@ type QuoteWithPromo = QuoteDto & {
 @Component({
   selector: 'app-booking-hold-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, FormFieldComponent, FormControlDirective, PhoneOtpModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink, FormFieldComponent, FormControlDirective, PhoneOtpModalComponent, VndCurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="bg-[var(--surface-canvas)] min-h-screen py-8 px-4 sm:px-6 lg:px-8 relative text-stone-800">
@@ -347,17 +348,17 @@ type QuoteWithPromo = QuoteDto & {
             <div class="flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-2xl bg-[var(--surface-card)] border-2 border-stone-300 gap-4">
               <div>
                 <div class="text-xs text-indigo-900 font-medium">Tổng tiền lưu trú dự tính</div>
-                <div class="text-2xl sm:text-3xl font-sans font-bold tracking-tight text-slate-900 tabular-nums">{{ detail.totalAmount | number:'1.0-0' }} <span class="text-lg font-semibold">₫</span></div>
+                <div class="text-2xl sm:text-3xl font-sans font-bold tracking-tight text-slate-900 tabular-nums">{{ detail.totalAmount | vndCurrency }}</div>
                 @if (detail.promoCode) {
                   <div class="mt-1 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold tabular-nums">
                     <i class="pi pi-ticket text-[10px]" aria-hidden="true"></i>
-                    <span>Mã {{ detail.promoCode }} (Giảm {{ (detail.promoDiscountAmount ?? 0) | number:'1.0-0' }} ₫)</span>
+                    <span>Mã {{ detail.promoCode }} (Giảm {{ (detail.promoDiscountAmount ?? 0) | vndCurrency }})</span>
                   </div>
                 }
               </div>
               <div class="sm:text-right">
                 <div class="text-xs text-slate-600 font-semibold uppercase tracking-wide">Đặt cọc yêu cầu theo quy định</div>
-                <div class="text-xl font-sans font-bold text-slate-900 tabular-nums">{{ detail.depositRequired | number:'1.0-0' }} ₫</div>
+                <div class="text-xl font-sans font-bold text-slate-900 tabular-nums">{{ detail.depositRequired | vndCurrency }}</div>
               </div>
             </div>
 
@@ -562,7 +563,7 @@ type QuoteWithPromo = QuoteDto & {
                 </div>
                 @if (selectedPaymentMethod === 'PayAtHotel') {
                   <div role="note" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-950">
-                    Tiền cọc dự kiến: <strong>{{ ((priceAny()?.depositRequired ?? ((priceAny()?.totalAmount ?? 0) * 0.3)) | number:'1.0-0') }} ₫</strong>.
+                    Tiền cọc dự kiến: <strong class="tabular-nums">{{ (priceAny()?.depositRequired ?? ((priceAny()?.totalAmount ?? 0) * 0.3)) | vndCurrency }}</strong>.
                     Đến quầy lễ tân và nộp cọc trước khi giữ phòng hết hạn. Nhân viên sẽ ghi nhận tiền mặt và xác nhận đặt phòng; nếu chưa nộp kịp, giữ phòng sẽ tự hết hạn.
                   </div>
                 }
@@ -697,7 +698,7 @@ type QuoteWithPromo = QuoteDto & {
                         [class.text-slate-700]="line.amount >= 0 && line.category !== 'Discount'"
                       >
                         <span class="truncate pr-2">{{ line.description }}</span>
-                        <span class="font-semibold shrink-0 tabular-nums">{{ line.amount | number:'1.0-0' }} ₫</span>
+                        <span class="font-semibold shrink-0 tabular-nums">{{ line.amount | vndCurrency }}</span>
                       </div>
                     }
                   </div>
@@ -753,7 +754,7 @@ type QuoteWithPromo = QuoteDto & {
                       </p>
                     } @else if (quoteWithPromo()?.promoDiscountAmount) {
                       <p class="text-[11px] font-semibold text-emerald-700 tabular-nums">
-                        Đã giảm {{ quoteWithPromo()?.promoDiscountAmount | number:'1.0-0' }} ₫ từ mã {{ quoteWithPromo()?.promoCode }}.
+                        Đã giảm {{ quoteWithPromo()?.promoDiscountAmount | vndCurrency }} từ mã {{ quoteWithPromo()?.promoCode }}.
                       </p>
                     }
                   </div>
@@ -804,7 +805,7 @@ type QuoteWithPromo = QuoteDto & {
                             </div>
                             <div class="flex items-center justify-between text-[11px] text-amber-900 tabular-nums">
                               <span>Tối đa {{ maxRedeemablePoints() | number }} điểm (50% đơn)</span>
-                              <span class="font-bold text-emerald-700">-{{ estimatedPointsDiscount() | number:'1.0-0' }} ₫</span>
+                              <span class="font-bold text-emerald-700 tabular-nums">-{{ estimatedPointsDiscount() | vndCurrency }}</span>
                             </div>
                           </div>
                         }
@@ -817,23 +818,23 @@ type QuoteWithPromo = QuoteDto & {
                 @if (estimatedPointsDiscount() > 0) {
                   <div class="flex items-center justify-between text-xs text-slate-600">
                     <span>Tạm tính trước điểm thưởng:</span>
-                    <span class="font-sans tabular-nums">{{ price.totalAmount | number:'1.0-0' }} ₫</span>
+                    <span class="font-sans tabular-nums">{{ price.totalAmount | vndCurrency }}</span>
                   </div>
                   <div class="flex items-center justify-between text-xs text-emerald-700 font-semibold">
                     <span>Quy đổi {{ effectivePointsToRedeem() | number }} điểm thưởng:</span>
-                    <span class="font-sans tabular-nums">-{{ estimatedPointsDiscount() | number:'1.0-0' }} ₫</span>
+                    <span class="font-sans tabular-nums">-{{ estimatedPointsDiscount() | vndCurrency }}</span>
                   </div>
                 }
                 <div class="flex items-baseline justify-between">
                   <span class="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">Tổng tiền lưu trú:</span>
                   <strong class="text-2xl font-sans font-bold tracking-tight text-[var(--text-primary)] tabular-nums">
-                    {{ estimatedFinalTotal() | number:'1.0-0' }} <span class="text-base font-semibold">₫</span>
+                    {{ estimatedFinalTotal() | vndCurrency }}
                   </strong>
                 </div>
                 @if (priceAny()?.depositRequired !== undefined && priceAny()?.depositRequired !== null) {
                   <div class="flex items-center justify-between text-xs text-[var(--text-secondary)] pt-1.5 border-t border-[var(--border-subtle)] font-medium">
                     <span>Đặt cọc giữ chỗ:</span>
-                    <span class="font-bold text-[var(--text-primary)] tabular-nums">{{ priceAny()?.depositRequired | number:'1.0-0' }} ₫</span>
+                    <span class="font-bold text-[var(--text-primary)] tabular-nums">{{ priceAny()?.depositRequired | vndCurrency }}</span>
                   </div>
                 } @else {
                   <div class="pt-2 border-t border-[var(--border-subtle)] space-y-1 text-xs">
@@ -1129,6 +1130,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy, HasUnsavedCh
           const data = event.data;
           const current = this.booking();
           if (!data || !current?.lookupToken) return;
+          if (data.senderId === LIVE_CHANNEL_SENDER_ID) return;
           if (
             (data.action === 'extend-hold' || data.action === 'confirm') &&
             (data.lookupToken === current.lookupToken || (data.reservationId && data.reservationId === current.reservationId))
@@ -1630,7 +1632,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy, HasUnsavedCh
         this.guestEmail = currentUser.email;
       }
       if (!this.guestPhone && currentUser.phoneNumber) {
-        this.guestPhone = currentUser.phoneNumber;
+        this.guestPhone = this.formatPrefilledLocalPhone(currentUser.phoneNumber);
       }
     }
 
@@ -1643,7 +1645,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy, HasUnsavedCh
             this.guestEmail = me.email;
           }
           if (!this.guestPhone && me.phoneNumber) {
-            this.guestPhone = me.phoneNumber;
+            this.guestPhone = this.formatPrefilledLocalPhone(me.phoneNumber);
           }
         },
         error: () => {}
@@ -1670,6 +1672,14 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy, HasUnsavedCh
 
   getNormalizedPhone(): string {
     return this.normalizePhoneInput(this.guestPhone, this.selectedCountryCode());
+  }
+
+  private formatPrefilledLocalPhone(phone: string): string {
+    const cleaned = phone.trim().replace(/[\s.\-]/g, '');
+    if (this.selectedCountryCode() === '+84' && cleaned.startsWith('+84') && cleaned.length > 3) {
+      return `0${cleaned.slice(3)}`;
+    }
+    return cleaned;
   }
 
   private normalizePhoneInput(phone: string, countryCode: string): string {

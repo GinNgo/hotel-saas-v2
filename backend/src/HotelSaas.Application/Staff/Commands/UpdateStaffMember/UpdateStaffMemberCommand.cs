@@ -71,11 +71,16 @@ public sealed class UpdateStaffMemberCommandHandler : IRequestHandler<UpdateStaf
 
         if (request.RoleId.HasValue && request.RoleId.Value != Guid.Empty)
         {
-            var roleExists = await _context.AccessRoles
-                .AnyAsync(r => r.Id == request.RoleId.Value, cancellationToken);
-            if (!roleExists)
+            var requestedRole = await _context.AccessRoles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.Id == request.RoleId.Value, cancellationToken);
+            if (requestedRole == null)
             {
                 throw new NotFoundException(nameof(AccessRole), request.RoleId.Value);
+            }
+            if (string.Equals(requestedRole.Code, "SUPER_ADMIN", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ForbiddenException("ERR_FORBIDDEN", "Không được phép gán vai trò Quản trị Nền tảng (SUPER_ADMIN) cho nhân sự cơ sở.");
             }
             staff.RoleId = request.RoleId.Value;
         }

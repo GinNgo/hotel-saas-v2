@@ -39,6 +39,7 @@ public sealed class GetRevenueSummaryQueryHandler : IRequestHandler<GetRevenueSu
         }
 
         var reservationsQuery = _context.Reservations
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(r => r.TenantId == tenantId &&
                         r.Status != ReservationStatus.Cancelled &&
@@ -54,7 +55,9 @@ public sealed class GetRevenueSummaryQueryHandler : IRequestHandler<GetRevenueSu
 
         if (request.RoomTypeId.HasValue && request.RoomTypeId != Guid.Empty)
         {
-            var roomsQuery = _context.Rooms.AsNoTracking()
+            var roomsQuery = _context.Rooms
+                .IgnoreQueryFilters()
+                .AsNoTracking()
                 .Where(room => room.TenantId == tenantId && room.RoomTypeId == request.RoomTypeId.Value);
             if (effectivePropertyId.HasValue)
             {
@@ -72,6 +75,7 @@ public sealed class GetRevenueSummaryQueryHandler : IRequestHandler<GetRevenueSu
         var totalBookings = reservations.Count;
 
         var paymentsQuery = _context.Payments
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(p => p.TenantId == tenantId &&
                         p.Status == PaymentStatus.Completed &&

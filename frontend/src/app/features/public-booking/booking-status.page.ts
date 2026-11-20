@@ -5,7 +5,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { A11yModule } from '@angular/cdk/a11y';
 import { take } from 'rxjs';
-import { PublicBookingService } from '../../core/services/public-booking.service';
+import { LIVE_CHANNEL_SENDER_ID, PublicBookingService } from '../../core/services/public-booking.service';
 import { AlertService } from '../../core/services/alert.service';
 import {
   GuestBookingDetailDto,
@@ -2042,6 +2042,7 @@ export class BookingStatusPage implements OnInit {
   private copyTokenSessionId = 0;
   private copyCodeSessionId = 0;
   private copyPinSessionId = 0;
+  private lastBroadcastSyncAt = 0;
   private isDestroyed = false;
   private lastFetchedToken = '';
   private lastRouteToken: string | undefined = undefined;
@@ -3182,10 +3183,14 @@ export class BookingStatusPage implements OnInit {
           const data = event?.data;
           const current = this.booking();
           if (!data || !current?.lookupToken) return;
+          if (data.senderId === LIVE_CHANNEL_SENDER_ID) return;
           if (
             (data.action === 'extend-hold' || data.action === 'confirm' || data.action === 'reschedule') &&
             (data.lookupToken === current.lookupToken || (data.reservationId && data.reservationId === current.reservationId))
           ) {
+            const now = Date.now();
+            if (now - this.lastBroadcastSyncAt < 1500) return;
+            this.lastBroadcastSyncAt = now;
             this.syncHoldStateFromServer(current.lookupToken);
           }
         };

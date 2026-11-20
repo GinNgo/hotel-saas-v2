@@ -30,7 +30,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
     .skip-link:focus { transform: translateY(0); }
   `],
   template: `
-    <div [attr.data-shell]="'marketplace'" class="min-h-screen flex flex-col bg-[var(--surface-canvas)] text-[var(--text-primary)] font-sans transition-colors duration-200">
+    <div [attr.data-shell]="'marketplace'" class="min-h-screen overflow-x-clip flex flex-col bg-[var(--surface-canvas)] text-[var(--text-primary)] font-sans transition-colors duration-200">
       <a href="#booking-content" class="skip-link">Đến nội dung chính</a>
       <!-- 2. LIGHT/DARK LUXURY ARCHITECTURAL HEADER -->
       <header class="bg-[var(--surface-card)]/95 text-[var(--text-primary)] border-b border-[var(--border-subtle)] sticky top-0 z-30 shadow-xs backdrop-blur-md transition-colors duration-200">
@@ -66,7 +66,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
         </div>
 
         <!-- Main Navigation Bar -->
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 xl:gap-4">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-1.5 sm:gap-2 xl:gap-4">
           <!-- Brand Logo -->
           <div class="shrink-0">
             <app-brand-logo size="md" [variant]="themeService.isDark() ? 'light' : 'dark'" />
@@ -126,7 +126,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
             <a
               routerLink="/booking/lookup"
               aria-label="Tra cứu đặt phòng"
-              class="inline-flex lg:hidden items-center justify-center min-w-11 min-h-11 w-11 h-11 rounded-xl bg-[var(--surface-subtle)] hover:opacity-90 text-[var(--text-primary)] border border-[var(--border-subtle)] transition-all text-xs"
+              class="hidden sm:inline-flex lg:hidden items-center justify-center min-w-11 min-h-11 w-11 h-11 rounded-xl bg-[var(--surface-subtle)] hover:opacity-90 text-[var(--text-primary)] border border-[var(--border-subtle)] transition-all text-xs"
               title="Tra cứu đặt phòng"
             >
               <i class="pi pi-search" aria-hidden="true"></i>
@@ -145,11 +145,11 @@ import { toSignal } from '@angular/core/rxjs-interop';
             <a
               [routerLink]="isAuthenticated() ? (isCustomer() ? '/booking/profile' : '/dashboard') : '/auth/login'"
               [queryParams]="isAuthenticated() ? {} : { portal: 'guest' }"
-              class="inline-flex items-center justify-center gap-2 min-h-11 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shadow-xs border whitespace-nowrap"
+              class="inline-flex items-center justify-center gap-1.5 sm:gap-2 min-h-11 px-2.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shadow-xs border whitespace-nowrap"
               [class]="isAuthenticated() ? 'bg-[var(--surface-subtle)] text-[var(--text-primary)] border-[var(--border-strong)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]' : 'bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] border-transparent shadow-xs'"
             >
               <i [class]="isAuthenticated() ? 'pi pi-user-check text-[var(--brand-primary)] text-xs' : 'pi pi-user text-xs'" aria-hidden="true"></i>
-              <span class="truncate max-w-28">{{ isAuthenticated() ? (isCustomer() ? userFirstName() : 'Quản trị PMS') : 'Đăng nhập' }}</span>
+              <span class="truncate max-w-20 sm:max-w-28">{{ isAuthenticated() ? (isCustomer() ? userFirstName() : 'Quản trị PMS') : 'Đăng nhập' }}</span>
             </a>
 
             <!-- Mobile & Explore Dropdown -->

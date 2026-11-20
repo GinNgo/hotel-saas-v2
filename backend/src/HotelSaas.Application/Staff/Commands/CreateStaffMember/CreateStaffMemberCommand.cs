@@ -193,6 +193,10 @@ public sealed class CreateStaffMemberCommandHandler : IRequestHandler<CreateStaf
             {
                 throw new NotFoundException(nameof(AccessRole), request.RoleId.Value);
             }
+            if (string.Equals(role.Code, "SUPER_ADMIN", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ForbiddenException("ERR_FORBIDDEN", "Không được phép gán vai trò Quản trị Nền tảng (SUPER_ADMIN) cho nhân sự cơ sở.");
+            }
             roleId = role.Id;
         }
         else
