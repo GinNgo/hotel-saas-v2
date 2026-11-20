@@ -241,9 +241,9 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
 
     // Summary block rendered text
     expect(text).toContain('Tổng kết Thực thu trong ngày');
-    expect(text).toContain('2,500,000');
-    expect(text).toContain('1,500,000');
-    expect(text).toContain('1,000,000');
+    expect(text).toContain('2.500.000');
+    expect(text).toContain('1.500.000');
+    expect(text).toContain('1.000.000');
     expect(text).toContain('3');
 
     // Payments list table rendered text
@@ -334,7 +334,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
     expect(component.paymentsError()).toBeNull();
 
     const text = fixture.nativeElement.textContent || '';
-    expect(text).toContain('999,999');
+    expect(text).toContain('999.999');
     expect(text).toContain('REC-PROP-B');
     expect(text).not.toContain('REC-001');
   });
@@ -373,7 +373,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
     // DOM displays empty state for missing property
     const text = fixture.nativeElement.textContent || '';
     expect(text).toContain('Vui lòng chọn cơ sở hoạt động');
-    expect(text).not.toContain('2,500,000');
+    expect(text).not.toContain('2.500.000');
     expect(text).not.toContain('REC-001');
   });
 
@@ -488,7 +488,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
 
     const text = fixture.nativeElement.textContent || '';
     expect(text).toContain('403 Forbidden');
-    expect(text).not.toContain('2,500,000');
+    expect(text).not.toContain('2.500.000');
   });
 
   it('BAC 4d: populated list + summary 403 should clear BOTH streams, cancel pending payments requests, and reject late responses', () => {
@@ -564,7 +564,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
     expect(text).toContain('Không có quyền truy cập');
     expect(text).toContain('403 Forbidden');
     expect(text).not.toContain('REC-001');
-    expect(text).not.toContain('2,500,000');
+    expect(text).not.toContain('2.500.000');
   });
 
   it('BAC 4f: populated summary + list 403 latches access-denied: blocks subsequent refresh/filter/retry, and recovers only on deliberate validated authority recovery', () => {
@@ -632,7 +632,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
 
     const text = fixture.nativeElement.textContent || '';
     expect(text).not.toContain('Không có quyền truy cập');
-    expect(text).toContain('2,500,000');
+    expect(text).toContain('2.500.000');
     expect(text).toContain('REC-001');
   });
 
@@ -698,7 +698,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
 
     const text = fixture.nativeElement.textContent || '';
     expect(text).not.toContain('Không có quyền truy cập');
-    expect(text).toContain('2,500,000');
+    expect(text).toContain('2.500.000');
     expect(text).toContain('REC-001');
   });
 
@@ -846,8 +846,8 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       const text = fixture.nativeElement.textContent || '';
       expect(text).toContain('CONF-12345');
       expect(text).toContain('Deluxe Ocean View');
-      expect(text).toContain('2,000,000');
-      expect(text).toContain('1,500,000');
+      expect(text).toContain('2.000.000');
+      expect(text).toContain('1.500.000');
     });
 
     it('should fast-fill remaining balance when fillRemainingBalance is triggered', () => {
@@ -911,7 +911,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       const text = fixture.nativeElement.textContent || '';
       expect(text).toContain('Phiếu Xác Nhận Thu Tiền Nội Bộ');
       expect(text).toContain('GIAO DỊCH THÀNH CÔNG');
-      expect(text).toContain('1,500,000 VNĐ');
+      expect(text).toContain('1.500.000 ₫');
       expect(text).toContain('Phiếu xác nhận thu tiền nội bộ, không phải hóa đơn VAT');
 
       // Test print call
@@ -936,8 +936,8 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
 
       const text = fixture.nativeElement.textContent || '';
       expect(text).toContain('Chi tiết các khoản phí');
-      expect(text).toContain('Cọc yêu cầu: 500,000 VNĐ');
-      expect(text).toContain('Cọc đã thực thu: 500,000 VNĐ');
+      expect(text).toContain('Cọc yêu cầu: 500.000 ₫');
+      expect(text).toContain('Cọc đã thực thu: 500.000 ₫');
       expect(text).toContain('Tiền phòng 2 đêm');
       expect(text).toContain('Đã thanh toán (Chỉ trừ các giao dịch hoàn tất)');
     });
@@ -962,7 +962,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       fixture.detectChanges();
 
       const text = fixture.nativeElement.textContent || '';
-      expect(text).toContain('Cọc yêu cầu: 500,000 VNĐ');
+      expect(text).toContain('Cọc yêu cầu: 500.000 ₫');
       expect(text).toContain('Cọc đã thực thu: Chưa xác định');
       expect(text).toContain('Phân bổ chi tiết:');
       expect(text).toContain('Chưa xác định (Không có dữ liệu breakdown cấu trúc)');

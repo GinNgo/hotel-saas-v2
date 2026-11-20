@@ -79,8 +79,10 @@ public sealed class GetPrintableInvoiceQueryHandler : IRequestHandler<GetPrintab
         var vatRate = invoice != null
             ? Math.Round(invoice.TaxRate * 100m, 2)
             : (reservation.Property?.TaxRatePercent > 0 ? reservation.Property!.TaxRatePercent : 8m);
-        var vatAmount = invoice?.TaxAmount ?? Math.Round(totalAmount * (vatRate / 100m), 0);
-        var subTotal = invoice != null && invoice.Subtotal > 0 ? invoice.Subtotal : totalAmount - vatAmount;
+        var subTotal = invoice != null && invoice.Subtotal > 0
+            ? invoice.Subtotal
+            : (vatRate > 0m ? Math.Round(totalAmount / (1m + (vatRate / 100m)), 0) : totalAmount);
+        var vatAmount = invoice?.TaxAmount ?? (totalAmount - subTotal);
 
         var completedNonRefundPayments = reservation.Payments
             .Where(p => p.Status == PaymentStatus.Completed &&
@@ -179,7 +181,7 @@ public sealed class GetPrintableInvoiceQueryHandler : IRequestHandler<GetPrintab
             VietQrImageUrl = isAuthorizedFullPii ? vietQrUrl : string.Empty,
             ShowVietQrCode = isAuthorizedFullPii && showVietQr,
             BankAccountNumber = isAuthorizedFullPii ? bankAcc : MaskBankAccountNumber(bankAcc),
-            BankAccountHolder = bankHolder,
+            BankAccountHolder = isAuthorizedFullPii ? bankHolder : MaskGuestName(bankHolder),
             BankName = bankName,
             CheckInPolicyText = printConfig?.CheckInPolicyText ?? "Nhận phòng từ 14:00 - Trả phòng trước 12:00. Vui lòng xuất trình CCCD/Hộ chiếu khi làm thủ tục.",
             FooterNote = printConfig?.FooterNote ?? "Cảm ơn Quý khách đã tin tưởng và sử dụng dịch vụ của chúng tôi! Hẹn gặp lại Quý khách.",

@@ -104,7 +104,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="min-h-screen bg-[var(--surface-canvas)] pb-24 font-sans text-stone-900">
+    <div class="min-h-screen overflow-x-clip bg-[var(--surface-canvas)] pb-24 font-sans text-stone-900">
       <!-- 1. HERO BANNER & THANH TÌM KIẾM ĐA NĂNG (SEAMLESS LIGHT CONTEMPORARY LUXURY) -->
       <section
         class="bg-gradient-to-b from-white via-slate-50/90 to-stone-100/60 dark:from-[#0E1715] dark:via-[#12201D] dark:to-[#0B1412] text-slate-900 dark:text-[var(--text-primary)] pt-8 sm:pt-12 pb-12 sm:pb-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden border-b border-slate-200/80 dark:border-[var(--border-subtle)]"
@@ -118,7 +118,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center mb-10">
             
             <!-- LEFT COLUMN: EDITORIAL HEADLINE & DESTINATION PILLS -->
-            <div class="lg:col-span-7 space-y-4">
+            <div class="lg:col-span-7 min-w-0 space-y-4">
               <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold tracking-wide shadow-2xs">
                 <span class="relative inline-flex rounded-full h-2 w-2 bg-[var(--brand-primary)]"></span>
                 <span>Nền Tảng Đặt Phòng &amp; Nghỉ Dưỡng Di Sản Việt Nam</span>

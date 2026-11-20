@@ -38,6 +38,7 @@ public sealed class GetPmsKpiQueryHandler : IRequestHandler<GetPmsKpiQuery, PmsK
         }
 
         var roomsQuery = _context.Rooms
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(r => r.TenantId == tenantId);
 
@@ -61,6 +62,7 @@ public sealed class GetPmsKpiQueryHandler : IRequestHandler<GetPmsKpiQuery, PmsK
         var availableRoomNights = totalRooms * totalDays;
 
         var allResQuery = _context.Reservations
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(r => r.TenantId == tenantId &&
                         r.CheckInDate <= effectiveTo &&
@@ -73,7 +75,9 @@ public sealed class GetPmsKpiQueryHandler : IRequestHandler<GetPmsKpiQuery, PmsK
 
         if (request.RoomTypeId.HasValue && request.RoomTypeId != Guid.Empty)
         {
-            var scopedRoomsQuery = _context.Rooms.AsNoTracking()
+            var scopedRoomsQuery = _context.Rooms
+                .IgnoreQueryFilters()
+                .AsNoTracking()
                 .Where(room => room.TenantId == tenantId && room.RoomTypeId == request.RoomTypeId.Value);
             if (effectivePropertyId.HasValue)
             {

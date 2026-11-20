@@ -30,7 +30,7 @@ public sealed class GetRolesWithPermissionsQueryHandler : IRequestHandler<GetRol
             .AsNoTracking()
             .Include(r => r.Permissions)
                 .ThenInclude(rp => rp.Function)
-            .Where(r => r.IsSystemRole || (tenantId.HasValue && r.TenantId == tenantId.Value))
+            .Where(r => (r.IsSystemRole && r.Code != "SUPER_ADMIN") || (tenantId.HasValue && r.TenantId == tenantId.Value))
             .OrderBy(r => r.IsSystemRole ? 0 : 1)
             .ThenBy(r => r.Name)
             .ToListAsync(cancellationToken);

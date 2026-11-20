@@ -21,6 +21,7 @@ import { PageHeaderComponent } from '../../shared/components/page-header/page-he
 import { StatusBadgeComponent } from '../../shared/components/status-badge/status-badge.component';
 import { ChartCardComponent, ChartCardDataset } from '../../shared/components/chart-card/chart-card.component';
 import { BusinessDatePipe, BusinessDateTimePipe } from '../../shared/pipes/business-date.pipe';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 
 @Component({
   selector: 'app-subscriptions-page',
@@ -32,7 +33,8 @@ import { BusinessDatePipe, BusinessDateTimePipe } from '../../shared/pipes/busin
     StatusBadgeComponent,
     ChartCardComponent,
     BusinessDatePipe,
-    BusinessDateTimePipe
+    BusinessDateTimePipe,
+    VndCurrencyPipe
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -74,7 +76,7 @@ import { BusinessDatePipe, BusinessDateTimePipe } from '../../shared/pipes/busin
               <span class="text-xs font-mono font-bold text-slate-700 dark:text-slate-300 tabular-nums">{{ pending.invoiceNumber }}</span>
             </div>
             <p class="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">
-              Yêu cầu nâng cấp trị giá {{ pending.amount | number:'1.0-0' }} ₫ ({{ pending.billingCycle || 'Monthly' }})
+              Yêu cầu nâng cấp trị giá {{ pending.amount | vndCurrency }} ({{ pending.billingCycle || 'Monthly' }})
               — Mã tham chiếu: <span class="font-mono">{{ pending.transactionRef }}</span>
             </p>
             <p class="text-xs text-slate-600 dark:text-slate-400">
@@ -110,7 +112,7 @@ import { BusinessDatePipe, BusinessDateTimePipe } from '../../shared/pipes/busin
       <!-- Current Subscription Banner Card + Quota ChartCard -->
       @if (currentSub(); as sub) {
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          <div class="lg:col-span-5 relative overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-900 p-6 shadow-xs flex flex-col justify-between gap-5">
+          <div class="lg:col-span-5 min-w-0 relative overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-900 p-6 shadow-xs flex flex-col justify-between gap-5">
             <div class="space-y-3">
               <div class="flex items-center gap-3 flex-wrap">
                 <span class="px-3 py-1 rounded-lg text-sm font-bold bg-emerald-600 text-white shadow-2xs">
@@ -125,7 +127,7 @@ import { BusinessDatePipe, BusinessDateTimePipe } from '../../shared/pipes/busin
 
               <div>
                 <div class="text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight tabular-nums">
-                  {{ sub.pricePerCycle | number:'1.0-0' }} ₫
+                  {{ sub.pricePerCycle | vndCurrency }}
                   <span class="text-sm font-normal text-slate-600 dark:text-slate-400">
                     / {{ sub.billingCycle === 'Annual' ? 'năm' : 'tháng' }}
                   </span>
@@ -188,7 +190,7 @@ import { BusinessDatePipe, BusinessDateTimePipe } from '../../shared/pipes/busin
             </div>
           </div>
 
-          <div class="lg:col-span-7">
+          <div class="lg:col-span-7 min-w-0">
             <app-chart-card
               title="Mức tiêu thụ hạn ngạch tài nguyên SaaS"
               [subtitle]="quotaChartSubtitle()"
@@ -269,7 +271,7 @@ import { BusinessDatePipe, BusinessDateTimePipe } from '../../shared/pipes/busin
 
                 <div class="my-5 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700">
                   <div class="text-2xl font-black text-slate-900 dark:text-slate-100 tabular-nums">
-                    {{ (billingCycle() === 1 ? plan.annualPrice : plan.monthlyPrice) | number:'1.0-0' }} ₫
+                    {{ (billingCycle() === 1 ? plan.annualPrice : plan.monthlyPrice) | vndCurrency }}
                     <span class="text-xs font-normal text-slate-600 dark:text-slate-400">
                       / {{ billingCycle() === 1 ? 'năm' : 'tháng' }}
                     </span>
@@ -360,7 +362,7 @@ import { BusinessDatePipe, BusinessDateTimePipe } from '../../shared/pipes/busin
                 <div class="grid grid-cols-2 gap-2 pt-1 tabular-nums">
                   <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700">
                     <span class="text-slate-500 dark:text-slate-400 block">Số tiền</span>
-                    <strong class="font-mono font-bold text-slate-900 dark:text-slate-100">{{ p.amount | number:'1.0-0' }} ₫</strong>
+                    <strong class="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{{ p.amount | vndCurrency }}</strong>
                   </div>
                   <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700">
                     <span class="text-slate-500 dark:text-slate-400 block">Cổng thanh toán</span>
@@ -392,7 +394,7 @@ import { BusinessDatePipe, BusinessDateTimePipe } from '../../shared/pipes/busin
                   <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition-colors">
                     <td class="py-3 px-4 font-mono font-semibold text-slate-900 dark:text-slate-100 tabular-nums">{{ p.invoiceNumber || '—' }}</td>
                     <td class="py-3 px-4 font-mono tabular-nums">{{ p.transactionRef || '—' }}</td>
-                    <td class="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{{ p.amount | number:'1.0-0' }} ₫</td>
+                    <td class="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{{ p.amount | vndCurrency }}</td>
                     <td class="py-3 px-4">{{ p.method }}</td>
                     <td class="py-3 px-4">
                       <app-status-badge [status]="p.status" type="payment" />

@@ -445,7 +445,8 @@ public static class LocalDevDataSeeder
         else
         {
             existingDataPreserved = true;
-            if (!prop1.Latitude.HasValue || string.IsNullOrEmpty(prop1.TouristZoneSlug))
+            if (!prop1.Latitude.HasValue || string.IsNullOrEmpty(prop1.TouristZoneSlug) ||
+                string.IsNullOrWhiteSpace(prop1.NearbyLandmarksJson) || prop1.NearbyLandmarksJson.Contains('?'))
             {
                 prop1.Latitude = 10.7769;
                 prop1.Longitude = 106.7009;
@@ -507,7 +508,8 @@ public static class LocalDevDataSeeder
         else
         {
             existingDataPreserved = true;
-            if (!prop2.Latitude.HasValue || string.IsNullOrEmpty(prop2.TouristZoneSlug))
+            if (!prop2.Latitude.HasValue || string.IsNullOrEmpty(prop2.TouristZoneSlug) ||
+                string.IsNullOrWhiteSpace(prop2.NearbyLandmarksJson) || prop2.NearbyLandmarksJson.Contains('?'))
             {
                 prop2.Latitude = 10.7992;
                 prop2.Longitude = 106.6881;

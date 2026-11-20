@@ -1,6 +1,8 @@
 import { Component, DestroyRef, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
+import { BusinessDatePipe } from '../../shared/pipes/business-date.pipe';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { PrintDocumentsService } from '../../core/services/print-documents.service';
 import { PrintVoucherDto } from '../../core/models/print-document.model';
@@ -8,7 +10,7 @@ import { PrintVoucherDto } from '../../core/models/print-document.model';
 @Component({
   selector: 'app-print-voucher-page',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, BusinessDatePipe, VndCurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="min-h-screen bg-slate-100 p-4 sm:p-8 print:p-0 print:bg-white text-slate-800 font-sans">
@@ -52,7 +54,7 @@ import { PrintVoucherDto } from '../../core/models/print-document.model';
                 {{ v.confirmationCode }}
               </div>
               <div class="text-xs text-emerald-600 font-medium flex sm:justify-end items-center gap-1 mt-1">
-                <i class="pi pi-check text-[11px]"></i> Trạng thái: {{ v.status }}
+                <i class="pi pi-check text-[11px]"></i> Trạng thái: {{ getStatusLabel(v.status) }}
               </div>
             </div>
           </div>
@@ -77,10 +79,10 @@ import { PrintVoucherDto } from '../../core/models/print-document.model';
                 <div><span class="text-slate-500">Hạng phòng:</span> <strong class="text-indigo-700 ml-1 text-sm">{{ v.roomTypeName }}</strong> · <span class="text-slate-700">{{ v.roomNumber }}</span></div>
                 <div><span class="text-slate-500">Thông số:</span> <span class="text-slate-700 ml-1">{{ v.bedType }} · {{ v.squareMeters }} m²</span></div>
                 @if (v.rentalType) {
-                  <div><span class="text-slate-500">Chế độ thuê:</span> <span class="font-semibold text-slate-800 ml-1">{{ v.rentalType }}</span></div>
+                  <div><span class="text-slate-500">Chế độ thuê:</span> <span class="font-semibold text-slate-800 ml-1">{{ getRentalTypeLabel(v.rentalType) }}</span></div>
                 }
-                <div><span class="text-slate-500">Nhận phòng:</span> <strong class="text-slate-900 ml-1">{{ v.checkInDate }} ({{ v.checkInTime }})</strong></div>
-                <div><span class="text-slate-500">Trả phòng:</span> <strong class="text-slate-900 ml-1">{{ v.checkOutDate }} ({{ v.checkOutTime }})</strong></div>
+                <div><span class="text-slate-500">Nhận phòng:</span> <strong class="text-slate-900 ml-1 tabular-nums">{{ v.checkInDate | businessDate }} ({{ v.checkInTime }})</strong></div>
+                <div><span class="text-slate-500">Trả phòng:</span> <strong class="text-slate-900 ml-1 tabular-nums">{{ v.checkOutDate | businessDate }} ({{ v.checkOutTime }})</strong></div>
               </div>
             </div>
           </div>
@@ -129,7 +131,7 @@ import { PrintVoucherDto } from '../../core/models/print-document.model';
             </div>
             <div class="sm:text-right">
               <div class="text-slate-500">Tổng tiền tạm tính:</div>
-              <div class="text-2xl font-black text-indigo-700">{{ v.totalAmount | number:'1.0-0' }} ₫</div>
+              <div class="text-2xl font-black text-indigo-700 tabular-nums">{{ v.totalAmount | vndCurrency }}</div>
             </div>
           </div>
         </div>
@@ -186,6 +188,28 @@ export class PrintVoucherPage implements OnInit {
 
   isImageUrl(value: string): boolean {
     return value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:');
+  }
+
+  getStatusLabel(status?: string | null): string {
+    switch ((status || '').toLowerCase()) {
+      case 'confirmed': return 'Đã xác nhận';
+      case 'checkedin': return 'Đã nhận phòng';
+      case 'checkedout': return 'Đã trả phòng';
+      case 'pendingpayment':
+      case 'pending': return 'Chờ thanh toán';
+      case 'cancelled': return 'Đã hủy';
+      case 'noshow': return 'Khách không đến';
+      default: return status || 'Đang xử lý';
+    }
+  }
+
+  getRentalTypeLabel(rentalType?: string | null): string {
+    switch ((rentalType || '').toLowerCase()) {
+      case 'overnight': return 'Qua đêm';
+      case 'daily': return 'Theo ngày';
+      case 'hourly': return 'Theo giờ';
+      default: return rentalType || 'Lưu trú';
+    }
   }
 
   windowPrint(): void {

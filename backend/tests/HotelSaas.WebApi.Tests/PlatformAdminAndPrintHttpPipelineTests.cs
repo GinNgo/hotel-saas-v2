@@ -477,6 +477,22 @@ public sealed class PlatformAdminAndPrintHttpPipelineTests
             Assert.NotNull(fetchedUpdated);
             Assert.Equal("Vietcombank", fetchedUpdated.BankName);
             Assert.Equal("0071000999888", fetchedUpdated.BankAccountNumber);
+
+            // 7. Wave 8: GET /api/guests with Tenant Owner token MUST succeed (not collide with /api/guest prefix)
+            var guestsRes = await client.GetAsync("/api/guests?page=1&pageSize=20");
+            Assert.Equal(HttpStatusCode.OK, guestsRes.StatusCode);
+
+            // 8. Wave 8: GET /api/print/contract/{id} as Tenant Owner -> 200 OK
+            var ownerPrintContractRes = await client.GetAsync($"/api/print/contract/{newContract.Id}");
+            Assert.Equal(HttpStatusCode.OK, ownerPrintContractRes.StatusCode);
+
+            // 9. Wave 8: GET /api/platform/audit-logs as Tenant Owner -> 403 Forbidden; as SuperAdmin -> 200 OK
+            var ownerPlatformAuditRes = await client.GetAsync("/api/platform/audit-logs?page=1&pageSize=10");
+            Assert.Equal(HttpStatusCode.Forbidden, ownerPlatformAuditRes.StatusCode);
+
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            var superAdminPlatformAuditRes = await client.GetAsync("/api/platform/audit-logs?page=1&pageSize=10");
+            Assert.Equal(HttpStatusCode.OK, superAdminPlatformAuditRes.StatusCode);
         }
         finally
         {

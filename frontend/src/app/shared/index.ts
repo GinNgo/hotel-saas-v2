@@ -24,3 +24,4 @@ export * from './components/chart-card/chart-card.component';
 
 // Shared Pipes
 export * from './pipes/business-date.pipe';
+export * from './pipes/vnd-currency.pipe';

@@ -16,11 +16,12 @@ import { AdminPlansService } from '../../core/services/admin-plans.service';
 import { AlertService } from '../../core/services/alert.service';
 import { AdminSubscriptionPlanDto, CreateSubscriptionPlanRequest, UpdateSubscriptionPlanRequest } from '../../core/models/admin-plan.model';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 
 @Component({
   selector: 'app-admin-plans-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, A11yModule, PageHeaderComponent],
+  imports: [CommonModule, FormsModule, A11yModule, PageHeaderComponent, VndCurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="space-y-8 max-w-7xl mx-auto pb-12">
@@ -135,16 +136,16 @@ import { PageHeaderComponent } from '../../shared/components/page-header/page-he
               <div class="my-5 p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100/80 dark:border-slate-700">
                 <div class="flex items-baseline gap-1 tabular-nums">
                   <span class="text-2xl font-black text-slate-900 dark:text-slate-100">
-                    {{ plan.monthlyPrice | number:'1.0-0' }} ₫
+                    {{ plan.monthlyPrice | vndCurrency }}
                   </span>
                   <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">/ tháng</span>
                 </div>
                 <div class="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
-                  Gói năm: <span class="font-semibold text-slate-700 dark:text-slate-200">{{ plan.yearlyPrice | number:'1.0-0' }} ₫</span> (Tiết kiệm ~2 tháng)
+                  Gói năm: <span class="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">{{ plan.yearlyPrice | vndCurrency }}</span> (Tiết kiệm ~2 tháng)
                 </div>
                 <div class="mt-2 pt-2 border-t border-slate-200/70 dark:border-slate-700 flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 tabular-nums">
                   <span>Tenant đang dùng: <strong class="text-indigo-700 dark:text-indigo-300">{{ plan.activeTenantsCount ?? 0 }}</strong></span>
-                  <span>MRR ước tính: <strong class="text-emerald-700 dark:text-emerald-400">{{ (plan.estimatedMonthlyRevenue ?? 0) | number:'1.0-0' }} ₫</strong></span>
+                  <span>MRR ước tính: <strong class="text-emerald-700 dark:text-emerald-400 tabular-nums">{{ (plan.estimatedMonthlyRevenue ?? 0) | vndCurrency }}</strong></span>
                 </div>
               </div>
 

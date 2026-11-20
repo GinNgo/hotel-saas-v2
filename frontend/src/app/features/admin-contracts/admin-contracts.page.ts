@@ -22,6 +22,7 @@ import { PlatformGovernanceService } from '../../core/services/platform-governan
 import { AlertService } from '../../core/services/alert.service';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header';
 import { BusinessDatePipe } from '../../shared/pipes/business-date.pipe';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 import {
   SearchableSelectComponent,
   SearchableSelectItem
@@ -45,7 +46,8 @@ type ContractSortField = 'contractNumber' | 'tenantName' | 'startDate' | 'contra
     DatePicker,
     SearchableSelectComponent,
     PageHeaderComponent,
-    BusinessDatePipe
+    BusinessDatePipe,
+    VndCurrencyPipe
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -98,7 +100,7 @@ type ContractSortField = 'contractNumber' | 'tenantName' | 'startDate' | 'contra
         </div>
         <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-2xs">
           <div class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Doanh số cam kết</div>
-          <div class="text-xl font-bold text-indigo-700 dark:text-indigo-300 mt-1 tabular-nums">{{ totalValue() | number:'1.0-0' }} ₫</div>
+          <div class="text-xl font-bold text-indigo-700 dark:text-indigo-300 mt-1 tabular-nums">{{ totalValue() | vndCurrency }}</div>
         </div>
       </div>
 
@@ -146,7 +148,7 @@ type ContractSortField = 'contractNumber' | 'tenantName' | 'startDate' | 'contra
                   <div class="font-semibold text-slate-800 dark:text-slate-200">{{ c.tenantName }}</div>
                   <div class="text-slate-500 dark:text-slate-400">{{ c.representativeName }} ({{ c.representativePhone }})</div>
                 </div>
-                <span class="font-mono font-bold text-sm text-slate-900 dark:text-slate-100 tabular-nums">{{ c.contractValue | number:'1.0-0' }} ₫</span>
+                <span class="font-mono font-bold text-sm text-slate-900 dark:text-slate-100 tabular-nums">{{ c.contractValue | vndCurrency }}</span>
               </div>
               <div class="flex items-center justify-between flex-wrap gap-2">
                 <span class="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold">
@@ -259,7 +261,7 @@ type ContractSortField = 'contractNumber' | 'tenantName' | 'startDate' | 'contra
                     <div>Đến: <span class="font-medium text-slate-700 dark:text-slate-200 font-mono">{{ c.endDate | businessDate }}</span></div>
                   </td>
                   <td class="py-3.5 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">
-                    {{ c.contractValue | number:'1.0-0' }} ₫
+                    {{ c.contractValue | vndCurrency }}
                   </td>
                   <td class="py-3.5 px-4">
                     @switch (c.status) {
@@ -399,7 +401,7 @@ type ContractSortField = 'contractNumber' | 'tenantName' | 'startDate' | 'contra
                     class="w-full min-h-11 px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                   >
                     @for (p of availablePlans(); track p.id) {
-                      <option [value]="p.code">{{ p.name }} ({{ p.monthlyPrice | number:'1.0-0' }} ₫/tháng)</option>
+                      <option [value]="p.code">{{ p.name }} ({{ p.monthlyPrice | vndCurrency:'/tháng' }})</option>
                     }
                   </select>
                 </div>
@@ -621,7 +623,7 @@ export class AdminContractsPage implements OnInit, HasUnsavedChanges {
       newRepPhone: this.newRepPhone,
       newStartDate: this.newStartDate,
       newEndDate: this.newEndDate,
-      newContractValue: this.newContractValue,
+      newContractValue: Number(this.newContractValue) || 0,
       newTerms: this.newTerms
     });
   }
@@ -730,13 +732,21 @@ export class AdminContractsPage implements OnInit, HasUnsavedChanges {
   }
 
   openCreateModal(): void {
-    if (this.contracts().length > 0 && !this.newTenantId) {
-      this.newTenantId = this.contracts()[0].tenantId;
+    if (!this.newTenantId) {
+      if (this.contracts().length > 0) {
+        this.newTenantId = this.contracts()[0].tenantId;
+      } else if (this.tenantOptions().length > 0) {
+        this.newTenantId = this.tenantOptions()[0].value;
+      }
     }
+    this.initDefaultDates();
     this.newRepName = '';
     this.newRepEmail = '';
     this.newRepPhone = '';
     this.newBillingCycle = 'Annual';
+    if (this.availablePlans().length > 0 && !this.availablePlans().some(x => x.code === this.newPlanCode)) {
+      this.newPlanCode = this.availablePlans()[0].code;
+    }
     this.onPlanSelected();
     this.initialCreateSnapshot = this.buildCreateSnapshot();
     this.showCreateModal.set(true);

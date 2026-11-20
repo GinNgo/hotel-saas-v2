@@ -17,9 +17,17 @@ export const permissionGuard: CanActivateFn = (route: ActivatedRouteSnapshot) =>
 
   if (!permission || !action) return true; // Không config → cho qua
 
+  const isSuperAdmin = tokenStorage.getDecodedToken()?.globalRole === 'SuperAdmin';
+  if (isSuperAdmin && permission !== 'AUDIT_LOGS') {
+    notification.error('Trang này chỉ dành cho quản trị viên cơ sở lưu trú.');
+    router.navigate(['/forbidden']);
+    return false;
+  }
+
   const hasAccess =
     permission === 'AUDIT_LOGS'
-      ? tokenStorage.hasPermission('AUDIT_LOGS', action) ||
+      ? isSuperAdmin ||
+        tokenStorage.hasPermission('AUDIT_LOGS', action) ||
         tokenStorage.hasPermission('SETTINGS', action)
       : tokenStorage.hasPermission(permission, action);
 

@@ -40,6 +40,7 @@ import {
   LoadingSpinnerComponent,
   PaginationComponent,
   PhotoGalleryModalComponent,
+  VndCurrencyPipe,
   GalleryPhotoItem,
 } from '../../shared';
 
@@ -61,6 +62,7 @@ interface TenantBrandFacet {
     LoadingSpinnerComponent,
     PaginationComponent,
     PhotoGalleryModalComponent,
+    VndCurrencyPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -149,7 +151,7 @@ interface TenantBrandFacet {
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <!-- CỘT TRÁI: SIDEBAR BỘ LỌC CHUYÊN SÂU (3 CỘT) -->
           <aside
-            class="lg:col-span-3 bg-white rounded-2xl border border-slate-200 p-5 space-y-6 lg:sticky lg:top-6 shadow-2xs"
+            class="lg:col-span-3 min-w-0 bg-white rounded-2xl border border-slate-200 p-5 space-y-6 lg:sticky lg:top-6 shadow-2xs"
           >
             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
               <h2 class="font-bold text-slate-800 text-sm flex items-center gap-2">
@@ -311,7 +313,7 @@ interface TenantBrandFacet {
           </aside>
 
           <!-- CỘT PHẢI: KẾT QUẢ TÌM KIẾM & DANH SÁCH KHÁCH SẠN (9 CỘT) -->
-          <main class="lg:col-span-9 space-y-5">
+          <main class="lg:col-span-9 min-w-0 space-y-5">
             @if (promoCode(); as activePromo) {
               <div
                 data-testid="active-promo-banner"
@@ -627,7 +629,7 @@ interface TenantBrandFacet {
                             <div class="flex items-baseline gap-1">
                               @if (property.startingPriceForSelectedMode > 0) {
                                 <span class="text-lg sm:text-xl font-sans tabular-nums font-bold tracking-tight text-slate-900">
-                                  {{ property.startingPriceForSelectedMode | number: '1.0-0' }} <span class="text-sm font-semibold">₫</span>
+                                  {{ property.startingPriceForSelectedMode | vndCurrency }}
                                 </span>
                                 <span class="text-[11px] text-slate-500">/ {{ getPriceUnitShort(searchFilter().rentalType) }}</span>
                               } @else {
@@ -680,7 +682,7 @@ interface TenantBrandFacet {
                   data-gmp-attribution="gmp_git_agentskills_v1"
                 >
                   <!-- Cột danh sách cơ sở cuộn (5 cols) -->
-                  <div class="lg:col-span-5 space-y-3 max-h-[700px] overflow-y-auto pr-1">
+                  <div class="lg:col-span-5 min-w-0 space-y-3 max-h-[700px] overflow-y-auto pr-1">
                     @for (property of filteredProperties(); track property.propertyId) {
                       <button
                         type="button"
@@ -744,7 +746,7 @@ interface TenantBrandFacet {
                             }
                             <div class="flex items-center justify-between mt-2">
                               <span class="text-xs font-mono tabular-nums font-bold text-[var(--brand-cta)]">
-                                {{ property.startingPriceForSelectedMode > 0 ? (property.startingPriceForSelectedMode | number:'1.0-0') + ' ₫' : 'Báo giá' }}
+                                {{ property.startingPriceForSelectedMode > 0 ? (property.startingPriceForSelectedMode | vndCurrency) : 'Báo giá' }}
                               </span>
                               <span
                                 class="text-[10px] px-2 py-0.5 rounded-md font-semibold border"
@@ -761,7 +763,7 @@ interface TenantBrandFacet {
 
                   <!-- Cột bản đồ tương tác dính (7 cols) -->
                   <div
-                    class="lg:col-span-7 lg:sticky lg:top-24 space-y-3"
+                    class="lg:col-span-7 min-w-0 lg:sticky lg:top-24 space-y-3"
                     style="content-visibility: auto; contain-intrinsic-size: auto none auto 580px;"
                   >
                     <div class="bg-white rounded-3xl border border-stone-200/90 shadow-sm overflow-hidden flex flex-col">

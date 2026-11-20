@@ -1340,6 +1340,10 @@ export class HousekeepingPage implements OnInit, OnDestroy {
 
   pollServerSync(): void {
     if (this.isDestroyed || !this.autoSyncEnabled()) return;
+    if (this.authService.isLoggedIn === false) {
+      this.stopAutoSync();
+      return;
+    }
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       this.syncStatus.set('offline');
       return;

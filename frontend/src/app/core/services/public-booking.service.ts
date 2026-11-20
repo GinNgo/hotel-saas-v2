@@ -33,6 +33,8 @@ import {
 } from '../models/public-booking.model';
 import { QuoteDto } from '../models/reservation.model';
 
+export const LIVE_CHANNEL_SENDER_ID = `tab-${Math.random().toString(36).slice(2, 10)}`;
+
 /** Matches backend C# HotelSaas.Domain.Enums.PropertyType (1-based). */
 const BACKEND_PROPERTY_TYPE_MAP: Readonly<Record<number, PropertyType>> = {
   1: 'Hotel',
@@ -379,10 +381,7 @@ export class PublicBookingService {
       .get<ApiEnvelope<GuestBookingDetailDto> | GuestBookingDetailDto>(
         `${this.apiUrl}/bookings/${encodeURIComponent(lookupToken)}`
       )
-      .pipe(
-        map(unwrapApiEnvelope),
-        tap(detail => this.broadcastLiveBookingPing('confirm', detail?.reservationId, detail?.propertyId, lookupToken))
-      );
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -846,7 +845,14 @@ export class PublicBookingService {
     try {
       if (typeof BroadcastChannel !== 'undefined') {
         const channel = new BroadcastChannel('hotelsaas-live-notifications');
-        channel.postMessage({ action, reservationId, propertyId, lookupToken, timestamp: Date.now() });
+        channel.postMessage({
+          action,
+          reservationId,
+          propertyId,
+          lookupToken,
+          senderId: LIVE_CHANNEL_SENDER_ID,
+          timestamp: Date.now(),
+        });
         channel.close();
       }
     } catch {

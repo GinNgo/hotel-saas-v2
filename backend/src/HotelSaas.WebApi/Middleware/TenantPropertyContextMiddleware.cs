@@ -60,6 +60,13 @@ public sealed class TenantPropertyContextMiddleware
         // ── 1. Pipeline Classification: Group 1 - Anonymous / Public Endpoints ──
         if (IsPublicEndpoint(context, path))
         {
+            if (context.User.Identity?.IsAuthenticated == true &&
+                (path.StartsWith("/api/print/invoice", StringComparison.OrdinalIgnoreCase) ||
+                 path.StartsWith("/api/print/voucher", StringComparison.OrdinalIgnoreCase)))
+            {
+                await TryHydratePublicPrintUserContextAsync(context, userContext, membershipLookupService);
+            }
+
             await _next(context);
             return;
         }
@@ -157,7 +164,8 @@ public sealed class TenantPropertyContextMiddleware
         // ── 3b. Pipeline Classification: Group 3b - Customer / Guest Portal Endpoints ──────
         // Authenticated customer/guest end-users accessing their own personal bookings, profile, or loyalty (Gate G3 / US3).
         // Guests belong to the B2C platform, not a specific tenant staff organization, and do not possess TenantId/PropertyId claims.
-        if (path.StartsWith("/api/guest", StringComparison.OrdinalIgnoreCase) ||
+        if (path.Equals("/api/guest", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/api/guest/", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/api/v1/loyalty", StringComparison.OrdinalIgnoreCase))
         {
             userContext.SetUser(userId, string.Empty, globalRole);
@@ -655,5 +663,85 @@ public sealed class TenantPropertyContextMiddleware
         };
 
         await context.Response.WriteAsync(JsonSerializer.Serialize(payload, JsonOptions));
+    }
+
+    private static async Task TryHydratePublicPrintUserContextAsync(
+        HttpContext context,
+        ICurrentUserContext userContext,
+        IMembershipLookupService membershipLookupService)
+    {
+        var userIdClaim = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? context.User.FindFirst("sub")?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var pubUserId) || pubUserId == Guid.Empty)
+        {
+            return;
+        }
+
+        var globalRoleClaim = context.User.FindFirst("globalRole")?.Value;
+        Enum.TryParse<GlobalUserRole>(globalRoleClaim, ignoreCase: true, out var pubGlobalRole);
+        userContext.SetUser(pubUserId, string.Empty, pubGlobalRole);
+
+        if (pubGlobalRole != GlobalUserRole.TenantStaff)
+        {
+            return;
+        }
+
+        var tenantIdClaim = context.User.FindFirst("tenantId")?.Value;
+        var tidClaim = context.User.FindFirst("tid")?.Value;
+        if (!string.IsNullOrEmpty(tenantIdClaim) && !string.IsNullOrEmpty(tidClaim) &&
+            !string.Equals(tenantIdClaim, tidClaim, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (!Guid.TryParse(tenantIdClaim ?? tidClaim, out var pubTenantId) || pubTenantId == Guid.Empty)
+        {
+            return;
+        }
+
+        var propertyIdClaim = context.User.FindFirst("propertyId")?.Value;
+        var pidClaim = context.User.FindFirst("pid")?.Value;
+        if (!string.IsNullOrEmpty(propertyIdClaim) && !string.IsNullOrEmpty(pidClaim) &&
+            !string.Equals(propertyIdClaim, pidClaim, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        Guid? targetPubPropId = Guid.TryParse(propertyIdClaim ?? pidClaim, out var tokenPropId)
+            ? tokenPropId
+            : null;
+
+        if (!targetPubPropId.HasValue &&
+            context.Request.Headers.TryGetValue("X-Property-Id", out var xPropVal) &&
+            Guid.TryParse(xPropVal.ToString(), out var headerPropId) &&
+            headerPropId != Guid.Empty)
+        {
+            targetPubPropId = headerPropId;
+        }
+
+        try
+        {
+            var lookup = await membershipLookupService.ResolveMembershipAsync(
+                pubTenantId,
+                pubUserId,
+                targetPubPropId,
+                context.RequestAborted);
+
+            if (lookup.Status == MembershipLookupStatus.Success)
+            {
+                userContext.SetMembershipContext(
+                    pubTenantId,
+                    TenantStatus.Active,
+                    lookup.PropertyId,
+                    lookup.PropertyStatus ?? PropertyStatus.Active,
+                    lookup.StaffRole,
+                    lookup.RoleId,
+                    lookup.IsTenantWide);
+            }
+        }
+        catch
+        {
+            // Ignore optional hydration failures on public print endpoints; caller stays masked
+        }
     }
 }

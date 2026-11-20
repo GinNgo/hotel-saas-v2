@@ -11,13 +11,14 @@ import { PublicPropertyDto, PublicRoomTypeAvailabilityDto, RentalType, PropertyR
 import { QuoteDto } from '../../core/models/reservation.model';
 import { PublicStayContext, publicStayInterval, readPublicStay } from '../../core/models/public-stay-context';
 import { PhotoGalleryModalComponent, GalleryPhotoItem } from '../../shared';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 import { resolvePropertyGallery, resolveRoomThumbnail } from '../../core/utils';
 import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-time.util';
 
 @Component({
   selector: 'app-property-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, PhotoGalleryModalComponent, DatePicker],
+  imports: [CommonModule, FormsModule, RouterLink, PhotoGalleryModalComponent, DatePicker, VndCurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="min-h-screen bg-[var(--surface-canvas)] pt-6 sm:pt-8 pb-24 font-sans text-stone-900">
@@ -183,7 +184,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
         <!-- 4. MAIN CONTENT (2 COLUMNS: LEFT ROOMS & POLICIES / RIGHT STICKY QUOTE) -->
         <div class="grid lg:grid-cols-3 gap-8 items-start pt-2">
           <!-- CỘT TRÁI: CONCIERGE BAR & ROOM LIST (2 CỘT) -->
-          <div class="lg:col-span-2 space-y-6">
+          <div class="lg:col-span-2 min-w-0 space-y-6">
             <!-- CONCIERGE BOOKING SELECTOR -->
             <section class="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 sm:p-7 space-y-5" aria-labelledby="stay-title">
               <div class="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -418,7 +419,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                       <div class="sm:text-right">
                         <span class="text-[10px] text-slate-500 uppercase font-semibold tracking-wider block">Giá cơ bản:</span>
                         <span class="text-lg sm:text-xl font-sans font-bold tracking-tight text-slate-900 tabular-nums">
-                          {{ startingPrice(room) | number:'1.0-0' }} <span class="text-sm font-semibold">₫</span>
+                          {{ startingPrice(room) | vndCurrency }}
                         </span>
                       </div>
                     } @else {
@@ -802,7 +803,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                   @for (line of price.breakdown; track $index) {
                     <div class="flex justify-between items-center text-[var(--text-secondary)] pt-1.5">
                       <span class="truncate pr-2">{{ line.description }}</span>
-                      <span class="font-sans font-semibold text-[var(--text-primary)] shrink-0 tabular-nums">{{ line.amount | number:'1.0-0' }} ₫</span>
+                      <span class="font-sans font-semibold text-[var(--text-primary)] shrink-0 tabular-nums">{{ line.amount | vndCurrency }}</span>
                     </div>
                   }
                 </div>
@@ -810,7 +811,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                 <div class="p-4 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--border-strong)] space-y-1">
                   <span class="text-[11px] uppercase font-semibold text-[var(--text-secondary)] tracking-wider block">Tổng thanh toán dự kiến</span>
                   <div class="text-2xl sm:text-3xl font-sans font-bold tracking-tight text-[var(--text-primary)] tabular-nums">
-                    {{ price.totalAmount | number:'1.0-0' }} <span class="text-base font-semibold">₫</span>
+                    {{ price.totalAmount | vndCurrency }}
                   </div>
                   @if ((hotel.taxRatePercent ?? 0) > 0 || (hotel.serviceFeeRatePercent ?? 0) > 0) {
                     <p class="text-[11px] text-[var(--text-muted)] tabular-nums">

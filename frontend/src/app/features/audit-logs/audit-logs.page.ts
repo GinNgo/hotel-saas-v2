@@ -131,6 +131,12 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                 <option value="TenantStaff">Tài khoản Nhân sự (TenantStaff)</option>
                 <option value="AccessRole">Chức vụ & Quyền hạn (AccessRole)</option>
                 <option value="HousekeepingTask">Buồng phòng (Housekeeping)</option>
+                @if (isSuperAdmin()) {
+                  <option value="Tenant">Khách hàng / Chuỗi khách sạn (Tenant)</option>
+                  <option value="TenantContract">Hợp đồng SaaS (TenantContract)</option>
+                  <option value="SubscriptionPlan">Gói dịch vụ (SubscriptionPlan)</option>
+                  <option value="User">Tài khoản người dùng (User)</option>
+                }
               </select>
             </div>
 
@@ -829,6 +835,7 @@ export class AuditLogsPage implements OnInit {
 
   selectedAction = '';
   selectedEntityName = '';
+  readonly isSuperAdmin = computed(() => this.authService.currentUser?.globalRole === 'SuperAdmin');
   fromDate = '';
   toDate = '';
   fromUtc = '';
@@ -1245,6 +1252,10 @@ export class AuditLogsPage implements OnInit {
       case 'TenantStaff': return 'Tài khoản nhân sự';
       case 'AccessRole': return 'Chức vụ & Quyền hạn';
       case 'HousekeepingTask': return 'Nhiệm vụ buồng phòng';
+      case 'Tenant': return 'Khách hàng / Chuỗi (Tenant)';
+      case 'TenantContract': return 'Hợp đồng SaaS';
+      case 'SubscriptionPlan': return 'Gói cước SaaS';
+      case 'User': return 'Tài khoản người dùng';
       default: return name || 'Bản ghi';
     }
   }

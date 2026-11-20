@@ -123,47 +123,104 @@ public sealed class GetPlatformOverviewQueryHandler
             aiLogs = new List<AiUsageLog>();
         }
 
-        var activeTenantIds = tenants
+        var activeTenantList = tenants
             .Where(t => t.Status == TenantStatus.Active)
+            .ToList();
+        var activeTenantIds = activeTenantList
             .Select(t => t.Id)
             .ToHashSet();
 
-        var latestActiveSubscriptions = subscriptions
+        var latestActiveSubByTenant = subscriptions
             .Where(s => s.Status == SubscriptionStatus.Active || s.Status == SubscriptionStatus.Trial)
             .GroupBy(s => s.TenantId)
-            .Select(g => g.OrderByDescending(s => s.CreatedAtUtc).First())
-            .ToList();
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(s => s.CreatedAtUtc).First());
 
-        decimal mrr = 0m;
-        foreach (var sub in latestActiveSubscriptions)
+        var latestActiveContractByTenant = contracts
+            .Where(c => c.Status == TenantContractStatus.Active)
+            .GroupBy(c => c.TenantId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(c => c.SignedAtUtc ?? c.CreatedAtUtc).First());
+
+        var tenantPlanAssignments = new List<(string? PlanCode, SubscriptionTier? Tier, decimal MonthlyMrr)>();
+
+        foreach (var tenant in activeTenantList)
         {
-            if (sub.PricePerCycle > 0m)
+            if (latestActiveSubByTenant.TryGetValue(tenant.Id, out var sub))
             {
-                mrr += sub.BillingCycle == BillingCycle.Annual
-                    ? Math.Round(sub.PricePerCycle / 12m, 0)
-                    : sub.PricePerCycle;
+                decimal subMonthly;
+                if (sub.PricePerCycle > 0m)
+                {
+                    subMonthly = sub.BillingCycle == BillingCycle.Annual
+                        ? Math.Round(sub.PricePerCycle / 12m, 0)
+                        : sub.PricePerCycle;
+                }
+                else
+                {
+                    var matchedPlan = plans.FirstOrDefault(p =>
+                        GetPlatformTenantsQueryHandler.PlanMatchesTier(p.Code, sub.Tier));
+                    subMonthly = matchedPlan?.MonthlyPrice ?? 0m;
+                }
+
+                tenantPlanAssignments.Add((null, sub.Tier, subMonthly));
+            }
+            else if (latestActiveContractByTenant.TryGetValue(tenant.Id, out var contract))
+            {
+                var contractMonthly = contract.ContractValue > 0m
+                    ? (contract.BillingCycle == BillingCycle.Annual
+                        ? Math.Round(contract.ContractValue / 12m, 0)
+                        : contract.ContractValue)
+                    : plans.FirstOrDefault(p => string.Equals(p.Code, contract.PlanCode, StringComparison.OrdinalIgnoreCase))?.MonthlyPrice ?? 0m;
+
+                tenantPlanAssignments.Add((contract.PlanCode, null, contractMonthly));
             }
             else
             {
                 var matchedPlan = plans.FirstOrDefault(p =>
-                    GetPlatformTenantsQueryHandler.PlanMatchesTier(p.Code, sub.Tier));
-                if (matchedPlan != null)
-                {
-                    mrr += matchedPlan.MonthlyPrice;
-                }
+                    GetPlatformTenantsQueryHandler.PlanMatchesTier(p.Code, tenant.SubscriptionTier));
+                tenantPlanAssignments.Add((matchedPlan?.Code, tenant.SubscriptionTier, matchedPlan?.MonthlyPrice ?? 0m));
             }
+        }
+
+        // Also include any active/trial subscriptions whose Tenant wasn't in activeTenantList (safety for partial test doubles)
+        foreach (var kv in latestActiveSubByTenant)
+        {
+            if (activeTenantIds.Contains(kv.Key))
+            {
+                continue;
+            }
+            var sub = kv.Value;
+            var subMonthly = sub.PricePerCycle > 0m
+                ? (sub.BillingCycle == BillingCycle.Annual ? Math.Round(sub.PricePerCycle / 12m, 0) : sub.PricePerCycle)
+                : plans.FirstOrDefault(p => GetPlatformTenantsQueryHandler.PlanMatchesTier(p.Code, sub.Tier))?.MonthlyPrice ?? 0m;
+            tenantPlanAssignments.Add((null, sub.Tier, subMonthly));
+        }
+
+        decimal mrr = tenantPlanAssignments.Sum(x => x.MonthlyMrr);
+
+        static bool MatchesPlan(SubscriptionPlan plan, (string? PlanCode, SubscriptionTier? Tier, decimal MonthlyMrr) entry)
+        {
+            if (!string.IsNullOrWhiteSpace(entry.PlanCode))
+            {
+                if (string.Equals(plan.Code, entry.PlanCode.Trim(), StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            if (entry.Tier.HasValue)
+            {
+                return GetPlatformTenantsQueryHandler.PlanMatchesTier(plan.Code, entry.Tier.Value);
+            }
+
+            return false;
         }
 
         var planBreakdown = plans.Select(plan =>
         {
-            var count = latestActiveSubscriptions.Count(s =>
-                GetPlatformTenantsQueryHandler.PlanMatchesTier(plan.Code, s.Tier));
+            var matched = tenantPlanAssignments.Where(entry => MatchesPlan(plan, entry)).ToList();
             return new PlatformPlanBreakdownDto(
                 plan.Code,
                 plan.Name,
-                count,
+                matched.Count,
                 plan.MonthlyPrice,
-                count * plan.MonthlyPrice);
+                matched.Sum(x => x.MonthlyMrr > 0m ? x.MonthlyMrr : plan.MonthlyPrice));
         }).ToList();
 
         var tenantNames = tenants.ToDictionary(t => t.Id, t => t.Name);
