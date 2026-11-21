@@ -158,6 +158,7 @@ describe('RoomsPage — Timeline Gantt Chart & Minibar Folio Tests', () => {
 
     mockAuthService = {
       activePropertyId: activePropertyIdSignal,
+      hasPermission: vi.fn((code: string, mask: number) => code === 'HOUSEKEEPING' && mask === 4),
       currentUser$: of({ email: 'reception@hotel.com', role: 'Staff' })
     };
 
@@ -167,6 +168,7 @@ describe('RoomsPage — Timeline Gantt Chart & Minibar Folio Tests', () => {
       toastInfo: vi.fn()
     };
 
+    TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [RoomsPage],
       providers: [
@@ -316,5 +318,61 @@ describe('RoomsPage — Timeline Gantt Chart & Minibar Folio Tests', () => {
         immediateCheckIn: true
       })
     );
+  });
+
+  it('10. should allow Receptionist with HOUSEKEEPING:Update (4) to toggle Dirty/Cleaning 1-click and hide buttons for view-only roles', () => {
+    const dirtyRoom: ExtendedRoomDto = {
+      ...sampleRooms[0],
+      id: 'room-103',
+      roomNumber: '103',
+      status: RoomStatus.Dirty
+    };
+    const cleaningRoom: ExtendedRoomDto = {
+      ...sampleRooms[0],
+      id: 'room-104',
+      roomNumber: '104',
+      status: RoomStatus.Cleaning
+    };
+
+    component.rooms.set([dirtyRoom, cleaningRoom]);
+    component.viewMode.set('rack');
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(component.canUpdateHousekeeping()).toBe(true);
+    expect(el.querySelector('[data-testid="rack-start-cleaning-btn"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="rack-complete-cleaning-btn"]')).not.toBeNull();
+
+    component.changeRoomStatus(dirtyRoom, RoomStatus.Cleaning);
+    expect(mockRoomService.updateRoomStatus).toHaveBeenCalledWith('room-103', RoomStatus.Cleaning, RoomStatus.Dirty);
+
+    // View-only role: neither HOUSEKEEPING:4 nor ROOMS:4
+    mockRoomService.updateRoomStatus.mockClear();
+    mockAuthService.hasPermission = vi.fn().mockReturnValue(false);
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [RoomsPage],
+      providers: [
+        { provide: RoomService, useValue: mockRoomService },
+        { provide: ReservationService, useValue: mockReservationService },
+        { provide: RoomTypeService, useValue: mockRoomTypeService },
+        { provide: PaymentService, useValue: mockPaymentService },
+        { provide: AuthService, useValue: mockAuthService },
+        { provide: AlertService, useValue: mockAlertService }
+      ]
+    });
+    const viewOnlyFixture = TestBed.createComponent(RoomsPage);
+    const viewOnlyComp = viewOnlyFixture.componentInstance;
+    viewOnlyComp.rooms.set([dirtyRoom, cleaningRoom]);
+    viewOnlyComp.viewMode.set('rack');
+    viewOnlyFixture.detectChanges();
+
+    expect(viewOnlyComp.canUpdateHousekeeping()).toBe(false);
+    const viewOnlyEl = viewOnlyFixture.nativeElement as HTMLElement;
+    expect(viewOnlyEl.querySelector('[data-testid="rack-start-cleaning-btn"]')).toBeNull();
+    expect(viewOnlyEl.querySelector('[data-testid="rack-complete-cleaning-btn"]')).toBeNull();
+
+    viewOnlyComp.onRoomCardClicked(dirtyRoom);
+    expect(mockRoomService.updateRoomStatus).not.toHaveBeenCalled();
   });
 });

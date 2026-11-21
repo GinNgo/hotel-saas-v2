@@ -112,6 +112,10 @@ describe('Real-session guest account', () => {
     const detailLink = Array.from(element.querySelectorAll('a')).find(a => a.textContent?.includes('Chi tiết'));
     expect(detailLink?.getAttribute('href')).toBe('/booking/status/secure-lookup-tok-123');
     expect(detailLink?.getAttribute('href')).not.toContain('res-guid-9999');
+    expect(element.textContent).toContain('1.500.000 ₫');
+    const spentKpi = Array.from(element.querySelectorAll('div')).find(el => el.textContent?.trim() === '1.500.000 ₫');
+    expect(spentKpi?.className).not.toContain('truncate');
+    expect(spentKpi?.className).toContain('break-words');
 
     fixture.componentInstance.selectTab('bookings');
     fixture.detectChanges();
@@ -210,6 +214,7 @@ describe('Real-session guest account', () => {
     fixture.detectChanges();
     const element = fixture.nativeElement as HTMLElement;
     expect(element.textContent).toContain('INV-2026-001');
+    expect(element.textContent).toContain('1.080.000 ₫');
 
     fixture.componentInstance.vatCompanyName = 'New Co';
     fixture.componentInstance.saveVatProfile();
@@ -223,5 +228,6 @@ describe('Real-session guest account', () => {
     fixture.detectChanges();
     expect(element.textContent).toContain('Tích điểm sau trả phòng');
     expect(element.textContent).toContain('MEM-001');
+    expect(element.textContent).toContain('250.000 ₫');
   });
 });

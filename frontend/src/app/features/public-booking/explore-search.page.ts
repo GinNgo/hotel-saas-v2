@@ -123,9 +123,9 @@ interface TenantBrandFacet {
                 <button
                   type="button"
                   (click)="onSmartChipClick(chip)"
-                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border whitespace-nowrap"
+                  class="min-h-11 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer border whitespace-nowrap"
                   [class.bg-[var(--brand-primary)]]="isChipActive(chip)"
-                  [class.text-white]="isChipActive(chip)"
+                  [class.text-[var(--brand-primary-fg)]]="isChipActive(chip)"
                   [class.border-[var(--brand-primary)]]="isChipActive(chip)"
                   [class.bg-slate-100]="!isChipActive(chip)"
                   [class.text-slate-700]="!isChipActive(chip)"
@@ -135,9 +135,10 @@ interface TenantBrandFacet {
                   <span>{{ chip.label }}</span>
                   @if (chip.count) {
                     <span
-                      class="text-[10px] px-1.5 py-0.2 rounded-full tabular-nums"
-                      [class.bg-white/20]="isChipActive(chip)"
-                      [class.bg-slate-200]="!isChipActive(chip)"
+                      class="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums"
+                      [ngClass]="isChipActive(chip)
+                        ? 'bg-black/15 dark:bg-white/25 text-[var(--brand-primary-fg)]'
+                        : 'bg-slate-200'"
                     >
                       {{ chip.count }}
                     </span>
@@ -161,7 +162,7 @@ interface TenantBrandFacet {
               <button
                 type="button"
                 (click)="resetSidebarFilters()"
-                class="text-xs text-[var(--brand-primary)] hover:underline font-medium cursor-pointer"
+                class="min-h-11 px-2 inline-flex items-center text-xs text-[var(--brand-primary)] hover:underline font-medium cursor-pointer"
               >
                 Đặt lại
               </button>
@@ -238,7 +239,7 @@ interface TenantBrandFacet {
                   <button
                     type="button"
                     (click)="applyPriceRange(range.key, range.min, range.max)"
-                    class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer flex items-center justify-between"
+                    class="min-h-11 w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer flex items-center justify-between"
                     [class.bg-slate-100]="selectedPriceRangeKey() === range.key"
                     [class.text-[var(--brand-primary)]]="selectedPriceRangeKey() === range.key"
                     [class.font-bold]="selectedPriceRangeKey() === range.key"
@@ -263,9 +264,9 @@ interface TenantBrandFacet {
                 <button
                   type="button"
                   (click)="setMaxDistance(null)"
-                  class="px-2.5 py-1.5 rounded-lg border text-xs font-medium text-center transition-all cursor-pointer"
+                  class="min-h-11 px-2.5 py-2 rounded-lg border text-xs font-medium inline-flex items-center justify-center text-center transition-all cursor-pointer"
                   [class.bg-[var(--brand-primary)]]="maxDistanceMeters() === null"
-                  [class.text-white]="maxDistanceMeters() === null"
+                  [class.text-[var(--brand-primary-fg)]]="maxDistanceMeters() === null"
                   [class.border-[var(--brand-primary)]]="maxDistanceMeters() === null"
                   [class.border-slate-200]="maxDistanceMeters() !== null"
                   [class.text-slate-700]="maxDistanceMeters() !== null"
@@ -275,9 +276,9 @@ interface TenantBrandFacet {
                 <button
                   type="button"
                   (click)="setMaxDistance(1000)"
-                  class="px-2.5 py-1.5 rounded-lg border text-xs font-medium text-center transition-all cursor-pointer"
+                  class="min-h-11 px-2.5 py-2 rounded-lg border text-xs font-medium inline-flex items-center justify-center text-center transition-all cursor-pointer"
                   [class.bg-[var(--brand-primary)]]="maxDistanceMeters() === 1000"
-                  [class.text-white]="maxDistanceMeters() === 1000"
+                  [class.text-[var(--brand-primary-fg)]]="maxDistanceMeters() === 1000"
                   [class.border-[var(--brand-primary)]]="maxDistanceMeters() === 1000"
                   [class.border-slate-200]="maxDistanceMeters() !== 1000"
                   [class.text-slate-700]="maxDistanceMeters() !== 1000"
@@ -287,9 +288,9 @@ interface TenantBrandFacet {
                 <button
                   type="button"
                   (click)="setMaxDistance(3000)"
-                  class="px-2.5 py-1.5 rounded-lg border text-xs font-medium text-center transition-all cursor-pointer"
+                  class="min-h-11 px-2.5 py-2 rounded-lg border text-xs font-medium inline-flex items-center justify-center text-center transition-all cursor-pointer"
                   [class.bg-[var(--brand-primary)]]="maxDistanceMeters() === 3000"
-                  [class.text-white]="maxDistanceMeters() === 3000"
+                  [class.text-[var(--brand-primary-fg)]]="maxDistanceMeters() === 3000"
                   [class.border-[var(--brand-primary)]]="maxDistanceMeters() === 3000"
                   [class.border-slate-200]="maxDistanceMeters() !== 3000"
                   [class.text-slate-700]="maxDistanceMeters() !== 3000"
@@ -299,9 +300,9 @@ interface TenantBrandFacet {
                 <button
                   type="button"
                   (click)="setMaxDistance(5000)"
-                  class="px-2.5 py-1.5 rounded-lg border text-xs font-medium text-center transition-all cursor-pointer"
+                  class="min-h-11 px-2.5 py-2 rounded-lg border text-xs font-medium inline-flex items-center justify-center text-center transition-all cursor-pointer"
                   [class.bg-[var(--brand-primary)]]="maxDistanceMeters() === 5000"
-                  [class.text-white]="maxDistanceMeters() === 5000"
+                  [class.text-[var(--brand-primary-fg)]]="maxDistanceMeters() === 5000"
                   [class.border-[var(--brand-primary)]]="maxDistanceMeters() === 5000"
                   [class.border-slate-200]="maxDistanceMeters() !== 5000"
                   [class.text-slate-700]="maxDistanceMeters() !== 5000"
@@ -847,7 +848,7 @@ interface TenantBrandFacet {
                         @if (mapDisplayMode() === 'pins') {
                           <div
                             data-testid="multi-pin-map-canvas"
-                            class="relative w-full h-full overflow-hidden bg-gradient-to-br from-emerald-50 via-stone-50 to-sky-50 select-none"
+                            class="relative w-full h-full overflow-hidden bg-gradient-to-br from-emerald-50 via-stone-50 to-sky-50 dark:from-slate-900 dark:via-slate-900 dark:to-teal-950/60 select-none"
                           >
                             <svg class="absolute inset-0 w-full h-full pointer-events-none opacity-35 text-slate-400" aria-hidden="true">
                               <defs>
@@ -918,7 +919,7 @@ interface TenantBrandFacet {
                             <a
                               [routerLink]="['/booking/properties', selected.slug]"
                               [queryParams]="propertyLinkQueryParams()"
-                              class="min-h-11 px-4 py-2 rounded-xl bg-[var(--brand-cta)] hover:bg-[var(--brand-cta-hover)] text-white text-xs font-bold inline-flex items-center gap-1.5 transition-all shadow-sm"
+                              class="min-h-11 px-4 py-2 rounded-xl bg-[var(--brand-cta)] hover:bg-[var(--brand-cta-hover)] text-[var(--brand-primary-fg)] text-xs font-bold inline-flex items-center gap-1.5 transition-all shadow-sm"
                             >
                               <span>Xem phòng &amp; Đặt</span>
                               <i class="pi pi-arrow-right text-[10px]"></i>

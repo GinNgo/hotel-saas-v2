@@ -437,9 +437,13 @@ export class RegisterPage {
 
       this.googleGisRendered.set(false);
       void this.socialAuth
-        .renderGoogleButton(containerRef.nativeElement, idToken => {
-          this.ngZone.run(() => this.handleGoogleCredential(idToken));
-        })
+        .renderGoogleButton(
+          containerRef.nativeElement,
+          idToken => {
+            this.ngZone.run(() => this.handleGoogleCredential(idToken));
+          },
+          { text: 'signup_with' }
+        )
         .then(rendered => {
           if (version === this.googleRenderVersion && !this.destroyRef.destroyed) {
             this.googleGisRendered.set(rendered);

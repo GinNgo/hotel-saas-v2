@@ -35,7 +35,8 @@ import {
   FormFieldComponent,
   FormControlDirective,
   GoogleMapPickerComponent,
-  LocationPickerResult
+  LocationPickerResult,
+  VndCurrencyPipe
 } from '../../shared';
 
 type BranchSummaryWithMeta = TenantPropertySummaryDto & {
@@ -121,7 +122,8 @@ interface HttpErrorPayload {
     LoadingSpinnerComponent,
     FormFieldComponent,
     FormControlDirective,
-    GoogleMapPickerComponent
+    GoogleMapPickerComponent,
+    VndCurrencyPipe
   ],
   template: `
     <div class="max-w-7xl mx-auto space-y-6 pb-12">
@@ -175,7 +177,6 @@ interface HttpErrorPayload {
         <app-stat-card
           title="Doanh thu hôm nay"
           [value]="formattedTodayRevenue()"
-          unit="₫"
           variant="rose"
           subtitle="Tính trên toàn chuỗi"
         >
@@ -365,7 +366,7 @@ interface HttpErrorPayload {
                   </div>
                   <div class="bg-emerald-50/70 dark:bg-emerald-950/50 rounded-xl p-2">
                     <span class="block text-[10px] text-emerald-700 dark:text-emerald-400 font-medium uppercase">Hôm nay</span>
-                    <span class="text-xs font-bold text-emerald-800 dark:text-emerald-300">{{ prop.todayRevenue | number:'1.0-0' }}₫</span>
+                    <span class="text-xs font-bold text-emerald-800 dark:text-emerald-300">{{ prop.todayRevenue | vndCurrency }}</span>
                   </div>
                 </div>
               </div>
@@ -858,8 +859,10 @@ export class PropertiesPage implements OnInit, HasUnsavedChanges {
     return `Tỉ lệ lấp đầy ${pct}%`;
   });
 
+  private readonly vndPipe = new VndCurrencyPipe();
+
   formattedTodayRevenue = computed(() => {
-    return new Intl.NumberFormat('vi-VN').format(this.todayRevenue());
+    return this.vndPipe.transform(this.todayRevenue());
   });
 
   filteredProperties = computed(() => {

@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Text;
+using System.Threading.RateLimiting;
 using HotelSaas.Application;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Infrastructure;
@@ -8,6 +10,8 @@ using HotelSaas.WebApi.Authorization;
 using HotelSaas.WebApi.Middleware;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
@@ -85,20 +89,90 @@ builder.Services.AddSwaggerGen(options =>
     options.CustomSchemaIds(type => type.FullName?.Replace("+", "."));
 });
 
-// ── CORS ─────────────────────────────────────────────────────────────
-var configuredOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-    ?? Array.Empty<string>();
-var allowedOrigins = new[]
+// ── Forwarded Headers (Reverse Proxy: Caddy / Nginx) ─────────────────
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+// ── Rate Limiting (Per-Client-IP Fixed Window Policies) ──────────────
+var isTestingEnvironment = builder.Environment.IsEnvironment("Testing");
+var rateLimitWindow = TimeSpan.FromSeconds(
+    Math.Max(1, builder.Configuration.GetValue<int?>("RateLimiting:WindowSeconds") ?? 60));
+var authPermitLimit = Math.Max(
+    1,
+    builder.Configuration.GetValue<int?>("RateLimiting:AuthPermitLimit") ?? (isTestingEnvironment ? 10_000 : 30));
+var webhookPermitLimit = Math.Max(
+    1,
+    builder.Configuration.GetValue<int?>("RateLimiting:WebhookPermitLimit") ?? (isTestingEnvironment ? 10_000 : 120));
+var publicPrintPermitLimit = Math.Max(
+    1,
+    builder.Configuration.GetValue<int?>("RateLimiting:PublicPrintPermitLimit") ?? (isTestingEnvironment ? 10_000 : 60));
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
     {
-        "http://localhost:4200",
-        "http://localhost:3000",
-        "https://luxustay.duckdns.org"
-    }
-    .Concat(configuredOrigins)
-    .Where(o => !string.IsNullOrWhiteSpace(o))
-    .Select(o => o.Trim())
-    .Distinct(StringComparer.OrdinalIgnoreCase)
-    .ToArray();
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            context.HttpContext.Response.Headers.RetryAfter =
+                Math.Ceiling(retryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+        }
+
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsJsonAsync(new
+        {
+            type = "TooManyRequests",
+            title = "Too many requests. Please try again later.",
+            status = StatusCodes.Status429TooManyRequests,
+            errorCode = "ERR_RATE_LIMITED"
+        }, cancellationToken);
+    };
+
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ResolveClientIpPartitionKey(httpContext),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = authPermitLimit,
+                Window = rateLimitWindow,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+
+    options.AddPolicy("webhooks", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ResolveClientIpPartitionKey(httpContext),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = webhookPermitLimit,
+                Window = rateLimitWindow,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+
+    options.AddPolicy("public-print", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ResolveClientIpPartitionKey(httpContext),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = publicPrintPermitLimit,
+                Window = rateLimitWindow,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+});
+
+// ── CORS ─────────────────────────────────────────────────────────────
+var allowedOrigins = ResolveAllowedCorsOrigins(builder.Configuration, builder.Environment);
 
 builder.Services.AddCors(options =>
     options.AddPolicy("Angular", policy =>
@@ -136,11 +210,14 @@ if (!shouldSkipStartupInit)
         await context.Database.MigrateAsync();
         await SeedData.SeedDefaultRolesAndPermissions(context);
 
-        var canRunDevSeeder = !isCloudDb || builder.Configuration.GetValue<bool>("AllowCloudDevSeed") || isStagingEnv;
-        var isDevOrAllowedStaging = app.Environment.IsDevelopment() || isStagingEnv ||
-            builder.Configuration.GetValue<bool>("AllowStagingDevSeed");
+        var allowCloudDevSeed = builder.Configuration.GetValue<bool>("AllowCloudDevSeed");
+        var shouldRunDevSeeder = ShouldRunDevSeeder(
+            app.Environment,
+            builder.Configuration,
+            isCloudDb,
+            effectiveConnStr);
 
-        if (isDevOrAllowedStaging && canRunDevSeeder && !string.IsNullOrWhiteSpace(effectiveConnStr))
+        if (shouldRunDevSeeder)
         {
             try
             {
@@ -158,9 +235,13 @@ if (!shouldSkipStartupInit)
                 Log.Warning(ex, "LocalDevDataSeeder note: {Message}", ex.Message);
             }
         }
-        else if (isCloudDb && !canRunDevSeeder)
+        else if (isCloudDb && !allowCloudDevSeed)
         {
             Log.Information("CloudDatabaseGuard (Task C01): Bỏ qua LocalDevDataSeeder trên Cloud Database để bảo toàn dữ liệu dùng chung của nhóm.");
+        }
+        else if (isStagingEnv)
+        {
+            Log.Information("Staging dev seeder skipped (explicit opt-in required via AllowStagingDevSeed=true).");
         }
     }
 }
@@ -170,6 +251,7 @@ else if (isCloudDb && !allowCloudInit && !isTestingEnv)
 }
 
 // ── Middleware Pipeline ──────────────────────────────────────────────
+app.UseForwardedHeaders();
 app.UseMiddleware<CorrelationAndStructuredLogMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseSerilogRequestLogging(opts =>
@@ -187,7 +269,9 @@ else if (!isTestingEnv)
     app.UseHsts();
 }
 
+app.UseRouting();
 app.UseCors("Angular");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseMiddleware<TenantPropertyContextMiddleware>();
 app.UseAuthorization();
@@ -225,6 +309,72 @@ public partial class Program
         "HotelSaasPlatform2026EnterpriseSuperSecretKey32BytesLong!",
         "YourSuperSecretKeyMustBeAtLeast32CharactersLongForJwt!"
     ];
+
+    /// <summary>
+    /// Resolves allowed CORS origins strictly from <c>Cors:AllowedOrigins</c> in non-Development/non-Testing
+    /// environments, restricting hardcoded localhost origins to Development and Testing only.
+    /// </summary>
+    public static string[] ResolveAllowedCorsOrigins(IConfiguration configuration, IHostEnvironment environment)
+    {
+        var configuredOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+            ?? Array.Empty<string>();
+
+        IEnumerable<string> origins = configuredOrigins;
+        if (environment.IsDevelopment() || environment.IsEnvironment("Testing"))
+        {
+            origins = new[]
+            {
+                "http://localhost:4200",
+                "http://localhost:3000"
+            }.Concat(origins);
+        }
+
+        return origins
+            .Where(o => !string.IsNullOrWhiteSpace(o))
+            .Select(o => o.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Determines whether local/sample dev seeders may run on startup.
+    /// Never auto-enables on Staging or Production; requires Development or explicit Staging opt-in
+    /// (<c>AllowStagingDevSeed=true</c>, plus <c>AllowCloudDevSeed=true</c> when connected to a Cloud DB).
+    /// </summary>
+    public static bool ShouldRunDevSeeder(
+        IHostEnvironment environment,
+        IConfiguration configuration,
+        bool isCloudDb,
+        string? effectiveConnStr)
+    {
+        if (string.IsNullOrWhiteSpace(effectiveConnStr))
+        {
+            return false;
+        }
+
+        var allowCloudDevSeed = configuration.GetValue<bool>("AllowCloudDevSeed");
+        var allowStagingDevSeed = configuration.GetValue<bool>("AllowStagingDevSeed");
+
+        var canRunAgainstTargetDb = !isCloudDb || allowCloudDevSeed;
+        var isDevOrExplicitOptIn = environment.IsDevelopment() ||
+                                   (environment.IsEnvironment("Staging") && allowStagingDevSeed);
+
+        return isDevOrExplicitOptIn && canRunAgainstTargetDb;
+    }
+
+    /// <summary>
+    /// Extracts the normalized client IP partition key for rate limiting after ForwardedHeaders processing.
+    /// </summary>
+    public static string ResolveClientIpPartitionKey(HttpContext httpContext)
+    {
+        var remoteIp = httpContext.Connection.RemoteIpAddress;
+        if (remoteIp is null)
+        {
+            return "unknown";
+        }
+
+        return (remoteIp.IsIPv4MappedToIPv6 ? remoteIp.MapToIPv4() : remoteIp).ToString();
+    }
 
     /// <summary>
     /// Validates that Production environments never boot with a missing, short, or sample JWT signing key.

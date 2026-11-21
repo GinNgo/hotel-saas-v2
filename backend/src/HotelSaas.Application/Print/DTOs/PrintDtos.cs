@@ -27,6 +27,8 @@ public sealed class PrintableInvoiceDto
     public decimal SubTotal { get; set; }
     public decimal VatRate { get; set; } = 8m;
     public decimal VatAmount { get; set; }
+    public decimal ServiceFeeAmount { get; init; }
+    public decimal DiscountAmount { get; init; }
     public decimal TotalAmount { get; set; }
     public decimal PaidAmount { get; set; }
     public decimal RemainingAmount { get; set; }

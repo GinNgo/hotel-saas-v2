@@ -2,6 +2,7 @@ using System.Data;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
 using HotelSaas.Domain.Enums;
+using HotelSaas.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -23,8 +24,14 @@ public sealed class MembershipLookupService : IMembershipLookupService
     /// </summary>
     public MembershipLookupService(IConfiguration configuration, ILogger<MembershipLookupService> logger)
     {
-        _connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
+        var resolvedConnectionString = DatabaseConnectionResolver.ResolveConnectionString(configuration);
+        if (string.IsNullOrWhiteSpace(resolvedConnectionString))
+        {
+            throw new InvalidOperationException(
+                "Database connection string ('ConnectionStrings:DefaultConnection' or 'DATABASE_URL') is not configured.");
+        }
+
+        _connectionString = resolvedConnectionString;
         _logger = logger;
     }
 

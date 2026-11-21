@@ -7,6 +7,7 @@ import { of } from 'rxjs';
 import { PublicBookingService } from '../../core/services/public-booking.service';
 import { AlertService } from '../../core/services/alert.service';
 import { GuestBookingDetailDto } from '../../core/models/public-booking.model';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 
 export interface LookupErrorState {
   title: string;
@@ -17,7 +18,7 @@ export interface LookupErrorState {
 @Component({
   selector: 'app-booking-lookup',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, VndCurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="min-h-screen bg-slate-50 py-6 sm:py-8 font-sans">
@@ -299,24 +300,24 @@ export interface LookupErrorState {
                 <div class="p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3 text-xs">
                   <div class="flex justify-between text-slate-600">
                     <span>Tổng tiền lưu trú:</span>
-                    <span class="font-bold text-slate-900 font-mono text-sm tabular-nums">{{ detail.totalAmount | number:'1.0-0' }} ₫</span>
+                    <span class="font-bold text-slate-900 font-mono text-sm tabular-nums">{{ detail.totalAmount | vndCurrency }}</span>
                   </div>
 
                   @if (detail.depositRequired > 0) {
                     <div class="flex justify-between text-slate-600">
                       <span>Khoản đặt cọc yêu cầu:</span>
-                      <span class="font-mono font-semibold text-amber-700 tabular-nums">{{ detail.depositRequired | number:'1.0-0' }} ₫</span>
+                      <span class="font-mono font-semibold text-amber-700 tabular-nums">{{ detail.depositRequired | vndCurrency }}</span>
                     </div>
                   }
 
                   <div class="flex justify-between text-emerald-800 font-semibold bg-emerald-50 p-2.5 rounded-xl border border-emerald-100">
                     <span>Số tiền đã thanh toán:</span>
-                    <span class="font-mono font-bold tabular-nums">{{ detail.paidAmount | number:'1.0-0' }} ₫</span>
+                    <span class="font-mono font-bold tabular-nums">{{ detail.paidAmount | vndCurrency }}</span>
                   </div>
 
                   <div class="flex justify-between text-indigo-700 font-black text-sm pt-2.5 border-t border-slate-100">
                     <span>Tổng còn phải thanh toán:</span>
-                    <span class="font-mono text-base tabular-nums">{{ detail.remainingBalance | number:'1.0-0' }} ₫</span>
+                    <span class="font-mono text-base tabular-nums">{{ detail.remainingBalance | vndCurrency }}</span>
                   </div>
 
                   @if (detail.isFullyPaid) {
@@ -342,7 +343,7 @@ export interface LookupErrorState {
                     @for (item of detail.breakdown; track item.description) {
                       <div class="flex justify-between text-slate-600 py-0.5">
                         <span>{{ item.description }} @if (item.quantity > 1) { <span class="text-slate-400">(x{{ item.quantity }})</span> }</span>
-                        <span class="font-mono font-medium text-slate-800 tabular-nums">{{ item.amount | number:'1.0-0' }} ₫</span>
+                        <span class="font-mono font-medium text-slate-800 tabular-nums">{{ item.amount | vndCurrency }}</span>
                       </div>
                     }
                   </div>
@@ -586,19 +587,19 @@ export interface LookupErrorState {
                 <tbody class="divide-y divide-slate-200">
                   <tr>
                     <td class="py-1.5 px-3 text-slate-800">Tổng tiền lưu trú (Đã bao gồm thuế & phí)</td>
-                    <td class="py-1.5 px-3 text-right font-medium text-slate-900">{{ detail.totalAmount | number }} đ</td>
+                    <td class="py-1.5 px-3 text-right font-medium text-slate-900 tabular-nums">{{ detail.totalAmount | vndCurrency }}</td>
                   </tr>
                   <tr>
                     <td class="py-1.5 px-3 text-slate-800">Khoản đặt cọc yêu cầu</td>
-                    <td class="py-1.5 px-3 text-right font-medium text-slate-900 tabular-nums">{{ detail.depositRequired | number }} đ</td>
+                    <td class="py-1.5 px-3 text-right font-medium text-slate-900 tabular-nums">{{ detail.depositRequired | vndCurrency }}</td>
                   </tr>
                   <tr>
                     <td class="py-1.5 px-3 text-slate-800">Số tiền đã thanh toán</td>
-                    <td class="py-1.5 px-3 text-right font-semibold text-emerald-700 tabular-nums">{{ detail.paidAmount | number }} đ</td>
+                    <td class="py-1.5 px-3 text-right font-semibold text-emerald-700 tabular-nums">{{ detail.paidAmount | vndCurrency }}</td>
                   </tr>
                   <tr class="bg-slate-50 font-bold">
                     <td class="py-2 px-3 text-slate-900 uppercase text-[11px]">Tổng còn phải thanh toán</td>
-                    <td class="py-2 px-3 text-right text-sm text-slate-900 font-mono tabular-nums font-bold">{{ detail.remainingBalance | number }} đ</td>
+                    <td class="py-2 px-3 text-right text-sm text-slate-900 font-mono tabular-nums font-bold">{{ detail.remainingBalance | vndCurrency }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -624,8 +625,8 @@ export interface LookupErrorState {
                       <tr>
                         <td class="py-1 px-2 text-slate-700">{{ item.description }}</td>
                         <td class="py-1 px-2 text-center text-slate-600">{{ item.quantity }}</td>
-                        <td class="py-1 px-2 text-right text-slate-600">{{ item.unitPrice | number }} đ</td>
-                        <td class="py-1 px-2 text-right font-medium text-slate-800">{{ item.amount | number }} đ</td>
+                        <td class="py-1 px-2 text-right text-slate-600 tabular-nums">{{ item.unitPrice | vndCurrency }}</td>
+                        <td class="py-1 px-2 text-right font-medium text-slate-800 tabular-nums">{{ item.amount | vndCurrency }}</td>
                       </tr>
                     }
                   </tbody>

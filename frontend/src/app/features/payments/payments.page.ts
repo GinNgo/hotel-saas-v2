@@ -3,6 +3,7 @@ import {
   ChangeDetectorRef,
   Component,
   DestroyRef,
+  HostListener,
   Injector,
   OnInit,
   OnDestroy,
@@ -47,6 +48,11 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { RefundApprovalComponent } from './components/refund-approval/refund-approval.component';
 import { ContextSelectorDialogComponent } from '../auth/context-selector/context-selector.dialog';
+
+type ShiftReportViewDto = ShiftReportDto & {
+  totalRefunded?: number;
+  netCollected?: number;
+};
 
 /**
  * Helper: Lấy chuỗi ngày YYYY-MM-DD theo múi giờ Việt Nam (UTC+7).
@@ -236,6 +242,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                 dateFormat="dd/mm/yy"
                 [showIcon]="true"
                 [maxDate]="todayDate"
+                [touchUI]="isMobile()"
                 appendTo="body"
                 [inputStyleClass]="'w-full text-xs pr-10'"
               />
@@ -374,6 +381,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                 dateFormat="dd/mm/yy"
                 [showIcon]="true"
                 [maxDate]="todayDate"
+                [touchUI]="isMobile()"
                 appendTo="body"
                 [inputStyleClass]="'w-full text-xs pr-10'"
               />
@@ -450,7 +458,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
             @if (shiftReport(); as sr) {
               <div class="space-y-4">
                 <!-- Shift KPIs -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div class="rounded-xl bg-amber-50/70 border border-amber-200/80 p-4 shadow-2xs space-y-1">
                     <div class="flex items-center justify-between">
                       <span class="text-xs font-semibold text-amber-800 uppercase tracking-wider">Tổng Thu Theo Ca</span>
@@ -463,6 +471,28 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                       <i class="pi pi-check-circle text-[10px]"></i>
                       <span>{{ sr.completedCount }} giao dịch trong ca</span>
                     </div>
+                  </div>
+
+                  <div data-testid="shift-total-refunded" class="rounded-xl bg-rose-50/70 border border-rose-200/80 p-4 shadow-2xs space-y-1">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-semibold text-rose-800 uppercase tracking-wider">Tổng hoàn tiền</span>
+                      <i class="pi pi-undo text-rose-600 text-base"></i>
+                    </div>
+                    <div class="text-xl sm:text-2xl font-extrabold text-rose-900 tracking-tight tabular-nums">
+                      {{ getShiftTotalRefunded(sr) | vndCurrency }}
+                    </div>
+                    <div class="text-[11px] text-rose-700 pt-1">Các khoản hoàn tiền đã chi trong ca</div>
+                  </div>
+
+                  <div data-testid="shift-net-collected" class="rounded-xl bg-emerald-50/70 border border-emerald-200/80 p-4 shadow-2xs space-y-1">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-semibold text-emerald-800 uppercase tracking-wider">Thực thu ròng</span>
+                      <i class="pi pi-wallet text-emerald-600 text-base"></i>
+                    </div>
+                    <div class="text-xl sm:text-2xl font-extrabold text-emerald-900 tracking-tight tabular-nums">
+                      {{ getShiftNetCollected(sr) | vndCurrency }}
+                    </div>
+                    <div class="text-[11px] text-emerald-700 pt-1">Tổng thu trừ hoàn tiền trong ca</div>
                   </div>
 
                   <div class="rounded-xl bg-white border border-slate-200/80 p-4 shadow-2xs space-y-1">
@@ -514,6 +544,11 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                         <div class="p-3 text-xs flex flex-wrap items-center justify-between gap-2 hover:bg-slate-50/60 transition-colors">
                           <div class="flex items-center gap-2 flex-wrap">
                             <span [class]="getMethodBadgeClass(p.method)">{{ p.methodName || getMethodLabel(p.method) }}</span>
+                            @if (isRefundTransaction(p)) {
+                              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                Hoàn tiền
+                              </span>
+                            }
                             <span class="font-mono tabular-nums text-[11px] text-slate-700 font-medium">{{ p.createdAtUtc | businessDateTime }} (Giờ VN)</span>
                             <span class="font-mono tabular-nums text-[10px] text-slate-400">({{ formatUtc(p.createdAtUtc) }})</span>
                             @if (p.reservationId) {
@@ -524,7 +559,11 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                             @if (p.transactionRef) {
                               <span class="text-[11px] text-slate-500 font-mono">Ref: {{ p.transactionRef }}</span>
                             }
-                            <span class="font-bold text-slate-800 tabular-nums">+{{ p.amount | vndCurrency }}</span>
+                            @if (isRefundTransaction(p)) {
+                              <span data-testid="shift-payment-amount" class="font-bold text-rose-600 tabular-nums">-{{ absAmount(p.amount) | vndCurrency }}</span>
+                            } @else {
+                              <span data-testid="shift-payment-amount" class="font-bold text-slate-800 tabular-nums">+{{ p.amount | vndCurrency }}</span>
+                            }
                           </div>
                         </div>
                       }
@@ -766,10 +805,19 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                         <div class="flex items-center justify-between text-xs p-2 rounded-lg bg-white border border-slate-100 gap-2">
                           <div class="flex flex-wrap items-center gap-2">
                             <span [class]="getMethodBadgeClass(p.method)">{{ p.methodName || getMethodLabel(p.method) }}</span>
+                            @if (isRefundTransaction(p)) {
+                              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                Hoàn tiền
+                              </span>
+                            }
                             <span class="font-mono tabular-nums text-[11px] text-slate-700">{{ p.createdAtUtc | businessDateTime }} (Giờ VN)</span>
                             <span class="font-mono tabular-nums text-[10px] text-slate-400">({{ formatUtc(p.createdAtUtc) }})</span>
                           </div>
-                          <span class="font-bold text-slate-800 tabular-nums shrink-0">+{{ p.amount | vndCurrency }}</span>
+                          @if (isRefundTransaction(p)) {
+                            <span class="font-bold text-rose-600 tabular-nums shrink-0">-{{ absAmount(p.amount) | vndCurrency }}</span>
+                          } @else {
+                            <span class="font-bold text-slate-800 tabular-nums shrink-0">+{{ p.amount | vndCurrency }}</span>
+                          }
                         </div>
                       }
                     </div>
@@ -799,7 +847,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                 <div class="space-y-3 text-xs">
                   <!-- Amount -->
                   <div>
-                    <label class="block text-[11px] font-medium text-slate-600 mb-1">Số tiền thu (VNĐ):</label>
+                    <label class="block text-[11px] font-medium text-slate-600 mb-1">Số tiền thu (VND):</label>
                     <div class="relative">
                       <input
                         type="number"
@@ -808,7 +856,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                         placeholder="Nhập số tiền..."
                         class="w-full min-h-11 pl-3 pr-12 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-900 bg-white tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500"
                       />
-                      <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">VNĐ</span>
+                      <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">VND</span>
                     </div>
                   </div>
 
@@ -857,7 +905,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                           <button
                             type="button"
                             (click)="loadCashierVietQr()"
-                            class="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1 cursor-pointer"
+                            class="min-h-11 px-2.5 rounded-lg text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 inline-flex items-center gap-1 cursor-pointer"
                             title="Tạo lại mã QR theo số tiền thu hiện tại"
                           >
                             <i class="pi pi-refresh text-[10px]"></i>
@@ -881,7 +929,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                               <button
                                 type="button"
                                 (click)="copyCashierQrField(qr.accountNumber, 'account')"
-                                class="text-[10px] font-semibold text-blue-700 hover:underline cursor-pointer"
+                                class="min-h-11 px-2 rounded-lg text-[11px] font-semibold text-blue-700 hover:bg-blue-50 hover:underline inline-flex items-center cursor-pointer"
                               >
                                 {{ copiedCashierQrField() === 'account' ? 'Đã chép' : 'Sao chép' }}
                               </button>
@@ -899,7 +947,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                               <button
                                 type="button"
                                 (click)="copyCashierQrField(qr.description, 'memo')"
-                                class="text-[10px] font-semibold text-amber-800 hover:underline cursor-pointer"
+                                class="min-h-11 px-2 rounded-lg text-[11px] font-semibold text-amber-800 hover:bg-amber-50 hover:underline inline-flex items-center cursor-pointer"
                               >
                                 {{ copiedCashierQrField() === 'memo' ? 'Đã chép nội dung' : 'Sao chép nội dung CK' }}
                               </button>
@@ -923,7 +971,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                         <a
                           href="/policies"
                           (click)="openPoliciesPage($event)"
-                          class="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 hover:text-indigo-900 underline underline-offset-2"
+                          class="min-h-11 inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 hover:text-indigo-900 underline underline-offset-2"
                         >
                           <i class="pi pi-cog text-[10px]"></i>
                           <span>Đi tới cấu hình tài khoản ngân hàng (/policies)</span>
@@ -936,7 +984,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                           <button
                             type="button"
                             (click)="loadCashierVietQr()"
-                            class="font-bold text-rose-700 hover:underline cursor-pointer shrink-0"
+                            class="min-h-11 px-2.5 rounded-lg font-bold text-rose-700 hover:bg-rose-100 hover:underline inline-flex items-center cursor-pointer shrink-0"
                           >
                             Thử lại
                           </button>
@@ -1045,6 +1093,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                 (ngModelChange)="onFilterDateFromChange($event)"
                 dateFormat="dd/mm/yy"
                 [showIcon]="true"
+                [touchUI]="isMobile()"
                 appendTo="body"
                 placeholder="Chọn ngày"
                 [inputStyleClass]="'w-full text-xs pr-10'"
@@ -1060,6 +1109,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                 (ngModelChange)="onFilterDateToChange($event)"
                 dateFormat="dd/mm/yy"
                 [showIcon]="true"
+                [touchUI]="isMobile()"
                 appendTo="body"
                 placeholder="Chọn ngày"
                 [inputStyleClass]="'w-full text-xs pr-10'"
@@ -1463,13 +1513,23 @@ export class PaymentsPage implements OnInit, OnDestroy {
   private summaryRequestId = 0;
   private summarySub?: Subscription;
 
+  readonly isMobile = signal<boolean>(typeof window !== 'undefined' && window.innerWidth < 768);
+  private readonly vndPipe = new VndCurrencyPipe();
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    if (typeof window !== 'undefined') {
+      this.isMobile.set(window.innerWidth < 768);
+    }
+  }
+
   // Stream 1B: Shift Report State (Cashier Shift Audit)
   shiftDate = getTodayVietnamDateString();
   shiftDateObj: Date = new Date();
   readonly selectedShiftType = signal<ShiftType>(ShiftType.Morning);
   readonly ShiftType = ShiftType;
   readonly SHIFT_TYPE_LABELS = SHIFT_TYPE_LABELS;
-  readonly shiftReport = signal<ShiftReportDto | null>(null);
+  readonly shiftReport = signal<ShiftReportViewDto | null>(null);
   readonly isLoadingShiftReport = signal<boolean>(false);
   readonly shiftReportError = signal<string | null>(null);
   private shiftReportRequestId = 0;
@@ -1812,6 +1872,28 @@ export class PaymentsPage implements OnInit, OnDestroy {
   selectShiftType(type: ShiftType): void {
     this.selectedShiftType.set(type);
     this.loadShiftReport();
+  }
+
+  getShiftTotalRefunded(sr: ShiftReportViewDto): number {
+    return sr.totalRefunded ?? 0;
+  }
+
+  getShiftNetCollected(sr: ShiftReportViewDto): number {
+    return sr.netCollected ?? (sr.totalCollected - (sr.totalRefunded ?? 0));
+  }
+
+  isRefundTransaction(p: PaymentDto): boolean {
+    if (p.amount < 0) return true;
+    if (p.status === PaymentStatus.Refunded) return true;
+    const statusName = (p.statusName || '').toLowerCase();
+    if (statusName.includes('refund') || statusName.includes('hoàn')) return true;
+    const txRef = (p.transactionRef || '').toUpperCase();
+    if (txRef.includes('REFUND')) return true;
+    return false;
+  }
+
+  absAmount(amount: number): number {
+    return Math.abs(amount);
   }
 
   ngOnInit(): void {
@@ -2431,7 +2513,7 @@ export class PaymentsPage implements OnInit, OnDestroy {
 
     const currentFolio = this.folio();
     if (currentFolio && currentFolio.reservationId === reservationId && amount > currentFolio.remainingBalance) {
-      this.folioError.set(`Số tiền thanh toán (${amount.toLocaleString('vi-VN')} đ) vượt quá dư nợ còn lại (${currentFolio.remainingBalance.toLocaleString('vi-VN')} đ).`);
+      this.folioError.set(`Số tiền thanh toán (${this.vndPipe.transform(amount)}) vượt quá dư nợ còn lại (${this.vndPipe.transform(currentFolio.remainingBalance)}).`);
       return;
     }
 

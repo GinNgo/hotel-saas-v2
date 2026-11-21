@@ -13,6 +13,7 @@ using HotelSaas.Application.Housekeeping.Commands.ClaimHousekeepingTask;
 using HotelSaas.Application.Housekeeping.Commands.CompleteHousekeepingTask;
 using HotelSaas.Application.Housekeeping.Commands.CreateHousekeepingTask;
 using HotelSaas.Application.Housekeeping.Commands.StartHousekeepingTask;
+using HotelSaas.Application.Housekeeping.DTOs;
 using HotelSaas.Application.Housekeeping.Queries.GetHousekeepingTasks;
 using HotelSaas.Application.Loyalty.Services;
 using HotelSaas.Application.Payments.Commands.AddFolioItem;
@@ -31,7 +32,9 @@ using HotelSaas.Domain.Common;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using HotelSaas.Infrastructure.Services;
+using HotelSaas.WebApi.Controllers;
 using MediatR;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Query;
@@ -998,5 +1001,178 @@ public sealed class HousekeepingAndCheckoutInvoiceTests
         Assert.Equal(10m, fetched.TaxRatePercent);
         Assert.Equal(5m, fetched.ServiceFeeRatePercent);
         Assert.Equal(6, fetched.Surcharges.Count);
+    }
+
+    [Fact]
+    public async Task Receptionist_CanCoordinateUnassignedHousekeepingTask_WithCleanerNotes_WithoutAnyHousekeeperAccount()
+    {
+        var (db, tenantSvc, propSvc, userCtx, memberSvc, tenantId, propId, _, roomId) = CreateBaseFixture();
+        var receptionistId = Guid.NewGuid();
+
+        // Zero Housekeeper accounts exist in Users or TenantStaffMembers
+        db.UserList.Add(new User
+        {
+            Id = receptionistId,
+            FullName = "Lễ tân Minh Anh",
+            Email = "letan@hotel.vn",
+            IsActive = true
+        });
+        db.TenantStaffList.Add(new TenantStaff
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            PropertyId = propId,
+            UserId = receptionistId,
+            StaffRole = StaffRole.Receptionist,
+            IsActive = true
+        });
+
+        userCtx.UserId = receptionistId;
+        userCtx.StaffRole = StaffRole.Receptionist;
+        memberSvc.StaffRole = StaffRole.Receptionist;
+
+        // 1. Receptionist creates an unassigned housekeeping task
+        var createHandler = new CreateHousekeepingTaskCommandHandler(db, tenantSvc, userCtx, propSvc, memberSvc);
+        var created = await createHandler.Handle(
+            new CreateHousekeepingTaskCommand(propId, roomId, HousekeepingPriority.Urgent, "Khách check-out sớm"),
+            CancellationToken.None);
+        Assert.Equal(HousekeepingTaskStatus.Pending, created.Status);
+        Assert.Null(created.AssignedToUserId);
+
+        // 2. Receptionist starts the task and notes the external/non-account cleaner name
+        var startHandler = new StartHousekeepingTaskCommandHandler(db, tenantSvc, userCtx, propSvc, memberSvc);
+        var started = await startHandler.Handle(
+            new StartHousekeepingTaskCommand(created.Id, propId, "  Cô Lan đang dọn  "),
+            CancellationToken.None);
+        Assert.Equal(HousekeepingTaskStatus.InProgress, started.Status);
+        Assert.Equal(receptionistId, started.AssignedToUserId);
+        Assert.Equal("Khách check-out sớm | Cô Lan đang dọn", started.Notes);
+        Assert.Equal(RoomStatus.Cleaning, db.RoomList.Single().Status);
+
+        // 3. Receptionist marks the task completed
+        var dispatcher = new RecordingNotificationDispatcher();
+        var completeHandler = new CompleteHousekeepingTaskCommandHandler(db, tenantSvc, userCtx, propSvc, memberSvc, dispatcher);
+        var completed = await completeHandler.Handle(
+            new CompleteHousekeepingTaskCommand(created.Id, propId, "Cô Lan đã bàn giao chìa khóa"),
+            CancellationToken.None);
+        Assert.Equal(HousekeepingTaskStatus.Completed, completed.Status);
+        Assert.Equal("Khách check-out sớm | Cô Lan đang dọn | Cô Lan đã bàn giao chìa khóa", completed.Notes);
+        Assert.Equal(RoomStatus.Clean, db.RoomList.Single().Status);
+        Assert.Single(dispatcher.HousekeepingAlerts);
+    }
+
+    [Fact]
+    public async Task Receptionist_CanStartAndCompleteTaskAssignedToAnotherStaff_WhileOtherHousekeeperIsBlocked()
+    {
+        var (db, tenantSvc, propSvc, userCtx, memberSvc, tenantId, propId, _, roomId) = CreateBaseFixture();
+        var otherStaffId = Guid.NewGuid();
+        var otherHousekeeperId = Guid.NewGuid();
+        var receptionistId = Guid.NewGuid();
+
+        db.UserList.AddRange(
+        [
+            new User { Id = otherStaffId, FullName = "Nhân viên A", Email = "a@hotel.vn", IsActive = true },
+            new User { Id = otherHousekeeperId, FullName = "Buồng phòng B", Email = "b@hotel.vn", IsActive = true },
+            new User { Id = receptionistId, FullName = "Lễ tân C", Email = "c@hotel.vn", IsActive = true }
+        ]);
+
+        var task = new HousekeepingTask
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            RoomId = roomId,
+            AssignedToUserId = otherStaffId,
+            Status = HousekeepingTaskStatus.Claimed,
+            Priority = HousekeepingPriority.Normal,
+            Notes = null,
+            CreatedAtUtc = DateTime.UtcNow.AddMinutes(-10),
+            UpdatedAtUtc = DateTime.UtcNow.AddMinutes(-10)
+        };
+        db.HousekeepingTaskList.Add(task);
+
+        var startHandler = new StartHousekeepingTaskCommandHandler(db, tenantSvc, userCtx, propSvc, memberSvc);
+        var completeHandler = new CompleteHousekeepingTaskCommandHandler(db, tenantSvc, userCtx, propSvc, memberSvc);
+
+        // Another Housekeeper cannot start or complete a task assigned to someone else
+        userCtx.UserId = otherHousekeeperId;
+        userCtx.StaffRole = StaffRole.Housekeeper;
+        memberSvc.StaffRole = StaffRole.Housekeeper;
+
+        var startDenied = await Assert.ThrowsAsync<ForbiddenException>(() =>
+            startHandler.Handle(new StartHousekeepingTaskCommand(task.Id, propId, "Tự nhận thay"), CancellationToken.None));
+        Assert.Equal("ERR_TASK_ASSIGNED_TO_OTHER", startDenied.ErrorCode);
+
+        var completeDenied = await Assert.ThrowsAsync<ForbiddenException>(() =>
+            completeHandler.Handle(new CompleteHousekeepingTaskCommand(task.Id, propId), CancellationToken.None));
+        Assert.Equal("ERR_TASK_ASSIGNED_TO_OTHER", completeDenied.ErrorCode);
+
+        // Receptionist CAN start (with cleaner note) and complete the task assigned to another staff member
+        userCtx.UserId = receptionistId;
+        userCtx.StaffRole = StaffRole.Receptionist;
+        memberSvc.StaffRole = StaffRole.Receptionist;
+
+        var started = await startHandler.Handle(
+            new StartHousekeepingTaskCommand(task.Id, propId, "Chú Hùng hỗ trợ dọn"),
+            CancellationToken.None);
+        Assert.Equal(HousekeepingTaskStatus.InProgress, started.Status);
+        Assert.Equal("Chú Hùng hỗ trợ dọn", started.Notes);
+        Assert.Equal(RoomStatus.Cleaning, db.RoomList.Single().Status);
+
+        var completed = await completeHandler.Handle(
+            new CompleteHousekeepingTaskCommand(task.Id, propId, "Đã nghiệm thu"),
+            CancellationToken.None);
+        Assert.Equal(HousekeepingTaskStatus.Completed, completed.Status);
+        Assert.Equal("Chú Hùng hỗ trợ dọn | Đã nghiệm thu", completed.Notes);
+        Assert.Equal(RoomStatus.Clean, db.RoomList.Single().Status);
+    }
+
+    [Fact]
+    public async Task StartHousekeepingTask_ValidatorAndController_SupportOptionalNotesAndEmptyBody()
+    {
+        var taskId = Guid.NewGuid();
+        var propId = Guid.NewGuid();
+
+        var validator = new StartHousekeepingTaskCommandValidator();
+        Assert.True((await validator.ValidateAsync(new StartHousekeepingTaskCommand(taskId, propId))).IsValid);
+        Assert.True((await validator.ValidateAsync(new StartHousekeepingTaskCommand(taskId, propId, "Cô Lan đang dọn"))).IsValid);
+
+        var tooLongResult = await validator.ValidateAsync(
+            new StartHousekeepingTaskCommand(taskId, propId, new string('x', 1001)));
+        Assert.False(tooLongResult.IsValid);
+
+        StartHousekeepingTaskCommand? captured = null;
+        var sender = new StubSender
+        {
+            Handler = req =>
+            {
+                captured = Assert.IsType<StartHousekeepingTaskCommand>(req);
+                return new HousekeepingTaskDto
+                {
+                    Id = captured.TaskId,
+                    Status = HousekeepingTaskStatus.InProgress,
+                    Notes = captured.Notes
+                };
+            }
+        };
+        var propSvc = new StubPropertyService { HeaderPropertyId = propId, PropertyId = propId };
+        var controller = new HousekeepingController(sender, propSvc);
+
+        // 1. Backward-compatible empty body (request == null)
+        var emptyBodyResult = Assert.IsType<OkObjectResult>(await controller.StartTask(taskId, null, null, CancellationToken.None));
+        Assert.NotNull(captured);
+        Assert.Equal(propId, captured!.PropertyId);
+        Assert.Null(captured.Notes);
+        Assert.Equal(HousekeepingTaskStatus.InProgress, Assert.IsType<HousekeepingTaskDto>(emptyBodyResult.Value).Status);
+
+        // 2. Request body with cleaner note + explicit propertyId
+        var explicitPropId = Guid.NewGuid();
+        var withNotesResult = Assert.IsType<OkObjectResult>(await controller.StartTask(
+            taskId,
+            null,
+            new StartHousekeepingTaskRequest("Cô Lan đang dọn", explicitPropId),
+            CancellationToken.None));
+        Assert.Equal(explicitPropId, captured.PropertyId);
+        Assert.Equal("Cô Lan đang dọn", captured.Notes);
+        Assert.Equal("Cô Lan đang dọn", Assert.IsType<HousekeepingTaskDto>(withNotesResult.Value).Notes);
     }
 }

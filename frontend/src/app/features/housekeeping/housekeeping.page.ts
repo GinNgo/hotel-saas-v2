@@ -23,6 +23,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { SkeletonTableComponent } from '../../shared/components/skeleton-table/skeleton-table.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 import { ContextSelectorDialogComponent } from '../auth/context-selector/context-selector.dialog';
 
 /**
@@ -46,6 +47,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
     SkeletonTableComponent,
     EmptyStateComponent,
     PaginationComponent,
+    VndCurrencyPipe,
     ContextSelectorDialogComponent
   ],
   template: `
@@ -215,6 +217,16 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
               <span>Việc của tôi</span>
             </label>
           </div>
+
+          @if (!hasHousekeeperAccounts()) {
+            <div
+              data-testid="receptionist-direct-mode-pill"
+              class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-teal-50/80 border border-teal-200/90 text-teal-800 text-xs font-medium"
+            >
+              <i class="pi pi-info-circle text-teal-600 text-xs shrink-0" aria-hidden="true"></i>
+              <span>Chế độ Lễ tân điều phối trực tiếp — không cần tạo tài khoản cho người dọn phòng.</span>
+            </div>
+          }
         </div>
 
         <!-- Task Queue List -->
@@ -283,7 +295,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                 <!-- Task Controls (>= 44x44px touch targets) -->
                 @if (canUpdate() && task.status !== HousekeepingTaskStatus.Completed) {
                   <div class="flex flex-wrap items-center gap-2 shrink-0">
-                    @if (housekeepingStaff().length > 0) {
+                    @if (hasHousekeeperAccounts()) {
                       <select
                         [ngModel]="task.assignedToUserId || ''"
                         (ngModelChange)="assignTask(task, $event)"
@@ -298,7 +310,18 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                       </select>
                     }
 
-                    @if (task.status === HousekeepingTaskStatus.Pending) {
+                    <input
+                      type="text"
+                      [ngModel]="getTaskQuickNote(task.id)"
+                      (ngModelChange)="setTaskQuickNote(task.id, $event)"
+                      [disabled]="updatingTaskId() === task.id"
+                      [attr.aria-label]="'Ghi chú nhanh người dọn phòng ' + task.roomNumber"
+                      data-testid="task-quick-note-input"
+                      placeholder="Người dọn / ghi chú nhanh (VD: Cô Lan)"
+                      class="min-h-[44px] w-full sm:w-56 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50/70 focus:bg-white text-slate-700 placeholder-slate-400 outline-none focus:border-emerald-500"
+                    />
+
+                    @if (hasHousekeeperAccounts() && task.status === HousekeepingTaskStatus.Pending) {
                       <button
                         type="button"
                         (click)="claimTask(task)"
@@ -582,8 +605,8 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                         </span>
                       </div>
 
-                      <div class="text-[10px] font-mono text-emerald-700 mt-1">
-                        {{ formatCurrency(room.basePrice) }} / đêm
+                      <div class="text-[10px] font-mono text-emerald-700 mt-1 tabular-nums">
+                        {{ room.basePrice | vndCurrency }} / đêm
                       </div>
                     </div>
 
@@ -763,7 +786,7 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                   <option [value]="HousekeepingPriority.Urgent">Khẩn cấp</option>
                 </select>
               </div>
-              @if (housekeepingStaff().length > 0) {
+              @if (hasHousekeeperAccounts()) {
                 <div class="space-y-1">
                   <label class="block font-semibold text-slate-700">Phân công (tùy chọn)</label>
                   <select
@@ -780,12 +803,12 @@ import { ContextSelectorDialogComponent } from '../auth/context-selector/context
                 </div>
               }
               <div class="space-y-1">
-                <label class="block font-semibold text-slate-700">Ghi chú</label>
+                <label class="block font-semibold text-slate-700">Người dọn / Ghi chú nhanh</label>
                 <textarea
                   rows="2"
                   [ngModel]="newTaskNotes()"
                   (ngModelChange)="newTaskNotes.set($event)"
-                  placeholder="VD: Thay ga gối, bổ sung minibar..."
+                  placeholder="Người dọn / ghi chú nhanh (VD: Cô Lan)"
                   class="w-full p-2.5 rounded-xl border border-slate-300 bg-white"
                 ></textarea>
               </div>
@@ -849,6 +872,32 @@ export class HousekeepingPage implements OnInit, OnDestroy {
   newTaskPriority = signal<HousekeepingPriority>(HousekeepingPriority.Normal);
   newTaskAssigneeId = signal<string>('');
   newTaskNotes = signal<string>('');
+  taskQuickNotes = signal<Record<string, string>>({});
+  private readonly vndPipe = new VndCurrencyPipe();
+
+  hasHousekeeperAccounts = computed(() =>
+    this.housekeepingStaff().some(s => {
+      const role = s.staffRole as string | number;
+      return role === 'Housekeeper' || role === 4 || String(role).toLowerCase() === 'housekeeper';
+    })
+  );
+
+  getTaskQuickNote(taskId: string): string {
+    return this.taskQuickNotes()[taskId] ?? '';
+  }
+
+  setTaskQuickNote(taskId: string, value: string): void {
+    this.taskQuickNotes.update(map => ({ ...map, [taskId]: value }));
+  }
+
+  private clearTaskQuickNote(taskId: string): void {
+    this.taskQuickNotes.update(map => {
+      if (!(taskId in map)) return map;
+      const next = { ...map };
+      delete next[taskId];
+      return next;
+    });
+  }
 
   urgentTasksCount = computed(() =>
     this.tasks().filter(t => t.effectivePriority === HousekeepingPriority.Urgent && t.status !== HousekeepingTaskStatus.Completed).length
@@ -1223,11 +1272,16 @@ export class HousekeepingPage implements OnInit, OnDestroy {
     const propId = this.authService.activePropertyId();
     if (!propId) return;
 
+    const quickNote = this.getTaskQuickNote(task.id).trim();
     this.updatingTaskId.set(task.id);
     this.taskActionSub?.unsubscribe();
-    this.taskActionSub = this.housekeepingService.startTask(task.id, propId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+    const request$ = quickNote
+      ? this.housekeepingService.startTask(task.id, propId, quickNote)
+      : this.housekeepingService.startTask(task.id, propId);
+    this.taskActionSub = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (updated) => {
         this.updatingTaskId.set(null);
+        this.clearTaskQuickNote(task.id);
         this.tasks.update(list => list.map(t => t.id === task.id ? updated : t));
         this.rooms.update(list => list.map(r => r.id === updated.roomId ? { ...r, status: updated.roomStatus } : r));
         this.alertService.toastSuccess(`Bắt đầu dọn phòng ${updated.roomNumber}.`);
@@ -1246,11 +1300,16 @@ export class HousekeepingPage implements OnInit, OnDestroy {
     const propId = this.authService.activePropertyId();
     if (!propId) return;
 
+    const quickNote = this.getTaskQuickNote(task.id).trim();
     this.updatingTaskId.set(task.id);
     this.taskActionSub?.unsubscribe();
-    this.taskActionSub = this.housekeepingService.completeTask(task.id, propId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+    const request$ = quickNote
+      ? this.housekeepingService.completeTask(task.id, propId, quickNote)
+      : this.housekeepingService.completeTask(task.id, propId);
+    this.taskActionSub = request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (updated) => {
         this.updatingTaskId.set(null);
+        this.clearTaskQuickNote(task.id);
         this.tasks.update(list => list.map(t => t.id === task.id ? updated : t));
         this.rooms.update(list => list.map(r => r.id === updated.roomId ? { ...r, status: updated.roomStatus } : r));
         this.alertService.toastSuccess(`Phòng ${updated.roomNumber} đã hoàn tất sạch sẽ!`);
@@ -1605,7 +1664,7 @@ export class HousekeepingPage implements OnInit, OnDestroy {
   }
 
   formatCurrency(value: number): string {
-    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
+    return this.vndPipe.transform(value);
   }
 
   getCardContainerClass(status: string): string {

@@ -150,7 +150,7 @@ import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
                     <button
                       type="button"
                       (click)="copyVietQrField(qr.bankAccountNumber, 'account')"
-                      class="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                      class="min-h-11 px-2.5 rounded-lg inline-flex items-center text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:underline cursor-pointer"
                     >
                       {{ copiedField() === 'account' ? 'Đã sao chép' : 'Sao chép STK' }}
                     </button>
@@ -169,7 +169,7 @@ import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
                     <button
                       type="button"
                       (click)="copyVietQrField(qr.transferContent, 'content')"
-                      class="text-[11px] font-semibold text-amber-800 dark:text-amber-300 hover:underline cursor-pointer"
+                      class="min-h-11 px-2.5 rounded-lg inline-flex items-center text-[11px] font-semibold text-amber-800 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/60 hover:underline cursor-pointer"
                     >
                       {{ copiedField() === 'content' ? 'Đã sao chép nội dung' : 'Sao chép nội dung' }}
                     </button>
@@ -182,7 +182,7 @@ import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
                 <button
                   type="button"
                   (click)="loadSubscriptionVietQr(pending.id, true)"
-                  class="font-bold underline cursor-pointer shrink-0"
+                  class="min-h-11 px-3 rounded-lg inline-flex items-center font-bold underline hover:bg-rose-50 dark:hover:bg-rose-950/60 cursor-pointer shrink-0"
                 >
                   Tải lại mã QR
                 </button>

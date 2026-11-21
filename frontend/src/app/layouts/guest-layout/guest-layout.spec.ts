@@ -118,4 +118,11 @@ describe('Marketplace guest header', () => {
     expect(authPill?.className).toContain('whitespace-nowrap');
     expect(authPill?.className).not.toContain('bg-indigo-50');
   });
+
+  it('adds pb-24 bottom clearance on main booking content wrapper for floating AI chat FAB', () => {
+    const fixture = TestBed.createComponent(GuestLayoutComponent);
+    fixture.detectChanges();
+    const contentWrapper = (fixture.nativeElement as HTMLElement).querySelector('#booking-content');
+    expect(contentWrapper?.className).toContain('pb-24');
+  });
 });

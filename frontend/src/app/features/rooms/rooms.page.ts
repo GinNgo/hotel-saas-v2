@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, DestroyRef, ChangeDetectorRef, inject, signal, computed, effect, untracked, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, OnDestroy, DestroyRef, ChangeDetectorRef, HostListener, inject, signal, computed, effect, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -425,9 +425,35 @@ export interface QuickMinibarCatalogItem {
                           <span>Minibar</span>
                         </button>
                       } @else if (room.status === 'Dirty') {
-                        <span class="text-[10px] font-semibold text-rose-600">Dọn dẹp</span>
+                        @if (canUpdateHousekeeping()) {
+                          <button
+                            type="button"
+                            (click)="changeRoomStatus(room, RoomStatus.Cleaning)"
+                            [attr.aria-label]="'Bắt đầu dọn phòng ' + room.roomNumber"
+                            data-testid="rack-start-cleaning-btn"
+                            class="min-h-11 px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold border border-amber-200 transition-colors cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <i class="pi pi-play text-[9px]" aria-hidden="true"></i>
+                            <span>Bắt đầu dọn</span>
+                          </button>
+                        } @else {
+                          <span class="text-[10px] font-semibold text-rose-600">Dọn dẹp</span>
+                        }
                       } @else if (room.status === 'Cleaning') {
-                        <span class="text-[10px] font-semibold text-amber-600">Đang dọn</span>
+                        @if (canUpdateHousekeeping()) {
+                          <button
+                            type="button"
+                            (click)="changeRoomStatus(room, RoomStatus.Clean)"
+                            [attr.aria-label]="'Xong dọn phòng ' + room.roomNumber"
+                            data-testid="rack-complete-cleaning-btn"
+                            class="min-h-11 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold border border-emerald-200 transition-colors cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <i class="pi pi-check text-[9px]" aria-hidden="true"></i>
+                            <span>Xong dọn</span>
+                          </button>
+                        } @else {
+                          <span class="text-[10px] font-semibold text-amber-600">Đang dọn</span>
+                        }
                       }
                     </div>
                   </div>
@@ -505,21 +531,27 @@ export interface QuickMinibarCatalogItem {
                             <span>Minibar</span>
                           </button>
                         } @else if (room.status === 'Dirty') {
-                          <button
-                            type="button"
-                            (click)="changeRoomStatus(room, RoomStatus.Cleaning)"
-                            class="min-h-11 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 font-semibold text-xs transition-colors cursor-pointer"
-                          >
-                            Bắt đầu dọn
-                          </button>
+                          @if (canUpdateHousekeeping()) {
+                            <button
+                              type="button"
+                              (click)="changeRoomStatus(room, RoomStatus.Cleaning)"
+                              data-testid="table-start-cleaning-btn"
+                              class="min-h-11 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 font-semibold text-xs transition-colors cursor-pointer"
+                            >
+                              Bắt đầu dọn
+                            </button>
+                          }
                         } @else if (room.status === 'Cleaning') {
-                          <button
-                            type="button"
-                            (click)="changeRoomStatus(room, RoomStatus.Clean)"
-                            class="min-h-11 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold text-xs transition-colors cursor-pointer"
-                          >
-                            Xong dọn
-                          </button>
+                          @if (canUpdateHousekeeping()) {
+                            <button
+                              type="button"
+                              (click)="changeRoomStatus(room, RoomStatus.Clean)"
+                              data-testid="table-complete-cleaning-btn"
+                              class="min-h-11 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold text-xs transition-colors cursor-pointer"
+                            >
+                              Xong dọn
+                            </button>
+                          }
                         }
                         <button
                           type="button"
@@ -866,6 +898,7 @@ export interface QuickMinibarCatalogItem {
                     dateFormat="dd/mm/yy"
                     [showIcon]="true"
                     iconDisplay="input"
+                    [touchUI]="isMobile()"
                     appendTo="body"
                     [firstDayOfWeek]="1"
                     placeholder="dd/mm/yyyy"
@@ -883,6 +916,7 @@ export interface QuickMinibarCatalogItem {
                     dateFormat="dd/mm/yy"
                     [showIcon]="true"
                     iconDisplay="input"
+                    [touchUI]="isMobile()"
                     appendTo="body"
                     [firstDayOfWeek]="1"
                     placeholder="dd/mm/yyyy"
@@ -1139,7 +1173,7 @@ export interface QuickMinibarCatalogItem {
                   type="number"
                   [ngModel]="customItemPrice()"
                   (ngModelChange)="customItemPrice.set($event)"
-                  placeholder="Đơn giá (VNĐ)"
+                  placeholder="Đơn giá (VND)"
                   class="w-full h-10 px-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white focus:outline-hidden focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-2xs font-mono font-medium"
                 />
               </div>
@@ -1420,6 +1454,21 @@ export class RoomsPage implements OnInit, OnDestroy {
   private isFallbackDestroyed = false;
   private readonly destroyRef = inject(DestroyRef, { optional: true }) ?? this.createFallbackDestroyRef();
   readonly RoomStatus = RoomStatus;
+  readonly isMobile = signal<boolean>(typeof window !== 'undefined' && window.innerWidth < 768);
+  private readonly vndPipe = new VndCurrencyPipe();
+
+  readonly canUpdateHousekeeping = computed(() =>
+    typeof this.authService.hasPermission === 'function'
+      ? (this.authService.hasPermission('HOUSEKEEPING', 4) || this.authService.hasPermission('ROOMS', 4))
+      : false
+  );
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    if (typeof window !== 'undefined') {
+      this.isMobile.set(window.innerWidth < 768);
+    }
+  }
 
   showContextSelector = signal<boolean>(false);
 
@@ -1842,9 +1891,13 @@ export class RoomsPage implements OnInit, OnDestroy {
     if (room.status === 'Clean') {
       this.openQuickWalkinForRoom(room);
     } else if (room.status === 'Dirty') {
-      this.changeRoomStatus(room, RoomStatus.Cleaning);
+      if (this.canUpdateHousekeeping()) {
+        this.changeRoomStatus(room, RoomStatus.Cleaning);
+      }
     } else if (room.status === 'Cleaning') {
-      this.changeRoomStatus(room, RoomStatus.Clean);
+      if (this.canUpdateHousekeeping()) {
+        this.changeRoomStatus(room, RoomStatus.Clean);
+      }
     } else if (room.status === 'Occupied') {
       const activeRes =
         room.activeReservation ||
@@ -1859,6 +1912,9 @@ export class RoomsPage implements OnInit, OnDestroy {
   }
 
   changeRoomStatus(room: ExtendedRoomDto, newStatus: RoomStatus): void {
+    if (!this.canUpdateHousekeeping()) {
+      return;
+    }
     const oldStatus = room.status;
     this.roomService
       .updateRoomStatus(room.id, newStatus, oldStatus)
@@ -2205,7 +2261,7 @@ export class RoomsPage implements OnInit, OnDestroy {
           this.isAddingFolioItem.set(false);
           this.currentFolio.set(updatedFolio);
           this.alertService.toastSuccess(
-            `Đã thêm "${item.name}" (${item.price.toLocaleString('vi-VN')}₫) vào hóa đơn phòng ${this.selectedFolioRoom()?.roomNumber || ''}.`,
+            `Đã thêm "${item.name}" (${this.vndPipe.transform(item.price)}) vào hóa đơn phòng ${this.selectedFolioRoom()?.roomNumber || ''}.`,
             'Thêm phụ phí thành công!'
           );
           this.loadTimelineReservations();
@@ -2251,7 +2307,7 @@ export class RoomsPage implements OnInit, OnDestroy {
           this.customItemName.set('');
           this.customItemPrice.set(null);
           this.alertService.toastSuccess(
-            `Đã thêm "${name}" (${price.toLocaleString('vi-VN')}₫) vào hóa đơn.`,
+            `Đã thêm "${name}" (${this.vndPipe.transform(price)}) vào hóa đơn.`,
             'Thêm thành công!'
           );
           this.loadTimelineReservations();

@@ -102,4 +102,23 @@ describe('Authoritative property availability and quote', () => {
       })
     });
   });
+
+  it('tracks responsive mobile viewport state for DatePicker touchUI', () => {
+    const originalWidth = window.innerWidth;
+    const originalMatchMedia = window.matchMedia;
+    try {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+      Object.defineProperty(window, 'matchMedia', { configurable: true, value: undefined });
+      const fixture = TestBed.createComponent(PropertyDetailPageComponent);
+      fixture.detectChanges();
+      expect(fixture.componentInstance.isMobileViewport()).toBe(true);
+
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+      window.dispatchEvent(new Event('resize'));
+      expect(fixture.componentInstance.isMobileViewport()).toBe(false);
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
+      Object.defineProperty(window, 'matchMedia', { configurable: true, value: originalMatchMedia });
+    }
+  });
 });

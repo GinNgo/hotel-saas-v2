@@ -16,6 +16,7 @@ import {
   PublicPropertyDto,
   TenantBrandDto,
 } from '../../core/models/public-booking.model';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 
 interface BrandPropertyTypeFilterOption {
   value: PropertyType | 'ALL';
@@ -25,7 +26,7 @@ interface BrandPropertyTypeFilterOption {
 @Component({
   selector: 'app-tenant-brand',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, VndCurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="min-h-screen bg-slate-50 py-6 sm:py-8 font-sans">
@@ -379,7 +380,7 @@ interface BrandPropertyTypeFilterOption {
                           <span class="text-[10px] text-slate-400 block">Giá từ</span>
                           @if (getStartingPrice(prop) > 0) {
                             <span class="text-base font-extrabold text-indigo-700 tabular-nums">
-                              {{ getStartingPrice(prop) | number:'1.0-0' }} ₫
+                              {{ getStartingPrice(prop) | vndCurrency }}
                             </span>
                           } @else {
                             <span class="text-xs text-slate-500 italic">Liên hệ xem phòng</span>

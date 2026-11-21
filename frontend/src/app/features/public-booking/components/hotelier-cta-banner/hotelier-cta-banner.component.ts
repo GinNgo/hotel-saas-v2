@@ -10,36 +10,36 @@ import { RouterLink } from '@angular/router';
   template: `
     <section class="mt-14 mb-8" aria-label="Kêu gọi hợp tác đối tác khách sạn">
       <div
-        class="relative rounded-3xl bg-gradient-to-br from-teal-50/70 via-white to-slate-50 border border-slate-200 text-slate-900 p-6 sm:p-10 shadow-xs overflow-hidden"
+        class="relative rounded-3xl bg-gradient-to-br from-teal-50/70 via-white to-slate-50 dark:from-slate-900 dark:via-slate-900 dark:to-teal-950/60 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-slate-100 p-6 sm:p-10 shadow-xs overflow-hidden"
       >
         <div class="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           <!-- Text & Value Props -->
           <div class="lg:col-span-8 space-y-4">
-            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-2xs">
               <i class="pi pi-building text-[var(--brand-primary)]"></i>
               <span>Dành Cho Chủ Cơ Sở &amp; Chuỗi Khách Sạn</span>
             </div>
 
-            <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight leading-snug">
+            <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-snug">
               Tối Ưu Công Suất Phòng &amp; Quản Trị Tự Động Với Hotel SaaS
             </h2>
 
-            <p class="text-xs sm:text-sm text-slate-600 max-w-2xl leading-relaxed">
+            <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-2xl leading-relaxed">
               Gia nhập hệ sinh thái PMS &amp; Booking đa chi nhánh. Tự động hóa sơ đồ phòng Rack, điều phối buồng phòng, hạch toán doanh thu và quản lý nhận/trả phòng trực tuyến chỉ trong 2 phút thiết lập.
             </p>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
-              <div class="flex items-center gap-2 text-slate-700">
+              <div class="flex items-center gap-2 text-slate-700 dark:text-slate-200">
                 <i class="pi pi-check text-[var(--brand-primary)] text-xs font-bold"></i>
                 <span>Quản trị đa chi nhánh</span>
               </div>
-              <div class="flex items-center gap-2 text-slate-700">
+              <div class="flex items-center gap-2 text-slate-700 dark:text-slate-200">
                 <i class="pi pi-check text-[var(--brand-primary)] text-xs font-bold"></i>
                 <span>Quản lý đặt phòng &amp; lễ tân 24/7</span>
               </div>
-              <div class="flex items-center gap-2 text-slate-700">
+              <div class="flex items-center gap-2 text-slate-700 dark:text-slate-200">
                 <i class="pi pi-check text-[var(--brand-primary)] text-xs font-bold"></i>
-                <span>Thu ngân &amp; Cổng VNPay</span>
+                <span>Thu ngân &amp; VietQR SePay tự động</span>
               </div>
             </div>
           </div>
@@ -57,7 +57,7 @@ import { RouterLink } from '@angular/router';
 
             <a
               [routerLink]="['/auth/login']"
-              class="min-h-11 inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-semibold text-xs transition-colors border border-slate-300 text-center"
+              class="min-h-11 inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-semibold text-xs transition-colors border border-slate-300 dark:border-slate-600 text-center"
             >
               <i class="pi pi-lock"></i>
               <span>Đăng nhập Cổng PMS</span>

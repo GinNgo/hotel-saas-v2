@@ -24,7 +24,7 @@ import { DatePicker } from 'primeng/datepicker';
 import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-time.util';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
-import { BusinessDatePipe } from '../../shared';
+import { BusinessDatePipe, VndCurrencyPipe } from '../../shared';
 import { ReservationService } from '../../core/services/reservation.service';
 import { RoomTypeService } from '../../core/services/room-type.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -108,6 +108,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
     FormsModule,
     ReactiveFormsModule,
     BusinessDatePipe,
+    VndCurrencyPipe,
     EmptyStateComponent,
     DateRangeFilterComponent,
     DatePicker,
@@ -325,7 +326,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   </div>
                   <div class="text-right">
                     <span class="text-[10px] text-slate-400 block">Tổng tiền</span>
-                    <span class="font-bold text-slate-900 tabular-nums">{{ res.totalAmount | number:'1.0-0' }} đ</span>
+                    <span class="font-bold text-slate-900 tabular-nums">{{ res.totalAmount | vndCurrency }}</span>
                   </div>
                   <div class="col-span-2 text-[11px] text-slate-600 tabular-nums flex items-center gap-1">
                     <span>{{ res.checkInDate | businessDate }}</span>
@@ -487,7 +488,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
 
                       <!-- Total Amount -->
                       <td class="py-3 px-4 text-right font-bold text-slate-800 tabular-nums">
-                        {{ res.totalAmount | number:'1.0-0' }} đ
+                        {{ res.totalAmount | vndCurrency }}
                       </td>
 
                       <!-- Status -->
@@ -609,7 +610,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   <div class="col-span-2 text-slate-600 tabular-nums truncate">
                     {{ res.checkInDate | businessDate }}
                   </div>
-                  <div class="col-span-1 text-right font-bold text-slate-800 tabular-nums">{{ res.totalAmount | number:'1.0-0' }} đ</div>
+                  <div class="col-span-1 text-right font-bold text-slate-800 tabular-nums">{{ res.totalAmount | vndCurrency }}</div>
                   <div class="col-span-1 text-center">
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border" [ngClass]="getStatusBadgeClass(res.status)">
                       {{ getStatusLabel(res.status) }}
@@ -700,6 +701,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   dateFormat="dd/mm/yy"
                   [showIcon]="true"
                   iconDisplay="input"
+                  [touchUI]="isMobile()"
                   appendTo="body"
                   [firstDayOfWeek]="1"
                   placeholder="dd/mm/yyyy"
@@ -1026,14 +1028,14 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                       @for (item of detail.breakdown; track $index) {
                         <tr class="hover:bg-slate-50/50">
                           <td class="py-2 px-3 font-medium text-slate-800">{{ item.description }}</td>
-                          <td class="py-2 px-3 text-right text-slate-600">{{ item.unitPrice | number:'1.0-0' }} đ</td>
-                          <td class="py-2 px-3 text-center text-slate-600">{{ item.quantity }}</td>
-                          <td class="py-2 px-3 text-right font-semibold text-slate-800">{{ item.amount | number:'1.0-0' }} đ</td>
+                          <td class="py-2 px-3 text-right text-slate-600 tabular-nums">{{ item.unitPrice | vndCurrency }}</td>
+                          <td class="py-2 px-3 text-center text-slate-600 tabular-nums">{{ item.quantity }}</td>
+                          <td class="py-2 px-3 text-right font-semibold text-slate-800 tabular-nums">{{ item.amount | vndCurrency }}</td>
                         </tr>
                       }
                       <tr class="bg-emerald-50/60 font-bold text-slate-900 border-t border-emerald-200">
                         <td colspan="3" class="py-2.5 px-3 text-right text-emerald-900">Tổng cộng:</td>
-                        <td class="py-2.5 px-3 text-right text-sm text-emerald-800">{{ detail.totalAmount | number:'1.0-0' }} đ</td>
+                        <td class="py-2.5 px-3 text-right text-sm text-emerald-800 tabular-nums">{{ detail.totalAmount | vndCurrency }}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -1074,22 +1076,22 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                         <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                           <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                             <div class="text-[10px] text-slate-500 font-medium">Tổng giá trị ban đầu</div>
-                            <div class="text-sm font-bold text-slate-800 mt-0.5">
-                              {{ f.totalAmount | number:'1.0-0' }} đ
+                            <div class="text-sm font-bold text-slate-800 mt-0.5 tabular-nums">
+                              {{ f.totalAmount | vndCurrency }}
                             </div>
                           </div>
 
                           <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                             <div class="text-[10px] text-slate-500 font-medium">Đã thanh toán thực tế</div>
-                            <div class="text-sm font-bold text-slate-800 mt-0.5">
-                              {{ f.paidAmount | number:'1.0-0' }} đ
+                            <div class="text-sm font-bold text-slate-800 mt-0.5 tabular-nums">
+                              {{ f.paidAmount | vndCurrency }}
                             </div>
                           </div>
 
                           <div class="bg-rose-50/50 p-2.5 rounded-xl border border-rose-200/60">
                             <div class="text-[10px] text-rose-700 font-medium">Phí hủy áp dụng</div>
-                            <div class="text-sm font-bold text-rose-800 mt-0.5">
-                              {{ (f.cancellationFee ?? detail.cancellationFee ?? 0) | number:'1.0-0' }} đ
+                            <div class="text-sm font-bold text-rose-800 mt-0.5 tabular-nums">
+                              {{ (f.cancellationFee ?? detail.cancellationFee ?? 0) | vndCurrency }}
                             </div>
                             @if ((f.cancellationFee ?? detail.cancellationFee ?? 0) === 0) {
                               <div class="text-[10px] text-emerald-600 font-medium mt-0.5">Miễn phí hủy</div>
@@ -1099,8 +1101,8 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                           @if ((f.refundableAmount ?? detail.refundableAmount ?? 0) > 0) {
                             <div class="bg-amber-50/60 p-2.5 rounded-xl border border-amber-200/70">
                               <div class="text-[10px] text-amber-700 font-medium">Khoản hoàn dự kiến</div>
-                              <div class="text-sm font-bold text-amber-800 mt-0.5">
-                                {{ (f.refundableAmount ?? detail.refundableAmount ?? 0) | number:'1.0-0' }} đ
+                              <div class="text-sm font-bold text-amber-800 mt-0.5 tabular-nums">
+                                {{ (f.refundableAmount ?? detail.refundableAmount ?? 0) | vndCurrency }}
                               </div>
                               <div class="text-[10px] font-medium mt-0.5" [ngClass]="f.refundStatus === 'Refunded' ? 'text-emerald-700' : 'text-amber-700'">
                                 {{ f.refundStatus === 'Refunded' ? '(Đã chi trả)' : '(Chờ duyệt chuyển khoản)' }}
@@ -1109,16 +1111,16 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                           } @else if ((f.netCollectibleAmount ?? 0) > 0) {
                             <div class="bg-rose-50/70 p-2.5 rounded-xl border border-rose-200">
                               <div class="text-[10px] text-rose-700 font-medium">Số tiền còn phải thu</div>
-                              <div class="text-sm font-bold text-rose-800 mt-0.5">
-                                {{ f.netCollectibleAmount | number:'1.0-0' }} đ
+                              <div class="text-sm font-bold text-rose-800 mt-0.5 tabular-nums">
+                                {{ f.netCollectibleAmount | vndCurrency }}
                               </div>
                               <div class="text-[10px] text-rose-600 font-medium mt-0.5">Thu bổ sung phí hủy</div>
                             </div>
                           } @else {
                             <div class="bg-slate-50/80 p-2.5 rounded-xl border border-slate-200">
                               <div class="text-[10px] text-slate-500 font-medium">Dư nợ sau hủy</div>
-                              <div class="text-sm font-bold text-slate-700 mt-0.5">
-                                0 đ
+                              <div class="text-sm font-bold text-slate-700 mt-0.5 tabular-nums">
+                                0 ₫
                               </div>
                               <div class="text-[10px] text-slate-500 font-medium mt-0.5">Không phát sinh nợ</div>
                             </div>
@@ -1128,22 +1130,22 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                           <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                             <div class="text-[10px] text-slate-500 font-medium">Tổng tiền phòng</div>
-                            <div class="text-sm font-bold text-slate-800 mt-0.5">
-                              {{ f.totalAmount | number:'1.0-0' }} đ
+                            <div class="text-sm font-bold text-slate-800 mt-0.5 tabular-nums">
+                              {{ f.totalAmount | vndCurrency }}
                             </div>
                           </div>
 
                           <div class="bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-200/60">
                             <div class="text-[10px] text-emerald-700 font-medium">Đã thanh toán</div>
-                            <div class="text-sm font-bold text-emerald-700 mt-0.5">
-                              {{ f.paidAmount | number:'1.0-0' }} đ
+                            <div class="text-sm font-bold text-emerald-700 mt-0.5 tabular-nums">
+                              {{ f.paidAmount | vndCurrency }}
                             </div>
                           </div>
 
                           <div class="bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/60">
                             <div class="text-[10px] text-amber-700 font-medium">Dư nợ còn lại</div>
-                            <div class="text-sm font-bold text-amber-800 mt-0.5">
-                              {{ f.remainingBalance | number:'1.0-0' }} đ
+                            <div class="text-sm font-bold text-amber-800 mt-0.5 tabular-nums">
+                              {{ f.remainingBalance | vndCurrency }}
                             </div>
                           </div>
                         </div>
@@ -1192,8 +1194,8 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                                 <td class="py-1.5 px-3 text-slate-600 truncate max-w-[150px]" [title]="pay.transactionRef || ''">
                                   {{ pay.transactionRef || '—' }}
                                 </td>
-                                <td class="py-1.5 px-3 text-right font-semibold text-slate-800">
-                                  {{ pay.amount | number:'1.0-0' }} đ
+                                <td class="py-1.5 px-3 text-right font-semibold text-slate-800 tabular-nums">
+                                  {{ pay.amount | vndCurrency }}
                                 </td>
                                 <td class="py-1.5 px-3 text-center">
                                   <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">
@@ -1222,7 +1224,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                             (click)="fillFullRemaining()"
                             class="min-h-11 px-2 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer tabular-nums"
                           >
-                            Thu đủ dư nợ ({{ f.remainingBalance | number:'1.0-0' }} đ)
+                            Thu đủ dư nợ ({{ f.remainingBalance | vndCurrency }})
                           </button>
                         </div>
 
@@ -1295,7 +1297,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                             class="min-h-11 px-3 py-1.5 rounded-lg border border-indigo-200 bg-white hover:bg-indigo-50 text-indigo-800 text-xs font-semibold transition cursor-pointer inline-flex items-center gap-1.5 disabled:opacity-50 tabular-nums"
                           >
                             <i class="pi pi-plus text-[10px]"></i>
-                            <span>{{ mItem.name }} ({{ mItem.price | number:'1.0-0' }} đ)</span>
+                            <span>{{ mItem.name }} ({{ mItem.price | vndCurrency }})</span>
                           </button>
                         }
                       </div>
@@ -1431,7 +1433,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                       </button>
                       @if (folio()?.reservationId === detail.id && (folio()?.remainingBalance ?? 0) > 0) {
                         <span class="text-[11px] text-amber-700 font-medium tabular-nums">
-                          <i class="pi pi-exclamation-triangle mr-1"></i>Còn nợ {{ folio()?.remainingBalance | number:'1.0-0' }} đ (thu đủ trước khi trả phòng)
+                          <i class="pi pi-exclamation-triangle mr-1"></i>Còn nợ {{ folio()?.remainingBalance | vndCurrency }} (thu đủ trước khi trả phòng)
                         </span>
                       }
                     }
@@ -1572,6 +1574,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                         dateFormat="dd/mm/yy"
                         [showIcon]="true"
                         iconDisplay="input"
+                        [touchUI]="isMobile()"
                         appendTo="body"
                         [firstDayOfWeek]="1"
                         placeholder="dd/mm/yyyy"
@@ -1605,6 +1608,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                         dateFormat="dd/mm/yy"
                         [showIcon]="true"
                         iconDisplay="input"
+                        [touchUI]="isMobile()"
                         appendTo="body"
                         [firstDayOfWeek]="1"
                         placeholder="dd/mm/yyyy"
@@ -1642,6 +1646,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                         dateFormat="dd/mm/yy"
                         [showIcon]="true"
                         iconDisplay="input"
+                        [touchUI]="isMobile()"
                         appendTo="body"
                         [firstDayOfWeek]="1"
                         placeholder="dd/mm/yyyy"
@@ -1717,14 +1722,14 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                         <i class="pi pi-check-circle text-emerald-600"></i>
                         Báo giá chính thức từ Quote Engine (TTL 5 phút)
                       </span>
-                      <span class="text-sm font-bold text-emerald-800">{{ quote.totalAmount | number:'1.0-0' }} đ</span>
+                      <span class="text-sm font-bold text-emerald-800 tabular-nums">{{ quote.totalAmount | vndCurrency }}</span>
                     </div>
 
                     <div class="divide-y divide-emerald-200/50 bg-white/80 rounded-lg p-2.5 border border-emerald-200/60">
                       @for (item of quote.breakdown; track $index) {
                         <div class="flex justify-between py-1 text-[11px] text-slate-700">
                           <span>{{ item.description }} (x{{ item.quantity }})</span>
-                          <span class="font-medium">{{ item.amount | number:'1.0-0' }} đ</span>
+                          <span class="font-medium tabular-nums">{{ item.amount | vndCurrency }}</span>
                         </div>
                       }
                       <div class="pt-2 mt-1 flex justify-between items-center text-xs text-amber-900 font-bold border-t border-emerald-200">
@@ -1732,7 +1737,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                           <i class="pi pi-shield text-amber-600"></i>
                           <span>Tiền cọc yêu cầu giữ chỗ (30%):</span>
                         </span>
-                        <span class="text-emerald-700 font-extrabold">{{ estimatedDeposit() | number:'1.0-0' }} đ</span>
+                        <span class="text-emerald-700 font-extrabold tabular-nums">{{ estimatedDeposit() | vndCurrency }}</span>
                       </div>
                     </div>
                   </div>
@@ -2107,7 +2112,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                       <div class="space-y-0.5">
                         <div class="font-bold">Cảnh báo thu cọc Check-in (chưa đủ 30%)</div>
                         <div>
-                          Khách mới thanh toán <b>{{ ciFolio.paidAmount | number:'1.0-0' }} đ</b> trên mức cọc khuyến nghị 30% (<b>{{ getMinimumDeposit30(res.totalAmount) | number:'1.0-0' }} đ</b>). Lễ tân vui lòng nhắc thu cọc hoặc xác nhận tiếp tục nhận phòng.
+                          Khách mới thanh toán <b>{{ ciFolio.paidAmount | vndCurrency }}</b> trên mức cọc khuyến nghị 30% (<b>{{ getMinimumDeposit30(res.totalAmount) | vndCurrency }}</b>). Lễ tân vui lòng nhắc thu cọc hoặc xác nhận tiếp tục nhận phòng.
                         </div>
                       </div>
                     </div>
@@ -2274,15 +2279,15 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                     <div class="grid grid-cols-3 gap-2 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                       <div>
                         <span class="text-[10px] text-slate-400 font-medium block">Tổng tiền phòng</span>
-                        <span class="text-xs font-bold text-slate-800 font-mono">{{ f.totalAmount | number:'1.0-0' }} đ</span>
+                        <span class="text-xs font-bold text-slate-800 font-mono tabular-nums">{{ f.totalAmount | vndCurrency }}</span>
                       </div>
                       <div>
                         <span class="text-[10px] text-emerald-600 font-medium block">Đã thanh toán</span>
-                        <span class="text-xs font-bold text-emerald-700 font-mono">{{ f.paidAmount | number:'1.0-0' }} đ</span>
+                        <span class="text-xs font-bold text-emerald-700 font-mono tabular-nums">{{ f.paidAmount | vndCurrency }}</span>
                       </div>
                       <div>
                         <span class="text-[10px] text-amber-600 font-medium block">Số dư còn nợ</span>
-                        <span class="text-xs font-bold text-amber-800 font-mono">{{ f.remainingBalance | number:'1.0-0' }} đ</span>
+                        <span class="text-xs font-bold text-amber-800 font-mono tabular-nums">{{ f.remainingBalance | vndCurrency }}</span>
                       </div>
                     </div>
 
@@ -2290,7 +2295,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                       <div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs space-y-1">
                         <div class="flex items-center gap-1.5 font-bold">
                           <i class="pi pi-exclamation-triangle text-rose-600"></i>
-                          <span>Chưa thể trả phòng: Còn dư nợ {{ f.remainingBalance | number:'1.0-0' }} đ</span>
+                          <span>Chưa thể trả phòng: Còn dư nợ {{ f.remainingBalance | vndCurrency }}</span>
                         </div>
                         <p class="text-[11px] text-rose-700">
                           Quy định POL-IO03 yêu cầu thanh toán đủ 100% công nợ trước khi hoàn tất trả phòng.
@@ -2379,7 +2384,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                       class="min-h-11 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition shadow-sm shadow-emerald-600/30 flex items-center gap-2 cursor-pointer tabular-nums"
                     >
                       <i class="pi pi-wallet" [class.animate-spin]="isSubmittingPayment()"></i>
-                      <span>Thu đủ ({{ checkOutFolio()!.remainingBalance | number:'1.0-0' }} đ) & Trả phòng</span>
+                      <span>Thu đủ ({{ checkOutFolio()!.remainingBalance | vndCurrency }}) & Trả phòng</span>
                     </button>
                   }
                   <button
@@ -2540,7 +2545,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <div class="grid grid-cols-2 gap-3">
                   <div class="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-100">
                     <div class="text-[11px] font-medium text-emerald-700 uppercase tracking-wider">Tổng thực thu</div>
-                    <div class="text-xl font-bold text-emerald-700 mt-1 tabular-nums">{{ (summary.totalCollected ?? 0) | number:'1.0-0' }} đ</div>
+                    <div class="text-xl font-bold text-emerald-700 mt-1 tabular-nums">{{ (summary.totalCollected ?? 0) | vndCurrency }}</div>
                     <div class="text-[11px] text-emerald-600 mt-0.5 tabular-nums">{{ summary.completedCount ?? 0 }} giao dịch thành công</div>
                   </div>
                   <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
@@ -2558,7 +2563,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                         <i class="pi pi-money-bill text-emerald-600"></i>
                         <span>Tiền mặt (Cash)</span>
                       </div>
-                      <span class="font-bold text-slate-900 tabular-nums">{{ (summary.cashCollected ?? 0) | number:'1.0-0' }} đ</span>
+                      <span class="font-bold text-slate-900 tabular-nums">{{ (summary.cashCollected ?? 0) | vndCurrency }}</span>
                     </div>
 
                     <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs">
@@ -2566,7 +2571,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                         <i class="pi pi-credit-card text-blue-600"></i>
                         <span>Chuyển khoản (Bank Transfer)</span>
                       </div>
-                      <span class="font-bold text-slate-900 tabular-nums">{{ (summary.bankTransferCollected ?? 0) | number:'1.0-0' }} đ</span>
+                      <span class="font-bold text-slate-900 tabular-nums">{{ (summary.bankTransferCollected ?? 0) | vndCurrency }}</span>
                     </div>
 
                     @if ((summary.creditCardCollected ?? 0) > 0) {
@@ -2575,7 +2580,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                           <i class="pi pi-credit-card text-purple-600"></i>
                           <span>Thẻ tín dụng / POS (Card)</span>
                         </div>
-                        <span class="font-bold text-slate-900 tabular-nums">{{ summary.creditCardCollected | number:'1.0-0' }} đ</span>
+                        <span class="font-bold text-slate-900 tabular-nums">{{ summary.creditCardCollected | vndCurrency }}</span>
                       </div>
                     }
                   </div>
@@ -2658,6 +2663,15 @@ export class ReservationsPage implements OnInit, OnDestroy {
   readonly isLoadingProvinces = signal<boolean>(false);
   readonly isLoadingWards = signal<boolean>(false);
   readonly selectedRentalMode = signal<'overnight' | 'hourly' | 'dayuse'>('overnight');
+  readonly isMobile = signal<boolean>(typeof window !== 'undefined' && window.innerWidth < 768);
+  private readonly vndPipe = new VndCurrencyPipe();
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    if (typeof window !== 'undefined') {
+      this.isMobile.set(window.innerWidth < 768);
+    }
+  }
 
   // Context & Permissions
   readonly activeProperty = computed(() => {
@@ -3804,7 +3818,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
     // Enforce POL-IO03: Settle outstanding balance before checkout
     const currentFolio = this.folio();
     if (currentFolio && currentFolio.reservationId === res.id && currentFolio.remainingBalance > 0) {
-      this.alertService.toastError(`Đơn đặt phòng còn dư nợ ${currentFolio.remainingBalance.toLocaleString('vi-VN')} đ. Vui lòng thu đủ tiền trước khi trả phòng.`);
+      this.alertService.toastError(`Đơn đặt phòng còn dư nợ ${this.vndPipe.transform(currentFolio.remainingBalance)}. Vui lòng thu đủ tiền trước khi trả phòng.`);
       return;
     }
 
@@ -4188,7 +4202,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
       return;
     }
     if (folio.remainingBalance > 0) {
-      this.alertService.toastError(`Đơn đặt phòng còn dư nợ ${folio.remainingBalance.toLocaleString('vi-VN')} đ. Vui lòng thu đủ tiền trước khi trả phòng.`);
+      this.alertService.toastError(`Đơn đặt phòng còn dư nợ ${this.vndPipe.transform(folio.remainingBalance)}. Vui lòng thu đủ tiền trước khi trả phòng.`);
       return;
     }
     this.isCheckOutModalOpen.set(false);
@@ -4230,7 +4244,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
           this.isSubmittingPayment.set(false);
           this.currentPaymentIdempotencyKey = null;
           this.lastPaymentFingerprint = null;
-          this.alertService.toastSuccess(`Đã thu đủ ${amount.toLocaleString('vi-VN')} đ. Đang hoàn tất trả phòng...`);
+          this.alertService.toastSuccess(`Đã thu đủ ${this.vndPipe.transform(amount)}. Đang hoàn tất trả phòng...`);
           this.folio.set(null);
           this.checkOutFolio.set(null);
           this.isCheckOutModalOpen.set(false);
@@ -4274,7 +4288,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
           if (this.selectedReservationDetail()?.id === detail.id) {
             this.folio.set(updatedFolio);
           }
-          this.alertService.toastSuccess(`Đã thêm "${item.name}" (${item.price.toLocaleString('vi-VN')} đ) vào Folio.`);
+          this.alertService.toastSuccess(`Đã thêm "${item.name}" (${this.vndPipe.transform(item.price)}) vào Folio.`);
           this.cdr?.markForCheck();
         },
         error: (err) => {
@@ -4527,7 +4541,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
     }
 
     if (amount > remaining) {
-      this.alertService.toastError(`Số tiền thanh toán (${amount.toLocaleString('vi-VN')} đ) vượt quá dư nợ còn lại (${remaining.toLocaleString('vi-VN')} đ).`);
+      this.alertService.toastError(`Số tiền thanh toán (${this.vndPipe.transform(amount)}) vượt quá dư nợ còn lại (${this.vndPipe.transform(remaining)}).`);
       return;
     }
 
@@ -4552,7 +4566,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
           this.isSubmittingPayment.set(false);
           this.currentPaymentIdempotencyKey = null;
           this.lastPaymentFingerprint = null;
-          this.alertService.toastSuccess(`Thu tiền thành công: ${payment.amount.toLocaleString('vi-VN')} đ (${payment.methodName}).`);
+          this.alertService.toastSuccess(`Thu tiền thành công: ${this.vndPipe.transform(payment.amount)} (${payment.methodName}).`);
 
           if (this.selectedReservationDetail()?.id === detail.id) {
             this.loadFolio(detail.id, propId);
@@ -4817,7 +4831,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
   getBookingTooltip(res: ReservationDto): string {
     const rentalTypeLabel = res.rentalType === RentalType.Hourly ? 'Theo giờ' : 'Theo đêm';
     const statusLabel = this.getStatusLabel(res.status);
-    return `${res.confirmationCode} - ${res.guestName}\n${rentalTypeLabel} | ${statusLabel}\nSĐT: ${res.guestPhone || 'Không có'}\nTổng tiền: ${res.totalAmount.toLocaleString('vi-VN')} đ`;
+    return `${res.confirmationCode} - ${res.guestName}\n${rentalTypeLabel} | ${statusLabel}\nSĐT: ${res.guestPhone || 'Không có'}\nTổng tiền: ${this.vndPipe.transform(res.totalAmount)}`;
   }
 
   openCreateModalWithPrefill(room: RoomDto, dateStr: string): void {

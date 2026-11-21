@@ -77,7 +77,7 @@ public sealed class CompleteHousekeepingTaskCommandHandler : IRequestHandler<Com
 
         if (task.AssignedToUserId.HasValue &&
             task.AssignedToUserId.Value != userId &&
-            membership.StaffRole is not (StaffRole.Owner or StaffRole.Manager))
+            membership.StaffRole is not (StaffRole.Owner or StaffRole.Manager or StaffRole.Receptionist))
         {
             throw new ForbiddenException("ERR_TASK_ASSIGNED_TO_OTHER",
                 "Công việc này đã được giao cho nhân viên khác.");

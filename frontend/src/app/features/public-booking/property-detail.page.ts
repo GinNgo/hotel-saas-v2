@@ -252,6 +252,7 @@ import { environment } from '../../../environments/environment';
                     dateFormat="dd/mm/yy"
                     [showIcon]="true"
                     iconDisplay="input"
+                    [touchUI]="isMobileViewport()"
                     appendTo="body"
                     [firstDayOfWeek]="1"
                     placeholder="dd/mm/yyyy"
@@ -273,6 +274,7 @@ import { environment } from '../../../environments/environment';
                       dateFormat="dd/mm/yy"
                       [showIcon]="true"
                       iconDisplay="input"
+                      [touchUI]="isMobileViewport()"
                       appendTo="body"
                       [firstDayOfWeek]="1"
                       placeholder="dd/mm/yyyy"
@@ -913,6 +915,42 @@ export class PropertyDetailPageComponent implements OnInit {
   readonly copiedCoordinates = signal(false);
   readonly reviewsSummary = signal<PropertyReviewsSummaryDto | null>(null);
   readonly reviewsLoading = signal(false);
+  readonly isMobileViewport = signal<boolean>(this.detectMobileViewport());
+
+  constructor() {
+    this.registerViewportListeners();
+  }
+
+  private detectMobileViewport(): boolean {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    if (typeof window.matchMedia === 'function') {
+      return window.matchMedia('(max-width: 767px)').matches;
+    }
+    return window.innerWidth < 768;
+  }
+
+  private registerViewportListeners(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    if (typeof window.matchMedia === 'function') {
+      const mediaQuery = window.matchMedia('(max-width: 767px)');
+      const handleMediaChange = (event: MediaQueryListEvent) => {
+        this.isMobileViewport.set(event.matches);
+      };
+      if (typeof mediaQuery.addEventListener === 'function') {
+        mediaQuery.addEventListener('change', handleMediaChange);
+        this.destroyRef.onDestroy(() => mediaQuery.removeEventListener('change', handleMediaChange));
+      }
+    }
+    const handleResize = () => {
+      this.isMobileViewport.set(this.detectMobileViewport());
+    };
+    window.addEventListener('resize', handleResize, { passive: true });
+    this.destroyRef.onDestroy(() => window.removeEventListener('resize', handleResize));
+  }
 
   readonly hasGpsCoordinates = computed<boolean>(() => {
     const p = this.property();

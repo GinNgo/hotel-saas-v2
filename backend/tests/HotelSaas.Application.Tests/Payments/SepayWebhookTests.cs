@@ -456,6 +456,214 @@ public sealed class SepayWebhookTests
     }
 
     [Fact]
+    public async Task ProcessSepayWebhook_ReservationWithBlankBankAccount_FailsClosedInNonDev_AndAllowsInDev()
+    {
+        var db = new SepayFakeDbContext();
+        var (_, _, reservation) = SeedReservationWithBank(
+            db,
+            confirmationCode: "RES-FC1001",
+            totalAmount: 1_200_000m,
+            depositRequired: 400_000m,
+            bankAccount: "   ");
+
+        var handler = new ProcessSepayWebhookCommandHandler(db, new CurrentTenantService(), new CurrentPropertyService());
+        var sender = new DelegateSender((req, ct) => req switch
+        {
+            ProcessSepayWebhookCommand cmd => WrapResult(handler.Handle(cmd, ct)),
+            _ => throw new NotSupportedException()
+        });
+
+        var config = BuildConfig(new Dictionary<string, string?>
+        {
+            ["Payment:Sepay:ApiKey"] = TestSepayApiKey
+        });
+
+        var payload = new SepayWebhookPayload
+        {
+            Id = 91001,
+            Gateway = "MBBank",
+            TransactionDate = "2026-11-21 14:00:00",
+            AccountNumber = "0987654321",
+            Code = "RESFC1001",
+            Content = "DATPHONG RESFC1001",
+            TransferType = "in",
+            TransferAmount = 400_000m,
+            ReferenceCode = "FT-FC-RES-1"
+        };
+
+        // 1. Production with blank PrintTemplateConfig.BankAccountNumber -> fails closed + writes audit warning
+        var prodController = CreateWebhooksController(
+            sender,
+            config,
+            new StubHostEnvironment(Environments.Production),
+            authorizationHeader: $"Apikey {TestSepayApiKey}");
+
+        var prodAction = await prodController.HandleSepayWebhook(payload, CancellationToken.None);
+        var prodOk = Assert.IsType<OkObjectResult>(prodAction);
+        var prodBody = Assert.IsType<SepayWebhookHttpResponse>(prodOk.Value);
+
+        Assert.True(prodBody.Success);
+        Assert.Equal("rejected_unconfigured_bank_account", prodBody.Status);
+        Assert.Equal(ReservationStatus.PendingPayment, reservation.Status);
+        Assert.Empty(db.PaymentList);
+        Assert.Contains(db.AuditLogList, a => a.EntityName == "SepayBankAccountConfigWarning" && a.EntityId == reservation.Id);
+
+        // 2. Staging with blank PrintTemplateConfig.BankAccountNumber -> also fails closed
+        payload.Id = 91002;
+        var stagingController = CreateWebhooksController(
+            sender,
+            config,
+            new StubHostEnvironment(Environments.Staging),
+            authorizationHeader: $"Apikey {TestSepayApiKey}");
+
+        var stagingAction = await stagingController.HandleSepayWebhook(payload, CancellationToken.None);
+        var stagingOk = Assert.IsType<OkObjectResult>(stagingAction);
+        var stagingBody = Assert.IsType<SepayWebhookHttpResponse>(stagingOk.Value);
+
+        Assert.Equal("rejected_unconfigured_bank_account", stagingBody.Status);
+        Assert.Equal(ReservationStatus.PendingPayment, reservation.Status);
+        Assert.Empty(db.PaymentList);
+
+        // 3. Development with explicit RequireBankAccountMatch=true -> fails closed
+        payload.Id = 91003;
+        var strictDevConfig = BuildConfig(new Dictionary<string, string?>
+        {
+            ["Payment:Sepay:ApiKey"] = TestSepayApiKey,
+            ["Payment:Sepay:RequireBankAccountMatch"] = "true"
+        });
+        var strictDevController = CreateWebhooksController(
+            sender,
+            strictDevConfig,
+            new StubHostEnvironment(Environments.Development),
+            authorizationHeader: $"Apikey {TestSepayApiKey}");
+
+        var strictDevAction = await strictDevController.HandleSepayWebhook(payload, CancellationToken.None);
+        var strictDevOk = Assert.IsType<OkObjectResult>(strictDevAction);
+        var strictDevBody = Assert.IsType<SepayWebhookHttpResponse>(strictDevOk.Value);
+        Assert.Equal("rejected_unconfigured_bank_account", strictDevBody.Status);
+        Assert.Empty(db.PaymentList);
+
+        // 4. Development default -> permits local dev testing when bank account is blank
+        payload.Id = 91004;
+        var devController = CreateWebhooksController(
+            sender,
+            config,
+            new StubHostEnvironment(Environments.Development),
+            authorizationHeader: $"Apikey {TestSepayApiKey}");
+
+        var devAction = await devController.HandleSepayWebhook(payload, CancellationToken.None);
+        var devOk = Assert.IsType<OkObjectResult>(devAction);
+        var devBody = Assert.IsType<SepayWebhookHttpResponse>(devOk.Value);
+
+        Assert.Equal("confirmed", devBody.Status);
+        Assert.Equal(ReservationStatus.Confirmed, reservation.Status);
+        Assert.Single(db.PaymentList);
+    }
+
+    [Fact]
+    public async Task ProcessSepayWebhook_SubscriptionWithBlankPlatformAccount_FailsClosedInNonDev_AndResolvesFallbackKey()
+    {
+        var db = new SepayFakeDbContext();
+        var tenant = new Tenant
+        {
+            Id = Guid.NewGuid(),
+            Code = "T-SUB-FC",
+            Name = "FailClosed Resort",
+            Slug = "failclosed-resort",
+            SubscriptionTier = SubscriptionTier.Basic
+        };
+        db.TenantList.Add(tenant);
+
+        var subscription = new Subscription
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenant.Id,
+            Tier = SubscriptionTier.Basic,
+            BillingCycle = BillingCycle.Monthly,
+            Status = SubscriptionStatus.Active,
+            PricePerCycle = 299_000m,
+            Currency = "VND",
+            CurrentPeriodStartUtc = DateTime.UtcNow.AddDays(-5),
+            CurrentPeriodEndUtc = DateTime.UtcNow.AddDays(25)
+        };
+        db.SubscriptionList.Add(subscription);
+
+        var subPayment = new SubscriptionPayment
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenant.Id,
+            SubscriptionId = subscription.Id,
+            Amount = 699_000m,
+            Method = PaymentMethod.VNPay,
+            Status = PaymentStatus.Pending,
+            TransactionRef = "SUB_2_1_FAILCLS001",
+            InvoiceNumber = "INV-SUB-FC-001",
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        db.SubscriptionPaymentList.Add(subPayment);
+
+        var handler = new ProcessSepayWebhookCommandHandler(db, new CurrentTenantService(), new CurrentPropertyService());
+        var sender = new DelegateSender((req, ct) => req switch
+        {
+            ProcessSepayWebhookCommand cmd => WrapResult(handler.Handle(cmd, ct)),
+            _ => throw new NotSupportedException()
+        });
+
+        var payload = new SepayWebhookPayload
+        {
+            Id = 92001,
+            Gateway = "MBBank",
+            TransactionDate = "2026-11-21 15:00:00",
+            AccountNumber = "0999888777",
+            Content = "NANGCAP SUB21FAILCLS001",
+            TransferType = "in",
+            TransferAmount = 699_000m,
+            ReferenceCode = "FT-FC-SUB-1"
+        };
+
+        // 1. Production with unconfigured platform account -> fails closed
+        var noPlatformAccConfig = BuildConfig(new Dictionary<string, string?>
+        {
+            ["Payment:Sepay:ApiKey"] = TestSepayApiKey
+        });
+        var prodControllerNoAcc = CreateWebhooksController(
+            sender,
+            noPlatformAccConfig,
+            new StubHostEnvironment(Environments.Production),
+            authorizationHeader: $"Apikey {TestSepayApiKey}");
+
+        var rejectedAction = await prodControllerNoAcc.HandleSepayWebhook(payload, CancellationToken.None);
+        var rejectedOk = Assert.IsType<OkObjectResult>(rejectedAction);
+        var rejectedBody = Assert.IsType<SepayWebhookHttpResponse>(rejectedOk.Value);
+
+        Assert.Equal("rejected_unconfigured_bank_account", rejectedBody.Status);
+        Assert.Equal(PaymentStatus.Pending, subPayment.Status);
+        Assert.Equal(SubscriptionTier.Basic, subscription.Tier);
+        Assert.Contains(db.AuditLogList, a => a.EntityName == "SepayBankAccountConfigWarning" && a.EntityId == subPayment.Id);
+
+        // 2. Production with Payment:Sepay:ExpectedPlatformAccountNumber configured -> succeeds
+        payload.Id = 92002;
+        var expectedAccConfig = BuildConfig(new Dictionary<string, string?>
+        {
+            ["Payment:Sepay:ApiKey"] = TestSepayApiKey,
+            ["Payment:Sepay:ExpectedPlatformAccountNumber"] = "0999888777"
+        });
+        var prodControllerWithFallback = CreateWebhooksController(
+            sender,
+            expectedAccConfig,
+            new StubHostEnvironment(Environments.Production),
+            authorizationHeader: $"Apikey {TestSepayApiKey}");
+
+        var acceptedAction = await prodControllerWithFallback.HandleSepayWebhook(payload, CancellationToken.None);
+        var acceptedOk = Assert.IsType<OkObjectResult>(acceptedAction);
+        var acceptedBody = Assert.IsType<SepayWebhookHttpResponse>(acceptedOk.Value);
+
+        Assert.Equal("confirmed", acceptedBody.Status);
+        Assert.Equal(PaymentStatus.Completed, subPayment.Status);
+        Assert.Equal(SubscriptionTier.Pro, subscription.Tier);
+    }
+
+    [Fact]
     public async Task SubscriptionsController_GetSubscriptionVietQr_DevFallbackAndNonDev422()
     {
         var db = new SepayFakeDbContext();

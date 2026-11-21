@@ -714,6 +714,10 @@ export class ReviewsPage implements OnInit {
   }
 
   private loadBranches(): void {
+    if (!this.authService.hasPermission('PROPERTIES', 1)) {
+      this.branches.set([]);
+      return;
+    }
     this.propertyService
       .getTenantProperties()
       .pipe(takeUntilDestroyed(this.destroyRef))

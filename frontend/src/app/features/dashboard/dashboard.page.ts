@@ -1495,20 +1495,25 @@ export class DashboardPage implements OnInit {
 
   loadChainHqData(): void {
     if (this.isSuperAdmin()) return;
-    this.loadingHq.set(true);
 
-    this.propertyService
-      .getTenantProperties()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: props => {
-          this.chainProperties.set(props || []);
-          this.loadingHq.set(false);
-        },
-        error: () => {
-          this.loadingHq.set(false);
-        }
-      });
+    if (this.authService.hasPermission('PROPERTIES', 1)) {
+      this.loadingHq.set(true);
+      this.propertyService
+        .getTenantProperties()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: props => {
+            this.chainProperties.set(props || []);
+            this.loadingHq.set(false);
+          },
+          error: () => {
+            this.loadingHq.set(false);
+          }
+        });
+    } else {
+      this.chainProperties.set([]);
+      this.loadingHq.set(false);
+    }
 
     if (this.authService.hasPermission('SUBSCRIPTIONS', 1)) {
       this.subscriptionService

@@ -51,7 +51,7 @@ type QuoteWithPromo = QuoteDto & {
         <aside
           role="status"
           aria-live="polite"
-          class="fixed bottom-6 right-4 sm:right-6 z-50 max-w-sm w-[calc(100vw-2rem)] sm:w-96 pointer-events-auto transition-all duration-300 animate-in fade-in slide-in-from-bottom-3"
+          class="fixed bottom-20 right-4 sm:right-6 z-50 max-w-sm w-[calc(100vw-2rem)] sm:w-96 pointer-events-auto transition-all duration-300 animate-in fade-in slide-in-from-bottom-3"
         >
           <div
             class="flex items-start gap-3 p-4 rounded-2xl bg-white/95 backdrop-blur-md border shadow-lg sm:shadow-xl transition-all"
@@ -98,7 +98,7 @@ type QuoteWithPromo = QuoteDto & {
             <button
               type="button"
               (click)="dismissToast()"
-              class="text-slate-400 hover:text-slate-600 active:text-slate-800 p-1 -mr-1 -mt-1 rounded-lg transition-colors cursor-pointer"
+              class="min-h-11 min-w-11 inline-flex items-center justify-center text-slate-400 hover:text-slate-600 active:text-slate-800 p-2 -mr-2 -mt-2 rounded-lg transition-colors cursor-pointer shrink-0"
               title="Đóng thông báo"
               aria-label="Đóng thông báo"
             >
@@ -110,10 +110,10 @@ type QuoteWithPromo = QuoteDto & {
 
       <main class="max-w-5xl mx-auto space-y-6">
         <!-- Navigation Breadcrumb -->
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
           <a
             routerLink="/booking"
-            class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-indigo-600 transition-colors bg-white px-3 py-1.5 rounded-xl border border-slate-200/80 shadow-2xs"
+            class="min-h-11 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-indigo-600 transition-colors bg-white px-3.5 py-2 rounded-xl border border-slate-200/80 shadow-2xs"
           >
             <i class="pi pi-arrow-left text-[11px]"></i>
             <span>Quay lại danh sách chỗ nghỉ</span>
@@ -147,7 +147,7 @@ type QuoteWithPromo = QuoteDto & {
             <button
               type="button"
               (click)="error.set('')"
-              class="text-rose-400 hover:text-rose-600 p-1 -mr-1 -mt-1 rounded-lg transition-colors cursor-pointer"
+              class="min-h-11 min-w-11 inline-flex items-center justify-center text-rose-400 hover:text-rose-600 p-2 -mr-2 -mt-2 rounded-lg transition-colors cursor-pointer shrink-0"
               title="Đóng thông báo"
               aria-label="Đóng thông báo"
             >
@@ -806,7 +806,7 @@ type QuoteWithPromo = QuoteDto & {
                                 [max]="maxRedeemablePoints()"
                                 [ngModel]="effectivePointsToRedeem()"
                                 (ngModelChange)="onPointsToRedeemChange($event)"
-                                class="w-24 min-h-[38px] px-2.5 py-1 rounded-lg border border-amber-300 bg-white text-xs font-mono font-bold text-slate-900 text-right tabular-nums"
+                                class="w-24 min-h-11 px-2.5 py-1 rounded-lg border border-amber-300 bg-white text-xs font-mono font-bold text-slate-900 text-right tabular-nums"
                               />
                             </div>
                             <div class="flex items-center justify-between text-[11px] text-amber-900 tabular-nums">

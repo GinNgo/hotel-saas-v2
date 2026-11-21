@@ -17,6 +17,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace HotelSaas.WebApi.Controllers;
 
@@ -120,10 +121,13 @@ public sealed class HousekeepingController : ControllerBase
     public async Task<IActionResult> StartTask(
         [FromRoute] Guid id,
         [FromQuery] Guid? propertyId = null,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] StartHousekeepingTaskRequest? request = null,
         CancellationToken cancellationToken = default)
     {
-        var resolvedPropertyId = ResolvePropertyId(propertyId);
-        var result = await _mediator.Send(new StartHousekeepingTaskCommand(id, resolvedPropertyId), cancellationToken);
+        var resolvedPropertyId = ResolvePropertyId(propertyId ?? request?.PropertyId);
+        var result = await _mediator.Send(
+            new StartHousekeepingTaskCommand(id, resolvedPropertyId, request?.Notes),
+            cancellationToken);
         return Ok(result);
     }
 
@@ -166,6 +170,11 @@ public sealed record CreateHousekeepingTaskRequest(
 
 public sealed record AssignHousekeepingTaskRequest(
     Guid AssignedToUserId,
+    Guid? PropertyId = null
+);
+
+public sealed record StartHousekeepingTaskRequest(
+    string? Notes = null,
     Guid? PropertyId = null
 );
 

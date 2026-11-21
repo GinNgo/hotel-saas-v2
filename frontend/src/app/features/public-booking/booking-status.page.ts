@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, isDevMode, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnDestroy, OnInit, computed, inject, isDevMode, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -15,6 +15,7 @@ import {
   RescheduleGuestBookingRequest,
   VnpayReturnVerificationDto
 } from '../../core/models/public-booking.model';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 import { environment } from '../../../environments/environment';
 
 export interface PolicyTextPart {
@@ -31,7 +32,7 @@ export interface StatusErrorState {
 @Component({
   selector: 'app-booking-status',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, A11yModule],
+  imports: [CommonModule, FormsModule, RouterLink, A11yModule, VndCurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="min-h-screen bg-[var(--surface-canvas)] py-6 sm:py-8 font-sans text-stone-900">
@@ -80,7 +81,7 @@ export interface StatusErrorState {
                   <button
                     type="submit"
                     [disabled]="!searchToken.trim()"
-                    class="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-2"
+                    class="min-h-11 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-2"
                   >
                     <i class="pi pi-search text-xs"></i>
                     <span>Tra cứu ngay</span>
@@ -112,7 +113,7 @@ export interface StatusErrorState {
                           <button
                             type="button"
                             (click)="onSearch()"
-                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-2xs cursor-pointer transition-colors"
+                            class="min-h-11 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-2xs cursor-pointer transition-colors"
                           >
                             <i class="pi pi-refresh text-[10px]"></i>
                             <span>Thử lại</span>
@@ -124,7 +125,7 @@ export interface StatusErrorState {
                   <button
                     type="button"
                     (click)="dismissSearchError()"
-                    class="text-rose-400 hover:text-rose-600 p-1 rounded-lg cursor-pointer shrink-0"
+                    class="min-h-11 min-w-11 inline-flex items-center justify-center text-rose-400 hover:text-rose-600 p-2 -mr-2 -mt-2 rounded-lg cursor-pointer shrink-0"
                     title="Đóng thông báo"
                     aria-label="Đóng thông báo"
                   >
@@ -172,7 +173,7 @@ export interface StatusErrorState {
                   <div class="font-mono text-[11px] opacity-85 flex flex-wrap gap-3 pt-0.5">
                     @if (vnpRes.txnRef) { <span>Mã GD: {{ vnpRes.txnRef }}</span> }
                     @if (vnpRes.transactionNo) { <span>VNPay No: {{ vnpRes.transactionNo }}</span> }
-                    @if (vnpRes.amount) { <span>Số tiền: {{ vnpRes.amount | number:'1.0-0' }} ₫</span> }
+                    @if (vnpRes.amount) { <span>Số tiền: {{ vnpRes.amount | vndCurrency }}</span> }
                   </div>
                 }
               </div>
@@ -181,7 +182,7 @@ export interface StatusErrorState {
               type="button"
               (click)="vnpayReturnResult.set(null)"
               aria-label="Đóng thông báo VNPay"
-              class="p-1.5 rounded-lg opacity-60 hover:opacity-100 cursor-pointer"
+              class="min-h-11 min-w-11 inline-flex items-center justify-center p-2 -mr-2 -mt-2 rounded-lg opacity-60 hover:opacity-100 cursor-pointer shrink-0"
             >
               <i class="pi pi-times text-xs"></i>
             </button>
@@ -192,7 +193,7 @@ export interface StatusErrorState {
               <i class="pi pi-exclamation-triangle text-amber-600"></i>
               <span>{{ vnpayVerifyError() }}</span>
             </div>
-            <button type="button" (click)="vnpayVerifyError.set('')" aria-label="Đóng cảnh báo VNPay" class="p-1 cursor-pointer">
+            <button type="button" (click)="vnpayVerifyError.set('')" aria-label="Đóng cảnh báo VNPay" class="min-h-11 min-w-11 inline-flex items-center justify-center p-2 -mr-2 rounded-lg cursor-pointer shrink-0">
               <i class="pi pi-times text-xs"></i>
             </button>
           </div>
@@ -232,7 +233,7 @@ export interface StatusErrorState {
                     [href]="getDirectionsUrl()"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
+                    class="min-h-11 px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
                   >
                     <i class="pi pi-directions text-xs text-indigo-600"></i>
                     <span>Chỉ đường</span>
@@ -241,7 +242,7 @@ export interface StatusErrorState {
 
                 <a
                   [routerLink]="['/print/voucher', detail.lookupToken || detail.confirmationCode]"
-                  class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-xs font-bold text-white flex items-center gap-2 cursor-pointer shadow-xs transition-colors"
+                  class="min-h-11 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-xs font-bold text-white flex items-center gap-2 cursor-pointer shadow-xs transition-colors"
                 >
                   <i class="pi pi-file text-xs"></i>
                   <span>In phiếu xác nhận (Voucher)</span>
@@ -250,7 +251,7 @@ export interface StatusErrorState {
                 <button
                   type="button"
                   (click)="printConfirmation()"
-                  class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-xs font-bold text-white flex items-center gap-2 cursor-pointer shadow-xs transition-colors"
+                  class="min-h-11 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-xs font-bold text-white flex items-center gap-2 cursor-pointer shadow-xs transition-colors"
                   [title]="getPrintButtonLabel(detail.status)"
                 >
                   <i class="pi pi-print text-xs"></i>
@@ -262,18 +263,18 @@ export interface StatusErrorState {
             <!-- B. BOOKING STATUS HERO (DUY NHẤT 1 CARD CHÍNH THEO TRẠNG THÁI NGHIỆP VỤ) -->
             @if (detail.status === 'PendingPayment') {
               <!-- GIỮ PHÒNG TẠM THỜI — DUY NHẤT 1 HERO CARD VÀ 1 ĐỒNG HỒ COUNTDOWN -->
-              <div class="mx-6 sm:mx-8 my-6 p-6 sm:p-7 bg-gradient-to-br from-amber-50/90 via-orange-50/40 to-amber-100/30 border border-amber-200/90 rounded-3xl text-amber-950 shadow-sm space-y-5">
+              <div class="mx-6 sm:mx-8 my-6 p-6 sm:p-7 bg-gradient-to-br from-amber-50/90 via-orange-50/40 to-amber-100/30 dark:from-amber-950/60 dark:via-slate-900 dark:to-amber-950/40 border border-amber-200/90 dark:border-amber-500/40 rounded-3xl text-amber-950 dark:text-amber-100 shadow-sm space-y-5">
                 <!-- Hàng trên: Thông tin giữ phòng & Countdown Timer -->
                 <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                   <!-- Cột trái: Badges, Title, Mô tả, Tiền cọc -->
                   <div class="space-y-2.5 max-w-2xl flex-1">
                     <div class="flex flex-wrap items-center gap-2">
-                      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-100/90 text-amber-900 border border-amber-300/70">
-                        <i class="pi pi-clock text-[11px] text-amber-700"></i>
+                      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-100/90 dark:bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-300/70 dark:border-amber-500/40">
+                        <i class="pi pi-clock text-[11px] text-amber-700 dark:text-amber-300"></i>
                         <span>Chờ thanh toán</span>
                       </span>
                       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/80 text-amber-900 border border-amber-200 shadow-2xs">
-                        <i class="pi pi-info-circle text-[11px] text-amber-600"></i>
+                        <i class="pi pi-info-circle text-[11px] text-amber-600 dark:text-amber-300"></i>
                         <span>Đơn giữ phòng tạm thời — Chưa xác nhận</span>
                       </span>
                       @if (isExpiringSoon()) {
@@ -294,19 +295,19 @@ export interface StatusErrorState {
                       Phòng của bạn đang được giữ tạm thời
                     </h2>
 
-                    <p class="text-xs sm:text-sm text-amber-900/90 font-medium leading-relaxed">
+                    <p class="text-xs sm:text-sm text-amber-900/90 dark:text-amber-100/90 font-medium leading-relaxed">
                       Vui lòng hoàn tất đặt cọc để xác nhận đặt phòng. Đơn đặt phòng chưa được xác nhận, vui lòng hoàn tất khoản đặt cọc theo quy định trước khi thời hạn giữ phòng kết thúc để phòng được bảo đảm.
                     </p>
 
                     @if (detail.depositRequired > 0) {
                       <div class="pt-1 flex flex-wrap items-center gap-2 text-xs sm:text-sm">
                         <span class="text-amber-800 font-semibold">Khoản đặt cọc yêu cầu:</span>
-                        <span class="font-mono font-bold text-amber-950 text-sm sm:text-base bg-white/95 px-3 py-1 rounded-xl border border-amber-300/80 shadow-2xs">
-                          {{ detail.depositRequired | number:'1.0-0' }} ₫
+                        <span class="font-mono font-bold text-amber-950 text-sm sm:text-base bg-white/95 px-3 py-1 rounded-xl border border-amber-300/80 shadow-2xs tabular-nums">
+                          {{ detail.depositRequired | vndCurrency }}
                         </span>
                         @if (getRemainingDeposit(detail) > 0 && detail.paidAmount > 0) {
-                          <span class="text-amber-700 font-medium text-xs">
-                            (Còn thiếu: <strong class="font-mono font-bold text-amber-900">{{ getRemainingDeposit(detail) | number:'1.0-0' }} ₫</strong>)
+                          <span class="text-amber-700 dark:text-amber-300 font-medium text-xs tabular-nums">
+                            (Còn thiếu: <strong class="font-mono font-bold text-amber-900">{{ getRemainingDeposit(detail) | vndCurrency }}</strong>)
                           </span>
                         }
                       </div>
@@ -375,7 +376,7 @@ export interface StatusErrorState {
                             type="button"
                             (click)="extendHold()"
                             [disabled]="isExtendingHold()"
-                            class="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-all inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+                            class="min-h-11 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-all inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
                           >
                             @if (isExtendingHold()) {
                               <i class="pi pi-spin pi-spinner text-xs"></i>
@@ -400,7 +401,7 @@ export interface StatusErrorState {
                         <i class="pi pi-exclamation-circle text-rose-600 shrink-0"></i>
                         <span>{{ extendHoldError() }}</span>
                       </div>
-                      <button type="button" (click)="extendHoldError.set('')" class="text-rose-400 hover:text-rose-600 p-1 rounded cursor-pointer" aria-label="Đóng thông báo lỗi gia hạn">
+                      <button type="button" (click)="extendHoldError.set('')" class="min-h-11 min-w-11 inline-flex items-center justify-center text-rose-400 hover:text-rose-600 p-2 -mr-2 rounded-lg cursor-pointer shrink-0" aria-label="Đóng thông báo lỗi gia hạn">
                         <i class="pi pi-times text-xs"></i>
                       </button>
                     </div>
@@ -413,7 +414,7 @@ export interface StatusErrorState {
                       <i class="pi pi-clock text-rose-600 text-base"></i>
                       <span>Thời gian giữ phòng đã hết. Vui lòng tìm và chọn phòng lại để thực hiện đặt chỗ mới.</span>
                     </div>
-                    <a routerLink="/booking" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold text-center shrink-0 transition-colors">
+                    <a routerLink="/booking" class="min-h-11 inline-flex items-center justify-center px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold text-center shrink-0 transition-colors">
                       Tìm phòng lại
                     </a>
                   </div>
@@ -421,7 +422,7 @@ export interface StatusErrorState {
               </div>
             } @else if (detail.status === 'Confirmed') {
               <!-- ĐÃ XÁC NHẬN: CONFIRMATION HERO (MÃ ĐẶT PHÒNG NỔI BẬT & GIAO DIỆN TỐI GIẢN) -->
-              <div class="mx-6 sm:mx-8 my-6 p-6 sm:p-7 bg-gradient-to-r from-emerald-50/80 via-emerald-50/50 to-green-50/30 border border-emerald-200/80 rounded-2xl sm:rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xs">
+              <div class="mx-6 sm:mx-8 my-6 p-6 sm:p-7 bg-gradient-to-r from-emerald-50/80 via-emerald-50/50 to-green-50/30 dark:from-emerald-950/60 dark:via-slate-900 dark:to-emerald-950/40 border border-emerald-200/80 dark:border-emerald-500/40 rounded-2xl sm:rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xs">
                 <div class="flex items-start gap-4 flex-1 min-w-0">
                   <div class="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
                     <i class="pi pi-check text-xl font-bold"></i>
@@ -443,7 +444,7 @@ export interface StatusErrorState {
                       id="btn-copy-confirmation-code"
                       type="button"
                       (click)="copyConfirmationCode(detail.confirmationCode)"
-                      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold text-emerald-800 uppercase tracking-wider hover:bg-emerald-50 active:bg-emerald-100 transition-colors cursor-pointer group"
+                      class="min-h-11 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold text-emerald-800 uppercase tracking-wider hover:bg-emerald-50 active:bg-emerald-100 transition-colors cursor-pointer group"
                       title="Sao chép mã đặt phòng"
                       aria-label="Sao chép mã đặt phòng"
                     >
@@ -454,7 +455,7 @@ export interface StatusErrorState {
                   <button
                     type="button"
                     (click)="copyConfirmationCode(detail.confirmationCode)"
-                    class="min-h-11 w-full font-mono text-2xl sm:text-3xl font-extrabold text-emerald-600 tracking-wider py-1 select-all cursor-pointer hover:text-emerald-700 transition-colors text-center"
+                    class="min-h-11 w-full font-mono text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 tracking-wider py-1 select-all cursor-pointer hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors text-center"
                     title="Nhấp để sao chép mã đặt phòng"
                     aria-label="Sao chép mã đặt phòng {{ detail.confirmationCode }}"
                   >
@@ -553,7 +554,7 @@ export interface StatusErrorState {
                   <div class="p-4 rounded-xl bg-white border border-slate-200/90 text-xs space-y-2">
                     <div class="flex justify-between items-center text-slate-600">
                       <span>Phí hủy phòng áp dụng:</span>
-                      <span class="font-mono font-bold text-slate-800">{{ detail.cancellationFee | number:'1.0-0' }} ₫</span>
+                      <span class="font-mono font-bold text-slate-800 tabular-nums">{{ detail.cancellationFee | vndCurrency }}</span>
                     </div>
 
                     @if (detail.refundableAmount && detail.refundableAmount > 0) {
@@ -563,7 +564,7 @@ export interface StatusErrorState {
                           <span>Khoản tiền hoàn dự kiến:</span>
                         </span>
                         <div class="flex items-center gap-2">
-                          <span class="font-mono font-black text-sm text-emerald-700">{{ detail.refundableAmount | number:'1.0-0' }} ₫</span>
+                          <span class="font-mono font-black text-sm text-emerald-700 tabular-nums">{{ detail.refundableAmount | vndCurrency }}</span>
                           @if (detail.refundStatus === 'Refunded') {
                             <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                               <i class="pi pi-check text-[10px]"></i>
@@ -595,7 +596,7 @@ export interface StatusErrorState {
                 <div class="pt-2 flex flex-wrap items-center gap-3">
                   <a
                     routerLink="/booking"
-                    class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-2xs"
+                    class="min-h-11 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-2xs"
                   >
                     <i class="pi pi-search text-xs"></i>
                     <span>Tìm và đặt phòng khác</span>
@@ -688,7 +689,7 @@ export interface StatusErrorState {
                 @if (isAlreadyReviewed()) {
                   @let existing = activeExistingReview();
                   @let displayRating = existing?.rating ?? reviewRating();
-                  <section aria-label="Đánh giá đã gửi" class="p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-50 via-teal-50 to-green-50 border border-emerald-200 text-emerald-950 space-y-4 shadow-xs">
+                  <section aria-label="Đánh giá đã gửi" class="p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-50 via-teal-50 to-green-50 dark:from-emerald-950/60 dark:via-slate-900 dark:to-teal-950/50 border border-emerald-200 dark:border-emerald-500/40 text-emerald-950 dark:text-emerald-100 space-y-4 shadow-xs">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0">
@@ -696,7 +697,7 @@ export interface StatusErrorState {
                         </div>
                         <div>
                           <h3 class="text-sm sm:text-base font-bold text-emerald-950">Cảm ơn bạn đã gửi đánh giá!</h3>
-                          <p class="text-xs text-emerald-700">
+                          <p class="text-xs text-emerald-700 dark:text-emerald-300">
                             Đánh giá của bạn đã được đối soát xác thực cho kỳ lưu trú tại {{ detail.propertyName }}.
                           </p>
                         </div>
@@ -977,7 +978,7 @@ export interface StatusErrorState {
                       <button
                         type="button"
                         (click)="copyPin(detail.smartLockPin)"
-                        class="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-semibold text-white transition-colors flex items-center gap-1 cursor-pointer"
+                        class="min-h-11 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-white transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <i class="pi pi-copy text-[10px]"></i>
                         <span>Sao chép PIN</span>
@@ -1060,19 +1061,19 @@ export interface StatusErrorState {
                   <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3 text-xs">
                     <div class="flex justify-between items-center text-slate-600">
                       <span>Tổng tiền lưu trú:</span>
-                      <span class="font-bold text-slate-900 font-mono text-sm">{{ detail.totalAmount | number:'1.0-0' }} ₫</span>
+                      <span class="font-bold text-slate-900 font-mono text-sm tabular-nums">{{ detail.totalAmount | vndCurrency }}</span>
                     </div>
 
                     @if (detail.depositRequired > 0) {
                       <div class="flex justify-between items-center text-slate-600">
                         <span>Khoản đặt cọc yêu cầu:</span>
-                        <span class="font-mono font-semibold text-amber-700">{{ detail.depositRequired | number:'1.0-0' }} ₫</span>
+                        <span class="font-mono font-semibold text-amber-700 tabular-nums">{{ detail.depositRequired | vndCurrency }}</span>
                       </div>
                     }
 
                     <div class="flex justify-between items-center text-emerald-800 bg-emerald-50 rounded-xl p-2.5 border border-emerald-100 font-semibold">
                       <span>Số tiền đã thanh toán:</span>
-                      <span class="font-mono font-bold">{{ detail.paidAmount | number:'1.0-0' }} ₫</span>
+                      <span class="font-mono font-bold tabular-nums">{{ detail.paidAmount | vndCurrency }}</span>
                     </div>
 
                     @if (detail.status === 'PendingPayment' && getRemainingDeposit(detail) > 0) {
@@ -1081,13 +1082,13 @@ export interface StatusErrorState {
                           <i class="pi pi-exclamation-circle text-amber-600 text-xs"></i>
                           <span>Cọc còn thiếu để xác nhận:</span>
                         </span>
-                        <span class="font-mono font-bold text-amber-800">{{ getRemainingDeposit(detail) | number:'1.0-0' }} ₫</span>
+                        <span class="font-mono font-bold text-amber-800 tabular-nums">{{ getRemainingDeposit(detail) | vndCurrency }}</span>
                       </div>
                     }
 
                     <div class="flex justify-between items-center text-indigo-700 font-black text-sm pt-2.5 border-t border-slate-100">
                       <span>Tổng còn phải thanh toán:</span>
-                      <span class="font-mono text-base">{{ detail.remainingBalance | number:'1.0-0' }} ₫</span>
+                      <span class="font-mono text-base tabular-nums">{{ detail.remainingBalance | vndCurrency }}</span>
                     </div>
 
                     @if (detail.isFullyPaid) {
@@ -1193,16 +1194,16 @@ export interface StatusErrorState {
                                   <div class="font-bold text-slate-900 truncate">{{ vietQr()?.bankName || (vietQrError() ? 'Chưa cấu hình ngân hàng' : 'Đang tạo thông tin thanh toán…') }}</div>
                                   <div class="text-slate-500 text-[10px]">CTK: {{ vietQr()?.accountName || '—' }}</div>
                                   <div class="font-mono tabular-nums text-emerald-700 font-bold text-[11px]">
-                                    Số tiền: {{ (vietQr()?.amount ?? getRemainingDeposit(detail)) | number:'1.0-0' }} ₫
+                                    Số tiền: {{ (vietQr()?.amount ?? getRemainingDeposit(detail)) | vndCurrency }}
                                   </div>
                                   <div class="text-amber-800 font-mono font-bold text-[10px] bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 truncate">
                                     CK: {{ vietQr()?.description || ('DATPHONG ' + detail.confirmationCode) }}
                                   </div>
                                   @if (vietQr(); as qr) {
-                                    <div class="flex items-center flex-wrap gap-3 pt-0.5">
-                                      <button type="button" (click)="copyPaymentAccount(qr.accountNumber)" class="text-blue-700 font-semibold underline underline-offset-2 cursor-pointer">Sao chép STK {{ qr.accountNumber }}</button>
+                                    <div class="flex items-center flex-wrap gap-2 pt-1">
+                                      <button type="button" (click)="copyPaymentAccount(qr.accountNumber)" class="min-h-11 px-3 py-2 rounded-lg bg-blue-50/80 dark:bg-blue-500/15 hover:bg-blue-100/80 text-blue-700 dark:text-blue-300 font-semibold underline underline-offset-2 inline-flex items-center cursor-pointer transition-colors">Sao chép STK {{ qr.accountNumber }}</button>
                                       @if (qr.description) {
-                                        <button type="button" (click)="copyTransferContent(qr.description)" class="text-amber-800 font-semibold underline underline-offset-2 cursor-pointer">Sao chép nội dung CK</button>
+                                        <button type="button" (click)="copyTransferContent(qr.description)" class="min-h-11 px-3 py-2 rounded-lg bg-amber-100/70 dark:bg-amber-500/15 hover:bg-amber-200/70 text-amber-800 dark:text-amber-300 font-semibold underline underline-offset-2 inline-flex items-center cursor-pointer transition-colors">Sao chép nội dung CK</button>
                                       }
                                     </div>
                                   } @else if (vietQrError()) {
@@ -1242,7 +1243,7 @@ export interface StatusErrorState {
                                 <span class="text-[11px] font-semibold text-emerald-900">Xác nhận thủ công</span>
                               </div>
                               <p class="text-[11px] text-emerald-950 leading-relaxed">
-                                Nộp cọc <strong>{{ getRemainingDeposit(detail) | number:'1.0-0' }} ₫</strong> tại quầy lễ tân trước khi đồng hồ giữ phòng về 0.
+                                Nộp cọc <strong class="tabular-nums">{{ getRemainingDeposit(detail) | vndCurrency }}</strong> tại quầy lễ tân trước khi đồng hồ giữ phòng về 0.
                                 Nhân viên ghi nhận khoản thu bằng tiền mặt và xác nhận đơn. Nếu chưa nộp cọc trong 15 phút, giữ phòng tự hết hạn.
                               </p>
                             </div>
@@ -1265,7 +1266,7 @@ export interface StatusErrorState {
                       @for (item of detail.breakdown; track item.description) {
                         <div class="flex justify-between items-center text-slate-600 py-2">
                           <span>{{ item.description }} @if (item.quantity > 1) { <span class="text-slate-400 font-mono">(x{{ item.quantity }})</span> }</span>
-                          <span class="font-mono font-medium text-slate-800">{{ item.amount | number:'1.0-0' }} ₫</span>
+                          <span class="font-mono font-medium text-slate-800 tabular-nums">{{ item.amount | vndCurrency }}</span>
                         </div>
                       }
                     </div>
@@ -1281,7 +1282,7 @@ export interface StatusErrorState {
                 <button
                   type="button"
                   (click)="copyToken(detail.lookupToken)"
-                  class="px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  class="min-h-11 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
                 >
                   <i class="pi" [ngClass]="isCopied() ? 'pi-check text-emerald-600' : 'pi-copy'"></i>
                   <span>{{ isCopied() ? 'Đã sao chép mã' : 'Sao chép mã tra cứu' }}</span>
@@ -1293,7 +1294,7 @@ export interface StatusErrorState {
                   <button
                     type="button"
                     (click)="openRescheduleModal()"
-                    class="min-h-[44px] px-4 py-2.5 rounded-xl text-xs font-semibold border border-indigo-200 bg-white hover:bg-indigo-50 text-indigo-700 transition-colors cursor-pointer shadow-2xs flex items-center gap-1.5"
+                    class="min-h-11 px-4 py-2.5 rounded-xl text-xs font-semibold border border-indigo-200 bg-white hover:bg-indigo-50 text-indigo-700 transition-colors cursor-pointer shadow-2xs flex items-center gap-1.5"
                   >
                     <i class="pi pi-calendar text-xs"></i>
                     <span>Đổi lịch lưu trú</span>
@@ -1304,7 +1305,7 @@ export interface StatusErrorState {
                   <button
                     type="button"
                     (click)="openCancelModal()"
-                    class="px-4 py-2.5 rounded-xl text-xs font-semibold border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 transition-colors cursor-pointer shadow-2xs flex items-center gap-1.5"
+                    class="min-h-11 px-4 py-2.5 rounded-xl text-xs font-semibold border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 transition-colors cursor-pointer shadow-2xs flex items-center gap-1.5"
                     [title]="isUnpaidHold(detail) ? 'Hủy lượt giữ phòng này' : 'Yêu cầu hủy đặt phòng và xem trước chính sách hoàn tiền'"
                   >
                     <i class="pi pi-times text-xs"></i>
@@ -1315,7 +1316,7 @@ export interface StatusErrorState {
                 <button
                   type="button"
                   (click)="resetToSearch()"
-                  class="px-4 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer shadow-2xs"
+                  class="min-h-11 px-4 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer shadow-2xs inline-flex items-center justify-center"
                 >
                   Tra cứu mã khác
                 </button>
@@ -1323,14 +1324,14 @@ export interface StatusErrorState {
                 @if (detail.status === 'Expired' || detail.status === 'Cancelled') {
                   <a
                     routerLink="/booking"
-                    class="px-5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white transition-colors cursor-pointer shadow-xs"
+                    class="min-h-11 inline-flex items-center justify-center px-5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white transition-colors cursor-pointer shadow-xs"
                   >
                     Đặt phòng khác
                   </a>
                 } @else {
                   <a
                     routerLink="/booking"
-                    class="px-4 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer shadow-2xs"
+                    class="min-h-11 inline-flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer shadow-2xs"
                   >
                     Đặt phòng khác
                   </a>
@@ -1467,19 +1468,19 @@ export interface StatusErrorState {
                 <tbody class="divide-y divide-slate-200">
                   <tr>
                     <td class="py-1.5 px-3 text-slate-800">Tổng tiền lưu trú (Đã bao gồm thuế & phí)</td>
-                    <td class="py-1.5 px-3 text-right font-medium text-slate-900">{{ detail.totalAmount | number }} đ</td>
+                    <td class="py-1.5 px-3 text-right font-medium text-slate-900 tabular-nums">{{ detail.totalAmount | vndCurrency }}</td>
                   </tr>
                   <tr>
                     <td class="py-1.5 px-3 text-slate-800">Khoản đặt cọc yêu cầu</td>
-                    <td class="py-1.5 px-3 text-right font-medium text-slate-900">{{ detail.depositRequired | number }} đ</td>
+                    <td class="py-1.5 px-3 text-right font-medium text-slate-900 tabular-nums">{{ detail.depositRequired | vndCurrency }}</td>
                   </tr>
                   <tr>
                     <td class="py-1.5 px-3 text-slate-800">Số tiền đã thanh toán</td>
-                    <td class="py-1.5 px-3 text-right font-semibold text-emerald-700">{{ detail.paidAmount | number }} đ</td>
+                    <td class="py-1.5 px-3 text-right font-semibold text-emerald-700 tabular-nums">{{ detail.paidAmount | vndCurrency }}</td>
                   </tr>
                   <tr class="bg-slate-50 font-bold">
                     <td class="py-2 px-3 text-slate-900 uppercase text-[11px]">Tổng còn phải thanh toán</td>
-                    <td class="py-2 px-3 text-right text-sm text-slate-900 font-mono font-bold">{{ detail.remainingBalance | number }} đ</td>
+                    <td class="py-2 px-3 text-right text-sm text-slate-900 font-mono tabular-nums font-bold">{{ detail.remainingBalance | vndCurrency }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -1505,8 +1506,8 @@ export interface StatusErrorState {
                       <tr>
                         <td class="py-1 px-2 text-slate-700">{{ item.description }}</td>
                         <td class="py-1 px-2 text-center text-slate-600">{{ item.quantity }}</td>
-                        <td class="py-1 px-2 text-right text-slate-600">{{ item.unitPrice | number }} đ</td>
-                        <td class="py-1 px-2 text-right font-medium text-slate-800">{{ item.amount | number }} đ</td>
+                        <td class="py-1 px-2 text-right text-slate-600 tabular-nums">{{ item.unitPrice | vndCurrency }}</td>
+                        <td class="py-1 px-2 text-right font-medium text-slate-800 tabular-nums">{{ item.amount | vndCurrency }}</td>
                       </tr>
                     }
                   </tbody>
@@ -1698,11 +1699,11 @@ export interface StatusErrorState {
                 <div class="space-y-2 text-slate-700 tabular-nums">
                   <div class="flex justify-between items-center">
                     <span>Tổng tiền phòng:</span>
-                    <span class="font-mono font-semibold text-slate-900">{{ prev.totalAmount | number:'1.0-0' }} ₫</span>
+                    <span class="font-mono font-semibold text-slate-900">{{ prev.totalAmount | vndCurrency }}</span>
                   </div>
                   <div class="flex justify-between items-center">
                     <span>Số tiền khách đã thanh toán:</span>
-                    <span class="font-mono font-semibold text-slate-900">{{ prev.paidAmount | number:'1.0-0' }} ₫</span>
+                    <span class="font-mono font-semibold text-slate-900">{{ prev.paidAmount | vndCurrency }}</span>
                   </div>
                   <div class="flex justify-between items-center text-rose-700">
                     <span class="font-semibold text-rose-900">
@@ -1711,7 +1712,7 @@ export interface StatusErrorState {
                         <strong class="font-bold text-rose-700">({{ getCancellationFeePercent(prev) }}%)</strong>
                       }:
                     </span>
-                    <span class="font-mono font-bold text-rose-700">{{ prev.cancellationFee | number:'1.0-0' }} ₫</span>
+                    <span class="font-mono font-bold text-rose-700">{{ prev.cancellationFee | vndCurrency }}</span>
                   </div>
                   @if (prev.pointsRefundable > 0) {
                     <div class="flex justify-between items-center text-indigo-700">
@@ -1724,7 +1725,7 @@ export interface StatusErrorState {
                 <!-- Highlight Refundable Amount -->
                 <div class="pt-3 border-t border-slate-200 flex items-center justify-between font-black text-sm text-emerald-800 bg-emerald-50/80 -mx-4 -mb-4 p-4 rounded-b-2xl tabular-nums">
                   <span>Khoản tiền dự kiến hoàn trả:</span>
-                  <span class="font-mono text-base text-emerald-700">{{ prev.refundableAmount | number:'1.0-0' }} ₫</span>
+                  <span class="font-mono text-base text-emerald-700">{{ prev.refundableAmount | vndCurrency }}</span>
                 </div>
               </div>
 
@@ -1736,7 +1737,7 @@ export interface StatusErrorState {
                     <span>Quy trình hủy phòng & hoàn tiền:</span>
                   </div>
                   <p class="leading-relaxed text-[11px] text-amber-950 font-medium">
-                    Đặt phòng sẽ được hủy sau khi bạn xác nhận. Khoản hoàn dự kiến <strong class="font-bold font-mono tabular-nums text-amber-950">{{ prev.refundableAmount | number:'1.0-0' }} ₫</strong> sẽ được khách sạn kiểm tra và xử lý theo quy trình hoàn tiền. Đây chưa phải khoản tiền đã được hoàn.
+                    Đặt phòng sẽ được hủy sau khi bạn xác nhận. Khoản hoàn dự kiến <strong class="font-bold font-mono tabular-nums text-amber-950">{{ prev.refundableAmount | vndCurrency }}</strong> sẽ được khách sạn kiểm tra và xử lý theo quy trình hoàn tiền. Đây chưa phải khoản tiền đã được hoàn.
                   </p>
                 </div>
               }
@@ -1977,11 +1978,12 @@ export interface StatusErrorState {
     </div>
   `
 })
-export class BookingStatusPage implements OnInit {
+export class BookingStatusPage implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly publicBookingService = inject(PublicBookingService);
   private readonly alertService = inject(AlertService);
+  private readonly vndCurrency = new VndCurrencyPipe();
 
   readonly devMode = isDevMode();
   readonly showVnpay = environment.enableVnpay;
@@ -3550,7 +3552,7 @@ export class BookingStatusPage implements OnInit {
         } else {
           const refAmount = updated.refundableAmount ?? prev.refundableAmount ?? 0;
           if (refAmount > 0) {
-            const formattedAmount = refAmount.toLocaleString('vi-VN') + ' ₫';
+            const formattedAmount = this.vndCurrency.transform(refAmount);
             this.alertService.toastSuccess(
               `Đặt phòng đã được hủy thành công. Khoản tiền hoàn dự kiến ${formattedAmount} đã được ghi nhận và đang chờ khách sạn đối soát, xử lý theo phương thức hoàn tiền được xác nhận (chưa chi trả thực tế).`
             );
@@ -3732,6 +3734,7 @@ export class BookingStatusPage implements OnInit {
       document.removeEventListener('visibilitychange', this.onVisibilityChange);
     }
     this.clearTimer();
+    this.stopPolling();
     if (this.copyTimeout) {
       clearTimeout(this.copyTimeout);
       this.copyTimeout = undefined;
