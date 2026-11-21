@@ -167,7 +167,7 @@ public sealed class AuthController : ControllerBase
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public Task<IActionResult> SocialLogin(
-        [FromBody] HotelSaas.Application.Auth.Commands.SocialLogin.SocialLoginCommand? command = null,
+        [FromBody] object? payload = null,
         CancellationToken cancellationToken = default)
     {
         return Task.FromResult<IActionResult>(StatusCode(StatusCodes.Status503ServiceUnavailable,

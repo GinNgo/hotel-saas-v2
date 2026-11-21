@@ -14,6 +14,7 @@ import { PhotoGalleryModalComponent, GalleryPhotoItem } from '../../shared';
 import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 import { resolvePropertyGallery, resolveRoomThumbnail } from '../../core/utils';
 import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-time.util';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-property-detail',
@@ -826,7 +827,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                 <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600 space-y-1">
                   <div class="flex items-center gap-1.5 font-semibold text-[var(--text-primary)]">
                     <i class="pi pi-bolt text-emerald-600"></i>
-                    <span>Xác nhận tức thì qua VietQR / VNPay</span>
+                    <span>{{ showVnpay ? 'Xác nhận tức thì qua VietQR / VNPay' : 'Xác nhận tức thì qua VietQR (SePay)' }}</span>
                   </div>
                   <p class="text-[11px] text-[var(--text-muted)] leading-relaxed">
                     Thông báo trực tiếp cho Lễ tân cơ sở qua SignalR Realtime ngay khi thanh toán thành công.
@@ -873,6 +874,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
 })
 export class PropertyDetailPageComponent implements OnInit {
   protected readonly Math = Math;
+  readonly showVnpay = environment.enableVnpay;
   readonly checkInDateValue = computed(() => parseCalendarDate(this.stay().checkInDate));
   readonly checkOutDateValue = computed(() => parseCalendarDate(this.stay().checkOutDate));
 

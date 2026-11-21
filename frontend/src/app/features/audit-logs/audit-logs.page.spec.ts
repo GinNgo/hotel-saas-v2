@@ -127,6 +127,7 @@ describe('AuditLogsPage — T03-C UI Tests', () => {
         tenantId: '11111111-1111-1111-1111-111111111111'
       },
       activePropertyId: vi.fn().mockReturnValue('22222222-2222-2222-2222-222222222222'),
+      activePropertyCode: vi.fn().mockReturnValue('DL-01'),
       activeRoleName: vi.fn().mockReturnValue('Owner'),
       memberships: [
         {
@@ -140,7 +141,9 @@ describe('AuditLogsPage — T03-C UI Tests', () => {
 
     mockAlertService = {
       error: vi.fn(),
-      success: vi.fn()
+      success: vi.fn(),
+      toastSuccess: vi.fn(),
+      toastWarning: vi.fn()
     };
 
     mockRouter = {
@@ -341,6 +344,54 @@ describe('AuditLogsPage — T03-C UI Tests', () => {
 
     expect(component.isDetailModalOpen()).toBe(false);
     expect(component.selectedDetail()).toBe(null);
+  });
+
+  it('15. should paginate CSV export in chunks of pageSize 100 until hasNextPage is false without exceeding backend limit', () => {
+    const createObjectURL = vi.fn().mockReturnValue('blob:mock-csv');
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, configurable: true, writable: true });
+    Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectURL, configurable: true, writable: true });
+
+    const page1Items = Array.from({ length: 100 }, (_, i) => ({
+      ...sampleItems[0],
+      id: `p1-${i}`
+    }));
+    const page2Items = Array.from({ length: 25 }, (_, i) => ({
+      ...sampleItems[1],
+      id: `p2-${i}`
+    }));
+
+    component.auditLogs.set(sampleItems);
+    component.totalRecords.set(125);
+    mockAuditLogService.getAuditLogs.mockReset();
+    mockAuditLogService.getAuditLogs
+      .mockReturnValueOnce(of({
+        success: true,
+        data: { items: page1Items, totalCount: 125, page: 1, pageSize: 100, totalPages: 2, hasPreviousPage: false, hasNextPage: true },
+        message: null,
+        timestamp: new Date().toISOString()
+      }))
+      .mockReturnValueOnce(of({
+        success: true,
+        data: { items: page2Items, totalCount: 125, page: 2, pageSize: 100, totalPages: 2, hasPreviousPage: true, hasNextPage: false },
+        message: null,
+        timestamp: new Date().toISOString()
+      }));
+
+    component.exportToCsv();
+
+    expect(mockAuditLogService.getAuditLogs).toHaveBeenCalledTimes(2);
+    expect(mockAuditLogService.getAuditLogs).toHaveBeenNthCalledWith(1, expect.objectContaining({ page: 1, pageSize: 100 }));
+    expect(mockAuditLogService.getAuditLogs).toHaveBeenNthCalledWith(2, expect.objectContaining({ page: 2, pageSize: 100 }));
+    expect(component.exporting()).toBe(false);
+    expect(mockAlertService.toastSuccess).toHaveBeenCalledWith(expect.stringContaining('125 bản ghi'));
+  });
+
+  it('16. should display Vietnamese labels for platform audit entities (TenantStatus, PropertyPublishApproval, SubscriptionUpgrade, GuestReview)', () => {
+    expect(component.getEntityDisplayLabel('TenantStatus')).toBe('Trạng thái thuê bao');
+    expect(component.getEntityDisplayLabel('PropertyPublishApproval')).toBe('Duyệt xuất bản cơ sở');
+    expect(component.getEntityDisplayLabel('SubscriptionUpgrade')).toBe('Nâng cấp gói cước');
+    expect(component.getEntityDisplayLabel('GuestReview')).toBe('Đánh giá khách lưu trú');
   });
 });
 

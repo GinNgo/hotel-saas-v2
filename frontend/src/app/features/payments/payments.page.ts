@@ -35,7 +35,8 @@ import {
   FolioDto,
   ShiftReportDto,
   ShiftType,
-  SHIFT_TYPE_LABELS
+  SHIFT_TYPE_LABELS,
+  VietQrResultDto
 } from '../../core/models/payment.model';
 import {
   PageHeaderComponent,
@@ -836,18 +837,112 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                     </div>
                   </div>
 
-                  <!-- Bank Transfer Guidance (No unverified fake bank accounts) -->
+                  <!-- Live Dynamic VietQR Block (POST /api/payments/vietqr/generate) -->
                   @if (paymentMethod() === PaymentMethod.BankTransfer) {
-                    <div class="p-3 bg-amber-50/80 rounded-xl border border-amber-200 text-amber-900 space-y-1.5 shadow-2xs">
-                      <div class="flex items-start gap-1.5">
-                        <i class="pi pi-info-circle text-amber-600 text-xs mt-0.5 shrink-0"></i>
-                        <span class="text-[11px] font-semibold">Chưa có cấu hình VietQR chính thức:</span>
+                    @if (isLoadingCashierVietQr()) {
+                      <div class="p-3 bg-blue-50/70 rounded-xl border border-blue-200 text-blue-900 flex items-center gap-2 text-xs">
+                        <i class="pi pi-spin pi-spinner text-blue-600 text-xs"></i>
+                        <span>Đang tạo mã VietQR động cho đơn {{ f.confirmationCode }}...</span>
                       </div>
-                      <p class="text-[10px] text-amber-800 leading-relaxed">
-                        Hệ thống không hiển thị mã QR chuyển khoản do cơ sở chưa thiết lập tài khoản ngân hàng thụ hưởng được nhóm xác nhận.
-                        Thu ngân vui lòng hướng dẫn khách chuyển khoản theo số tài khoản do quản lý chi nhánh chỉ định và đối chiếu số tiền thực nhận.
-                      </p>
-                    </div>
+                    } @else if (cashierVietQr(); as qr) {
+                      <div
+                        data-testid="cashier-vietqr-panel"
+                        class="p-3.5 bg-white rounded-xl border-2 border-blue-200 shadow-2xs space-y-2.5"
+                      >
+                        <div class="flex items-center justify-between gap-2">
+                          <span class="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-900">
+                            <i class="pi pi-qrcode text-blue-600"></i>
+                            <span>VietQR 24/7 — Tự động đối soát SePay</span>
+                          </span>
+                          <button
+                            type="button"
+                            (click)="loadCashierVietQr()"
+                            class="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1 cursor-pointer"
+                            title="Tạo lại mã QR theo số tiền thu hiện tại"
+                          >
+                            <i class="pi pi-refresh text-[10px]"></i>
+                            <span>Cập nhật QR</span>
+                          </button>
+                        </div>
+
+                        <div class="flex items-start gap-3">
+                          <img
+                            [src]="qr.qrImageUrl"
+                            alt="Mã VietQR thanh toán"
+                            width="96"
+                            height="96"
+                            loading="lazy"
+                            class="w-24 h-24 object-contain rounded-lg border border-slate-200 bg-white p-1 shrink-0"
+                          />
+                          <div class="text-[11px] space-y-1 min-w-0 flex-1">
+                            <div class="font-bold text-slate-900 truncate">{{ qr.bankName }}</div>
+                            <div class="text-slate-600 flex items-center gap-1.5 flex-wrap">
+                              <span>STK: <strong class="font-mono text-indigo-700">{{ qr.accountNumber }}</strong></span>
+                              <button
+                                type="button"
+                                (click)="copyCashierQrField(qr.accountNumber, 'account')"
+                                class="text-[10px] font-semibold text-blue-700 hover:underline cursor-pointer"
+                              >
+                                {{ copiedCashierQrField() === 'account' ? 'Đã chép' : 'Sao chép' }}
+                              </button>
+                            </div>
+                            <div class="text-slate-600 truncate">
+                              Chủ TK: <strong class="text-slate-900">{{ qr.accountName }}</strong>
+                            </div>
+                            <div class="text-emerald-700 font-mono font-bold tabular-nums">
+                              Số tiền: {{ qr.amount | vndCurrency }}
+                            </div>
+                            <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
+                              <span class="px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 font-mono font-bold text-[10px] text-amber-900 break-all">
+                                {{ qr.description }}
+                              </span>
+                              <button
+                                type="button"
+                                (click)="copyCashierQrField(qr.description, 'memo')"
+                                class="text-[10px] font-semibold text-amber-800 hover:underline cursor-pointer"
+                              >
+                                {{ copiedCashierQrField() === 'memo' ? 'Đã chép nội dung' : 'Sao chép nội dung CK' }}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    } @else if (cashierVietQrUnconfigured()) {
+                      <div
+                        data-testid="cashier-vietqr-unconfigured"
+                        class="p-3 bg-amber-50/80 rounded-xl border border-amber-200 text-amber-900 space-y-1.5 shadow-2xs"
+                      >
+                        <div class="flex items-start gap-1.5">
+                          <i class="pi pi-info-circle text-amber-600 text-xs mt-0.5 shrink-0"></i>
+                          <span class="text-[11px] font-semibold">Chưa cấu hình tài khoản ngân hàng VietQR</span>
+                        </div>
+                        <p class="text-[10px] text-amber-800 leading-relaxed">
+                          Cơ sở chưa thiết lập tài khoản ngân hàng thụ hưởng để sinh mã VietQR động.
+                          Quản lý vui lòng cấu hình thông tin ngân hàng tại mục Chính sách &amp; Mẫu in hoặc đối chiếu chuyển khoản thủ công.
+                        </p>
+                        <a
+                          href="/policies"
+                          (click)="openPoliciesPage($event)"
+                          class="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 hover:text-indigo-900 underline underline-offset-2"
+                        >
+                          <i class="pi pi-cog text-[10px]"></i>
+                          <span>Đi tới cấu hình tài khoản ngân hàng (/policies)</span>
+                        </a>
+                      </div>
+                    } @else if (cashierVietQrError()) {
+                      <div class="p-3 bg-rose-50/80 rounded-xl border border-rose-200 text-rose-900 space-y-1.5 text-[11px]">
+                        <div class="flex items-center justify-between gap-2">
+                          <span>{{ cashierVietQrError() }}</span>
+                          <button
+                            type="button"
+                            (click)="loadCashierVietQr()"
+                            class="font-bold text-rose-700 hover:underline cursor-pointer shrink-0"
+                          >
+                            Thử lại
+                          </button>
+                        </div>
+                      </div>
+                    }
                   }
 
                   <!-- Transaction Ref -->
@@ -1415,6 +1510,11 @@ export class PaymentsPage implements OnInit, OnDestroy {
   readonly isBankTransferConfirmed = signal<boolean>(false);
   readonly isDepositPayment = signal<boolean>(false);
   readonly isSubmittingPayment = signal<boolean>(false);
+  readonly cashierVietQr = signal<VietQrResultDto | null>(null);
+  readonly isLoadingCashierVietQr = signal<boolean>(false);
+  readonly cashierVietQrError = signal<string | null>(null);
+  readonly cashierVietQrUnconfigured = signal<boolean>(false);
+  readonly copiedCashierQrField = signal<'account' | 'memo' | null>(null);
   readonly receiptVoucher = signal<{
     paymentId: string;
     reservationId: string;
@@ -1429,6 +1529,9 @@ export class PaymentsPage implements OnInit, OnDestroy {
   private submitPaymentSub?: Subscription;
   private recentReservationsSub?: Subscription;
   private reservationLookupSub?: Subscription;
+  private cashierVietQrSub?: Subscription;
+  private cashierVietQrRequestId = 0;
+  private cashierQrCopyTimer: ReturnType<typeof setTimeout> | null = null;
   private activePaymentIntent: {
     key: string;
     reservationId: string;
@@ -1445,6 +1548,19 @@ export class PaymentsPage implements OnInit, OnDestroy {
       const canRead = this.canReadPayments();
       untracked(() => {
         this.handlePropertyContextChange(propId, canRead);
+      });
+    });
+
+    effect(() => {
+      const method = this.paymentMethod();
+      const activeFolio = this.folio();
+      const propId = this.activePropertyId();
+      untracked(() => {
+        if (method === PaymentMethod.BankTransfer && activeFolio && propId && !this.isAccessDenied()) {
+          this.loadCashierVietQr();
+        } else {
+          this.resetCashierVietQrState();
+        }
       });
     });
 
@@ -1522,6 +1638,10 @@ export class PaymentsPage implements OnInit, OnDestroy {
       this.reservationLookupSub.unsubscribe();
       this.reservationLookupSub = undefined;
     }
+    if (this.cashierVietQrSub && !this.cashierVietQrSub.closed) {
+      this.cashierVietQrSub.unsubscribe();
+      this.cashierVietQrSub = undefined;
+    }
   }
 
   /**
@@ -1556,6 +1676,7 @@ export class PaymentsPage implements OnInit, OnDestroy {
     this.folio.set(null);
     this.folioError.set(null);
     this.receiptVoucher.set(null);
+    this.resetCashierVietQrState();
   }
 
   /**
@@ -1619,6 +1740,7 @@ export class PaymentsPage implements OnInit, OnDestroy {
     this.recentReservations.set([]);
     this.receiptVoucher.set(null);
     this.isDepositPayment.set(false);
+    this.resetCashierVietQrState();
 
     if (!propId) {
       this.isLoadingSummary.set(false);
@@ -1733,6 +1855,10 @@ export class PaymentsPage implements OnInit, OnDestroy {
     if (this.filterDebounceTimer) {
       clearTimeout(this.filterDebounceTimer);
       this.filterDebounceTimer = null;
+    }
+    if (this.cashierQrCopyTimer) {
+      clearTimeout(this.cashierQrCopyTimer);
+      this.cashierQrCopyTimer = null;
     }
     this.summaryRequestId++;
     this.paymentsRequestId++;
@@ -2151,6 +2277,126 @@ export class PaymentsPage implements OnInit, OnDestroy {
 
   fillRemainingBalance(amount: number): void {
     this.paymentAmount = Math.max(0, amount);
+    if (this.paymentMethod() === PaymentMethod.BankTransfer && this.folio()) {
+      this.loadCashierVietQr();
+    }
+  }
+
+  private resetCashierVietQrState(): void {
+    this.cashierVietQrRequestId++;
+    if (this.cashierVietQrSub && !this.cashierVietQrSub.closed) {
+      this.cashierVietQrSub.unsubscribe();
+      this.cashierVietQrSub = undefined;
+    }
+    this.cashierVietQr.set(null);
+    this.isLoadingCashierVietQr.set(false);
+    this.cashierVietQrError.set(null);
+    this.cashierVietQrUnconfigured.set(false);
+  }
+
+  loadCashierVietQr(): void {
+    const activeFolio = this.folio();
+    const propId = this.activePropertyId();
+    if (!activeFolio || !propId || this.isAccessDenied()) {
+      this.resetCashierVietQrState();
+      return;
+    }
+
+    const reqId = ++this.cashierVietQrRequestId;
+    if (this.cashierVietQrSub && !this.cashierVietQrSub.closed) {
+      this.cashierVietQrSub.unsubscribe();
+      this.cashierVietQrSub = undefined;
+    }
+
+    if (typeof this.paymentService.generateVietQr !== 'function') {
+      this.cashierVietQr.set(null);
+      this.isLoadingCashierVietQr.set(false);
+      this.cashierVietQrError.set(null);
+      this.cashierVietQrUnconfigured.set(true);
+      this.cdr?.markForCheck();
+      return;
+    }
+
+    const qrAmount =
+      Number(this.paymentAmount) > 0
+        ? Number(this.paymentAmount)
+        : activeFolio.remainingBalance > 0
+          ? activeFolio.remainingBalance
+          : activeFolio.totalAmount;
+
+    if (!qrAmount || qrAmount <= 0) {
+      this.cashierVietQr.set(null);
+      this.isLoadingCashierVietQr.set(false);
+      this.cashierVietQrUnconfigured.set(false);
+      this.cashierVietQrError.set('Vui lòng nhập số tiền lớn hơn 0 để tạo mã VietQR.');
+      this.cdr?.markForCheck();
+      return;
+    }
+
+    this.isLoadingCashierVietQr.set(true);
+    this.cashierVietQrError.set(null);
+    this.cashierVietQrUnconfigured.set(false);
+
+    this.cashierVietQrSub = this.paymentService
+      .generateVietQr(
+        {
+          amount: qrAmount,
+          confirmationCode: activeFolio.confirmationCode,
+          reservationId: activeFolio.reservationId,
+          propertyId: propId
+        },
+        propId
+      )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: qr => {
+          if (reqId !== this.cashierVietQrRequestId || this.activePropertyId() !== propId) return;
+          this.cashierVietQr.set(qr);
+          this.isLoadingCashierVietQr.set(false);
+          this.cashierVietQrUnconfigured.set(false);
+          this.cashierVietQrError.set(null);
+          this.cdr?.markForCheck();
+        },
+        error: (err: HttpErrorResponse) => {
+          if (reqId !== this.cashierVietQrRequestId) return;
+          this.cashierVietQr.set(null);
+          this.isLoadingCashierVietQr.set(false);
+          const errCode = err?.error?.errorCode || err?.error?.code;
+          if (err?.status === 422 || errCode === 'ERR_BANK_ACCOUNT_NOT_CONFIGURED') {
+            this.cashierVietQrUnconfigured.set(true);
+            this.cashierVietQrError.set(null);
+          } else {
+            this.cashierVietQrUnconfigured.set(false);
+            this.cashierVietQrError.set(
+              err?.error?.message || 'Không thể sinh mã VietQR lúc này. Vui lòng thử lại.'
+            );
+          }
+          this.cdr?.markForCheck();
+        }
+      });
+  }
+
+  copyCashierQrField(value: string, field: 'account' | 'memo'): void {
+    if (!value || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return;
+    navigator.clipboard.writeText(value).then(() => {
+      this.copiedCashierQrField.set(field);
+      if (this.cashierQrCopyTimer) {
+        clearTimeout(this.cashierQrCopyTimer);
+      }
+      this.cashierQrCopyTimer = setTimeout(() => {
+        this.copiedCashierQrField.set(null);
+        this.cashierQrCopyTimer = null;
+        this.cdr?.markForCheck();
+      }, 2000);
+      this.cdr?.markForCheck();
+    }).catch(() => {});
+  }
+
+  openPoliciesPage(event: Event): void {
+    if (this.router) {
+      event.preventDefault();
+      void this.router.navigate(['/policies']);
+    }
   }
 
   toggleBankTransferConfirmed(): void {

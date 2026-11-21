@@ -16,9 +16,11 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { A11yModule } from '@angular/cdk/a11y';
 import { ScrollingModule } from '@angular/cdk/scrolling';
+import { EMPTY, catchError, expand, of, reduce } from 'rxjs';
 import { AuditLogService } from '../../core/services/audit-log.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
+import { ApiResponse, PagedResult } from '../../core/models/api-response.model';
 import { AuditFieldChange, AuditLogDetail, AuditLogFilterParams, AuditLogListItem } from '../../core/models/audit-log.model';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
@@ -133,6 +135,10 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                 <option value="HousekeepingTask">Buồng phòng (Housekeeping)</option>
                 @if (isSuperAdmin()) {
                   <option value="Tenant">Khách hàng / Chuỗi khách sạn (Tenant)</option>
+                  <option value="TenantStatus">Trạng thái thuê bao (TenantStatus)</option>
+                  <option value="PropertyPublishApproval">Duyệt xuất bản cơ sở (PropertyPublishApproval)</option>
+                  <option value="SubscriptionUpgrade">Nâng cấp gói cước (SubscriptionUpgrade)</option>
+                  <option value="GuestReview">Đánh giá khách lưu trú (GuestReview)</option>
                   <option value="TenantContract">Hợp đồng SaaS (TenantContract)</option>
                   <option value="SubscriptionPlan">Gói dịch vụ (SubscriptionPlan)</option>
                   <option value="User">Tài khoản người dùng (User)</option>
@@ -1019,40 +1025,70 @@ export class AuditLogsPage implements OnInit {
       return;
     }
 
-    const params: AuditLogFilterParams = {
+    const EXPORT_PAGE_SIZE = 100;
+    const MAX_EXPORT_PAGES = 10;
+    const MAX_EXPORT_ROWS = 1000;
+
+    const baseParams: Omit<AuditLogFilterParams, 'page' | 'pageSize'> = {
       action: this.selectedAction.trim() || undefined,
       entityName: this.selectedEntityName.trim() || undefined,
-      propertyId: this.authService.activePropertyId() || undefined,
-      page: 1,
-      pageSize: Math.min(Math.max(totalCount, 50), 1000)
+      propertyId: this.authService.activePropertyId() || undefined
     };
 
     if (this.fromUtc) {
-      params.fromUtc = this.fromUtc;
+      baseParams.fromUtc = this.fromUtc;
     } else if (this.fromDate) {
-      params.fromUtc = new Date(this.fromDate + 'T00:00:00Z').toISOString();
+      baseParams.fromUtc = new Date(this.fromDate + 'T00:00:00Z').toISOString();
     }
     if (this.toUtc) {
-      params.toUtc = this.toUtc;
+      baseParams.toUtc = this.toUtc;
     } else if (this.toDate) {
-      params.toUtc = new Date(this.toDate + 'T23:59:59Z').toISOString();
+      baseParams.toUtc = new Date(this.toDate + 'T23:59:59Z').toISOString();
     }
     if (this.searchKeyword.trim()) {
       const kw = this.searchKeyword.trim();
       if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(kw)) {
-        params.entityId = kw;
+        baseParams.entityId = kw;
       } else {
-        params.search = kw;
+        baseParams.search = kw;
       }
     }
 
-    this.auditLogService
-      .getAuditLogs(params)
-      .pipe(takeUntilDestroyed(this.destroyRef))
+    const fetchPage = (page: number) =>
+      this.auditLogService
+        .getAuditLogs({ ...baseParams, page, pageSize: EXPORT_PAGE_SIZE })
+        .pipe(catchError(() => of(null)));
+
+    fetchPage(1)
+      .pipe(
+        expand((res, index) => {
+          const currentPageNum = index + 1;
+          const data = res?.success ? res.data : null;
+          if (!data || currentPageNum >= MAX_EXPORT_PAGES) {
+            return EMPTY;
+          }
+          const hasMore =
+            data.hasNextPage === true ||
+            (data.hasNextPage === undefined &&
+              data.items.length >= EXPORT_PAGE_SIZE &&
+              currentPageNum * EXPORT_PAGE_SIZE < (data.totalCount ?? 0));
+          return hasMore ? fetchPage(currentPageNum + 1) : EMPTY;
+        }),
+        reduce<ApiResponse<PagedResult<AuditLogListItem>> | null, AuditLogListItem[]>((acc, res) => {
+          if (res?.success && res.data?.items?.length) {
+            const remaining = MAX_EXPORT_ROWS - acc.length;
+            if (remaining > 0) {
+              acc.push(...res.data.items.slice(0, remaining));
+            }
+          }
+          return acc;
+        }, []),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
-        next: res => {
+        next: collected => {
           this.exporting.set(false);
-          const exportItems = res.success && res.data && res.data.items.length > 0 ? res.data.items : currentItems;
+          const exportItems = collected.length > 0 ? collected : currentItems;
           this.generateAndDownloadCsv(exportItems);
         },
         error: () => {
@@ -1217,6 +1253,16 @@ export class AuditLogsPage implements OnInit {
       case 'Create': return 'Tạo mới';
       case 'Update': return 'Chỉnh sửa';
       case 'Delete': return 'Xóa';
+      case 'StatusToggle': return 'Đổi trạng thái';
+      case 'PublishApproval': return 'Duyệt xuất bản';
+      case 'Upgrade': return 'Nâng cấp gói';
+      case 'Cancel': return 'Hủy';
+      case 'Reschedule': return 'Đổi lịch';
+      case 'MarkNoShow': return 'Đánh dấu No-Show';
+      case 'NightAuditAutoNoShow': return 'Night Audit No-Show';
+      case 'ApproveRefund': return 'Duyệt hoàn tiền';
+      case 'RejectRefund': return 'Từ chối hoàn tiền';
+      case 'ConfirmRefundPayout': return 'Xác nhận chi hoàn';
       default: return action || 'Không xác định';
     }
   }
@@ -1253,6 +1299,10 @@ export class AuditLogsPage implements OnInit {
       case 'AccessRole': return 'Chức vụ & Quyền hạn';
       case 'HousekeepingTask': return 'Nhiệm vụ buồng phòng';
       case 'Tenant': return 'Khách hàng / Chuỗi (Tenant)';
+      case 'TenantStatus': return 'Trạng thái thuê bao';
+      case 'PropertyPublishApproval': return 'Duyệt xuất bản cơ sở';
+      case 'SubscriptionUpgrade': return 'Nâng cấp gói cước';
+      case 'GuestReview': return 'Đánh giá khách lưu trú';
       case 'TenantContract': return 'Hợp đồng SaaS';
       case 'SubscriptionPlan': return 'Gói cước SaaS';
       case 'User': return 'Tài khoản người dùng';

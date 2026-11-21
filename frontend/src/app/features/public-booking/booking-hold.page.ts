@@ -18,6 +18,7 @@ import { GuestAccountService } from '../../core/services/guest-account.service';
 import { GuestLoyaltyMembershipDto, GuestMeDto } from '../../core/models/guest-account.model';
 import { UserDto } from '../../core/models/auth.model';
 import { HasUnsavedChanges } from '../../core/guards/unsaved-changes.guard';
+import { environment } from '../../../environments/environment';
 
 type UserDtoWithVerification = UserDto & {
   isPhoneVerified?: boolean;
@@ -535,18 +536,23 @@ type QuoteWithPromo = QuoteDto & {
                   <h3 id="payment-method-label" class="text-sm font-bold text-slate-800">Chọn cách thanh toán tiền cọc</h3>
                   <p class="text-xs text-slate-500 mt-1">Phòng chỉ được xác nhận sau khi khách sạn ghi nhận đủ khoản cọc.</p>
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                  <button type="button" (click)="selectPaymentMethod('VNPay')"
-                    [class.ring-2]="selectedPaymentMethod === 'VNPay'" [class.ring-blue-600]="selectedPaymentMethod === 'VNPay'"
-                    class="text-left rounded-xl border border-slate-200 bg-white p-3 hover:border-blue-400 transition-colors cursor-pointer">
-                    <span class="block text-xs font-bold text-slate-900">Thẻ / VNPay-QR</span>
-                    <span class="block text-[11px] text-slate-500 mt-1">Thanh toán cọc qua VNPay Sandbox.</span>
-                  </button>
+                <div
+                  class="grid gap-3"
+                  [ngClass]="showVnpay ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3'"
+                >
+                  @if (showVnpay) {
+                    <button type="button" (click)="selectPaymentMethod('VNPay')"
+                      [class.ring-2]="selectedPaymentMethod === 'VNPay'" [class.ring-blue-600]="selectedPaymentMethod === 'VNPay'"
+                      class="text-left rounded-xl border border-slate-200 bg-white p-3 hover:border-blue-400 transition-colors cursor-pointer">
+                      <span class="block text-xs font-bold text-slate-900">Thẻ / VNPay-QR</span>
+                      <span class="block text-[11px] text-slate-500 mt-1">Thanh toán cọc qua VNPay Sandbox.</span>
+                    </button>
+                  }
                   <button type="button" (click)="selectPaymentMethod('VietQR')"
                     [class.ring-2]="selectedPaymentMethod === 'VietQR'" [class.ring-amber-500]="selectedPaymentMethod === 'VietQR'"
                     class="text-left rounded-xl border border-slate-200 bg-white p-3 hover:border-amber-400 transition-colors cursor-pointer">
                     <span class="block text-xs font-bold text-slate-900">Chuyển khoản VietQR</span>
-                    <span class="block text-[11px] text-slate-500 mt-1">Quét mã QR động sau khi tạo giữ phòng.</span>
+                    <span class="block text-[11px] text-slate-500 mt-1">Chuyển khoản VietQR (Tự động xác nhận 2–5 giây qua SePay)</span>
                   </button>
                   <button type="button" (click)="selectPaymentMethod('PayAtHotel')"
                     [class.ring-2]="selectedPaymentMethod === 'PayAtHotel'" [class.ring-emerald-600]="selectedPaymentMethod === 'PayAtHotel'"
@@ -1050,7 +1056,8 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy, HasUnsavedCh
     this.guestPhoneSignal.set(value);
   }
   guestEmail = '';
-  selectedPaymentMethod: 'VNPay' | 'VietQR' | 'PayAtHotel' | 'BankTransfer' = 'VNPay';
+  readonly showVnpay = environment.enableVnpay;
+  selectedPaymentMethod: 'VNPay' | 'VietQR' | 'PayAtHotel' | 'BankTransfer' = environment.enableVnpay ? 'VNPay' : 'VietQR';
 
   private timerInterval?: ReturnType<typeof setInterval>;
   private quoteTimerInterval?: ReturnType<typeof setInterval>;
@@ -1073,6 +1080,10 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy, HasUnsavedCh
   }
 
   selectPaymentMethod(method: string | null): void {
+    if (method === 'VNPay' && !this.showVnpay) {
+      this.selectedPaymentMethod = 'VietQR';
+      return;
+    }
     if (method === 'VNPay' || method === 'VietQR' || method === 'PayAtHotel' || method === 'BankTransfer') {
       this.selectedPaymentMethod = method;
     }

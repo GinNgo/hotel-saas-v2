@@ -32,7 +32,7 @@ describe('Public portal HTTP errors', () => {
     expect(router.navigate).not.toHaveBeenCalled();
   });
 
-  it.each(['register', 'partner-register', 'social-login'])('lets %s display its own authentication error', async endpoint => {
+  it.each(['register', 'partner-register', 'social-login', 'google-login', 'verify-phone-firebase'])('lets %s display its own authentication error', async endpoint => {
     const { auth, router } = await request(`/api/auth/${endpoint}`, 401);
     expect(auth.logout).not.toHaveBeenCalled();
     expect(router.navigate).not.toHaveBeenCalled();

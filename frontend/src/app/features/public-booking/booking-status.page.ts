@@ -15,6 +15,7 @@ import {
   RescheduleGuestBookingRequest,
   VnpayReturnVerificationDto
 } from '../../core/models/public-booking.model';
+import { environment } from '../../../environments/environment';
 
 export interface PolicyTextPart {
   text: string;
@@ -1115,9 +1116,11 @@ export interface StatusErrorState {
                               </div>
                               <div>
                                 <h4 class="text-xs sm:text-sm font-bold text-slate-900">
-                                  Thanh toán qua VietQR NAPAS 24/7 hoặc VNPay
+                                  {{ showVnpay ? 'Thanh toán qua VietQR NAPAS 24/7 hoặc VNPay' : 'Thanh toán qua VietQR NAPAS 24/7 (SePay)' }}
                                 </h4>
-                                <p class="text-[10px] text-slate-500">VNPay tự động đối soát qua Webhook IPN; VietQR / Chuyển khoản cần thu ngân đối soát thủ công</p>
+                                <p class="text-[10px] text-slate-500">
+                                  Hệ thống tự động xác nhận trong 2–5 giây sau khi chuyển khoản thành công qua SePay
+                                </p>
                               </div>
                             </div>
                             <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -1125,52 +1128,57 @@ export interface StatusErrorState {
                             </span>
                           </div>
 
-                          <!-- 2-Option Cards Grid -->
+                          <!-- Payment Option Cards Grid -->
                           <div class="grid grid-cols-1 gap-3.5">
-                            
-                            <!-- Option 1: Cổng VNPAY -->
-                            <div class="p-4 sm:p-5 rounded-2xl bg-blue-50/90 border-2 border-blue-300 hover:border-blue-700 transition-all space-y-3"
-                              [class.ring-2]="selectedPaymentMethod() === 'VNPay'" [class.ring-blue-600]="selectedPaymentMethod() === 'VNPay'">
-                              <div class="flex items-center justify-between">
-                                <span class="px-2 py-0.5 rounded-md bg-blue-700 text-white text-[10px] font-black uppercase tracking-wider">
-                                  {{ devMode ? 'VNPAY SANDBOX' : 'VNPAY' }}
-                                </span>
-                                <span class="text-[11px] font-semibold text-blue-900">Tự động xác nhận (IPN)</span>
-                              </div>
-                              <p class="text-[11px] text-slate-600 leading-relaxed">
-                                Thẻ ATM nội địa (NCB, Vietcombank...), Thẻ quốc tế Visa/Mastercard hoặc VNPAY-QR.
-                              </p>
-                              @if (devMode) {
-                                <div class="p-2 rounded-lg bg-white border border-blue-100 text-[10px] text-slate-600 space-y-0.5" data-testid="vnpay-sandbox-test-card">
-                                  <div>Thẻ test: <strong class="text-slate-800">NCB</strong> &bull; Số: <strong class="font-mono tabular-nums text-slate-900">9704198526191432198</strong></div>
-                                  <div>Tên: <strong class="text-slate-800">NGUYEN VAN A</strong> &bull; OTP: <strong class="font-mono tabular-nums text-slate-900">123456</strong></div>
-                                </div>
-                              }
-                              <button
-                                type="button"
-                                (click)="payWithVnpay()"
-                                [disabled]="isVnpayRedirecting()"
-                                class="w-full min-h-11 py-2.5 px-3.5 rounded-xl bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-colors disabled:opacity-50"
-                              >
-                                @if (isVnpayRedirecting()) {
-                                  <i class="pi pi-spin pi-spinner text-xs"></i>
-                                  <span>Đang chuyển hướng VNPay…</span>
-                                } @else {
-                                  <i class="pi pi-external-link text-xs"></i>
-                                  <span>Thanh toán Cổng VNPAY</span>
-                                }
-                              </button>
-                            </div>
 
-                            <!-- Option 2: VietQR NAPAS 24/7 / Chuyển khoản ngân hàng -->
+                            @if (showVnpay) {
+                              <!-- Option 1: Cổng VNPAY (chỉ hiện khi bật cờ enableVnpay) -->
+                              <div class="p-4 sm:p-5 rounded-2xl bg-blue-50/90 border-2 border-blue-300 hover:border-blue-700 transition-all space-y-3"
+                                [class.ring-2]="selectedPaymentMethod() === 'VNPay'" [class.ring-blue-600]="selectedPaymentMethod() === 'VNPay'">
+                                <div class="flex items-center justify-between">
+                                  <span class="px-2 py-0.5 rounded-md bg-blue-700 text-white text-[10px] font-black uppercase tracking-wider">
+                                    {{ devMode ? 'VNPAY SANDBOX' : 'VNPAY' }}
+                                  </span>
+                                  <span class="text-[11px] font-semibold text-blue-900">Tự động xác nhận (IPN)</span>
+                                </div>
+                                <p class="text-[11px] text-slate-600 leading-relaxed">
+                                  Thẻ ATM nội địa (NCB, Vietcombank...), Thẻ quốc tế Visa/Mastercard hoặc VNPAY-QR.
+                                </p>
+                                @if (devMode) {
+                                  <div class="p-2 rounded-lg bg-white border border-blue-100 text-[10px] text-slate-600 space-y-0.5" data-testid="vnpay-sandbox-test-card">
+                                    <div>Thẻ test: <strong class="text-slate-800">NCB</strong> &bull; Số: <strong class="font-mono tabular-nums text-slate-900">9704198526191432198</strong></div>
+                                    <div>Tên: <strong class="text-slate-800">NGUYEN VAN A</strong> &bull; OTP: <strong class="font-mono tabular-nums text-slate-900">123456</strong></div>
+                                  </div>
+                                }
+                                <button
+                                  type="button"
+                                  (click)="payWithVnpay()"
+                                  [disabled]="isVnpayRedirecting()"
+                                  class="w-full min-h-11 py-2.5 px-3.5 rounded-xl bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-colors disabled:opacity-50"
+                                >
+                                  @if (isVnpayRedirecting()) {
+                                    <i class="pi pi-spin pi-spinner text-xs"></i>
+                                    <span>Đang chuyển hướng VNPay…</span>
+                                  } @else {
+                                    <i class="pi pi-external-link text-xs"></i>
+                                    <span>Thanh toán Cổng VNPAY</span>
+                                  }
+                                </button>
+                              </div>
+                            }
+
+                            <!-- Option 2: VietQR NAPAS 24/7 / Chuyển khoản ngân hàng (SePay tự động xác nhận) -->
                             <div class="p-4 sm:p-5 rounded-2xl bg-amber-50/90 border-2 border-amber-300 hover:border-amber-500 transition-all space-y-3"
                               [class.ring-2]="selectedPaymentMethod() === 'VietQR' || selectedPaymentMethod() === 'BankTransfer'"
                               [class.ring-amber-500]="selectedPaymentMethod() === 'VietQR' || selectedPaymentMethod() === 'BankTransfer'">
-                              <div class="flex items-center justify-between">
+                              <div class="flex items-center justify-between gap-2 flex-wrap">
                                 <span class="px-2 py-0.5 rounded-md bg-amber-600 text-white text-[10px] font-black uppercase tracking-wider">
-                                  {{ selectedPaymentMethod() === 'BankTransfer' ? 'CHUYỂN KHOẢN / VIETQR' : 'VIETQR 24/7' }}
+                                  {{ selectedPaymentMethod() === 'BankTransfer' ? 'CHUYỂN KHOẢN / VIETQR' : 'VIETQR 24/7 (SEPAY)' }}
                                 </span>
-                                <span class="text-[11px] font-semibold text-amber-900">Chờ thu ngân xác nhận</span>
+                                <span class="text-[11px] font-semibold text-emerald-800 inline-flex items-center gap-1">
+                                  <i class="pi pi-check-circle text-[10px] text-emerald-600"></i>
+                                  <span>Tự động xác nhận (2–5s)</span>
+                                </span>
                               </div>
 
                               <div class="p-2.5 bg-white rounded-xl border border-amber-200 flex items-center gap-3 shadow-2xs">
@@ -1178,7 +1186,7 @@ export interface StatusErrorState {
                                   <img [src]="qr.qrImageUrl" alt="Mã thanh toán VietQR" width="80" height="80" loading="lazy" class="w-20 h-20 object-contain shrink-0 rounded-lg border border-slate-100" />
                                 } @else {
                                   <div role="status" class="w-20 h-20 flex items-center justify-center shrink-0 rounded-lg border border-slate-100 text-slate-400">
-                                    <i class="pi" [class.pi-spin]="isVietQrLoading()" [class.pi-spinner]="isVietQrLoading()" [class.pi-qrcode]="!isVietQrLoading()"></i>
+                                    <i class="pi" [class.pi-spin]="isVietQrLoading()" [class.pi-spinner]="isVietQrLoading()" [class.pi-credit-card]="!isVietQrLoading()"></i>
                                   </div>
                                 }
                                 <div class="text-[10px] space-y-0.5 min-w-0 flex-1">
@@ -1188,18 +1196,42 @@ export interface StatusErrorState {
                                     Số tiền: {{ (vietQr()?.amount ?? getRemainingDeposit(detail)) | number:'1.0-0' }} ₫
                                   </div>
                                   <div class="text-amber-800 font-mono font-bold text-[10px] bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 truncate">
-                                    CK: {{ vietQr()?.description || ('DAT PHONG ' + detail.confirmationCode) }}
+                                    CK: {{ vietQr()?.description || ('DATPHONG ' + detail.confirmationCode) }}
                                   </div>
                                   @if (vietQr(); as qr) {
-                                    <button type="button" (click)="copyPaymentAccount(qr.accountNumber)" class="text-blue-700 font-semibold underline underline-offset-2 cursor-pointer">Sao chép STK {{ qr.accountNumber }}</button>
+                                    <div class="flex items-center flex-wrap gap-3 pt-0.5">
+                                      <button type="button" (click)="copyPaymentAccount(qr.accountNumber)" class="text-blue-700 font-semibold underline underline-offset-2 cursor-pointer">Sao chép STK {{ qr.accountNumber }}</button>
+                                      @if (qr.description) {
+                                        <button type="button" (click)="copyTransferContent(qr.description)" class="text-amber-800 font-semibold underline underline-offset-2 cursor-pointer">Sao chép nội dung CK</button>
+                                      }
+                                    </div>
                                   } @else if (vietQrError()) {
                                     <p role="alert" class="text-rose-700">{{ vietQrError() }}</p>
                                   }
                                 </div>
                               </div>
                               <p class="text-[10px] text-slate-600 leading-snug">
-                                Chuyển khoản thủ công / VietQR không tự động xác nhận qua IPN. Vui lòng chuyển đúng số tiền và nội dung để lễ tân/thu ngân đối soát và xác nhận đơn.
+                                Hệ thống tự động xác nhận trong 2–5 giây sau khi chuyển khoản thành công qua SePay. Vui lòng giữ đúng số tiền và nội dung chuyển khoản (tự động kiểm tra mỗi 5 giây).
                               </p>
+                              @if (devMode) {
+                                <div class="pt-2 border-t border-amber-200/70">
+                                  <button
+                                    type="button"
+                                    data-testid="sepay-dev-simulate-btn"
+                                    (click)="simulateSepayPayment(detail)"
+                                    [disabled]="isSimulatingSepay()"
+                                    class="w-full min-h-11 py-2 px-3 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-colors disabled:opacity-50"
+                                  >
+                                    @if (isSimulatingSepay()) {
+                                      <i class="pi pi-spin pi-spinner text-xs"></i>
+                                      <span>Đang giả lập Webhook SePay…</span>
+                                    } @else {
+                                      <i class="pi pi-send text-xs"></i>
+                                      <span>Giả lập đã chuyển khoản SePay (Dev Mode)</span>
+                                    }
+                                  </button>
+                                </div>
+                              }
                             </div>
 
                             <!-- Option 3: Cash deposit at the front desk, manually confirmed by staff -->
@@ -1952,12 +1984,16 @@ export class BookingStatusPage implements OnInit {
   private readonly alertService = inject(AlertService);
 
   readonly devMode = isDevMode();
+  readonly showVnpay = environment.enableVnpay;
   searchToken: string = '';
   readonly tokenError = signal<string>('');
   readonly booking = signal<GuestBookingDetailDto | null>(null);
   readonly isSearching = signal<boolean>(false);
   readonly searchError = signal<StatusErrorState | null>(null);
-  readonly selectedPaymentMethod = signal<'VNPay' | 'VietQR' | 'PayAtHotel' | 'BankTransfer'>('VNPay');
+  readonly selectedPaymentMethod = signal<'VNPay' | 'VietQR' | 'PayAtHotel' | 'BankTransfer'>(
+    environment.enableVnpay ? 'VNPay' : 'VietQR'
+  );
+  readonly isSimulatingSepay = signal<boolean>(false);
   readonly isVerifyingVnpay = signal<boolean>(false);
   readonly vnpayReturnResult = signal<VnpayReturnVerificationDto | null>(null);
   readonly vnpayVerifyError = signal<string>('');
@@ -2171,7 +2207,9 @@ export class BookingStatusPage implements OnInit {
 
   private handleQueryParams(params: Record<string, string>): void {
     const method = params['paymentMethod'];
-    if (method === 'VNPay' || method === 'VietQR' || method === 'PayAtHotel' || method === 'BankTransfer') {
+    if (method === 'VNPay' && !this.showVnpay) {
+      this.selectedPaymentMethod.set('VietQR');
+    } else if (method === 'VNPay' || method === 'VietQR' || method === 'PayAtHotel' || method === 'BankTransfer') {
       this.selectedPaymentMethod.set(method);
     }
 
@@ -2805,7 +2843,9 @@ export class BookingStatusPage implements OnInit {
         this.vietQrError.set(
           typeof serverMsg === 'string' && serverMsg.trim().length > 0
             ? serverMsg
-            : 'Chưa tạo được mã VietQR. Cơ sở lưu trú có thể chưa cấu hình tài khoản ngân hàng, vui lòng chọn cổng VNPay hoặc thanh toán tại quầy.'
+            : this.showVnpay
+              ? 'Chưa tạo được mã VietQR. Cơ sở lưu trú có thể chưa cấu hình tài khoản ngân hàng, vui lòng chọn cổng VNPay hoặc thanh toán tại quầy.'
+              : 'Chưa tạo được mã VietQR. Cơ sở lưu trú có thể chưa cấu hình tài khoản ngân hàng, vui lòng liên hệ lễ tân hoặc thanh toán tại quầy.'
         );
       }
     });
@@ -2820,6 +2860,55 @@ export class BookingStatusPage implements OnInit {
       () => this.alertService.toastSuccess('Đã sao chép số tài khoản.'),
       () => this.alertService.toastWarning('Không thể sao chép số tài khoản.')
     );
+  }
+
+  copyTransferContent(content: string): void {
+    if (!content) return;
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      this.alertService.toastWarning('Trình duyệt không hỗ trợ sao chép tự động.');
+      return;
+    }
+    navigator.clipboard.writeText(content).then(
+      () => this.alertService.toastSuccess('Đã sao chép nội dung chuyển khoản.'),
+      () => this.alertService.toastWarning('Không thể sao chép nội dung chuyển khoản.')
+    );
+  }
+
+  simulateSepayPayment(detail: GuestBookingDetailDto): void {
+    if (!this.devMode || !detail || this.isSimulatingSepay()) return;
+    if (typeof this.publicBookingService.simulateSepayWebhook !== 'function') return;
+
+    const depositDue = this.getRemainingDeposit(detail);
+    const amount = depositDue > 0 ? depositDue : (detail.remainingBalance || detail.totalAmount || 0);
+    this.isSimulatingSepay.set(true);
+
+    this.publicBookingService
+      .simulateSepayWebhook({
+        confirmationCode: detail.confirmationCode,
+        amount
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: res => {
+          this.isSimulatingSepay.set(false);
+          if (res?.success) {
+            this.alertService.toastSuccess(
+              res.message || 'Đã giả lập nhận tiền SePay thành công! Đang đồng bộ trạng thái & mã PIN...'
+            );
+            if (detail.lookupToken) {
+              this.syncHoldStateFromServer(detail.lookupToken);
+            }
+          } else {
+            this.alertService.toastWarning(res?.message || 'Không thể giả lập giao dịch SePay.');
+          }
+        },
+        error: err => {
+          this.isSimulatingSepay.set(false);
+          this.alertService.toastWarning(
+            err?.error?.message || 'Endpoint giả lập SePay chỉ hoạt động ở môi trường Development.'
+          );
+        }
+      });
   }
 
   payWithVnpay(): void {

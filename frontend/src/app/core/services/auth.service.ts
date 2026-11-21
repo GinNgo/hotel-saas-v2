@@ -106,36 +106,6 @@ export class AuthService {
   }
 
   /**
-   * Đăng nhập thông qua tài khoản mạng xã hội (Google, Facebook).
-   * Tự động liên kết SocialIdentity hoặc tạo mới tài khoản Customer kèm thẻ thành viên Silver.
-   */
-  socialLogin(request: {
-    provider: string;
-    providerSubject: string;
-    providerEmail: string;
-    fullName?: string;
-    avatarUrl?: string;
-  }): Observable<LoginResponse> {
-    return this.http
-      .post<ApiEnvelope<LoginResponse> | LoginResponse>(`${this.apiUrl}/social-login`, request)
-      .pipe(
-        map(res => this.unwrapLoginPayload(res)),
-        tap(data => {
-          if (data?.accessToken) {
-            this.tokenStorage.setTokens(data.accessToken, data.refreshToken);
-            this.currentUserSubject.next(data.user);
-            const memberships = data.memberships || [];
-            this.tokenStorage.setMemberships(memberships);
-            this.membershipsSubject.next(memberships);
-            if (data.user.globalRole === 'Customer' || data.user.globalRole === 'Guest') {
-              this.clearPropertyContext();
-            }
-          }
-        })
-      );
-  }
-
-  /**
    * Đăng nhập hoặc liên kết tài khoản bằng SĐT qua Firebase Phone Auth (Google Identity Platform).
    * Kèm token idToken do Firebase cấp sau khi nhập đúng SMS OTP.
    */

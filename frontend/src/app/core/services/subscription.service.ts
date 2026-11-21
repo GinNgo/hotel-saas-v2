@@ -8,7 +8,8 @@ import {
   SubscriptionPackageDto,
   UpgradeSubscriptionRequest,
   SubscriptionUpgradeInitiationDto,
-  ConfirmSubscriptionPaymentResultDto
+  ConfirmSubscriptionPaymentResultDto,
+  SubscriptionVietQrDto
 } from '../models/subscription.model';
 
 interface ApiEnvelope<T> {
@@ -70,6 +71,17 @@ export class SubscriptionService {
       .post<ApiEnvelope<ConfirmSubscriptionPaymentResultDto> | ConfirmSubscriptionPaymentResultDto>(
         `${this.apiUrl}/payments/${paymentId}/confirm`,
         { gatewayTransactionNo }
+      )
+      .pipe(map(res => unwrapPayload(res)));
+  }
+
+  /**
+   * Retrieves dynamic SePay VietQR details for a pending SaaS subscription upgrade payment.
+   */
+  getSubscriptionVietQr(paymentId: string): Observable<SubscriptionVietQrDto> {
+    return this.http
+      .get<ApiEnvelope<SubscriptionVietQrDto> | SubscriptionVietQrDto>(
+        `${this.apiUrl}/payments/${encodeURIComponent(paymentId)}/vietqr`
       )
       .pipe(map(res => unwrapPayload(res)));
   }

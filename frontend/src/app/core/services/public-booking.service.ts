@@ -513,6 +513,21 @@ export class PublicBookingService {
   }
 
   /**
+   * Dev-only: Giả lập callback SePay webhook nội bộ (chỉ hoạt động khi Backend chạy Development).
+   */
+  simulateSepayWebhook(payload: {
+    confirmationCode?: string;
+    subscriptionRef?: string;
+    amount?: number;
+    referenceCode?: string;
+  }): Observable<{ success: boolean; status?: string; message?: string }> {
+    return this.http.post<{ success: boolean; status?: string; message?: string }>(
+      `${environment.apiUrl}/webhooks/sepay/simulate`,
+      payload
+    );
+  }
+
+  /**
    * Xác thực chữ ký kết quả trả về từ cổng VNPay thông qua endpoint read-only của máy chủ.
    */
   verifyVnpayReturn(vnpParams: Record<string, string>): Observable<VnpayReturnVerificationDto> {

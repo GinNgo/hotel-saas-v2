@@ -14,7 +14,9 @@ import {
   RefundRequestDto,
   RefundRequestDetailDto,
   GetRefundRequestsFilter,
-  ConfirmRefundPayoutRequest
+  ConfirmRefundPayoutRequest,
+  VietQrGenerateRequest,
+  VietQrResultDto
 } from '../models/payment.model';
 
 export interface GetPaymentsFilter {
@@ -195,6 +197,24 @@ export class PaymentService {
 
     return this.http
       .post<ApiEnvelope<RefundRequestDto> | RefundRequestDto>(`${this.apiUrl}/refunds/${paymentId}/reject`, { reason }, { params, headers })
+      .pipe(map(unwrapApiEnvelope));
+  }
+
+  /**
+   * Generates a dynamic VietQR code for cashier bank transfer collection.
+   */
+  generateVietQr(request: VietQrGenerateRequest, propertyId?: string): Observable<VietQrResultDto> {
+    const headers: Record<string, string> = {};
+    if (propertyId) {
+      headers['X-Property-Id'] = propertyId;
+    }
+
+    return this.http
+      .post<ApiEnvelope<VietQrResultDto> | VietQrResultDto>(
+        `${this.apiUrl}/vietqr/generate`,
+        { ...request, propertyId: request.propertyId ?? propertyId },
+        { headers }
+      )
       .pipe(map(unwrapApiEnvelope));
   }
 

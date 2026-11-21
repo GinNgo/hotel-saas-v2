@@ -1,4 +1,3 @@
-using HotelSaas.Application.Auth.Commands.SocialLogin;
 using HotelSaas.Infrastructure.Services;
 using HotelSaas.WebApi.Controllers;
 using Microsoft.AspNetCore.Mvc;
@@ -13,7 +12,7 @@ public sealed class UnconfiguredIntegrationSafetyTests
     {
         var controller = new AuthController(null!);
         var result = await controller.SocialLogin(
-            new SocialLoginCommand("Google", "unverified-subject", "qa@example.invalid"),
+            new { provider = "Google", providerSubject = "unverified-subject", providerEmail = "qa@example.invalid" },
             CancellationToken.None);
 
         var response = Assert.IsType<ObjectResult>(result);

@@ -143,12 +143,12 @@ public sealed class SwitchContextCommandHandler : IRequestHandler<SwitchContextC
             scope,
             roleName);
 
-        // 6. Persist new refresh token
+        // 6. Persist new refresh token (stored as SHA-256 hex digest; raw token returned to client)
         var refreshTokenEntity = new Domain.Entities.RefreshToken
         {
             Id = Guid.NewGuid(),
             UserId = user.Id,
-            Token = newRefreshToken,
+            Token = RefreshToken.RefreshTokenCommandHandler.ComputeRefreshTokenHash(newRefreshToken),
             ExpiresAtUtc = DateTime.UtcNow.AddDays(_jwtService.GetRefreshTokenExpirationDays())
         };
 

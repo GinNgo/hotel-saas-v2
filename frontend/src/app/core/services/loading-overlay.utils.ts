@@ -47,7 +47,7 @@ export function resolveContextualLoadingLabel(method: string, url: string): stri
   const m = (method || 'GET').toUpperCase();
   const u = (url || '').toLowerCase();
 
-  if (u.includes('/auth/login') || u.includes('/auth/social-login')) {
+  if (u.includes('/auth/login') || u.includes('/auth/google-login') || u.includes('/auth/verify-phone-firebase')) {
     return 'Đang xác thực tài khoản...';
   }
   if (u.includes('/auth/switch-context')) {

@@ -21,6 +21,7 @@ import { of, throwError } from 'rxjs';
 import { ActivatedRoute } from '@angular/router';
 import { PrintInvoicePage } from './print-invoice.page';
 import { PrintDocumentsService } from '../../core/services/print-documents.service';
+import { TokenStorageService } from '../../core/services/token-storage.service';
 import { PrintInvoiceDto } from '../../core/models/print-document.model';
 
 try {
@@ -145,5 +146,32 @@ describe('PrintInvoicePage — Electronic Invoice & VietQR Print Layout Tests', 
     component.windowPrint();
     expect(printSpy).toHaveBeenCalled();
     printSpy.mockRestore();
+  });
+
+  it('should route Back button to /booking/lookup when unauthenticated, /booking/profile for Customer, and /reservations for PMS staff', () => {
+    const tokenStorage = TestBed.inject(TokenStorageService);
+
+    vi.spyOn(tokenStorage, 'isTokenExpired').mockReturnValue(true);
+    vi.spyOn(tokenStorage, 'getDecodedToken').mockReturnValue(null);
+    expect(component.backRoute).toBe('/booking/lookup');
+
+    vi.spyOn(tokenStorage, 'isTokenExpired').mockReturnValue(false);
+    vi.spyOn(tokenStorage, 'getDecodedToken').mockReturnValue({
+      sub: 'cust-1',
+      email: 'guest@example.vn',
+      fullName: 'Khách',
+      globalRole: 'Customer',
+      exp: Math.floor(Date.now() / 1000) + 3600
+    });
+    expect(component.backRoute).toBe('/booking/profile');
+
+    vi.spyOn(tokenStorage, 'getDecodedToken').mockReturnValue({
+      sub: 'staff-1',
+      email: 'staff@hotel.vn',
+      fullName: 'Lễ tân',
+      globalRole: 'TenantStaff',
+      exp: Math.floor(Date.now() / 1000) + 3600
+    });
+    expect(component.backRoute).toBe('/reservations');
   });
 });
