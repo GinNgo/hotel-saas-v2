@@ -90,3 +90,15 @@ export interface ConfirmSubscriptionPaymentResultDto {
   currentPeriodEndUtc: string;
   message: string;
 }
+
+export interface SubscriptionVietQrDto {
+  paymentId: string;
+  transactionRef: string;
+  transferContent: string;
+  amount: number;
+  bankName: string;
+  bankBin: string;
+  bankAccountNumber: string;
+  bankAccountHolder: string;
+  qrImageUrl: string;
+}

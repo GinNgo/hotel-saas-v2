@@ -1,6 +1,5 @@
 using System;
 using FluentValidation;
-using HotelSaas.Domain.Entities;
 
 namespace HotelSaas.Application.AuditLogs.Queries.GetAuditLogs;
 
@@ -21,7 +20,7 @@ public sealed class GetAuditLogsQueryValidator : AbstractValidator<GetAuditLogsQ
 
         RuleFor(x => x.Action)
             .Must(BeValidActionOrEmpty)
-            .WithMessage("Hành động lọc (action) chỉ chấp nhận Create, Update hoặc Delete.");
+            .WithMessage("Hành động lọc (action) không hợp lệ hoặc không thuộc danh sách hành động kiểm toán được hỗ trợ.");
 
         RuleFor(x => x.EntityName)
             .MaximumLength(128)
@@ -40,10 +39,7 @@ public sealed class GetAuditLogsQueryValidator : AbstractValidator<GetAuditLogsQ
             return true;
         }
 
-        var trimmed = action.Trim();
-        return string.Equals(trimmed, AuditActions.Create, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(trimmed, AuditActions.Update, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(trimmed, AuditActions.Delete, StringComparison.OrdinalIgnoreCase);
+        return GetAuditLogsQueryHandler.TryNormalizeCanonicalAction(action, out _);
     }
 
     private static DateTime NormalizeUtc(DateTime dt)

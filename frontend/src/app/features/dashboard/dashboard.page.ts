@@ -154,7 +154,7 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
               </div>
             </div>
             <div class="mt-3">
-              <div class="text-2xl sm:text-3xl font-extrabold text-emerald-700 dark:text-emerald-400 font-mono truncate tabular-nums">
+              <div class="text-xl xl:text-2xl leading-tight break-words font-extrabold text-emerald-700 dark:text-emerald-400 font-mono tabular-nums">
                 {{ (platformOverview()?.mrrVnd ?? platformMetrics().totalCommittedValue) | vndCurrency }}
               </div>
               <div class="mt-1.5 text-xs text-slate-500 dark:text-slate-400 truncate tabular-nums">
@@ -560,7 +560,7 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
                 </div>
               </div>
               <div class="mt-3">
-                <div class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-slate-100 font-mono truncate tabular-nums">
+                <div class="text-xl xl:text-2xl leading-tight break-words font-extrabold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
                   {{ chainMetrics().todayChainRevenue | vndCurrency }}
                 </div>
                 <div class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">

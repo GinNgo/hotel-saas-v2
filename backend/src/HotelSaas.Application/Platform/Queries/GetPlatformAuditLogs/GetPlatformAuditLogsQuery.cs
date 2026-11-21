@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.AuditLogs.DTOs;
+using HotelSaas.Application.AuditLogs.Queries.GetAuditLogs;
 using HotelSaas.Application.AuditLogs.Services;
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
@@ -265,20 +266,8 @@ public sealed class GetPlatformAuditLogsQueryHandler
         return ApiResponse.Ok(new PagedResult<AuditLogListItemDto>(items, totalCount, page, pageSize));
     }
 
-    internal static string NormalizeCanonicalAction(string rawAction)
-    {
-        var trimmed = rawAction.Trim();
-        if (string.Equals(trimmed, AuditActions.Create, StringComparison.OrdinalIgnoreCase))
-            return AuditActions.Create;
-        if (string.Equals(trimmed, AuditActions.Update, StringComparison.OrdinalIgnoreCase))
-            return AuditActions.Update;
-        if (string.Equals(trimmed, AuditActions.Delete, StringComparison.OrdinalIgnoreCase))
-            return AuditActions.Delete;
-
-        throw new BadRequestException(
-            "ERR_INVALID_ACTION_FILTER",
-            "Giá trị lọc Action chỉ chấp nhận Create, Update hoặc Delete.");
-    }
+    internal static string NormalizeCanonicalAction(string rawAction) =>
+        GetAuditLogsQueryHandler.NormalizeCanonicalAction(rawAction);
 
     internal static DateTime NormalizeFromUtc(DateTime dt) => dt.Kind switch
     {

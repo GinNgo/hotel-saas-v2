@@ -350,7 +350,7 @@ describe('BookingHoldPageComponent (T01 — Giữ phòng, hết hạn và thử 
     holdSubject.next({ lookupToken: 'tok-hold-abc-123' } as any);
     expect(component.isSubmitting()).toBe(false);
     expect(mockRouter.navigate).toHaveBeenCalledWith(['/booking/hold', 'tok-hold-abc-123'], {
-      queryParams: { paymentMethod: 'VNPay' }
+      queryParams: { paymentMethod: 'VietQR' }
     });
   });
 

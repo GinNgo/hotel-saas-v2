@@ -18,13 +18,15 @@ try { TestBed.initTestEnvironment(BrowserTestingModule, platformBrowserTesting()
 
 describe('LoginPage security & accessibility', () => {
   const login = vi.fn();
+  const googleLogin = vi.fn();
   beforeEach(() => {
     login.mockReset();
+    googleLogin.mockReset();
     TestBed.configureTestingModule({
       imports: [LoginPage],
       providers: [
         provideRouter([]),
-        { provide: AuthService, useValue: { login, memberships: [], fetchMyMemberships: () => of([]) } },
+        { provide: AuthService, useValue: { login, googleLogin, memberships: [], fetchMyMemberships: () => of([]) } },
         { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn(), info: vi.fn() } },
       ]
     });
@@ -95,5 +97,49 @@ describe('LoginPage security & accessibility', () => {
     fixture.componentInstance.onSubmit();
     expect(login).toHaveBeenCalledTimes(1);
     expect(fixture.componentInstance.errorMessage()).toBeTruthy();
+  });
+
+  it('renders official Google GIS button when Google SDK is available and dispatches googleLogin on credential callback', async () => {
+    let capturedCallback: ((res: { credential?: string }) => void) | undefined;
+    const initialize = vi.fn((config: { callback: (res: { credential?: string }) => void }) => {
+      capturedCallback = config.callback;
+    });
+    const renderButton = vi.fn((container: HTMLElement) => {
+      container.innerHTML = '<div data-testid="gis-rendered-btn">Sign in with Google</div>';
+    });
+    (window as unknown as { google?: unknown }).google = {
+      accounts: {
+        id: {
+          initialize,
+          prompt: vi.fn(),
+          renderButton
+        }
+      }
+    };
+
+    try {
+      googleLogin.mockReturnValue(of({
+        accessToken: 'tok',
+        refreshToken: 'ref',
+        user: { id: 'u1', email: 'guest@gmail.com', fullName: 'Google Guest', globalRole: 'Customer', tenantId: null },
+        memberships: []
+      }));
+
+      const fixture = TestBed.createComponent(LoginPage);
+      fixture.detectChanges();
+      await Promise.resolve();
+      await Promise.resolve();
+      fixture.detectChanges();
+
+      expect(initialize).toHaveBeenCalled();
+      expect(renderButton).toHaveBeenCalled();
+      expect(fixture.componentInstance.googleGisRendered()).toBe(true);
+      expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="gis-rendered-btn"]')).not.toBeNull();
+
+      capturedCallback?.({ credential: 'gis-id-token-123' });
+      expect(googleLogin).toHaveBeenCalledWith('gis-id-token-123');
+    } finally {
+      delete (window as unknown as { google?: unknown }).google;
+    }
   });
 });

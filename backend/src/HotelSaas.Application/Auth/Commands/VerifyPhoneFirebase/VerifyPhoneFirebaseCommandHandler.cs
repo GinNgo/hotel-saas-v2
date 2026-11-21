@@ -219,11 +219,12 @@ public sealed class VerifyPhoneFirebaseCommandHandler : IRequestHandler<VerifyPh
             scope,
             staffRole);
 
+        // Persist refresh token as SHA-256 hex digest; raw token is returned to client
         var refreshTokenEntity = new Domain.Entities.RefreshToken
         {
             Id = Guid.NewGuid(),
             UserId = user.Id,
-            Token = refreshToken,
+            Token = RefreshToken.RefreshTokenCommandHandler.ComputeRefreshTokenHash(refreshToken),
             ExpiresAtUtc = DateTime.UtcNow.AddDays(_jwtService.GetRefreshTokenExpirationDays())
         };
 

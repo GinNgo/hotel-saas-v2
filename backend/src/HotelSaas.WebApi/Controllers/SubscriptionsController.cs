@@ -2,18 +2,23 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using HotelSaas.Application.Common.Exceptions;
+using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Payments.Commands.ProcessVnpayIpn;
 using HotelSaas.Application.Subscriptions.Commands.ConfirmSubscriptionPayment;
 using HotelSaas.Application.Subscriptions.Commands.InitiateSubscriptionUpgrade;
 using HotelSaas.Application.Subscriptions.DTOs;
 using HotelSaas.Application.Subscriptions.Queries.GetCurrentSubscription;
 using HotelSaas.Application.Subscriptions.Queries.GetSubscriptionPlans;
+using HotelSaas.Application.Subscriptions.Queries.GetSubscriptionVietQr;
 using HotelSaas.Domain.Enums;
 using HotelSaas.WebApi.Authorization;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 
 namespace HotelSaas.WebApi.Controllers;
 
@@ -78,6 +83,38 @@ public sealed class SubscriptionsController : ControllerBase
             request.ReturnUrl), cancellationToken);
 
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Generates a dynamic SePay/VietQR bank transfer instruction for a pending SaaS subscription upgrade payment.
+    /// </summary>
+    [HttpGet("payments/{paymentId:guid}/vietqr")]
+    [RequirePermission("SUBSCRIPTIONS", PermissionAction.Read)]
+    [ProducesResponseType(typeof(ApiResponse<SubscriptionVietQrDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> GetSubscriptionVietQr(
+        Guid paymentId,
+        [FromServices] IConfiguration configuration,
+        [FromServices] IHostEnvironment environment,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _mediator.Send(new GetSubscriptionVietQrQuery(
+                PaymentId: paymentId,
+                PlatformBankName: configuration["Payment:Sepay:PlatformBankName"],
+                PlatformAccountNumber: configuration["Payment:Sepay:PlatformAccountNumber"],
+                PlatformAccountHolder: configuration["Payment:Sepay:PlatformAccountHolder"],
+                IsDevelopment: environment.IsDevelopment()), cancellationToken);
+
+            return Ok(ApiResponse.Ok(result, "Sinh mã VietQR nâng cấp gói cước thành công."));
+        }
+        catch (UnprocessableEntityException ex)
+        {
+            return UnprocessableEntity(ApiResponse.Fail(ex.ErrorCode, ex.Message));
+        }
     }
 
     /// <summary>

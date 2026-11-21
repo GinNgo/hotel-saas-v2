@@ -4,8 +4,10 @@ import {
   DestroyRef,
   OnInit,
   computed,
+  effect,
   inject,
-  signal
+  signal,
+  untracked
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
@@ -15,8 +17,10 @@ import { AlertService } from '../../core/services/alert.service';
 import {
   SubscriptionPackageDto,
   SubscriptionUpgradeInitiationDto,
+  SubscriptionVietQrDto,
   TenantSubscriptionDto
 } from '../../core/models/subscription.model';
+import { environment } from '../../../environments/environment';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header';
 import { StatusBadgeComponent } from '../../shared/components/status-badge/status-badge.component';
 import { ChartCardComponent, ChartCardDataset } from '../../shared/components/chart-card/chart-card.component';
@@ -42,7 +46,9 @@ import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 
       <app-page-header
         title="Gói cước & Hạn ngạch tài nguyên (SaaS Billing)"
-        subtitle="Quản trị dung lượng phòng, chi nhánh, nhân sự, thanh toán nâng cấp qua VNPay và quản lý quyền hỗ trợ kỹ thuật."
+        [subtitle]="showVnpay
+          ? 'Quản trị dung lượng phòng, chi nhánh, nhân sự, thanh toán nâng cấp qua VietQR / VNPay và quản lý quyền hỗ trợ kỹ thuật.'
+          : 'Quản trị dung lượng phòng, chi nhánh, nhân sự, thanh toán nâng cấp tự động qua VietQR (SePay) và quản lý quyền hỗ trợ kỹ thuật.'"
       >
         <a
           routerLink="/support-grants"
@@ -61,50 +67,127 @@ import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
         </button>
       </app-page-header>
 
-      <!-- Pending VNPay Payment Banner -->
+      <!-- Pending Subscription Upgrade Payment Banner + SePay VietQR -->
       @if (activePendingPayment(); as pending) {
         <div
           role="region"
           aria-label="Hóa đơn nâng cấp đang chờ thanh toán"
-          class="rounded-2xl border-2 border-amber-300 dark:border-amber-700 bg-amber-50/90 dark:bg-amber-950/40 p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xs"
+          class="rounded-2xl border-2 border-amber-300 dark:border-amber-700 bg-amber-50/90 dark:bg-amber-950/40 p-5 space-y-4 shadow-xs"
         >
-          <div class="space-y-1">
-            <div class="flex items-center gap-2 flex-wrap">
-              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200">
-                Chờ xác nhận thanh toán VNPay
-              </span>
-              <span class="text-xs font-mono font-bold text-slate-700 dark:text-slate-300 tabular-nums">{{ pending.invoiceNumber }}</span>
+          <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200">
+                  {{ showVnpay ? 'Chờ xác nhận thanh toán (VietQR / VNPay)' : 'Chờ chuyển khoản VietQR (Tự động qua SePay)' }}
+                </span>
+                <span class="text-xs font-mono font-bold text-slate-700 dark:text-slate-300 tabular-nums">{{ pending.invoiceNumber }}</span>
+              </div>
+              <p class="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">
+                Yêu cầu nâng cấp trị giá {{ pending.amount | vndCurrency }} ({{ pending.billingCycle || 'Monthly' }})
+                — Mã tham chiếu: <span class="font-mono">{{ pending.transactionRef }}</span>
+              </p>
+              <p class="text-xs text-slate-600 dark:text-slate-400">
+                Quét mã VietQR bên dưới để chuyển khoản. Hệ thống tự động kiểm tra mỗi 5 giây và kích hoạt gói cước mới ngay khi SePay xác nhận.
+              </p>
             </div>
-            <p class="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">
-              Yêu cầu nâng cấp trị giá {{ pending.amount | vndCurrency }} ({{ pending.billingCycle || 'Monthly' }})
-              — Mã tham chiếu: <span class="font-mono">{{ pending.transactionRef }}</span>
-            </p>
-            <p class="text-xs text-slate-600 dark:text-slate-400">
-              Gói cước hiện tại chỉ được kích hoạt hạng mức mới sau khi giao dịch VNPay hoàn tất hoặc được xác thực thành công.
-            </p>
+
+            <div class="flex items-center gap-2.5 flex-wrap shrink-0">
+              @if (showVnpay && pendingPaymentUrl(); as checkoutUrl) {
+                <a
+                  [href]="checkoutUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center justify-center gap-2 min-h-11 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                >
+                  <i class="pi pi-external-link" aria-hidden="true"></i>
+                  <span>Thanh toán qua VNPay</span>
+                </a>
+              }
+              <button
+                type="button"
+                (click)="loadData()"
+                [disabled]="isLoading()"
+                class="inline-flex items-center justify-center gap-2 min-h-11 px-4 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-amber-300 dark:border-amber-700 text-xs font-bold disabled:opacity-50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              >
+                <i class="pi pi-refresh" [class.animate-spin]="isLoading()" aria-hidden="true"></i>
+                <span>{{ isLoading() ? 'Đang kiểm tra...' : 'Kiểm tra trạng thái thanh toán' }}</span>
+              </button>
+            </div>
           </div>
 
-          <div class="flex items-center gap-2.5 flex-wrap shrink-0">
-            @if (pendingPaymentUrl(); as checkoutUrl) {
-              <a
-                [href]="checkoutUrl"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="inline-flex items-center justify-center gap-2 min-h-11 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              >
-                <i class="pi pi-external-link" aria-hidden="true"></i>
-                <span>Thanh toán qua VNPay</span>
-              </a>
+          <!-- SePay VietQR Panel -->
+          <div class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/70">
+            @if (isLoadingVietQr()) {
+              <div class="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 py-3">
+                <i class="pi pi-spin pi-spinner text-amber-600" aria-hidden="true"></i>
+                <span>Đang tải mã VietQR thanh toán gói cước...</span>
+              </div>
+            } @else if (subscriptionVietQr(); as qr) {
+              <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <img
+                  [src]="qr.qrImageUrl"
+                  alt="Mã VietQR nâng cấp gói cước"
+                  width="128"
+                  height="128"
+                  loading="lazy"
+                  class="w-32 h-32 object-contain rounded-xl border border-slate-200 dark:border-slate-700 bg-white p-1.5 shrink-0"
+                />
+                <div class="space-y-1.5 text-xs flex-1 min-w-0">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 font-bold text-[11px]">
+                      VIETQR 24/7 (SEPAY)
+                    </span>
+                    <span class="text-slate-500 dark:text-slate-400 inline-flex items-center gap-1">
+                      <i class="pi pi-sync text-[10px] text-emerald-600" aria-hidden="true"></i>
+                      <span>Tự động đối soát mỗi 5 giây</span>
+                    </span>
+                  </div>
+                  <div class="text-slate-700 dark:text-slate-200">
+                    Ngân hàng: <strong class="text-slate-900 dark:text-white">{{ qr.bankName }}</strong>
+                  </div>
+                  <div class="text-slate-700 dark:text-slate-200 flex items-center gap-2 flex-wrap">
+                    <span>Số tài khoản: <strong class="font-mono text-indigo-700 dark:text-indigo-300">{{ qr.bankAccountNumber }}</strong></span>
+                    <button
+                      type="button"
+                      (click)="copyVietQrField(qr.bankAccountNumber, 'account')"
+                      class="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                    >
+                      {{ copiedField() === 'account' ? 'Đã sao chép' : 'Sao chép STK' }}
+                    </button>
+                  </div>
+                  <div class="text-slate-700 dark:text-slate-200">
+                    Chủ tài khoản: <strong class="text-slate-900 dark:text-white">{{ qr.bankAccountHolder }}</strong>
+                  </div>
+                  <div class="text-emerald-700 dark:text-emerald-400 font-mono font-bold tabular-nums">
+                    Số tiền: {{ qr.amount | vndCurrency }}
+                  </div>
+                  <div class="flex items-center gap-2 flex-wrap pt-0.5">
+                    <span class="text-slate-600 dark:text-slate-300">Nội dung CK:</span>
+                    <span class="px-2 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-700 font-mono font-bold text-amber-900 dark:text-amber-200 break-all">
+                      {{ qr.transferContent }}
+                    </span>
+                    <button
+                      type="button"
+                      (click)="copyVietQrField(qr.transferContent, 'content')"
+                      class="text-[11px] font-semibold text-amber-800 dark:text-amber-300 hover:underline cursor-pointer"
+                    >
+                      {{ copiedField() === 'content' ? 'Đã sao chép nội dung' : 'Sao chép nội dung' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            } @else if (vietQrError()) {
+              <div class="flex items-center justify-between gap-3 text-xs text-rose-700 dark:text-rose-300">
+                <span>{{ vietQrError() }}</span>
+                <button
+                  type="button"
+                  (click)="loadSubscriptionVietQr(pending.id, true)"
+                  class="font-bold underline cursor-pointer shrink-0"
+                >
+                  Tải lại mã QR
+                </button>
+              </div>
             }
-            <button
-              type="button"
-              (click)="loadData()"
-              [disabled]="isLoading()"
-              class="inline-flex items-center justify-center gap-2 min-h-11 px-4 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-amber-300 dark:border-amber-700 text-xs font-bold disabled:opacity-50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-            >
-              <i class="pi pi-refresh" [class.animate-spin]="isLoading()" aria-hidden="true"></i>
-              <span>{{ isLoading() ? 'Đang kiểm tra...' : 'Kiểm tra trạng thái thanh toán' }}</span>
-            </button>
           </div>
         </div>
       }
@@ -328,7 +411,7 @@ import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
                   [class.bg-slate-900]="!plan.isPopular"
                   [class.hover:bg-slate-800]="!plan.isPopular"
                 >
-                  {{ isUpgrading() ? 'Đang khởi tạo hóa đơn...' : 'Nâng cấp qua VNPay' }}
+                  {{ isUpgrading() ? 'Đang khởi tạo hóa đơn...' : (showVnpay ? 'Nâng cấp qua VietQR / VNPay' : 'Nâng cấp qua VietQR (SePay)') }}
                 </button>
               }
             </div>
@@ -416,6 +499,7 @@ export class SubscriptionsPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
+  readonly showVnpay = environment.enableVnpay;
   readonly isLoading = signal(false);
   readonly isUpgrading = signal(false);
   readonly isConfirming = signal(false);
@@ -424,6 +508,42 @@ export class SubscriptionsPage implements OnInit {
   readonly currentSub = signal<TenantSubscriptionDto | null>(null);
   readonly plans = signal<SubscriptionPackageDto[]>([]);
   readonly lastInitiation = signal<SubscriptionUpgradeInitiationDto | null>(null);
+  readonly subscriptionVietQr = signal<SubscriptionVietQrDto | null>(null);
+  readonly isLoadingVietQr = signal(false);
+  readonly vietQrError = signal<string | null>(null);
+  readonly copiedField = signal<'account' | 'content' | null>(null);
+
+  private loadedVietQrPaymentId: string | null = null;
+  private pollingInterval?: ReturnType<typeof setInterval>;
+  private copyTimer?: ReturnType<typeof setTimeout>;
+
+  constructor() {
+    this.destroyRef.onDestroy(() => {
+      this.stopStatusPolling();
+      if (this.copyTimer) {
+        clearTimeout(this.copyTimer);
+        this.copyTimer = undefined;
+      }
+    });
+
+    effect(() => {
+      const pending = this.activePendingPayment();
+      untracked(() => {
+        if (pending?.id) {
+          if (this.loadedVietQrPaymentId !== pending.id) {
+            this.loadSubscriptionVietQr(pending.id);
+          }
+          this.startStatusPolling();
+        } else {
+          this.stopStatusPolling();
+          this.loadedVietQrPaymentId = null;
+          this.subscriptionVietQr.set(null);
+          this.vietQrError.set(null);
+          this.isLoadingVietQr.set(false);
+        }
+      });
+    });
+  }
 
   readonly quotaChartLabels = computed<readonly string[]>(() => {
     const sub = this.currentSub();
@@ -499,7 +619,7 @@ export class SubscriptionsPage implements OnInit {
     return {
       id: init.paymentId,
       amount: init.amount,
-      method: 'VNPay',
+      method: this.showVnpay ? 'VNPay' : 'BankTransfer',
       status: init.paymentStatus,
       transactionRef: init.transactionRef,
       invoiceNumber: init.invoiceNumber,
@@ -588,13 +708,110 @@ export class SubscriptionsPage implements OnInit {
       });
   }
 
+  loadSubscriptionVietQr(paymentId: string, force: boolean = false): void {
+    if (!paymentId) return;
+    if (!force && this.loadedVietQrPaymentId === paymentId && this.subscriptionVietQr()) return;
+
+    this.loadedVietQrPaymentId = paymentId;
+    this.isLoadingVietQr.set(true);
+    this.vietQrError.set(null);
+
+    this.subscriptionService
+      .getSubscriptionVietQr(paymentId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: qr => {
+          if (this.activePendingPayment()?.id !== paymentId) return;
+          this.subscriptionVietQr.set(qr);
+          this.isLoadingVietQr.set(false);
+        },
+        error: err => {
+          if (this.loadedVietQrPaymentId === paymentId) {
+            this.loadedVietQrPaymentId = null;
+          }
+          this.isLoadingVietQr.set(false);
+          this.subscriptionVietQr.set(null);
+          this.vietQrError.set(
+            err?.error?.message || 'Chưa tải được mã VietQR nâng cấp gói cước. Vui lòng thử lại.'
+          );
+        }
+      });
+  }
+
+  private startStatusPolling(): void {
+    if (this.pollingInterval) return;
+
+    this.pollingInterval = setInterval(() => {
+      if (this.destroyRef.destroyed || !this.activePendingPayment()) {
+        this.stopStatusPolling();
+        return;
+      }
+
+      this.subscriptionService
+        .getCurrentSubscription()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: res => {
+            if (this.destroyRef.destroyed) return;
+            const hadPending = Boolean(this.activePendingPayment());
+            this.currentSub.set(res);
+            if (hadPending && !res.pendingPayment) {
+              this.stopStatusPolling();
+              this.lastInitiation.set(null);
+              this.loadedVietQrPaymentId = null;
+              this.subscriptionVietQr.set(null);
+              this.alertService.toastSuccess(
+                `Gói cước "${res.tierName}" đã được kích hoạt tự động qua SePay!`,
+                'Nâng cấp thành công'
+              );
+            }
+          },
+          error: () => {
+            // Bỏ qua lỗi mạng tạm thời trong quá trình polling nền
+          }
+        });
+    }, 5000);
+  }
+
+  private stopStatusPolling(): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = undefined;
+    }
+  }
+
+  copyVietQrField(value: string, field: 'account' | 'content'): void {
+    if (!value) return;
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      this.alertService.toastWarning('Trình duyệt không hỗ trợ sao chép tự động.');
+      return;
+    }
+    navigator.clipboard.writeText(value).then(
+      () => {
+        this.copiedField.set(field);
+        this.alertService.toastSuccess(
+          field === 'account' ? 'Đã sao chép số tài khoản.' : 'Đã sao chép nội dung chuyển khoản.'
+        );
+        if (this.copyTimer) {
+          clearTimeout(this.copyTimer);
+        }
+        this.copyTimer = setTimeout(() => {
+          this.copiedField.set(null);
+          this.copyTimer = undefined;
+        }, 2000);
+      },
+      () => this.alertService.toastWarning('Không thể sao chép tự động. Vui lòng sao chép thủ công.')
+    );
+  }
+
   async upgradeTo(plan: SubscriptionPackageDto): Promise<void> {
     const cycle = this.billingCycle();
     const price = cycle === 1 ? plan.annualPrice : plan.monthlyPrice;
     const cycleText = cycle === 1 ? 'năm' : 'tháng';
+    const paymentMethodLabel = this.showVnpay ? 'VietQR / VNPay' : 'VietQR (SePay)';
     const confirmed = await this.alertService.confirmAction({
       title: 'Khởi tạo hóa đơn nâng cấp?',
-      text: `Khởi tạo hóa đơn nâng cấp "${plan.name}" (${price.toLocaleString('vi-VN')} ₫/${cycleText}) qua VNPay?`,
+      text: `Khởi tạo hóa đơn nâng cấp "${plan.name}" (${price.toLocaleString('vi-VN')} ₫/${cycleText}) qua ${paymentMethodLabel}?`,
       confirmButtonText: 'Khởi tạo thanh toán',
       cancelButtonText: 'Hủy',
       icon: 'question'

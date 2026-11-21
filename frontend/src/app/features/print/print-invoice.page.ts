@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { PrintDocumentsService } from '../../core/services/print-documents.service';
+import { TokenStorageService } from '../../core/services/token-storage.service';
 import { PrintInvoiceDto } from '../../core/models/print-document.model';
 import { BusinessDatePipe } from '../../shared/pipes/business-date.pipe';
 import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
@@ -17,7 +18,8 @@ import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
       <!-- Action Toolbar (Hidden during print) -->
       <div class="max-w-4xl mx-auto mb-6 flex items-center justify-between print:hidden">
         <a
-          routerLink="/reservations"
+          [routerLink]="backRoute"
+          data-testid="print-invoice-back-link"
           class="inline-flex items-center gap-2 min-h-11 text-sm font-medium text-slate-600 hover:text-slate-900 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-2xs"
         >
           <i class="pi pi-arrow-left" aria-hidden="true"></i> Quay lại
@@ -266,10 +268,25 @@ import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 export class PrintInvoicePage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly printService = inject(PrintDocumentsService);
+  private readonly tokenStorage = inject(TokenStorageService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly invoice = signal<PrintInvoiceDto | null>(null);
   readonly isLoading = signal(true);
+
+  get backRoute(): string {
+    if (this.tokenStorage.isTokenExpired()) {
+      return '/booking/lookup';
+    }
+    const decoded = this.tokenStorage.getDecodedToken();
+    if (!decoded) {
+      return '/booking/lookup';
+    }
+    if (decoded.globalRole === 'Customer' || decoded.globalRole === 'Guest') {
+      return '/booking/profile';
+    }
+    return '/reservations';
+  }
 
   ngOnInit(): void {
     const reservationId = this.route.snapshot.paramMap.get('id');

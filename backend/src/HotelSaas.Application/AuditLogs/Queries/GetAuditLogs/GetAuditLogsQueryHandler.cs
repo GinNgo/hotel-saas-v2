@@ -389,19 +389,51 @@ public sealed class GetAuditLogsQueryHandler
         }
     }
 
-    private static string NormalizeCanonicalAction(string rawAction)
+    internal static readonly IReadOnlyDictionary<string, string> AllowedCanonicalActions =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [AuditActions.Create] = AuditActions.Create,
+            [AuditActions.Update] = AuditActions.Update,
+            [AuditActions.Delete] = AuditActions.Delete,
+            ["NightAuditAutoNoShow"] = "NightAuditAutoNoShow",
+            ["Reschedule"] = "Reschedule",
+            ["MarkNoShow"] = "MarkNoShow",
+            ["RegenerateSmartLockPin"] = "RegenerateSmartLockPin",
+            ["RevokeSmartLockPin"] = "RevokeSmartLockPin",
+            ["CheckInDepositWarning"] = "CheckInDepositWarning",
+            ["OverrideLateCheckOutSurcharge"] = "OverrideLateCheckOutSurcharge",
+            ["ApproveRefund"] = "ApproveRefund",
+            ["RejectRefund"] = "RejectRefund",
+            ["ConfirmRefundPayout"] = "ConfirmRefundPayout",
+            ["Cancel"] = "Cancel",
+            ["StatusToggle"] = "StatusToggle",
+            ["PublishApproval"] = "PublishApproval",
+            ["Upgrade"] = "Upgrade"
+        };
+
+    internal static bool TryNormalizeCanonicalAction(string? rawAction, out string canonicalAction)
     {
-        var trimmed = rawAction.Trim();
-        if (string.Equals(trimmed, AuditActions.Create, StringComparison.OrdinalIgnoreCase))
-            return AuditActions.Create;
-        if (string.Equals(trimmed, AuditActions.Update, StringComparison.OrdinalIgnoreCase))
-            return AuditActions.Update;
-        if (string.Equals(trimmed, AuditActions.Delete, StringComparison.OrdinalIgnoreCase))
-            return AuditActions.Delete;
+        if (!string.IsNullOrWhiteSpace(rawAction) &&
+            AllowedCanonicalActions.TryGetValue(rawAction.Trim(), out var matched))
+        {
+            canonicalAction = matched;
+            return true;
+        }
+
+        canonicalAction = string.Empty;
+        return false;
+    }
+
+    internal static string NormalizeCanonicalAction(string rawAction)
+    {
+        if (TryNormalizeCanonicalAction(rawAction, out var canonicalAction))
+        {
+            return canonicalAction;
+        }
 
         throw new BadRequestException(
             "ERR_INVALID_ACTION_FILTER",
-            "Giá trị lọc Action chỉ chấp nhận Create, Update hoặc Delete.");
+            "Giá trị lọc Action không hợp lệ hoặc không thuộc danh sách hành động kiểm toán được hỗ trợ.");
     }
 
     private static DateTime NormalizeFromUtc(DateTime dt)

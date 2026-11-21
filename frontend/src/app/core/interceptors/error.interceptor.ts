@@ -18,7 +18,7 @@ export const errorInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, n
   const requestPath = new URL(req.url, 'http://localhost').pathname;
   const publicPath = `${apiPath}/public`;
   const isPublicBooking = requestPath === publicPath || requestPath.startsWith(`${publicPath}/`);
-  const isPublicAuth = ['login', 'register', 'partner-register', 'social-login', 'refresh-token']
+  const isPublicAuth = ['login', 'register', 'partner-register', 'social-login', 'google-login', 'verify-phone-firebase', 'refresh-token']
     .some(endpoint => requestPath === `${apiPath}/auth/${endpoint}`);
 
   return next(req).pipe(

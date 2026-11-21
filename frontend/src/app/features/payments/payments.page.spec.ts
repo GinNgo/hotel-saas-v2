@@ -860,7 +860,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       expect(component.paymentAmount).toBe(1500000);
     });
 
-    it('should display unconfigured bank notice when BankTransfer is selected without fake account or auto-paying', () => {
+    it('should display unconfigured bank notice with /policies link when BankTransfer is selected without VietQR configuration or auto-paying', () => {
       fixture = TestBed.createComponent(PaymentsPage);
       component = fixture.componentInstance;
       fixture.detectChanges();
@@ -872,10 +872,74 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       fixture.detectChanges();
 
       const compiled = fixture.nativeElement as HTMLElement;
-      expect(compiled.textContent).toContain('Chưa có cấu hình VietQR chính thức');
+      expect(compiled.textContent).toContain('Chưa cấu hình tài khoản ngân hàng VietQR');
+      expect(compiled.querySelector('a[href="/policies"]')).not.toBeNull();
       expect(compiled.textContent).not.toContain('VCB-9876543210');
       // Must not auto-complete payment merely on selecting BankTransfer
       expect(mockPaymentService.createPayment).not.toHaveBeenCalled();
+    });
+
+    it('should render dynamic VietQR image, bank details, and copyable transfer memo when generateVietQr succeeds', () => {
+      mockPaymentService.generateVietQr = vi.fn().mockReturnValue(of({
+        qrImageUrl: 'https://img.vietqr.io/image/970422-0345678910-compact2.png',
+        bankBin: '970422',
+        bankName: 'MB Bank',
+        accountNumber: '0345678910',
+        accountName: 'KHACH SAN BIEN DONG',
+        amount: 1500000,
+        description: 'DATPHONG CONF12345',
+        confirmationCode: 'CONF-12345',
+        quickPayDeepLink: 'vietqr://pay'
+      }));
+
+      fixture = TestBed.createComponent(PaymentsPage);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+
+      component.loadFolio('res-001-bbbb');
+      fixture.detectChanges();
+
+      component.paymentMethod.set(PaymentMethod.BankTransfer);
+      fixture.detectChanges();
+
+      expect(mockPaymentService.generateVietQr).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amount: 1500000,
+          confirmationCode: 'CONF-12345',
+          reservationId: 'res-001-bbbb',
+          propertyId: 'prop-1111'
+        }),
+        'prop-1111'
+      );
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('[data-testid="cashier-vietqr-panel"]')).not.toBeNull();
+      expect(compiled.textContent).toContain('MB Bank');
+      expect(compiled.textContent).toContain('0345678910');
+      expect(compiled.textContent).toContain('KHACH SAN BIEN DONG');
+      expect(compiled.textContent).toContain('DATPHONG CONF12345');
+    });
+
+    it('should display honest unconfigured bank notice + /policies link when backend returns 422 ERR_BANK_ACCOUNT_NOT_CONFIGURED', () => {
+      mockPaymentService.generateVietQr = vi.fn().mockReturnValue(throwError(() => ({
+        status: 422,
+        error: { errorCode: 'ERR_BANK_ACCOUNT_NOT_CONFIGURED', message: 'Chưa cấu hình tài khoản ngân hàng.' }
+      })));
+
+      fixture = TestBed.createComponent(PaymentsPage);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+
+      component.loadFolio('res-001-bbbb');
+      fixture.detectChanges();
+
+      component.paymentMethod.set(PaymentMethod.BankTransfer);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('[data-testid="cashier-vietqr-unconfigured"]')).not.toBeNull();
+      expect(compiled.textContent).toContain('Chưa cấu hình tài khoản ngân hàng VietQR');
+      expect(compiled.querySelector('a[href="/policies"]')).not.toBeNull();
     });
 
     it('should submit payment, refresh Folio, trigger Receipt Voucher Modal, and allow printing/closing', () => {

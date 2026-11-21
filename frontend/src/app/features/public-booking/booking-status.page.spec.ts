@@ -984,21 +984,26 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
       expect(compiled.textContent).not.toContain('Mã Mở Khóa Cửa Điện Tử');
     });
 
-    // 32. Phương thức thanh toán: Hiển thị VietQR NAPAS 24/7 và cổng VNPay khi Chờ thanh toán
-    it('32. should display VietQR NAPAS 24/7 and VNPay options when status is PendingPayment', () => {
+    // 32. Phương thức thanh toán: Hiển thị VietQR NAPAS 24/7 (SePay) và ẩn cổng VNPay khi tắt cờ enableVnpay
+    it('32. should display VietQR NAPAS 24/7 (SePay) and hide VNPay UI when enableVnpay is false', () => {
       mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
       component.fetchBooking('tok-token-aaa');
       fixture.detectChanges();
 
       const compiled = fixture.nativeElement as HTMLElement;
-      expect(compiled.textContent).toContain('Thanh toán qua VietQR NAPAS 24/7 hoặc VNPay');
+      expect(compiled.textContent).toContain('Thanh toán qua VietQR NAPAS 24/7 (SePay)');
+      expect(compiled.textContent).toContain('Hệ thống tự động xác nhận trong 2–5 giây sau khi chuyển khoản thành công qua SePay');
       expect(compiled.textContent).toContain('MB Bank');
       expect(compiled.textContent).toContain('Sao chép STK 0345678910');
-      expect(compiled.textContent).toContain('Thanh toán Cổng VNPAY');
+      expect(compiled.textContent).not.toContain('Thanh toán Cổng VNPAY');
+      expect(compiled.querySelector('[data-testid="vnpay-sandbox-test-card"]')).toBeNull();
 
-      mockBookingService.createVnpayPaymentUrl = vi.fn().mockReturnValue(of({ paymentUrl: 'https://sandbox.vnpayment.vn/test' }));
-      component.payWithVnpay();
-      expect(mockBookingService.createVnpayPaymentUrl).toHaveBeenCalled();
+      mockBookingService.simulateSepayWebhook = vi.fn().mockReturnValue(of({ success: true, status: 'confirmed', message: 'OK' }));
+      component.simulateSepayPayment(sampleBookingA);
+      expect(mockBookingService.simulateSepayWebhook).toHaveBeenCalledWith({
+        confirmationCode: 'RES-A111',
+        amount: 450000
+      });
     });
 
     // 33. Query string VNPay không tự ý thay đổi trạng thái booking thành đã thanh toán
@@ -2037,7 +2042,7 @@ describe('T04-B — Guest Booking Cancellation Workflow & Preview UI', () => {
       vnpFixture.destroy();
     });
 
-    it('should preserve BankTransfer paymentMethod from query params and avoid promising auto-IPN for VietQR', () => {
+    it('should preserve BankTransfer paymentMethod from query params and highlight automatic SePay confirmation', () => {
       TestBed.resetTestingModule();
       TestBed.configureTestingModule({
         imports: [BookingStatusPage],
@@ -2062,7 +2067,7 @@ describe('T04-B — Guest Booking Cancellation Workflow & Preview UI', () => {
       expect(btComp.selectedPaymentMethod()).toBe('BankTransfer');
       const text = (btFixture.nativeElement as HTMLElement).textContent ?? '';
       expect(text).toContain('CHUYỂN KHOẢN / VIETQR');
-      expect(text).toContain('không tự động xác nhận qua IPN');
+      expect(text).toContain('tự động xác nhận trong 2–5 giây');
       btFixture.destroy();
     });
 
