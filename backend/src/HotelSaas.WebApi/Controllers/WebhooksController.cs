@@ -8,6 +8,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
@@ -19,6 +20,7 @@ namespace HotelSaas.WebApi.Controllers;
 [ApiController]
 [Route("api/webhooks")]
 [Produces("application/json")]
+[EnableRateLimiting("webhooks")]
 public sealed class WebhooksController : ControllerBase
 {
     private readonly ISender _mediator;
@@ -57,6 +59,10 @@ public sealed class WebhooksController : ControllerBase
             return Ok(new SepayWebhookHttpResponse(true, "ignored", "Empty webhook payload ignored."));
         }
 
+        var expectedPlatformAccount = ResolveExpectedPlatformAccountNumber();
+        var requireBankAccountMatch = _configuration.GetValue<bool?>("Payment:Sepay:RequireBankAccountMatch")
+            ?? (!_environment.IsDevelopment() && !_environment.IsEnvironment("Testing"));
+
         var command = new ProcessSepayWebhookCommand(
             Id: payload.Id,
             Gateway: payload.Gateway,
@@ -70,7 +76,8 @@ public sealed class WebhooksController : ControllerBase
             TransferAmount: payload.TransferAmount,
             Accumulated: payload.Accumulated,
             ReferenceCode: payload.ReferenceCode,
-            ExpectedPlatformAccountNumber: _configuration["Payment:Sepay:PlatformAccountNumber"]);
+            ExpectedPlatformAccountNumber: expectedPlatformAccount,
+            RequireBankAccountMatch: requireBankAccountMatch);
 
         var result = await _mediator.Send(command, cancellationToken);
         return Ok(new SepayWebhookHttpResponse(true, result.Status, result.Message));
@@ -104,10 +111,22 @@ public sealed class WebhooksController : ControllerBase
             Amount: request.Amount,
             ReferenceCode: request.ReferenceCode,
             ConfiguredPlatformBankName: _configuration["Payment:Sepay:PlatformBankName"],
-            ConfiguredPlatformAccountNumber: _configuration["Payment:Sepay:PlatformAccountNumber"]);
+            ConfiguredPlatformAccountNumber: ResolveExpectedPlatformAccountNumber());
 
         var result = await _mediator.Send(command, cancellationToken);
         return Ok(new SepayWebhookHttpResponse(true, result.Status, result.Message));
+    }
+
+    private string? ResolveExpectedPlatformAccountNumber()
+    {
+        var primary = _configuration["Payment:Sepay:PlatformAccountNumber"];
+        if (!string.IsNullOrWhiteSpace(primary))
+        {
+            return primary;
+        }
+
+        var fallback = _configuration["Payment:Sepay:ExpectedPlatformAccountNumber"];
+        return !string.IsNullOrWhiteSpace(fallback) ? fallback : null;
     }
 
     private bool IsValidSepayApiKey()

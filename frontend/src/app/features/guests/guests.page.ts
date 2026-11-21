@@ -22,6 +22,7 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header';
 import { BusinessDatePipe } from '../../shared/pipes/business-date.pipe';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 
 type GuestSortField = 'fullName' | 'loyaltyTier' | 'completedStays' | 'totalSpent';
 
@@ -36,7 +37,8 @@ type GuestSortField = 'fullName' | 'loyaltyTier' | 'completedStays' | 'totalSpen
     PageHeaderComponent,
     EmptyStateComponent,
     PaginationComponent,
-    BusinessDatePipe
+    BusinessDatePipe,
+    VndCurrencyPipe
   ],
   template: `
     <div class="max-w-7xl mx-auto space-y-6 pb-12">
@@ -79,7 +81,7 @@ type GuestSortField = 'fullName' | 'loyaltyTier' | 'completedStays' | 'totalSpen
         <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-700 p-4 shadow-2xs">
           <div class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Doanh thu tích lũy</div>
           <div class="text-xl sm:text-2xl font-extrabold text-indigo-900 dark:text-indigo-400 mt-1 tabular-nums">
-            {{ totalRevenueFromPage() | number:'1.0-0' }} <span class="text-xs font-medium text-slate-500 dark:text-slate-400">VNĐ</span>
+            {{ totalRevenueFromPage() | vndCurrency }}
           </div>
           <div class="text-[11px] text-indigo-600 dark:text-indigo-400 mt-0.5 font-medium">Trên trang hiển thị</div>
         </div>
@@ -180,7 +182,7 @@ type GuestSortField = 'fullName' | 'loyaltyTier' | 'completedStays' | 'totalSpen
                   <div class="text-right">
                     <div class="text-[11px] text-slate-500 dark:text-slate-400">Tổng chi tiêu</div>
                     <div class="font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
-                      {{ guest.totalSpent | number:'1.0-0' }} VNĐ
+                      {{ guest.totalSpent | vndCurrency }}
                     </div>
                   </div>
                 </div>
@@ -304,7 +306,7 @@ type GuestSortField = 'fullName' | 'loyaltyTier' | 'completedStays' | 'totalSpen
 
                     <!-- Total Spent -->
                     <td class="px-5 py-3.5 text-right font-bold text-emerald-800 dark:text-emerald-400 tabular-nums">
-                      {{ guest.totalSpent | number:'1.0-0' }} <span class="text-[10px] font-normal text-slate-500 dark:text-slate-400">VNĐ</span>
+                      {{ guest.totalSpent | vndCurrency }}
                     </td>
 
                     <!-- Notes preview -->
@@ -397,7 +399,7 @@ type GuestSortField = 'fullName' | 'loyaltyTier' | 'completedStays' | 'totalSpen
               <div>
                 <div class="text-[10px] uppercase font-bold text-slate-400">Tổng chi tiêu</div>
                 <div class="text-base font-bold text-emerald-700 dark:text-emerald-400 mt-0.5 tabular-nums">
-                  {{ selectedGuest()!.totalSpent | number:'1.0-0' }} đ
+                  {{ selectedGuest()!.totalSpent | vndCurrency }}
                 </div>
               </div>
               <div>
@@ -467,7 +469,7 @@ type GuestSortField = 'fullName' | 'loyaltyTier' | 'completedStays' | 'totalSpen
                       </div>
 
                       <div class="text-right shrink-0">
-                        <div class="font-bold text-slate-900 dark:text-slate-100 tabular-nums">{{ b.totalAmount | number:'1.0-0' }} VNĐ</div>
+                        <div class="font-bold text-slate-900 dark:text-slate-100 tabular-nums">{{ b.totalAmount | vndCurrency }}</div>
                         <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold" [ngClass]="getStatusBadge(b.status)">
                           {{ b.status }}
                         </span>

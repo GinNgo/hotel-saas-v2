@@ -47,6 +47,7 @@ import {
   PhotoGalleryModalComponent,
   RoomDetailModalComponent,
   StatusBadgeComponent,
+  VndCurrencyPipe,
   GalleryPhotoItem,
 } from '../../shared';
 
@@ -101,6 +102,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
     HotelierCtaBannerComponent,
     PhotoGalleryModalComponent,
     RoomDetailModalComponent,
+    VndCurrencyPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -246,7 +248,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                             @if (heroProp.startingPriceForSelectedMode > 0) {
                               <span>Giá từ: </span>
                               <span class="font-sans font-bold text-white text-base tabular-nums">
-                                {{ heroProp.startingPriceForSelectedMode | number:'1.0-0' }} ₫
+                                {{ heroProp.startingPriceForSelectedMode | vndCurrency }}
                               </span>
                             } @else {
                               <span class="text-slate-300 italic">Liên hệ báo giá</span>
@@ -395,14 +397,14 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                   (click)="selectPropertyTypeTab(tab.key)"
                   class="min-h-11 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer"
                   [class]="isPropertyTypeTabActive(tab)
-                    ? 'bg-[var(--brand-primary)] text-white border-[var(--brand-primary)] shadow-xs'
+                    ? 'bg-[var(--brand-primary)] text-[var(--brand-primary-fg)] border-[var(--brand-primary)] shadow-xs'
                     : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50'"
                 >
                   <i [class]="'pi ' + tab.icon + ' text-[11px]'"></i>
                   <span>{{ tab.label }}</span>
                   <span
                     class="px-1.5 py-0.5 rounded-md text-[10px] font-bold tabular-nums"
-                    [class]="isPropertyTypeTabActive(tab) ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'"
+                    [class]="isPropertyTypeTabActive(tab) ? 'bg-black/15 dark:bg-white/25 text-[var(--brand-primary-fg)]' : 'bg-slate-100 text-slate-600'"
                   >
                     {{ getPropertyTypeTabCount(tab) }}
                   </span>
@@ -588,7 +590,7 @@ interface RawBookingPropertyInput extends Omit<Partial<PublicPropertyDto>, 'prop
                         @if (property.startingPriceForSelectedMode > 0) {
                           <div class="flex items-baseline gap-1">
                             <span class="font-sans text-lg font-bold tracking-tight text-slate-900 tabular-nums">
-                              {{ property.startingPriceForSelectedMode | number:'1.0-0' }} <span class="text-sm font-semibold">₫</span>
+                              {{ property.startingPriceForSelectedMode | vndCurrency }}
                             </span>
                             <span class="text-[11px] text-slate-500">
                               / {{ searchFilter().rentalType === 'Hourly' ? 'giờ' : (searchFilter().rentalType === 'Overnight' ? 'đêm' : 'ngày') }}

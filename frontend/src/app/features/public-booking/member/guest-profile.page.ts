@@ -27,11 +27,12 @@ import {
 } from '../../../core/models/guest-account.model';
 import { PublicPropertyDto } from '../../../core/models/public-booking.model';
 import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-modal.component';
+import { VndCurrencyPipe } from '../../../shared/pipes/vnd-currency.pipe';
 
 @Component({
   selector: 'app-guest-profile-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, A11yModule, PhoneOtpModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink, A11yModule, PhoneOtpModalComponent, VndCurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-6 sm:space-y-8">
@@ -267,7 +268,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                 {{ (loyaltyData()?.totalPoints || 0) | number }}
               </div>
               <div class="text-xs text-slate-500 mt-1 tabular-nums">
-                Quy đổi ~ {{ (loyaltyData()?.pointsValueVnd || 0) | number }}₫
+                Quy đổi ~ {{ (loyaltyData()?.pointsValueVnd || 0) | vndCurrency }}
               </div>
             </div>
           </div>
@@ -280,8 +281,8 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
               </div>
             </div>
             <div class="mt-2.5">
-              <div class="text-2xl sm:text-3xl font-extrabold text-emerald-700 font-mono tabular-nums truncate">
-                {{ totalSpentVnd() | number:'1.0-0' }}₫
+              <div class="text-2xl sm:text-3xl font-extrabold text-emerald-700 font-mono leading-tight break-words tabular-nums">
+                {{ totalSpentVnd() | vndCurrency }}
               </div>
               <div class="text-xs text-slate-500 mt-1">
                 Tích điểm tự động sau trả phòng
@@ -316,7 +317,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
               [class.text-white]="activeTab() === tab.id"
               [class.bg-white]="activeTab() !== tab.id"
               [class.text-slate-700]="activeTab() !== tab.id"
-              class="min-h-10 px-4 sm:px-5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold transition-all cursor-pointer hover:border-indigo-400"
+              class="min-h-11 px-4 sm:px-5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold transition-all cursor-pointer hover:border-indigo-400"
             >
               {{ tab.label }}
             </button>
@@ -336,7 +337,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                   <button
                     type="button"
                     (click)="startEditing()"
-                    class="px-4 py-2 rounded-xl text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 cursor-pointer transition-colors"
+                    class="min-h-11 inline-flex items-center px-4 py-2 rounded-xl text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 cursor-pointer transition-colors"
                   >
                     Chỉnh sửa họ tên
                   </button>
@@ -417,14 +418,14 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                     <button
                       type="submit"
                       [disabled]="isSaving() || !editFullName.trim()"
-                      class="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 cursor-pointer"
+                      class="min-h-11 inline-flex items-center px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 cursor-pointer"
                     >
                       {{ isSaving() ? 'Đang lưu...' : 'Lưu thay đổi' }}
                     </button>
                     <button
                       type="button"
                       (click)="cancelEditing()"
-                      class="px-4 py-2 rounded-xl text-xs font-medium border border-slate-300 hover:bg-white cursor-pointer"
+                      class="min-h-11 inline-flex items-center px-4 py-2 rounded-xl text-xs font-medium border border-slate-300 hover:bg-white cursor-pointer"
                     >
                       Hủy bỏ
                     </button>
@@ -446,14 +447,14 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                   </div>
                   <div>
                     <dt class="text-xs font-semibold uppercase tracking-wider text-slate-500">Số điện thoại xác thực</dt>
-                    <dd class="mt-1.5 flex items-center gap-2">
+                    <dd class="mt-1.5 flex items-center gap-2 flex-wrap">
                       <span class="text-base font-mono font-bold" [ngClass]="phoneNumber() ? 'text-slate-900' : 'text-slate-400 italic text-xs'">
                         {{ phoneNumber() || 'Chưa liên kết' }}
                       </span>
                       <button
                         type="button"
                         (click)="showPhoneOtpModal.set(true)"
-                        class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 cursor-pointer transition-colors"
+                        class="min-h-11 inline-flex items-center px-3 py-2 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 cursor-pointer transition-colors"
                       >
                         <i class="pi pi-phone mr-1"></i>
                         {{ phoneNumber() ? 'Đổi SĐT' : 'Liên kết SĐT' }}
@@ -510,7 +511,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                           </p>
                         </div>
                         <div class="flex items-center justify-between sm:justify-end gap-3">
-                          <span class="font-mono font-extrabold text-indigo-600 text-sm tabular-nums">{{ b.totalAmount | number }}₫</span>
+                          <span class="font-mono font-extrabold text-indigo-600 text-sm tabular-nums">{{ b.totalAmount | vndCurrency }}</span>
                           <a
                             [routerLink]="['/booking/status', b.lookupToken || b.reference]"
                             class="min-h-11 inline-flex items-center px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
@@ -534,7 +535,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                 <button
                   type="button"
                   (click)="loadBookings()"
-                  class="text-xs text-indigo-600 hover:underline font-medium cursor-pointer"
+                  class="min-h-11 px-3 inline-flex items-center text-xs text-indigo-600 hover:underline font-medium cursor-pointer"
                 >
                   Làm mới
                 </button>
@@ -555,7 +556,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                     Các chuyến lưu trú bạn đặt sau khi đăng nhập sẽ tự động hiển thị tại đây.
                   </p>
                   <div class="pt-2">
-                    <a routerLink="/booking" class="inline-flex px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700">
+                    <a routerLink="/booking" class="min-h-11 inline-flex items-center px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700">
                       Khám phá chỗ nghỉ ngay
                     </a>
                   </div>
@@ -579,12 +580,12 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                         </p>
                       </div>
                       <div class="text-right sm:shrink-0">
-                        <span class="block text-base font-extrabold text-indigo-600">
-                          {{ b.totalAmount | number }}₫
+                        <span class="block text-base font-extrabold text-indigo-600 tabular-nums">
+                          {{ b.totalAmount | vndCurrency }}
                         </span>
                         <a
                           [routerLink]="['/booking/status', b.lookupToken || b.reference]"
-                          class="inline-flex items-center gap-1 text-xs text-indigo-700 hover:underline font-semibold mt-1"
+                          class="min-h-11 inline-flex items-center gap-1 px-2 text-xs text-indigo-700 hover:underline font-semibold mt-1"
                         >
                           Xem chi tiết <i class="pi pi-arrow-right text-[10px]"></i>
                         </a>
@@ -604,7 +605,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                   <button
                     type="button"
                     (click)="loadInvoices()"
-                    class="text-xs text-indigo-600 hover:underline font-medium cursor-pointer"
+                    class="min-h-11 px-3 inline-flex items-center text-xs text-indigo-600 hover:underline font-medium cursor-pointer"
                   >
                     Tải lại hóa đơn
                   </button>
@@ -634,7 +635,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                           </p>
                         </div>
                         <div class="flex items-center justify-between sm:justify-end gap-2 flex-wrap">
-                          <span class="font-mono tabular-nums font-extrabold text-emerald-700 text-sm mr-1">{{ inv.grandTotal | number:'1.0-0' }}₫</span>
+                          <span class="font-mono tabular-nums font-extrabold text-emerald-700 text-sm mr-1">{{ inv.grandTotal | vndCurrency }}</span>
                           <button
                             type="button"
                             (click)="openInvoicePreview(inv)"
@@ -700,7 +701,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                     <button
                       type="submit"
                       [disabled]="isSavingVat()"
-                      class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                      class="min-h-11 inline-flex items-center px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
                     >
                       {{ isSavingVat() ? 'Đang lưu...' : 'Lưu thông tin VAT' }}
                     </button>
@@ -730,7 +731,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                   <div class="bg-indigo-50/70 p-4 rounded-xl border border-indigo-100">
                     <span class="text-xs font-semibold text-indigo-600">Tổng điểm tích lũy</span>
                     <p class="text-2xl font-extrabold text-indigo-900 mt-1">{{ loyalty.totalPoints | number }}</p>
-                    <span class="text-[11px] text-slate-500 mt-0.5 block">Quy đổi ~ {{ loyalty.pointsValueVnd | number }}₫</span>
+                    <span class="text-[11px] text-slate-500 mt-0.5 block tabular-nums">Quy đổi ~ {{ loyalty.pointsValueVnd | vndCurrency }}</span>
                   </div>
                   <div class="bg-emerald-50/70 p-4 rounded-xl border border-emerald-100">
                     <span class="text-xs font-semibold text-emerald-700">Điểm đã hoàn trả</span>
@@ -781,7 +782,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                       <button
                         type="button"
                         (click)="filterLedger(f.value)"
-                        class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border cursor-pointer transition-colors"
+                        class="min-h-11 inline-flex items-center px-3 py-2 rounded-lg text-xs font-semibold border cursor-pointer transition-colors"
                         [ngClass]="ledgerFilter() === f.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'"
                       >
                         {{ f.label }}
@@ -1107,7 +1108,7 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
                   @for (line of inv.lineItems; track line.id) {
                     <div class="p-3 flex items-center justify-between gap-2">
                       <span>{{ line.description }} (x{{ line.quantity }})</span>
-                      <span class="font-mono tabular-nums font-bold">{{ line.amount | number:'1.0-0' }}₫</span>
+                      <span class="font-mono tabular-nums font-bold">{{ line.amount | vndCurrency }}</span>
                     </div>
                   }
                 </div>
@@ -1115,21 +1116,21 @@ import { PhoneOtpModalComponent } from '../../auth/phone-otp-modal/phone-otp-mod
               <div class="space-y-1.5 pt-2 border-t border-slate-200 tabular-nums">
                 <div class="flex justify-between text-slate-600">
                   <span>Tạm tính:</span>
-                  <span class="font-mono">{{ inv.subTotal | number:'1.0-0' }}₫</span>
+                  <span class="font-mono">{{ inv.subTotal | vndCurrency }}</span>
                 </div>
                 @if (inv.discountTotal > 0) {
                   <div class="flex justify-between text-emerald-700">
                     <span>Giảm giá:</span>
-                    <span class="font-mono">-{{ inv.discountTotal | number:'1.0-0' }}₫</span>
+                    <span class="font-mono">-{{ inv.discountTotal | vndCurrency }}</span>
                   </div>
                 }
                 <div class="flex justify-between text-slate-600">
                   <span>Thuế GTGT:</span>
-                  <span class="font-mono">{{ inv.taxAmount | number:'1.0-0' }}₫</span>
+                  <span class="font-mono">{{ inv.taxAmount | vndCurrency }}</span>
                 </div>
                 <div class="flex justify-between font-black text-sm text-indigo-700 pt-1">
                   <span>Tổng thanh toán:</span>
-                  <span class="font-mono">{{ inv.grandTotal | number:'1.0-0' }}₫</span>
+                  <span class="font-mono">{{ inv.grandTotal | vndCurrency }}</span>
                 </div>
               </div>
             </div>

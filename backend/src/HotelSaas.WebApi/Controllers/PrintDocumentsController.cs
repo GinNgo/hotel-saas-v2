@@ -14,6 +14,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace HotelSaas.WebApi.Controllers;
 
@@ -28,6 +29,7 @@ namespace HotelSaas.WebApi.Controllers;
 [ApiController]
 [Route("api/print")]
 [Produces("application/json")]
+[EnableRateLimiting("public-print")]
 public sealed class PrintDocumentsController : ControllerBase
 {
     private readonly ISender _mediator;

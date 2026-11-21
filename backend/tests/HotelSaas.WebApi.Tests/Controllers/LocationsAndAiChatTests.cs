@@ -113,11 +113,13 @@ public sealed class LocationsAndAiChatTests
 
     private static PrintDocumentsController CreatePrintController(
         IApplicationDbContext db,
-        ICurrentUserContext userCtx)
+        ICurrentUserContext userCtx,
+        IVietQrService? vietQrService = null)
     {
+        var qrService = vietQrService ?? new VietQrService();
         var dispatcher = new CapturingSender(async (req, ct) => req switch
         {
-            GetPrintableInvoiceQuery q => await new GetPrintableInvoiceQueryHandler(db, userCtx).Handle(q, ct),
+            GetPrintableInvoiceQuery q => await new GetPrintableInvoiceQueryHandler(db, userCtx, qrService).Handle(q, ct),
             GetPrintableVoucherQuery q => await new GetPrintableVoucherQueryHandler(db, userCtx).Handle(q, ct),
             GetPrintableContractQuery q => await new GetPrintableContractQueryHandler(db, userCtx).Handle(q, ct),
             GetPrintTemplateConfigQuery q => await new GetPrintTemplateConfigQueryHandler(db, userCtx).Handle(q, ct),
@@ -758,6 +760,19 @@ public sealed class LocationsAndAiChatTests
         var otherTenantId = Guid.NewGuid();
         var propertyId = Guid.NewGuid();
         var guestUserId = Guid.NewGuid();
+        const string validLookupToken = "inv-secret-lookup-token-8899";
+        var validSnapshot = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            StartAtUtc = DateTime.UtcNow.AddDays(1),
+            EndAtUtc = DateTime.UtcNow.AddDays(3),
+            BufferMinutes = 30,
+            RoomTypeName = "Deluxe River View",
+            LookupToken = validLookupToken,
+            TokenExpiresAtUtc = DateTime.UtcNow.AddDays(10),
+            IsTokenRevoked = false
+        };
+
         var reservation = new Reservation
         {
             Id = Guid.NewGuid(),
@@ -772,6 +787,7 @@ public sealed class LocationsAndAiChatTests
             CheckOutDate = new DateOnly(2026, 6, 3),
             NumberOfGuests = 2,
             TotalAmount = 2_400_000m,
+            Notes = ReservationSnapshotHelper.Serialize(validSnapshot),
             Room = new Room
             {
                 Id = Guid.NewGuid(),
@@ -807,7 +823,7 @@ public sealed class LocationsAndAiChatTests
             reservations: new[] { reservation },
             printTemplateConfigs: new[] { printConfig });
 
-        // 1. Anonymous without confirmation code -> masked PII & hidden VietQR
+        // 1. Anonymous without code -> masked PII & hidden VietQR
         var anonController = CreatePrintController(fakeDb, CreateAnonymousUserContext());
         var anonOk = Assert.IsType<OkObjectResult>(await anonController.GetPrintableInvoice(reservation.Id, null, CancellationToken.None));
         var anonDto = Assert.IsType<PrintableInvoiceDto>(anonOk.Value);
@@ -823,8 +839,19 @@ public sealed class LocationsAndAiChatTests
         Assert.Equal("C*** K*** S*** S*** H***", anonDto.BankAccountHolder);
         Assert.DoesNotContain("305", anonDto.Items[0].Description);
 
-        // 2. Anonymous with matching confirmation code -> unmasked PII & VietQR visible
-        var codeOk = Assert.IsType<OkObjectResult>(await anonController.GetPrintableInvoice(reservation.Id, "lux8899", CancellationToken.None));
+        // 2a. Anonymous with raw confirmation code -> MUST NOT unlock PII or VietQR
+        var rawCodeOk = Assert.IsType<OkObjectResult>(await anonController.GetPrintableInvoice(reservation.Id, "lux8899", CancellationToken.None));
+        var rawCodeDto = Assert.IsType<PrintableInvoiceDto>(rawCodeOk.Value);
+        Assert.Equal("N*** V*** K***", rawCodeDto.GuestName);
+        Assert.Equal("g***@example.com", rawCodeDto.GuestEmail);
+        Assert.Equal("090****567", rawCodeDto.GuestPhone);
+        Assert.Equal("***", rawCodeDto.RoomNumber);
+        Assert.False(rawCodeDto.ShowVietQrCode);
+        Assert.Equal(string.Empty, rawCodeDto.VietQrImageUrl);
+        Assert.NotEqual("999988887777", rawCodeDto.BankAccountNumber);
+
+        // 2b. Anonymous with valid non-expired cryptographic LookupToken -> unmasked PII & clean SePay VietQR visible
+        var codeOk = Assert.IsType<OkObjectResult>(await anonController.GetPrintableInvoice(reservation.Id, validLookupToken, CancellationToken.None));
         var codeDto = Assert.IsType<PrintableInvoiceDto>(codeOk.Value);
         Assert.Equal("Nguyen Van Khach", codeDto.GuestName);
         Assert.Equal("guest.secret@example.com", codeDto.GuestEmail);
@@ -832,6 +859,9 @@ public sealed class LocationsAndAiChatTests
         Assert.Equal("305", codeDto.RoomNumber);
         Assert.True(codeDto.ShowVietQrCode);
         Assert.Contains("img.vietqr.io", codeDto.VietQrImageUrl);
+        Assert.Contains("970422-999988887777", codeDto.VietQrImageUrl);
+        Assert.Contains("DATPHONG+LUX8899", codeDto.VietQrImageUrl);
+        Assert.DoesNotContain("THANHTOAN", codeDto.VietQrImageUrl);
         Assert.Equal("999988887777", codeDto.BankAccountNumber);
 
         // 3. Authenticated guest owner -> unmasked PII & VietQR visible
@@ -862,6 +892,11 @@ public sealed class LocationsAndAiChatTests
         Assert.False(outsiderDto.ShowVietQrCode);
         Assert.Equal(string.Empty, outsiderDto.VietQrImageUrl);
         Assert.NotEqual("999988887777", outsiderDto.BankAccountNumber);
+
+        // 5. Anonymous with expired LookupToken -> rejected with 404 NotFound
+        validSnapshot.TokenExpiresAtUtc = DateTime.UtcNow.AddMinutes(-5);
+        reservation.Notes = ReservationSnapshotHelper.Serialize(validSnapshot);
+        Assert.IsType<NotFoundObjectResult>(await anonController.GetPrintableInvoice(reservation.Id, validLookupToken, CancellationToken.None));
     }
 
     [Fact]

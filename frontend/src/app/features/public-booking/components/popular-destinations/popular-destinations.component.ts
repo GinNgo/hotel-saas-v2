@@ -61,50 +61,50 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
           type="button"
           (click)="selectedRegion.set('all')"
           [class]="selectedRegion() === 'all' ? activeTabClass : inactiveTabClass"
-          class="px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
+          class="min-h-11 px-3.5 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
         >
           <span>Tất Cả</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">{{ totalCount() }}</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums" [class]="selectedRegion() === 'all' ? 'bg-black/15 dark:bg-white/25 text-[var(--brand-primary-fg)]' : 'bg-slate-200 text-slate-700'">{{ totalCount() }}</span>
         </button>
 
         <button
           type="button"
           (click)="selectedRegion.set('north')"
           [class]="selectedRegion() === 'north' ? activeTabClass : inactiveTabClass"
-          class="px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
+          class="min-h-11 px-3.5 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
         >
           <span>Miền Bắc</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'north' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">{{ northCount() }}</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums" [class]="selectedRegion() === 'north' ? 'bg-black/15 dark:bg-white/25 text-[var(--brand-primary-fg)]' : 'bg-slate-200 text-slate-700'">{{ northCount() }}</span>
         </button>
 
         <button
           type="button"
           (click)="selectedRegion.set('central')"
           [class]="selectedRegion() === 'central' ? activeTabClass : inactiveTabClass"
-          class="px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
+          class="min-h-11 px-3.5 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
         >
           <span>Miền Trung</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'central' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">{{ centralCount() }}</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums" [class]="selectedRegion() === 'central' ? 'bg-black/15 dark:bg-white/25 text-[var(--brand-primary-fg)]' : 'bg-slate-200 text-slate-700'">{{ centralCount() }}</span>
         </button>
 
         <button
           type="button"
           (click)="selectedRegion.set('highlands')"
           [class]="selectedRegion() === 'highlands' ? activeTabClass : inactiveTabClass"
-          class="px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
+          class="min-h-11 px-3.5 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
         >
           <span>Tây Nguyên</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'highlands' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">{{ highlandsCount() }}</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums" [class]="selectedRegion() === 'highlands' ? 'bg-black/15 dark:bg-white/25 text-[var(--brand-primary-fg)]' : 'bg-slate-200 text-slate-700'">{{ highlandsCount() }}</span>
         </button>
 
         <button
           type="button"
           (click)="selectedRegion.set('south')"
           [class]="selectedRegion() === 'south' ? activeTabClass : inactiveTabClass"
-          class="px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
+          class="min-h-11 px-3.5 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
         >
           <span>Miền Nam</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'south' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">{{ southCount() }}</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums" [class]="selectedRegion() === 'south' ? 'bg-black/15 dark:bg-white/25 text-[var(--brand-primary-fg)]' : 'bg-slate-200 text-slate-700'">{{ southCount() }}</span>
         </button>
       </div>
 
@@ -168,7 +168,7 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
                 <!-- Action Footer -->
                 <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
                   <span class="text-[11px] font-semibold text-[var(--brand-primary)]">Xem cơ sở lưu trú</span>
-                  <div class="w-6 h-6 rounded-full bg-slate-100 group-hover:bg-[var(--brand-primary)] group-hover:text-white text-slate-600 flex items-center justify-center transition-colors shrink-0">
+                  <div class="w-6 h-6 rounded-full bg-slate-100 group-hover:bg-[var(--brand-primary)] group-hover:text-[var(--brand-primary-fg)] text-slate-600 flex items-center justify-center transition-colors shrink-0">
                     <i class="pi pi-arrow-right text-[10px]"></i>
                   </div>
                 </div>
@@ -224,7 +224,7 @@ export class PopularDestinationsComponent {
   readonly searchQuery = signal<string>('');
   readonly showAll = signal<boolean>(false);
 
-  readonly activeTabClass = 'bg-[var(--brand-primary)] text-white font-semibold shadow-2xs';
+  readonly activeTabClass = 'bg-[var(--brand-primary)] text-[var(--brand-primary-fg)] font-semibold shadow-2xs';
   readonly inactiveTabClass = 'bg-slate-100 hover:bg-slate-200/80 text-slate-600 hover:text-slate-900';
 
   readonly filteredDestinations = computed(() => {

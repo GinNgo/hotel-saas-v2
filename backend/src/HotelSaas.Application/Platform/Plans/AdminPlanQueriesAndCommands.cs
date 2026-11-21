@@ -8,7 +8,7 @@ using FluentValidation;
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Platform.DTOs;
-using HotelSaas.Application.Platform.Queries.GetPlatformTenants;
+using HotelSaas.Application.Platform.Queries.GetPlatformOverview;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using MediatR;
@@ -58,11 +58,50 @@ internal static class AdminPlanMappingHelper
         return normalized.Count == 0 ? null : JsonSerializer.Serialize(normalized);
     }
 
-    internal static AdminPlanDto ToDto(SubscriptionPlan plan, IReadOnlyList<Subscription>? activeSubscriptions = null)
+    internal static async Task<IReadOnlyList<TenantMrrAssignment>> LoadActiveTenantMrrAssignmentsAsync(
+        IApplicationDbContext context,
+        IReadOnlyList<SubscriptionPlan> plans,
+        CancellationToken cancellationToken)
     {
-        var subscriberCount = activeSubscriptions == null
-            ? 0
-            : activeSubscriptions.Count(s => GetPlatformTenantsQueryHandler.PlanMatchesTier(plan.Code, s.Tier));
+        List<Tenant> tenants;
+        try
+        {
+            tenants = await context.Tenants
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+        }
+        catch (NotImplementedException)
+        {
+            tenants = new List<Tenant>();
+        }
+
+        var subscriptions = await context.Subscriptions
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+
+        List<TenantContract> contracts;
+        try
+        {
+            contracts = await context.TenantContracts
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+        }
+        catch (NotImplementedException)
+        {
+            contracts = new List<TenantContract>();
+        }
+
+        return PlatformMrrCalculator.ComputeActiveTenantMrrAssignments(tenants, subscriptions, contracts, plans);
+    }
+
+    internal static AdminPlanDto ToDto(SubscriptionPlan plan, IReadOnlyList<TenantMrrAssignment>? activeAssignments = null)
+    {
+        var matched = activeAssignments == null
+            ? new List<TenantMrrAssignment>()
+            : activeAssignments.Where(entry => PlatformMrrCalculator.MatchesPlan(plan, entry)).ToList();
 
         return new AdminPlanDto
         {
@@ -81,8 +120,8 @@ internal static class AdminPlanMappingHelper
             IsPopular = plan.IsPopular,
             SortOrder = plan.SortOrder,
             Features = ParseFeatures(plan.FeaturesJson),
-            ActiveTenantsCount = subscriberCount,
-            EstimatedMonthlyRevenue = subscriberCount * plan.MonthlyPrice
+            ActiveTenantsCount = matched.Count,
+            EstimatedMonthlyRevenue = matched.Sum(x => x.MonthlyMrr)
         };
     }
 }
@@ -110,13 +149,10 @@ public sealed class GetAdminPlansQueryHandler : IRequestHandler<GetAdminPlansQue
             .ThenBy(p => p.MonthlyPrice)
             .ToListAsync(cancellationToken);
 
-        var activeSubscriptions = await _context.Subscriptions
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(s => s.Status == SubscriptionStatus.Active || s.Status == SubscriptionStatus.Trial)
-            .ToListAsync(cancellationToken);
+        var activeAssignments = await AdminPlanMappingHelper.LoadActiveTenantMrrAssignmentsAsync(
+            _context, plans, cancellationToken);
 
-        return plans.Select(p => AdminPlanMappingHelper.ToDto(p, activeSubscriptions)).ToList();
+        return plans.Select(p => AdminPlanMappingHelper.ToDto(p, activeAssignments)).ToList();
     }
 }
 
@@ -146,13 +182,10 @@ public sealed class GetAdminPlanByIdQueryHandler : IRequestHandler<GetAdminPlanB
             throw new NotFoundException("Không tìm thấy thông tin gói dịch vụ.");
         }
 
-        var activeSubscriptions = await _context.Subscriptions
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(s => s.Status == SubscriptionStatus.Active || s.Status == SubscriptionStatus.Trial)
-            .ToListAsync(cancellationToken);
+        var activeAssignments = await AdminPlanMappingHelper.LoadActiveTenantMrrAssignmentsAsync(
+            _context, new[] { plan }, cancellationToken);
 
-        return AdminPlanMappingHelper.ToDto(plan, activeSubscriptions);
+        return AdminPlanMappingHelper.ToDto(plan, activeAssignments);
     }
 }
 
@@ -341,13 +374,10 @@ public sealed class UpdateAdminPlanCommandHandler : IRequestHandler<UpdateAdminP
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        var activeSubscriptions = await _context.Subscriptions
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(s => s.Status == SubscriptionStatus.Active || s.Status == SubscriptionStatus.Trial)
-            .ToListAsync(cancellationToken);
+        var activeAssignments = await AdminPlanMappingHelper.LoadActiveTenantMrrAssignmentsAsync(
+            _context, new[] { plan }, cancellationToken);
 
-        return AdminPlanMappingHelper.ToDto(plan, activeSubscriptions);
+        return AdminPlanMappingHelper.ToDto(plan, activeAssignments);
     }
 }
 
@@ -389,12 +419,9 @@ public sealed class ToggleAdminPlanActiveCommandHandler : IRequestHandler<Toggle
         plan.UpdatedAtUtc = DateTime.UtcNow;
         await _context.SaveChangesAsync(cancellationToken);
 
-        var activeSubscriptions = await _context.Subscriptions
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(s => s.Status == SubscriptionStatus.Active || s.Status == SubscriptionStatus.Trial)
-            .ToListAsync(cancellationToken);
+        var activeAssignments = await AdminPlanMappingHelper.LoadActiveTenantMrrAssignmentsAsync(
+            _context, new[] { plan }, cancellationToken);
 
-        return AdminPlanMappingHelper.ToDto(plan, activeSubscriptions);
+        return AdminPlanMappingHelper.ToDto(plan, activeAssignments);
     }
 }

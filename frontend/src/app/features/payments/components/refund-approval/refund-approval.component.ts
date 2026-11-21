@@ -33,7 +33,7 @@ import {
 
 import { PaginationComponent } from '../../../../shared/components/pagination/pagination.component';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
-import { BusinessDateTimePipe } from '../../../../shared';
+import { BusinessDateTimePipe, VndCurrencyPipe } from '../../../../shared';
 
 export interface ParsedTransactionRef {
   businessRef: string | null;
@@ -97,7 +97,8 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
     A11yModule,
     PaginationComponent,
     EmptyStateComponent,
-    BusinessDateTimePipe
+    BusinessDateTimePipe,
+    VndCurrencyPipe
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -119,7 +120,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
         </div>
       </div>
       <div class="text-xs text-slate-500 pt-3 mt-2 border-t border-slate-100 truncate">
-        Tổng giá trị: <span class="font-semibold text-slate-800 tabular-nums whitespace-nowrap">{{ totalRefundAmount() | number:'1.0-0' }} đ</span>
+        Tổng giá trị: <span class="font-semibold text-slate-800 tabular-nums whitespace-nowrap">{{ totalRefundAmount() | vndCurrency }}</span>
       </div>
     </div>
 
@@ -289,6 +290,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
           dateFormat="dd/mm/yy"
           [showIcon]="true"
           iconDisplay="input"
+          [touchUI]="isMobile()"
           appendTo="body"
           [firstDayOfWeek]="1"
           placeholder="dd/mm/yyyy"
@@ -308,6 +310,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
           dateFormat="dd/mm/yy"
           [showIcon]="true"
           iconDisplay="input"
+          [touchUI]="isMobile()"
           appendTo="body"
           [firstDayOfWeek]="1"
           placeholder="dd/mm/yyyy"
@@ -417,21 +420,21 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
                 <!-- 3. Paid & Total Amount -->
                 <td class="py-3.5 px-4 text-right">
                   <div class="font-medium text-slate-800 tabular-nums whitespace-nowrap">
-                    {{ item.paidAmount | number:'1.0-0' }} đ
+                    {{ item.paidAmount | vndCurrency }}
                   </div>
                   <div class="text-[11px] text-slate-400 mt-0.5 tabular-nums whitespace-nowrap">
-                    Tổng: {{ item.totalAmount | number:'1.0-0' }} đ
+                    Tổng: {{ item.totalAmount | vndCurrency }}
                   </div>
                 </td>
 
                 <!-- 4. Cancellation Fee -->
                 <td class="py-3.5 px-4 text-right font-medium text-rose-600 tabular-nums whitespace-nowrap">
-                  {{ item.cancellationFee | number:'1.0-0' }} đ
+                  {{ item.cancellationFee | vndCurrency }}
                 </td>
 
                 <!-- 5. Refundable Amount (Prominent) -->
                 <td class="py-3.5 px-4 text-right font-bold text-emerald-700 text-sm tabular-nums whitespace-nowrap">
-                  {{ item.refundableAmount | number:'1.0-0' }} đ
+                  {{ item.refundableAmount | vndCurrency }}
                 </td>
 
                 <!-- 6. Status Badge -->
@@ -505,15 +508,15 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
             <div class="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200/70 text-xs">
               <div>
                 <span class="text-[11px] text-slate-400 block">Đã thanh toán:</span>
-                <span class="font-semibold text-slate-700 tabular-nums whitespace-nowrap">{{ item.paidAmount | number:'1.0-0' }} đ</span>
+                <span class="font-semibold text-slate-700 tabular-nums whitespace-nowrap">{{ item.paidAmount | vndCurrency }}</span>
               </div>
               <div>
                 <span class="text-[11px] text-slate-400 block">Phí hủy:</span>
-                <span class="font-semibold text-rose-600 tabular-nums whitespace-nowrap">{{ item.cancellationFee | number:'1.0-0' }} đ</span>
+                <span class="font-semibold text-rose-600 tabular-nums whitespace-nowrap">{{ item.cancellationFee | vndCurrency }}</span>
               </div>
               <div class="col-span-2 pt-1.5 border-t border-slate-200/60 flex items-center justify-between">
                 <span class="font-bold text-slate-700">Được hoàn:</span>
-                <span class="font-bold text-emerald-700 text-sm tabular-nums whitespace-nowrap">{{ item.refundableAmount | number:'1.0-0' }} đ</span>
+                <span class="font-bold text-emerald-700 text-sm tabular-nums whitespace-nowrap">{{ item.refundableAmount | vndCurrency }}</span>
               </div>
             </div>
 
@@ -697,7 +700,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
                   } @else if (detail.status === 'Rejected') {
                     Lý do: {{ detail.rejectionReason || 'Không đủ điều kiện' }}
                   } @else {
-                    Hạn mức hoàn: {{ detail.refundableAmount | number:'1.0-0' }} đ
+                    Hạn mức hoàn: {{ detail.refundableAmount | vndCurrency }}
                   }
                 </div>
                 <div class="text-[10px] text-slate-400 pt-0.5 flex items-center gap-1">
@@ -814,14 +817,14 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
               <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
                 <span class="text-slate-500 block text-[11px] font-medium">Tổng giá trị booking</span>
                 <span class="text-slate-800 font-bold text-sm tabular-nums whitespace-nowrap mt-0.5 block">
-                  {{ detail.totalAmount | number:'1.0-0' }} đ
+                  {{ detail.totalAmount | vndCurrency }}
                 </span>
               </div>
 
               <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
                 <span class="text-slate-500 block text-[11px] font-medium">Đã thanh toán</span>
                 <span class="text-slate-800 font-bold text-sm tabular-nums whitespace-nowrap mt-0.5 block">
-                  {{ detail.paidAmount | number:'1.0-0' }} đ
+                  {{ detail.paidAmount | vndCurrency }}
                 </span>
               </div>
 
@@ -833,14 +836,14 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
                 <span class="font-bold text-sm tabular-nums whitespace-nowrap mt-0.5 block"
                       [class.text-rose-600]="detail.cancellationFee > 0"
                       [class.text-slate-800]="detail.cancellationFee === 0">
-                  {{ detail.cancellationFee | number:'1.0-0' }} đ
+                  {{ detail.cancellationFee | vndCurrency }}
                 </span>
               </div>
 
               <div class="p-3 rounded-xl bg-emerald-50/70 border border-emerald-300 shadow-2xs">
                 <span class="text-emerald-800 block text-[11px] font-bold uppercase tracking-wide">Số tiền được hoàn</span>
                 <span class="text-emerald-700 font-extrabold text-base tabular-nums whitespace-nowrap mt-0.5 block">
-                  {{ detail.refundableAmount | number:'1.0-0' }} đ
+                  {{ detail.refundableAmount | vndCurrency }}
                 </span>
               </div>
             </div>
@@ -941,7 +944,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
                           }
                         </td>
                         <td class="py-2.5 px-3 text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
-                          {{ p.amount | number:'1.0-0' }} đ
+                          {{ p.amount | vndCurrency }}
                         </td>
                         <td class="py-2.5 px-3">
                           <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
@@ -1164,7 +1167,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
           </div>
           <div class="flex justify-between pt-1 border-t border-slate-200/60">
             <span class="font-bold text-slate-700">Số tiền được hoàn:</span>
-            <strong class="font-bold text-emerald-700 text-sm tabular-nums whitespace-nowrap">{{ detail.refundableAmount | number:'1.0-0' }} đ</strong>
+            <strong class="font-bold text-emerald-700 text-sm tabular-nums whitespace-nowrap">{{ detail.refundableAmount | vndCurrency }}</strong>
           </div>
         </div>
       }
@@ -1332,7 +1335,15 @@ export class RefundApprovalComponent implements OnInit, OnDestroy {
   readonly autoOpenTrigger = input<number>(0);
 
   // Context Signals
+  readonly isMobile = signal<boolean>(typeof window !== 'undefined' && window.innerWidth < 768);
   readonly activePropertyId = computed(() => this.authService.activePropertyId());
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    if (typeof window !== 'undefined') {
+      this.isMobile.set(window.innerWidth < 768);
+    }
+  }
   readonly activePropertyName = computed(() => this.authService.activePropertyName());
 
   // RBAC Permission: PAYMENTS:Approve is bit 16 per Decision D23

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Exceptions;
@@ -16,13 +17,50 @@ namespace HotelSaas.Application.Print.Queries.GetPrintableInvoice;
 
 public sealed class GetPrintableInvoiceQueryHandler : IRequestHandler<GetPrintableInvoiceQuery, PrintableInvoiceDto>
 {
+    private static readonly Dictionary<string, string> BankNameToBinMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["MB"] = "970422",
+        ["MBBANK"] = "970422",
+        ["MB BANK"] = "970422",
+        ["VIETINBANK"] = "970415",
+        ["ICB"] = "970415",
+        ["CTG"] = "970415",
+        ["VIETCOMBANK"] = "970436",
+        ["VCB"] = "970436",
+        ["TECHCOMBANK"] = "970407",
+        ["TCB"] = "970407",
+        ["BIDV"] = "970418",
+        ["TPBANK"] = "970423",
+        ["TPB"] = "970423",
+        ["VPBANK"] = "970432",
+        ["VPB"] = "970432",
+        ["OCB"] = "970448",
+        ["AGRIBANK"] = "970405",
+        ["VBA"] = "970405",
+        ["SACOMBANK"] = "970403",
+        ["STB"] = "970403",
+        ["ACB"] = "970416",
+        ["VIB"] = "970441",
+        ["MSB"] = "970426",
+        ["HDBANK"] = "970437",
+        ["SHB"] = "970443",
+        ["SEABANK"] = "970440",
+        ["EXIMBANK"] = "970431",
+        ["EIB"] = "970431"
+    };
+
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserContext _currentUser;
+    private readonly IVietQrService? _vietQrService;
 
-    public GetPrintableInvoiceQueryHandler(IApplicationDbContext context, ICurrentUserContext currentUser)
+    public GetPrintableInvoiceQueryHandler(
+        IApplicationDbContext context,
+        ICurrentUserContext currentUser,
+        IVietQrService? vietQrService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _currentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
+        _vietQrService = vietQrService;
     }
 
     public async Task<PrintableInvoiceDto> Handle(GetPrintableInvoiceQuery request, CancellationToken cancellationToken)
@@ -44,14 +82,32 @@ public sealed class GetPrintableInvoiceQueryHandler : IRequestHandler<GetPrintab
 
         var snapshot = ReservationSnapshotHelper.TryDeserialize(reservation.Notes);
 
-        bool isAuthorizedFullPii = (_currentUser.IsAuthenticated &&
+        bool isAuthenticatedAuthorized = _currentUser.IsAuthenticated &&
             (_currentUser.GlobalRole == GlobalUserRole.SuperAdmin ||
              (_currentUser.TenantId.HasValue && _currentUser.TenantId.Value == reservation.TenantId) ||
-             (_currentUser.UserId != Guid.Empty && reservation.GuestUserId == _currentUser.UserId))) ||
-            (!string.IsNullOrWhiteSpace(request.Code) &&
-             (string.Equals(request.Code.Trim(), reservation.ConfirmationCode, StringComparison.OrdinalIgnoreCase) ||
-              (snapshot != null && !snapshot.IsTokenRevoked && !string.IsNullOrWhiteSpace(snapshot.LookupToken) &&
-               string.Equals(request.Code.Trim(), snapshot.LookupToken, StringComparison.OrdinalIgnoreCase))));
+             (_currentUser.UserId != Guid.Empty && reservation.GuestUserId == _currentUser.UserId));
+
+        var trimmedCode = request.Code?.Trim();
+        bool isLookupTokenMatch = !string.IsNullOrWhiteSpace(trimmedCode) &&
+            snapshot != null &&
+            !string.IsNullOrWhiteSpace(snapshot.LookupToken) &&
+            string.Equals(trimmedCode, snapshot.LookupToken, StringComparison.OrdinalIgnoreCase);
+
+        if (!isAuthenticatedAuthorized && isLookupTokenMatch && snapshot != null &&
+            (snapshot.IsTokenRevoked ||
+             !snapshot.TokenExpiresAtUtc.HasValue ||
+             snapshot.TokenExpiresAtUtc.Value <= DateTime.UtcNow))
+        {
+            throw new NotFoundException("Mã tra cứu đặt phòng đã hết hạn hoặc bị thu hồi.");
+        }
+
+        bool isValidLookupToken = isLookupTokenMatch &&
+            snapshot != null &&
+            !snapshot.IsTokenRevoked &&
+            snapshot.TokenExpiresAtUtc.HasValue &&
+            snapshot.TokenExpiresAtUtc.Value > DateTime.UtcNow;
+
+        bool isAuthorizedFullPii = isAuthenticatedAuthorized || isValidLookupToken;
 
         var printConfigs = await _context.PrintTemplateConfigs
             .IgnoreQueryFilters()
@@ -75,14 +131,52 @@ public sealed class GetPrintableInvoiceQueryHandler : IRequestHandler<GetPrintab
         var hotline = !string.IsNullOrWhiteSpace(printConfig?.Hotline) ? printConfig!.Hotline : (reservation.Property?.PhoneNumber ?? string.Empty);
         var logoUrl = !string.IsNullOrWhiteSpace(printConfig?.LogoUrl) ? printConfig!.LogoUrl : null;
 
-        var totalAmount = invoice != null && invoice.GrandTotal > 0 ? invoice.GrandTotal : reservation.TotalAmount;
+        var totalAmount = invoice != null && (invoice.GrandTotal > 0m || invoice.Subtotal > 0m)
+            ? invoice.GrandTotal
+            : reservation.TotalAmount;
         var vatRate = invoice != null
             ? Math.Round(invoice.TaxRate * 100m, 2)
-            : (reservation.Property?.TaxRatePercent > 0 ? reservation.Property!.TaxRatePercent : 8m);
-        var subTotal = invoice != null && invoice.Subtotal > 0
-            ? invoice.Subtotal
-            : (vatRate > 0m ? Math.Round(totalAmount / (1m + (vatRate / 100m)), 0) : totalAmount);
-        var vatAmount = invoice?.TaxAmount ?? (totalAmount - subTotal);
+            : (reservation.Property?.TaxRatePercent > 0m ? reservation.Property!.TaxRatePercent : 8m);
+
+        decimal subTotal;
+        decimal vatAmount;
+        decimal serviceFeeAmount;
+        decimal discountAmount;
+
+        if (invoice != null && invoice.Subtotal > 0m)
+        {
+            subTotal = invoice.Subtotal;
+            vatAmount = invoice.TaxAmount;
+            serviceFeeAmount = invoice.ServiceFeeAmount;
+            discountAmount = invoice.DiscountAmount;
+        }
+        else
+        {
+            var taxRateDecimal = invoice != null ? invoice.TaxRate : vatRate / 100m;
+            var serviceFeeRateDecimal = invoice != null
+                ? invoice.ServiceFeeRate
+                : (reservation.Property?.ServiceFeeRatePercent > 0m
+                    ? reservation.Property!.ServiceFeeRatePercent / 100m
+                    : 0m);
+            discountAmount = invoice != null && invoice.DiscountAmount > 0m
+                ? invoice.DiscountAmount
+                : Math.Max(0m, reservation.PointsDiscountAmount) + Math.Max(0m, snapshot?.PromoDiscountAmount ?? 0m);
+
+            var denominator = 1m + taxRateDecimal + serviceFeeRateDecimal;
+            if (taxRateDecimal > 0m || serviceFeeRateDecimal > 0m)
+            {
+                var netBase = Math.Round(totalAmount / denominator, 0, MidpointRounding.AwayFromZero);
+                vatAmount = Math.Round(netBase * taxRateDecimal, 0, MidpointRounding.AwayFromZero);
+                serviceFeeAmount = Math.Round(netBase * serviceFeeRateDecimal, 0, MidpointRounding.AwayFromZero);
+                subTotal = Math.Max(0m, totalAmount + discountAmount - vatAmount - serviceFeeAmount);
+            }
+            else
+            {
+                vatAmount = 0m;
+                serviceFeeAmount = 0m;
+                subTotal = Math.Max(0m, totalAmount + discountAmount);
+            }
+        }
 
         var completedNonRefundPayments = reservation.Payments
             .Where(p => p.Status == PaymentStatus.Completed &&
@@ -98,9 +192,36 @@ public sealed class GetPrintableInvoiceQueryHandler : IRequestHandler<GetPrintab
         var bankAcc = hasBankConfig ? printConfig!.BankAccountNumber : string.Empty;
         var bankHolder = hasBankConfig ? printConfig!.BankAccountHolder : string.Empty;
         var showVietQr = (printConfig?.ShowVietQrCode ?? false) && hasBankConfig && remainingAmount > 0;
-        var vietQrUrl = showVietQr
-            ? $"https://img.vietqr.io/image/{Uri.EscapeDataString(bankName)}-{Uri.EscapeDataString(bankAcc)}-compact2.png?amount={remainingAmount:0}&addInfo={Uri.EscapeDataString($"THANHTOAN {reservation.ConfirmationCode}")}"
-            : string.Empty;
+        var vietQrUrl = string.Empty;
+        if (isAuthorizedFullPii && showVietQr)
+        {
+            var resolvedBin = ResolveBankBin(bankName);
+            var trimmedAcc = bankAcc.Trim();
+            var effectiveHolder = !string.IsNullOrWhiteSpace(bankHolder) ? bankHolder.Trim() : headerCompany.Trim();
+            var effectiveCode = !string.IsNullOrWhiteSpace(reservation.ConfirmationCode)
+                ? reservation.ConfirmationCode.Trim()
+                : reservation.Id.ToString("N")[..8].ToUpperInvariant();
+
+            if (_vietQrService != null)
+            {
+                var qr = _vietQrService.GenerateDynamicQr(new VietQrPayload(
+                    BankBin: resolvedBin,
+                    AccountNumber: trimmedAcc,
+                    AccountName: effectiveHolder,
+                    Amount: remainingAmount,
+                    Description: $"DATPHONG {effectiveCode}",
+                    ConfirmationCode: effectiveCode,
+                    ReservationId: reservation.Id));
+                vietQrUrl = qr.QrImageUrl;
+            }
+            else
+            {
+                var compactCode = new string(effectiveCode.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+                var fallbackDesc = string.IsNullOrWhiteSpace(compactCode) ? "DATPHONG" : $"DATPHONG {compactCode}";
+                var roundedAmount = (long)Math.Max(0, Math.Round(remainingAmount, 0, MidpointRounding.AwayFromZero));
+                vietQrUrl = $"https://img.vietqr.io/image/{Uri.EscapeDataString(resolvedBin)}-{Uri.EscapeDataString(trimmedAcc)}-compact2.png?amount={roundedAmount}&addInfo={WebUtility.UrlEncode(fallbackDesc)}";
+            }
+        }
 
         var rentalType = snapshot?.RentalType.ToString() ??
             (reservation.CheckInDate == reservation.CheckOutDate ? RentalType.Hourly.ToString() : RentalType.Overnight.ToString());
@@ -172,6 +293,8 @@ public sealed class GetPrintableInvoiceQueryHandler : IRequestHandler<GetPrintab
             SubTotal = subTotal,
             VatRate = vatRate,
             VatAmount = vatAmount,
+            ServiceFeeAmount = serviceFeeAmount,
+            DiscountAmount = discountAmount,
             TotalAmount = totalAmount,
             PaidAmount = paidAmount,
             RemainingAmount = remainingAmount,
@@ -187,6 +310,23 @@ public sealed class GetPrintableInvoiceQueryHandler : IRequestHandler<GetPrintab
             FooterNote = printConfig?.FooterNote ?? "Cảm ơn Quý khách đã tin tưởng và sử dụng dịch vụ của chúng tôi! Hẹn gặp lại Quý khách.",
             Items = lineItems
         };
+    }
+
+    private static string ResolveBankBin(string rawBankNameOrBin)
+    {
+        var trimmed = rawBankNameOrBin.Trim();
+        if (trimmed.Length == 6 && trimmed.All(char.IsDigit))
+        {
+            return trimmed;
+        }
+
+        if (BankNameToBinMap.TryGetValue(trimmed, out var mappedBin))
+        {
+            return mappedBin;
+        }
+
+        var compact = trimmed.Replace(" ", string.Empty, StringComparison.Ordinal);
+        return BankNameToBinMap.TryGetValue(compact, out mappedBin) ? mappedBin : trimmed;
     }
 
     private static string MaskGuestName(string? name)

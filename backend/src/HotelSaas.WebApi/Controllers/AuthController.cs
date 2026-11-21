@@ -14,6 +14,7 @@ using HotelSaas.Application.Auth.Queries.GetSocialIdentities;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace HotelSaas.WebApi.Controllers;
 
@@ -24,6 +25,7 @@ namespace HotelSaas.WebApi.Controllers;
 [ApiController]
 [Route("api/auth")]
 [Produces("application/json")]
+[EnableRateLimiting("auth")]
 public sealed class AuthController : ControllerBase
 {
     private readonly IMediator _mediator;
@@ -139,9 +141,6 @@ public sealed class AuthController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Authenticates or auto-provisions a guest customer account via Google or Facebook Social Identity.
-    /// </summary>
     /// <summary>
     /// Authenticates or links a user via Google Social Login (Google Identity Services / OAuth).
     /// Automatically provisions a guest account with verified email (Soft-Gating) or links to an existing account.

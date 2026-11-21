@@ -960,6 +960,10 @@ export class StaffPage implements OnInit {
   }
 
   loadProperties(): void {
+    if (!this.authService.hasPermission('PROPERTIES', 1)) {
+      this.properties.set([]);
+      return;
+    }
     this.propertyService.getTenantProperties().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (props: TenantPropertySummaryDto[]) => this.properties.set(props.map(p => ({ id: p.id, name: p.name }))),
       error: () => {}

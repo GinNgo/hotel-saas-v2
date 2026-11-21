@@ -13,7 +13,8 @@ namespace HotelSaas.Application.Housekeeping.Commands.StartHousekeepingTask;
 
 public sealed record StartHousekeepingTaskCommand(
     Guid TaskId,
-    Guid PropertyId
+    Guid PropertyId,
+    string? Notes = null
 ) : IRequest<HousekeepingTaskDto>;
 
 public sealed class StartHousekeepingTaskCommandValidator : AbstractValidator<StartHousekeepingTaskCommand>
@@ -27,6 +28,10 @@ public sealed class StartHousekeepingTaskCommandValidator : AbstractValidator<St
         RuleFor(x => x.PropertyId)
             .NotEmpty()
             .WithMessage("Chi nhánh (PropertyId) là bắt buộc.");
+
+        RuleFor(x => x.Notes)
+            .MaximumLength(1000)
+            .WithMessage("Ghi chú tối đa 1000 ký tự.");
     }
 }
 
@@ -69,7 +74,7 @@ public sealed class StartHousekeepingTaskCommandHandler : IRequestHandler<StartH
 
         if (task.AssignedToUserId.HasValue &&
             task.AssignedToUserId.Value != userId &&
-            membership.StaffRole is not (StaffRole.Owner or StaffRole.Manager))
+            membership.StaffRole is not (StaffRole.Owner or StaffRole.Manager or StaffRole.Receptionist))
         {
             throw new ForbiddenException("ERR_TASK_ASSIGNED_TO_OTHER",
                 "Công việc này đã được giao cho nhân viên khác.");
@@ -96,6 +101,14 @@ public sealed class StartHousekeepingTaskCommandHandler : IRequestHandler<StartH
         task.Status = HousekeepingTaskStatus.InProgress;
         task.StartedAtUtc ??= utcNow;
         task.UpdatedAtUtc = utcNow;
+
+        if (!string.IsNullOrWhiteSpace(request.Notes))
+        {
+            var trimmedNotes = request.Notes.Trim();
+            task.Notes = string.IsNullOrWhiteSpace(task.Notes)
+                ? trimmedNotes
+                : $"{task.Notes} | {trimmedNotes}";
+        }
 
         await _context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

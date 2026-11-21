@@ -8,6 +8,11 @@ import { PrintInvoiceDto } from '../../core/models/print-document.model';
 import { BusinessDatePipe } from '../../shared/pipes/business-date.pipe';
 import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 
+type PrintableInvoiceView = PrintInvoiceDto & {
+  serviceFeeAmount?: number;
+  discountAmount?: number;
+};
+
 @Component({
   selector: 'app-print-invoice-page',
   standalone: true,
@@ -121,7 +126,7 @@ import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
                   <th class="py-2.5 px-3">Nội dung thanh toán</th>
                   <th class="py-2.5 px-3 text-center">Số lượng</th>
                   <th class="py-2.5 px-3 text-right">Đơn giá</th>
-                  <th class="py-2.5 px-3 text-right">Thành tiền (VNĐ)</th>
+                  <th class="py-2.5 px-3 text-right">Thành tiền (VND)</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
@@ -186,6 +191,18 @@ import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
                 <span>Thuế GTGT (VAT {{ inv.vatRate }}%):</span>
                 <span class="font-semibold text-slate-800 tabular-nums">{{ inv.vatAmount | vndCurrency }}</span>
               </div>
+              @if ((inv.serviceFeeAmount ?? 0) > 0) {
+                <div class="flex justify-between py-1 text-slate-600 border-t border-slate-100" data-testid="invoice-service-fee-row">
+                  <span>Phí dịch vụ:</span>
+                  <span class="font-semibold text-slate-800 tabular-nums">{{ inv.serviceFeeAmount | vndCurrency }}</span>
+                </div>
+              }
+              @if ((inv.discountAmount ?? 0) > 0) {
+                <div class="flex justify-between py-1 text-emerald-700 border-t border-slate-100" data-testid="invoice-discount-row">
+                  <span>Giảm giá / Điểm thưởng:</span>
+                  <span class="font-semibold text-emerald-700 tabular-nums">-{{ inv.discountAmount | vndCurrency }}</span>
+                </div>
+              }
               <div class="flex justify-between py-2 text-sm border-t-2 border-slate-900 font-black">
                 <span class="text-slate-900 uppercase">TỔNG THANH TOÁN:</span>
                 <span class="text-indigo-700 text-base tabular-nums">{{ inv.totalAmount | vndCurrency }}</span>
@@ -271,7 +288,7 @@ export class PrintInvoicePage implements OnInit {
   private readonly tokenStorage = inject(TokenStorageService);
   private readonly destroyRef = inject(DestroyRef);
 
-  readonly invoice = signal<PrintInvoiceDto | null>(null);
+  readonly invoice = signal<PrintableInvoiceView | null>(null);
   readonly isLoading = signal(true);
 
   get backRoute(): string {

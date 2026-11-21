@@ -105,10 +105,9 @@ export interface RecentSearchItem {
                   @if (tab.badgeText) {
                     <span
                       class="text-[10px] uppercase px-1.5 py-0.5 rounded-full font-semibold"
-                      [class.bg-white/20]="rentalType() === tab.type"
-                      [class.text-white]="rentalType() === tab.type"
-                      [class.bg-slate-200]="rentalType() !== tab.type"
-                      [class.text-slate-700]="rentalType() !== tab.type"
+                      [ngClass]="rentalType() === tab.type
+                        ? 'bg-black/15 dark:bg-white/25 text-[var(--brand-primary-fg)]'
+                        : 'bg-slate-200 text-slate-700'"
                     >
                       {{ tab.badgeText }}
                     </span>
@@ -366,7 +365,7 @@ export interface RecentSearchItem {
             <button
               type="button"
               (click)="emitSearch()"
-              class="w-full h-11 px-4 bg-[var(--brand-cta)] hover:bg-[var(--brand-cta-hover)] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer"
+              class="w-full h-11 px-4 bg-[var(--brand-cta)] hover:bg-[var(--brand-cta-hover)] text-[var(--brand-primary-fg)] font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer"
             >
               <i class="pi pi-search"></i>
               <span>Tìm phòng</span>

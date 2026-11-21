@@ -212,7 +212,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
       </header>
 
       <!-- 3. NỘI DUNG TRANG CON -->
-      <div id="booking-content" tabindex="-1" class="flex-1">
+      <div id="booking-content" tabindex="-1" class="flex-1 pb-24 print:pb-0">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 empty:hidden">
           <app-system-banner-bar />
         </div>
@@ -220,7 +220,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
       </div>
 
       <!-- 4. FOOTER CHUYÊN NGHIỆP -->
-      <footer class="bg-[var(--surface-subtle)] text-[var(--text-secondary)] text-xs pt-12 pb-8 border-t border-[var(--border-subtle)] transition-colors duration-200">
+      <footer class="bg-[var(--surface-subtle)] text-[var(--text-secondary)] text-xs pt-12 pb-24 sm:pb-16 border-t border-[var(--border-subtle)] transition-colors duration-200">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div>
             <div class="mb-3">

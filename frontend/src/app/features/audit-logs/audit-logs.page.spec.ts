@@ -392,6 +392,78 @@ describe('AuditLogsPage — T03-C UI Tests', () => {
     expect(component.getEntityDisplayLabel('PropertyPublishApproval')).toBe('Duyệt xuất bản cơ sở');
     expect(component.getEntityDisplayLabel('SubscriptionUpgrade')).toBe('Nâng cấp gói cước');
     expect(component.getEntityDisplayLabel('GuestReview')).toBe('Đánh giá khách lưu trú');
+    expect(component.getEntityDisplayLabel('SepayExpiredHoldAlert')).toBe('Cảnh báo chuyển khoản quá hạn SePay');
+  });
+
+  it('17. should expose all 17 canonical actions in the filter dropdown and Vietnamese labels', () => {
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const actionOptions = Array.from(el.querySelectorAll('#filter-action option'))
+      .map(opt => (opt as HTMLOptionElement).value)
+      .filter(Boolean);
+
+    const expectedActions = [
+      'Create',
+      'Update',
+      'Delete',
+      'Cancel',
+      'Reschedule',
+      'MarkNoShow',
+      'NightAuditAutoNoShow',
+      'RegenerateSmartLockPin',
+      'RevokeSmartLockPin',
+      'CheckInDepositWarning',
+      'OverrideLateCheckOutSurcharge',
+      'ApproveRefund',
+      'RejectRefund',
+      'ConfirmRefundPayout',
+      'StatusToggle',
+      'PublishApproval',
+      'Upgrade'
+    ];
+
+    expect(actionOptions.length).toBe(17);
+    for (const action of expectedActions) {
+      expect(actionOptions).toContain(action);
+      expect(component.getActionLabel(action)).not.toBe(action);
+    }
+
+    const entityOptions = Array.from(el.querySelectorAll('#filter-entity option'))
+      .map(opt => (opt as HTMLOptionElement).value);
+    expect(entityOptions).toContain('SepayExpiredHoldAlert');
+  });
+
+  it('18. should display explicit warning toast when CSV export hits the 1,000-row cap', () => {
+    const createObjectURL = vi.fn().mockReturnValue('blob:mock-csv');
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, configurable: true, writable: true });
+    Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectURL, configurable: true, writable: true });
+
+    component.auditLogs.set(sampleItems);
+    component.totalRecords.set(1250);
+    mockAuditLogService.getAuditLogs.mockReset();
+    mockAuditLogService.getAuditLogs.mockImplementation(({ page }: { page: number }) => {
+      const items = Array.from({ length: 100 }, (_, i) => ({
+        ...sampleItems[0],
+        id: `p${page}-${i}`
+      }));
+      return of({
+        success: true,
+        data: { items, totalCount: 1250, page, pageSize: 100, totalPages: 13, hasPreviousPage: page > 1, hasNextPage: page < 13 },
+        message: null,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    component.exportToCsv();
+
+    expect(mockAuditLogService.getAuditLogs).toHaveBeenCalledTimes(10);
+    expect(mockAlertService.toastWarning).toHaveBeenCalledWith(
+      expect.stringContaining('1.000'),
+      'Giới hạn xuất CSV',
+      6000
+    );
+    expect(mockAlertService.toastSuccess).not.toHaveBeenCalled();
   });
 });
 

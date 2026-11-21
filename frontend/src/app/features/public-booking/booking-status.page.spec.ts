@@ -1109,7 +1109,7 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
       expect(printSheet?.textContent).not.toContain('tok-token-bbb');
       // Chứa mã đặt phòng và số tiền
       expect(printSheet?.textContent).toContain('RES-B222');
-      expect(printSheet?.textContent).toContain('600,000');
+      expect(printSheet?.textContent).toContain('600.000 ₫');
     });
 
     // 39. Định dạng thời hạn giữ phòng tuyệt đối cho PendingPayment trong bản in
@@ -1163,7 +1163,7 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
 
       const compiled = fixture.nativeElement as HTMLElement;
       expect(compiled.textContent).toContain('Cọc còn thiếu để xác nhận:');
-      expect(compiled.textContent).toContain('450,000 ₫');
+      expect(compiled.textContent).toContain('450.000 ₫');
     });
 
     // 42. Redesign V2: Confirmed và CheckedIn KHÔNG hiển thị countdown giữ phòng
@@ -1632,8 +1632,8 @@ describe('T04-B — Guest Booking Cancellation Workflow & Preview UI', () => {
       const compiled = fixture.nativeElement as HTMLElement;
       expect(compiled.textContent).toContain('Đối soát tài chính & Hoàn trả');
       expect(compiled.textContent).toContain('Miễn phí hủy phòng');
-      expect(compiled.textContent).toContain('1,500,000'); // Tổng tiền
-      expect(compiled.textContent).toContain('450,000'); // Đã trả & Tiền hoàn
+      expect(compiled.textContent).toContain('1.500.000 ₫'); // Tổng tiền
+      expect(compiled.textContent).toContain('450.000 ₫'); // Đã trả & Tiền hoàn
       expect(compiled.textContent).toContain('100'); // Điểm loyalty
     });
 
@@ -1646,8 +1646,8 @@ describe('T04-B — Guest Booking Cancellation Workflow & Preview UI', () => {
       fixture.detectChanges();
 
       const compiled = fixture.nativeElement as HTMLElement;
-      expect(compiled.textContent).toContain('500,000'); // Phí hủy
-      expect(compiled.textContent).toContain('1,500,000'); // Tiền hoàn
+      expect(compiled.textContent).toContain('500.000 ₫'); // Phí hủy
+      expect(compiled.textContent).toContain('1.500.000 ₫'); // Tiền hoàn
       expect(compiled.textContent).toContain('Hủy phòng muộn (trong vòng 24h)');
     });
 
@@ -1874,8 +1874,8 @@ describe('T04-B — Guest Booking Cancellation Workflow & Preview UI', () => {
       const compiled = fixture.nativeElement as HTMLElement;
       expect(compiled.textContent).toContain('Đơn đặt phòng đã được hủy trên hệ thống');
       expect(compiled.textContent).toContain('Đổi lịch công tác sang tuần sau');
-      expect(compiled.textContent).toContain('100,000 ₫');
-      expect(compiled.textContent).toContain('350,000 ₫');
+      expect(compiled.textContent).toContain('100.000 ₫');
+      expect(compiled.textContent).toContain('350.000 ₫');
       expect(compiled.textContent).toContain('Chờ đối soát & duyệt hoàn tiền');
       expect(component.canRequestCancellation(cancelledBooking)).toBe(false);
       expect(compiled.querySelector('button[title*="hủy đặt phòng"]')).toBeNull();
@@ -1945,7 +1945,7 @@ describe('T04-B — Guest Booking Cancellation Workflow & Preview UI', () => {
       const compiled = fixture.nativeElement as HTMLElement;
       expect(compiled.textContent).toContain('Quy trình hủy phòng & hoàn tiền:');
       expect(compiled.textContent).toContain('Đặt phòng sẽ được hủy sau khi bạn xác nhận.');
-      expect(compiled.textContent).toContain('Khoản hoàn dự kiến 1,500,000 ₫ sẽ được khách sạn kiểm tra và xử lý theo quy trình hoàn tiền. Đây chưa phải khoản tiền đã được hoàn.');
+      expect(compiled.textContent).toContain('Khoản hoàn dự kiến 1.500.000 ₫ sẽ được khách sạn kiểm tra và xử lý theo quy trình hoàn tiền. Đây chưa phải khoản tiền đã được hoàn.');
     });
 
     // 16. [Ba điểm kiểm tra - Điểm 3]: Không mặc định hoàn tiền bằng chuyển khoản
@@ -1988,7 +1988,7 @@ describe('T04-B — Guest Booking Cancellation Workflow & Preview UI', () => {
       const strongs = Array.from(compiled.querySelectorAll('strong')).map(s => s.textContent);
       expect(strongs.some(t => t?.includes('12 giờ trước nhận phòng'))).toBe(true);
       expect(strongs.some(t => t?.includes('phí hủy 25%'))).toBe(true);
-      expect(strongs.some(t => t?.includes('1,500,000 ₫'))).toBe(true);
+      expect(strongs.some(t => t?.includes('1.500.000 ₫'))).toBe(true);
     });
   });
 
@@ -2180,6 +2180,23 @@ describe('T04-B — Guest Booking Cancellation Workflow & Preview UI', () => {
       expect(component.isAlreadyReviewed()).toBe(true);
       expect(component.booking()?.existingReview?.comment).toBe('Đã gửi từ tab khác');
       expect((fixture.nativeElement as HTMLElement).textContent).toContain('Đã gửi từ tab khác');
+    });
+
+    it('should explicitly invoke stopPolling during ngOnDestroy to prevent timer leaks', () => {
+      const stopPollingSpy = vi.spyOn(component as unknown as { stopPolling(): void }, 'stopPolling');
+      component.ngOnDestroy();
+      expect(stopPollingSpy).toHaveBeenCalled();
+    });
+
+    it('should render print sheet amounts using canonical vndCurrency dot format', () => {
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      component.fetchBooking('tok-token-aaa');
+      fixture.detectChanges();
+
+      const printSheet = (fixture.nativeElement as HTMLElement).querySelector('.print-sheet');
+      expect(printSheet?.textContent).toContain('1.500.000 ₫');
+      expect(printSheet?.textContent).toContain('450.000 ₫');
+      expect(printSheet?.textContent).not.toContain('1,500,000 đ');
     });
   });
 });

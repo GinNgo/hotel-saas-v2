@@ -155,10 +155,17 @@ export class HousekeepingService {
       .pipe(map(normalizeHousekeepingTask));
   }
 
-  startTask(taskId: string, propertyId: string): Observable<HousekeepingTaskDto> {
-    const params = new HttpParams().set('propertyId', propertyId);
+  startTask(taskId: string, propertyId?: string, notes?: string): Observable<HousekeepingTaskDto> {
+    let params = new HttpParams();
+    if (propertyId) {
+      params = params.set('propertyId', propertyId);
+    }
+    const trimmedNotes = notes?.trim();
+    const body = trimmedNotes
+      ? { notes: trimmedNotes, ...(propertyId ? { propertyId } : {}) }
+      : null;
     return this.http
-      .post<RawHousekeepingTaskResponse>(`${this.apiUrl}/${taskId}/start`, null, { params })
+      .post<RawHousekeepingTaskResponse>(`${this.apiUrl}/${taskId}/start`, body, { params })
       .pipe(map(normalizeHousekeepingTask));
   }
 

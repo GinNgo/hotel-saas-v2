@@ -45,7 +45,8 @@ public sealed record ProcessSepayWebhookCommand(
     decimal TransferAmount,
     decimal? Accumulated,
     string? ReferenceCode,
-    string? ExpectedPlatformAccountNumber = null
+    string? ExpectedPlatformAccountNumber = null,
+    bool? RequireBankAccountMatch = null
 ) : IRequest<ProcessSepayWebhookResult>;
 
 public sealed class ProcessSepayWebhookCommandHandler
@@ -161,17 +162,45 @@ public sealed class ProcessSepayWebhookCommandHandler
         var bankConfig = configs.FirstOrDefault(c => c.PropertyId == resHeader.PropertyId)
             ?? configs.FirstOrDefault(c => c.PropertyId == null);
 
-        if (bankConfig != null && !string.IsNullOrWhiteSpace(bankConfig.BankAccountNumber))
+        var configuredBankAccount = bankConfig?.BankAccountNumber;
+        var hasConfiguredBankAccount = !string.IsNullOrWhiteSpace(configuredBankAccount) &&
+                                       !string.IsNullOrEmpty(ExtractDigitsOnly(configuredBankAccount));
+
+        if (!hasConfiguredBankAccount)
         {
-            if (!IsAccountNumberMatch(bankConfig.BankAccountNumber, request.AccountNumber, request.SubAccount))
+            if (ShouldRequireConfiguredBankAccount(request))
             {
                 _logger?.LogWarning(
-                    "SePay webhook {SepayId} ignored: bank account mismatch for reservation {ConfirmationCode}.",
+                    "SePay webhook {SepayId} rejected (fail-closed): no destination bank account configured in PrintTemplateConfig for reservation {ConfirmationCode} (TenantId={TenantId}, PropertyId={PropertyId}).",
                     request.Id,
-                    resHeader.ConfirmationCode);
+                    resHeader.ConfirmationCode,
+                    resHeader.TenantId,
+                    resHeader.PropertyId);
 
-                return new ProcessSepayWebhookResult("ignored", "Destination bank account number mismatch.");
+                await TryWriteBankConfigAuditWarningAsync(
+                    tenantId: resHeader.TenantId,
+                    propertyId: resHeader.PropertyId,
+                    entityId: resHeader.Id,
+                    targetType: "Reservation",
+                    reference: resHeader.ConfirmationCode,
+                    request: request,
+                    reason: "Destination bank account is not configured in PrintTemplateConfig.",
+                    cancellationToken: cancellationToken);
+
+                return new ProcessSepayWebhookResult(
+                    "rejected_unconfigured_bank_account",
+                    "Destination bank account is not configured; webhook rejected (fail-closed).",
+                    ReservationId: resHeader.Id);
             }
+        }
+        else if (!IsAccountNumberMatch(configuredBankAccount!, request.AccountNumber, request.SubAccount))
+        {
+            _logger?.LogWarning(
+                "SePay webhook {SepayId} ignored: bank account mismatch for reservation {ConfirmationCode}.",
+                request.Id,
+                resHeader.ConfirmationCode);
+
+            return new ProcessSepayWebhookResult("ignored", "Destination bank account number mismatch.");
         }
 
         var sepayKey = $"SEPAY-{request.Id}";
@@ -419,17 +448,43 @@ public sealed class ProcessSepayWebhookCommandHandler
         SubscriptionPayment subPaymentHeader,
         CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(request.ExpectedPlatformAccountNumber))
+        var hasConfiguredPlatformAccount = !string.IsNullOrWhiteSpace(request.ExpectedPlatformAccountNumber) &&
+                                           !string.IsNullOrEmpty(ExtractDigitsOnly(request.ExpectedPlatformAccountNumber));
+
+        if (!hasConfiguredPlatformAccount)
         {
-            if (!IsAccountNumberMatch(request.ExpectedPlatformAccountNumber, request.AccountNumber, request.SubAccount))
+            if (ShouldRequireConfiguredBankAccount(request))
             {
                 _logger?.LogWarning(
-                    "SePay webhook {SepayId} ignored: platform bank account mismatch for subscription payment {PaymentId}.",
+                    "SePay webhook {SepayId} rejected (fail-closed): expected platform bank account is not configured for subscription payment {PaymentId} (TenantId={TenantId}).",
                     request.Id,
-                    subPaymentHeader.Id);
+                    subPaymentHeader.Id,
+                    subPaymentHeader.TenantId);
 
-                return new ProcessSepayWebhookResult("ignored", "Platform bank account number mismatch.");
+                await TryWriteBankConfigAuditWarningAsync(
+                    tenantId: subPaymentHeader.TenantId,
+                    propertyId: null,
+                    entityId: subPaymentHeader.Id,
+                    targetType: "SubscriptionPayment",
+                    reference: subPaymentHeader.TransactionRef ?? subPaymentHeader.Id.ToString(),
+                    request: request,
+                    reason: "Expected platform bank account is not configured.",
+                    cancellationToken: cancellationToken);
+
+                return new ProcessSepayWebhookResult(
+                    "rejected_unconfigured_bank_account",
+                    "Platform bank account is not configured; webhook rejected (fail-closed).",
+                    SubscriptionPaymentId: subPaymentHeader.Id);
             }
+        }
+        else if (!IsAccountNumberMatch(request.ExpectedPlatformAccountNumber!, request.AccountNumber, request.SubAccount))
+        {
+            _logger?.LogWarning(
+                "SePay webhook {SepayId} ignored: platform bank account mismatch for subscription payment {PaymentId}.",
+                request.Id,
+                subPaymentHeader.Id);
+
+            return new ProcessSepayWebhookResult("ignored", "Platform bank account number mismatch.");
         }
 
         var sepayKey = $"SEPAY-{request.Id}";
@@ -628,12 +683,93 @@ public sealed class ProcessSepayWebhookCommandHandler
             .ToUpperInvariant();
     }
 
+    private static bool ShouldRequireConfiguredBankAccount(ProcessSepayWebhookCommand request)
+    {
+        if (request.RequireBankAccountMatch.HasValue)
+        {
+            return request.RequireBankAccountMatch.Value;
+        }
+
+        var envName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+            ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+
+        if (string.IsNullOrWhiteSpace(envName))
+        {
+            return false;
+        }
+
+        return !string.Equals(envName, "Development", StringComparison.OrdinalIgnoreCase) &&
+               !string.Equals(envName, "Testing", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task TryWriteBankConfigAuditWarningAsync(
+        Guid tenantId,
+        Guid? propertyId,
+        Guid entityId,
+        string targetType,
+        string reference,
+        ProcessSepayWebhookCommand request,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (_tenantService != null)
+            {
+                _tenantService.TenantId = tenantId;
+            }
+
+            if (_propertyService != null)
+            {
+                _propertyService.PropertyId = propertyId;
+                _propertyService.IsTenantWide = !propertyId.HasValue;
+                _propertyService.HeaderPropertyId = null;
+            }
+
+            _context.AuditLogs.Add(new AuditLog
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                PropertyId = propertyId,
+                UserId = null,
+                Action = AuditActions.Create,
+                EntityName = "SepayBankAccountConfigWarning",
+                EntityId = entityId,
+                NewValues = JsonSerializer.Serialize(new
+                {
+                    SepayKey = $"SEPAY-{request.Id}",
+                    TargetType = targetType,
+                    Reference = reference,
+                    IncomingAccountNumber = request.AccountNumber,
+                    IncomingSubAccount = request.SubAccount,
+                    Amount = request.TransferAmount,
+                    Gateway = request.Gateway,
+                    Reason = reason
+                }),
+                CreatedAtUtc = DateTime.UtcNow
+            });
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (NotImplementedException)
+        {
+            // Optional DbSet in isolated unit test fakes
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(
+                ex,
+                "Unable to persist SepayBankAccountConfigWarning audit entry for SePay webhook {SepayId}.",
+                request.Id);
+        }
+    }
+
     private static bool IsAccountNumberMatch(string configuredAccount, string? incomingAccount, string? incomingSubAccount)
     {
         var expectedDigits = ExtractDigitsOnly(configuredAccount);
         if (string.IsNullOrEmpty(expectedDigits))
         {
-            return true;
+            return false;
         }
 
         var actualDigits = ExtractDigitsOnly(incomingAccount);

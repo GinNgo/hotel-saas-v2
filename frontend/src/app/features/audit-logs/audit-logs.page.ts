@@ -107,6 +107,20 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                 <option value="Create">Tạo mới (Create)</option>
                 <option value="Update">Chỉnh sửa (Update)</option>
                 <option value="Delete">Xóa (Delete)</option>
+                <option value="Cancel">Hủy đơn / giao dịch (Cancel)</option>
+                <option value="Reschedule">Đổi lịch lưu trú (Reschedule)</option>
+                <option value="MarkNoShow">Đánh dấu No-Show (MarkNoShow)</option>
+                <option value="NightAuditAutoNoShow">Night Audit tự động No-Show (NightAuditAutoNoShow)</option>
+                <option value="RegenerateSmartLockPin">Cấp lại mã PIN khóa thông minh (RegenerateSmartLockPin)</option>
+                <option value="RevokeSmartLockPin">Thu hồi mã PIN khóa thông minh (RevokeSmartLockPin)</option>
+                <option value="CheckInDepositWarning">Cảnh báo thiếu cọc khi Check-in (CheckInDepositWarning)</option>
+                <option value="OverrideLateCheckOutSurcharge">Miễn / điều chỉnh phụ thu trả muộn (OverrideLateCheckOutSurcharge)</option>
+                <option value="ApproveRefund">Duyệt hoàn tiền (ApproveRefund)</option>
+                <option value="RejectRefund">Từ chối hoàn tiền (RejectRefund)</option>
+                <option value="ConfirmRefundPayout">Xác nhận chi hoàn tiền (ConfirmRefundPayout)</option>
+                <option value="StatusToggle">Đổi trạng thái (StatusToggle)</option>
+                <option value="PublishApproval">Duyệt xuất bản (PublishApproval)</option>
+                <option value="Upgrade">Nâng cấp gói (Upgrade)</option>
               </select>
             </div>
 
@@ -133,6 +147,7 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                 <option value="TenantStaff">Tài khoản Nhân sự (TenantStaff)</option>
                 <option value="AccessRole">Chức vụ & Quyền hạn (AccessRole)</option>
                 <option value="HousekeepingTask">Buồng phòng (Housekeeping)</option>
+                <option value="SepayExpiredHoldAlert">Cảnh báo chuyển khoản quá hạn SePay (SepayExpiredHoldAlert)</option>
                 @if (isSuperAdmin()) {
                   <option value="Tenant">Khách hàng / Chuỗi khách sạn (Tenant)</option>
                   <option value="TenantStatus">Trạng thái thuê bao (TenantStatus)</option>
@@ -1028,6 +1043,7 @@ export class AuditLogsPage implements OnInit {
     const EXPORT_PAGE_SIZE = 100;
     const MAX_EXPORT_PAGES = 10;
     const MAX_EXPORT_ROWS = 1000;
+    let latestServerTotal = totalCount;
 
     const baseParams: Omit<AuditLogFilterParams, 'page' | 'pageSize'> = {
       action: this.selectedAction.trim() || undefined,
@@ -1064,6 +1080,9 @@ export class AuditLogsPage implements OnInit {
         expand((res, index) => {
           const currentPageNum = index + 1;
           const data = res?.success ? res.data : null;
+          if (data && typeof data.totalCount === 'number') {
+            latestServerTotal = Math.max(latestServerTotal, data.totalCount);
+          }
           if (!data || currentPageNum >= MAX_EXPORT_PAGES) {
             return EMPTY;
           }
@@ -1076,6 +1095,9 @@ export class AuditLogsPage implements OnInit {
         }),
         reduce<ApiResponse<PagedResult<AuditLogListItem>> | null, AuditLogListItem[]>((acc, res) => {
           if (res?.success && res.data?.items?.length) {
+            if (typeof res.data.totalCount === 'number') {
+              latestServerTotal = Math.max(latestServerTotal, res.data.totalCount);
+            }
             const remaining = MAX_EXPORT_ROWS - acc.length;
             if (remaining > 0) {
               acc.push(...res.data.items.slice(0, remaining));
@@ -1089,7 +1111,8 @@ export class AuditLogsPage implements OnInit {
         next: collected => {
           this.exporting.set(false);
           const exportItems = collected.length > 0 ? collected : currentItems;
-          this.generateAndDownloadCsv(exportItems);
+          const hitCap = exportItems.length >= MAX_EXPORT_ROWS && latestServerTotal > MAX_EXPORT_ROWS;
+          this.generateAndDownloadCsv(exportItems, hitCap ? latestServerTotal : undefined);
         },
         error: () => {
           this.exporting.set(false);
@@ -1098,7 +1121,7 @@ export class AuditLogsPage implements OnInit {
       });
   }
 
-  private generateAndDownloadCsv(items: AuditLogListItem[]): void {
+  private generateAndDownloadCsv(items: AuditLogListItem[], truncatedFromTotal?: number): void {
     if (!items || items.length === 0) {
       this.alertService.toastWarning('Không có dữ liệu để xuất file CSV.');
       return;
@@ -1160,7 +1183,15 @@ export class AuditLogsPage implements OnInit {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    this.alertService.toastSuccess(`Đã xuất thành công ${items.length} bản ghi kiểm toán ra file CSV.`);
+    if (truncatedFromTotal && truncatedFromTotal > items.length) {
+      this.alertService.toastWarning(
+        `Đã xuất ${items.length.toLocaleString('vi-VN')} bản ghi đầu tiên trên tổng ${truncatedFromTotal.toLocaleString('vi-VN')} bản ghi (giới hạn 1.000 dòng). Vui lòng thu hẹp khoảng ngày lọc để xuất đầy đủ.`,
+        'Giới hạn xuất CSV',
+        6000
+      );
+    } else {
+      this.alertService.toastSuccess(`Đã xuất thành công ${items.length} bản ghi kiểm toán ra file CSV.`);
+    }
   }
 
   private escapeCsvCell(val: unknown): string {
@@ -1260,6 +1291,10 @@ export class AuditLogsPage implements OnInit {
       case 'Reschedule': return 'Đổi lịch';
       case 'MarkNoShow': return 'Đánh dấu No-Show';
       case 'NightAuditAutoNoShow': return 'Night Audit No-Show';
+      case 'RegenerateSmartLockPin': return 'Cấp lại mã PIN khóa thông minh';
+      case 'RevokeSmartLockPin': return 'Thu hồi mã PIN khóa thông minh';
+      case 'CheckInDepositWarning': return 'Cảnh báo thiếu cọc khi Check-in';
+      case 'OverrideLateCheckOutSurcharge': return 'Miễn / điều chỉnh phụ thu trả muộn';
       case 'ApproveRefund': return 'Duyệt hoàn tiền';
       case 'RejectRefund': return 'Từ chối hoàn tiền';
       case 'ConfirmRefundPayout': return 'Xác nhận chi hoàn';
@@ -1298,6 +1333,7 @@ export class AuditLogsPage implements OnInit {
       case 'TenantStaff': return 'Tài khoản nhân sự';
       case 'AccessRole': return 'Chức vụ & Quyền hạn';
       case 'HousekeepingTask': return 'Nhiệm vụ buồng phòng';
+      case 'SepayExpiredHoldAlert': return 'Cảnh báo chuyển khoản quá hạn SePay';
       case 'Tenant': return 'Khách hàng / Chuỗi (Tenant)';
       case 'TenantStatus': return 'Trạng thái thuê bao';
       case 'PropertyPublishApproval': return 'Duyệt xuất bản cơ sở';

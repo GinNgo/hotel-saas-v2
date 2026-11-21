@@ -25,7 +25,8 @@ import {
   PageHeaderComponent,
   StatCardComponent,
   EmptyStateComponent,
-  LoadingSpinnerComponent
+  LoadingSpinnerComponent,
+  VndCurrencyPipe
 } from '../../shared';
 import { ContextSelectorDialogComponent } from '../auth/context-selector/context-selector.dialog';
 
@@ -60,7 +61,8 @@ interface PresetRoomImage {
     StatCardComponent,
     EmptyStateComponent,
     LoadingSpinnerComponent,
-    ContextSelectorDialogComponent
+    ContextSelectorDialogComponent,
+    VndCurrencyPipe
   ],
   template: `
     <div class="max-w-7xl mx-auto space-y-6 pb-12">
@@ -156,7 +158,7 @@ interface PresetRoomImage {
         </app-stat-card>
         <app-stat-card
           title="Giá niêm yết TB / Đêm"
-          [value]="(averageBasePrice() | number:'1.0-0') + '₫'"
+          [value]="averageBasePrice() | vndCurrency"
           subtitle="Trung bình các hạng phòng"
           variant="amber"
         >
@@ -292,7 +294,7 @@ interface PresetRoomImage {
                     </div>
                     <div class="text-right">
                       <span class="block text-[10px] uppercase tracking-wider text-emerald-300 font-semibold">Giá cơ bản</span>
-                      <span class="text-lg font-extrabold font-mono text-white">{{ rt.basePrice | number:'1.0-0' }}₫</span>
+                      <span class="text-lg font-extrabold font-mono text-white tabular-nums">{{ rt.basePrice | vndCurrency }}</span>
                     </div>
                   </div>
                 </div>
@@ -384,7 +386,7 @@ interface PresetRoomImage {
                   <div class="text-right shrink-0">
                     <span class="block text-xs text-slate-500">Giá cơ bản</span>
                     <span class="font-mono font-bold text-emerald-700 text-sm tabular-nums">
-                      {{ rt.basePrice | number:'1.0-0' }}₫
+                      {{ rt.basePrice | vndCurrency }}
                     </span>
                   </div>
                 </div>
@@ -476,7 +478,7 @@ interface PresetRoomImage {
                       {{ rt.maxOccupancy }} người
                     </td>
                     <td class="py-3.5 px-4 text-right font-mono font-bold text-emerald-700 text-sm tabular-nums">
-                      {{ rt.basePrice | number:'1.0-0' }}₫
+                      {{ rt.basePrice | vndCurrency }}
                     </td>
                     <td class="py-3.5 px-4 text-center">
                       <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono tabular-nums">
@@ -589,7 +591,7 @@ interface PresetRoomImage {
               <!-- Giá cơ bản -->
               <div class="space-y-1.5">
                 <label class="block text-xs font-bold text-slate-700">
-                  Giá cơ bản / Đêm (VNĐ) <span class="text-rose-500">*</span>
+                  Giá cơ bản / Đêm (VND) <span class="text-rose-500">*</span>
                 </label>
                 <input
                   type="number"

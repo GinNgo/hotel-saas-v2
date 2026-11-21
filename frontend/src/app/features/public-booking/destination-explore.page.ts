@@ -12,11 +12,12 @@ import {
   PublicPropertyDto,
   PublicPropertiesFilter
 } from '../../core/models/public-booking.model';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 
 @Component({
   selector: 'app-destination-explore',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, VndCurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="min-h-screen bg-slate-50 py-6 sm:py-8 font-sans">
@@ -347,7 +348,7 @@ import {
                           <span class="text-[10px] text-slate-400 block">Giá khởi điểm từ</span>
                           @if ((prop.hourlyStartingPrice || prop.startingPriceForSelectedMode || prop.startingPrice || 0) > 0) {
                             <span class="text-base font-extrabold text-indigo-700 tabular-nums">
-                              {{ (prop.hourlyStartingPrice || prop.startingPriceForSelectedMode || prop.startingPrice) | number:'1.0-0' }} ₫
+                              {{ (prop.hourlyStartingPrice || prop.startingPriceForSelectedMode || prop.startingPrice) | vndCurrency }}
                             </span>
                           } @else {
                             <span class="text-xs font-semibold text-slate-500">Liên hệ báo giá</span>

@@ -37,13 +37,17 @@ services:
       - ConnectionStrings__DefaultConnection=${STAGING_DB_CONNECTION}
       - JwtSettings__SecretKey=${JWT_SECRET_KEY}
       - JwtSettings__Issuer=HotelSaas
-      - JwtSettings__Audience=HotelSaasAudience
-      - VNPAY__HASHSECRET=${VNPAY_HASH_SECRET}
-      - VNPAY__TMNCODE=${VNPAY_TMN_CODE}
+      - JwtSettings__Audience=HotelSaasClient
+      - Payment__Sepay__ApiKey=${SEPAY_API_KEY:-}
+      - Payment__Sepay__PlatformAccountNumber=${SEPAY_PLATFORM_ACCOUNT:-}
+      - Payment__Sepay__ExpectedPlatformAccountNumber=${SEPAY_PLATFORM_ACCOUNT:-}
+      - Payment__Sepay__UseSepayQrImage=false
+      - Metrics__ApiKey=${METRICS_API_KEY:-}
+      - Cors__AllowedOrigins__0=${CORS_ALLOWED_ORIGIN:-https://staging.hotelsaas.local}
       - FIREBASE_CONFIG_PATH=/app/secrets/firebase-adminsdk.json
       - AllowCloudStartupDatabaseInit=true
-      - AllowCloudDevSeed=true
-      - AllowStagingDevSeed=true
+      - AllowCloudDevSeed=false
+      - AllowStagingDevSeed=false
     volumes:
       - /opt/hotel-saas/secrets:/app/secrets:ro
     expose:
@@ -53,7 +57,7 @@ services:
     mem_limit: 384m
     cpus: 0.75
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:5000/health"]
       interval: 15s
       timeout: 5s
       retries: 3

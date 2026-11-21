@@ -174,4 +174,37 @@ describe('PrintInvoicePage — Electronic Invoice & VietQR Print Layout Tests', 
     });
     expect(component.backRoute).toBe('/reservations');
   });
+
+  it('should display service fee and discount rows with vndCurrency when > 0 and hide when 0/omitted', () => {
+    const tokenStorage = TestBed.inject(TokenStorageService);
+    vi.spyOn(tokenStorage, 'isTokenExpired').mockReturnValue(true);
+    vi.spyOn(tokenStorage, 'getDecodedToken').mockReturnValue(null);
+
+    const invoiceWithFees = {
+      ...sampleInvoice,
+      subTotal: 2000000,
+      vatAmount: 160000,
+      serviceFeeAmount: 100000,
+      discountAmount: 260000,
+      totalAmount: 2000000
+    };
+    mockPrintService.getInvoice.mockReturnValue(of(invoiceWithFees));
+
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    const feeRow = el.querySelector('[data-testid="invoice-service-fee-row"]');
+    const discountRow = el.querySelector('[data-testid="invoice-discount-row"]');
+    expect(feeRow).not.toBeNull();
+    expect(feeRow?.textContent).toContain('Phí dịch vụ');
+    expect(feeRow?.textContent).toContain('100.000 ₫');
+    expect(discountRow).not.toBeNull();
+    expect(discountRow?.textContent).toContain('Giảm giá / Điểm thưởng');
+    expect(discountRow?.textContent).toContain('-260.000 ₫');
+
+    component.invoice.set({ ...sampleInvoice, serviceFeeAmount: 0, discountAmount: 0 });
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="invoice-service-fee-row"]')).toBeNull();
+    expect(el.querySelector('[data-testid="invoice-discount-row"]')).toBeNull();
+  });
 });

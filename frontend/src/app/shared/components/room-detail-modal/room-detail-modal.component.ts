@@ -3,11 +3,12 @@ import { A11yModule } from '@angular/cdk/a11y';
 import { CommonModule } from '@angular/common';
 import { PublicRoomTypeAvailabilityDto } from '../../../core/models/public-booking.model';
 import { RoomPhoto, RoomAmenityItem } from '../../../core/services/room-gallery.service';
+import { VndCurrencyPipe } from '../../pipes/vnd-currency.pipe';
 
 @Component({
   selector: 'app-room-detail-modal',
   standalone: true,
-  imports: [CommonModule, A11yModule],
+  imports: [CommonModule, A11yModule, VndCurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
@@ -187,7 +188,7 @@ import { RoomPhoto, RoomAmenityItem } from '../../../core/services/room-gallery.
             <span class="text-[10px] uppercase font-bold text-slate-400 block">Giá dự kiến:</span>
             <div *ngIf="displayPrice > 0; else referencePrice" class="flex items-baseline gap-1">
               <strong class="text-xl sm:text-2xl font-black text-indigo-600 tabular-nums">
-                {{ displayPrice | number:'1.0-0' }} ₫
+                {{ displayPrice | vndCurrency }}
               </strong>
               <span class="text-xs text-slate-500">theo biểu giá cơ sở</span>
             </div>

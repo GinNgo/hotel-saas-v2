@@ -1331,6 +1331,50 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
         component.retryShiftReport();
         expect(mockPaymentService.getShiftReport).not.toHaveBeenCalled();
       });
+
+      it('7. should render totalRefunded, netCollected, and negative rose amount for refund rows in Shift Report', () => {
+        const shiftReportWithRefund = {
+          ...sampleShiftReport,
+          totalCollected: 1500000,
+          totalRefunded: 300000,
+          netCollected: 1200000,
+          payments: [
+            {
+              ...samplePayments[0],
+              id: 'shift-pay-001',
+              amount: 1500000,
+              transactionRef: 'SHIFT-TX-001'
+            },
+            {
+              ...samplePayments[0],
+              id: 'shift-refund-001',
+              amount: 300000,
+              status: PaymentStatus.Refunded,
+              statusName: 'Đã hoàn tiền',
+              transactionRef: 'REFUND-COMPLETED-001'
+            }
+          ]
+        };
+        mockPaymentService.getShiftReport.mockReturnValue(of(shiftReportWithRefund));
+
+        fixture = TestBed.createComponent(PaymentsPage);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+
+        const el = fixture.nativeElement as HTMLElement;
+        const refundedCard = el.querySelector('[data-testid="shift-total-refunded"]');
+        const netCard = el.querySelector('[data-testid="shift-net-collected"]');
+        expect(refundedCard?.textContent).toContain('Tổng hoàn tiền');
+        expect(refundedCard?.textContent).toContain('300.000 ₫');
+        expect(netCard?.textContent).toContain('Thực thu ròng');
+        expect(netCard?.textContent).toContain('1.200.000 ₫');
+
+        const amountCells = Array.from(el.querySelectorAll('[data-testid="shift-payment-amount"]'));
+        expect(amountCells.length).toBe(2);
+        expect(amountCells[0].textContent?.trim()).toBe('+1.500.000 ₫');
+        expect(amountCells[1].textContent?.trim()).toBe('-300.000 ₫');
+        expect(amountCells[1].className).toContain('text-rose-600');
+      });
     });
   });
 });

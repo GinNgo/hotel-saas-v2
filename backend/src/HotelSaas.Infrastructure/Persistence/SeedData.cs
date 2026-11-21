@@ -156,8 +156,8 @@ public static class SeedData
         var receptionistPerms = BuildPermissions(receptionistId, permissions,
             ("DASHBOARD", Read), ("ROOMS", Read), ("ROOM_TYPES", Read),
             ("RESERVATIONS", ReadCreateUpdate), ("GUESTS", ReadCreateUpdate),
-            ("CHECK_IN_OUT", ReadCreateUpdate), ("PAYMENTS", ReadCreate),
-            ("INVOICES", ReadExport));
+            ("CHECK_IN_OUT", ReadCreateUpdate), ("HOUSEKEEPING", ReadCreateUpdate),
+            ("PAYMENTS", ReadCreate), ("INVOICES", ReadExport));
 
         // ── HOUSEKEEPER ───────────────────────────────────────────────────
         var housekeeperId = Guid.NewGuid();
@@ -384,6 +384,8 @@ public static class SeedData
             ["OWNER", "MANAGER", "SUPER_ADMIN"], All, exactMatch: false);
         await UpsertRolePermissionAsync(context, "HOUSEKEEPING", "Housekeeping", "HOUSEKEEPING",
             ["HOUSEKEEPER"], 7, exactMatch: false);
+        await UpsertRolePermissionAsync(context, "HOUSEKEEPING", "Housekeeping", "HOUSEKEEPING",
+            ["RECEPTIONIST"], 7, exactMatch: false);
         await UpsertRolePermissionAsync(context, "AUDIT_LOGS", "Audit Logs", "STAFF",
             ["OWNER", "MANAGER"], Read, exactMatch: false);
         await UpsertRolePermissionAsync(context, "AUDIT_LOGS", "Audit Logs", "STAFF",

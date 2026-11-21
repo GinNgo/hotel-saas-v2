@@ -17,6 +17,7 @@ import { StatCardComponent } from '../../shared/components/stat-card/stat-card.c
 import { StatusBadgeComponent } from '../../shared/components/status-badge/status-badge.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { BusinessDateTimePipe } from '../../shared/pipes/business-date.pipe';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 import {
   PlatformGovernanceService,
   PlatformTenantBranchDto,
@@ -39,7 +40,8 @@ type GrantSortField = 'tenantName' | 'scope' | 'expiresAtUtc' | 'status';
     StatCardComponent,
     StatusBadgeComponent,
     EmptyStateComponent,
-    BusinessDateTimePipe
+    BusinessDateTimePipe,
+    VndCurrencyPipe
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -71,7 +73,7 @@ type GrantSortField = 'tenantName' | 'scope' | 'expiresAtUtc' | 'status';
         </app-stat-card>
         <app-stat-card
           title="Tổng thu SaaS đã nhận"
-          [value]="(totalSaasCollected() | number:'1.0-0') + ' ₫'"
+          [value]="totalSaasCollected() | vndCurrency"
           variant="purple"
         >
           <i icon class="pi pi-wallet text-lg" aria-hidden="true"></i>
@@ -158,7 +160,7 @@ type GrantSortField = 'tenantName' | 'scope' | 'expiresAtUtc' | 'status';
                       <span><i class="pi pi-envelope mr-1" aria-hidden="true"></i>{{ t.email }}</span>
                     }
                     <span><i class="pi pi-box mr-1 text-indigo-600 dark:text-indigo-400" aria-hidden="true"></i><strong>{{ t.subscriptionTierName }}</strong> ({{ t.subscriptionStatus }})</span>
-                    <span class="font-mono font-semibold text-emerald-700 dark:text-emerald-400 tabular-nums">Đã thu SaaS: {{ t.totalSaasPaid | number:'1.0-0' }} ₫</span>
+                    <span class="font-mono font-semibold text-emerald-700 dark:text-emerald-400 tabular-nums">Đã thu SaaS: {{ t.totalSaasPaid | vndCurrency }}</span>
                   </div>
                 </div>
 

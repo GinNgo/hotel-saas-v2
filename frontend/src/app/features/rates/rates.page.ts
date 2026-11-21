@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, OnDestroy, inject, signal, computed, effect, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, HostListener, OnInit, OnDestroy, inject, signal, computed, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -18,6 +18,7 @@ import { RoomTypeRateDto, RoomTypeRateAuditDto, CreateRoomTypeRateRequest } from
 import { RoomTypeDto } from '../../core/models/room-type.model';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { SkeletonTableComponent } from '../../shared/components/skeleton-table/skeleton-table.component';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 import { ContextSelectorDialogComponent } from '../auth/context-selector/context-selector.dialog';
 
 interface ApiErrorShape {
@@ -53,7 +54,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
   selector: 'app-rates',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, A11yModule, FormsModule, ReactiveFormsModule, EmptyStateComponent, SkeletonTableComponent, DatePicker, ContextSelectorDialogComponent],
+  imports: [CommonModule, A11yModule, FormsModule, ReactiveFormsModule, EmptyStateComponent, SkeletonTableComponent, DatePicker, VndCurrencyPipe, ContextSelectorDialogComponent],
   template: `
     <div class="max-w-6xl mx-auto space-y-6">
       <!-- Page Header -->
@@ -139,48 +140,48 @@ export function addDaysToDateString(dateStr: string, days: number): string {
       } @else {
         <!-- AI Dynamic Pricing Panel -->
         @if (showAiPanel() && canReadAi()) {
-          <section aria-label="Đề xuất giá động AI" class="bg-gradient-to-br from-indigo-50 via-white to-emerald-50/40 rounded-2xl border border-indigo-200/90 p-5 shadow-2xs space-y-4">
-            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-indigo-100 pb-4">
+          <section aria-label="Đề xuất giá động AI" class="bg-gradient-to-br from-indigo-50 via-white to-emerald-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-emerald-950/40 rounded-2xl border border-indigo-200/90 dark:border-indigo-800/70 p-5 shadow-2xs space-y-4">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-indigo-100 dark:border-slate-800 pb-4">
               <div class="space-y-1">
                 <div class="flex items-center gap-2 flex-wrap">
-                  <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                  <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-800">
                     <i class="pi pi-sparkles text-[10px]" aria-hidden="true"></i>
                     AI Dynamic Pricing
                   </span>
                   @if (aiPricingSummary(); as summary) {
-                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300">
                       Công suất chung: {{ summary.overallOccupancyRate | number:'1.0-1' }}% ({{ summary.marketDemandLevel }})
                     </span>
                   }
                 </div>
-                <h2 class="text-sm sm:text-base font-bold text-slate-900">
+                <h2 class="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100">
                   Đề xuất điều chỉnh giá đêm theo công suất phòng thực tế
                 </h2>
-                <p class="text-xs text-slate-600">
+                <p class="text-xs text-slate-600 dark:text-slate-300">
                   Áp dụng 1 chạm sẽ tự động tách khoảng bảng giá đang hiệu lực (Interval Splitting) mà không ảnh hưởng các ngày khác.
                 </p>
               </div>
 
               <div class="flex flex-wrap items-center gap-2.5">
                 <div class="flex items-center gap-1.5">
-                  <label for="ai-target-date" class="text-xs font-semibold text-slate-700">Từ ngày:</label>
+                  <label for="ai-target-date" class="text-xs font-semibold text-slate-700 dark:text-slate-200">Từ ngày:</label>
                   <input
                     id="ai-target-date"
                     type="date"
                     [ngModel]="aiTargetDate()"
                     (ngModelChange)="aiTargetDate.set($event)"
                     [min]="minEffectiveFromDate"
-                    class="min-h-[44px] px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                    class="min-h-[44px] px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-hidden focus:border-indigo-500"
                   />
                 </div>
 
                 <div class="flex items-center gap-1.5">
-                  <label for="ai-duration-days" class="text-xs font-semibold text-slate-700">Số ngày:</label>
+                  <label for="ai-duration-days" class="text-xs font-semibold text-slate-700 dark:text-slate-200">Số ngày:</label>
                   <select
                     id="ai-duration-days"
                     [ngModel]="aiEffectiveDays()"
                     (ngModelChange)="aiEffectiveDays.set(+$event)"
-                    class="min-h-[44px] px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                    class="min-h-[44px] px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-hidden focus:border-indigo-500"
                   >
                     <option [value]="1">1 ngày</option>
                     <option [value]="3">3 ngày</option>
@@ -201,7 +202,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
             </div>
 
             @if (aiPricingError()) {
-              <div role="alert" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800 flex items-center justify-between gap-3">
+              <div role="alert" class="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 px-4 py-3 text-xs text-rose-800 dark:text-rose-200 flex items-center justify-between gap-3">
                 <span>{{ aiPricingError() }}</span>
                 <button
                   type="button"
@@ -212,23 +213,23 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                 </button>
               </div>
             } @else if (isLoadingAiPricing()) {
-              <div class="py-6 text-center text-xs text-slate-600">
-                <i class="pi pi-spin pi-spinner mr-2 text-indigo-600" aria-hidden="true"></i>
+              <div class="py-6 text-center text-xs text-slate-600 dark:text-slate-300">
+                <i class="pi pi-spin pi-spinner mr-2 text-indigo-600 dark:text-indigo-400" aria-hidden="true"></i>
                 Đang tính toán mức giá đề xuất từ dữ liệu công suất phòng...
               </div>
             } @else if (aiPricingSummary()?.recommendations?.length) {
               <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 @for (rec of aiPricingSummary()!.recommendations; track rec.roomTypeId) {
-                  <div class="rounded-xl border border-slate-200 bg-white p-4 flex flex-col justify-between gap-3 shadow-2xs">
+                  <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/90 p-4 flex flex-col justify-between gap-3 shadow-2xs">
                     <div class="space-y-2">
                       <div class="flex items-start justify-between gap-2">
                         <div>
-                          <h3 class="text-sm font-bold text-slate-900">{{ rec.roomTypeName }}</h3>
-                          <p class="text-[11px] text-slate-500 tabular-nums">
+                          <h3 class="text-sm font-bold text-slate-900 dark:text-slate-100">{{ rec.roomTypeName }}</h3>
+                          <p class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
                             Đã đặt: {{ rec.bookedRooms }}/{{ rec.totalRooms }} phòng ({{ rec.occupancyRate | number:'1.0-1' }}%)
                           </p>
                         </div>
-                        <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 tabular-nums">
+                        <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 tabular-nums">
                           {{ rec.strategy }} ({{ rec.surgeMultiplier }}x)
                         </span>
                       </div>
@@ -236,24 +237,24 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                       <div class="flex items-baseline gap-3 pt-1">
                         <div>
                           <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Giá gốc / đêm</span>
-                          <span class="text-xs font-medium text-slate-500 line-through tabular-nums">{{ formatCurrency(rec.basePrice) }}</span>
+                          <span class="text-xs font-medium text-slate-500 dark:text-slate-400 line-through tabular-nums">{{ rec.basePrice | vndCurrency }}</span>
                         </div>
                         <i class="pi pi-arrow-right text-[10px] text-slate-400" aria-hidden="true"></i>
                         <div>
-                          <span class="block text-[10px] uppercase tracking-wider text-emerald-700 font-semibold">AI đề xuất / đêm</span>
-                          <strong class="text-base font-black text-emerald-700 tabular-nums">{{ formatCurrency(rec.recommendedPrice) }}</strong>
+                          <span class="block text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-semibold">AI đề xuất / đêm</span>
+                          <strong class="text-base font-black text-emerald-700 dark:text-emerald-400 tabular-nums">{{ rec.recommendedPrice | vndCurrency }}</strong>
                         </div>
                       </div>
 
-                      <p class="text-xs text-slate-600 leading-relaxed">{{ rec.rationale }}</p>
+                      <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{{ rec.rationale }}</p>
                     </div>
 
-                    <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                    <div class="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-end gap-2">
                       @if (canUpdate()) {
                         <button
                           type="button"
                           (click)="prefillRateFromAiRecommendation(rec)"
-                          class="min-h-[44px] px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
+                          class="min-h-[44px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs transition-colors cursor-pointer"
                         >
                           Chỉnh tay
                         </button>
@@ -278,7 +279,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                 }
               </div>
             } @else if (aiPricingSummary()) {
-              <div class="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-600">
+              <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 text-xs text-slate-600 dark:text-slate-300">
                 {{ aiPricingSummary()?.message || 'Chưa có hạng phòng nào cần điều chỉnh giá cho ngày đã chọn.' }}
               </div>
             }
@@ -339,23 +340,23 @@ export function addDaysToDateString(dateStr: string, days: number): string {
         } @else {
           <!-- Selected Room Type Info Banner & BasePrice Discard Warning -->
           @if (selectedRoomType(); as currentRt) {
-            <div class="bg-gradient-to-r from-slate-50 to-emerald-50/30 rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-2xs space-y-2">
+            <div class="bg-gradient-to-r from-slate-50 to-emerald-50/30 dark:from-slate-900 dark:to-emerald-950/30 rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs space-y-2">
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2">
-                  <span class="text-sm font-bold text-slate-800">{{ currentRt.name }}</span>
-                  <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-white border border-slate-200 text-emerald-700">
+                  <span class="text-sm font-bold text-slate-800 dark:text-slate-100">{{ currentRt.name }}</span>
+                  <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-emerald-700 dark:text-emerald-400">
                     {{ currentRt.code }}
                   </span>
-                  <span class="text-xs text-slate-500">
+                  <span class="text-xs text-slate-500 dark:text-slate-400">
                     • Sức chứa: {{ currentRt.maxOccupancy }} khách • {{ currentRt.roomCount }} phòng
                   </span>
                 </div>
-                <div class="text-xs text-slate-500">
-                  Giá tham chiếu cơ bản: <span class="font-semibold text-slate-700 tabular-nums">{{ formatCurrency(currentRt.basePrice) }}</span>
+                <div class="text-xs text-slate-500 dark:text-slate-400">
+                  Giá tham chiếu cơ bản: <span class="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">{{ currentRt.basePrice | vndCurrency }}</span>
                 </div>
               </div>
-              <p class="text-[11px] text-amber-800 bg-amber-50/80 px-3 py-1.5 rounded-lg border border-amber-200/60 leading-relaxed">
-                <i class="pi pi-info-circle mr-1 text-amber-600"></i>
+              <p class="text-[11px] text-amber-800 dark:text-amber-200 bg-amber-50/80 dark:bg-amber-950/40 px-3 py-1.5 rounded-lg border border-amber-200/60 dark:border-amber-800/70 leading-relaxed">
+                <i class="pi pi-info-circle mr-1 text-amber-600 dark:text-amber-400"></i>
                 <strong>Quy tắc hợp đồng:</strong> Hệ thống tính giá và báo giá không sử dụng giá cơ bản tham chiếu (BasePrice). Bảng giá theo ngày hiệu lực dưới đây là nguồn dữ liệu chính thức duy nhất.
               </p>
             </div>
@@ -469,17 +470,17 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                       <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 tabular-nums">
                         <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
                           <span class="text-slate-500 block">Gói giờ đầu</span>
-                          <strong class="text-slate-800">{{ formatCurrency(rate.firstHoursPrice) }}</strong>
+                          <strong class="text-slate-800">{{ rate.firstHoursPrice | vndCurrency }}</strong>
                           <span class="text-slate-500"> / {{ rate.firstHours }} giờ</span>
                         </div>
                         <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
                           <span class="text-slate-500 block">Mỗi giờ thêm</span>
-                          <strong class="text-slate-800">{{ formatCurrency(rate.additionalHourPrice) }}</strong>
+                          <strong class="text-slate-800">{{ rate.additionalHourPrice | vndCurrency }}</strong>
                           <span class="text-slate-500"> / giờ</span>
                         </div>
                         <div class="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100">
                           <span class="text-emerald-700 block font-semibold">Giá qua đêm</span>
-                          <strong class="text-emerald-800">{{ formatCurrency(rate.nightlyPrice) }}</strong>
+                          <strong class="text-emerald-800">{{ rate.nightlyPrice | vndCurrency }}</strong>
                           <span class="text-emerald-700"> / đêm</span>
                         </div>
                       </div>
@@ -539,19 +540,19 @@ export function addDaysToDateString(dateStr: string, days: number): string {
 
                           <!-- Giá giờ đầu -->
                           <td class="py-3.5 px-4 text-slate-700 tabular-nums">
-                            <span class="font-bold text-slate-800">{{ formatCurrency(rate.firstHoursPrice) }}</span>
+                            <span class="font-bold text-slate-800">{{ rate.firstHoursPrice | vndCurrency }}</span>
                             <span class="text-slate-400 text-[11px]"> / {{ rate.firstHours }} giờ</span>
                           </td>
 
                           <!-- Giá giờ thêm -->
                           <td class="py-3.5 px-4 text-slate-700 tabular-nums">
-                            <span class="font-semibold text-slate-800">{{ formatCurrency(rate.additionalHourPrice) }}</span>
+                            <span class="font-semibold text-slate-800">{{ rate.additionalHourPrice | vndCurrency }}</span>
                             <span class="text-slate-400 text-[11px]"> / giờ</span>
                           </td>
 
                           <!-- Giá qua đêm -->
                           <td class="py-3.5 px-4 tabular-nums">
-                            <span class="font-bold text-emerald-700">{{ formatCurrency(rate.nightlyPrice) }}</span>
+                            <span class="font-bold text-emerald-700">{{ rate.nightlyPrice | vndCurrency }}</span>
                             <span class="text-slate-400 text-[11px]"> / đêm</span>
                           </td>
 
@@ -631,11 +632,11 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                           <span class="text-slate-500 block mb-0.5">Giá qua đêm</span>
                           @if (item.oldNightlyPrice !== null && item.oldNightlyPrice !== undefined) {
                             <div class="text-slate-400 line-through">
-                              {{ formatCurrency(item.oldNightlyPrice) }}
+                              {{ item.oldNightlyPrice | vndCurrency }}
                             </div>
                           }
                           <div class="font-bold text-emerald-700">
-                            {{ formatCurrency(item.newNightlyPrice) }}
+                            {{ item.newNightlyPrice | vndCurrency }}
                           </div>
                         </div>
                       </div>
@@ -690,11 +691,11 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                           <td class="py-3.5 px-4 tabular-nums">
                             @if (item.oldNightlyPrice !== null && item.oldNightlyPrice !== undefined) {
                               <div class="text-[11px] text-slate-400 line-through">
-                                {{ formatCurrency(item.oldNightlyPrice) }}
+                                {{ item.oldNightlyPrice | vndCurrency }}
                               </div>
                             }
                             <div class="font-bold text-emerald-700">
-                              {{ formatCurrency(item.newNightlyPrice) }}
+                              {{ item.newNightlyPrice | vndCurrency }}
                             </div>
                           </td>
 
@@ -813,6 +814,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                     dateFormat="dd/mm/yy"
                     [showIcon]="true"
                     iconDisplay="input"
+                    [touchUI]="isMobile()"
                     [minDate]="minEffectiveFromDateObj()"
                     appendTo="body"
                     [firstDayOfWeek]="1"
@@ -836,6 +838,7 @@ export function addDaysToDateString(dateStr: string, days: number): string {
                     dateFormat="dd/mm/yy"
                     [showIcon]="true"
                     iconDisplay="input"
+                    [touchUI]="isMobile()"
                     [minDate]="minEffectiveToDateObj()"
                     appendTo="body"
                     [firstDayOfWeek]="1"
@@ -984,6 +987,15 @@ export class RatesPage implements OnInit, OnDestroy, HasUnsavedChanges {
   private readonly destroyRef = inject(DestroyRef, { optional: true }) ?? this.createFallbackDestroyRef();
 
   readonly showContextSelector = signal(false);
+  readonly isMobile = signal(typeof window !== 'undefined' && window.innerWidth < 768);
+  private readonly vndPipe = new VndCurrencyPipe();
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    if (typeof window !== 'undefined') {
+      this.isMobile.set(window.innerWidth < 768);
+    }
+  }
   openContextSelector(): void {
     this.showContextSelector.set(true);
   }
@@ -1689,8 +1701,7 @@ export class RatesPage implements OnInit, OnDestroy, HasUnsavedChanges {
   }
 
   formatCurrency(value?: number | null): string {
-    if (value === null || value === undefined) return '0 ₫';
-    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
+    return this.vndPipe.transform(value);
   }
 
   formatDate(dateStr?: string | null): string {

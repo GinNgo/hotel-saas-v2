@@ -108,7 +108,6 @@ jobs:
 
       - name: Secret scanning (gitleaks)
         uses: gitleaks/gitleaks-action@v2
-        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -122,8 +121,9 @@ jobs:
       - name: Check results
         run: |
           if [[ "${{ needs.backend.result }}" != "success" ]] || \
-             [[ "${{ needs.frontend.result }}" != "success" ]]; then
-            echo "CI failed!"
+             [[ "${{ needs.frontend.result }}" != "success" ]] || \
+             [[ "${{ needs.security.result }}" != "success" ]]; then
+            echo "CI failed! (backend=${{ needs.backend.result }}, frontend=${{ needs.frontend.result }}, security=${{ needs.security.result }})"
             exit 1
           fi
           echo "All CI checks passed! ✅"

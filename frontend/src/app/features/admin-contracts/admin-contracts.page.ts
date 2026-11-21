@@ -227,7 +227,7 @@ type ContractSortField = 'contractNumber' | 'tenantName' | 'startDate' | 'contra
                 </th>
                 <th scope="col" class="py-3.5 px-4 text-right" [attr.aria-sort]="getAriaSort('contractValue')">
                   <button type="button" (click)="toggleSort('contractValue')" class="inline-flex items-center gap-1 font-semibold uppercase cursor-pointer">
-                    <span>Giá Trị (VNĐ)</span>
+                    <span>Giá Trị (VND)</span>
                     <i class="pi pi-sort-alt text-xs" aria-hidden="true"></i>
                   </button>
                 </th>
@@ -448,6 +448,7 @@ type ContractSortField = 'contractNumber' | 'tenantName' | 'startDate' | 'contra
                     dateFormat="dd/mm/yy"
                     [showIcon]="true"
                     iconDisplay="input"
+                    [touchUI]="isMobile()"
                     appendTo="body"
                     [firstDayOfWeek]="1"
                     placeholder="dd/mm/yyyy"
@@ -464,6 +465,7 @@ type ContractSortField = 'contractNumber' | 'tenantName' | 'startDate' | 'contra
                     dateFormat="dd/mm/yy"
                     [showIcon]="true"
                     iconDisplay="input"
+                    [touchUI]="isMobile()"
                     appendTo="body"
                     [firstDayOfWeek]="1"
                     placeholder="dd/mm/yyyy"
@@ -473,7 +475,7 @@ type ContractSortField = 'contractNumber' | 'tenantName' | 'startDate' | 'contra
                   />
                 </div>
                 <div>
-                  <label for="contract-value" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Tổng giá trị HĐ (VNĐ)</label>
+                  <label for="contract-value" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Tổng giá trị HĐ (VND)</label>
                   <input id="contract-value" type="number" [(ngModel)]="newContractValue" class="w-full min-h-11 px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 tabular-nums" />
                 </div>
               </div>
@@ -528,6 +530,14 @@ export class AdminContractsPage implements OnInit, HasUnsavedChanges {
   readonly isLoading = signal(false);
   readonly isSaving = signal(false);
   readonly showCreateModal = signal(false);
+  readonly isMobile = signal(typeof window !== 'undefined' && window.innerWidth < 768);
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    if (typeof window !== 'undefined') {
+      this.isMobile.set(window.innerWidth < 768);
+    }
+  }
 
   // Filters & Sort
   readonly searchKeyword = signal('');

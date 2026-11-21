@@ -4,10 +4,12 @@ import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { of, throwError, Subject } from 'rxjs';
 import { HousekeepingPage } from './housekeeping.page';
 import { RoomService } from '../../core/services/room.service';
+import { HousekeepingService } from '../../core/services/housekeeping.service';
 import { AlertService } from '../../core/services/alert.service';
 import { AuthService } from '../../core/services/auth.service';
 import { RoomDto } from '../../core/models/room.model';
 import { RoomStatus } from '../../core/models/enums';
+import { HousekeepingPriority, HousekeepingTaskDto, HousekeepingTaskStatus } from '../../core/models/housekeeping.model';
 import { HttpErrorResponse } from '@angular/common/http';
 
 describe('HousekeepingPage Logic, Pagination & Server-Side Filtering', () => {
@@ -626,6 +628,100 @@ describe('HousekeepingPage Logic, Pagination & Server-Side Filtering', () => {
       // Room-2 must stay Clean, not overwritten by stale Dirty status
       expect(comp.rooms().find(r => r.id === 'room-2')?.status).toBe(RoomStatus.Clean);
       comp.ngOnDestroy();
+    });
+  });
+
+  describe('Receptionist Direct Coordination (Zero Cleaner Account Required)', () => {
+    const sampleTask: HousekeepingTaskDto = {
+      id: 'task-101',
+      roomId: 'room-2',
+      roomNumber: '102',
+      floor: 1,
+      roomTypeName: 'Standard Twin',
+      roomStatus: RoomStatus.Dirty,
+      status: HousekeepingTaskStatus.Pending,
+      priority: HousekeepingPriority.Normal,
+      effectivePriority: HousekeepingPriority.Normal,
+      hasUpcomingCheckIn: false,
+      assignedToUserId: null,
+      assignedToName: null,
+      notes: null,
+      createdAtUtc: '2026-10-18T08:00:00Z',
+      updatedAtUtc: '2026-10-18T08:00:00Z'
+    };
+
+    function createWithHousekeepingService(staffList: Array<{ userId: string; fullName: string; staffRole: string }>) {
+      const mockHkService = {
+        getTasks: vi.fn().mockReturnValue(of([sampleTask])),
+        getAssignableStaff: vi.fn().mockReturnValue(of(staffList)),
+        createTask: vi.fn(),
+        assignTask: vi.fn(),
+        claimTask: vi.fn(),
+        startTask: vi.fn().mockReturnValue(of({
+          ...sampleTask,
+          status: HousekeepingTaskStatus.InProgress,
+          roomStatus: RoomStatus.Cleaning,
+          notes: 'Cô Lan đang dọn'
+        })),
+        completeTask: vi.fn().mockReturnValue(of({
+          ...sampleTask,
+          status: HousekeepingTaskStatus.Completed,
+          roomStatus: RoomStatus.Clean,
+          notes: 'Cô Lan đã dọn xong'
+        }))
+      };
+
+      const injector = Injector.create({
+        providers: [
+          { provide: RoomService, useValue: mockRoomService },
+          { provide: HousekeepingService, useValue: mockHkService },
+          { provide: AlertService, useValue: mockAlertService },
+          { provide: AuthService, useValue: mockAuthService }
+        ]
+      });
+
+      const comp = runInInjectionContext(injector, () => new HousekeepingPage());
+      return { comp, mockHkService };
+    }
+
+    it('detects direct receptionist mode when no Housekeeper accounts exist', () => {
+      const { comp } = createWithHousekeepingService([
+        { userId: 'u-rec', fullName: 'Lễ Tân Lan', staffRole: 'Receptionist' }
+      ]);
+      comp.ngOnInit();
+
+      expect(comp.hasHousekeeperAccounts()).toBe(false);
+
+      comp.housekeepingStaff.set([
+        { userId: 'u-hk', fullName: 'Nhân viên Dọn', staffRole: 'Housekeeper' }
+      ]);
+      expect(comp.hasHousekeeperAccounts()).toBe(true);
+      comp.ngOnDestroy();
+    });
+
+    it('forwards inline quick cleaner note on startTask and completeTask without needing cleaner user account', () => {
+      const { comp, mockHkService } = createWithHousekeepingService([]);
+      comp.ngOnInit();
+
+      comp.setTaskQuickNote(sampleTask.id, '  Cô Lan đang dọn  ');
+      comp.startTask(sampleTask);
+
+      expect(mockHkService.startTask).toHaveBeenCalledWith('task-101', 'prop-1', 'Cô Lan đang dọn');
+      expect(comp.getTaskQuickNote(sampleTask.id)).toBe('');
+      expect(comp.tasks()[0].status).toBe(HousekeepingTaskStatus.InProgress);
+
+      comp.setTaskQuickNote(sampleTask.id, 'Cô Lan đã dọn xong');
+      comp.completeTask(comp.tasks()[0]);
+
+      expect(mockHkService.completeTask).toHaveBeenCalledWith('task-101', 'prop-1', 'Cô Lan đã dọn xong');
+      expect(comp.getTaskQuickNote(sampleTask.id)).toBe('');
+      expect(comp.tasks()[0].status).toBe(HousekeepingTaskStatus.Completed);
+      comp.ngOnDestroy();
+    });
+
+    it('formats VND currency uniformly using VndCurrencyPipe', () => {
+      const comp = createComponent();
+      expect(comp.formatCurrency(1200000)).toBe('1.200.000 ₫');
     });
   });
 });
