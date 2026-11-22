@@ -5,12 +5,14 @@
 
 export enum RentalType {
   Hourly = 1,
-  Overnight = 2
+  Overnight = 2,
+  Daily = 3
 }
 
 export const RENTAL_TYPE_LABELS: Record<RentalType, string> = {
   [RentalType.Hourly]: 'Thuê theo giờ',
-  [RentalType.Overnight]: 'Thuê theo đêm'
+  [RentalType.Overnight]: 'Thuê theo đêm',
+  [RentalType.Daily]: 'Thuê theo ngày'
 };
 
 export enum ReservationStatus {

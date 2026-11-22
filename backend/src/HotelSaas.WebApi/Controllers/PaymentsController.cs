@@ -22,6 +22,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace HotelSaas.WebApi.Controllers;
 
@@ -352,6 +353,7 @@ public sealed class PaymentsController : ControllerBase
     [HttpGet("vnpay-ipn")]
     [HttpGet("/api/public/payments/vnpay/ipn")]
     [AllowAnonymous]
+    [EnableRateLimiting("webhooks")]
     [ProducesResponseType(typeof(HotelSaas.Application.Payments.Commands.ProcessVnpayIpn.VnpayIpnResponseDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> VnpayIpn(CancellationToken cancellationToken)
     {

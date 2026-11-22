@@ -1375,6 +1375,56 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
         expect(amountCells[1].textContent?.trim()).toBe('-300.000 ₫');
         expect(amountCells[1].className).toContain('text-rose-600');
       });
+
+      it('8. should render negative rose amount styling for refund rows in main payment history and display daily summary totalRefunded/netCollected', () => {
+        const summaryWithRefund = {
+          ...sampleSummary,
+          totalCollected: 2500000,
+          totalRefunded: 300000,
+          netCollected: 2200000
+        };
+        const paymentsWithRefund: PaymentDto[] = [
+          samplePayments[0],
+          {
+            ...samplePayments[1],
+            id: 'pay-refund-001',
+            amount: 300000,
+            status: PaymentStatus.Refunded,
+            statusName: 'Đã hoàn tiền',
+            transactionRef: 'REFUND-COMPLETED-002'
+          }
+        ];
+        mockPaymentService.getPaymentSummary.mockReturnValue(of(summaryWithRefund));
+        mockPaymentService.getPayments.mockReturnValue(of({
+          items: paymentsWithRefund,
+          totalCount: 2,
+          page: 1,
+          pageSize: 10
+        }));
+
+        fixture = TestBed.createComponent(PaymentsPage);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+
+        const el = fixture.nativeElement as HTMLElement;
+        const summaryRefunded = el.querySelector('[data-testid="summary-total-refunded"]');
+        const summaryNet = el.querySelector('[data-testid="summary-net-collected"]');
+        expect(summaryRefunded?.textContent).toContain('300.000 ₫');
+        expect(summaryNet?.textContent).toContain('2.200.000 ₫');
+
+        const desktopCells = Array.from(el.querySelectorAll('[data-testid="history-payment-amount"]'));
+        expect(desktopCells.length).toBe(2);
+        expect(desktopCells[0].textContent).toContain('1.500.000 ₫');
+        expect(desktopCells[0].className).toContain('text-slate-900');
+        expect(desktopCells[1].textContent).toContain('-300.000 ₫');
+        expect(desktopCells[1].textContent).toContain('Hoàn tiền');
+        expect(desktopCells[1].className).toContain('text-rose-600');
+
+        const mobileCells = Array.from(el.querySelectorAll('[data-testid="history-payment-amount-mobile"]'));
+        expect(mobileCells.length).toBe(2);
+        expect(mobileCells[1].textContent?.trim()).toBe('-300.000 ₫');
+        expect(mobileCells[1].className).toContain('text-rose-600');
+      });
     });
   });
 });

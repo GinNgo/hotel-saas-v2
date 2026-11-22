@@ -91,10 +91,26 @@ public sealed class NotificationHubSecurityTests
     }
 
     [Fact]
-    public async Task JoinProperty_WhenSuperAdmin_JoinsWithoutDatabaseMembershipRecord()
+    public async Task JoinProperty_WhenSuperAdminHasActiveSupportAccessGrant_JoinsPropertyGroups()
     {
+        await using var fixture = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+        var tenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId };
+        await using var ctx = fixture.CreateDbContext(tenantSvc, propSvc);
+
         var superAdminId = Guid.NewGuid();
-        var targetPropertyId = Guid.NewGuid();
+        ctx.SupportAccessGrants.Add(new SupportAccessGrant
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            GrantedByUserId = Guid.NewGuid(),
+            TargetSupportUserId = superAdminId,
+            Scope = "READ_ONLY",
+            Reason = "Investigating realtime notification delivery",
+            ExpiresAtUtc = DateTime.UtcNow.AddHours(1),
+            RevokedAtUtc = null
+        });
+        await ctx.SaveChangesAsync();
 
         var user = new ClaimsPrincipal(new ClaimsIdentity(new[]
         {
@@ -103,19 +119,288 @@ public sealed class NotificationHubSecurityTests
         }, "Bearer"));
 
         var groupMgr = new TestGroupManager();
-        var hub = new NotificationHub(null, NullLogger<NotificationHub>.Instance)
+        var hub = new NotificationHub(ctx, NullLogger<NotificationHub>.Instance)
         {
             Context = new TestHubCallerContext(user, "conn_super_1"),
             Groups = groupMgr
         };
 
-        await hub.JoinProperty(targetPropertyId.ToString());
+        await hub.JoinProperty(fixture.PropertyId.ToString());
 
         Assert.Equal(3, groupMgr.Added.Count);
         Assert.All(groupMgr.Added, a => Assert.Equal("conn_super_1", a.ConnectionId));
-        Assert.Contains(groupMgr.Added, a => a.GroupName == NotificationHub.GetPropertyGroupName(targetPropertyId.ToString()));
-        Assert.Contains(groupMgr.Added, a => a.GroupName == NotificationHub.GetPropertyFinancialGroupName(targetPropertyId.ToString()));
-        Assert.Contains(groupMgr.Added, a => a.GroupName == NotificationHub.GetPropertyHousekeepingGroupName(targetPropertyId.ToString()));
+        Assert.Contains(groupMgr.Added, a => a.GroupName == NotificationHub.GetPropertyGroupName(fixture.PropertyId.ToString()));
+        Assert.Contains(groupMgr.Added, a => a.GroupName == NotificationHub.GetPropertyFinancialGroupName(fixture.PropertyId.ToString()));
+        Assert.Contains(groupMgr.Added, a => a.GroupName == NotificationHub.GetPropertyHousekeepingGroupName(fixture.PropertyId.ToString()));
+    }
+
+    [Fact]
+    public async Task JoinProperty_WhenSuperAdminLacksValidSupportAccessGrant_ThrowsHubException()
+    {
+        await using var fixture = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+        var tenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId };
+        await using var ctx = fixture.CreateDbContext(tenantSvc, propSvc);
+
+        var superAdminNoGrant = Guid.NewGuid();
+        var superAdminExpired = Guid.NewGuid();
+        var superAdminRevoked = Guid.NewGuid();
+        var superAdminWrongTenant = Guid.NewGuid();
+
+        var otherTenant = new Tenant
+        {
+            Id = Guid.NewGuid(),
+            Name = "Other Tenant",
+            Code = $"OTH_{Guid.NewGuid():N}"[..10],
+            Slug = $"other-tenant-{Guid.NewGuid():N}"[..20],
+            Address = "99 Tran Hung Dao",
+            City = "Ha Noi",
+            Status = TenantStatus.Active
+        };
+        ctx.SupportAccessGrants.AddRange(
+            new SupportAccessGrant
+            {
+                Id = Guid.NewGuid(),
+                TenantId = fixture.TenantId,
+                GrantedByUserId = Guid.NewGuid(),
+                TargetSupportUserId = superAdminExpired,
+                Scope = "READ_ONLY",
+                Reason = "Expired grant",
+                ExpiresAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                RevokedAtUtc = null
+            },
+            new SupportAccessGrant
+            {
+                Id = Guid.NewGuid(),
+                TenantId = fixture.TenantId,
+                GrantedByUserId = Guid.NewGuid(),
+                TargetSupportUserId = superAdminRevoked,
+                Scope = "DIAGNOSTIC",
+                Reason = "Revoked grant",
+                ExpiresAtUtc = DateTime.UtcNow.AddHours(2),
+                RevokedAtUtc = DateTime.UtcNow.AddMinutes(-1)
+            });
+        await ctx.SaveChangesAsync();
+
+        var otherTenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = otherTenant.Id };
+        var otherPropSvc = new P5_GuestBookingTests.MockPropertyService { IsTenantWide = true };
+        await using (var otherCtx = fixture.CreateDbContext(otherTenantSvc, otherPropSvc))
+        {
+            otherCtx.Tenants.Add(otherTenant);
+            otherCtx.SupportAccessGrants.Add(new SupportAccessGrant
+            {
+                Id = Guid.NewGuid(),
+                TenantId = otherTenant.Id,
+                GrantedByUserId = Guid.NewGuid(),
+                TargetSupportUserId = superAdminWrongTenant,
+                Scope = "READ_ONLY",
+                Reason = "Different tenant grant",
+                ExpiresAtUtc = DateTime.UtcNow.AddHours(2),
+                RevokedAtUtc = null
+            });
+            await otherCtx.SaveChangesAsync();
+        }
+
+        foreach (var candidateId in new[] { superAdminNoGrant, superAdminExpired, superAdminRevoked, superAdminWrongTenant })
+        {
+            var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, candidateId.ToString()),
+                new Claim("globalRole", "SuperAdmin")
+            }, "Bearer"));
+
+            var groupMgr = new TestGroupManager();
+            var hub = new NotificationHub(ctx, NullLogger<NotificationHub>.Instance)
+            {
+                Context = new TestHubCallerContext(principal),
+                Groups = groupMgr
+            };
+
+            var ex = await Assert.ThrowsAsync<HubException>(() => hub.JoinProperty(fixture.PropertyId.ToString()));
+            Assert.Contains("ERR_SUPPORT_GRANT_REQUIRED", ex.Message);
+            Assert.Empty(groupMgr.Added);
+        }
+    }
+
+    [Fact]
+    public async Task JoinProperty_WhenTenantWideStaffHasRevokedBranchRow_DeniesRevokedBranchWithoutFallback()
+    {
+        await using var fixture = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+        var tenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId };
+        await using var ctx = fixture.CreateDbContext(tenantSvc, propSvc);
+
+        var branchAId = fixture.PropertyId;
+        var branchBId = Guid.NewGuid();
+        ctx.Properties.Add(new Property
+        {
+            Id = branchBId,
+            TenantId = fixture.TenantId,
+            Name = "Revoked Branch B",
+            Code = $"RVB_{Guid.NewGuid():N}"[..10],
+            Slug = $"revoked-branch-b-{Guid.NewGuid():N}"[..24],
+            Address = "22 Le Loi",
+            Status = PropertyStatus.Active
+        });
+
+        var ownerUserId = Guid.NewGuid();
+        ctx.Users.Add(new User
+        {
+            Id = ownerUserId,
+            Email = "owner.revoked.branch@hotelsaas.test",
+            FullName = "Tenant Owner",
+            GlobalRole = GlobalUserRole.TenantStaff,
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        var ownerRole = new AccessRole
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            Name = "Owner Role",
+            Description = "Owner",
+            IsSystemRole = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        ctx.AccessRoles.Add(ownerRole);
+
+        // Active tenant-wide row + inactive exact-branch row for Branch B (PO Decision 4)
+        ctx.TenantStaffMembers.AddRange(
+            new TenantStaff
+            {
+                Id = Guid.NewGuid(),
+                UserId = ownerUserId,
+                TenantId = fixture.TenantId,
+                PropertyId = null,
+                RoleId = ownerRole.Id,
+                IsActive = true,
+                StaffRole = StaffRole.Owner
+            },
+            new TenantStaff
+            {
+                Id = Guid.NewGuid(),
+                UserId = ownerUserId,
+                TenantId = fixture.TenantId,
+                PropertyId = branchBId,
+                RoleId = ownerRole.Id,
+                IsActive = false,
+                StaffRole = StaffRole.Owner
+            });
+        await ctx.SaveChangesAsync();
+
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, ownerUserId.ToString()),
+            new Claim("tenantId", fixture.TenantId.ToString()),
+            new Claim("globalRole", "TenantStaff")
+        }, "Bearer"));
+
+        // Revoked Branch B MUST be denied even though tenant-wide row is active
+        var revokedGroupMgr = new TestGroupManager();
+        var revokedHub = new NotificationHub(ctx, NullLogger<NotificationHub>.Instance)
+        {
+            Context = new TestHubCallerContext(principal, "conn_revoked_b"),
+            Groups = revokedGroupMgr
+        };
+        var ex = await Assert.ThrowsAsync<HubException>(() => revokedHub.JoinProperty(branchBId.ToString()));
+        Assert.Contains("ERR_MEMBERSHIP_REVOKED", ex.Message);
+        Assert.Empty(revokedGroupMgr.Added);
+
+        // Non-revoked Branch A succeeds via active tenant-wide row
+        var allowedGroupMgr = new TestGroupManager();
+        var allowedHub = new NotificationHub(ctx, NullLogger<NotificationHub>.Instance)
+        {
+            Context = new TestHubCallerContext(principal, "conn_allowed_a"),
+            Groups = allowedGroupMgr
+        };
+        await allowedHub.JoinProperty(branchAId.ToString());
+        Assert.Contains(allowedGroupMgr.Added, a => a.GroupName == NotificationHub.GetPropertyGroupName(branchAId.ToString()));
+    }
+
+    [Fact]
+    public async Task JoinProperty_WhenUserOrPropertyOrTenantInactive_DeniesJoin()
+    {
+        await using var fixture = await P5_GuestBookingTests.TestFixture.CreateAsync(new P5_GuestBookingTests(), roomCount: 1);
+        var tenantSvc = new P5_GuestBookingTests.MockTenantService { TenantId = fixture.TenantId };
+        var propSvc = new P5_GuestBookingTests.MockPropertyService { PropertyId = fixture.PropertyId };
+        await using var ctx = fixture.CreateDbContext(tenantSvc, propSvc);
+
+        var staffId = Guid.NewGuid();
+        var staffUser = new User
+        {
+            Id = staffId,
+            Email = "lifecycle.staff@hotelsaas.test",
+            FullName = "Lifecycle Staff",
+            GlobalRole = GlobalUserRole.TenantStaff,
+            IsActive = false,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        ctx.Users.Add(staffUser);
+
+        var role = new AccessRole
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            Name = "Receptionist Role",
+            Description = "Receptionist",
+            IsSystemRole = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        ctx.AccessRoles.Add(role);
+
+        ctx.TenantStaffMembers.Add(new TenantStaff
+        {
+            Id = Guid.NewGuid(),
+            UserId = staffId,
+            TenantId = fixture.TenantId,
+            PropertyId = fixture.PropertyId,
+            RoleId = role.Id,
+            IsActive = true,
+            StaffRole = StaffRole.Receptionist
+        });
+        await ctx.SaveChangesAsync();
+
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, staffId.ToString()),
+            new Claim("tenantId", fixture.TenantId.ToString()),
+            new Claim("globalRole", "TenantStaff")
+        }, "Bearer"));
+
+        var groupMgr = new TestGroupManager();
+        var hub = new NotificationHub(ctx, NullLogger<NotificationHub>.Instance)
+        {
+            Context = new TestHubCallerContext(principal),
+            Groups = groupMgr
+        };
+
+        // 1. Inactive User -> ERR_USER_DEACTIVATED
+        var exUser = await Assert.ThrowsAsync<HubException>(() => hub.JoinProperty(fixture.PropertyId.ToString()));
+        Assert.Contains("ERR_USER_DEACTIVATED", exUser.Message);
+
+        // 2. Reactivate user, deactivate property -> ERR_PROPERTY_INACTIVE
+        staffUser.IsActive = true;
+        var prop = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(
+            Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.IgnoreQueryFilters(ctx.Properties),
+            p => p.Id == fixture.PropertyId);
+        prop.Status = PropertyStatus.Inactive;
+        await ctx.SaveChangesAsync();
+
+        var exProp = await Assert.ThrowsAsync<HubException>(() => hub.JoinProperty(fixture.PropertyId.ToString()));
+        Assert.Contains("ERR_PROPERTY_INACTIVE", exProp.Message);
+
+        // 3. Reactivate property, suspend tenant -> ERR_TENANT_INACTIVE
+        prop.Status = PropertyStatus.Active;
+        var tenant = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(
+            Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.IgnoreQueryFilters(ctx.Tenants),
+            t => t.Id == fixture.TenantId);
+        tenant.Status = TenantStatus.Suspended;
+        await ctx.SaveChangesAsync();
+
+        var exTenant = await Assert.ThrowsAsync<HubException>(() => hub.JoinProperty(fixture.PropertyId.ToString()));
+        Assert.Contains("ERR_TENANT_INACTIVE", exTenant.Message);
+        Assert.Empty(groupMgr.Added);
     }
 
     [Fact]

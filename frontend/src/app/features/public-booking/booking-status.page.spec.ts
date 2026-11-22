@@ -2198,6 +2198,50 @@ describe('T04-B — Guest Booking Cancellation Workflow & Preview UI', () => {
       expect(printSheet?.textContent).toContain('450.000 ₫');
       expect(printSheet?.textContent).not.toContain('1,500,000 đ');
     });
+
+    it('should show min-h-11 VietQR retry button on error and reload QR on click, and apply dark-mode header contrast classes', () => {
+      mockBookingService.generateVietQr
+        .mockReturnValueOnce(throwError(() => ({ status: 503, error: { message: 'Dịch vụ VietQR tạm gián đoạn.' } })))
+        .mockReturnValueOnce(of({
+          qrImageUrl: 'https://example.test/vietqr-retry.png',
+          bankBin: '970422',
+          bankName: 'MB Bank',
+          accountNumber: '0345678910',
+          accountName: 'HOTEL SAAS',
+          amount: 450000,
+          description: 'DATPHONG RES-A111',
+          confirmationCode: 'RES-A111',
+          quickPayDeepLink: 'vietqr://pay'
+        }));
+
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const codeBadge = Array.from(compiled.querySelectorAll('span')).find(s =>
+        s.textContent?.includes('Mã đơn: RES-A111')
+      );
+      expect(codeBadge?.className).toContain('bg-black/15');
+      expect(codeBadge?.className).toContain('dark:bg-white/25');
+
+      const addressEl = Array.from(compiled.querySelectorAll('p')).find(p =>
+        p.textContent?.includes(sampleBookingA.propertyAddress!)
+      );
+      expect(addressEl?.className).toContain('opacity-95');
+      expect(addressEl?.className).not.toContain('opacity-85');
+
+      const retryBtn = compiled.querySelector('[data-testid="vietqr-retry-btn"]') as HTMLButtonElement | null;
+      expect(retryBtn).not.toBeNull();
+      expect(retryBtn?.textContent?.trim()).toBe('Tải lại mã QR');
+      expect(retryBtn?.className).toContain('min-h-11');
+
+      retryBtn?.click();
+      fixture.detectChanges();
+
+      expect(mockBookingService.generateVietQr).toHaveBeenCalledTimes(2);
+      expect(component.vietQrError()).toBe('');
+      expect(component.vietQr()?.qrImageUrl).toBe('https://example.test/vietqr-retry.png');
+    });
   });
 });
 });

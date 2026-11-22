@@ -17,6 +17,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
@@ -162,6 +163,7 @@ public sealed class SubscriptionsController : ControllerBase
     [HttpGet("vnpay-ipn")]
     [HttpPost("vnpay-ipn")]
     [AllowAnonymous]
+    [EnableRateLimiting("webhooks")]
     [ProducesResponseType(typeof(VnpayIpnResponseDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> VnpayIpn(CancellationToken cancellationToken)
     {

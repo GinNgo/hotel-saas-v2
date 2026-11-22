@@ -39,7 +39,9 @@ services:
       - JwtSettings__Issuer=HotelSaas
       - JwtSettings__Audience=HotelSaasClient
       - Payment__Sepay__ApiKey=${SEPAY_API_KEY:-}
+      - Payment__Sepay__PlatformBankName=${SEPAY_PLATFORM_BANK_NAME:-}
       - Payment__Sepay__PlatformAccountNumber=${SEPAY_PLATFORM_ACCOUNT:-}
+      - Payment__Sepay__PlatformAccountHolder=${SEPAY_PLATFORM_ACCOUNT_HOLDER:-}
       - Payment__Sepay__ExpectedPlatformAccountNumber=${SEPAY_PLATFORM_ACCOUNT:-}
       - Payment__Sepay__UseSepayQrImage=false
       - Metrics__ApiKey=${METRICS_API_KEY:-}

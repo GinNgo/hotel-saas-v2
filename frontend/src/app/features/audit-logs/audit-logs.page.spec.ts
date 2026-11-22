@@ -393,6 +393,7 @@ describe('AuditLogsPage — T03-C UI Tests', () => {
     expect(component.getEntityDisplayLabel('SubscriptionUpgrade')).toBe('Nâng cấp gói cước');
     expect(component.getEntityDisplayLabel('GuestReview')).toBe('Đánh giá khách lưu trú');
     expect(component.getEntityDisplayLabel('SepayExpiredHoldAlert')).toBe('Cảnh báo chuyển khoản quá hạn SePay');
+    expect(component.getEntityDisplayLabel('SepayBankAccountConfigWarning')).toBe('Cảnh báo chưa cấu hình STK SePay');
   });
 
   it('17. should expose all 17 canonical actions in the filter dropdown and Vietnamese labels', () => {
@@ -431,6 +432,7 @@ describe('AuditLogsPage — T03-C UI Tests', () => {
     const entityOptions = Array.from(el.querySelectorAll('#filter-entity option'))
       .map(opt => (opt as HTMLOptionElement).value);
     expect(entityOptions).toContain('SepayExpiredHoldAlert');
+    expect(entityOptions).toContain('SepayBankAccountConfigWarning');
   });
 
   it('18. should display explicit warning toast when CSV export hits the 1,000-row cap', () => {

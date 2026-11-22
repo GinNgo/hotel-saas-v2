@@ -19,11 +19,16 @@ public sealed class GetPrintableVoucherQueryHandler : IRequestHandler<GetPrintab
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserContext _currentUser;
+    private readonly ICurrentPropertyService? _currentPropertyService;
 
-    public GetPrintableVoucherQueryHandler(IApplicationDbContext context, ICurrentUserContext currentUser)
+    public GetPrintableVoucherQueryHandler(
+        IApplicationDbContext context,
+        ICurrentUserContext currentUser,
+        ICurrentPropertyService? currentPropertyService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _currentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
+        _currentPropertyService = currentPropertyService;
     }
 
     public async Task<PrintableVoucherDto> Handle(GetPrintableVoucherQuery request, CancellationToken cancellationToken)
@@ -76,19 +81,40 @@ public sealed class GetPrintableVoucherQueryHandler : IRequestHandler<GetPrintab
             throw new NotFoundException("Không tìm thấy mã đặt phòng.");
         }
 
-        if (isTokenMatch && !isCodeMatch && snapshot != null &&
-            (snapshot.IsTokenRevoked || (snapshot.TokenExpiresAtUtc.HasValue && snapshot.TokenExpiresAtUtc.Value <= DateTime.UtcNow)))
+        var effectiveIsTenantWide = _currentPropertyService != null
+            ? _currentPropertyService.IsTenantWide
+            : _currentUser.IsTenantWide;
+        var effectivePropertyId = _currentPropertyService != null
+            ? _currentPropertyService.PropertyId
+            : _currentUser.PropertyId;
+        var effectiveExcludedPropertyIds = _currentPropertyService != null
+            ? _currentPropertyService.ExcludedPropertyIds
+            : _currentUser.ExcludedPropertyIds;
+        var isPropertyExcluded = effectiveExcludedPropertyIds != null &&
+            effectiveExcludedPropertyIds.Contains(reservation.PropertyId);
+        var hasStaffBranchAccess = _currentUser.TenantId.HasValue &&
+            _currentUser.TenantId.Value == reservation.TenantId &&
+            !isPropertyExcluded &&
+            (effectiveIsTenantWide || effectivePropertyId == reservation.PropertyId);
+
+        bool isAuthenticatedOwnerOrStaff = _currentUser.IsAuthenticated &&
+            (_currentUser.GlobalRole == GlobalUserRole.SuperAdmin ||
+             hasStaffBranchAccess ||
+             (_currentUser.UserId != Guid.Empty && reservation.GuestUserId == _currentUser.UserId));
+
+        if (!isAuthenticatedOwnerOrStaff && isTokenMatch && !isCodeMatch && snapshot != null &&
+            (snapshot.IsTokenRevoked ||
+             !snapshot.TokenExpiresAtUtc.HasValue ||
+             snapshot.TokenExpiresAtUtc.Value <= DateTime.UtcNow))
         {
             throw new NotFoundException("Mã tra cứu đặt phòng đã hết hạn hoặc bị thu hồi.");
         }
 
-        bool isAuthenticatedOwnerOrStaff = _currentUser.IsAuthenticated &&
-            (_currentUser.GlobalRole == GlobalUserRole.SuperAdmin ||
-             (_currentUser.TenantId.HasValue && _currentUser.TenantId.Value == reservation.TenantId) ||
-             (_currentUser.UserId != Guid.Empty && reservation.GuestUserId == _currentUser.UserId));
-
-        bool isValidTokenMatch = isTokenMatch && snapshot != null && !snapshot.IsTokenRevoked &&
-            (!snapshot.TokenExpiresAtUtc.HasValue || snapshot.TokenExpiresAtUtc.Value > DateTime.UtcNow);
+        bool isValidTokenMatch = isTokenMatch &&
+            snapshot != null &&
+            !snapshot.IsTokenRevoked &&
+            snapshot.TokenExpiresAtUtc.HasValue &&
+            snapshot.TokenExpiresAtUtc.Value > DateTime.UtcNow;
 
         bool isAuthorizedFullPii = isAuthenticatedOwnerOrStaff || isValidTokenMatch;
 
@@ -120,7 +146,9 @@ public sealed class GetPrintableVoucherQueryHandler : IRequestHandler<GetPrintab
             GuestEmail = isAuthorizedFullPii ? reservation.GuestEmail : PrintHelper.MaskEmail(reservation.GuestEmail),
             GuestPhone = isAuthorizedFullPii ? (reservation.GuestPhone ?? string.Empty) : PrintHelper.MaskPhone(reservation.GuestPhone),
             RoomTypeName = roomType?.Name ?? snapshot?.RoomTypeName ?? "Phòng Tiêu Chuẩn",
-            RoomNumber = reservation.Room?.RoomNumber ?? "Lễ tân sắp xếp khi check-in",
+            RoomNumber = isAuthorizedFullPii
+                ? (reservation.Room?.RoomNumber ?? "Lễ tân sắp xếp khi check-in")
+                : (string.IsNullOrWhiteSpace(reservation.Room?.RoomNumber) ? "Lễ tân sắp xếp khi check-in" : "***"),
             RentalType = rentalType,
             CheckInDate = reservation.CheckInDate,
             CheckInTime = checkInTime,

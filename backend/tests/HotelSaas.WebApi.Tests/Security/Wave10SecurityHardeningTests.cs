@@ -2,6 +2,8 @@ using System.Net;
 using System.Reflection;
 using System.Text;
 using HotelSaas.Application.Common.Exceptions;
+using HotelSaas.Domain.Entities;
+using HotelSaas.Domain.Enums;
 using HotelSaas.Infrastructure.Persistence;
 using HotelSaas.Infrastructure.Services;
 using HotelSaas.WebApi.Controllers;
@@ -13,6 +15,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
@@ -41,6 +44,14 @@ public sealed class Wave10SecurityHardeningTests
         var authPolicy = typeof(AuthController).GetCustomAttribute<EnableRateLimitingAttribute>();
         var webhookPolicy = typeof(WebhooksController).GetCustomAttribute<EnableRateLimitingAttribute>();
         var printPolicy = typeof(PrintDocumentsController).GetCustomAttribute<EnableRateLimitingAttribute>();
+        var publicPolicy = typeof(PublicController).GetCustomAttribute<EnableRateLimitingAttribute>();
+        var aiPolicy = typeof(AiController).GetCustomAttribute<EnableRateLimitingAttribute>();
+        var paymentsVnpayIpnPolicy = typeof(PaymentsController)
+            .GetMethod(nameof(PaymentsController.VnpayIpn))!
+            .GetCustomAttribute<EnableRateLimitingAttribute>();
+        var subscriptionsVnpayIpnPolicy = typeof(SubscriptionsController)
+            .GetMethod(nameof(SubscriptionsController.VnpayIpn))!
+            .GetCustomAttribute<EnableRateLimitingAttribute>();
 
         Assert.NotNull(authPolicy);
         Assert.Equal("auth", authPolicy!.PolicyName);
@@ -50,6 +61,197 @@ public sealed class Wave10SecurityHardeningTests
 
         Assert.NotNull(printPolicy);
         Assert.Equal("public-print", printPolicy!.PolicyName);
+
+        Assert.NotNull(publicPolicy);
+        Assert.Equal("public-api", publicPolicy!.PolicyName);
+
+        Assert.NotNull(aiPolicy);
+        Assert.Equal("ai-chat", aiPolicy!.PolicyName);
+
+        Assert.NotNull(paymentsVnpayIpnPolicy);
+        Assert.Equal("webhooks", paymentsVnpayIpnPolicy!.PolicyName);
+
+        Assert.NotNull(subscriptionsVnpayIpnPolicy);
+        Assert.Equal("webhooks", subscriptionsVnpayIpnPolicy!.PolicyName);
+    }
+
+    [Fact]
+    public async Task RateLimiting_PublicApiAndAiChatPolicies_Enforce429PerClientIp()
+    {
+        using var factory = new Wave10HardeningWebApplicationFactory(
+            environmentName: "Testing",
+            extraConfig: new Dictionary<string, string?>
+            {
+                ["RateLimiting:PublicApiPermitLimit"] = "2",
+                ["RateLimiting:AiChatPermitLimit"] = "2",
+                ["RateLimiting:WindowSeconds"] = "60"
+            });
+
+        // Public API: first 2 succeed, 3rd is rate-limited (429)
+        var pub1 = await factory.Server.SendAsync(ctx =>
+        {
+            ctx.Connection.RemoteIpAddress = IPAddress.Parse("172.18.0.2");
+            ctx.Request.Method = HttpMethods.Get;
+            ctx.Request.Path = "/api/public/tourist-zones";
+            ctx.Request.Headers["X-Forwarded-For"] = "198.51.100.40";
+        });
+        var pub2 = await factory.Server.SendAsync(ctx =>
+        {
+            ctx.Connection.RemoteIpAddress = IPAddress.Parse("172.18.0.2");
+            ctx.Request.Method = HttpMethods.Get;
+            ctx.Request.Path = "/api/public/tourist-zones";
+            ctx.Request.Headers["X-Forwarded-For"] = "198.51.100.40";
+        });
+        var pub3 = await factory.Server.SendAsync(ctx =>
+        {
+            ctx.Connection.RemoteIpAddress = IPAddress.Parse("172.18.0.2");
+            ctx.Request.Method = HttpMethods.Get;
+            ctx.Request.Path = "/api/public/tourist-zones";
+            ctx.Request.Headers["X-Forwarded-For"] = "198.51.100.40";
+        });
+
+        Assert.Equal(StatusCodes.Status200OK, pub1.Response.StatusCode);
+        Assert.Equal(StatusCodes.Status200OK, pub2.Response.StatusCode);
+        Assert.Equal(StatusCodes.Status429TooManyRequests, pub3.Response.StatusCode);
+
+        // AI Chat: first 2 return 400 (empty message), 3rd is rate-limited (429)
+        var ai1 = await SendPostJsonThroughProxyAsync(factory, "/api/ai/chat", "198.51.100.41");
+        var ai2 = await SendPostJsonThroughProxyAsync(factory, "/api/ai/chat", "198.51.100.41");
+        var ai3 = await SendPostJsonThroughProxyAsync(factory, "/api/ai/chat", "198.51.100.41");
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ai1.Response.StatusCode);
+        Assert.Equal(StatusCodes.Status400BadRequest, ai2.Response.StatusCode);
+        Assert.Equal(StatusCodes.Status429TooManyRequests, ai3.Response.StatusCode);
+    }
+
+    [Fact]
+    public void JwtSecretGuard_InStagingEnvironment_RejectsDevPlaceholderKey()
+    {
+        using var factory = new Wave10HardeningWebApplicationFactory(
+            environmentName: Environments.Staging,
+            extraConfig: new Dictionary<string, string?>
+            {
+                ["JwtSettings:SecretKey"] = "DevOnly_TestPlaceholderKey_NotForStagingOrProd_32B!"
+            });
+
+        var ex = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+        var root = ex is TargetInvocationException tie && tie.InnerException != null ? tie.InnerException : ex;
+        Assert.IsType<InvalidOperationException>(root);
+        Assert.Contains("JwtSettings:SecretKey", root.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SeedDefaultRolesAndPermissions_WhenDevBootstrapDisabled_DoesNotSeedDevSuperAdminOrDummyBankConfig()
+    {
+        var baseConn = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION")
+            ?? "Host=localhost;Port=5435;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;";
+
+        var connCheckBuilder = new NpgsqlConnectionStringBuilder(baseConn);
+        var dbName = connCheckBuilder.Database?.ToLowerInvariant() ?? string.Empty;
+        if (!dbName.EndsWith("_test", StringComparison.Ordinal) && !dbName.Contains("test_", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Refusing to run schema seed test against non-test database '{connCheckBuilder.Database}'.");
+        }
+
+        var schemaName = "wave10_seed_" + Guid.NewGuid().ToString("N")[..12];
+        await using (var setupConn = new NpgsqlConnection(baseConn))
+        {
+            await setupConn.OpenAsync();
+            await using var createCmd = setupConn.CreateCommand();
+            createCmd.CommandText = $"CREATE SCHEMA IF NOT EXISTS \"{schemaName}\";";
+            await createCmd.ExecuteNonQueryAsync();
+        }
+
+        try
+        {
+            var schemaBuilder = new NpgsqlConnectionStringBuilder(baseConn) { SearchPath = schemaName };
+            var dbOptions = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseNpgsql(schemaBuilder.ConnectionString, o =>
+                    o.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName))
+                .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
+                .Options;
+
+            var tenantSvc = new CurrentTenantService();
+            var propSvc = new CurrentPropertyService();
+
+            await using var db = new ApplicationDbContext(dbOptions, tenantSvc, propSvc);
+            await db.Database.MigrateAsync();
+
+            var realTenant = new Tenant
+            {
+                Id = Guid.NewGuid(),
+                Name = "Real Production Hotel Group",
+                Code = "REAL-01",
+                Slug = "real-production-hotel",
+                Address = "10 Le Loi",
+                City = "TP. Hồ Chí Minh",
+                Status = TenantStatus.Active
+            };
+            db.Tenants.Add(realTenant);
+            await db.SaveChangesAsync();
+
+            var emptyConfig = new ConfigurationBuilder().Build();
+
+            // 1. Fresh DB with allowDevPlatformBootstrap: false (Staging/Production default)
+            await SeedData.SeedDefaultRolesAndPermissions(db, allowDevPlatformBootstrap: false, configuration: emptyConfig);
+
+            Assert.True(await db.AccessRoles.CountAsync() >= 5);
+            Assert.True(await db.PermissionFunctions.CountAsync() >= 19);
+            Assert.True(await db.SubscriptionPlans.CountAsync() >= 3);
+
+            var housekeeperRole = await db.AccessRoles.FirstAsync(r => r.Code == "HOUSEKEEPER");
+            var hkFunc = await db.PermissionFunctions.FirstAsync(f => f.Code == "HOUSEKEEPING");
+            var hkPerm = await db.RolePermissions.FirstAsync(rp => rp.RoleId == housekeeperRole.Id && rp.FunctionId == hkFunc.Id);
+            Assert.Equal(7, hkPerm.ActionMask);
+
+            // Must NEVER create hardcoded dev SuperAdmin, dummy MBBank print config, or dummy Pro contract
+            Assert.False(await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Email == "superadmin@hotelsaas.platform"));
+            Assert.False(await db.Users.IgnoreQueryFilters().AnyAsync(u => u.GlobalRole == GlobalUserRole.SuperAdmin));
+            Assert.False(await db.PrintTemplateConfigs.IgnoreQueryFilters().AnyAsync(c => c.TenantId == realTenant.Id));
+            Assert.False(await db.TenantContracts.IgnoreQueryFilters().AnyAsync(c => c.TenantId == realTenant.Id));
+
+            // 2. Subsequent startup (AccessRoles already exist) STILL must NOT seed dev bootstrap artifacts
+            await SeedData.SeedDefaultRolesAndPermissions(db, allowDevPlatformBootstrap: false, configuration: emptyConfig);
+
+            Assert.False(await db.Users.IgnoreQueryFilters().AnyAsync(u => u.GlobalRole == GlobalUserRole.SuperAdmin));
+            Assert.False(await db.PrintTemplateConfigs.IgnoreQueryFilters().AnyAsync(c => c.TenantId == realTenant.Id));
+            Assert.False(await db.TenantContracts.IgnoreQueryFilters().AnyAsync(c => c.TenantId == realTenant.Id));
+
+            // 3. Explicit PlatformBootstrap:AdminEmail + PlatformBootstrap:AdminPassword creates ONLY that configured SuperAdmin
+            var dynamicPassword = $"OpsBootstrap!{Guid.NewGuid():N}";
+            var bootstrapConfig = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["PlatformBootstrap:AdminEmail"] = "ops.admin@hotelsaas.example",
+                    ["PlatformBootstrap:AdminPassword"] = dynamicPassword
+                })
+                .Build();
+
+            await SeedData.SeedDefaultRolesAndPermissions(db, allowDevPlatformBootstrap: false, configuration: bootstrapConfig);
+
+            var configuredAdmin = await db.Users.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.Email == "ops.admin@hotelsaas.example");
+            Assert.NotNull(configuredAdmin);
+            Assert.Equal(GlobalUserRole.SuperAdmin, configuredAdmin!.GlobalRole);
+            Assert.True(configuredAdmin.IsActive);
+            Assert.False(await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Email == "superadmin@hotelsaas.platform"));
+            Assert.False(await db.PrintTemplateConfigs.IgnoreQueryFilters().AnyAsync(c => c.TenantId == realTenant.Id));
+        }
+        finally
+        {
+            try
+            {
+                await using var dropConn = new NpgsqlConnection(baseConn);
+                await dropConn.OpenAsync();
+                await using var dropCmd = dropConn.CreateCommand();
+                dropCmd.CommandText = $"DROP SCHEMA IF EXISTS \"{schemaName}\" CASCADE;";
+                await dropCmd.ExecuteNonQueryAsync();
+            }
+            catch
+            {
+                // Ignore cleanup failure
+            }
+        }
     }
 
     [Fact]

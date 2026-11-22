@@ -49,6 +49,11 @@ import { PaginationComponent } from '../../shared/components/pagination/paginati
 import { RefundApprovalComponent } from './components/refund-approval/refund-approval.component';
 import { ContextSelectorDialogComponent } from '../auth/context-selector/context-selector.dialog';
 
+type PaymentSummaryViewDto = PaymentSummaryDto & {
+  totalRefunded?: number;
+  netCollected?: number;
+};
+
 type ShiftReportViewDto = ShiftReportDto & {
   totalRefunded?: number;
   netCollected?: number;
@@ -288,7 +293,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
           <!-- Data Content for Summary -->
           @if (!isLoadingSummary() && !summaryError()) {
             @if (summary(); as s) {
-              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <!-- Total Collected KPI (Hero Card) -->
                 <div class="rounded-xl bg-emerald-50/70 border border-emerald-200/80 p-4 shadow-2xs space-y-1">
                   <div class="flex items-center justify-between">
@@ -301,6 +306,34 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                   <div class="text-[11px] text-emerald-700 flex items-center gap-1 pt-1 tabular-nums">
                     <i class="pi pi-check-circle text-[10px]"></i>
                     <span>{{ s.completedCount }} giao dịch hoàn tất</span>
+                  </div>
+                </div>
+
+                <!-- Total Refunded KPI Card -->
+                <div data-testid="summary-total-refunded" class="rounded-xl bg-rose-50/70 border border-rose-200/80 p-4 shadow-2xs space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-rose-800 uppercase tracking-wider">Tổng hoàn tiền</span>
+                    <i class="pi pi-undo text-rose-600 text-base"></i>
+                  </div>
+                  <div class="text-xl sm:text-2xl font-extrabold text-rose-900 tracking-tight tabular-nums">
+                    {{ getSummaryTotalRefunded(s) | vndCurrency }}
+                  </div>
+                  <div class="text-[11px] text-rose-700 pt-1">
+                    Các khoản hoàn tiền đã chi trong ngày
+                  </div>
+                </div>
+
+                <!-- Net Collected KPI Card -->
+                <div data-testid="summary-net-collected" class="rounded-xl bg-indigo-50/70 border border-indigo-200/80 p-4 shadow-2xs space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-indigo-800 uppercase tracking-wider">Thực thu ròng</span>
+                    <i class="pi pi-chart-line text-indigo-600 text-base"></i>
+                  </div>
+                  <div class="text-xl sm:text-2xl font-extrabold text-indigo-900 tracking-tight tabular-nums">
+                    {{ getSummaryNetCollected(s) | vndCurrency }}
+                  </div>
+                  <div class="text-[11px] text-indigo-700 pt-1">
+                    Tổng thu trừ hoàn tiền trong ngày
                   </div>
                 </div>
 
@@ -1206,9 +1239,18 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               @for (p of payments(); track p.id) {
                 <div class="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs space-y-2.5">
                   <div class="flex items-center justify-between">
-                    <span class="font-bold text-sm text-slate-900 tabular-nums">
-                      {{ (!p.currency || p.currency === 'VND') ? (p.amount | vndCurrency) : (p.amount | number:'1.0-0') + ' ' + p.currency }}
-                    </span>
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span
+                        data-testid="history-payment-amount-mobile"
+                        class="font-bold text-sm tabular-nums"
+                        [ngClass]="isRefundTransaction(p) ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900'"
+                      >{{ isRefundTransaction(p) ? '-' : '' }}{{ (!p.currency || p.currency === 'VND') ? ((isRefundTransaction(p) ? absAmount(p.amount) : p.amount) | vndCurrency) : ((isRefundTransaction(p) ? absAmount(p.amount) : p.amount) | number:'1.0-0') + ' ' + p.currency }}</span>
+                      @if (isRefundTransaction(p)) {
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                          Hoàn tiền
+                        </span>
+                      }
+                    </div>
                     <span [class]="getStatusBadgeClass(p.status)">
                       {{ p.statusName || getStatusLabel(p.status) }}
                     </span>
@@ -1285,8 +1327,21 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                       </td>
 
                       <!-- Amount -->
-                      <td class="py-3 px-3.5 font-bold text-slate-900 tabular-nums">
-                        {{ (!p.currency || p.currency === 'VND') ? (p.amount | vndCurrency) : (p.amount | number:'1.0-0') + ' ' + p.currency }}
+                      <td
+                        data-testid="history-payment-amount"
+                        class="py-3 px-3.5 font-bold tabular-nums"
+                        [ngClass]="isRefundTransaction(p) ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900'"
+                      >
+                        @if (isRefundTransaction(p)) {
+                          <div class="inline-flex items-center gap-1.5 flex-wrap">
+                            <span>-{{ (!p.currency || p.currency === 'VND') ? (absAmount(p.amount) | vndCurrency) : (absAmount(p.amount) | number:'1.0-0') + ' ' + p.currency }}</span>
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              Hoàn tiền
+                            </span>
+                          </div>
+                        } @else {
+                          {{ (!p.currency || p.currency === 'VND') ? (p.amount | vndCurrency) : (p.amount | number:'1.0-0') + ' ' + p.currency }}
+                        }
                       </td>
 
                       <!-- Method Badge -->
@@ -1507,7 +1562,7 @@ export class PaymentsPage implements OnInit, OnDestroy {
   summaryDate = getTodayVietnamDateString();
   summaryDateObj: Date = new Date();
   readonly todayDate: Date = new Date();
-  readonly summary = signal<PaymentSummaryDto | null>(null);
+  readonly summary = signal<PaymentSummaryViewDto | null>(null);
   readonly isLoadingSummary = signal<boolean>(false);
   readonly summaryError = signal<string | null>(null);
   private summaryRequestId = 0;
@@ -1872,6 +1927,14 @@ export class PaymentsPage implements OnInit, OnDestroy {
   selectShiftType(type: ShiftType): void {
     this.selectedShiftType.set(type);
     this.loadShiftReport();
+  }
+
+  getSummaryTotalRefunded(s: PaymentSummaryViewDto): number {
+    return s.totalRefunded ?? 0;
+  }
+
+  getSummaryNetCollected(s: PaymentSummaryViewDto): number {
+    return s.netCollected ?? (s.totalCollected - (s.totalRefunded ?? 0));
   }
 
   getShiftTotalRefunded(sr: ShiftReportViewDto): number {

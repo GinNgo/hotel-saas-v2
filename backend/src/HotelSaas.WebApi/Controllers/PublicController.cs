@@ -31,6 +31,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace HotelSaas.WebApi.Controllers;
 
@@ -41,6 +42,7 @@ namespace HotelSaas.WebApi.Controllers;
 [ApiController]
 [Route("api/public")]
 [Produces("application/json")]
+[EnableRateLimiting("public-api")]
 public sealed class PublicController : ControllerBase
 {
     private readonly ISender _mediator;

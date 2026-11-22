@@ -230,4 +230,99 @@ describe('Real-session guest account', () => {
     expect(element.textContent).toContain('MEM-001');
     expect(element.textContent).toContain('250.000 ₫');
   });
+
+  it('localizes booking statuses, rental types, and invoice statuses to Vietnamese across tabs and modal', () => {
+    mockGuestService.getBookings.mockReturnValue(of({
+      items: [
+        {
+          id: 'res-loc-1',
+          reference: 'RES-LOC-001',
+          lookupToken: 'tok-loc-001',
+          property: { id: 'p1', name: 'Hotel Đà Lạt', slug: 'hotel-da-lat' },
+          roomTypeName: 'Deluxe',
+          rentalType: 'Daily',
+          checkInDate: '2026-12-01',
+          checkOutDate: '2026-12-03',
+          status: 'PendingPayment',
+          totalAmount: 1500000,
+          currency: 'VND'
+        }
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1
+    }));
+
+    mockGuestService.getInvoices.mockReturnValue(of([
+      {
+        invoiceId: 'inv-loc-1',
+        invoiceNumber: 'INV-LOC-001',
+        reservationId: 'res-loc-1',
+        reservationCode: 'RES-LOC-001',
+        tenantBrandName: 'LuxeStay',
+        propertyName: 'LuxeStay Đà Lạt',
+        propertyType: 'Hotel',
+        propertyAddress: 'Đà Lạt',
+        propertyTaxCode: '0300000000',
+        rentalType: 'Daily',
+        checkInTime: '2026-12-01',
+        checkOutTime: '2026-12-03',
+        roomName: 'Deluxe',
+        roomNumber: '101',
+        status: 'Paid',
+        subTotal: 1500000,
+        surchargeTotal: 0,
+        discountTotal: 0,
+        pointsUsed: 0,
+        pointsDiscountAmount: 0,
+        pointsEarned: 0,
+        pointsRefunded: 0,
+        taxAmount: 120000,
+        grandTotal: 1620000,
+        paidAmount: 1620000,
+        paymentMethod: 'VietQR',
+        issuedAt: '2026-12-01',
+        lineItems: []
+      }
+    ]));
+
+    const fixture = TestBed.createComponent(GuestProfilePageComponent);
+    const comp = fixture.componentInstance;
+    users.next({ id: 'u1', fullName: 'Khách Test', email: 'test@example.com', globalRole: 'Customer', tenantId: null });
+    fixture.detectChanges();
+
+    expect(comp.getBookingStatusLabel('PendingPayment')).toBe('Chờ thanh toán');
+    expect(comp.getBookingStatusLabel('Confirmed')).toBe('Đã xác nhận');
+    expect(comp.getBookingStatusLabel('CheckedIn')).toBe('Đang lưu trú');
+    expect(comp.getBookingStatusLabel('CheckedOut')).toBe('Đã trả phòng');
+    expect(comp.getBookingStatusLabel('Cancelled')).toBe('Đã hủy');
+    expect(comp.getBookingStatusLabel('NoShow')).toBe('Không đến');
+    expect(comp.getBookingStatusLabel('Expired')).toBe('Hết hạn');
+
+    expect(comp.getRentalTypeLabel('Hourly')).toBe('Theo giờ');
+    expect(comp.getRentalTypeLabel('Overnight')).toBe('Qua đêm');
+    expect(comp.getRentalTypeLabel('Daily')).toBe('Theo ngày');
+
+    expect(comp.getInvoiceStatusLabel('Issued')).toBe('Đã xuất');
+    expect(comp.getInvoiceStatusLabel('Paid')).toBe('Đã thanh toán');
+    expect(comp.getInvoiceStatusLabel('Draft')).toBe('Nháp');
+    expect(comp.getInvoiceStatusLabel('Voided')).toBe('Đã hủy');
+    expect(comp.getInvoiceStatusLabel('Cancelled')).toBe('Đã hủy');
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).toContain('Chờ thanh toán');
+    expect(element.textContent).not.toContain('PendingPayment');
+
+    comp.selectTab('bookings');
+    fixture.detectChanges();
+    expect(element.textContent).toContain('Chờ thanh toán');
+    expect(element.textContent).toContain('Theo ngày');
+    expect(element.textContent).toContain('Đã thanh toán');
+    expect(element.textContent).not.toContain('(Daily)');
+
+    comp.openInvoicePreview(comp.invoices()[0]);
+    fixture.detectChanges();
+    expect(element.textContent).toContain('VietQR (Đã thanh toán)');
+  });
 });
