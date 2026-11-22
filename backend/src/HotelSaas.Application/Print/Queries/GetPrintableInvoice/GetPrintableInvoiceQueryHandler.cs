@@ -52,15 +52,18 @@ public sealed class GetPrintableInvoiceQueryHandler : IRequestHandler<GetPrintab
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserContext _currentUser;
     private readonly IVietQrService? _vietQrService;
+    private readonly ICurrentPropertyService? _currentPropertyService;
 
     public GetPrintableInvoiceQueryHandler(
         IApplicationDbContext context,
         ICurrentUserContext currentUser,
-        IVietQrService? vietQrService = null)
+        IVietQrService? vietQrService = null,
+        ICurrentPropertyService? currentPropertyService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _currentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
         _vietQrService = vietQrService;
+        _currentPropertyService = currentPropertyService;
     }
 
     public async Task<PrintableInvoiceDto> Handle(GetPrintableInvoiceQuery request, CancellationToken cancellationToken)
@@ -82,9 +85,25 @@ public sealed class GetPrintableInvoiceQueryHandler : IRequestHandler<GetPrintab
 
         var snapshot = ReservationSnapshotHelper.TryDeserialize(reservation.Notes);
 
+        var effectiveIsTenantWide = _currentPropertyService != null
+            ? _currentPropertyService.IsTenantWide
+            : _currentUser.IsTenantWide;
+        var effectivePropertyId = _currentPropertyService != null
+            ? _currentPropertyService.PropertyId
+            : _currentUser.PropertyId;
+        var effectiveExcludedPropertyIds = _currentPropertyService != null
+            ? _currentPropertyService.ExcludedPropertyIds
+            : _currentUser.ExcludedPropertyIds;
+        var isPropertyExcluded = effectiveExcludedPropertyIds != null &&
+            effectiveExcludedPropertyIds.Contains(reservation.PropertyId);
+        var hasStaffBranchAccess = _currentUser.TenantId.HasValue &&
+            _currentUser.TenantId.Value == reservation.TenantId &&
+            !isPropertyExcluded &&
+            (effectiveIsTenantWide || effectivePropertyId == reservation.PropertyId);
+
         bool isAuthenticatedAuthorized = _currentUser.IsAuthenticated &&
             (_currentUser.GlobalRole == GlobalUserRole.SuperAdmin ||
-             (_currentUser.TenantId.HasValue && _currentUser.TenantId.Value == reservation.TenantId) ||
+             hasStaffBranchAccess ||
              (_currentUser.UserId != Guid.Empty && reservation.GuestUserId == _currentUser.UserId));
 
         var trimmedCode = request.Code?.Trim();

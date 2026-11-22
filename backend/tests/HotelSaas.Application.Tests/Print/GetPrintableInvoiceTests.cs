@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Print.Queries.GetPrintableInvoice;
+using HotelSaas.Application.Print.Queries.GetPrintableVoucher;
 using HotelSaas.Application.Reservations.DTOs;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
@@ -632,5 +633,181 @@ public sealed class GetPrintableInvoiceTests
         Assert.StartsWith("https://img.vietqr.io/image/970422-999988887777-compact2.png?", fallbackDto.VietQrImageUrl);
         Assert.Contains("addInfo=DATPHONG+RESABC123", fallbackDto.VietQrImageUrl);
         Assert.DoesNotContain("THANHTOAN", fallbackDto.VietQrImageUrl);
+    }
+
+    private sealed class StubPropertyService : ICurrentPropertyService
+    {
+        public Guid? PropertyId { get; set; }
+        public bool IsTenantWide { get; set; }
+        public IReadOnlyList<Guid> ExcludedPropertyIds { get; set; } = Array.Empty<Guid>();
+        public Guid? HeaderPropertyId { get; set; }
+        public Guid? TokenPropertyId { get; set; }
+    }
+
+    [Fact]
+    public async Task IntraTenantCrossBranchStaff_IsDeniedUnmaskedInvoice_WhileSameBranchAndTenantWideSucceed()
+    {
+        var tenantId = Guid.NewGuid();
+        var branchAId = Guid.NewGuid();
+        var branchBId = Guid.NewGuid();
+        var reservationId = Guid.NewGuid();
+
+        var db = new FakeDbContext();
+        db.ReservationList.Add(new Reservation
+        {
+            Id = reservationId,
+            TenantId = tenantId,
+            PropertyId = branchBId,
+            ConfirmationCode = "RES-BRB001",
+            GuestName = "Le Minh Khang",
+            GuestEmail = "khang.branchb@example.com",
+            GuestPhone = "0911888999",
+            CheckInDate = new DateOnly(2026, 10, 1),
+            CheckOutDate = new DateOnly(2026, 10, 2),
+            NumberOfGuests = 2,
+            TotalAmount = 1_200_000m,
+            Room = new Room { Id = Guid.NewGuid(), TenantId = tenantId, PropertyId = branchBId, RoomNumber = "502" },
+            Payments = new List<Payment>()
+        });
+        db.PrintTemplateList.Add(new PrintTemplateConfig
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            PropertyId = branchBId,
+            HeaderCompanyName = "Branch B Hotel",
+            BankName = "MBBank",
+            BankAccountNumber = "111122223333",
+            BankAccountHolder = "CTY BRANCH B",
+            ShowVietQrCode = true
+        });
+
+        // 1. Branch A single-branch staff MUST NOT get unmasked PII/VietQR for Branch B
+        var branchAUserCtx = new StubUserContext();
+        branchAUserCtx.SetUser(Guid.NewGuid(), "staff.a@hotel.vn", GlobalUserRole.TenantStaff);
+        branchAUserCtx.SetMembershipContext(tenantId, TenantStatus.Active, branchAId, PropertyStatus.Active, StaffRole.Receptionist, null, isTenantWide: false);
+        var branchAPropSvc = new StubPropertyService { PropertyId = branchAId, IsTenantWide = false };
+
+        var crossBranchDto = await new GetPrintableInvoiceQueryHandler(db, branchAUserCtx, new VietQrService(), branchAPropSvc)
+            .Handle(new GetPrintableInvoiceQuery(reservationId), CancellationToken.None);
+
+        Assert.Equal("L*** M*** K***", crossBranchDto.GuestName);
+        Assert.Equal("k***@example.com", crossBranchDto.GuestEmail);
+        Assert.Equal("091****999", crossBranchDto.GuestPhone);
+        Assert.Equal("***", crossBranchDto.RoomNumber);
+        Assert.False(crossBranchDto.ShowVietQrCode);
+        Assert.Equal(string.Empty, crossBranchDto.VietQrImageUrl);
+        Assert.NotEqual("111122223333", crossBranchDto.BankAccountNumber);
+
+        // 2. Branch B staff gets full unmasked invoice
+        var branchBUserCtx = new StubUserContext();
+        branchBUserCtx.SetUser(Guid.NewGuid(), "staff.b@hotel.vn", GlobalUserRole.TenantStaff);
+        branchBUserCtx.SetMembershipContext(tenantId, TenantStatus.Active, branchBId, PropertyStatus.Active, StaffRole.Receptionist, null, isTenantWide: false);
+        var branchBPropSvc = new StubPropertyService { PropertyId = branchBId, IsTenantWide = false };
+
+        var sameBranchDto = await new GetPrintableInvoiceQueryHandler(db, branchBUserCtx, new VietQrService(), branchBPropSvc)
+            .Handle(new GetPrintableInvoiceQuery(reservationId), CancellationToken.None);
+
+        Assert.Equal("Le Minh Khang", sameBranchDto.GuestName);
+        Assert.Equal("502", sameBranchDto.RoomNumber);
+        Assert.True(sameBranchDto.ShowVietQrCode);
+        Assert.Equal("111122223333", sameBranchDto.BankAccountNumber);
+
+        // 3. Tenant-wide owner succeeds unless Branch B is in ExcludedPropertyIds
+        var ownerCtx = new StubUserContext();
+        ownerCtx.SetUser(Guid.NewGuid(), "owner@hotel.vn", GlobalUserRole.TenantStaff);
+        ownerCtx.SetMembershipContext(tenantId, TenantStatus.Active, null, null, StaffRole.Owner, null, isTenantWide: true);
+
+        var ownerAllowedDto = await new GetPrintableInvoiceQueryHandler(
+            db, ownerCtx, new VietQrService(), new StubPropertyService { IsTenantWide = true })
+            .Handle(new GetPrintableInvoiceQuery(reservationId), CancellationToken.None);
+        Assert.Equal("Le Minh Khang", ownerAllowedDto.GuestName);
+
+        var ownerExcludedDto = await new GetPrintableInvoiceQueryHandler(
+            db, ownerCtx, new VietQrService(), new StubPropertyService { IsTenantWide = true, ExcludedPropertyIds = new[] { branchBId } })
+            .Handle(new GetPrintableInvoiceQuery(reservationId), CancellationToken.None);
+        Assert.Equal("L*** M*** K***", ownerExcludedDto.GuestName);
+        Assert.Equal("***", ownerExcludedDto.RoomNumber);
+        Assert.False(ownerExcludedDto.ShowVietQrCode);
+    }
+
+    [Fact]
+    public async Task GetPrintableVoucher_EnforcesBranchScope_NullExpiryFailClosed_AndMasksRoomNumber()
+    {
+        var tenantId = Guid.NewGuid();
+        var branchAId = Guid.NewGuid();
+        var branchBId = Guid.NewGuid();
+        const string lookupToken = "tok-vch-branchb-secret";
+
+        var snapshot = new ReservationSnapshot
+        {
+            RentalType = RentalType.Overnight,
+            StartAtUtc = DateTime.UtcNow.AddDays(1),
+            EndAtUtc = DateTime.UtcNow.AddDays(2),
+            RoomTypeName = "Deluxe Suite",
+            LookupToken = lookupToken,
+            TokenExpiresAtUtc = DateTime.UtcNow.AddHours(6),
+            CustomerNotes = "Quiet high floor"
+        };
+
+        var reservation = new Reservation
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            PropertyId = branchBId,
+            ConfirmationCode = "VCH-BRB02",
+            GuestName = "Tran Bao Ngoc",
+            GuestEmail = "ngoc.voucher@example.com",
+            GuestPhone = "0988111222",
+            CheckInDate = new DateOnly(2026, 10, 5),
+            CheckOutDate = new DateOnly(2026, 10, 7),
+            NumberOfGuests = 2,
+            TotalAmount = 2_000_000m,
+            Status = ReservationStatus.Confirmed,
+            Notes = ReservationSnapshotHelper.Serialize(snapshot),
+            Room = new Room { Id = Guid.NewGuid(), TenantId = tenantId, PropertyId = branchBId, RoomNumber = "608" }
+        };
+
+        var db = new FakeDbContext();
+        db.ReservationList.Add(reservation);
+
+        // 1. Anonymous with raw ConfirmationCode -> masks PII and RoomNumber
+        var anonHandler = new GetPrintableVoucherQueryHandler(db, new StubUserContext());
+        var anonCodeDto = await anonHandler.Handle(new GetPrintableVoucherQuery("VCH-BRB02"), CancellationToken.None);
+        Assert.NotEqual("Tran Bao Ngoc", anonCodeDto.GuestName);
+        Assert.Equal("***", anonCodeDto.RoomNumber);
+        Assert.Null(anonCodeDto.SpecialRequests);
+
+        // 2. Anonymous with valid non-expired LookupToken -> unmasked PII and RoomNumber
+        var anonTokenDto = await anonHandler.Handle(new GetPrintableVoucherQuery(lookupToken), CancellationToken.None);
+        Assert.Equal("Tran Bao Ngoc", anonTokenDto.GuestName);
+        Assert.Equal("608", anonTokenDto.RoomNumber);
+        Assert.Equal("Quiet high floor", anonTokenDto.SpecialRequests);
+
+        // 3. Branch A staff viewing Branch B voucher via ConfirmationCode -> masked PII and RoomNumber
+        var branchAUser = new StubUserContext();
+        branchAUser.SetUser(Guid.NewGuid(), "staff.a@hotel.vn", GlobalUserRole.TenantStaff);
+        branchAUser.SetMembershipContext(tenantId, TenantStatus.Active, branchAId, PropertyStatus.Active, StaffRole.Receptionist, null, isTenantWide: false);
+        var branchAHandler = new GetPrintableVoucherQueryHandler(db, branchAUser, new StubPropertyService { PropertyId = branchAId, IsTenantWide = false });
+
+        var crossBranchDto = await branchAHandler.Handle(new GetPrintableVoucherQuery("VCH-BRB02"), CancellationToken.None);
+        Assert.NotEqual("Tran Bao Ngoc", crossBranchDto.GuestName);
+        Assert.Equal("***", crossBranchDto.RoomNumber);
+        Assert.Null(crossBranchDto.SpecialRequests);
+
+        // 4. Branch B staff viewing Branch B voucher -> unmasked PII and RoomNumber
+        var branchBUser = new StubUserContext();
+        branchBUser.SetUser(Guid.NewGuid(), "staff.b@hotel.vn", GlobalUserRole.TenantStaff);
+        branchBUser.SetMembershipContext(tenantId, TenantStatus.Active, branchBId, PropertyStatus.Active, StaffRole.Receptionist, null, isTenantWide: false);
+        var branchBHandler = new GetPrintableVoucherQueryHandler(db, branchBUser, new StubPropertyService { PropertyId = branchBId, IsTenantWide = false });
+
+        var sameBranchDto = await branchBHandler.Handle(new GetPrintableVoucherQuery("VCH-BRB02"), CancellationToken.None);
+        Assert.Equal("Tran Bao Ngoc", sameBranchDto.GuestName);
+        Assert.Equal("608", sameBranchDto.RoomNumber);
+
+        // 5. Anonymous with null TokenExpiresAtUtc -> rejected fail-closed with NotFoundException
+        snapshot.TokenExpiresAtUtc = null;
+        reservation.Notes = ReservationSnapshotHelper.Serialize(snapshot);
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            anonHandler.Handle(new GetPrintableVoucherQuery(lookupToken), CancellationToken.None));
     }
 }

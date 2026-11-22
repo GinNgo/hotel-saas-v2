@@ -59,11 +59,20 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
 
         var totalDays = Math.Max(1, effectiveTo.DayNumber - effectiveFrom.DayNumber + 1);
 
-        // 1. Tải toàn bộ chi nhánh thuộc Tenant
-        var properties = await _context.Properties
+        var excludedPropertyIds = _currentPropertyService.ExcludedPropertyIds;
+
+        // 1. Tải toàn bộ chi nhánh thuộc Tenant (loại trừ chi nhánh đã bị thu hồi quyền - PO Decision 3)
+        var propertiesQuery = _context.Properties
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(p => p.TenantId == tenantId.Value)
+            .Where(p => p.TenantId == tenantId.Value);
+
+        if (excludedPropertyIds is { Count: > 0 })
+        {
+            propertiesQuery = propertiesQuery.Where(p => !excludedPropertyIds.Contains(p.Id));
+        }
+
+        var properties = await propertiesQuery
             .OrderBy(p => p.Name)
             .ToListAsync(cancellationToken);
 

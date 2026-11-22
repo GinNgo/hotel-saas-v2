@@ -148,6 +148,7 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                 <option value="AccessRole">Chức vụ & Quyền hạn (AccessRole)</option>
                 <option value="HousekeepingTask">Buồng phòng (Housekeeping)</option>
                 <option value="SepayExpiredHoldAlert">Cảnh báo chuyển khoản quá hạn SePay (SepayExpiredHoldAlert)</option>
+                <option value="SepayBankAccountConfigWarning">Cảnh báo chưa cấu hình STK SePay (SepayBankAccountConfigWarning)</option>
                 @if (isSuperAdmin()) {
                   <option value="Tenant">Khách hàng / Chuỗi khách sạn (Tenant)</option>
                   <option value="TenantStatus">Trạng thái thuê bao (TenantStatus)</option>
@@ -1334,6 +1335,7 @@ export class AuditLogsPage implements OnInit {
       case 'AccessRole': return 'Chức vụ & Quyền hạn';
       case 'HousekeepingTask': return 'Nhiệm vụ buồng phòng';
       case 'SepayExpiredHoldAlert': return 'Cảnh báo chuyển khoản quá hạn SePay';
+      case 'SepayBankAccountConfigWarning': return 'Cảnh báo chưa cấu hình STK SePay';
       case 'Tenant': return 'Khách hàng / Chuỗi (Tenant)';
       case 'TenantStatus': return 'Trạng thái thuê bao';
       case 'PropertyPublishApproval': return 'Duyệt xuất bản cơ sở';
@@ -1436,6 +1438,8 @@ export class AuditLogsPage implements OnInit {
     s = s.replace(/\bTenantStaff\b/g, 'Tài khoản nhân sự');
     s = s.replace(/\bAccessRole\b/g, 'Chức vụ phân quyền');
     s = s.replace(/\bHousekeepingTask\b/g, 'Buồng phòng');
+    s = s.replace(/\bSepayExpiredHoldAlert\b/g, 'Cảnh báo chuyển khoản quá hạn SePay');
+    s = s.replace(/\bSepayBankAccountConfigWarning\b/g, 'Cảnh báo chưa cấu hình STK SePay');
 
     s = s.replace(/,?\s*(RoomTypeId|CreatedByUserId|TenantId|PropertyId|Id)=[0-9a-f-]{36}/gi, '');
     s = s.replace(/\(\s*,\s*/g, '(');

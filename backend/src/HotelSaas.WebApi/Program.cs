@@ -111,6 +111,12 @@ var webhookPermitLimit = Math.Max(
 var publicPrintPermitLimit = Math.Max(
     1,
     builder.Configuration.GetValue<int?>("RateLimiting:PublicPrintPermitLimit") ?? (isTestingEnvironment ? 10_000 : 60));
+var publicApiPermitLimit = Math.Max(
+    1,
+    builder.Configuration.GetValue<int?>("RateLimiting:PublicApiPermitLimit") ?? (isTestingEnvironment ? 10_000 : 120));
+var aiChatPermitLimit = Math.Max(
+    1,
+    builder.Configuration.GetValue<int?>("RateLimiting:AiChatPermitLimit") ?? (isTestingEnvironment ? 10_000 : 30));
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -169,6 +175,30 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));
+
+    options.AddPolicy("public-api", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ResolveClientIpPartitionKey(httpContext),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = publicApiPermitLimit,
+                Window = rateLimitWindow,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+
+    options.AddPolicy("ai-chat", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ResolveClientIpPartitionKey(httpContext),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = aiChatPermitLimit,
+                Window = rateLimitWindow,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
 });
 
 // ── CORS ─────────────────────────────────────────────────────────────
@@ -184,7 +214,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-if (app.Environment.IsProduction())
+if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Testing"))
 {
     ValidateProductionJwtSecret(jwtSettings["SecretKey"]);
 }
@@ -208,7 +238,6 @@ if (!shouldSkipStartupInit)
     {
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await context.Database.MigrateAsync();
-        await SeedData.SeedDefaultRolesAndPermissions(context);
 
         var allowCloudDevSeed = builder.Configuration.GetValue<bool>("AllowCloudDevSeed");
         var shouldRunDevSeeder = ShouldRunDevSeeder(
@@ -216,6 +245,11 @@ if (!shouldSkipStartupInit)
             builder.Configuration,
             isCloudDb,
             effectiveConnStr);
+
+        await SeedData.SeedDefaultRolesAndPermissions(
+            context,
+            allowDevPlatformBootstrap: shouldRunDevSeeder,
+            configuration: app.Configuration);
 
         if (shouldRunDevSeeder)
         {
@@ -377,7 +411,8 @@ public partial class Program
     }
 
     /// <summary>
-    /// Validates that Production environments never boot with a missing, short, or sample JWT signing key.
+    /// Validates that non-Development/non-Testing environments (Staging, Production) never boot
+    /// with a missing, short, or sample JWT signing key.
     /// </summary>
     public static void ValidateProductionJwtSecret(string? secretKey)
     {
@@ -385,7 +420,7 @@ public partial class Program
         if (validated.Length < JwtKeyValidator.MinimumKeyLengthBytes)
         {
             throw new InvalidOperationException(
-                $"JwtSettings:SecretKey must be at least {JwtKeyValidator.MinimumKeyLengthBytes} characters in Production.");
+                $"JwtSettings:SecretKey must be at least {JwtKeyValidator.MinimumKeyLengthBytes} characters in Production/Staging.");
         }
 
         if (KnownDevJwtSampleKeys.Contains(validated, StringComparer.Ordinal) ||
@@ -393,7 +428,7 @@ public partial class Program
             validated.Contains("ChangeInProduction", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                "JwtSettings:SecretKey cannot use a known development/sample placeholder key in Production.");
+                "JwtSettings:SecretKey cannot use a known development/sample placeholder key in Production/Staging.");
         }
     }
 

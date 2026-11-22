@@ -464,6 +464,10 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                           <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                             <i class="pi pi-clock mr-1 text-[9px]"></i>Theo giờ
                           </span>
+                        } @else if (res.rentalType === RentalType.Daily) {
+                          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-teal-50 text-teal-800 border border-teal-200">
+                            <i class="pi pi-calendar mr-1 text-[9px]"></i>Theo ngày
+                          </span>
                         } @else {
                           <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
                             <i class="pi pi-moon mr-1 text-[9px]"></i>Theo đêm
@@ -984,7 +988,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                     <span class="text-slate-700 font-semibold">{{ detail.roomTypeName }}</span>
                   </div>
                   <div class="text-slate-600 font-medium">
-                    Hình thức: {{ detail.rentalType === RentalType.Hourly ? 'Thuê theo giờ' : 'Thuê theo đêm' }}
+                    Hình thức: {{ getRentalTypeLabel(detail.rentalType) }}
                   </div>
                   <div class="text-slate-600 tabular-nums inline-flex items-center gap-1 flex-wrap">
                     <span>{{ detail.checkInDate | businessDate }}</span>
@@ -1531,7 +1535,18 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                       (change)="onRentalTypeChanged()"
                       class="text-emerald-600 focus:ring-emerald-500"
                     />
-                    <span class="font-semibold text-slate-800">Thuê theo đêm</span>
+                    <span class="font-semibold text-slate-800">Qua đêm (Overnight)</span>
+                  </label>
+
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      formControlName="rentalType"
+                      [value]="RentalType.Daily"
+                      (change)="onRentalTypeChanged()"
+                      class="text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span class="font-semibold text-slate-800">Theo ngày (Daily)</span>
                   </label>
 
                   <label class="flex items-center gap-2 cursor-pointer">
@@ -1542,7 +1557,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                       (change)="onRentalTypeChanged()"
                       class="text-emerald-600 focus:ring-emerald-500"
                     />
-                    <span class="font-semibold text-slate-800">Thuê theo giờ</span>
+                    <span class="font-semibold text-slate-800">Theo giờ (Hourly)</span>
                   </label>
 
                   <button
@@ -1562,8 +1577,8 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                   </button>
                 </div>
 
-                <!-- Overnight date inputs -->
-                @if (createForm.get('rentalType')?.value === RentalType.Overnight) {
+                <!-- Overnight / Daily date inputs -->
+                @if (isMultiDayRentalType(createForm.get('rentalType')?.value)) {
                   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div>
                       <label class="block text-xs font-bold text-slate-700 mb-1">Ngày nhận phòng *</label>
@@ -2002,7 +2017,7 @@ export function formatVnDateDisplay(dateStr: string | null | undefined): string 
                 <div class="flex items-center gap-1 tabular-nums">
                   <span>Thời gian:</span>
                   <span class="font-medium text-slate-800">{{ targetRes.checkInDate | businessDate }}</span>
-                  @if (targetRes.rentalType === RentalType.Overnight) {
+                  @if (isMultiDayRentalType(targetRes.rentalType)) {
                     <i class="pi pi-arrow-right text-[10px] text-slate-400" aria-hidden="true"></i>
                     <span class="font-medium text-slate-800">{{ targetRes.checkOutDate | businessDate }}</span>
                   }
@@ -3472,11 +3487,21 @@ export class ReservationsPage implements OnInit, OnDestroy {
     this.lastSubmittedFingerprint = null;
   }
 
+  isMultiDayRentalType(rentalType: RentalType | number | null | undefined): boolean {
+    return rentalType === RentalType.Overnight || rentalType === RentalType.Daily;
+  }
+
+  getRentalTypeLabel(rentalType: RentalType | number | null | undefined): string {
+    if (rentalType === RentalType.Hourly) return RENTAL_TYPE_LABELS[RentalType.Hourly];
+    if (rentalType === RentalType.Daily) return RENTAL_TYPE_LABELS[RentalType.Daily];
+    return RENTAL_TYPE_LABELS[RentalType.Overnight];
+  }
+
   getCurrentScheduleKey(): string {
     const form = this.createForm.value;
     const rentalType = form.rentalType as RentalType;
     const roomTypeId = form.roomTypeId;
-    if (rentalType === RentalType.Overnight) {
+    if (this.isMultiDayRentalType(rentalType)) {
       return `${rentalType}_${roomTypeId}_${form.checkInDate}_${form.checkInTime}_${form.checkOutDate}_${form.checkOutTime}`;
     } else {
       return `${rentalType}_${roomTypeId}_${form.hourlyDate}_${form.hourlyStartTime}_${form.hourlyEndTime}`;
@@ -3488,7 +3513,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
     if (!roomTypeId) return false;
 
     const rentalType = this.createForm.get('rentalType')?.value;
-    if (rentalType === RentalType.Overnight) {
+    if (this.isMultiDayRentalType(rentalType)) {
       const checkIn = this.createForm.get('checkInDate')?.value;
       const checkOut = this.createForm.get('checkOutDate')?.value;
       const inTime = this.createForm.get('checkInTime')?.value;
@@ -3516,7 +3541,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
     let checkInDate: string | undefined;
     let checkOutDate: string | undefined;
 
-    if (rentalType === RentalType.Overnight) {
+    if (this.isMultiDayRentalType(rentalType)) {
       checkInDate = form.checkInDate;
       checkOutDate = form.checkOutDate;
       const checkInTime = form.checkInTime;
@@ -3657,7 +3682,7 @@ export class ReservationsPage implements OnInit, OnDestroy {
     let checkInDate: string | undefined;
     let checkOutDate: string | undefined;
 
-    if (rentalType === RentalType.Overnight) {
+    if (this.isMultiDayRentalType(rentalType)) {
       checkInDate = form.checkInDate;
       checkOutDate = form.checkOutDate;
       const checkInTime = form.checkInTime;
@@ -4829,7 +4854,12 @@ export class ReservationsPage implements OnInit, OnDestroy {
   }
 
   getBookingTooltip(res: ReservationDto): string {
-    const rentalTypeLabel = res.rentalType === RentalType.Hourly ? 'Theo giờ' : 'Theo đêm';
+    const rentalTypeLabel =
+      res.rentalType === RentalType.Hourly
+        ? 'Theo giờ'
+        : res.rentalType === RentalType.Daily
+          ? 'Theo ngày'
+          : 'Theo đêm';
     const statusLabel = this.getStatusLabel(res.status);
     return `${res.confirmationCode} - ${res.guestName}\n${rentalTypeLabel} | ${statusLabel}\nSĐT: ${res.guestPhone || 'Không có'}\nTổng tiền: ${this.vndPipe.transform(res.totalAmount)}`;
   }

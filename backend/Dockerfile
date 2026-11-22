@@ -3,7 +3,7 @@
 # Multi-stage Enterprise Dockerfile
 # ═══════════════════════════════════════════════════════════════
 
-ARG DOTNET_VERSION=10.0-preview
+ARG DOTNET_VERSION=10.0
 
 # ── Stage 1: Dependency Restore & Build ──
 FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION} AS build

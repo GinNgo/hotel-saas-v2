@@ -499,7 +499,7 @@ import { VndCurrencyPipe } from '../../../shared/pipes/vnd-currency.pipe';
                           <div class="flex items-center gap-2">
                             <span class="font-bold text-slate-900 text-sm">{{ b.property.name }}</span>
                             <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase" [ngClass]="getStatusBadgeClass(b.status)">
-                              {{ b.status }}
+                              {{ getBookingStatusLabel(b.status) }}
                             </span>
                           </div>
                           <p class="text-xs text-slate-500 mt-0.5 tabular-nums inline-flex items-center gap-1 flex-wrap">
@@ -569,14 +569,14 @@ import { VndCurrencyPipe } from '../../../shared/pipes/vnd-currency.pipe';
                         <div class="flex items-center gap-2 mb-1">
                           <span class="font-bold text-slate-900 text-sm">{{ b.property.name }}</span>
                           <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase" [ngClass]="getStatusBadgeClass(b.status)">
-                            {{ b.status }}
+                            {{ getBookingStatusLabel(b.status) }}
                           </span>
                         </div>
                         <p class="text-xs text-slate-500">
                           Mã đặt chỗ: <span class="font-mono font-semibold text-slate-700">{{ b.reference }}</span> • {{ b.roomTypeName }}
                         </p>
                         <p class="text-xs text-slate-600 mt-1">
-                          Lưu trú: <strong>{{ b.checkInDate }}</strong> đến <strong>{{ b.checkOutDate }}</strong> ({{ b.rentalType }})
+                          Lưu trú: <strong>{{ b.checkInDate }}</strong> đến <strong>{{ b.checkOutDate }}</strong> ({{ getRentalTypeLabel(b.rentalType) }})
                         </p>
                       </div>
                       <div class="text-right sm:shrink-0">
@@ -628,7 +628,7 @@ import { VndCurrencyPipe } from '../../../shared/pipes/vnd-currency.pipe';
                           <div class="flex items-center gap-2 flex-wrap">
                             <span class="font-mono font-bold text-slate-900 text-xs">{{ inv.invoiceNumber }}</span>
                             <span class="text-xs font-semibold text-slate-700">{{ inv.propertyName }}</span>
-                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">{{ inv.status }}</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">{{ getInvoiceStatusLabel(inv.status) }}</span>
                           </div>
                           <p class="text-xs text-slate-500">
                             Mã đặt phòng: <span class="font-mono">{{ inv.reservationCode }}</span> • {{ inv.roomName }} • {{ inv.issuedAt }}
@@ -1100,7 +1100,7 @@ import { VndCurrencyPipe } from '../../../shared/pipes/vnd-currency.pipe';
                 </div>
                 <div>
                   <span class="text-slate-500 block">Thanh toán:</span>
-                  <strong class="text-slate-900">{{ inv.paymentMethod }} ({{ inv.status }})</strong>
+                  <strong class="text-slate-900">{{ inv.paymentMethod }} ({{ getInvoiceStatusLabel(inv.status) }})</strong>
                 </div>
               </div>
               @if (inv.lineItems && inv.lineItems.length > 0) {
@@ -1699,6 +1699,58 @@ export class GuestProfilePageComponent implements OnInit {
           this.changePasswordError.set(err?.error?.message || 'Không thể đổi mật khẩu lúc này.');
         },
       });
+  }
+
+  getBookingStatusLabel(status?: string | null): string {
+    switch (status) {
+      case 'PendingPayment':
+        return 'Chờ thanh toán';
+      case 'Held':
+        return 'Đang giữ phòng';
+      case 'Confirmed':
+        return 'Đã xác nhận';
+      case 'CheckedIn':
+        return 'Đang lưu trú';
+      case 'CheckedOut':
+        return 'Đã trả phòng';
+      case 'Cancelled':
+        return 'Đã hủy';
+      case 'NoShow':
+        return 'Không đến';
+      case 'Expired':
+        return 'Hết hạn';
+      default:
+        return status || 'Không xác định';
+    }
+  }
+
+  getRentalTypeLabel(rentalType?: string | null): string {
+    switch (rentalType) {
+      case 'Hourly':
+        return 'Theo giờ';
+      case 'Overnight':
+        return 'Qua đêm';
+      case 'Daily':
+        return 'Theo ngày';
+      default:
+        return rentalType || 'Tiêu chuẩn';
+    }
+  }
+
+  getInvoiceStatusLabel(status?: string | null): string {
+    switch (status) {
+      case 'Issued':
+        return 'Đã xuất';
+      case 'Paid':
+        return 'Đã thanh toán';
+      case 'Draft':
+        return 'Nháp';
+      case 'Voided':
+      case 'Cancelled':
+        return 'Đã hủy';
+      default:
+        return status || 'Không xác định';
+    }
   }
 
   getStatusBadgeClass(status: string): string {

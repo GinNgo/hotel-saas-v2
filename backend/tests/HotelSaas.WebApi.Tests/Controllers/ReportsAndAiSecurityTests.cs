@@ -307,7 +307,12 @@ public sealed class ReportsAndAiSecurityTests
         IReportExportService exportService)
     {
         var tenantSvc = new CurrentTenantService { TenantId = userCtx.TenantId };
-        var propSvc = new CurrentPropertyService { PropertyId = userCtx.PropertyId, IsTenantWide = userCtx.IsTenantWide };
+        var propSvc = new CurrentPropertyService
+        {
+            PropertyId = userCtx.PropertyId,
+            IsTenantWide = userCtx.IsTenantWide,
+            ExcludedPropertyIds = userCtx.ExcludedPropertyIds
+        };
         var sender = new StubSender(async (req, ct) => req switch
         {
             GetGroupAnalyticsQuery q => await new GetGroupAnalyticsQueryHandler(db, tenantSvc, propSvc).Handle(q, ct),
@@ -962,5 +967,91 @@ public sealed class ReportsAndAiSecurityTests
         var ok = Assert.IsType<OkObjectResult>(sameBranchRes);
         var dto = Assert.IsType<DynamicPricingSummaryDto>(ok.Value);
         Assert.Equal(propA.Id, dto.PropertyId);
+    }
+
+    [Fact]
+    public async Task GetGroupAnalyticsQueryHandler_ExcludesRevokedProperties_FromMetricsAndTotals()
+    {
+        var tenantId = Guid.NewGuid();
+        var propA = new Property { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Branch Alpha", Code = "ALP", City = "TP. Hồ Chí Minh", StarRating = 4, Status = PropertyStatus.Active };
+        var propB = new Property { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Branch Revoked", Code = "RVK", City = "Hà Nội", StarRating = 5, Status = PropertyStatus.Active };
+        var day = new DateOnly(2026, 11, 10);
+
+        var db = new FakeReportsDbContext();
+        db.PropertiesSet.AddRange(propA, propB);
+        db.RoomsSet.AddRange(
+            new Room { Id = Guid.NewGuid(), TenantId = tenantId, PropertyId = propA.Id, RoomNumber = "A101" },
+            new Room { Id = Guid.NewGuid(), TenantId = tenantId, PropertyId = propB.Id, RoomNumber = "B101" },
+            new Room { Id = Guid.NewGuid(), TenantId = tenantId, PropertyId = propB.Id, RoomNumber = "B102" });
+        db.ReservationsSet.AddRange(
+            new Reservation
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                PropertyId = propA.Id,
+                ConfirmationCode = "GRP-A1",
+                CheckInDate = day,
+                CheckOutDate = day,
+                NumberOfGuests = 2,
+                TotalAmount = 500_000m,
+                Status = ReservationStatus.CheckedOut
+            },
+            new Reservation
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                PropertyId = propB.Id,
+                ConfirmationCode = "GRP-B1",
+                CheckInDate = day,
+                CheckOutDate = day,
+                NumberOfGuests = 3,
+                TotalAmount = 1_200_000m,
+                Status = ReservationStatus.CheckedOut
+            });
+        db.PaymentsSet.AddRange(
+            new Payment
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                PropertyId = propA.Id,
+                Amount = 500_000m,
+                Method = PaymentMethod.VNPay,
+                Status = PaymentStatus.Completed,
+                PaidAtUtc = new DateTime(2026, 11, 10, 12, 0, 0, DateTimeKind.Utc)
+            },
+            new Payment
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                PropertyId = propB.Id,
+                Amount = 1_200_000m,
+                Method = PaymentMethod.Cash,
+                Status = PaymentStatus.Completed,
+                PaidAtUtc = new DateTime(2026, 11, 10, 12, 0, 0, DateTimeKind.Utc)
+            });
+
+        var tenantSvc = new CurrentTenantService { TenantId = tenantId };
+        var propSvc = new CurrentPropertyService
+        {
+            PropertyId = null,
+            IsTenantWide = true,
+            ExcludedPropertyIds = new[] { propB.Id }
+        };
+
+        var handler = new GetGroupAnalyticsQueryHandler(db, tenantSvc, propSvc);
+        var response = await handler.Handle(new GetGroupAnalyticsQuery(day, day), CancellationToken.None);
+
+        Assert.True(response.Success);
+        Assert.NotNull(response.Data);
+        Assert.Equal(1, response.Data!.TotalProperties);
+        Assert.Equal(1, response.Data.TotalRooms);
+        Assert.Equal(500_000m, response.Data.TotalRevenue);
+        Assert.Equal(1, response.Data.TotalBookings);
+        Assert.Single(response.Data.Properties);
+        Assert.Equal(propA.Id, response.Data.Properties[0].PropertyId);
+        Assert.DoesNotContain(response.Data.Properties, p => p.PropertyId == propB.Id);
+        Assert.All(response.Data.DailyTrends, pt => Assert.False(pt.RevenueByProperty.ContainsKey(propB.Name)));
+        Assert.Equal(500_000m, response.Data.PaymentDistribution.Single(p => p.Method.Contains("VNPay", StringComparison.Ordinal)).Amount);
+        Assert.Equal(0m, response.Data.PaymentDistribution.Single(p => p.Method.Contains("Cash", StringComparison.Ordinal)).Amount);
     }
 }

@@ -212,14 +212,14 @@ export interface StatusErrorState {
                     <span>{{ getStatusLabel(detail.status) }}</span>
                   </span>
                   @if (detail.status !== 'Confirmed') {
-                    <span class="text-xs text-[var(--brand-primary-fg)] font-mono font-bold bg-black/15 px-3 py-1 rounded-lg border border-current/25 backdrop-blur-xs">
+                    <span class="text-xs text-[var(--brand-primary-fg)] font-mono font-bold bg-black/15 dark:bg-white/25 px-3 py-1 rounded-lg border border-current/25 backdrop-blur-xs">
                       Mã đơn: {{ detail.confirmationCode }}
                     </span>
                   }
                 </div>
                 <h1 class="text-2xl sm:text-3xl font-black text-[var(--brand-primary-fg)] tracking-tight">{{ detail.propertyName }}</h1>
                 @if (detail.propertyAddress) {
-                  <p class="text-xs text-[var(--brand-primary-fg)] opacity-85 flex items-center gap-1.5 font-medium">
+                  <p class="text-xs text-[var(--brand-primary-fg)] opacity-95 flex items-center gap-1.5 font-medium">
                     <i class="pi pi-map-marker text-[var(--brand-primary-fg)] text-xs"></i>
                     <span>{{ detail.propertyAddress }}</span>
                   </p>
@@ -1207,7 +1207,18 @@ export interface StatusErrorState {
                                       }
                                     </div>
                                   } @else if (vietQrError()) {
-                                    <p role="alert" class="text-rose-700">{{ vietQrError() }}</p>
+                                    <div class="flex items-center justify-between gap-2 flex-wrap pt-1">
+                                      <p role="alert" class="text-rose-700 dark:text-rose-300">{{ vietQrError() }}</p>
+                                      <button
+                                        type="button"
+                                        data-testid="vietqr-retry-btn"
+                                        (click)="loadVietQr(detail)"
+                                        [disabled]="isVietQrLoading()"
+                                        class="min-h-11 px-3 rounded-lg inline-flex items-center text-xs font-bold text-rose-700 dark:text-rose-300 underline hover:bg-rose-50 dark:hover:bg-rose-950/60 cursor-pointer shrink-0 disabled:opacity-50"
+                                      >
+                                        Tải lại mã QR
+                                      </button>
+                                    </div>
                                   }
                                 </div>
                               </div>
@@ -2820,7 +2831,7 @@ export class BookingStatusPage implements OnInit, OnDestroy {
 
   readonly isVnpayRedirecting = signal<boolean>(false);
 
-  private loadVietQr(detail: GuestBookingDetailDto): void {
+  loadVietQr(detail: GuestBookingDetailDto): void {
     const generation = ++this.vietQrGeneration;
     this.vietQr.set(null);
     this.vietQrError.set('');

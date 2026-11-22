@@ -261,7 +261,7 @@ export class SignalRNotificationTransport implements RealtimeNotificationTranspo
       : `/reservations?code=${encodeURIComponent(code)}${resId ? '&reservationId=' + encodeURIComponent(resId) : ''}`;
 
     const message = amount > 0
-      ? `Khách ${guest} vừa thanh toán ${amount.toLocaleString('vi-VN')} đ (Mã: #${code}${method ? ', PT: ' + method : ''}).`
+      ? `Khách ${guest} vừa thanh toán ${amount.toLocaleString('vi-VN')} ₫ (Mã: #${code}${method ? ', PT: ' + method : ''}).`
       : `Đơn #${code} (${guest}) đã được xác nhận thanh toán thành công.`;
 
     this.eventHandler({
@@ -306,7 +306,7 @@ export class SignalRNotificationTransport implements RealtimeNotificationTranspo
       title: 'Yêu cầu hủy đặt phòng',
       message: `Đơn #${code} (${guest}) đã bị hủy. ${
         refundableAmount > 0
-          ? 'Hoàn tiền dự kiến: ' + refundableAmount.toLocaleString('vi-VN') + ' đ.'
+          ? 'Hoàn tiền dự kiến: ' + refundableAmount.toLocaleString('vi-VN') + ' ₫.'
           : 'Không hoàn tiền.'
       }`,
       createdAtUtc: String(payload['createdAtUtc'] || payload['cancelledAtUtc'] || new Date().toISOString()),

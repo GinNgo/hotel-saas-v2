@@ -2104,4 +2104,49 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
     expect(mockReservationService.markNoShow).toHaveBeenCalledWith('res-001', 'prop-123', 'Khách không đến nhận phòng');
     expect(mockAlertService.toastSuccess).toHaveBeenCalledWith(expect.stringContaining('No-Show'));
   });
+
+  it('54. should support RentalType.Daily (3) as first-class multi-day option for quote, availability, submission, and tooltip', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+    comp.openCreateModal();
+
+    expect(RentalType.Daily).toBe(3);
+    expect(comp.getRentalTypeLabel(RentalType.Daily)).toBe('Thuê theo ngày');
+
+    comp.createForm.patchValue({
+      rentalType: RentalType.Daily,
+      roomTypeId: 'rt-101',
+      checkInDate: '2026-10-15',
+      checkInTime: '14:00',
+      checkOutDate: '2026-10-17',
+      checkOutTime: '12:00',
+      guestName: 'Trần Minh Quân',
+      guestEmail: 'quan@example.com',
+      numberOfGuests: 2
+    });
+    comp.onRentalTypeChanged();
+
+    expect(comp.isMultiDayRentalType(RentalType.Daily)).toBe(true);
+    expect(comp.canCheckAvailability()).toBe(true);
+
+    comp.onCalculateQuoteAndAvailability();
+    expect(mockReservationService.calculateQuote).toHaveBeenCalledWith(expect.objectContaining({
+      propertyId: 'prop-123',
+      roomTypeId: 'rt-101',
+      rentalType: RentalType.Daily,
+      checkInDate: '2026-10-15',
+      checkOutDate: '2026-10-17'
+    }));
+
+    comp.selectedRoomId.set('room-101');
+    comp.onSubmitCreate();
+    expect(mockReservationService.createReservation).toHaveBeenCalledWith(expect.objectContaining({
+      rentalType: RentalType.Daily,
+      checkInDate: '2026-10-15',
+      checkOutDate: '2026-10-17'
+    }));
+
+    const tooltip = comp.getBookingTooltip({ ...sampleReservationDto, rentalType: RentalType.Daily });
+    expect(tooltip).toContain('Theo ngày');
+  });
 });
