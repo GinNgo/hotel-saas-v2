@@ -149,6 +149,12 @@ public sealed class FirebaseAuthService : IFirebaseAuthService
             _logger.LogInformation("Sandbox Phone Verification accepted for mock phone: {Phone}", phone);
             return new FirebasePhoneVerificationResult(true, phone, mockUid);
         }
+#else
+        if (idToken.StartsWith("dev-mock-token:", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("Rejected sandbox dev-mock-token in Release build.");
+            return new FirebasePhoneVerificationResult(false, null, null, "Mã xác thực thử nghiệm (dev-mock-token) bị từ chối trên môi trường Production.");
+        }
 #endif
 
         // ── 2. Production Google Identity Platform Token Verification ──

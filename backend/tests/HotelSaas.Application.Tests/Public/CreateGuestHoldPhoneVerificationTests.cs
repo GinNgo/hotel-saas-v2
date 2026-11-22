@@ -31,25 +31,35 @@ namespace HotelSaas.Application.Tests.Public;
 [Collection("RealDatabaseTests")]
 public sealed class CreateGuestHoldPhoneVerificationTests
 {
-    private sealed class StubHostEnvironment(string environmentName) : Microsoft.Extensions.Hosting.IHostEnvironment
+    private sealed class StubTestingFirebaseAuthService : IFirebaseAuthService
     {
-        public string EnvironmentName { get; set; } = environmentName;
-        public string ApplicationName { get; set; } = "HotelSaas.Tests";
-        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
-        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
+        public Task<FirebasePhoneVerificationResult> VerifyIdTokenAsync(string idToken, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(idToken))
+            {
+                return Task.FromResult(new FirebasePhoneVerificationResult(false, null, null, "Mã xác thực (idToken) không được để trống."));
+            }
+
+            if (idToken.StartsWith("dev-mock-token:", StringComparison.OrdinalIgnoreCase))
+            {
+                var raw = idToken.Substring("dev-mock-token:".Length).Trim();
+                var cleaned = System.Text.RegularExpressions.Regex.Replace(raw, @"[^\d+]", "");
+                var phone = string.IsNullOrWhiteSpace(cleaned)
+                    ? "+84901234567"
+                    : cleaned.StartsWith("0") && cleaned.Length >= 10
+                        ? "+84" + cleaned.Substring(1)
+                        : cleaned.StartsWith("+") ? cleaned : "+84" + cleaned;
+                var mockUid = $"mock-uid-{Math.Abs(phone.GetHashCode())}";
+                return Task.FromResult(new FirebasePhoneVerificationResult(true, phone, mockUid));
+            }
+
+            return Task.FromResult(new FirebasePhoneVerificationResult(false, null, null, "Mã xác thực Firebase không hợp lệ."));
+        }
     }
 
     private static IFirebaseAuthService CreateFirebaseAuthService()
     {
-        var dict = new Dictionary<string, string?>
-        {
-            ["Firebase:ProjectId"] = "hotelsaas-platform-test"
-        };
-        var config = new ConfigurationBuilder().AddInMemoryCollection(dict).Build();
-        return new FirebaseAuthService(
-            config,
-            NullLogger<FirebaseAuthService>.Instance,
-            new StubHostEnvironment("Testing"));
+        return new StubTestingFirebaseAuthService();
     }
 
     [Fact]
