@@ -78,3 +78,12 @@ Tuần 06 tập trung xử lý các hạng mục kiểm thử hiệu năng k6 v�
 | :---: | :--- | :--- | :--- | :---: |
 | **#01** | OpenAI Codex / Antigravity IDE | Viết k6 Load Tests cho SignalR & VNPay | AI ban đầu bắn thẳng 150 VUs không ramp-up, dùng token giả `demo-load-test-jwt-token` gây HTTP 401 và không xử lý biên dịch JIT khiến p95 vượt ngưỡng (kèm việc `.NET user-secrets` trỏ DB từ xa làm chậm WAN RTT ~30ms) $\to$ Em tách 3 tier `smoke/load/stress`, thêm `warmupSignalRHub()`, tạo tenant/token thật trong `setup()` và ép biến `ConnectionStrings__DefaultConnection` về local DB khi đo benchmark. | `a634207`, `BENCHMARK-SIGNALR-VNPAY-REPORT.md` |
 | **#02** | OpenAI Codex / Antigravity IDE | Rà soát `ReportsController` & `reports.page.ts` | AI trước đó tự tạo tỷ lệ chia thanh toán giả `0.45/0.35/0.20` ở backend, gắn fallback cứng `784000000` ở `reports.page.ts` và thiếu `[RequirePermission("REPORTS", 1)]` $\to$ Em gỡ bỏ toàn bộ số liệu giả ở cả BE lẫn FE, bổ sung kiểm tra quyền và xác nhận bằng test E2E. | `a634207`, `fix/week6-ux-rbac-stabilization` |
+
+---
+
+## 4. Cập nhật cấu hình thực thi ngày 22/11/2026
+
+- Đã cập nhật tier k6 theo yêu cầu N01: SignalR smoke 5 VUs/30 giây, load 10–50 VUs với ramp 2 phút, giữ 3 phút và giảm tải 1 phút, stress tối đa 100 VUs. VNPay dùng 5 req/s/30 giây, load 10–50 req/s và stress tối đa 100 req/s.
+- Đã gỡ secret VNPay mặc định và token `dev-mock-token` khỏi quy trình tạo booking. Chạy VNPay cần `VNP_TMN_CODE`, `VNP_HASH_SECRET` và reservation đã chuẩn bị hoặc Firebase ID token hợp lệ. Runner xuất summary JSON và che token tạm trong summary.
+- Group Analytics hiện từ chối nếu thiếu ngữ cảnh property hoặc caller không có `IsTenantWide`, bao gồm trường hợp context service không được đăng ký.
+- Chưa chạy lại load/stress hoặc chạy k6 trên Staging trong phiên này; báo cáo số liệu mới sẽ được bổ sung sau khi có thông tin đăng nhập và reservation/configuration Staging. Chưa có bằng chứng kiểm tra PDF QR, VietQR bằng ứng dụng ngân hàng, hoặc đối soát trực tiếp với PostgreSQL Staging nên không ghi nhận các bước này là đã nghiệm thu.

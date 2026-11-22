@@ -112,3 +112,16 @@ Route request counters confirmed zero 5xx errors and exact request accounting:
 1. **Remote User-Secrets DB Override:** `.NET user-secrets` contained a remote database `ConnectionStrings:DefaultConnection`, which initially triggered `CloudDatabaseGuard` and added ~30ms WAN RTT per SQL query (`signalr_join_property_duration_ms p95=251.9ms`, `vnpay_ipn_duration_ms p95=531.27ms`). Injecting `ConnectionStrings__DefaultConnection` from `appsettings.Development.json` (`localhost:5435`) restored sub-20ms median query/transaction performance and isolated load tests from any shared database.
 2. **Cold-Start Hub Compilation & Client Failsafe Timeout:** Adding `warmupSignalRHub()` in `signalr-hub.k6.js` `setup()` and extending the WebSocket failsafe timeout from `4000ms` to `10000ms` eliminated cold-start EF Core compilation lag and prevented premature client disconnects during initial concurrent `JoinProperty` invocations.
 3. **Summary Secret Hygiene:** `run-load-tests.ps1` and `run-load-tests.sh` automatically redact `setup_data.token` and `setup_data.checkoutLookupToken` to `"<redacted>"` in exported `--summary-export` JSON files so CI secret scanners (`gitleaks`) never flag ephemeral test tokens.
+
+---
+
+## 6. Week 6 tier configuration update (2026-11-22)
+
+The k6 scripts and Linux runner now use the required Week 6 targets. The benchmark results above are historical local smoke results from the earlier 15-second configuration; they do not represent a run of this updated schedule or a staging run.
+
+| Scenario | Smoke | Load | Stress | Execution status for this update |
+| :--- | :--- | :--- | :--- | :--- |
+| SignalR | 5 VUs / 30s | 10 to 50 VUs / 2m ramp, 3m hold, 1m down | 100 VUs / ramp, 3m hold, 1m down | Not run in this update |
+| VNPay IPN | 5 req/s / 30s | 10 to 50 req/s / 2m ramp, 3m hold, 1m down | 10 to 100 req/s / 1m ramp, 3m hold, 1m down | Not run in this update |
+
+No new VU count, request rate, latency percentile, or error rate is reported because the Staging credentials, reservation identifiers, and VNPay signing configuration were not available in this session. VNPay setup now requires an explicit `VNP_TMN_CODE` and `VNP_HASH_SECRET`, plus either pre-seeded reservation data or valid Firebase ID tokens; it no longer sends `dev-mock-token` values.

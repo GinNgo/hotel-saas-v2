@@ -14,9 +14,9 @@
  *   4. Clean LeaveProperty + WebSocket disconnect (zero connection leaks)
  *
  * Tiers (TEST_TIER / PROFILE):
- *   - smoke  : 5 VUs for 15s (fast live verification)
- *   - load   : ramp 5 -> 50 VUs (20s up, 30s hold, 10s down)
- *   - stress : ramp 10 -> 150 VUs (15s to 50, 30s to 150, 15s down)
+ *   - smoke  : 5 VUs for 30s (fast live verification)
+ *   - load   : ramp 10 -> 50 VUs over 2m, hold 3m, ramp down 1m
+ *   - stress : ramp to 100 VUs
  *
  * Run:
  *   k6 run -e BASE_URL=http://127.0.0.1:5055 -e TEST_TIER=smoke \
@@ -39,7 +39,7 @@ function buildScenario(tier) {
         receptionist_terminals_smoke: {
           executor: 'constant-vus',
           vus: 5,
-          duration: '15s',
+          duration: '30s',
           gracefulStop: '5s',
         },
       };
@@ -47,11 +47,11 @@ function buildScenario(tier) {
       return {
         receptionist_terminals_load: {
           executor: 'ramping-vus',
-          startVUs: 5,
+          startVUs: 10,
           stages: [
-            { duration: '20s', target: 50 },
-            { duration: '30s', target: 50 },
-            { duration: '10s', target: 0 },
+            { duration: '2m', target: 50 },
+            { duration: '3m', target: 50 },
+            { duration: '1m', target: 0 },
           ],
           gracefulRampDown: '5s',
         },
@@ -62,9 +62,9 @@ function buildScenario(tier) {
           executor: 'ramping-vus',
           startVUs: 10,
           stages: [
-            { duration: '15s', target: 50 },
-            { duration: '30s', target: 150 },
-            { duration: '15s', target: 0 },
+            { duration: '1m', target: 100 },
+            { duration: '3m', target: 100 },
+            { duration: '1m', target: 0 },
           ],
           gracefulRampDown: '5s',
         },
@@ -196,12 +196,14 @@ export function setup() {
   }
 
   // Mode 2: Existing staff email/password passed via environment
-  if (__ENV.STAFF_EMAIL && __ENV.STAFF_PASSWORD) {
+  const staffEmail = __ENV.TEST_EMAIL || __ENV.STAFF_EMAIL;
+  const staffPassword = __ENV.TEST_PASSWORD || __ENV.STAFF_PASSWORD;
+  if (staffEmail && staffPassword) {
     const loginRes = http.post(
       `${BASE_URL}/api/auth/login`,
       JSON.stringify({
-        email: __ENV.STAFF_EMAIL,
-        password: __ENV.STAFF_PASSWORD,
+        email: staffEmail,
+        password: staffPassword,
       }),
       {
         headers: {
