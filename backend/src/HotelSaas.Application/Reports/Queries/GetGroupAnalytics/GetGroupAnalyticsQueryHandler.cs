@@ -40,7 +40,7 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
             throw new UnauthorizedAccessException("Yêu cầu thông tin Tenant hợp lệ để truy vấn phân tích chuỗi khách sạn.");
         }
 
-        if (_currentPropertyService != null && !_currentPropertyService.IsTenantWide)
+        if (_currentPropertyService == null || !_currentPropertyService.IsTenantWide)
         {
             throw new ForbiddenException(
                 "ERR_PROPERTY_FORBIDDEN",

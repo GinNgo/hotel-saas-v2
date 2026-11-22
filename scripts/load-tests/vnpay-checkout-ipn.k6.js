@@ -14,9 +14,9 @@
  *   - Tampered amount / checksum rejection ("97 Invalid Checksum")
  *
  * Tiers (TEST_TIER / PROFILE):
- *   - smoke  : constant 5 req/s for 15s (preAllocatedVUs: 10, maxVUs: 30)
- *   - load   : ramp 10 -> 40 req/s (20s up, 30s hold, 10s down)
- *   - stress : ramp 10 -> 100 req/s (15s to 40, 30s to 100, 15s down)
+ *   - smoke  : constant 5 req/s for 30s
+ *   - load   : ramp 10 -> 50 req/s over 2m, hold 3m, ramp down 1m
+ *   - stress : ramp 10 -> 100 req/s, hold, then ramp down
  *
  * Run:
  *   k6 run -e BASE_URL=http://127.0.0.1:5055 -e TEST_TIER=smoke \
@@ -41,7 +41,7 @@ function buildScenario(tier) {
           executor: 'constant-arrival-rate',
           rate: 5,
           timeUnit: '1s',
-          duration: '15s',
+          duration: '30s',
           preAllocatedVUs: 10,
           maxVUs: 30,
         },
@@ -55,9 +55,9 @@ function buildScenario(tier) {
           preAllocatedVUs: 25,
           maxVUs: 100,
           stages: [
-            { duration: '20s', target: 40 },
-            { duration: '30s', target: 40 },
-            { duration: '10s', target: 0 },
+            { duration: '2m', target: 50 },
+            { duration: '3m', target: 50 },
+            { duration: '1m', target: 0 },
           ],
         },
       };
@@ -70,9 +70,9 @@ function buildScenario(tier) {
           preAllocatedVUs: 50,
           maxVUs: 200,
           stages: [
-            { duration: '15s', target: 40 },
-            { duration: '30s', target: 100 },
-            { duration: '15s', target: 0 },
+            { duration: '1m', target: 100 },
+            { duration: '3m', target: 100 },
+            { duration: '1m', target: 0 },
           ],
         },
       };
@@ -100,8 +100,8 @@ export const options = {
 };
 
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:5000').replace(/\/+$/, '');
-const VNP_TMN_CODE = __ENV.VNP_TMN_CODE || 'TESTONLY';
-const VNP_HASH_SECRET = __ENV.VNP_HASH_SECRET || 'test-only-signing-key-not-a-provider-credential';
+const VNP_TMN_CODE = __ENV.VNP_TMN_CODE || '';
+const VNP_HASH_SECRET = __ENV.VNP_HASH_SECRET || '';
 
 /**
  * Builds canonical sorted query string and signs with HMAC-SHA512
@@ -136,6 +136,10 @@ function formatDateYmd(dateObj) {
 }
 
 export function setup() {
+  if (!VNP_TMN_CODE || !VNP_HASH_SECRET) {
+    throw new Error('VNP_TMN_CODE and VNP_HASH_SECRET are required; pass the staging credentials through environment variables.');
+  }
+
   // Mode 1: Explicit reservation identifiers provided via environment
   if (__ENV.RESERVATION_CODE) {
     return {
@@ -149,6 +153,15 @@ export function setup() {
   }
 
   // Mode 2: Self-contained live seeding via Partner Registration + Public Booking Holds
+  const checkoutFirebaseToken = __ENV.FIREBASE_ID_TOKEN_CHECKOUT || __ENV.FIREBASE_ID_TOKEN;
+  const ipnFirebaseToken = __ENV.FIREBASE_ID_TOKEN_IPN || __ENV.FIREBASE_ID_TOKEN;
+  if (!checkoutFirebaseToken || !ipnFirebaseToken) {
+    throw new Error(
+      'Self-seeding public booking holds requires FIREBASE_ID_TOKEN from an authenticated guest session. ' +
+        'For an existing staging booking, pass RESERVATION_CODE, RESERVATION_ID, LOOKUP_TOKEN, and AMOUNT_VND.'
+    );
+  }
+
   const uniqueId = `${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
   const ephemeralSecret = `K6Vnp#${Date.now().toString(36)}!9a`;
   const ownerEmail = `k6.vnp.owner.${uniqueId}@hotelsaas.local`;
@@ -222,7 +235,7 @@ export function setup() {
       guestPhone: '0901234567',
       numberOfGuests: 1,
       idempotencyKey: `k6-hold-cu-${uniqueId}`.slice(0, 64),
-      firebaseIdToken: 'dev-mock-token:0901234567',
+      firebaseIdToken: checkoutFirebaseToken,
       paymentMethodPreference: 'VNPay',
     }),
     {
@@ -249,7 +262,7 @@ export function setup() {
       guestPhone: '0901234568',
       numberOfGuests: 1,
       idempotencyKey: `k6-hold-ipn-${uniqueId}`.slice(0, 64),
-      firebaseIdToken: 'dev-mock-token:0901234568',
+      firebaseIdToken: ipnFirebaseToken,
       paymentMethodPreference: 'VNPay',
     }),
     {
@@ -273,7 +286,7 @@ export function setup() {
 
   throw new Error(
     `Failed to seed public guest holds (hold1=${hold1Res.status}: ${hold1Res.body}, hold2=${hold2Res.status}: ${hold2Res.body}). ` +
-      'Provide RESERVATION_CODE and RESERVATION_ID env vars when running against non-dev environments where dev-mock-token is disabled.'
+      'Provide RESERVATION_CODE / RESERVATION_ID for pre-seeded data, or a valid FIREBASE_ID_TOKEN for guest hold setup.'
   );
 }
 
