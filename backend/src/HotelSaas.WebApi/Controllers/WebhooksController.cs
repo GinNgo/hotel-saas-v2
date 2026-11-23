@@ -1,6 +1,8 @@
 using System;
+using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Interfaces;
@@ -10,12 +12,26 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace HotelSaas.WebApi.Controllers;
+
+/// <summary>
+/// Enables request body buffering before MVC model binding so HMAC-SHA256 webhook signatures (<c>X-SePay-Signature</c>)
+/// can be verified against the exact raw JSON payload.
+/// </summary>
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class EnableWebhookBodyBufferingAttribute : Attribute, IAuthorizationFilter
+{
+    public void OnAuthorization(AuthorizationFilterContext context)
+    {
+        context.HttpContext.Request.EnableBuffering();
+    }
+}
 
 /// <summary>
 /// Receives server-to-server payment gateway webhooks (SePay VietQR) and exposes a strictly Development-only simulator.
@@ -60,6 +76,7 @@ public sealed class WebhooksController : ControllerBase
     [HttpPost("sepay")]
     [HttpPost("sepay/{propertyId:guid}")]
     [AllowAnonymous]
+    [EnableWebhookBodyBuffering]
     [ProducesResponseType(typeof(SepayWebhookHttpResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(SepayWebhookErrorResponse), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> HandleSepayWebhook(
@@ -67,12 +84,28 @@ public sealed class WebhooksController : ControllerBase
         [FromRoute] Guid? propertyId = null,
         CancellationToken cancellationToken = default)
     {
-        if (!TryExtractSepayApiKey(out var providedKey))
+        var hasApiKey = TryExtractSepayApiKey(out var providedKey);
+        var hasHmacSignature = TryExtractSepayHmacSignature(out var providedHmacSig, out var hmacTimestamp);
+        if (!hasApiKey && !hasHmacSignature)
         {
             return RejectUnauthorized();
         }
 
-        var isGlobalKeyMatch = IsConstantTimeMatch(providedKey, _configuration["Payment:Sepay:ApiKey"]);
+        string? rawBody = null;
+        if (hasHmacSignature)
+        {
+            rawBody = await ReadRawRequestBodyOrSerializeAsync(payload, cancellationToken);
+        }
+
+        var globalSecret = _configuration["Payment:Sepay:ApiKey"];
+        var isGlobalKeyMatch =
+            (hasApiKey && IsConstantTimeMatch(providedKey, globalSecret)) ||
+            (hasHmacSignature && ProcessSepayWebhookCommandHandler.VerifyHmacSha256Signature(
+                providedHmacSig,
+                rawBody,
+                hmacTimestamp,
+                globalSecret));
+
         if (!isGlobalKeyMatch && payload == null)
         {
             return RejectUnauthorized();
@@ -103,9 +136,12 @@ public sealed class WebhooksController : ControllerBase
             ReferenceCode: payload.ReferenceCode,
             ExpectedPlatformAccountNumber: expectedPlatformAccount,
             RequireBankAccountMatch: requireBankAccountMatch,
-            ProvidedApiKey: providedKey,
+            ProvidedApiKey: hasApiKey ? providedKey : null,
             IsGlobalApiKeyMatched: isGlobalKeyMatch,
-            RoutePropertyId: propertyId);
+            RoutePropertyId: propertyId,
+            ProvidedHmacSignature: hasHmacSignature ? providedHmacSig : null,
+            HmacTimestamp: hmacTimestamp,
+            RawPayloadBody: rawBody);
 
         try
         {
@@ -207,6 +243,54 @@ public sealed class WebhooksController : ControllerBase
 
         providedKey = rawHeader[prefix.Length..].Trim();
         return !string.IsNullOrEmpty(providedKey);
+    }
+
+    private bool TryExtractSepayHmacSignature(out string providedSignature, out string? timestamp)
+    {
+        providedSignature = string.Empty;
+        timestamp = null;
+
+        if (Request?.Headers == null ||
+            !Request.Headers.TryGetValue("X-SePay-Signature", out var sigValues))
+        {
+            return false;
+        }
+
+        providedSignature = sigValues.ToString().Trim();
+        if (Request.Headers.TryGetValue("X-SePay-Timestamp", out var tsValues))
+        {
+            var rawTs = tsValues.ToString().Trim();
+            if (!string.IsNullOrEmpty(rawTs))
+            {
+                timestamp = rawTs;
+            }
+        }
+
+        return !string.IsNullOrEmpty(providedSignature);
+    }
+
+    private async Task<string> ReadRawRequestBodyOrSerializeAsync(
+        SepayWebhookPayload? payload,
+        CancellationToken cancellationToken)
+    {
+        if (Request?.Body != null && Request.Body.CanSeek)
+        {
+            Request.Body.Position = 0;
+            using var reader = new StreamReader(
+                Request.Body,
+                Encoding.UTF8,
+                detectEncodingFromByteOrderMarks: false,
+                bufferSize: 4096,
+                leaveOpen: true);
+            var bodyText = await reader.ReadToEndAsync(cancellationToken);
+            Request.Body.Position = 0;
+            if (!string.IsNullOrEmpty(bodyText))
+            {
+                return bodyText;
+            }
+        }
+
+        return payload != null ? JsonSerializer.Serialize(payload) : string.Empty;
     }
 
     private static bool IsConstantTimeMatch(string? providedKey, string? expectedKey)

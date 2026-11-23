@@ -50,7 +50,10 @@ public sealed record ProcessSepayWebhookCommand(
     bool? RequireBankAccountMatch = null,
     string? ProvidedApiKey = null,
     bool IsGlobalApiKeyMatched = true,
-    Guid? RoutePropertyId = null
+    Guid? RoutePropertyId = null,
+    string? ProvidedHmacSignature = null,
+    string? HmacTimestamp = null,
+    string? RawPayloadBody = null
 ) : IRequest<ProcessSepayWebhookResult>;
 
 public sealed class ProcessSepayWebhookCommandHandler
@@ -190,9 +193,9 @@ public sealed class ProcessSepayWebhookCommandHandler
         if (!request.IsGlobalApiKeyMatched)
         {
             if (string.IsNullOrWhiteSpace(bankConfig?.SepayApiKey) ||
-                !ConstantTimeEquals(request.ProvidedApiKey, bankConfig.SepayApiKey))
+                !IsSecretOrHmacMatched(request, bankConfig.SepayApiKey))
             {
-                return new ProcessSepayWebhookResult("unauthorized", "Invalid SePay API key for property.");
+                return new ProcessSepayWebhookResult("unauthorized", "Invalid SePay API key or HMAC signature for property.");
             }
         }
 
@@ -827,9 +830,9 @@ public sealed class ProcessSepayWebhookCommandHandler
             return new ProcessSepayWebhookResult("ignored", ignoreMessage);
         }
 
-        if (string.IsNullOrWhiteSpace(request.ProvidedApiKey))
+        if (string.IsNullOrWhiteSpace(request.ProvidedApiKey) && string.IsNullOrWhiteSpace(request.ProvidedHmacSignature))
         {
-            return new ProcessSepayWebhookResult("unauthorized", "Unauthorized SePay API key.");
+            return new ProcessSepayWebhookResult("unauthorized", "Unauthorized SePay API key or HMAC signature.");
         }
 
         var query = _context.PrintTemplateConfigs
@@ -847,13 +850,87 @@ public sealed class ProcessSepayWebhookCommandHandler
             .Select(c => c.SepayApiKey)
             .ToListAsync(cancellationToken);
 
-        var hasMatch = configuredKeys.Any(k => !string.IsNullOrWhiteSpace(k) && ConstantTimeEquals(request.ProvidedApiKey, k));
+        var hasMatch = configuredKeys.Any(k => !string.IsNullOrWhiteSpace(k) && IsSecretOrHmacMatched(request, k));
         if (!hasMatch)
         {
-            return new ProcessSepayWebhookResult("unauthorized", "Unauthorized SePay API key.");
+            return new ProcessSepayWebhookResult("unauthorized", "Unauthorized SePay API key or HMAC signature.");
         }
 
         return new ProcessSepayWebhookResult("ignored", ignoreMessage);
+    }
+
+    private static bool IsSecretOrHmacMatched(ProcessSepayWebhookCommand request, string? expectedSecret)
+    {
+        if (string.IsNullOrWhiteSpace(expectedSecret))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.ProvidedApiKey) &&
+            ConstantTimeEquals(request.ProvidedApiKey, expectedSecret))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.ProvidedHmacSignature))
+        {
+            return VerifyHmacSha256Signature(
+                request.ProvidedHmacSignature,
+                request.RawPayloadBody,
+                request.HmacTimestamp,
+                expectedSecret);
+        }
+
+        return false;
+    }
+
+    public static bool VerifyHmacSha256Signature(
+        string? providedSignature,
+        string? rawBody,
+        string? timestamp,
+        string? secretKey)
+    {
+        if (string.IsNullOrWhiteSpace(providedSignature) ||
+            rawBody == null ||
+            string.IsNullOrWhiteSpace(secretKey))
+        {
+            return false;
+        }
+
+        var trimmedSig = providedSignature.Trim();
+        if (trimmedSig.StartsWith("sha256=", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmedSig = trimmedSig["sha256=".Length..].Trim();
+        }
+
+        var secretBytes = Encoding.UTF8.GetBytes(secretKey.Trim());
+
+        if (MatchesHmacPayload(secretBytes, rawBody, trimmedSig))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(timestamp))
+        {
+            var timestampedPayload = $"{timestamp.Trim()}.{rawBody}";
+            if (MatchesHmacPayload(secretBytes, timestampedPayload, trimmedSig))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool MatchesHmacPayload(byte[] secretBytes, string payloadToSign, string normalizedProvidedSignature)
+    {
+        using var hmac = new HMACSHA256(secretBytes);
+        var hashBytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(payloadToSign));
+        var expectedHexLower = Convert.ToHexString(hashBytes).ToLowerInvariant();
+        var expectedBase64 = Convert.ToBase64String(hashBytes);
+
+        return ConstantTimeEquals(normalizedProvidedSignature.ToLowerInvariant(), expectedHexLower) ||
+               ConstantTimeEquals(normalizedProvidedSignature, expectedBase64);
     }
 
     private static bool ConstantTimeEquals(string? providedKey, string? expectedKey)

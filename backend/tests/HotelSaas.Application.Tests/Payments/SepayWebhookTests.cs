@@ -961,6 +961,83 @@ public sealed class SepayWebhookTests
         Assert.True(AuditPayloadSanitizer.IsSensitiveField("sepayapikey"));
     }
 
+    [Fact]
+    public async Task WebhooksController_HmacSha256Signature_VerifiesGlobalAndPerPropertySecretAndRejectsInvalidSignature()
+    {
+        var db = new SepayFakeDbContext();
+        var (_, property, reservation) = SeedReservationWithBank(
+            db,
+            confirmationCode: "RES-HMC777",
+            totalAmount: 1_000_000m,
+            depositRequired: 300_000m,
+            bankAccount: "33958647");
+
+        var hmacSecret = "whsec_TestHmacSecretKey2026";
+        var printConfig = db.PrintTemplateConfigList.Single(c => c.PropertyId == property.Id);
+        printConfig.SepayApiKey = hmacSecret;
+
+        var handler = new ProcessSepayWebhookCommandHandler(db, new CurrentTenantService(), new CurrentPropertyService());
+        var sender = new DelegateSender((req, ct) => req switch
+        {
+            ProcessSepayWebhookCommand cmd => WrapResult(handler.Handle(cmd, ct)),
+            _ => throw new NotSupportedException()
+        });
+
+        var config = BuildConfig(new Dictionary<string, string?>
+        {
+            ["Payment:Sepay:ApiKey"] = TestSepayApiKey
+        });
+
+        var payload = new SepayWebhookPayload
+        {
+            Id = 97001,
+            Gateway = "ACB",
+            TransactionDate = "2026-11-24 03:30:00",
+            AccountNumber = "33958647",
+            Code = "RESHMC777",
+            Content = "DATPHONG RESHMC777",
+            TransferType = "in",
+            TransferAmount = 300_000m,
+            ReferenceCode = "FT-HMAC-777"
+        };
+
+        var rawJson = System.Text.Json.JsonSerializer.Serialize(payload);
+        var timestamp = "1795465800";
+        using var hmac = new System.Security.Cryptography.HMACSHA256(System.Text.Encoding.UTF8.GetBytes(hmacSecret));
+        var validHex = Convert.ToHexString(hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes($"{timestamp}.{rawJson}"))).ToLowerInvariant();
+
+        // 1. Wrong HMAC signature -> 401 Unauthorized
+        var badCtx = new DefaultHttpContext();
+        badCtx.Request.Headers["X-SePay-Signature"] = "sha256=0000000000000000000000000000000000000000000000000000000000000000";
+        badCtx.Request.Headers["X-SePay-Timestamp"] = timestamp;
+        badCtx.Request.Body = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(rawJson));
+        var badController = new WebhooksController(sender, config, new StubHostEnvironment(Environments.Production))
+        {
+            ControllerContext = new ControllerContext { HttpContext = badCtx }
+        };
+
+        var badResult = await badController.HandleSepayWebhook(payload, property.Id, CancellationToken.None);
+        Assert.IsType<UnauthorizedObjectResult>(badResult);
+        Assert.Equal(ReservationStatus.PendingPayment, reservation.Status);
+
+        // 2. Valid HMAC-SHA256 signature -> 200 OK confirmed
+        var goodCtx = new DefaultHttpContext();
+        goodCtx.Request.Headers["X-SePay-Signature"] = $"sha256={validHex}";
+        goodCtx.Request.Headers["X-SePay-Timestamp"] = timestamp;
+        goodCtx.Request.Body = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(rawJson));
+        var goodController = new WebhooksController(sender, config, new StubHostEnvironment(Environments.Production))
+        {
+            ControllerContext = new ControllerContext { HttpContext = goodCtx }
+        };
+
+        var goodResult = await goodController.HandleSepayWebhook(payload, property.Id, CancellationToken.None);
+        var ok = Assert.IsType<OkObjectResult>(goodResult);
+        var body = Assert.IsType<SepayWebhookHttpResponse>(ok.Value);
+        Assert.True(body.Success);
+        Assert.Equal("confirmed", body.Status);
+        Assert.Equal(ReservationStatus.Confirmed, reservation.Status);
+    }
+
     // ── Test Helpers & Fakes ─────────────────────────────────────────────────
 
     private static IConfiguration BuildConfig(Dictionary<string, string?> values) =>
