@@ -425,6 +425,11 @@ public sealed class RefundApprovalManagementTests
             Assert.Equal(PaymentStatus.Pending, updatedPayment.Status);
             Assert.Contains("REFUND-APPROVED", updatedPayment.TransactionRef);
 
+            var approveAudit = await context.AuditLogs
+                .AsNoTracking()
+                .SingleAsync(a => a.EntityName == nameof(Payment) && a.EntityId == paymentId);
+            Assert.Equal(AuditActions.ApproveRefund, approveAudit.Action);
+
             // Idempotency check: approving again throws Conflict
             var ex = await Assert.ThrowsAsync<ConflictException>(() => handler.Handle(command, CancellationToken.None));
             Assert.Equal("ERR_ALREADY_APPROVED", ex.ErrorCode);
@@ -531,6 +536,11 @@ public sealed class RefundApprovalManagementTests
             Assert.Equal(PaymentStatus.Completed, dbPayment.Status);
             Assert.NotNull(dbPayment.PaidAtUtc);
 
+            var payoutAudit = await context.AuditLogs
+                .AsNoTracking()
+                .SingleAsync(a => a.EntityName == nameof(Payment) && a.EntityId == paymentId);
+            Assert.Equal(AuditActions.ConfirmRefundPayout, payoutAudit.Action);
+
             // Double execution guard
             var exConflict = await Assert.ThrowsAsync<ConflictException>(() => handler.Handle(validCommand, CancellationToken.None));
             Assert.Equal("ERR_ALREADY_COMPLETED", exConflict.ErrorCode);
@@ -630,6 +640,11 @@ public sealed class RefundApprovalManagementTests
             Assert.NotNull(dbPayment);
             Assert.Equal(PaymentStatus.Failed, dbPayment.Status);
             Assert.Contains("REFUND-REJECTED", dbPayment.TransactionRef);
+
+            var rejectAudit = await context.AuditLogs
+                .AsNoTracking()
+                .SingleAsync(a => a.EntityName == nameof(Payment) && a.EntityId == paymentId);
+            Assert.Equal(AuditActions.RejectRefund, rejectAudit.Action);
         }
         finally
         {

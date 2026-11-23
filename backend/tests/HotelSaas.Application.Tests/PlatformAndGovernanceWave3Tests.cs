@@ -591,6 +591,8 @@ public sealed class PlatformAndGovernanceWave3Tests
         var toggleResult = await h.Mediator.Send(new ToggleTenantStatusCommand(tenantId, TenantStatus.Suspended, "Quá hạn thanh toán"));
         Assert.Equal(TenantStatus.Suspended, toggleResult.Status);
         Assert.Equal(2, h.Db.AuditLogList.Count);
+        Assert.Contains(h.Db.AuditLogList, a => a.EntityName == "PropertyPublishApproval" && a.Action == AuditActions.PublishApproval && a.EntityId == propId);
+        Assert.Contains(h.Db.AuditLogList, a => a.EntityName == "TenantStatus" && a.Action == AuditActions.StatusToggle && a.EntityId == tenantId);
     }
 
     [Fact]
@@ -936,6 +938,7 @@ public sealed class PlatformAndGovernanceWave3Tests
         Assert.Equal(SubscriptionTier.Pro, h.Db.SubscriptionList.Single(s => s.Id == subId).Tier);
         Assert.Equal(BillingCycle.Annual, h.Db.SubscriptionList.Single(s => s.Id == subId).BillingCycle);
         Assert.Equal(PaymentStatus.Completed, h.Db.SubscriptionPaymentList.Single(p => p.Id == initiation.PaymentId).Status);
+        Assert.Contains(h.Db.AuditLogList, a => a.EntityName == "SubscriptionUpgrade" && a.Action == AuditActions.Upgrade && a.EntityId == subId);
 
         // Idempotent confirmation returns AlreadyConfirmed = true
         var idempotent = await h.Mediator.Send(new ConfirmSubscriptionPaymentCommand(PaymentId: initiation.PaymentId));

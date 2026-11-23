@@ -120,6 +120,9 @@ public sealed class GetPlatformAuditLogsQueryHandler
         int totalCount;
         List<AuditLog> pageRows;
         Dictionary<Guid, AuditPayloadSanitizer.SanitizedAuditPayload>? precomputedSanitized = null;
+        Dictionary<Guid, (string? FullName, string? Email)>? precomputedUserLookup = null;
+        Dictionary<Guid, (string? Name, string? Code)>? precomputedPropertyLookup = null;
+        Dictionary<Guid, (string? Name, string? Code)>? precomputedTenantLookup = null;
 
         if (trimmedSearch is null)
         {
@@ -140,6 +143,54 @@ public sealed class GetPlatformAuditLogsQueryHandler
                 .Take(5000)
                 .ToListAsync(cancellationToken);
 
+            var candidateUserIds = candidates
+                .Where(a => a.UserId.HasValue && a.UserId.Value != Guid.Empty)
+                .Select(a => a.UserId!.Value)
+                .Distinct()
+                .ToList();
+
+            precomputedUserLookup = candidateUserIds.Count > 0
+                ? (await _context.Users
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(u => candidateUserIds.Contains(u.Id))
+                    .Select(u => new { u.Id, u.FullName, u.Email })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(u => u.Id, u => ((string?)u.FullName, (string?)u.Email))
+                : new Dictionary<Guid, (string? FullName, string? Email)>();
+
+            var candidatePropertyIds = candidates
+                .Where(a => a.PropertyId.HasValue && a.PropertyId.Value != Guid.Empty)
+                .Select(a => a.PropertyId!.Value)
+                .Distinct()
+                .ToList();
+
+            precomputedPropertyLookup = candidatePropertyIds.Count > 0
+                ? (await _context.Properties
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(p => candidatePropertyIds.Contains(p.Id))
+                    .Select(p => new { p.Id, p.Name, p.Code })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(p => p.Id, p => ((string?)p.Name, (string?)p.Code))
+                : new Dictionary<Guid, (string? Name, string? Code)>();
+
+            var candidateTenantIds = candidates
+                .Where(a => a.TenantId != Guid.Empty)
+                .Select(a => a.TenantId)
+                .Distinct()
+                .ToList();
+
+            precomputedTenantLookup = candidateTenantIds.Count > 0
+                ? (await _context.Tenants
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(t => candidateTenantIds.Contains(t.Id))
+                    .Select(t => new { t.Id, t.Name, t.Code })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(t => t.Id, t => ((string?)t.Name, (string?)t.Code))
+                : new Dictionary<Guid, (string? Name, string? Code)>();
+
             precomputedSanitized = new Dictionary<Guid, AuditPayloadSanitizer.SanitizedAuditPayload>();
             var matched = new List<AuditLog>();
 
@@ -151,6 +202,13 @@ public sealed class GetPlatformAuditLogsQueryHandler
                     candidate.OldValues,
                     candidate.NewValues);
 
+                (string? FullName, string? Email) uMeta = default;
+                var hasUser = candidate.UserId.HasValue && precomputedUserLookup.TryGetValue(candidate.UserId.Value, out uMeta);
+                (string? Name, string? Code) pMeta = default;
+                var hasProp = candidate.PropertyId.HasValue && precomputedPropertyLookup.TryGetValue(candidate.PropertyId.Value, out pMeta);
+                (string? Name, string? Code) tMeta = default;
+                var hasTenant = candidate.TenantId != Guid.Empty && precomputedTenantLookup.TryGetValue(candidate.TenantId, out tMeta);
+
                 var isMatch =
                     candidate.Action.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase) ||
                     candidate.EntityName.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase) ||
@@ -160,7 +218,19 @@ public sealed class GetPlatformAuditLogsQueryHandler
                     (!string.IsNullOrEmpty(sanitized.SanitizedNewValuesJson) &&
                      sanitized.SanitizedNewValuesJson.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase)) ||
                     (!string.IsNullOrEmpty(candidate.IpAddress) &&
-                     candidate.IpAddress.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase));
+                     candidate.IpAddress.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase)) ||
+                    (hasUser && !string.IsNullOrEmpty(uMeta.FullName) &&
+                     uMeta.FullName.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase)) ||
+                    (hasUser && !string.IsNullOrEmpty(uMeta.Email) &&
+                     uMeta.Email.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase)) ||
+                    (hasProp && !string.IsNullOrEmpty(pMeta.Name) &&
+                     pMeta.Name.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase)) ||
+                    (hasProp && !string.IsNullOrEmpty(pMeta.Code) &&
+                     pMeta.Code.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase)) ||
+                    (hasTenant && !string.IsNullOrEmpty(tMeta.Name) &&
+                     tMeta.Name.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase)) ||
+                    (hasTenant && !string.IsNullOrEmpty(tMeta.Code) &&
+                     tMeta.Code.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase));
 
                 if (isMatch)
                 {
@@ -185,50 +255,77 @@ public sealed class GetPlatformAuditLogsQueryHandler
                 pageSize));
         }
 
-        var distinctUserIds = pageRows
-            .Where(a => a.UserId.HasValue && a.UserId.Value != Guid.Empty)
-            .Select(a => a.UserId!.Value)
-            .Distinct()
-            .ToList();
+        Dictionary<Guid, (string? FullName, string? Email)> userLookup;
+        if (precomputedUserLookup != null)
+        {
+            userLookup = precomputedUserLookup;
+        }
+        else
+        {
+            var distinctUserIds = pageRows
+                .Where(a => a.UserId.HasValue && a.UserId.Value != Guid.Empty)
+                .Select(a => a.UserId!.Value)
+                .Distinct()
+                .ToList();
 
-        var userLookup = distinctUserIds.Count > 0
-            ? await _context.Users
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .Where(u => distinctUserIds.Contains(u.Id))
-                .Select(u => new { u.Id, u.FullName, u.Email })
-                .ToDictionaryAsync(u => u.Id, cancellationToken)
-            : new();
+            userLookup = distinctUserIds.Count > 0
+                ? (await _context.Users
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(u => distinctUserIds.Contains(u.Id))
+                    .Select(u => new { u.Id, u.FullName, u.Email })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(u => u.Id, u => ((string?)u.FullName, (string?)u.Email))
+                : new Dictionary<Guid, (string? FullName, string? Email)>();
+        }
 
-        var distinctPropertyIds = pageRows
-            .Where(a => a.PropertyId.HasValue && a.PropertyId.Value != Guid.Empty)
-            .Select(a => a.PropertyId!.Value)
-            .Distinct()
-            .ToList();
+        Dictionary<Guid, (string? Name, string? Code)> propertyLookup;
+        if (precomputedPropertyLookup != null)
+        {
+            propertyLookup = precomputedPropertyLookup;
+        }
+        else
+        {
+            var distinctPropertyIds = pageRows
+                .Where(a => a.PropertyId.HasValue && a.PropertyId.Value != Guid.Empty)
+                .Select(a => a.PropertyId!.Value)
+                .Distinct()
+                .ToList();
 
-        var propertyLookup = distinctPropertyIds.Count > 0
-            ? await _context.Properties
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .Where(p => distinctPropertyIds.Contains(p.Id))
-                .Select(p => new { p.Id, p.Name, p.Code })
-                .ToDictionaryAsync(p => p.Id, cancellationToken)
-            : new();
+            propertyLookup = distinctPropertyIds.Count > 0
+                ? (await _context.Properties
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(p => distinctPropertyIds.Contains(p.Id))
+                    .Select(p => new { p.Id, p.Name, p.Code })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(p => p.Id, p => ((string?)p.Name, (string?)p.Code))
+                : new Dictionary<Guid, (string? Name, string? Code)>();
+        }
 
-        var distinctTenantIds = pageRows
-            .Where(a => a.TenantId != Guid.Empty)
-            .Select(a => a.TenantId)
-            .Distinct()
-            .ToList();
+        Dictionary<Guid, (string? Name, string? Code)> tenantLookup;
+        if (precomputedTenantLookup != null)
+        {
+            tenantLookup = precomputedTenantLookup;
+        }
+        else
+        {
+            var distinctTenantIds = pageRows
+                .Where(a => a.TenantId != Guid.Empty)
+                .Select(a => a.TenantId)
+                .Distinct()
+                .ToList();
 
-        var tenantLookup = distinctTenantIds.Count > 0
-            ? await _context.Tenants
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .Where(t => distinctTenantIds.Contains(t.Id))
-                .Select(t => new { t.Id, t.Name, t.Code })
-                .ToDictionaryAsync(t => t.Id, cancellationToken)
-            : new();
+            tenantLookup = distinctTenantIds.Count > 0
+                ? (await _context.Tenants
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(t => distinctTenantIds.Contains(t.Id))
+                    .Select(t => new { t.Id, t.Name, t.Code })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(t => t.Id, t => ((string?)t.Name, (string?)t.Code))
+                : new Dictionary<Guid, (string? Name, string? Code)>();
+        }
 
         var items = pageRows.Select(a =>
         {
@@ -240,20 +337,24 @@ public sealed class GetPlatformAuditLogsQueryHandler
                     a.OldValues,
                     a.NewValues);
 
-            var userMeta = a.UserId.HasValue && userLookup.TryGetValue(a.UserId.Value, out var u) ? u : null;
-            var propMeta = a.PropertyId.HasValue && propertyLookup.TryGetValue(a.PropertyId.Value, out var p) ? p : null;
-            var tenantMeta = tenantLookup.TryGetValue(a.TenantId, out var t) ? t : null;
+            (string? FullName, string? Email) u = default;
+            var hasUser = a.UserId.HasValue && userLookup.TryGetValue(a.UserId.Value, out u);
+            (string? Name, string? Code) p = default;
+            var hasProp = a.PropertyId.HasValue && propertyLookup.TryGetValue(a.PropertyId.Value, out p);
+            (string? Name, string? Code) t = default;
+            var hasTenant = a.TenantId != Guid.Empty && tenantLookup.TryGetValue(a.TenantId, out t);
 
             return new AuditLogListItemDto
             {
                 Id = a.Id,
                 TenantId = a.TenantId,
+                TenantName = hasTenant ? t.Name : (a.TenantId == Guid.Empty ? "Nền tảng SaaS" : null),
                 PropertyId = a.PropertyId,
-                PropertyName = propMeta?.Name ?? tenantMeta?.Name ?? "Nền tảng SaaS",
-                PropertyCode = propMeta?.Code ?? tenantMeta?.Code ?? "PLATFORM",
+                PropertyName = (hasProp ? p.Name : null) ?? (hasTenant ? t.Name : null) ?? "Nền tảng SaaS",
+                PropertyCode = (hasProp ? p.Code : null) ?? (hasTenant ? t.Code : null) ?? "PLATFORM",
                 UserId = a.UserId,
-                UserFullName = userMeta?.FullName,
-                UserEmail = userMeta?.Email,
+                UserFullName = hasUser ? u.FullName : null,
+                UserEmail = hasUser ? u.Email : null,
                 Action = a.Action,
                 EntityName = a.EntityName,
                 EntityId = a.EntityId,
@@ -349,6 +450,25 @@ public sealed class GetPlatformAuditLogByIdQueryHandler
 
         string? propertyName = null;
         string? propertyCode = null;
+        string? tenantName = null;
+        string? tenantCode = null;
+        if (auditLog.TenantId != Guid.Empty)
+        {
+            var tenantMeta = await _context.Tenants
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(t => t.Id == auditLog.TenantId)
+                .Select(t => new { t.Name, t.Code })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            tenantName = tenantMeta?.Name;
+            tenantCode = tenantMeta?.Code;
+        }
+        else
+        {
+            tenantName = "Nền tảng SaaS";
+        }
+
         if (auditLog.PropertyId.HasValue && auditLog.PropertyId.Value != Guid.Empty)
         {
             var propMeta = await _context.Properties
@@ -361,17 +481,10 @@ public sealed class GetPlatformAuditLogByIdQueryHandler
             propertyName = propMeta?.Name;
             propertyCode = propMeta?.Code;
         }
-        else if (auditLog.TenantId != Guid.Empty)
+        else
         {
-            var tenantMeta = await _context.Tenants
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .Where(t => t.Id == auditLog.TenantId)
-                .Select(t => new { t.Name, t.Code })
-                .FirstOrDefaultAsync(cancellationToken);
-
-            propertyName = tenantMeta?.Name;
-            propertyCode = tenantMeta?.Code;
+            propertyName = tenantName;
+            propertyCode = tenantCode;
         }
 
         var sanitized = AuditPayloadSanitizer.SanitizeAndSummarize(
@@ -384,6 +497,7 @@ public sealed class GetPlatformAuditLogByIdQueryHandler
         {
             Id = auditLog.Id,
             TenantId = auditLog.TenantId,
+            TenantName = tenantName,
             PropertyId = auditLog.PropertyId,
             PropertyName = propertyName ?? "Nền tảng SaaS",
             PropertyCode = propertyCode ?? "PLATFORM",

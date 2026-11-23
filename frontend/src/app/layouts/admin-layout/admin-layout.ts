@@ -433,7 +433,21 @@ import { UserMembershipDto } from '../../core/models/auth.model';
               >
                 <i class="pi pi-server text-base text-indigo-600 dark:text-indigo-400" aria-hidden="true"></i>
                 <span>Kiểm định & Giám sát</span>
-                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">SRE</span>
+                <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">SRE</span>
+              </a>
+
+              <a
+                href="/grafana/"
+                target="_blank"
+                rel="noopener noreferrer"
+                (click)="onNavItemClick()"
+                data-testid="sidebar-grafana-shortcut"
+                class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
+                title="Mở Grafana Giám sát & Tra cứu Log hệ thống"
+              >
+                <i class="pi pi-chart-bar text-base text-indigo-600 dark:text-indigo-400" aria-hidden="true"></i>
+                <span class="truncate">Grafana Giám sát &amp; Log</span>
+                <i class="pi pi-external-link ml-auto text-xs text-[var(--text-muted)] shrink-0" aria-hidden="true"></i>
               </a>
             </div>
           }

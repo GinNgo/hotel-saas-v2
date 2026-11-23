@@ -244,7 +244,7 @@ public sealed class ConfirmSubscriptionPaymentCommandHandler
                 TenantId = payment.TenantId,
                 PropertyId = null,
                 UserId = actorUserId,
-                Action = AuditActions.Update,
+                Action = AuditActions.Upgrade,
                 EntityName = "SubscriptionUpgrade",
                 EntityId = subscription.Id,
                 OldValues = JsonSerializer.Serialize(new { Tier = previousTier.ToString() }),

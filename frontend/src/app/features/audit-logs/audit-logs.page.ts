@@ -4,6 +4,7 @@ import {
   DestroyRef,
   HostListener,
   OnInit,
+  ViewChild,
   computed,
   effect,
   inject,
@@ -20,8 +21,19 @@ import { EMPTY, catchError, expand, of, reduce } from 'rxjs';
 import { AuditLogService } from '../../core/services/audit-log.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
+import { PropertyManagementService } from '../../core/services/property-management.service';
 import { ApiResponse, PagedResult } from '../../core/models/api-response.model';
 import { AuditFieldChange, AuditLogDetail, AuditLogFilterParams, AuditLogListItem } from '../../core/models/audit-log.model';
+import {
+  AUDIT_ACTION_OPTIONS,
+  PLATFORM_AUDIT_ENTITY_OPTIONS,
+  TENANT_AUDIT_ENTITY_OPTIONS,
+  getAuditActionBadgeClass,
+  getAuditActionIcon,
+  getAuditActionLabel,
+  getAuditEntityDisplayLabel,
+  getFriendlyAuditSummary
+} from '../../core/utils/audit-log-display.util';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
@@ -53,6 +65,20 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
         [title]="'Nhật ký kiểm toán (Audit Logs)'"
         subtitle="Theo dõi và tra cứu toàn bộ lịch sử chỉnh sửa giá phòng, phụ thu và các thao tác quan trọng trong hệ thống"
       >
+        @if (isSuperAdmin()) {
+          <a
+            href="/grafana/d/hotelsaas-ops-logs-vn"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="open-grafana-logs-btn"
+            class="min-h-11 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white shadow-2xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            title="Mở bảng tra cứu Log lỗi và hệ thống trên Grafana"
+          >
+            <i class="pi pi-external-link text-xs" aria-hidden="true"></i>
+            <span>Mở Grafana Log</span>
+          </a>
+        }
+
         <button
           type="button"
           (click)="loadAuditLogs()"
@@ -104,23 +130,9 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                 class="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-all cursor-pointer"
               >
                 <option value="">Tất cả hành động</option>
-                <option value="Create">Tạo mới (Create)</option>
-                <option value="Update">Chỉnh sửa (Update)</option>
-                <option value="Delete">Xóa (Delete)</option>
-                <option value="Cancel">Hủy đơn / giao dịch (Cancel)</option>
-                <option value="Reschedule">Đổi lịch lưu trú (Reschedule)</option>
-                <option value="MarkNoShow">Đánh dấu No-Show (MarkNoShow)</option>
-                <option value="NightAuditAutoNoShow">Night Audit tự động No-Show (NightAuditAutoNoShow)</option>
-                <option value="RegenerateSmartLockPin">Cấp lại mã PIN khóa thông minh (RegenerateSmartLockPin)</option>
-                <option value="RevokeSmartLockPin">Thu hồi mã PIN khóa thông minh (RevokeSmartLockPin)</option>
-                <option value="CheckInDepositWarning">Cảnh báo thiếu cọc khi Check-in (CheckInDepositWarning)</option>
-                <option value="OverrideLateCheckOutSurcharge">Miễn / điều chỉnh phụ thu trả muộn (OverrideLateCheckOutSurcharge)</option>
-                <option value="ApproveRefund">Duyệt hoàn tiền (ApproveRefund)</option>
-                <option value="RejectRefund">Từ chối hoàn tiền (RejectRefund)</option>
-                <option value="ConfirmRefundPayout">Xác nhận chi hoàn tiền (ConfirmRefundPayout)</option>
-                <option value="StatusToggle">Đổi trạng thái (StatusToggle)</option>
-                <option value="PublishApproval">Duyệt xuất bản (PublishApproval)</option>
-                <option value="Upgrade">Nâng cấp gói (Upgrade)</option>
+                @for (opt of actionOptions; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
               </select>
             </div>
 
@@ -136,37 +148,46 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                 class="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-all cursor-pointer"
               >
                 <option value="">Tất cả đối tượng</option>
-                <option value="Property">Cơ sở / Chi nhánh (Property)</option>
-                <option value="Room">Phòng lưu trú (Room)</option>
-                <option value="RoomType">Loại phòng (RoomType)</option>
-                <option value="RoomTypeRate">Bảng giá phòng (RoomTypeRate)</option>
-                <option value="PropertySurchargePolicy">Phụ thu chi nhánh (SurchargePolicy)</option>
-                <option value="Reservation">Đơn đặt phòng (Reservation)</option>
-                <option value="Payment">Thanh toán & Giao dịch (Payment)</option>
-                <option value="Invoice">Hóa đơn (Invoice)</option>
-                <option value="TenantStaff">Tài khoản Nhân sự (TenantStaff)</option>
-                <option value="AccessRole">Chức vụ & Quyền hạn (AccessRole)</option>
-                <option value="HousekeepingTask">Buồng phòng (Housekeeping)</option>
-                <option value="SepayExpiredHoldAlert">Cảnh báo chuyển khoản quá hạn SePay (SepayExpiredHoldAlert)</option>
-                <option value="SepayBankAccountConfigWarning">Cảnh báo chưa cấu hình STK SePay (SepayBankAccountConfigWarning)</option>
+                @for (opt of tenantEntityOptions; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
                 @if (isSuperAdmin()) {
-                  <option value="Tenant">Khách hàng / Chuỗi khách sạn (Tenant)</option>
-                  <option value="TenantStatus">Trạng thái thuê bao (TenantStatus)</option>
-                  <option value="PropertyPublishApproval">Duyệt xuất bản cơ sở (PropertyPublishApproval)</option>
-                  <option value="SubscriptionUpgrade">Nâng cấp gói cước (SubscriptionUpgrade)</option>
-                  <option value="GuestReview">Đánh giá khách lưu trú (GuestReview)</option>
-                  <option value="TenantContract">Hợp đồng SaaS (TenantContract)</option>
-                  <option value="SubscriptionPlan">Gói dịch vụ (SubscriptionPlan)</option>
-                  <option value="User">Tài khoản người dùng (User)</option>
+                  @for (opt of platformEntityOptions; track opt.value) {
+                    <option [value]="opt.value">{{ opt.label }}</option>
+                  }
                 }
               </select>
             </div>
 
-            <!-- Lọc Ngày tạo (DateRangeFilterComponent) -->
-            <div class="sm:col-span-2 lg:col-span-2">
+            <!-- Lọc Chi nhánh (Chỉ hiển thị cho Owner / tài khoản có quyền PROPERTIES:Read) -->
+            @if (canFilterByProperty()) {
+              <div>
+                <label for="filter-property" class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Chi nhánh / Cơ sở
+                </label>
+                <select
+                  id="filter-property"
+                  [(ngModel)]="selectedPropertyId"
+                  (change)="onFilterChange()"
+                  class="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-all cursor-pointer"
+                >
+                  <option value="">Tất cả chi nhánh</option>
+                  @for (prop of propertyOptions(); track prop.id) {
+                    <option [value]="prop.id">
+                      {{ prop.name }}@if (prop.code) { ({{ prop.code }}) }
+                    </option>
+                  }
+                </select>
+              </div>
+            }
+
+            <!-- Lọc Ngày tạo (DateRangeFilterComponent kèm chọn nhanh) -->
+            <div [ngClass]="canFilterByProperty() ? 'sm:col-span-2 lg:col-span-4' : 'sm:col-span-2 lg:col-span-2'">
               <span class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Thời gian thực hiện</span>
               <app-date-range-filter
+                #dateRangeFilter
                 label="Khoảng ngày"
+                [showPresets]="true"
                 [initialFromDate]="fromDate"
                 [initialToDate]="toDate"
                 (filterChange)="onAuditDateFilterChange($event)"
@@ -175,7 +196,7 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
           </div>
 
           <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-            <!-- Tìm kiếm tự do / ID -->
+            <!-- Tìm kiếm tự do -->
             <div class="relative flex-1 max-w-md">
               <label for="audit-search-input" class="sr-only">Tìm kiếm nhật ký kiểm toán</label>
               <i class="pi pi-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs" aria-hidden="true"></i>
@@ -184,7 +205,7 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                 type="text"
                 [(ngModel)]="searchKeyword"
                 (keyup.enter)="onFilterChange()"
-                placeholder="Tìm theo hành động, đối tượng, ID, payload hoặc IP..."
+                placeholder="Tìm theo tên nhân viên, email, chi nhánh, nội dung..."
                 class="w-full min-h-11 pl-9 pr-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-all"
               />
             </div>
@@ -249,7 +270,7 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
               @for (log of sortedAuditLogs(); track log.id) {
                 <article class="p-4 space-y-2.5 text-xs">
                   <div class="flex items-start justify-between gap-2">
-                    <div class="space-y-1">
+                    <div class="space-y-1 min-w-0">
                       <span
                         class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border"
                         [ngClass]="getActionBadgeClass(log.action)"
@@ -258,8 +279,16 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                         <span>{{ getActionLabel(log.action) }}</span>
                       </span>
                       <div class="font-bold text-slate-900 dark:text-slate-100">{{ getEntityDisplayLabel(log.entityName) }}</div>
+                      <div class="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-300">
+                        <i class="pi pi-building text-[10px] text-indigo-500 dark:text-indigo-400" aria-hidden="true"></i>
+                        @if (isSuperAdmin() && log.tenantName) {
+                          <span class="font-semibold text-indigo-700 dark:text-indigo-300">{{ log.tenantName }}</span>
+                          <span class="text-slate-400" aria-hidden="true">•</span>
+                        }
+                        <span class="font-medium">{{ log.propertyName || (isSuperAdmin() ? 'Toàn doanh nghiệp' : 'Toàn chuỗi (HQ)') }}</span>
+                      </div>
                     </div>
-                    <div class="text-right font-mono text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+                    <div class="text-right font-mono text-xs text-slate-500 dark:text-slate-400 tabular-nums shrink-0">
                       <div class="font-bold text-slate-800 dark:text-slate-200">{{ log.createdAtUtc | businessDate }}</div>
                       <div>{{ formatVietnamTime(log.createdAtUtc) }}</div>
                     </div>
@@ -273,11 +302,11 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                   <div class="flex justify-end pt-1">
                     <button
                       type="button"
-                      (click)="openDetail(log.id)"
+                      (click)="openDetail(log.id, log.propertyId)"
                       class="min-h-11 px-4 py-2 rounded-xl border font-bold text-xs inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
                       [ngClass]="log.action === 'Update'
-                        ? 'border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/80 text-indigo-700'
-                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'"
+                        ? 'border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/80 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300'
+                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'"
                     >
                       <i class="pi text-xs" [ngClass]="getActionButtonIcon(log.action)" aria-hidden="true"></i>
                       <span>{{ getActionButtonLabel(log.action) }}</span>
@@ -297,6 +326,7 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                       <i class="pi text-xs" [ngClass]="getSortIcon('createdAtUtc')" aria-hidden="true"></i>
                     </button>
                   </div>
+                  <div class="col-span-2">Chi nhánh / Doanh nghiệp</div>
                   <div class="col-span-2">
                     <button type="button" (click)="toggleSort('userFullName')" class="inline-flex items-center gap-1 font-bold uppercase cursor-pointer">
                       <span>Người thực hiện</span>
@@ -309,13 +339,13 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                       <i class="pi text-xs" [ngClass]="getSortIcon('action')" aria-hidden="true"></i>
                     </button>
                   </div>
-                  <div class="col-span-2">
+                  <div class="col-span-1">
                     <button type="button" (click)="toggleSort('entityName')" class="inline-flex items-center gap-1 font-bold uppercase cursor-pointer">
                       <span>Đối tượng</span>
                       <i class="pi text-xs" [ngClass]="getSortIcon('entityName')" aria-hidden="true"></i>
                     </button>
                   </div>
-                  <div class="col-span-3">Tóm tắt thay đổi</div>
+                  <div class="col-span-2">Tóm tắt thay đổi</div>
                   <div class="col-span-1 text-right">Thao tác</div>
                 </div>
 
@@ -329,6 +359,17 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                       <div class="text-xs text-slate-500 dark:text-slate-400">{{ formatVietnamTime(log.createdAtUtc) }}</div>
                     </div>
                     <div class="col-span-2 truncate">
+                      @if (isSuperAdmin() && log.tenantName) {
+                        <div class="font-bold text-indigo-700 dark:text-indigo-300 truncate" [title]="log.tenantName">{{ log.tenantName }}</div>
+                      }
+                      <div class="font-semibold text-slate-800 dark:text-slate-100 truncate" [title]="log.propertyName || ''">
+                        {{ log.propertyName || (isSuperAdmin() ? 'Toàn doanh nghiệp' : 'Toàn chuỗi (HQ)') }}
+                      </div>
+                      @if (log.propertyCode) {
+                        <div class="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">{{ log.propertyCode }}</div>
+                      }
+                    </div>
+                    <div class="col-span-2 truncate">
                       <div class="font-semibold text-slate-800 dark:text-slate-100 truncate">{{ log.userFullName || 'Hệ thống' }}</div>
                       @if (log.userEmail) {
                         <div class="text-xs text-slate-500 dark:text-slate-400 font-mono truncate">{{ log.userEmail }}</div>
@@ -337,14 +378,13 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                     <div class="col-span-2">
                       <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border" [ngClass]="getActionBadgeClass(log.action)">
                         <i class="pi text-xs" [ngClass]="getActionIcon(log.action)" aria-hidden="true"></i>
-                        <span>{{ getActionLabel(log.action) }}</span>
+                        <span class="truncate">{{ getActionLabel(log.action) }}</span>
                       </span>
                     </div>
-                    <div class="col-span-2 truncate">
+                    <div class="col-span-1 truncate">
                       <div class="font-bold text-slate-800 dark:text-slate-100 truncate">{{ getEntityDisplayLabel(log.entityName) }}</div>
-                      <div class="text-xs font-mono text-slate-500 dark:text-slate-400 truncate">ID: {{ log.entityId }}</div>
                     </div>
-                    <div class="col-span-3 truncate">
+                    <div class="col-span-2 truncate">
                       <p class="text-xs text-slate-700 dark:text-slate-300 truncate font-medium">
                         {{ getFriendlySummary(log.changeSummary, log.action, log.entityName) }}
                       </p>
@@ -352,11 +392,11 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                     <div class="col-span-1 text-right">
                       <button
                         type="button"
-                        (click)="openDetail(log.id)"
+                        (click)="openDetail(log.id, log.propertyId)"
                         class="min-h-11 px-3 py-1.5 rounded-xl border font-bold text-xs inline-flex items-center gap-1 transition-colors cursor-pointer"
                         [ngClass]="log.action === 'Update'
-                          ? 'border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/80 text-indigo-700'
-                          : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'"
+                          ? 'border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/80 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300'
+                          : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'"
                       >
                         <i class="pi text-xs" [ngClass]="getActionButtonIcon(log.action)" aria-hidden="true"></i>
                         <span>{{ getActionButtonLabel(log.action) }}</span>
@@ -376,6 +416,7 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                           <i class="pi text-xs" [ngClass]="getSortIcon('createdAtUtc')" aria-hidden="true"></i>
                         </button>
                       </th>
+                      <th scope="col" class="py-3 px-4">Chi nhánh / Doanh nghiệp</th>
                       <th scope="col" class="py-3 px-4" [attr.aria-sort]="getAriaSort('userFullName')">
                         <button type="button" (click)="toggleSort('userFullName')" class="inline-flex items-center gap-1.5 font-bold uppercase cursor-pointer hover:text-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded">
                           <span>Người thực hiện</span>
@@ -405,6 +446,21 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                         <td class="py-3.5 px-4 font-mono text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap tabular-nums">
                           <div class="font-bold text-slate-800 dark:text-slate-100">{{ log.createdAtUtc | businessDate }}</div>
                           <div class="text-xs text-slate-500 dark:text-slate-400">{{ formatVietnamTime(log.createdAtUtc) }}</div>
+                        </td>
+
+                        <!-- Chi nhánh / Doanh nghiệp -->
+                        <td class="py-3.5 px-4 max-w-[200px]">
+                          @if (isSuperAdmin() && log.tenantName) {
+                            <div class="font-bold text-indigo-700 dark:text-indigo-300 truncate" [title]="log.tenantName">
+                              {{ log.tenantName }}
+                            </div>
+                          }
+                          <div class="font-semibold text-slate-800 dark:text-slate-100 truncate" [title]="log.propertyName || ''">
+                            {{ log.propertyName || (isSuperAdmin() ? 'Toàn doanh nghiệp' : 'Toàn chuỗi (HQ)') }}
+                          </div>
+                          @if (log.propertyCode) {
+                            <div class="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">{{ log.propertyCode }}</div>
+                          }
                         </td>
 
                         <!-- Người thực hiện -->
@@ -463,11 +519,11 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                         <td class="py-3.5 px-4 text-right whitespace-nowrap">
                           <button
                             type="button"
-                            (click)="openDetail(log.id)"
+                            (click)="openDetail(log.id, log.propertyId)"
                             class="min-h-11 px-3.5 py-2 rounded-xl border font-bold text-xs inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                             [ngClass]="log.action === 'Update'
-                              ? 'border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/80 active:bg-indigo-200 text-indigo-700'
-                              : 'border-slate-200 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-700'"
+                              ? 'border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/80 active:bg-indigo-200 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300'
+                              : 'border-slate-200 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'"
                             [title]="log.action === 'Update' ? 'Xem so sánh chi tiết trước và sau thay đổi' : 'Xem chi tiết dữ liệu kiểm toán'"
                           >
                             <i class="pi text-xs" [ngClass]="getActionButtonIcon(log.action)" aria-hidden="true"></i>
@@ -563,8 +619,11 @@ type AuditSortField = 'createdAtUtc' | 'userFullName' | 'action' | 'entityName';
                 </div>
 
                 <div>
-                  <span class="text-slate-500 dark:text-slate-400 block text-xs uppercase font-bold tracking-wider">Chi nhánh áp dụng</span>
-                  <span class="font-bold text-slate-800 dark:text-slate-100">{{ item.propertyName || 'Toàn hệ thống (HQ)' }}</span>
+                  <span class="text-slate-500 dark:text-slate-400 block text-xs uppercase font-bold tracking-wider">Chi nhánh / Doanh nghiệp</span>
+                  @if (isSuperAdmin() && item.tenantName) {
+                    <span class="block font-bold text-indigo-700 dark:text-indigo-300">{{ item.tenantName }}</span>
+                  }
+                  <span class="font-bold text-slate-800 dark:text-slate-100">{{ item.propertyName || (isSuperAdmin() ? 'Toàn doanh nghiệp' : 'Toàn hệ thống (HQ)') }}</span>
                   @if (item.propertyCode) {
                     <span class="text-xs font-mono text-slate-500 dark:text-slate-400 block">Mã: {{ item.propertyCode }}</span>
                   }
@@ -820,13 +879,21 @@ export class AuditLogsPage implements OnInit {
   private readonly auditLogService = inject(AuditLogService);
   private readonly authService = inject(AuthService);
   private readonly alertService = inject(AlertService);
+  private readonly propertyManagementService = inject(PropertyManagementService, { optional: true });
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+
+  @ViewChild('dateRangeFilter') private dateRangeFilter?: DateRangeFilterComponent;
+
+  readonly actionOptions = AUDIT_ACTION_OPTIONS;
+  readonly tenantEntityOptions = TENANT_AUDIT_ENTITY_OPTIONS;
+  readonly platformEntityOptions = PLATFORM_AUDIT_ENTITY_OPTIONS;
 
   readonly loading = signal(false);
   readonly exporting = signal(false);
   readonly errorMessage = signal('');
   readonly auditLogs = signal<AuditLogListItem[]>([]);
+  readonly propertyOptions = signal<Array<{ id: string; name: string; code?: string | null }>>([]);
   readonly totalRecords = signal(0);
   readonly currentPage = signal(1);
   readonly pageSize = signal(20);
@@ -857,7 +924,14 @@ export class AuditLogsPage implements OnInit {
 
   selectedAction = '';
   selectedEntityName = '';
+  selectedPropertyId = '';
   readonly isSuperAdmin = computed(() => this.authService.currentUser?.globalRole === 'SuperAdmin');
+  readonly canFilterByProperty = computed(
+    () =>
+      !this.isSuperAdmin() &&
+      typeof this.authService.hasPermission === 'function' &&
+      this.authService.hasPermission('PROPERTIES', 1)
+  );
   fromDate = '';
   toDate = '';
   fromUtc = '';
@@ -883,10 +957,12 @@ export class AuditLogsPage implements OnInit {
   private hasInitialLoaded = false;
 
   constructor() {
+    this.selectedPropertyId = this.authService.activePropertyId() || '';
     try {
       effect(() => {
         const propId = this.authService.activePropertyId();
         untracked(() => {
+          this.selectedPropertyId = propId || '';
           if (this.isAuthorized()) {
             this.hasInitialLoaded = true;
             this.currentPage.set(1);
@@ -900,9 +976,60 @@ export class AuditLogsPage implements OnInit {
   }
 
   ngOnInit(): void {
+    if (this.isAuthorized() && this.canFilterByProperty()) {
+      this.loadPropertyOptions();
+    }
     if (!this.hasInitialLoaded && this.isAuthorized()) {
       this.loadAuditLogs();
     }
+  }
+
+  private loadPropertyOptions(): void {
+    const seeded = new Map<string, { id: string; name: string; code?: string | null }>();
+    for (const m of this.authService.memberships || []) {
+      if (m.propertyId && !seeded.has(m.propertyId)) {
+        seeded.set(m.propertyId, {
+          id: m.propertyId,
+          name: m.propertyName || m.propertyCode || m.propertyId,
+          code: m.propertyCode || null
+        });
+      }
+    }
+    if (seeded.size > 0) {
+      this.propertyOptions.set(Array.from(seeded.values()));
+    }
+
+    if (!this.propertyManagementService) {
+      return;
+    }
+
+    this.propertyManagementService
+      .getTenantProperties()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: props => {
+          const merged = new Map(seeded);
+          for (const p of props || []) {
+            if (p.id) {
+              merged.set(p.id, { id: p.id, name: p.name, code: p.code || null });
+            }
+          }
+          this.propertyOptions.set(Array.from(merged.values()));
+        },
+        error: () => {
+          // Giữ nguyên danh sách chi nhánh lấy từ memberships nếu API lỗi
+        }
+      });
+  }
+
+  private getEffectivePropertyId(): string | undefined {
+    if (this.isSuperAdmin()) {
+      return undefined;
+    }
+    if (this.canFilterByProperty()) {
+      return this.selectedPropertyId.trim() || undefined;
+    }
+    return this.authService.activePropertyId() || undefined;
   }
 
   @HostListener('document:keydown.escape')
@@ -944,7 +1071,7 @@ export class AuditLogsPage implements OnInit {
     const params: AuditLogFilterParams = {
       action: this.selectedAction.trim() || undefined,
       entityName: this.selectedEntityName.trim() || undefined,
-      propertyId: this.authService.activePropertyId() || undefined,
+      propertyId: this.getEffectivePropertyId(),
       page: this.currentPage(),
       pageSize: this.pageSize()
     };
@@ -960,12 +1087,7 @@ export class AuditLogsPage implements OnInit {
       params.toUtc = new Date(this.toDate + 'T23:59:59Z').toISOString();
     }
     if (this.searchKeyword.trim()) {
-      const kw = this.searchKeyword.trim();
-      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(kw)) {
-        params.entityId = kw;
-      } else {
-        params.search = kw;
-      }
+      params.search = this.searchKeyword.trim();
     }
 
     this.auditLogService
@@ -1012,11 +1134,13 @@ export class AuditLogsPage implements OnInit {
   resetFilters(): void {
     this.selectedAction = '';
     this.selectedEntityName = '';
+    this.selectedPropertyId = this.canFilterByProperty() ? '' : (this.authService.activePropertyId() || '');
     this.fromDate = '';
     this.toDate = '';
     this.fromUtc = '';
     this.toUtc = '';
     this.searchKeyword = '';
+    this.dateRangeFilter?.clearWithoutEmit();
     this.currentPage.set(1);
     this.loadAuditLogs();
   }
@@ -1049,7 +1173,7 @@ export class AuditLogsPage implements OnInit {
     const baseParams: Omit<AuditLogFilterParams, 'page' | 'pageSize'> = {
       action: this.selectedAction.trim() || undefined,
       entityName: this.selectedEntityName.trim() || undefined,
-      propertyId: this.authService.activePropertyId() || undefined
+      propertyId: this.getEffectivePropertyId()
     };
 
     if (this.fromUtc) {
@@ -1063,12 +1187,7 @@ export class AuditLogsPage implements OnInit {
       baseParams.toUtc = new Date(this.toDate + 'T23:59:59Z').toISOString();
     }
     if (this.searchKeyword.trim()) {
-      const kw = this.searchKeyword.trim();
-      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(kw)) {
-        baseParams.entityId = kw;
-      } else {
-        baseParams.search = kw;
-      }
+      baseParams.search = this.searchKeyword.trim();
     }
 
     const fetchPage = (page: number) =>
@@ -1212,12 +1331,12 @@ export class AuditLogsPage implements OnInit {
     this.loadAuditLogs();
   }
 
-  openDetail(id: string): void {
+  openDetail(id: string, itemPropertyId?: string | null): void {
     this.isDetailModalOpen.set(true);
     this.isDetailLoading.set(true);
     this.selectedDetail.set(null);
 
-    const propId = this.authService.activePropertyId();
+    const propId = itemPropertyId ?? this.getEffectivePropertyId() ?? this.authService.activePropertyId();
     this.auditLogService
       .getAuditLogById(id, propId)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -1281,71 +1400,19 @@ export class AuditLogsPage implements OnInit {
   }
 
   getActionLabel(action?: string): string {
-    switch (action) {
-      case 'Create': return 'Tạo mới';
-      case 'Update': return 'Chỉnh sửa';
-      case 'Delete': return 'Xóa';
-      case 'StatusToggle': return 'Đổi trạng thái';
-      case 'PublishApproval': return 'Duyệt xuất bản';
-      case 'Upgrade': return 'Nâng cấp gói';
-      case 'Cancel': return 'Hủy';
-      case 'Reschedule': return 'Đổi lịch';
-      case 'MarkNoShow': return 'Đánh dấu No-Show';
-      case 'NightAuditAutoNoShow': return 'Night Audit No-Show';
-      case 'RegenerateSmartLockPin': return 'Cấp lại mã PIN khóa thông minh';
-      case 'RevokeSmartLockPin': return 'Thu hồi mã PIN khóa thông minh';
-      case 'CheckInDepositWarning': return 'Cảnh báo thiếu cọc khi Check-in';
-      case 'OverrideLateCheckOutSurcharge': return 'Miễn / điều chỉnh phụ thu trả muộn';
-      case 'ApproveRefund': return 'Duyệt hoàn tiền';
-      case 'RejectRefund': return 'Từ chối hoàn tiền';
-      case 'ConfirmRefundPayout': return 'Xác nhận chi hoàn';
-      default: return action || 'Không xác định';
-    }
+    return getAuditActionLabel(action);
   }
 
   getActionBadgeClass(action?: string): string {
-    switch (action) {
-      case 'Create': return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800';
-      case 'Update': return 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800';
-      case 'Delete': return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800';
-      default: return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
-    }
+    return getAuditActionBadgeClass(action);
   }
 
   getActionIcon(action?: string): string {
-    switch (action) {
-      case 'Create': return 'pi-plus-circle text-emerald-600';
-      case 'Update': return 'pi-pencil text-sky-600';
-      case 'Delete': return 'pi-trash text-rose-600';
-      default: return 'pi-info-circle text-slate-500';
-    }
+    return getAuditActionIcon(action);
   }
 
   getEntityDisplayLabel(name?: string): string {
-    switch (name) {
-      case 'Property': return 'Cơ sở & Chi nhánh';
-      case 'Room': return 'Phòng lưu trú';
-      case 'RoomType': return 'Loại phòng';
-      case 'RoomTypeRate': return 'Bảng giá phòng';
-      case 'PropertySurchargePolicy': return 'Phụ thu chi nhánh';
-      case 'Reservation': return 'Đơn đặt phòng';
-      case 'Payment': return 'Giao dịch thanh toán';
-      case 'Invoice': return 'Hóa đơn thanh toán';
-      case 'TenantStaff': return 'Tài khoản nhân sự';
-      case 'AccessRole': return 'Chức vụ & Quyền hạn';
-      case 'HousekeepingTask': return 'Nhiệm vụ buồng phòng';
-      case 'SepayExpiredHoldAlert': return 'Cảnh báo chuyển khoản quá hạn SePay';
-      case 'SepayBankAccountConfigWarning': return 'Cảnh báo chưa cấu hình STK SePay';
-      case 'Tenant': return 'Khách hàng / Chuỗi (Tenant)';
-      case 'TenantStatus': return 'Trạng thái thuê bao';
-      case 'PropertyPublishApproval': return 'Duyệt xuất bản cơ sở';
-      case 'SubscriptionUpgrade': return 'Nâng cấp gói cước';
-      case 'GuestReview': return 'Đánh giá khách lưu trú';
-      case 'TenantContract': return 'Hợp đồng SaaS';
-      case 'SubscriptionPlan': return 'Gói cước SaaS';
-      case 'User': return 'Tài khoản người dùng';
-      default: return name || 'Bản ghi';
-    }
+    return getAuditEntityDisplayLabel(name);
   }
 
   getFieldDisplayLabel(fieldName: string): string {
@@ -1423,63 +1490,7 @@ export class AuditLogsPage implements OnInit {
   }
 
   getFriendlySummary(summary: string | null | undefined, action?: string, entityName?: string): string {
-    if (!summary) return 'Không có mô tả chi tiết';
-
-    let s = summary;
-
-    s = s.replace(/\bProperty\b/g, 'Cơ sở/Chi nhánh');
-    s = s.replace(/\bRoom\b/g, 'Phòng');
-    s = s.replace(/\bRoomType\b/g, 'Loại phòng');
-    s = s.replace(/\bRoomTypeRate\b/g, 'Bảng giá phòng');
-    s = s.replace(/\bPropertySurchargePolicy\b/g, 'Phụ thu chi nhánh');
-    s = s.replace(/\bReservation\b/g, 'Đơn đặt phòng');
-    s = s.replace(/\bPayment\b/g, 'Giao dịch thanh toán');
-    s = s.replace(/\bInvoice\b/g, 'Hóa đơn');
-    s = s.replace(/\bTenantStaff\b/g, 'Tài khoản nhân sự');
-    s = s.replace(/\bAccessRole\b/g, 'Chức vụ phân quyền');
-    s = s.replace(/\bHousekeepingTask\b/g, 'Buồng phòng');
-    s = s.replace(/\bSepayExpiredHoldAlert\b/g, 'Cảnh báo chuyển khoản quá hạn SePay');
-    s = s.replace(/\bSepayBankAccountConfigWarning\b/g, 'Cảnh báo chưa cấu hình STK SePay');
-
-    s = s.replace(/,?\s*(RoomTypeId|CreatedByUserId|TenantId|PropertyId|Id)=[0-9a-f-]{36}/gi, '');
-    s = s.replace(/\(\s*,\s*/g, '(');
-    s = s.replace(/,\s*\)/g, ')');
-    s = s.replace(/\(\s*\)/g, '');
-
-    s = s.replace(/\bNightlyPrice:\s*(\d+)\s*->\s*(\d+)/g, (_, o, n) => {
-      return `Giá theo đêm: ${Number(o).toLocaleString('vi-VN')} ₫ → ${Number(n).toLocaleString('vi-VN')} ₫`;
-    });
-    s = s.replace(/\bFirstHoursPrice:\s*(\d+)\s*->\s*(\d+)/g, (_, o, n) => {
-      return `Giá giờ đầu: ${Number(o).toLocaleString('vi-VN')} ₫ → ${Number(n).toLocaleString('vi-VN')} ₫`;
-    });
-    s = s.replace(/\bAdditionalHourPrice:\s*(\d+)\s*->\s*(\d+)/g, (_, o, n) => {
-      return `Giá giờ tiếp theo: ${Number(o).toLocaleString('vi-VN')} ₫ → ${Number(n).toLocaleString('vi-VN')} ₫`;
-    });
-
-    s = s.replace(/\bEffectiveTo:\s*(\d{4}-\d{2}-\d{2})\s*->\s*(\d{4}-\d{2}-\d{2})/g, (_, o, n) => {
-      return `Hạn hiệu lực: ${this.formatShortDate(o)} → ${this.formatShortDate(n)} (Hết ngày trước)`;
-    });
-    s = s.replace(/\bEffectiveFrom:\s*(\d{4}-\d{2}-\d{2})\s*->\s*(\d{4}-\d{2}-\d{2})/g, (_, o, n) => {
-      return `Từ ngày: ${this.formatShortDate(o)} → ${this.formatShortDate(n)}`;
-    });
-    s = s.replace(/\bEffectiveTo:\s*(\d{4}-\d{2}-\d{2})/g, (_, d) => {
-      return `Hạn hiệu lực: ${this.formatShortDate(d)}`;
-    });
-    s = s.replace(/\bEffectiveFrom:\s*(\d{4}-\d{2}-\d{2})/g, (_, d) => {
-      return `Từ ngày: ${this.formatShortDate(d)}`;
-    });
-
-    s = s.replace(/\bIsActive:\s*(true|True)\b/g, 'Trạng thái: Hoạt động');
-    s = s.replace(/\bIsActive:\s*(false|False)\b/g, 'Trạng thái: Tạm dừng');
-    s = s.replace(/\bIsActive=(true|True)\b/g, 'Trạng thái=Hoạt động');
-    s = s.replace(/\bIsActive=(false|False)\b/g, 'Trạng thái=Tạm dừng');
-    s = s.replace(/\bCurrency=VND\b/g, 'Tiền tệ=VND');
-    s = s.replace(/\bFirstHours=(\d+)\b/g, 'Số giờ đầu=$1h');
-    s = s.replace(/\bChangeReason:\s*/g, 'Lý do: ');
-
-    s = s.replace(/->/g, '→');
-
-    return s.trim();
+    return getFriendlyAuditSummary(summary, action, entityName);
   }
 
   formatEffectiveTo(value: string | null): string {

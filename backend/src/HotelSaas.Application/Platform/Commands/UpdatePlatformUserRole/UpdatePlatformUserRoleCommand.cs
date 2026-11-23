@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Exceptions;
@@ -76,6 +77,7 @@ public sealed class UpdatePlatformUserRoleCommandHandler
             }
         }
 
+        var previousRole = user.GlobalRole;
         var now = DateTime.UtcNow;
         user.GlobalRole = request.TargetRole;
 
@@ -86,6 +88,32 @@ public sealed class UpdatePlatformUserRoleCommandHandler
         }
 
         user.UpdatedAtUtc = now;
+
+        try
+        {
+            _context.AuditLogs.Add(new AuditLog
+            {
+                Id = Guid.NewGuid(),
+                TenantId = user.TenantId ?? Guid.Empty,
+                PropertyId = null,
+                UserId = _currentUserContext.UserId != Guid.Empty ? _currentUserContext.UserId : null,
+                Action = AuditActions.Update,
+                EntityName = nameof(User),
+                EntityId = user.Id,
+                OldValues = JsonSerializer.Serialize(new { GlobalRole = previousRole.ToString() }),
+                NewValues = JsonSerializer.Serialize(new
+                {
+                    GlobalRole = request.TargetRole.ToString(),
+                    Email = user.Email
+                }),
+                IpAddress = _currentUserContext.IpAddress,
+                CreatedAtUtc = now
+            });
+        }
+        catch (NotImplementedException)
+        {
+            // Optional AuditLogs DbSet in minimal test stubs
+        }
 
         await _context.SaveChangesAsync(cancellationToken);
 

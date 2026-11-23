@@ -11,6 +11,7 @@ export interface AuditFieldChange {
 export interface AuditLogListItem {
   id: string;
   tenantId: string;
+  tenantName?: string | null;
   propertyId: string | null;
   propertyName: string | null;
   propertyCode: string | null;
@@ -25,6 +26,8 @@ export interface AuditLogListItem {
   changeSummary: string;
 }
 
+export type AuditLogDto = AuditLogListItem;
+
 export interface AuditLogDetail extends AuditLogListItem {
   ipAddress: string | null;
   oldValues: string | null;
@@ -33,6 +36,8 @@ export interface AuditLogDetail extends AuditLogListItem {
 }
 
 export interface AuditLogFilterParams {
+  tenantId?: string | null;
+  tenantName?: string | null;
   propertyId?: string | null;
   userId?: string | null;
   action?: string | null;
@@ -44,4 +49,6 @@ export interface AuditLogFilterParams {
   page?: number;
   pageSize?: number;
 }
+
+export type AuditLogFilter = AuditLogFilterParams;
 

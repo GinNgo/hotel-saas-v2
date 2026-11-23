@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Exceptions;
@@ -27,6 +28,11 @@ public sealed record CreatePlatformAdminCommand(
 public sealed class CreatePlatformAdminCommandHandler
     : IRequestHandler<CreatePlatformAdminCommand, PlatformUserDto>
 {
+    private static readonly JsonSerializerOptions AuditJsonOptions = new()
+    {
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserContext _currentUserContext;
     private readonly IPasswordHasher _passwordHasher;
@@ -80,6 +86,36 @@ public sealed class CreatePlatformAdminCommandHandler
         };
 
         _context.Users.Add(user);
+
+        try
+        {
+            _context.AuditLogs.Add(new AuditLog
+            {
+                Id = Guid.NewGuid(),
+                TenantId = Guid.Empty,
+                PropertyId = null,
+                UserId = _currentUserContext.UserId != Guid.Empty ? _currentUserContext.UserId : null,
+                Action = AuditActions.Create,
+                EntityName = nameof(User),
+                EntityId = user.Id,
+                OldValues = null,
+                NewValues = JsonSerializer.Serialize(new
+                {
+                    user.Email,
+                    user.Username,
+                    user.FullName,
+                    GlobalRole = user.GlobalRole.ToString(),
+                    user.IsActive
+                }, AuditJsonOptions),
+                IpAddress = _currentUserContext.IpAddress,
+                CreatedAtUtc = now
+            });
+        }
+        catch (NotImplementedException)
+        {
+            // Optional AuditLogs DbSet in minimal test stubs
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
 
         return await PlatformUserMapper.BuildDtoForSingleUserAsync(_context, user, cancellationToken);

@@ -168,7 +168,7 @@ public sealed class RejectRefundCommandHandler : IRequestHandler<RejectRefundCom
                 TenantId = payment.TenantId,
                 PropertyId = payment.PropertyId,
                 UserId = userId,
-                Action = AuditActions.Update,
+                Action = AuditActions.RejectRefund,
                 EntityName = nameof(Payment),
                 EntityId = payment.Id,
                 OldValues = JsonSerializer.Serialize(new { Status = "Pending", TransactionRef = oldTxRef }, AuditJsonOptions),

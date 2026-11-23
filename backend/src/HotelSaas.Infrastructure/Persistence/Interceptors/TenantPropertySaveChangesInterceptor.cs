@@ -79,6 +79,13 @@ public sealed class TenantPropertySaveChangesInterceptor : SaveChangesIntercepto
             // 1. Kiểm soát phạm vi Tenant
             if (entry.State == EntityState.Added)
             {
+                if (entry.Entity is HotelSaas.Domain.Entities.AuditLog && !currentTenantId.HasValue)
+                {
+                    // Allow explicit platform-level or unauthenticated security AuditLog entries
+                    // (e.g., LoginFailed, SuperAdmin governance/IAM actions) when no ambient tenant context is active.
+                    continue;
+                }
+
                 if (!currentTenantId.HasValue)
                     throw new ForbiddenException("ERR_TENANT_REQUIRED", "Không thể ghi dữ liệu khi thiếu Tenant context.");
 

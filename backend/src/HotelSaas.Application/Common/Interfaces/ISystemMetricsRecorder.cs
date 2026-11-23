@@ -9,4 +9,6 @@ public interface ISystemMetricsRecorder
     void IncrementSignalRConnection();
     void DecrementSignalRConnection();
     void RecordIsolationBlock(string errorCode);
+    void RecordSepayWebhook(string status);
+    void RecordRateLimited(string policy);
 }

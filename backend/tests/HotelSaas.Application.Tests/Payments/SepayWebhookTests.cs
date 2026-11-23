@@ -448,7 +448,7 @@ public sealed class SepayWebhookTests
         Assert.Equal(SubscriptionTier.Pro, subscription.Tier);
         Assert.Equal(SubscriptionStatus.Active, subscription.Status);
         Assert.Equal(SubscriptionTier.Pro, tenant.SubscriptionTier);
-        Assert.Contains(db.AuditLogList, a => a.EntityName == "SubscriptionUpgrade" && a.EntityId == subscription.Id);
+        Assert.Contains(db.AuditLogList, a => a.EntityName == "SubscriptionUpgrade" && a.Action == AuditActions.Upgrade && a.EntityId == subscription.Id);
 
         // Act 2: Duplicate webhook -> idempotent duplicate
         var duplicate = await handler.Handle(cmd, CancellationToken.None);

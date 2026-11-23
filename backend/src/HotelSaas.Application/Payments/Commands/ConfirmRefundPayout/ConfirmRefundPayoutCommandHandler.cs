@@ -190,7 +190,7 @@ public sealed class ConfirmRefundPayoutCommandHandler : IRequestHandler<ConfirmR
                     TenantId = payment.TenantId,
                     PropertyId = payment.PropertyId,
                     UserId = userId,
-                    Action = AuditActions.Update,
+                    Action = AuditActions.ConfirmRefundPayout,
                     EntityName = nameof(Payment),
                     EntityId = payment.Id,
                     OldValues = JsonSerializer.Serialize(new { Status = "Pending/Approved", TransactionRef = oldTxRef }, AuditJsonOptions),

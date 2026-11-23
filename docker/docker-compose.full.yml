@@ -59,6 +59,7 @@ services:
       JwtSettings__Issuer: "HotelSaas"
       JwtSettings__Audience: "HotelSaasClient"
       JwtSettings__AccessTokenExpirationMinutes: "120"
+      Metrics__ApiKey: "${METRICS_API_KEY:-}"
       AllowCloudDevSeed: "false"
     ports:
       - "5000:5000"

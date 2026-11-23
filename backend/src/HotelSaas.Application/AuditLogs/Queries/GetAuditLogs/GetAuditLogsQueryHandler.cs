@@ -213,6 +213,8 @@ public sealed class GetAuditLogsQueryHandler
         int totalCount;
         List<AuditLog> pageRows;
         Dictionary<Guid, AuditPayloadSanitizer.SanitizedAuditPayload>? precomputedSanitized = null;
+        Dictionary<Guid, (string? FullName, string? Email)>? precomputedUserLookup = null;
+        Dictionary<Guid, (string? Name, string? Code)>? precomputedPropertyLookup = null;
 
         if (trimmedSearch is null)
         {
@@ -228,13 +230,46 @@ public sealed class GetAuditLogsQueryHandler
         else
         {
             // Filter in-memory after SQL tenant/property/date predicates so jsonb columns
-            // (OldValues/NewValues) are searched safely without PostgreSQL lower(jsonb) errors
-            // and only read-time sanitized payloads are searchable (no inference on redacted secrets).
+            // (OldValues/NewValues) are searched safely without PostgreSQL lower(jsonb) errors,
+            // actor/property names are searchable case-insensitively, and only read-time sanitized
+            // payloads are searchable (no inference on redacted secrets).
             var candidates = await query
                 .OrderByDescending(a => a.CreatedAtUtc)
                 .ThenByDescending(a => a.Id)
                 .Take(5000)
                 .ToListAsync(cancellationToken);
+
+            var candidateUserIds = candidates
+                .Where(a => a.UserId.HasValue && a.UserId.Value != Guid.Empty)
+                .Select(a => a.UserId!.Value)
+                .Distinct()
+                .ToList();
+
+            precomputedUserLookup = candidateUserIds.Count > 0
+                ? (await _context.Users
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(u => candidateUserIds.Contains(u.Id))
+                    .Select(u => new { u.Id, u.FullName, u.Email })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(u => u.Id, u => ((string?)u.FullName, (string?)u.Email))
+                : new Dictionary<Guid, (string? FullName, string? Email)>();
+
+            var candidatePropertyIds = candidates
+                .Where(a => a.PropertyId.HasValue && a.PropertyId.Value != Guid.Empty)
+                .Select(a => a.PropertyId!.Value)
+                .Distinct()
+                .ToList();
+
+            precomputedPropertyLookup = candidatePropertyIds.Count > 0
+                ? (await _context.Properties
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(p => p.TenantId == tenantId.Value && candidatePropertyIds.Contains(p.Id))
+                    .Select(p => new { p.Id, p.Name, p.Code })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(p => p.Id, p => ((string?)p.Name, (string?)p.Code))
+                : new Dictionary<Guid, (string? Name, string? Code)>();
 
             precomputedSanitized = new Dictionary<Guid, AuditPayloadSanitizer.SanitizedAuditPayload>();
             var matched = new List<AuditLog>();
@@ -247,6 +282,11 @@ public sealed class GetAuditLogsQueryHandler
                     candidate.OldValues,
                     candidate.NewValues);
 
+                (string? FullName, string? Email) uMeta = default;
+                var hasUser = candidate.UserId.HasValue && precomputedUserLookup.TryGetValue(candidate.UserId.Value, out uMeta);
+                (string? Name, string? Code) pMeta = default;
+                var hasProp = candidate.PropertyId.HasValue && precomputedPropertyLookup.TryGetValue(candidate.PropertyId.Value, out pMeta);
+
                 var isMatch =
                     candidate.Action.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase) ||
                     candidate.EntityName.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase) ||
@@ -256,7 +296,15 @@ public sealed class GetAuditLogsQueryHandler
                     (!string.IsNullOrEmpty(sanitized.SanitizedNewValuesJson) &&
                      sanitized.SanitizedNewValuesJson.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase)) ||
                     (!string.IsNullOrEmpty(candidate.IpAddress) &&
-                     candidate.IpAddress.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase));
+                     candidate.IpAddress.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase)) ||
+                    (hasUser && !string.IsNullOrEmpty(uMeta.FullName) &&
+                     uMeta.FullName.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase)) ||
+                    (hasUser && !string.IsNullOrEmpty(uMeta.Email) &&
+                     uMeta.Email.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase)) ||
+                    (hasProp && !string.IsNullOrEmpty(pMeta.Name) &&
+                     pMeta.Name.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase)) ||
+                    (hasProp && !string.IsNullOrEmpty(pMeta.Code) &&
+                     pMeta.Code.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase));
 
                 if (isMatch)
                 {
@@ -282,35 +330,53 @@ public sealed class GetAuditLogsQueryHandler
         }
 
         // 6. Batch-resolve User and Property display metadata (Zero N+1 queries)
-        var distinctUserIds = pageRows
-            .Where(a => a.UserId.HasValue && a.UserId.Value != Guid.Empty)
-            .Select(a => a.UserId!.Value)
-            .Distinct()
-            .ToList();
+        Dictionary<Guid, (string? FullName, string? Email)> userLookup;
+        if (precomputedUserLookup != null)
+        {
+            userLookup = precomputedUserLookup;
+        }
+        else
+        {
+            var distinctUserIds = pageRows
+                .Where(a => a.UserId.HasValue && a.UserId.Value != Guid.Empty)
+                .Select(a => a.UserId!.Value)
+                .Distinct()
+                .ToList();
 
-        var userLookup = distinctUserIds.Count > 0
-            ? await _context.Users
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .Where(u => distinctUserIds.Contains(u.Id))
-                .Select(u => new { u.Id, u.FullName, u.Email })
-                .ToDictionaryAsync(u => u.Id, cancellationToken)
-            : new();
+            userLookup = distinctUserIds.Count > 0
+                ? (await _context.Users
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(u => distinctUserIds.Contains(u.Id))
+                    .Select(u => new { u.Id, u.FullName, u.Email })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(u => u.Id, u => ((string?)u.FullName, (string?)u.Email))
+                : new Dictionary<Guid, (string? FullName, string? Email)>();
+        }
 
-        var distinctPropertyIds = pageRows
-            .Where(a => a.PropertyId.HasValue && a.PropertyId.Value != Guid.Empty)
-            .Select(a => a.PropertyId!.Value)
-            .Distinct()
-            .ToList();
+        Dictionary<Guid, (string? Name, string? Code)> propertyLookup;
+        if (precomputedPropertyLookup != null)
+        {
+            propertyLookup = precomputedPropertyLookup;
+        }
+        else
+        {
+            var distinctPropertyIds = pageRows
+                .Where(a => a.PropertyId.HasValue && a.PropertyId.Value != Guid.Empty)
+                .Select(a => a.PropertyId!.Value)
+                .Distinct()
+                .ToList();
 
-        var propertyLookup = distinctPropertyIds.Count > 0
-            ? await _context.Properties
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .Where(p => p.TenantId == tenantId.Value && distinctPropertyIds.Contains(p.Id))
-                .Select(p => new { p.Id, p.Name, p.Code })
-                .ToDictionaryAsync(p => p.Id, cancellationToken)
-            : new();
+            propertyLookup = distinctPropertyIds.Count > 0
+                ? (await _context.Properties
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(p => p.TenantId == tenantId.Value && distinctPropertyIds.Contains(p.Id))
+                    .Select(p => new { p.Id, p.Name, p.Code })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(p => p.Id, p => ((string?)p.Name, (string?)p.Code))
+                : new Dictionary<Guid, (string? Name, string? Code)>();
+        }
 
         // 7. Map to safe DTOs with read-time sanitization
         var items = pageRows.Select(a =>
@@ -323,19 +389,21 @@ public sealed class GetAuditLogsQueryHandler
                     a.OldValues,
                     a.NewValues);
 
-            var userMeta = a.UserId.HasValue && userLookup.TryGetValue(a.UserId.Value, out var u) ? u : null;
-            var propMeta = a.PropertyId.HasValue && propertyLookup.TryGetValue(a.PropertyId.Value, out var p) ? p : null;
+            (string? FullName, string? Email) u = default;
+            var hasUser = a.UserId.HasValue && userLookup.TryGetValue(a.UserId.Value, out u);
+            (string? Name, string? Code) p = default;
+            var hasProp = a.PropertyId.HasValue && propertyLookup.TryGetValue(a.PropertyId.Value, out p);
 
             return new AuditLogListItemDto
             {
                 Id = a.Id,
                 TenantId = a.TenantId,
                 PropertyId = a.PropertyId,
-                PropertyName = propMeta?.Name,
-                PropertyCode = propMeta?.Code,
+                PropertyName = hasProp ? p.Name : null,
+                PropertyCode = hasProp ? p.Code : null,
                 UserId = a.UserId,
-                UserFullName = userMeta?.FullName,
-                UserEmail = userMeta?.Email,
+                UserFullName = hasUser ? u.FullName : null,
+                UserEmail = hasUser ? u.Email : null,
                 Action = a.Action,
                 EntityName = a.EntityName,
                 EntityId = a.EntityId,
@@ -408,7 +476,8 @@ public sealed class GetAuditLogsQueryHandler
             ["Cancel"] = "Cancel",
             ["StatusToggle"] = "StatusToggle",
             ["PublishApproval"] = "PublishApproval",
-            ["Upgrade"] = "Upgrade"
+            ["Upgrade"] = "Upgrade",
+            [AuditActions.LoginFailed] = AuditActions.LoginFailed
         };
 
     internal static bool TryNormalizeCanonicalAction(string? rawAction, out string canonicalAction)

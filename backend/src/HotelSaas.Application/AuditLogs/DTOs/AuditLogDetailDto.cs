@@ -23,6 +23,9 @@ public sealed record AuditLogDetailDto
     /// <summary>Tenant identifier owning this audit log entry.</summary>
     public Guid TenantId { get; init; }
 
+    /// <summary>Display name of the tenant enterprise, populated in platform-wide audit queries.</summary>
+    public string? TenantName { get; init; }
+
     /// <summary>Optional branch/property identifier. Null for tenant-wide entities without branch binding.</summary>
     public Guid? PropertyId { get; init; }
 

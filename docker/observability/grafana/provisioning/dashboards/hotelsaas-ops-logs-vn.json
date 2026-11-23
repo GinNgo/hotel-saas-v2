@@ -1,0 +1,643 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Bảng điều khiển vận hành & tra cứu log 100% tiếng Việt dành cho vận hành viên và quản trị viên Hotel SaaS Platform — không cần viết câu lệnh LogQL hay đọc JSON thô.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Mở Bảng SRE & Bảo mật chuyên sâu",
+      "tooltip": "Chuyển sang bảng giám sát chi tiết theo route, cách ly đa Tenant, SignalR và VNPay",
+      "type": "link",
+      "url": "/grafana/d/hotelsaas-sre-security"
+    }
+  ],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "panels": [],
+      "title": "1. Tổng quan nhanh (theo khung giờ đang chọn)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Kiểm tra Prometheus có đang kết nối và thu thập dữ liệu từ API Backend (HotelSaas.WebApi) hay không. 1 = Đang chạy ổn định, 0 = Mất kết nối.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            {
+              "options": {
+                "0": { "color": "red", "index": 0, "text": "Mất kết nối" },
+                "1": { "color": "green", "index": 1, "text": "Đang chạy" }
+              },
+              "type": "value"
+            }
+          ],
+          "noValue": "Mất kết nối",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max(up{job=\"hotelsaas-backend-api\"}) or vector(0)",
+          "legendFormat": "API Backend",
+          "refId": "A"
+        }
+      ],
+      "title": "Trạng thái API Backend",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Tổng số phản hồi lỗi máy chủ HTTP 5xx phát sinh trong khung giờ đang chọn (tính bằng increase[$__range], không cộng dồn suốt đời).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "round(increase(hotelsaas_http_5xx_errors_total[$__range]) or vector(0))",
+          "legendFormat": "Lỗi 5xx",
+          "refId": "A"
+        }
+      ],
+      "title": "Lỗi Hệ thống (5xx)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "95% yêu cầu API được xử lý nhanh hơn mốc thời gian này (tính theo cửa sổ 5 phút gần nhất). Dưới 500ms là nhanh, trên 1500ms cần kiểm tra hiệu năng.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 500 },
+              { "color": "red", "value": 1500 }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "(histogram_quantile(0.95, sum(rate(hotelsaas_http_request_duration_seconds_bucket[5m])) by (le)) * 1000) or vector(0)",
+          "legendFormat": "P95 (ms)",
+          "refId": "A"
+        }
+      ],
+      "title": "Độ trễ API P95 (ms)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Thống kê số lượng SePay VietQR Webhook theo từng trạng thái xử lý (confirmed, duplicate, partial, auth_failed, rejected_unconfigured_bank_account, error) trong khung giờ đang chọn.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "mappings": [],
+          "noValue": "0 (chưa có GD)",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "confirmed" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } },
+              { "id": "displayName", "value": "Thành công" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "auth_failed" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } },
+              { "id": "displayName", "value": "Sai API Key" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "rejected_unconfigured_bank_account" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } },
+              { "id": "displayName", "value": "Chưa cấu hình TK" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "error" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } },
+              { "id": "displayName", "value": "Lỗi xử lý" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "expired_hold_alert" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } },
+              { "id": "displayName", "value": "Chuyển trễ" }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "round(sum by (status) (increase(hotelsaas_sepay_webhook_total[$__range])))",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "title": "SePay Webhook (Thành công / Lỗi)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Tổng số yêu cầu bị giới hạn tần suất (HTTP 429 Too Many Requests) trên các nhóm chính sách auth, webhooks, public-api, ai-chat trong khung giờ đang chọn.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 20 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "round(sum(increase(hotelsaas_rate_limited_total[$__range])) or vector(0))",
+          "legendFormat": "Chặn 429",
+          "refId": "A"
+        }
+      ],
+      "title": "Chặn Rate Limit (429)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Tổng số yêu cầu bị từ chối xác thực hoặc phân quyền / cách ly Tenant (HTTP 401 và 403) trong khung giờ đang chọn.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 50 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "round(sum(increase(hotelsaas_http_route_requests_total{status=~\"401|403\"}[$__range])) or vector(0))",
+          "legendFormat": "Chặn 401/403",
+          "refId": "A"
+        }
+      ],
+      "title": "Chặn Bảo mật (401/403)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "panels": [],
+      "title": "2. Biểu đồ lưu lượng & thanh toán theo thời gian",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Biểu đồ số lượng yêu cầu HTTP mỗi phút tách biệt hoàn toàn 3 nhóm 2xx (Thành công), 4xx (Lỗi phía client) và 5xx (Lỗi máy chủ) — không cộng chồng đếm trùng.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": { "group": "A", "mode": "none" }
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "2xx Thành công" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "4xx Lỗi phía client" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "5xx Lỗi hệ thống" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 7,
+      "options": {
+        "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(hotelsaas_http_route_requests_total{status=~\"2..\"}[1m]))",
+          "legendFormat": "2xx Thành công",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(hotelsaas_http_route_requests_total{status=~\"4..\"}[1m]))",
+          "legendFormat": "4xx Lỗi phía client",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(hotelsaas_http_route_requests_total{status=~\"5..\"}[1m]))",
+          "legendFormat": "5xx Lỗi hệ thống",
+          "refId": "C"
+        }
+      ],
+      "title": "Lưu lượng Request & Lỗi theo phút",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Số lượng giao dịch SePay VietQR Webhook mỗi 5 phút chia theo trạng thái xử lý (confirmed, partial, duplicate, ignored, expired_hold_alert, auth_failed, rejected_unconfigured_bank_account, error).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "stacking": { "group": "A", "mode": "normal" }
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "confirmed" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "auth_failed" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "rejected_unconfigured_bank_account" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "dark-red", "mode": "fixed" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "error" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 8,
+      "options": {
+        "legend": { "calcs": ["sum", "lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (status) (increase(hotelsaas_sepay_webhook_total[5m]))",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Giao dịch SePay Webhook theo trạng thái",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "id": 102,
+      "panels": [],
+      "title": "3. Log Lỗi & Cảnh báo gọn 1 dòng (Dành cho Vận hành viên)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Hiển thị gọn 1 dòng dễ đọc cho các lỗi (Error/Fatal) và cảnh báo (Warning), đã tự động lọc bỏ /health và /metrics. Bấm vào bất kỳ dòng nào để mở rộng JSON chi tiết hoặc bấm vào Mã tra cứu để truy vết toàn bộ request.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 15 },
+      "id": 9,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{container=~\"$container\", level=~\"Error|Fatal|Warning\"} != \"/health\" != \"/metrics\" |~ \"(?i)$search\" |~ \"(?i)$endpoint\" |~ \"(?i)$tenant_id\" | json | line_format \"{{if .Level}}[{{.Level}}] {{if .Properties_StatusCode}}{{.Properties_StatusCode}} {{end}}{{if .Properties_RequestMethod}}{{.Properties_RequestMethod}} {{end}}{{if .Properties_RequestPath}}{{.Properties_RequestPath}} {{end}}{{if .Properties_ElapsedMs}}({{.Properties_ElapsedMs}}ms) {{end}}| {{or .RenderedMessage .MessageTemplate}}{{if .Properties_CorrelationId}} | Mã: {{.Properties_CorrelationId}}{{end}}{{if .Properties_ErrorCode}} | Err: {{.Properties_ErrorCode}}{{end}}{{else}}{{__line__}}{{end}}\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "⚠️ Log Lỗi & Cảnh báo (Dạng gọn dễ đọc)",
+      "type": "logs"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 },
+      "id": 103,
+      "panels": [],
+      "title": "4. Tra cứu Toàn bộ Log",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Dán Mã tra cứu (req-...) từ thông báo lỗi trên giao diện web, nhập từ khóa, email, đường dẫn API hoặc Mã Tenant vào thanh lọc phía trên để tra cứu. Bấm vào một dòng log để xem đầy đủ chi tiết JSON.",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 26 },
+      "id": 10,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{container=~\"$container\", level=~\"$level\"} != \"/health\" != \"/metrics\" |~ \"(?i)$search\" |~ \"(?i)$endpoint\" |~ \"(?i)$tenant_id\" | json | line_format \"{{if .Level}}[{{.Level}}] {{if .Properties_StatusCode}}{{.Properties_StatusCode}} {{end}}{{if .Properties_RequestMethod}}{{.Properties_RequestMethod}} {{end}}{{if .Properties_RequestPath}}{{.Properties_RequestPath}} {{end}}{{if .Properties_ElapsedMs}}({{.Properties_ElapsedMs}}ms) {{end}}| {{or .RenderedMessage .MessageTemplate}}{{if .Properties_CorrelationId}} | Mã: {{.Properties_CorrelationId}}{{end}}{{if .Properties_ErrorCode}} | Err: {{.Properties_ErrorCode}}{{end}}{{else}}{{__line__}}{{end}}\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "🔍 Tra cứu Toàn bộ Log (Nhập Mã tra cứu req-... hoặc từ khóa ở trên)",
+      "type": "logs"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["hotelsaas", "van-hanh", "logs", "vietnamese", "ops"],
+  "templating": {
+    "list": [
+      {
+        "allValue": ".+",
+        "current": {
+          "selected": true,
+          "text": ["All"],
+          "value": ["$__all"]
+        },
+        "datasource": { "type": "loki", "uid": "loki" },
+        "definition": "label_values(container)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Dịch vụ (Container)",
+        "multi": true,
+        "name": "container",
+        "options": [],
+        "query": "label_values(container)",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "Tất cả",
+          "value": "Error|Fatal|Warning|Information"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Mức độ Log",
+        "multi": false,
+        "name": "level",
+        "options": [
+          { "selected": true, "text": "Tất cả", "value": "Error|Fatal|Warning|Information" },
+          { "selected": false, "text": "Chỉ Lỗi & Nghiêm trọng", "value": "Error|Fatal" },
+          { "selected": false, "text": "Lỗi & Cảnh báo", "value": "Error|Fatal|Warning" },
+          { "selected": false, "text": "Thông tin", "value": "Information" },
+          { "selected": false, "text": "Toàn bộ Container (gồm Nginx/Caddy)", "value": ".*" }
+        ],
+        "query": "Tất cả : Error|Fatal|Warning|Information, Chỉ Lỗi & Nghiêm trọng : Error|Fatal, Lỗi & Cảnh báo : Error|Fatal|Warning, Thông tin : Information, Toàn bộ Container (gồm Nginx/Caddy) : .*",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        },
+        "hide": 0,
+        "label": "Từ khóa / Mã tra cứu (req-...) / Email",
+        "name": "search",
+        "options": [
+          { "selected": false, "text": "", "value": "" }
+        ],
+        "query": "",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        },
+        "hide": 0,
+        "label": "Đường dẫn API (VD: /api/webhooks/sepay)",
+        "name": "endpoint",
+        "options": [
+          { "selected": false, "text": "", "value": "" }
+        ],
+        "query": "",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        },
+        "hide": 0,
+        "label": "Mã Tenant (tùy chọn)",
+        "name": "tenant_id",
+        "options": [
+          { "selected": false, "text": "", "value": "" }
+        ],
+        "query": "",
+        "skipUrlSync": false,
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Hotel SaaS — Vận hành & Tra cứu Log (Dễ dùng)",
+  "uid": "hotelsaas-ops-logs-vn",
+  "version": 1
+}
