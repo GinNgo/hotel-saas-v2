@@ -131,4 +131,6 @@ public sealed class PrintTemplateSettingsDto
     public string CheckInPolicyText { get; set; } = string.Empty;
     public bool ShowVietQrCode { get; set; }
     public string DefaultPaperSize { get; set; } = "A4";
+    public string? SepayApiKey { get; init; }
+    public bool HasSepayApiKey { get; init; }
 }

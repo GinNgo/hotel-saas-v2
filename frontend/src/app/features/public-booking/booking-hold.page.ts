@@ -533,44 +533,42 @@ type QuoteWithPromo = QuoteDto & {
 
               <section class="space-y-3" aria-labelledby="payment-method-label">
                 <div>
-                  <h3 id="payment-method-label" class="text-sm font-bold text-slate-800">Chọn cách thanh toán tiền cọc</h3>
-                  <p class="text-xs text-slate-500 mt-1">Phòng chỉ được xác nhận sau khi khách sạn ghi nhận đủ khoản cọc.</p>
+                  <h3 id="payment-method-label" class="text-sm font-bold text-slate-800">Phương thức thanh toán tiền cọc</h3>
+                  <p class="text-xs text-slate-500 mt-1">Phòng chỉ được xác nhận sau khi hệ thống ghi nhận đủ khoản cọc tự động 24/7.</p>
                 </div>
-                <div
-                  class="grid gap-3"
-                  [ngClass]="showVnpay ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3'"
-                >
-                  @if (showVnpay) {
+                @if (showVnpay) {
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button type="button" (click)="selectPaymentMethod('VietQR')"
+                      [class.ring-2]="selectedPaymentMethod === 'VietQR'" [class.ring-amber-500]="selectedPaymentMethod === 'VietQR'"
+                      class="text-left rounded-xl border border-slate-200 bg-white p-3.5 hover:border-amber-400 transition-colors cursor-pointer">
+                      <span class="block text-xs font-bold text-slate-900">Chuyển khoản VietQR 24/7 (SePay)</span>
+                      <span class="block text-[11px] text-slate-500 mt-1">Tự động xác nhận đặt phòng sau 2–5 giây chuyển khoản.</span>
+                    </button>
                     <button type="button" (click)="selectPaymentMethod('VNPay')"
                       [class.ring-2]="selectedPaymentMethod === 'VNPay'" [class.ring-blue-600]="selectedPaymentMethod === 'VNPay'"
-                      class="text-left rounded-xl border border-slate-200 bg-white p-3 hover:border-blue-400 transition-colors cursor-pointer">
+                      class="text-left rounded-xl border border-slate-200 bg-white p-3.5 hover:border-blue-400 transition-colors cursor-pointer">
                       <span class="block text-xs font-bold text-slate-900">Thẻ / VNPay-QR</span>
                       <span class="block text-[11px] text-slate-500 mt-1">Thanh toán cọc qua VNPay Sandbox.</span>
                     </button>
-                  }
-                  <button type="button" (click)="selectPaymentMethod('VietQR')"
-                    [class.ring-2]="selectedPaymentMethod === 'VietQR'" [class.ring-amber-500]="selectedPaymentMethod === 'VietQR'"
-                    class="text-left rounded-xl border border-slate-200 bg-white p-3 hover:border-amber-400 transition-colors cursor-pointer">
-                    <span class="block text-xs font-bold text-slate-900">Chuyển khoản VietQR</span>
-                    <span class="block text-[11px] text-slate-500 mt-1">Chuyển khoản VietQR (Tự động xác nhận 2–5 giây qua SePay)</span>
-                  </button>
-                  <button type="button" (click)="selectPaymentMethod('PayAtHotel')"
-                    [class.ring-2]="selectedPaymentMethod === 'PayAtHotel'" [class.ring-emerald-600]="selectedPaymentMethod === 'PayAtHotel'"
-                    class="text-left rounded-xl border border-slate-200 bg-white p-3 hover:border-emerald-400 transition-colors cursor-pointer">
-                    <span class="block text-xs font-bold text-slate-900">Tiền mặt tại khách sạn</span>
-                    <span class="block text-[11px] text-slate-500 mt-1">Nộp cọc tại quầy trong 15 phút; nhân viên xác nhận đơn.</span>
-                  </button>
-                  <button type="button" (click)="selectPaymentMethod('BankTransfer')"
-                    [class.ring-2]="selectedPaymentMethod === 'BankTransfer'" [class.ring-violet-600]="selectedPaymentMethod === 'BankTransfer'"
-                    class="text-left rounded-xl border border-slate-200 bg-white p-3 hover:border-violet-400 transition-colors cursor-pointer">
-                    <span class="block text-xs font-bold text-slate-900">Chuyển khoản ngân hàng</span>
-                    <span class="block text-[11px] text-slate-500 mt-1">Chuyển khoản thủ công theo hướng dẫn của cơ sở.</span>
-                  </button>
-                </div>
-                @if (selectedPaymentMethod === 'PayAtHotel') {
-                  <div role="note" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-950">
-                    Tiền cọc dự kiến: <strong class="tabular-nums">{{ (priceAny()?.depositRequired ?? ((priceAny()?.totalAmount ?? 0) * 0.3)) | vndCurrency }}</strong>.
-                    Đến quầy lễ tân và nộp cọc trước khi giữ phòng hết hạn. Nhân viên sẽ ghi nhận tiền mặt và xác nhận đặt phòng; nếu chưa nộp kịp, giữ phòng sẽ tự hết hạn.
+                  </div>
+                } @else {
+                  <div
+                    data-testid="sepay-vietqr-method-card"
+                    class="rounded-2xl border-2 border-amber-300 bg-amber-50/80 p-4 space-y-2 shadow-2xs"
+                  >
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                      <span class="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-900">
+                        <i class="pi pi-qrcode text-amber-600 text-base"></i>
+                        <span>Thanh toán cọc tự động qua Chuyển khoản VietQR 24/7 (SePay)</span>
+                      </span>
+                      <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        <i class="pi pi-bolt text-[9px]"></i>
+                        <span>Xác nhận 2–5 giây</span>
+                      </span>
+                    </div>
+                    <p class="text-xs text-slate-700 leading-relaxed">
+                      Hỗ trợ mọi ứng dụng Ngân hàng &amp; Ví điện tử 24/7. Hệ thống tự động xác nhận đặt phòng và cấp mã nhận phòng chỉ sau 2–5 giây chuyển khoản.
+                    </p>
                   </div>
                 }
               </section>
@@ -1057,7 +1055,7 @@ export class BookingHoldPageComponent implements OnInit, OnDestroy, HasUnsavedCh
   }
   guestEmail = '';
   readonly showVnpay = environment.enableVnpay;
-  selectedPaymentMethod: 'VNPay' | 'VietQR' | 'PayAtHotel' | 'BankTransfer' = environment.enableVnpay ? 'VNPay' : 'VietQR';
+  selectedPaymentMethod: 'VNPay' | 'VietQR' | 'PayAtHotel' | 'BankTransfer' = 'VietQR';
 
   private timerInterval?: ReturnType<typeof setInterval>;
   private quoteTimerInterval?: ReturnType<typeof setInterval>;

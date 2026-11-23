@@ -116,6 +116,20 @@ public sealed class SavePrintTemplateConfigCommandHandler : IRequestHandler<Save
         config.CheckInPolicyText = (request.CheckInPolicyText ?? string.Empty).Trim();
         config.ShowVietQrCode = request.ShowVietQrCode;
         config.DefaultPaperSize = string.IsNullOrWhiteSpace(request.DefaultPaperSize) ? "A4" : request.DefaultPaperSize.Trim();
+
+        if (request.SepayApiKey == null || request.SepayApiKey.Trim() == "********")
+        {
+            // Preserve existing config.SepayApiKey unchanged
+        }
+        else if (string.IsNullOrWhiteSpace(request.SepayApiKey))
+        {
+            config.SepayApiKey = null;
+        }
+        else
+        {
+            config.SepayApiKey = request.SepayApiKey.Trim();
+        }
+
         config.UpdatedAtUtc = DateTime.UtcNow;
 
         await _context.SaveChangesAsync(cancellationToken);

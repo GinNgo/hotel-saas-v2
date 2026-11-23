@@ -654,18 +654,18 @@ interface ErrorWithMessage {
               </div>
             </div>
 
-            <!-- VietQR Banking Info -->
-            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                  <i class="pi pi-qrcode text-indigo-600"></i>
-                  <span>Tài khoản Ngân hàng tích hợp mã thanh toán VietQR tự động</span>
+            <!-- VietQR & SePay Banking Info -->
+            <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700 space-y-4">
+              <div class="flex items-center justify-between flex-wrap gap-2">
+                <span class="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                  <i class="pi pi-qrcode text-indigo-600 dark:text-indigo-400"></i>
+                  <span>Tài khoản Ngân hàng tích hợp mã thanh toán VietQR &amp; SePay tự động</span>
                 </span>
-                <label class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                <label class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
                   <input
                     type="checkbox"
                     formControlName="showVietQrCode"
-                    class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
                   />
                   <span>In mã VietQR lên hóa đơn</span>
                 </label>
@@ -673,31 +673,136 @@ interface ErrorWithMessage {
 
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div class="space-y-1">
-                  <label class="block text-[11px] font-medium text-slate-600">Ngân hàng (Mã BIN / Tên NH)</label>
+                  <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-300">Ngân hàng (Mã BIN / Tên NH)</label>
                   <input
                     type="text"
                     formControlName="bankName"
+                    list="vietqr-banks-list"
                     placeholder="MBBank, Vietcombank, ACB..."
-                    class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs text-slate-800"
+                    class="w-full min-h-11 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-100"
                   />
+                  <datalist id="vietqr-banks-list">
+                    @for (bank of supportedVietQrBanks; track bank) {
+                      <option [value]="bank">{{ bank }}</option>
+                    }
+                  </datalist>
                 </div>
                 <div class="space-y-1">
-                  <label class="block text-[11px] font-medium text-slate-600">Số tài khoản nhận tiền</label>
+                  <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-300">Số tài khoản nhận tiền</label>
                   <input
                     type="text"
                     formControlName="bankAccountNumber"
                     placeholder="999988887777"
-                    class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-mono font-bold text-indigo-900"
+                    class="w-full min-h-11 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-mono font-bold text-indigo-900 dark:text-indigo-300"
                   />
                 </div>
                 <div class="space-y-1">
-                  <label class="block text-[11px] font-medium text-slate-600">Tên chủ tài khoản</label>
+                  <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-300">Tên chủ tài khoản</label>
                   <input
                     type="text"
                     formControlName="bankAccountHolder"
                     placeholder="CTY CP KHACH SAN..."
-                    class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs uppercase font-semibold text-slate-800"
+                    class="w-full min-h-11 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs uppercase font-semibold text-slate-800 dark:text-slate-100"
                   />
+                </div>
+              </div>
+
+              <!-- Per-Property SePay Webhook API Key & Ready-to-Copy Webhook URL -->
+              <div class="pt-3 border-t border-slate-200/80 dark:border-slate-700 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="space-y-1.5">
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <label for="sepay-api-key-input" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+                      SePay Webhook API Key riêng của cơ sở (Tùy chọn)
+                    </label>
+                    @if (hasSepayApiKey()) {
+                      <span
+                        data-testid="sepay-key-status-badge"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                      >
+                        <i class="pi pi-check-circle text-[9px]"></i>
+                        <span>Đã cấu hình Key riêng</span>
+                      </span>
+                    } @else {
+                      <span
+                        data-testid="sepay-key-status-badge"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
+                      >
+                        <i class="pi pi-globe text-[9px]"></i>
+                        <span>Dùng cổng SePay chung toàn hệ thống</span>
+                      </span>
+                    }
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <div class="relative flex-1 min-w-0">
+                      <input
+                        id="sepay-api-key-input"
+                        data-testid="sepay-api-key-input"
+                        [type]="showSepayApiKey() ? 'text' : 'password'"
+                        formControlName="sepayApiKey"
+                        (input)="onSepayApiKeyInput()"
+                        placeholder="Để trống nếu dùng SePay API Key chung hoặc nhập Key riêng của chi nhánh..."
+                        autocomplete="off"
+                        class="w-full min-h-11 pl-3 pr-11 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-mono text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
+                      />
+                      <button
+                        type="button"
+                        data-testid="toggle-sepay-key-visibility-btn"
+                        (click)="toggleSepayApiKeyVisibility()"
+                        [attr.aria-label]="showSepayApiKey() ? 'Ẩn SePay API Key' : 'Hiện SePay API Key'"
+                        class="min-h-11 min-w-11 absolute right-0 top-0 bottom-0 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+                      >
+                        <i class="pi text-xs" [ngClass]="showSepayApiKey() ? 'pi-eye-slash' : 'pi-eye'"></i>
+                      </button>
+                    </div>
+
+                    @if (hasSepayApiKey() || printConfigForm.get('sepayApiKey')?.value) {
+                      <button
+                        type="button"
+                        data-testid="clear-sepay-api-key-btn"
+                        (click)="clearSepayApiKey()"
+                        class="min-h-11 px-3 py-1.5 rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/70 text-rose-700 dark:text-rose-300 text-xs font-semibold transition-colors cursor-pointer shrink-0"
+                      >
+                        Xóa Key riêng
+                      </button>
+                    }
+                  </div>
+                  <p class="text-[10px] text-slate-500 dark:text-slate-400">
+                    Mỗi cơ sở có thể dùng tài khoản ngân hàng &amp; SePay API Key độc lập. Nếu để trống, hệ thống tự động đối chiếu bằng Key mặc định.
+                  </p>
+                </div>
+
+                <!-- Ready-to-Copy Webhook URL Card -->
+                <div class="p-3 rounded-xl bg-white dark:bg-slate-900 border border-indigo-200/80 dark:border-indigo-800/70 space-y-2 flex flex-col justify-between">
+                  <div class="space-y-1">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-[11px] font-bold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                        <i class="pi pi-link text-indigo-600 dark:text-indigo-400 text-xs"></i>
+                        <span>Địa chỉ nhận SePay Webhook của cơ sở này</span>
+                      </span>
+                      @if (isWebhookUrlCopied()) {
+                        <span class="text-[10px] font-bold text-emerald-700 dark:text-emerald-400">Đã sao chép!</span>
+                      }
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <code
+                        data-testid="sepay-webhook-url-code"
+                        class="flex-1 min-w-0 px-2.5 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-mono text-indigo-900 dark:text-indigo-300 break-all select-all border border-slate-200/70 dark:border-slate-700"
+                      >{{ sepayWebhookUrl() }}</code>
+                      <button
+                        type="button"
+                        data-testid="copy-sepay-webhook-url-btn"
+                        (click)="copySepayWebhookUrl()"
+                        class="min-h-11 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                      >
+                        <i class="pi text-xs" [ngClass]="isWebhookUrlCopied() ? 'pi-check text-emerald-600' : 'pi-copy'"></i>
+                        <span>Sao chép URL Webhook</span>
+                      </button>
+                    </div>
+                  </div>
+                  <p class="text-[10px] text-slate-600 dark:text-slate-400 leading-snug">
+                    Cài trên SePay Dashboard -&gt; Webhooks: Sự kiện Tiền vào (In) | Chứng thực: API Key | JSON
+                  </p>
                 </div>
               </div>
             </div>
@@ -761,6 +866,43 @@ export class PoliciesPage implements OnInit, OnDestroy, HasUnsavedChanges {
   readonly canRead = computed(() => this.authService.hasPermission('PROPERTIES', 1));
   readonly canUpdate = computed(() => this.authService.hasPermission('PROPERTIES', 4));
   readonly cancellationTiers = POL_C03_CANCELLATION_TIERS;
+  readonly supportedVietQrBanks: readonly string[] = [
+    'MBBank',
+    'Vietcombank',
+    'VietinBank',
+    'BIDV',
+    'ACB',
+    'Techcombank',
+    'VPBank',
+    'TPBank',
+    'Sacombank',
+    'VIB',
+    'HDBank',
+    'MSB',
+    'OCB',
+    'SHB',
+    'SeABank',
+    'Eximbank',
+    'Agribank'
+  ];
+
+  readonly showSepayApiKey = signal(false);
+  readonly hasSepayApiKey = signal(false);
+  readonly isWebhookUrlCopied = signal(false);
+  private webhookCopyTimer?: ReturnType<typeof setTimeout>;
+
+  readonly webhookOrigin = computed(() => {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return window.location.origin;
+    }
+    return 'http://localhost';
+  });
+
+  readonly sepayWebhookUrl = computed(() => {
+    const propId = this.propertyId();
+    const origin = this.webhookOrigin();
+    return propId ? `${origin}/api/webhooks/sepay/${propId}` : `${origin}/api/webhooks/sepay`;
+  });
 
   policyForm!: FormGroup;
   printConfigForm!: FormGroup;
@@ -792,9 +934,55 @@ export class PoliciesPage implements OnInit, OnDestroy, HasUnsavedChanges {
 
   ngOnDestroy(): void {
     this.cancelPendingRequests();
+    if (this.webhookCopyTimer) {
+      clearTimeout(this.webhookCopyTimer);
+      this.webhookCopyTimer = undefined;
+    }
     this.isFallbackDestroyed = true;
     const callbacks = this.fallbackDestroyCallbacks.splice(0);
     callbacks.forEach(cb => cb());
+  }
+
+  toggleSepayApiKeyVisibility(): void {
+    this.showSepayApiKey.update(v => !v);
+  }
+
+  onSepayApiKeyInput(): void {
+    const val = String(this.printConfigForm?.get('sepayApiKey')?.value ?? '').trim();
+    this.hasSepayApiKey.set(val.length > 0);
+  }
+
+  clearSepayApiKey(): void {
+    if (!this.canUpdate()) return;
+    this.printConfigForm?.patchValue({ sepayApiKey: '' });
+    this.printConfigForm?.markAsDirty();
+    this.hasSepayApiKey.set(false);
+  }
+
+  copySepayWebhookUrl(): void {
+    const url = this.sepayWebhookUrl();
+    if (!url) return;
+    const markCopied = () => {
+      this.isWebhookUrlCopied.set(true);
+      if (this.webhookCopyTimer) {
+        clearTimeout(this.webhookCopyTimer);
+      }
+      this.webhookCopyTimer = setTimeout(() => {
+        this.isWebhookUrlCopied.set(false);
+        this.webhookCopyTimer = undefined;
+        this.cdr?.markForCheck();
+      }, 2000);
+      this.alertService.toastSuccess('Đã sao chép URL Webhook SePay của cơ sở.', 'Đã sao chép');
+      this.cdr?.markForCheck();
+    };
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(url).then(markCopied).catch(() => {
+        markCopied();
+      });
+    } else {
+      markCopied();
+    }
   }
 
   hasUnsavedChanges(): boolean {
@@ -851,6 +1039,7 @@ export class PoliciesPage implements OnInit, OnDestroy, HasUnsavedChanges {
       bankName: ['MBBank'],
       bankAccountNumber: [''],
       bankAccountHolder: [''],
+      sepayApiKey: [''],
       footerNote: ['Cảm ơn Quý khách đã sử dụng dịch vụ của chúng tôi!'],
       checkInPolicyText: ['Vui lòng xuất trình CCCD/Hộ chiếu khi làm thủ tục nhận phòng.'],
       showVietQrCode: [true],
@@ -870,6 +1059,9 @@ export class PoliciesPage implements OnInit, OnDestroy, HasUnsavedChanges {
     this.surchargesArray.clear();
     this.policyForm.markAsPristine();
     this.policyForm.markAsUntouched();
+    this.printConfigForm?.patchValue({ sepayApiKey: '' });
+    this.hasSepayApiKey.set(false);
+    this.showSepayApiKey.set(false);
     this.printConfigForm?.markAsPristine();
     this.printConfigForm?.markAsUntouched();
   }
@@ -946,6 +1138,7 @@ export class PoliciesPage implements OnInit, OnDestroy, HasUnsavedChanges {
               return;
             }
             if (cfg && this.printConfigForm) {
+              const keyVal = cfg.sepayApiKey || '';
               this.printConfigForm.patchValue({
                 headerCompanyName: cfg.headerCompanyName || '',
                 headerAddress: cfg.headerAddress || '',
@@ -955,11 +1148,13 @@ export class PoliciesPage implements OnInit, OnDestroy, HasUnsavedChanges {
                 bankName: cfg.bankName || 'MBBank',
                 bankAccountNumber: cfg.bankAccountNumber || '',
                 bankAccountHolder: cfg.bankAccountHolder || '',
+                sepayApiKey: keyVal,
                 footerNote: cfg.footerNote || '',
                 checkInPolicyText: cfg.checkInPolicyText || '',
                 showVietQrCode: cfg.showVietQrCode ?? true,
                 defaultPaperSize: cfg.defaultPaperSize || 'A4'
               });
+              this.hasSepayApiKey.set(Boolean(cfg.hasSepayApiKey ?? keyVal.trim().length > 0));
               this.printConfigForm.markAsPristine();
               this.cdr?.markForCheck();
             }
@@ -984,6 +1179,11 @@ export class PoliciesPage implements OnInit, OnDestroy, HasUnsavedChanges {
           this.isSavingPrintConfig.set(false);
           if (updated) {
             this.printConfigForm.patchValue(updated);
+            const updatedKey = String(updated.sepayApiKey ?? raw.sepayApiKey ?? '').trim();
+            this.hasSepayApiKey.set(Boolean(updated.hasSepayApiKey ?? updatedKey.length > 0));
+          } else {
+            const rawKey = String(raw.sepayApiKey ?? '').trim();
+            this.hasSepayApiKey.set(rawKey.length > 0);
           }
           this.printConfigForm.markAsPristine();
           this.alertService.toastSuccess('Đã lưu cấu hình mẫu in hóa đơn & VietQR.', 'Thành công');

@@ -10,11 +10,16 @@ export interface PrintTemplateConfigDto {
   bankName: string;
   bankAccountNumber: string;
   bankAccountHolder: string;
+  sepayApiKey?: string | null;
+  hasSepayApiKey?: boolean;
   footerNote: string;
   checkInPolicyText: string;
   showVietQrCode: boolean;
   defaultPaperSize: string;
 }
+
+export type PrintTemplateSettingsDto = PrintTemplateConfigDto;
+export type SavePrintTemplateConfigRequest = PrintTemplateConfigDto;
 
 export interface PrintInvoiceItemDto {
   description: string;

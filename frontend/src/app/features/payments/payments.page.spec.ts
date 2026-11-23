@@ -26,6 +26,8 @@ import {
 } from './payments.page';
 import { PaymentService } from '../../core/services/payment.service';
 import { AuthService } from '../../core/services/auth.service';
+import { NotificationService } from '../../core/services/notification.service';
+import { NotificationItem } from '../../shared/components/notification-bell/notification-bell.model';
 import {
   PaymentMethod,
   PaymentStatus,
@@ -48,6 +50,8 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
   let component: PaymentsPage;
   let mockPaymentService: any;
   let mockAuthService: any;
+  let mockNotificationService: { notifications: WritableSignal<readonly NotificationItem[]> };
+  let notificationsSignal: WritableSignal<readonly NotificationItem[]>;
   let activePropertyIdSignal: WritableSignal<string | null>;
   let activePropertyNameSignal: WritableSignal<string | null>;
   let hasPermissionMock: ReturnType<typeof vi.fn>;
@@ -205,12 +209,18 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       createPayment: vi.fn().mockReturnValue(of(samplePaymentCreated))
     };
 
+    notificationsSignal = signal<readonly NotificationItem[]>([]);
+    mockNotificationService = {
+      notifications: notificationsSignal
+    };
+
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [PaymentsPage],
       providers: [
         { provide: AuthService, useValue: mockAuthService },
-        { provide: PaymentService, useValue: mockPaymentService }
+        { provide: PaymentService, useValue: mockPaymentService },
+        { provide: NotificationService, useValue: mockNotificationService }
       ]
     }).compileComponents();
   });
@@ -1061,7 +1071,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       expect(component.isDepositPayment()).toBe(false);
     });
 
-    it('should require bank confirmation and transaction reference for BankTransfer method before submitting', () => {
+    it('should require bank confirmation for BankTransfer method and auto-fill VIETQR-MANUAL when transactionRef is blank', () => {
       fixture = TestBed.createComponent(PaymentsPage);
       component = fixture.componentInstance;
       fixture.detectChanges();
@@ -1073,7 +1083,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       component.paymentMethod.set(PaymentMethod.BankTransfer);
       component.paymentTransactionRef = '';
 
-      // 1. Without transaction ref
+      // 1. Without transaction ref and without confirmation checkbox
       component.submitPayment('res-001-bbbb');
       expect(component.folioError()).toContain('Vui lòng nhập mã giao dịch ngân hàng');
       expect(mockPaymentService.createPayment).not.toHaveBeenCalled();
@@ -1084,7 +1094,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       expect(component.folioError()).toContain('Thu ngân phải xác nhận tiền đã vào tài khoản');
       expect(mockPaymentService.createPayment).not.toHaveBeenCalled();
 
-      // 3. With confirmation checkbox checked
+      // 3. With confirmation checkbox checked and explicit ref
       component.toggleBankTransferConfirmed();
       expect(component.isBankTransferConfirmed()).toBe(true);
 
@@ -1100,6 +1110,74 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       );
       // Confirmation reset after submission
       expect(component.isBankTransferConfirmed()).toBe(false);
+
+      // 4. With confirmation checkbox checked and blank ref -> auto-fills VIETQR-MANUAL
+      mockPaymentService.createPayment.mockClear();
+      component.paymentAmount = 500000;
+      component.paymentMethod.set(PaymentMethod.BankTransfer);
+      component.paymentTransactionRef = '';
+      component.toggleBankTransferConfirmed();
+      expect(component.isBankTransferConfirmed()).toBe(true);
+
+      component.submitPayment('res-001-bbbb');
+      expect(mockPaymentService.createPayment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reservationId: 'res-001-bbbb',
+          amount: 500000,
+          method: PaymentMethod.BankTransfer,
+          transactionRef: 'VIETQR-MANUAL'
+        }),
+        'prop-1111'
+      );
+    });
+
+    it('should automatically refresh active Folio, Summary, Payments, and Shift Report when SignalR BookingPaymentConfirmed notification arrives', () => {
+      fixture = TestBed.createComponent(PaymentsPage);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+
+      component.loadFolio('res-001-bbbb');
+      fixture.detectChanges();
+      expect(component.folio()?.remainingBalance).toBe(1500000);
+
+      mockPaymentService.getFolio.mockClear();
+      mockPaymentService.getPaymentSummary.mockClear();
+      mockPaymentService.getPayments.mockClear();
+      mockPaymentService.getShiftReport.mockClear();
+
+      const paidFolio: FolioDto = {
+        ...sampleFolio,
+        paidAmount: 2000000,
+        remainingBalance: 0,
+        isFullyPaid: true
+      };
+      mockPaymentService.getFolio.mockReturnValue(of(paidFolio));
+
+      notificationsSignal.set([
+        {
+          id: 'notif-sepay-live-1',
+          tenantId: 'tenant-1',
+          propertyId: 'prop-1111',
+          type: 'BookingPaymentConfirmed',
+          title: 'SePay đã nhận tiền chuyển khoản',
+          message: 'Đơn CONF-12345 vừa được thanh toán 1.500.000 ₫ qua VietQR SePay.',
+          createdAtUtc: '2026-10-12T06:00:00Z',
+          isRead: false,
+          metadata: {
+            reservationId: 'res-001-bbbb',
+            confirmationCode: 'CONF-12345',
+            amount: 1500000
+          }
+        }
+      ]);
+      fixture.detectChanges();
+
+      expect(mockPaymentService.getFolio).toHaveBeenCalledWith('res-001-bbbb', 'prop-1111');
+      expect(mockPaymentService.getPaymentSummary).toHaveBeenCalled();
+      expect(mockPaymentService.getPayments).toHaveBeenCalled();
+      expect(mockPaymentService.getShiftReport).toHaveBeenCalled();
+      expect(component.folio()?.remainingBalance).toBe(0);
+      expect(component.paymentAmount).toBe(0);
     });
 
     it('should display shift report as "Báo cáo thu theo ca" with 06-14, 14-22, 22-06 shift options and note demo convention', () => {

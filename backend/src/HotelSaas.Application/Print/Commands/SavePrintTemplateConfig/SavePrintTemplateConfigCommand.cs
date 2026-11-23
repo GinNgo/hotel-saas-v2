@@ -19,5 +19,6 @@ public sealed record SavePrintTemplateConfigCommand(
     string FooterNote,
     string CheckInPolicyText,
     bool ShowVietQrCode,
-    string DefaultPaperSize
+    string DefaultPaperSize,
+    string? SepayApiKey = null
 ) : IRequest<PrintTemplateSettingsDto>;

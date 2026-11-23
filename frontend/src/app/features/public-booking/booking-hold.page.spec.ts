@@ -1174,6 +1174,20 @@ describe('BookingHoldPageComponent (T01 — Giữ phòng, hết hạn và thử 
       expect(mockClose).toHaveBeenCalled();
       expect((component as any).broadcastChannel).toBeUndefined();
     });
+
+    it('should render streamlined SePay VietQR 24/7 payment card without manual PayAtHotel or manual BankTransfer option buttons in B2C checkout', () => {
+      component.booking.set(null);
+      fillValidContactForm();
+      fixture.detectChanges();
+
+      expect(component.selectedPaymentMethod).toBe('VietQR');
+      const compiled = fixture.nativeElement as HTMLElement;
+      const sepayCard = compiled.querySelector('[data-testid="sepay-vietqr-method-card"]');
+      expect(sepayCard).not.toBeNull();
+      expect(sepayCard?.textContent).toContain('Thanh toán cọc tự động qua Chuyển khoản VietQR 24/7 (SePay)');
+      expect(compiled.textContent).not.toContain('Nộp cọc tại quầy trong 15 phút');
+      expect(compiled.textContent).not.toContain('Chuyển khoản thủ công theo hướng dẫn của cơ sở');
+    });
   });
 });
 

@@ -190,7 +190,8 @@ public sealed class PrintDocumentsController : ControllerBase
                 request.FooterNote,
                 request.CheckInPolicyText,
                 request.ShowVietQrCode,
-                request.DefaultPaperSize), cancellationToken);
+                request.DefaultPaperSize,
+                request.SepayApiKey), cancellationToken);
 
             return Ok(MapTemplateConfigDto(dto));
         }
@@ -257,7 +258,9 @@ public sealed class PrintDocumentsController : ControllerBase
         FooterNote = dto.FooterNote,
         CheckInPolicyText = dto.CheckInPolicyText,
         ShowVietQrCode = dto.ShowVietQrCode,
-        DefaultPaperSize = dto.DefaultPaperSize
+        DefaultPaperSize = dto.DefaultPaperSize,
+        SepayApiKey = dto.SepayApiKey,
+        HasSepayApiKey = dto.HasSepayApiKey
     };
 }
 
@@ -311,4 +314,6 @@ public sealed class PrintTemplateConfigDto
     public string CheckInPolicyText { get; set; } = string.Empty;
     public bool ShowVietQrCode { get; set; }
     public string DefaultPaperSize { get; set; } = "A4";
+    public string? SepayApiKey { get; set; }
+    public bool HasSepayApiKey { get; set; }
 }

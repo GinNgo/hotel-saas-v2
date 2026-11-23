@@ -46,34 +46,36 @@ public sealed class WebhooksController : ControllerBase
         _metricsRecorder = metricsRecorder;
     }
 
+    [NonAction]
+    public Task<IActionResult> HandleSepayWebhook(
+        SepayWebhookPayload? payload,
+        CancellationToken cancellationToken) =>
+        HandleSepayWebhook(payload, propertyId: null, cancellationToken);
+
     /// <summary>
     /// Receives incoming bank transfer notifications from SePay using constant-time Apikey authentication.
+    /// Supports both global webhook endpoint (<c>/api/webhooks/sepay</c>) and property-scoped endpoint (<c>/api/webhooks/sepay/{propertyId}</c>).
     /// Always returns HTTP 200 OK after authentication for handled, ignored, duplicate, partial, or expired events.
     /// </summary>
     [HttpPost("sepay")]
+    [HttpPost("sepay/{propertyId:guid}")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(SepayWebhookHttpResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(SepayWebhookErrorResponse), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> HandleSepayWebhook(
         [FromBody] SepayWebhookPayload? payload,
+        [FromRoute] Guid? propertyId = null,
         CancellationToken cancellationToken = default)
     {
-        if (!IsValidSepayApiKey())
+        if (!TryExtractSepayApiKey(out var providedKey))
         {
-            var clientIp = HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
-            var correlationId = ResolveCorrelationId();
-            if (HttpContext != null)
-            {
-                HttpContext.Items["ErrorCode"] = "ERR_SEPAY_UNAUTHORIZED";
-            }
+            return RejectUnauthorized();
+        }
 
-            _logger?.LogWarning(
-                "SePay webhook authentication rejected (401 Unauthorized) from ClientIp={ClientIp} [CorrelationId={CorrelationId}]",
-                clientIp,
-                correlationId);
-            _metricsRecorder?.RecordSepayWebhook("auth_failed");
-
-            return Unauthorized(new SepayWebhookErrorResponse(false, "Unauthorized", correlationId));
+        var isGlobalKeyMatch = IsConstantTimeMatch(providedKey, _configuration["Payment:Sepay:ApiKey"]);
+        if (!isGlobalKeyMatch && payload == null)
+        {
+            return RejectUnauthorized();
         }
 
         if (payload == null)
@@ -100,11 +102,19 @@ public sealed class WebhooksController : ControllerBase
             Accumulated: payload.Accumulated,
             ReferenceCode: payload.ReferenceCode,
             ExpectedPlatformAccountNumber: expectedPlatformAccount,
-            RequireBankAccountMatch: requireBankAccountMatch);
+            RequireBankAccountMatch: requireBankAccountMatch,
+            ProvidedApiKey: providedKey,
+            IsGlobalApiKeyMatched: isGlobalKeyMatch,
+            RoutePropertyId: propertyId);
 
         try
         {
             var result = await _mediator.Send(command, cancellationToken);
+            if (string.Equals(result.Status, "unauthorized", StringComparison.OrdinalIgnoreCase))
+            {
+                return RejectUnauthorized();
+            }
+
             return Ok(new SepayWebhookHttpResponse(true, result.Status, result.Message));
         }
         catch
@@ -160,13 +170,27 @@ public sealed class WebhooksController : ControllerBase
         return !string.IsNullOrWhiteSpace(fallback) ? fallback : null;
     }
 
-    private bool IsValidSepayApiKey()
+    private IActionResult RejectUnauthorized()
     {
-        var configuredKey = _configuration["Payment:Sepay:ApiKey"];
-        if (string.IsNullOrWhiteSpace(configuredKey))
+        var clientIp = HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
+        var correlationId = ResolveCorrelationId();
+        if (HttpContext != null)
         {
-            return false;
+            HttpContext.Items["ErrorCode"] = "ERR_SEPAY_UNAUTHORIZED";
         }
+
+        _logger?.LogWarning(
+            "SePay webhook authentication rejected (401 Unauthorized) from ClientIp={ClientIp} [CorrelationId={CorrelationId}]",
+            clientIp,
+            correlationId);
+        _metricsRecorder?.RecordSepayWebhook("auth_failed");
+
+        return Unauthorized(new SepayWebhookErrorResponse(false, "Unauthorized", correlationId));
+    }
+
+    private bool TryExtractSepayApiKey(out string providedKey)
+    {
+        providedKey = string.Empty;
 
         if (Request?.Headers == null ||
             !Request.Headers.TryGetValue("Authorization", out var authValues))
@@ -181,14 +205,19 @@ public sealed class WebhooksController : ControllerBase
             return false;
         }
 
-        var providedKey = rawHeader[prefix.Length..].Trim();
-        if (string.IsNullOrEmpty(providedKey))
+        providedKey = rawHeader[prefix.Length..].Trim();
+        return !string.IsNullOrEmpty(providedKey);
+    }
+
+    private static bool IsConstantTimeMatch(string? providedKey, string? expectedKey)
+    {
+        if (string.IsNullOrWhiteSpace(providedKey) || string.IsNullOrWhiteSpace(expectedKey))
         {
             return false;
         }
 
-        var expectedBytes = Encoding.UTF8.GetBytes(configuredKey.Trim());
-        var providedBytes = Encoding.UTF8.GetBytes(providedKey);
+        var expectedBytes = Encoding.UTF8.GetBytes(expectedKey.Trim());
+        var providedBytes = Encoding.UTF8.GetBytes(providedKey.Trim());
 
         return expectedBytes.Length == providedBytes.Length &&
                CryptographicOperations.FixedTimeEquals(expectedBytes, providedBytes);

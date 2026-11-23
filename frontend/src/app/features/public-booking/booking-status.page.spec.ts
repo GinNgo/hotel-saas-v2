@@ -984,8 +984,8 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
       expect(compiled.textContent).not.toContain('Mã Mở Khóa Cửa Điện Tử');
     });
 
-    // 32. Phương thức thanh toán: Hiển thị VietQR NAPAS 24/7 (SePay) và ẩn cổng VNPay khi tắt cờ enableVnpay
-    it('32. should display VietQR NAPAS 24/7 (SePay) and hide VNPay UI when enableVnpay is false', () => {
+    // 32. Phương thức thanh toán: Hiển thị VietQR NAPAS 24/7 (SePay), ẩn cổng VNPay khi tắt cờ enableVnpay và không hiển thị hướng dẫn nộp tiền mặt tại quầy trên đơn online
+    it('32. should display VietQR NAPAS 24/7 (SePay) and hide VNPay UI and manual front-desk cash prompt when enableVnpay is false', () => {
       mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
       component.fetchBooking('tok-token-aaa');
       fixture.detectChanges();
@@ -996,6 +996,7 @@ describe('BookingStatusPage (T02 — Theo dõi trạng thái đặt phòng khôn
       expect(compiled.textContent).toContain('MB Bank');
       expect(compiled.textContent).toContain('Sao chép STK 0345678910');
       expect(compiled.textContent).not.toContain('Thanh toán Cổng VNPAY');
+      expect(compiled.textContent).not.toContain('TIỀN MẶT TẠI QUẦY');
       expect(compiled.querySelector('[data-testid="vnpay-sandbox-test-card"]')).toBeNull();
 
       mockBookingService.simulateSepayWebhook = vi.fn().mockReturnValue(of({ success: true, status: 'confirmed', message: 'OK' }));

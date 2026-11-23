@@ -1246,19 +1246,6 @@ export interface StatusErrorState {
                               }
                             </div>
 
-                            <!-- Option 3: Cash deposit at the front desk, manually confirmed by staff -->
-                            <div class="p-4 sm:p-5 rounded-2xl bg-emerald-50/90 border-2 border-emerald-300 transition-all space-y-3"
-                              [class.ring-2]="selectedPaymentMethod() === 'PayAtHotel'" [class.ring-emerald-600]="selectedPaymentMethod() === 'PayAtHotel'">
-                              <div class="flex items-center justify-between gap-2">
-                                <span class="px-2 py-0.5 rounded-md bg-emerald-700 text-white text-[10px] font-black uppercase tracking-wider">TIỀN MẶT TẠI QUẦY</span>
-                                <span class="text-[11px] font-semibold text-emerald-900">Xác nhận thủ công</span>
-                              </div>
-                              <p class="text-[11px] text-emerald-950 leading-relaxed">
-                                Nộp cọc <strong class="tabular-nums">{{ getRemainingDeposit(detail) | vndCurrency }}</strong> tại quầy lễ tân trước khi đồng hồ giữ phòng về 0.
-                                Nhân viên ghi nhận khoản thu bằng tiền mặt và xác nhận đơn. Nếu chưa nộp cọc trong 15 phút, giữ phòng tự hết hạn.
-                              </p>
-                            </div>
-
                           </div>
                         </div>
                       </div>

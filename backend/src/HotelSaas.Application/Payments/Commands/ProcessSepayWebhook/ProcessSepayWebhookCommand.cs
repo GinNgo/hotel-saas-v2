@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -46,7 +47,10 @@ public sealed record ProcessSepayWebhookCommand(
     decimal? Accumulated,
     string? ReferenceCode,
     string? ExpectedPlatformAccountNumber = null,
-    bool? RequireBankAccountMatch = null
+    bool? RequireBankAccountMatch = null,
+    string? ProvidedApiKey = null,
+    bool IsGlobalApiKeyMatched = true,
+    Guid? RoutePropertyId = null
 ) : IRequest<ProcessSepayWebhookResult>;
 
 public sealed class ProcessSepayWebhookCommandHandler
@@ -92,7 +96,11 @@ public sealed class ProcessSepayWebhookCommandHandler
         CancellationToken cancellationToken)
     {
         var result = await HandleCoreAsync(request, cancellationToken);
-        _metricsRecorder?.RecordSepayWebhook(result.Status);
+        if (!string.Equals(result.Status, "unauthorized", StringComparison.OrdinalIgnoreCase))
+        {
+            _metricsRecorder?.RecordSepayWebhook(result.Status);
+        }
+
         return result;
     }
 
@@ -102,17 +110,17 @@ public sealed class ProcessSepayWebhookCommandHandler
     {
         if (!string.Equals(request.TransferType?.Trim(), "in", StringComparison.OrdinalIgnoreCase))
         {
-            return new ProcessSepayWebhookResult("ignored", "Ignored non-incoming bank transfer.");
+            return await EnsureAuthorizedOrIgnoreAsync(request, "Ignored non-incoming bank transfer.", cancellationToken);
         }
 
         if (request.TransferAmount <= 0m)
         {
-            return new ProcessSepayWebhookResult("ignored", "Ignored non-positive transfer amount.");
+            return await EnsureAuthorizedOrIgnoreAsync(request, "Ignored non-positive transfer amount.", cancellationToken);
         }
 
         if (request.Id <= 0)
         {
-            return new ProcessSepayWebhookResult("ignored", "Ignored webhook with invalid SePay transaction id.");
+            return await EnsureAuthorizedOrIgnoreAsync(request, "Ignored webhook with invalid SePay transaction id.", cancellationToken);
         }
 
         var reservationCodes = ExtractReservationCodes(request.Code, request.Content, request.Description);
@@ -120,7 +128,7 @@ public sealed class ProcessSepayWebhookCommandHandler
 
         if (reservationCodes.Count == 0 && subscriptionRefs.Count == 0)
         {
-            return new ProcessSepayWebhookResult("ignored", "No recognizable reservation (RES) or subscription (SUB) code found.");
+            return await EnsureAuthorizedOrIgnoreAsync(request, "No recognizable reservation (RES) or subscription (SUB) code found.", cancellationToken);
         }
 
         // 1. Attempt reservation match first when RES* token(s) are present
@@ -148,6 +156,11 @@ public sealed class ProcessSepayWebhookCommandHandler
         // 2. Attempt subscription upgrade match when SUB* token(s) are present
         if (subscriptionRefs.Count > 0)
         {
+            if (!request.IsGlobalApiKeyMatched)
+            {
+                return new ProcessSepayWebhookResult("unauthorized", "Invalid platform SePay API key.");
+            }
+
             var subPaymentHeader = await FindMatchingSubscriptionPaymentAsync(subscriptionRefs, cancellationToken);
             if (subPaymentHeader != null)
             {
@@ -155,7 +168,7 @@ public sealed class ProcessSepayWebhookCommandHandler
             }
         }
 
-        return new ProcessSepayWebhookResult("ignored", "No matching reservation or subscription payment found for transfer memo.");
+        return await EnsureAuthorizedOrIgnoreAsync(request, "No matching reservation or subscription payment found for transfer memo.", cancellationToken);
     }
 
     private async Task<ProcessSepayWebhookResult> HandleReservationTransferAsync(
@@ -173,6 +186,29 @@ public sealed class ProcessSepayWebhookCommandHandler
 
         var bankConfig = configs.FirstOrDefault(c => c.PropertyId == resHeader.PropertyId)
             ?? configs.FirstOrDefault(c => c.PropertyId == null);
+
+        if (!request.IsGlobalApiKeyMatched)
+        {
+            if (string.IsNullOrWhiteSpace(bankConfig?.SepayApiKey) ||
+                !ConstantTimeEquals(request.ProvidedApiKey, bankConfig.SepayApiKey))
+            {
+                return new ProcessSepayWebhookResult("unauthorized", "Invalid SePay API key for property.");
+            }
+        }
+
+        if (request.RoutePropertyId.HasValue &&
+            request.RoutePropertyId.Value != Guid.Empty &&
+            resHeader.PropertyId != request.RoutePropertyId.Value)
+        {
+            _logger?.LogWarning(
+                "SePay webhook {SepayId} ignored: reservation {ConfirmationCode} (PropertyId={ReservationPropertyId}) does not belong to route PropertyId={RoutePropertyId}.",
+                request.Id,
+                resHeader.ConfirmationCode,
+                resHeader.PropertyId,
+                request.RoutePropertyId.Value);
+
+            return new ProcessSepayWebhookResult("ignored", "Reservation does not belong to the webhook route propertyId.");
+        }
 
         var configuredBankAccount = bankConfig?.BankAccountNumber;
         var hasConfiguredBankAccount = !string.IsNullOrWhiteSpace(configuredBankAccount) &&
@@ -460,6 +496,11 @@ public sealed class ProcessSepayWebhookCommandHandler
         SubscriptionPayment subPaymentHeader,
         CancellationToken cancellationToken)
     {
+        if (!request.IsGlobalApiKeyMatched)
+        {
+            return new ProcessSepayWebhookResult("unauthorized", "Invalid platform SePay API key.");
+        }
+
         var hasConfiguredPlatformAccount = !string.IsNullOrWhiteSpace(request.ExpectedPlatformAccountNumber) &&
                                            !string.IsNullOrEmpty(ExtractDigitsOnly(request.ExpectedPlatformAccountNumber));
 
@@ -774,6 +815,59 @@ public sealed class ProcessSepayWebhookCommandHandler
                 "Unable to persist SepayBankAccountConfigWarning audit entry for SePay webhook {SepayId}.",
                 request.Id);
         }
+    }
+
+    private async Task<ProcessSepayWebhookResult> EnsureAuthorizedOrIgnoreAsync(
+        ProcessSepayWebhookCommand request,
+        string ignoreMessage,
+        CancellationToken cancellationToken)
+    {
+        if (request.IsGlobalApiKeyMatched)
+        {
+            return new ProcessSepayWebhookResult("ignored", ignoreMessage);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ProvidedApiKey))
+        {
+            return new ProcessSepayWebhookResult("unauthorized", "Unauthorized SePay API key.");
+        }
+
+        var query = _context.PrintTemplateConfigs
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(c => c.SepayApiKey != null && c.SepayApiKey != string.Empty);
+
+        if (request.RoutePropertyId.HasValue && request.RoutePropertyId.Value != Guid.Empty)
+        {
+            var routePropId = request.RoutePropertyId.Value;
+            query = query.Where(c => c.PropertyId == routePropId);
+        }
+
+        var configuredKeys = await query
+            .Select(c => c.SepayApiKey)
+            .ToListAsync(cancellationToken);
+
+        var hasMatch = configuredKeys.Any(k => !string.IsNullOrWhiteSpace(k) && ConstantTimeEquals(request.ProvidedApiKey, k));
+        if (!hasMatch)
+        {
+            return new ProcessSepayWebhookResult("unauthorized", "Unauthorized SePay API key.");
+        }
+
+        return new ProcessSepayWebhookResult("ignored", ignoreMessage);
+    }
+
+    private static bool ConstantTimeEquals(string? providedKey, string? expectedKey)
+    {
+        if (string.IsNullOrWhiteSpace(providedKey) || string.IsNullOrWhiteSpace(expectedKey))
+        {
+            return false;
+        }
+
+        var expectedBytes = Encoding.UTF8.GetBytes(expectedKey.Trim());
+        var providedBytes = Encoding.UTF8.GetBytes(providedKey.Trim());
+
+        return expectedBytes.Length == providedBytes.Length &&
+               CryptographicOperations.FixedTimeEquals(expectedBytes, providedBytes);
     }
 
     private static bool IsAccountNumberMatch(string configuredAccount, string? incomingAccount, string? incomingSubAccount)

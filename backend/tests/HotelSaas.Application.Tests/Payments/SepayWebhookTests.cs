@@ -5,9 +5,11 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
+using HotelSaas.Application.AuditLogs.Services;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Payments.Commands.ProcessSepayWebhook;
+using HotelSaas.Application.Print.Commands.SavePrintTemplateConfig;
 using HotelSaas.Application.Reservations.DTOs;
 using HotelSaas.Application.Subscriptions.Queries.GetSubscriptionVietQr;
 using HotelSaas.Domain.Entities;
@@ -41,32 +43,40 @@ public sealed class SepayWebhookTests
     [Fact]
     public async Task WebhooksController_MissingOrInvalidApiKey_Returns401Unauthorized()
     {
-        var sender = new DelegateSender((_, _) => Task.FromResult<object?>(new ProcessSepayWebhookResult("confirmed", "ok")));
+        var db = new SepayFakeDbContext();
+        var handler = new ProcessSepayWebhookCommandHandler(db, new CurrentTenantService(), new CurrentPropertyService());
+        var sender = new DelegateSender((req, ct) => req switch
+        {
+            ProcessSepayWebhookCommand cmd => WrapResult(handler.Handle(cmd, ct)),
+            _ => throw new NotSupportedException()
+        });
         var configWithKey = BuildConfig(new Dictionary<string, string?>
         {
             ["Payment:Sepay:ApiKey"] = TestSepayApiKey
         });
         var prodEnv = new StubHostEnvironment(Environments.Production);
 
-        // 1. Missing Authorization header -> 401
+        // 1. Missing Authorization header -> 401 before handler dispatch
         var missingHeaderController = CreateWebhooksController(sender, configWithKey, prodEnv, authorizationHeader: null);
         var resMissing = await missingHeaderController.HandleSepayWebhook(CreateSamplePayload(1001), CancellationToken.None);
         var unauthMissing = Assert.IsType<UnauthorizedObjectResult>(resMissing);
         var errMissing = Assert.IsType<SepayWebhookErrorResponse>(unauthMissing.Value);
         Assert.False(errMissing.Success);
         Assert.Equal("Unauthorized", errMissing.Message);
+        Assert.Empty(sender.SentRequests);
 
-        // 2. Wrong Apikey value -> 401
+        // 2. Wrong scheme (Bearer instead of Apikey) -> 401 before handler dispatch
+        var wrongSchemeController = CreateWebhooksController(sender, configWithKey, prodEnv, authorizationHeader: $"Bearer {TestSepayApiKey}");
+        var resScheme = await wrongSchemeController.HandleSepayWebhook(CreateSamplePayload(1003), CancellationToken.None);
+        Assert.IsType<UnauthorizedObjectResult>(resScheme);
+        Assert.Empty(sender.SentRequests);
+
+        // 3. Wrong Apikey value (matches neither global key nor any property SepayApiKey) -> 401
         var wrongKeyController = CreateWebhooksController(sender, configWithKey, prodEnv, authorizationHeader: "Apikey wrong-key-value");
         var resWrong = await wrongKeyController.HandleSepayWebhook(CreateSamplePayload(1002), CancellationToken.None);
         Assert.IsType<UnauthorizedObjectResult>(resWrong);
 
-        // 3. Wrong scheme (Bearer instead of Apikey) -> 401
-        var wrongSchemeController = CreateWebhooksController(sender, configWithKey, prodEnv, authorizationHeader: $"Bearer {TestSepayApiKey}");
-        var resScheme = await wrongSchemeController.HandleSepayWebhook(CreateSamplePayload(1003), CancellationToken.None);
-        Assert.IsType<UnauthorizedObjectResult>(resScheme);
-
-        // 4. Empty/unconfigured server Apikey (Fail-Closed) -> 401 even if caller supplies a key
+        // 4. Empty/unconfigured server Apikey and no property SepayApiKey (Fail-Closed) -> 401 even if caller supplies a key
         var emptyConfig = BuildConfig(new Dictionary<string, string?>
         {
             ["Payment:Sepay:ApiKey"] = ""
@@ -74,8 +84,6 @@ public sealed class SepayWebhookTests
         var unconfiguredController = CreateWebhooksController(sender, emptyConfig, prodEnv, authorizationHeader: "Apikey anything");
         var resUnconfigured = await unconfiguredController.HandleSepayWebhook(CreateSamplePayload(1004), CancellationToken.None);
         Assert.IsType<UnauthorizedObjectResult>(resUnconfigured);
-
-        Assert.Empty(sender.SentRequests);
     }
 
     [Fact]
@@ -761,6 +769,196 @@ public sealed class SepayWebhookTests
         Assert.Equal(
             "https://qr.sepay.vn/img?acc=0987654321&bank=MBBank&amount=1500000&des=DATPHONG+RESABC123",
             sepayResult.QrImageUrl);
+    }
+
+    [Fact]
+    public async Task ProcessSepayWebhook_PerPropertySepayApiKey_AuthenticatesAndConfirmsReservation_AndRejectsWrongKey()
+    {
+        var db = new SepayFakeDbContext();
+        var (_, property, reservation) = SeedReservationWithBank(
+            db,
+            confirmationCode: "RES-PRP888",
+            totalAmount: 1_800_000m,
+            depositRequired: 500_000m,
+            bankAccount: "0333444555");
+
+        var propertyApiKey = "prop-custom-sepay-key-123456";
+        var printConfig = db.PrintTemplateConfigList.Single(c => c.PropertyId == property.Id);
+        printConfig.SepayApiKey = propertyApiKey;
+
+        var handler = new ProcessSepayWebhookCommandHandler(db, new CurrentTenantService(), new CurrentPropertyService());
+        var sender = new DelegateSender((req, ct) => req switch
+        {
+            ProcessSepayWebhookCommand cmd => WrapResult(handler.Handle(cmd, ct)),
+            _ => throw new NotSupportedException()
+        });
+
+        var config = BuildConfig(new Dictionary<string, string?>
+        {
+            ["Payment:Sepay:ApiKey"] = TestSepayApiKey
+        });
+
+        var payload = new SepayWebhookPayload
+        {
+            Id = 95001,
+            Gateway = "MBBank",
+            TransactionDate = "2026-11-23 09:00:00",
+            AccountNumber = "0333444555",
+            Code = "RESPRP888",
+            Content = "DATPHONG RESPRP888",
+            TransferType = "in",
+            TransferAmount = 500_000m,
+            ReferenceCode = "FT-PROP-KEY-1"
+        };
+
+        // 1. Wrong ProvidedApiKey (matches neither global key nor property SepayApiKey) -> 401 Unauthorized
+        var wrongKeyController = CreateWebhooksController(
+            sender,
+            config,
+            new StubHostEnvironment(Environments.Production),
+            authorizationHeader: "Apikey wrong-property-sepay-key");
+
+        var wrongAction = await wrongKeyController.HandleSepayWebhook(payload, property.Id, CancellationToken.None);
+        Assert.IsType<UnauthorizedObjectResult>(wrongAction);
+        Assert.Equal(ReservationStatus.PendingPayment, reservation.Status);
+        Assert.Empty(db.PaymentList);
+
+        // 2. Property's own SepayApiKey (IsGlobalApiKeyMatched = false, ProvidedApiKey matches property key) -> 200 confirmed
+        var validPropKeyController = CreateWebhooksController(
+            sender,
+            config,
+            new StubHostEnvironment(Environments.Production),
+            authorizationHeader: $"Apikey {propertyApiKey}");
+
+        var validAction = await validPropKeyController.HandleSepayWebhook(payload, property.Id, CancellationToken.None);
+        var ok = Assert.IsType<OkObjectResult>(validAction);
+        var body = Assert.IsType<SepayWebhookHttpResponse>(ok.Value);
+
+        Assert.True(body.Success);
+        Assert.Equal("confirmed", body.Status);
+        Assert.Equal(ReservationStatus.Confirmed, reservation.Status);
+        Assert.Single(db.PaymentList);
+    }
+
+    [Fact]
+    public async Task ProcessSepayWebhook_RoutePropertyIdMismatch_SafelyIgnoresTransferForDifferentProperty()
+    {
+        var db = new SepayFakeDbContext();
+        var (_, property, reservation) = SeedReservationWithBank(
+            db,
+            confirmationCode: "RES-RTE999",
+            totalAmount: 1_500_000m,
+            depositRequired: 500_000m,
+            bankAccount: "0777888999");
+
+        var propertyApiKey = "prop-route-sepay-key-999";
+        var printConfig = db.PrintTemplateConfigList.Single(c => c.PropertyId == property.Id);
+        printConfig.SepayApiKey = propertyApiKey;
+
+        var handler = new ProcessSepayWebhookCommandHandler(db, new CurrentTenantService(), new CurrentPropertyService());
+        var sender = new DelegateSender((req, ct) => req switch
+        {
+            ProcessSepayWebhookCommand cmd => WrapResult(handler.Handle(cmd, ct)),
+            _ => throw new NotSupportedException()
+        });
+
+        var config = BuildConfig(new Dictionary<string, string?>
+        {
+            ["Payment:Sepay:ApiKey"] = TestSepayApiKey
+        });
+
+        var controller = CreateWebhooksController(
+            sender,
+            config,
+            new StubHostEnvironment(Environments.Production),
+            authorizationHeader: $"Apikey {propertyApiKey}");
+
+        var payload = new SepayWebhookPayload
+        {
+            Id = 96001,
+            Gateway = "MBBank",
+            TransactionDate = "2026-11-23 09:30:00",
+            AccountNumber = "0777888999",
+            Code = "RESRTE999",
+            Content = "DATPHONG RESRTE999",
+            TransferType = "in",
+            TransferAmount = 500_000m,
+            ReferenceCode = "FT-ROUTE-MISMATCH"
+        };
+
+        var otherPropertyId = Guid.NewGuid();
+        var action = await controller.HandleSepayWebhook(payload, otherPropertyId, CancellationToken.None);
+        var ok = Assert.IsType<OkObjectResult>(action);
+        var body = Assert.IsType<SepayWebhookHttpResponse>(ok.Value);
+
+        Assert.True(body.Success);
+        Assert.Equal("ignored", body.Status);
+        Assert.Equal(ReservationStatus.PendingPayment, reservation.Status);
+        Assert.Empty(db.PaymentList);
+    }
+
+    [Fact]
+    public async Task SavePrintTemplateConfigCommandHandler_SavesMasksPreservesAndClearsSepayApiKey_AndAuditSanitizerRedacts()
+    {
+        var db = new SepayFakeDbContext();
+        var tenantId = Guid.NewGuid();
+        var propertyId = Guid.NewGuid();
+
+        var tenantSvc = new CurrentTenantService { TenantId = tenantId };
+        var propSvc = new CurrentPropertyService { PropertyId = propertyId, IsTenantWide = true };
+        var userCtx = new CurrentUserContext(tenantSvc, propSvc);
+        userCtx.SetUser(Guid.NewGuid(), "owner@hotel.vn", GlobalUserRole.TenantStaff);
+        userCtx.SetMembershipContext(tenantId, TenantStatus.Active, propertyId, null, StaffRole.Owner, null, isTenantWide: true);
+
+        var handler = new SavePrintTemplateConfigCommandHandler(db, userCtx);
+
+        // 1. Save initial SepayApiKey -> persisted raw in DB, returned masked "********" + HasSepayApiKey = true
+        var saveCmd = new SavePrintTemplateConfigCommand(
+            TenantId: tenantId,
+            BodyPropertyId: propertyId,
+            QueryPropertyId: propertyId,
+            HeaderCompanyName: "Sunrise Hotel",
+            HeaderAddress: "123 Beach Rd",
+            TaxNumber: "0101234567",
+            Hotline: "0909123456",
+            LogoUrl: null,
+            BankName: "MBBank",
+            BankAccountNumber: "0987654321",
+            BankAccountHolder: "SUNRISE HOTEL",
+            FooterNote: "Thank you",
+            CheckInPolicyText: "Check-in 14:00",
+            ShowVietQrCode: true,
+            DefaultPaperSize: "A4",
+            SepayApiKey: "  my-secret-branch-sepay-key  ");
+
+        var dto1 = await handler.Handle(saveCmd, CancellationToken.None);
+        var entity = Assert.Single(db.PrintTemplateConfigList);
+
+        Assert.Equal("my-secret-branch-sepay-key", entity.SepayApiKey);
+        Assert.True(dto1.HasSepayApiKey);
+        Assert.Equal("********", dto1.SepayApiKey);
+
+        // 2. Re-submit masked "********" -> preserves existing key unchanged
+        var preserveMaskedDto = await handler.Handle(saveCmd with { SepayApiKey = "********" }, CancellationToken.None);
+        Assert.Equal("my-secret-branch-sepay-key", entity.SepayApiKey);
+        Assert.True(preserveMaskedDto.HasSepayApiKey);
+        Assert.Equal("********", preserveMaskedDto.SepayApiKey);
+
+        // 3. Re-submit null -> preserves existing key unchanged
+        var preserveNullDto = await handler.Handle(saveCmd with { SepayApiKey = null }, CancellationToken.None);
+        Assert.Equal("my-secret-branch-sepay-key", entity.SepayApiKey);
+        Assert.True(preserveNullDto.HasSepayApiKey);
+        Assert.Equal("********", preserveNullDto.SepayApiKey);
+
+        // 4. Submit empty string "" -> clears key to null (reverts to global platform key)
+        var clearDto = await handler.Handle(saveCmd with { SepayApiKey = "" }, CancellationToken.None);
+        Assert.Null(entity.SepayApiKey);
+        Assert.False(clearDto.HasSepayApiKey);
+        Assert.Equal(string.Empty, clearDto.SepayApiKey);
+
+        // 5. AuditPayloadSanitizer redacts sepayApiKey
+        Assert.True(AuditPayloadSanitizer.IsSensitiveField("SepayApiKey"));
+        Assert.True(AuditPayloadSanitizer.IsSensitiveField("sepayapikey"));
     }
 
     // ── Test Helpers & Fakes ─────────────────────────────────────────────────

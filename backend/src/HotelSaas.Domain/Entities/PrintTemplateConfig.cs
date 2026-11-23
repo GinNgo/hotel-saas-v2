@@ -87,4 +87,9 @@ public class PrintTemplateConfig : BaseEntity
     /// Khổ giấy mặc định (A4, A5, K80_Receipt).
     /// </summary>
     public string DefaultPaperSize { get; set; } = "A4";
+
+    /// <summary>
+    /// Khóa API SePay riêng của chi nhánh/chuỗi (tùy chọn). Khi được cấu hình, webhook SePay có thể xác thực bằng khóa này.
+    /// </summary>
+    public string? SepayApiKey { get; set; }
 }

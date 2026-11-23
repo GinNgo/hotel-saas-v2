@@ -39,5 +39,9 @@ public sealed class SavePrintTemplateConfigCommandValidator : AbstractValidator<
 
         RuleFor(x => x.DefaultPaperSize)
             .MaximumLength(20);
+
+        RuleFor(x => x.SepayApiKey)
+            .MaximumLength(256)
+            .When(x => x.SepayApiKey != null);
     }
 }
