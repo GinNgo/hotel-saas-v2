@@ -4,6 +4,7 @@ export interface ApiResponse<T> {
   data: T | null;
   message: string | null;
   errorCode?: string | null;
+  correlationId?: string | null;
   errors?: Record<string, string[]> | null;
   timestamp: string;
 }
@@ -14,6 +15,7 @@ export interface ApiEnvelope<T> {
   data?: T | null;
   message?: string | null;
   errorCode?: string | null;
+  correlationId?: string | null;
   errors?: Record<string, string[]> | null;
   timestamp?: string;
 }

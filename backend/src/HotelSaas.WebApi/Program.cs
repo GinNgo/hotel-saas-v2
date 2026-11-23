@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Threading.RateLimiting;
@@ -15,6 +16,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -124,11 +126,23 @@ builder.Services.AddRateLimiter(options =>
     options.OnRejected = async (context, cancellationToken) =>
     {
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Items["ErrorCode"] = "ERR_RATE_LIMITED";
+
         if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
         {
             context.HttpContext.Response.Headers.RetryAfter =
                 Math.Ceiling(retryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
         }
+
+        var policyName = context.HttpContext.GetEndpoint()?
+            .Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
+            ?? "default";
+        var metricsRecorder = context.HttpContext.RequestServices.GetService<ISystemMetricsRecorder>();
+        metricsRecorder?.RecordRateLimited(policyName);
+
+        var correlationId = context.HttpContext.Items["CorrelationId"]?.ToString()
+            ?? context.HttpContext.Items[CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName]?.ToString()
+            ?? context.HttpContext.TraceIdentifier;
 
         context.HttpContext.Response.ContentType = "application/json";
         await context.HttpContext.Response.WriteAsJsonAsync(new
@@ -136,7 +150,8 @@ builder.Services.AddRateLimiter(options =>
             type = "TooManyRequests",
             title = "Too many requests. Please try again later.",
             status = StatusCodes.Status429TooManyRequests,
-            errorCode = "ERR_RATE_LIMITED"
+            errorCode = "ERR_RATE_LIMITED",
+            correlationId = correlationId
         }, cancellationToken);
     };
 
@@ -287,11 +302,12 @@ else if (isCloudDb && !allowCloudInit && !isTestingEnv)
 // ── Middleware Pipeline ──────────────────────────────────────────────
 app.UseForwardedHeaders();
 app.UseMiddleware<CorrelationAndStructuredLogMiddleware>();
-app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseSerilogRequestLogging(opts =>
 {
+    opts.GetLevel = ResolveSerilogRequestLevel;
     opts.EnrichDiagnosticContext = EnrichSerilogDiagnosticContext;
 });
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
@@ -432,15 +448,38 @@ public partial class Program
         }
     }
 
+    public static LogEventLevel ResolveSerilogRequestLevel(
+        HttpContext httpContext,
+        double elapsedMs,
+        Exception? ex)
+    {
+        if (ex != null || httpContext.Response.StatusCode >= StatusCodes.Status500InternalServerError)
+        {
+            return LogEventLevel.Error;
+        }
+
+        if (CorrelationAndStructuredLogMiddleware.IsObservabilityProbePath(httpContext.Request.Path.Value) &&
+            httpContext.Response.StatusCode < StatusCodes.Status400BadRequest)
+        {
+            return LogEventLevel.Verbose;
+        }
+
+        return LogEventLevel.Information;
+    }
+
     public static void EnrichSerilogDiagnosticContext(IDiagnosticContext diagnosticContext, HttpContext httpContext)
     {
-        var correlationId = httpContext.Items.TryGetValue(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, out var itemCorrId) &&
-                            itemCorrId is string itemCorrIdStr &&
-                            !string.IsNullOrWhiteSpace(itemCorrIdStr)
-            ? itemCorrIdStr
-            : httpContext.Response.Headers.TryGetValue(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, out var headerCorrId)
-                ? headerCorrId.ToString()
-                : null;
+        var correlationId = httpContext.Items.TryGetValue("CorrelationId", out var directCorrId) &&
+                            directCorrId is string directCorrIdStr &&
+                            !string.IsNullOrWhiteSpace(directCorrIdStr)
+            ? directCorrIdStr
+            : httpContext.Items.TryGetValue(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, out var itemCorrId) &&
+              itemCorrId is string itemCorrIdStr &&
+              !string.IsNullOrWhiteSpace(itemCorrIdStr)
+                ? itemCorrIdStr
+                : httpContext.Response.Headers.TryGetValue(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, out var headerCorrId)
+                    ? headerCorrId.ToString()
+                    : null;
 
         if (!string.IsNullOrWhiteSpace(correlationId))
         {
@@ -448,6 +487,14 @@ public partial class Program
         }
 
         diagnosticContext.Set("ClientIp", httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+        diagnosticContext.Set("RequestMethod", httpContext.Request.Method);
+        diagnosticContext.Set("RequestPath", httpContext.Request.Path.Value ?? "/");
+
+        var elapsedMs = httpContext.Items.TryGetValue(CorrelationAndStructuredLogMiddleware.RequestStartTimestampItemKey, out var startObj) &&
+                        startObj is long startTimestamp
+            ? Math.Round(Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds, 2)
+            : 0d;
+        diagnosticContext.Set("ElapsedMs", elapsedMs);
 
         var tenantService = httpContext.RequestServices.GetService<ICurrentTenantService>();
         var propertyService = httpContext.RequestServices.GetService<ICurrentPropertyService>();

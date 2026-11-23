@@ -377,6 +377,7 @@ public sealed class PlatformUsersManagementTests
         public List<PropertySurchargePolicy> PropertySurchargePolicyList { get; } = new();
         public List<RoomTypeRate> RoomTypeRateList { get; } = new();
         public List<RoomTypeRateAudit> RoomTypeRateAuditList { get; } = new();
+        public List<AuditLog> AuditLogList { get; } = new();
         public List<Invoice> InvoiceList { get; } = new();
         public List<InvoiceItem> InvoiceItemList { get; } = new();
         public List<GuestLoyaltyMembership> GuestLoyaltyMembershipList { get; } = new();
@@ -405,6 +406,7 @@ public sealed class PlatformUsersManagementTests
         public DbSet<PropertySurchargePolicy> PropertySurchargePolicies => new InMemoryAsyncDbSet<PropertySurchargePolicy>(PropertySurchargePolicyList, _tenantService, _currentUser);
         public DbSet<RoomTypeRate> RoomTypeRates => new InMemoryAsyncDbSet<RoomTypeRate>(RoomTypeRateList, _tenantService, _currentUser);
         public DbSet<RoomTypeRateAudit> RoomTypeRateAudits => new InMemoryAsyncDbSet<RoomTypeRateAudit>(RoomTypeRateAuditList, _tenantService, _currentUser);
+        public DbSet<AuditLog> AuditLogs => new InMemoryAsyncDbSet<AuditLog>(AuditLogList, _tenantService, _currentUser);
         public DbSet<Invoice> Invoices => new InMemoryAsyncDbSet<Invoice>(InvoiceList, _tenantService, _currentUser);
         public DbSet<InvoiceItem> InvoiceItems => new InMemoryAsyncDbSet<InvoiceItem>(InvoiceItemList, _tenantService, _currentUser);
         public DbSet<GuestLoyaltyMembership> GuestLoyaltyMemberships => new InMemoryAsyncDbSet<GuestLoyaltyMembership>(GuestLoyaltyMembershipList, _tenantService, _currentUser);
@@ -639,6 +641,12 @@ public sealed class PlatformUsersManagementTests
         var persisted = h.Db.UserList.Single(u => u.Id == created.Id);
         Assert.Equal("HASHED::AdminPass#2026", persisted.PasswordHash);
 
+        var createAudit = Assert.Single(h.Db.AuditLogList, a => a.EntityName == nameof(User) && a.EntityId == created.Id && a.Action == AuditActions.Create);
+        Assert.Equal(callerId, createAudit.UserId);
+        Assert.Equal(Guid.Empty, createAudit.TenantId);
+        Assert.DoesNotContain("AdminPass#2026", createAudit.NewValues ?? string.Empty);
+        Assert.DoesNotContain("HASHED::", createAudit.NewValues ?? string.Empty);
+
         var duplicateEx = await Assert.ThrowsAsync<ConflictException>(() =>
             h.Mediator.Send(new CreatePlatformAdminCommand(
                 "OPS.ADMIN@hotelsaas.vn",
@@ -744,6 +752,12 @@ public sealed class PlatformUsersManagementTests
 
         var unlockedDto = await h.Mediator.Send(new TogglePlatformUserStatusCommand(staffUser.Id));
         Assert.True(unlockedDto.IsActive);
+
+        var statusAudits = h.Db.AuditLogList
+            .Where(a => a.EntityName == nameof(User) && a.EntityId == staffUser.Id && a.Action == AuditActions.StatusToggle)
+            .ToList();
+        Assert.Equal(2, statusAudits.Count);
+        Assert.Contains(statusAudits, a => a.NewValues != null && a.NewValues.Contains("Khóa kiểm tra an ninh"));
     }
 
     [Fact]
@@ -799,6 +813,13 @@ public sealed class PlatformUsersManagementTests
         var demoted = await h.Mediator.Send(new UpdatePlatformUserRoleCommand(customer.Id, GlobalUserRole.TenantStaff));
         Assert.Equal(GlobalUserRole.TenantStaff, demoted.GlobalRole);
         Assert.Equal("Chủ cơ sở & Nhân sự", demoted.GlobalRoleName);
+
+        var roleAudits = h.Db.AuditLogList
+            .Where(a => a.EntityName == nameof(User) && a.EntityId == customer.Id && a.Action == AuditActions.Update)
+            .ToList();
+        Assert.Equal(2, roleAudits.Count);
+        Assert.Contains(roleAudits, a => a.OldValues!.Contains("Customer") && a.NewValues!.Contains("SuperAdmin"));
+        Assert.Contains(roleAudits, a => a.OldValues!.Contains("SuperAdmin") && a.NewValues!.Contains("TenantStaff"));
 
         // Demoting the sole remaining active SuperAdmin (admin1) is blocked by ERR_LAST_SUPERADMIN
         h.CurrentUser.SetUser(inactiveAdmin.Id, inactiveAdmin.Email, GlobalUserRole.SuperAdmin);

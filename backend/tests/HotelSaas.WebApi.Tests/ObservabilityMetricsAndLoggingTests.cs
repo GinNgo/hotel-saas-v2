@@ -2,26 +2,34 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reflection;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Threading;
+using System.Threading.RateLimiting;
 using System.Threading.Tasks;
+using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Payments.Commands.ProcessVnpayIpn;
 using HotelSaas.Domain.Enums;
 using HotelSaas.Infrastructure.Hubs;
 using HotelSaas.Infrastructure.Services;
+using HotelSaas.WebApi.Logging;
 using HotelSaas.WebApi.Middleware;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Core;
+using Serilog.Debugging;
 using Serilog.Events;
 using Xunit;
 using Xunit.Abstractions;
@@ -557,6 +565,395 @@ public sealed class ObservabilityMetricsAndLoggingTests
         Assert.Equal(userId.ToString(), GetLogProperty(okRequestLog, "UserId"));
         Assert.Equal("200", GetLogProperty(okRequestLog, "StatusCode"));
         Assert.Null(GetLogProperty(okRequestLog, "ErrorCode"));
+    }
+
+    private static double GetDoubleMetricValueOrZero(string prometheusText, string metricNameWithLabels)
+    {
+        var prefix = metricNameWithLabels + " ";
+        var lines = prometheusText.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.Trim();
+            if (line.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                var valuePart = line[prefix.Length..].Trim();
+                if (double.TryParse(valuePart, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
+                {
+                    return value;
+                }
+            }
+        }
+
+        return 0d;
+    }
+
+    [Fact]
+    public void Serilog_RenderedJsonFormatter_AndAppSettings_EmitRenderedMessage_WithZeroSelfLogErrors()
+    {
+        // 1. Direct formatter verification: JsonFormatter(renderMessage: true) emits RenderedMessage
+        var formatter = new RenderedJsonFormatter();
+        var logEvent = new LogEvent(
+            DateTimeOffset.UtcNow,
+            LogEventLevel.Warning,
+            exception: null,
+            new Serilog.Parsing.MessageTemplateParser().Parse("Booking {ConfirmationCode} failed with {ErrorCode}"),
+            new[]
+            {
+                new LogEventProperty("ConfirmationCode", new ScalarValue("RES-999111")),
+                new LogEventProperty("ErrorCode", new ScalarValue("ERR_CONFLICT"))
+            });
+
+        using var writer = new StringWriter();
+        formatter.Format(logEvent, writer);
+        var json = writer.ToString().Trim();
+
+        using var doc = JsonDocument.Parse(json);
+        Assert.Equal("Warning", doc.RootElement.GetProperty("Level").GetString());
+        Assert.Equal("Booking \"RES-999111\" failed with \"ERR_CONFLICT\"", doc.RootElement.GetProperty("RenderedMessage").GetString());
+        Assert.Equal("Booking {ConfirmationCode} failed with {ErrorCode}", doc.RootElement.GetProperty("MessageTemplate").GetString());
+
+        // 2. Verify real appsettings.json + appsettings.Development.json load via Serilog.Settings.Configuration with 0 SelfLog warnings/errors
+        var webApiDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "HotelSaas.WebApi"));
+        var baseSettingsPath = Path.Combine(webApiDir, "appsettings.json");
+        var devSettingsPath = Path.Combine(webApiDir, "appsettings.Development.json");
+
+        Assert.True(File.Exists(baseSettingsPath), $"Expected appsettings.json at {baseSettingsPath}");
+        Assert.True(File.Exists(devSettingsPath), $"Expected appsettings.Development.json at {devSettingsPath}");
+
+        var config = new ConfigurationBuilder()
+            .AddJsonFile(baseSettingsPath, optional: false)
+            .AddJsonFile(devSettingsPath, optional: false)
+            .Build();
+
+        var selfLogMessages = new ConcurrentQueue<string>();
+        SelfLog.Enable(msg => selfLogMessages.Enqueue(msg));
+        try
+        {
+            using var configuredLogger = new LoggerConfiguration()
+                .ReadFrom.Configuration(config)
+                .CreateLogger();
+
+            Assert.Empty(selfLogMessages);
+        }
+        finally
+        {
+            SelfLog.Disable();
+        }
+    }
+
+    [Fact]
+    public async Task ObservabilityProbes_AreDemotedToVerbose_AndExcludedFromHttpMetrics()
+    {
+        // 1. Verify Program.ResolveSerilogRequestLevel rules
+        var healthyHealthCtx = new DefaultHttpContext();
+        healthyHealthCtx.Request.Path = "/health/ready";
+        healthyHealthCtx.Response.StatusCode = StatusCodes.Status200OK;
+        Assert.Equal(LogEventLevel.Verbose, Program.ResolveSerilogRequestLevel(healthyHealthCtx, 1.5, null));
+
+        var metricsCtx = new DefaultHttpContext();
+        metricsCtx.Request.Path = "/metrics";
+        metricsCtx.Response.StatusCode = StatusCodes.Status200OK;
+        Assert.Equal(LogEventLevel.Verbose, Program.ResolveSerilogRequestLevel(metricsCtx, 2.0, null));
+
+        var degradedReadyCtx = new DefaultHttpContext();
+        degradedReadyCtx.Request.Path = "/health/ready";
+        degradedReadyCtx.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        Assert.Equal(LogEventLevel.Error, Program.ResolveSerilogRequestLevel(degradedReadyCtx, 5.0, null));
+
+        var unauthMetricsCtx = new DefaultHttpContext();
+        unauthMetricsCtx.Request.Path = "/metrics";
+        unauthMetricsCtx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        Assert.Equal(LogEventLevel.Information, Program.ResolveSerilogRequestLevel(unauthMetricsCtx, 1.0, null));
+
+        // 2. Verify CorrelationAndStructuredLogMiddleware skips probe paths for HTTP request & latency metrics
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
+        builder.WebHost.UseTestServer();
+        builder.Services.AddSingleton<ICurrentTenantService, StubTenantService>();
+        builder.Services.AddSingleton<ICurrentPropertyService, StubPropertyService>();
+        builder.Services.AddSingleton<ICurrentUserContext>(sp =>
+            new CurrentUserContext(
+                sp.GetRequiredService<ICurrentTenantService>(),
+                sp.GetRequiredService<ICurrentPropertyService>()));
+
+        await using var app = builder.Build();
+        app.UseMiddleware<CorrelationAndStructuredLogMiddleware>();
+        app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+        app.MapGet("/health/live", () => Results.Ok(new { status = "alive" }));
+        app.MapGet("/health/ready", () => Results.Ok(new { status = "ready" }));
+        app.MapGet("/metrics", () => Results.Text("ok"));
+        app.MapGet("/api/test/real-traffic", () => Results.Ok(new { ok = true }));
+
+        await app.StartAsync();
+        using var client = app.GetTestClient();
+
+        var beforeText = SystemMetricsRegistry.ExportPrometheusText();
+        var beforeRequests = GetMetricValueOrZero(beforeText, "hotelsaas_http_requests_total");
+        var beforeLatencyCount = GetMetricValueOrZero(beforeText, "hotelsaas_http_request_duration_seconds_count");
+
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health/live")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health/ready")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/metrics")).StatusCode);
+
+        var afterProbesText = SystemMetricsRegistry.ExportPrometheusText();
+        Assert.Equal(beforeRequests, GetMetricValueOrZero(afterProbesText, "hotelsaas_http_requests_total"));
+        Assert.Equal(beforeLatencyCount, GetMetricValueOrZero(afterProbesText, "hotelsaas_http_request_duration_seconds_count"));
+
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/test/real-traffic")).StatusCode);
+        var afterRealText = SystemMetricsRegistry.ExportPrometheusText();
+        Assert.Equal(beforeRequests + 1, GetMetricValueOrZero(afterRealText, "hotelsaas_http_requests_total"));
+        Assert.Equal(beforeLatencyCount + 1, GetMetricValueOrZero(afterRealText, "hotelsaas_http_request_duration_seconds_count"));
+    }
+
+    [Fact]
+    public void SystemMetricsRegistry_HttpLatencyHistogram_SepayAndRateLimitCounters_ExportValidPrometheus()
+    {
+        var beforeText = SystemMetricsRegistry.ExportPrometheusText();
+        var beforeLe005 = GetMetricValueOrZero(beforeText, "hotelsaas_http_request_duration_seconds_bucket{le=\"0.05\"}");
+        var beforeLe010 = GetMetricValueOrZero(beforeText, "hotelsaas_http_request_duration_seconds_bucket{le=\"0.1\"}");
+        var beforeLe025 = GetMetricValueOrZero(beforeText, "hotelsaas_http_request_duration_seconds_bucket{le=\"0.25\"}");
+        var beforeLeInf = GetMetricValueOrZero(beforeText, "hotelsaas_http_request_duration_seconds_bucket{le=\"+Inf\"}");
+        var beforeCount = GetMetricValueOrZero(beforeText, "hotelsaas_http_request_duration_seconds_count");
+        var beforeSum = GetDoubleMetricValueOrZero(beforeText, "hotelsaas_http_request_duration_seconds_sum");
+        var beforeSepayConfirmed = GetMetricValueOrZero(beforeText, "hotelsaas_sepay_webhook_total{status=\"confirmed\"}");
+        var beforeSepayAuthFailed = GetMetricValueOrZero(beforeText, "hotelsaas_sepay_webhook_total{status=\"auth_failed\"}");
+        var beforeRateLimitedAuth = GetMetricValueOrZero(beforeText, "hotelsaas_rate_limited_total{policy=\"auth\"}");
+
+        // Record a 120ms request (0.12s -> lands in le="0.25".."+Inf", NOT le="0.05" or le="0.1")
+        SystemMetricsRegistry.RecordHttpRequest("GET", "/api/reservations", StatusCodes.Status200OK, 120.0, null, null);
+
+        ISystemMetricsRecorder recorder = new SystemMetricsRecorder();
+        recorder.RecordSepayWebhook("confirmed");
+        recorder.RecordSepayWebhook("auth_failed");
+        recorder.RecordRateLimited("auth");
+
+        var afterText = SystemMetricsRegistry.ExportPrometheusText();
+        Assert.Equal(beforeLe005, GetMetricValueOrZero(afterText, "hotelsaas_http_request_duration_seconds_bucket{le=\"0.05\"}"));
+        Assert.Equal(beforeLe010, GetMetricValueOrZero(afterText, "hotelsaas_http_request_duration_seconds_bucket{le=\"0.1\"}"));
+        Assert.Equal(beforeLe025 + 1, GetMetricValueOrZero(afterText, "hotelsaas_http_request_duration_seconds_bucket{le=\"0.25\"}"));
+        Assert.Equal(beforeLeInf + 1, GetMetricValueOrZero(afterText, "hotelsaas_http_request_duration_seconds_bucket{le=\"+Inf\"}"));
+        Assert.Equal(beforeCount + 1, GetMetricValueOrZero(afterText, "hotelsaas_http_request_duration_seconds_count"));
+        Assert.True(GetDoubleMetricValueOrZero(afterText, "hotelsaas_http_request_duration_seconds_sum") >= beforeSum + 0.119);
+
+        Assert.Equal(beforeSepayConfirmed + 1, GetMetricValueOrZero(afterText, "hotelsaas_sepay_webhook_total{status=\"confirmed\"}"));
+        Assert.Equal(beforeSepayAuthFailed + 1, GetMetricValueOrZero(afterText, "hotelsaas_sepay_webhook_total{status=\"auth_failed\"}"));
+        Assert.Equal(beforeRateLimitedAuth + 1, GetMetricValueOrZero(afterText, "hotelsaas_rate_limited_total{policy=\"auth\"}"));
+    }
+
+    [Fact]
+    public async Task FullObservabilityPipeline_PreservesContextOn500_StopsDuplicate5xxLog_AndIncludesCorrelationIdInAllErrors()
+    {
+        var sink = new InMemoryLogSink();
+        var tenantId = Guid.NewGuid();
+        var branchId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var superAdminId = Guid.NewGuid();
+
+        using var serilogLogger = new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .Enrich.FromLogContext()
+            .WriteTo.Sink(sink)
+            .CreateLogger();
+
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
+        builder.WebHost.UseTestServer();
+        builder.Host.UseSerilog((_, cfg) =>
+            cfg.MinimumLevel.Information()
+               .Enrich.FromLogContext()
+               .WriteTo.Sink(sink),
+            preserveStaticLogger: true);
+
+        builder.Services.AddSingleton<ISystemMetricsRecorder, SystemMetricsRecorder>();
+        builder.Services.AddScoped<ICurrentTenantService, StubTenantService>();
+        builder.Services.AddScoped<ICurrentPropertyService, StubPropertyService>();
+        builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
+        builder.Services.AddSingleton<IMembershipLookupService>(new StubMembershipLookupService
+        {
+            Handler = (_, _, targetPropId, _) => Task.FromResult(
+                MembershipLookupResult.Succeeded(Guid.NewGuid(), StaffRole.Manager, targetPropId, false))
+        });
+
+        builder.Services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.OnRejected = async (ctx, ct) =>
+            {
+                ctx.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                ctx.HttpContext.Items["ErrorCode"] = "ERR_RATE_LIMITED";
+                var policy = ctx.HttpContext.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName ?? "default";
+                ctx.HttpContext.RequestServices.GetService<ISystemMetricsRecorder>()?.RecordRateLimited(policy);
+                var corrId = ctx.HttpContext.Items["CorrelationId"]?.ToString() ?? ctx.HttpContext.TraceIdentifier;
+                ctx.HttpContext.Response.ContentType = "application/json";
+                await ctx.HttpContext.Response.WriteAsJsonAsync(new
+                {
+                    type = "TooManyRequests",
+                    title = "Too many requests. Please try again later.",
+                    status = StatusCodes.Status429TooManyRequests,
+                    errorCode = "ERR_RATE_LIMITED",
+                    correlationId = corrId
+                }, ct);
+            };
+            options.AddPolicy("auth", _ =>
+                RateLimitPartition.GetFixedWindowLimiter("single-key", _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 1,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                }));
+        });
+
+        await using var app = builder.Build();
+        app.UseMiddleware<CorrelationAndStructuredLogMiddleware>();
+        app.UseSerilogRequestLogging(opts =>
+        {
+            opts.Logger = serilogLogger;
+            opts.GetLevel = Program.ResolveSerilogRequestLevel;
+            opts.EnrichDiagnosticContext = Program.EnrichSerilogDiagnosticContext;
+        });
+        app.UseMiddleware<ExceptionHandlingMiddleware>();
+        app.UseRouting();
+        app.UseRateLimiter();
+        app.Use(async (ctx, next) =>
+        {
+            if (ctx.Request.Headers.TryGetValue("X-Test-User", out var u))
+            {
+                var role = ctx.Request.Headers.TryGetValue("X-Test-Role", out var r) ? r.ToString() : "TenantStaff";
+                var claims = new List<Claim>
+                {
+                    new("sub", u.ToString()),
+                    new("globalRole", role)
+                };
+                if (ctx.Request.Headers.TryGetValue("X-Test-Tenant", out var t) && !string.IsNullOrWhiteSpace(t))
+                {
+                    claims.Add(new Claim("tenantId", t.ToString()));
+                }
+                if (ctx.Request.Headers.TryGetValue("X-Test-Property", out var p) && !string.IsNullOrWhiteSpace(p))
+                {
+                    claims.Add(new Claim("propertyId", p.ToString()));
+                }
+                ctx.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestBearer"));
+            }
+
+            await next();
+        });
+        app.UseMiddleware<TenantPropertyContextMiddleware>();
+
+        app.MapGet("/api/test/boom", () =>
+        {
+            throw new InvalidOperationException("Simulated database failure");
+        });
+        app.MapGet("/api/test/notfound", () =>
+        {
+            throw new NotFoundException("Reservation", Guid.Empty);
+        });
+        app.MapGet("/api/platform/ping", (ILogger<ObservabilityMetricsAndLoggingTests> logger) =>
+        {
+            logger.LogInformation("Inside platform ping");
+            return Results.Ok(new { ok = true });
+        });
+        app.MapGet("/api/auth/login-limited", () => Results.Ok(new { ok = true })).AllowAnonymous().RequireRateLimiting("auth");
+
+        await app.StartAsync();
+        using var client = app.GetTestClient();
+
+        // 1. 500 error: JSON body has correlationId, ExceptionHandlingMiddleware retains TenantId/PropertyId/UserId/ErrorCode,
+        //    Serilog request log has ElapsedMs + ErrorCode, and CorrelationAndStructuredLogMiddleware does NOT emit duplicate 5xx LogError!
+        using var boomReq = new HttpRequestMessage(HttpMethod.Get, "/api/test/boom");
+        boomReq.Headers.Add(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, "corr-boom-500");
+        boomReq.Headers.Add("X-Test-User", userId.ToString());
+        boomReq.Headers.Add("X-Test-Tenant", tenantId.ToString());
+        boomReq.Headers.Add("X-Test-Property", branchId.ToString());
+
+        var boomRes = await client.SendAsync(boomReq);
+        Assert.Equal(HttpStatusCode.InternalServerError, boomRes.StatusCode);
+        var boomBody = await boomRes.Content.ReadAsStringAsync();
+        using (var boomDoc = JsonDocument.Parse(boomBody))
+        {
+            Assert.Equal("ERR_SYSTEM", boomDoc.RootElement.GetProperty("errorCode").GetString());
+            Assert.Equal("corr-boom-500", boomDoc.RootElement.GetProperty("correlationId").GetString());
+        }
+
+        var exMiddlewareLog = Assert.Single(sink.Events, e =>
+            GetLogProperty(e, "SourceContext") == typeof(ExceptionHandlingMiddleware).FullName &&
+            GetLogProperty(e, "CorrelationId") == "corr-boom-500");
+        Assert.Equal(LogEventLevel.Error, exMiddlewareLog.Level);
+        Assert.Equal(tenantId.ToString(), GetLogProperty(exMiddlewareLog, "TenantId"));
+        Assert.Equal(branchId.ToString(), GetLogProperty(exMiddlewareLog, "PropertyId"));
+        Assert.Equal(userId.ToString(), GetLogProperty(exMiddlewareLog, "UserId"));
+        Assert.Equal("ERR_SYSTEM", GetLogProperty(exMiddlewareLog, "ErrorCode"));
+
+        var reqLog500 = Assert.Single(sink.Events, e =>
+            GetLogProperty(e, "SourceContext") == "Serilog.AspNetCore.RequestLoggingMiddleware" &&
+            GetLogProperty(e, "CorrelationId") == "corr-boom-500");
+        Assert.Equal("ERR_SYSTEM", GetLogProperty(reqLog500, "ErrorCode"));
+        Assert.Equal("500", GetLogProperty(reqLog500, "StatusCode"));
+        Assert.NotNull(GetLogProperty(reqLog500, "ElapsedMs"));
+        Assert.Equal("GET", GetLogProperty(reqLog500, "RequestMethod"));
+        Assert.Equal("/api/test/boom", GetLogProperty(reqLog500, "RequestPath"));
+
+        Assert.DoesNotContain(sink.Events, e =>
+            GetLogProperty(e, "SourceContext") == typeof(CorrelationAndStructuredLogMiddleware).FullName &&
+            e.Level == LogEventLevel.Error &&
+            GetLogProperty(e, "CorrelationId") == "corr-boom-500");
+
+        // 2. 404 NotFoundException: ErrorCode captured by UseSerilogRequestLogging & correlationId in body
+        using var nfReq = new HttpRequestMessage(HttpMethod.Get, "/api/test/notfound");
+        nfReq.Headers.Add(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, "corr-nf-404");
+        nfReq.Headers.Add("X-Test-User", userId.ToString());
+        nfReq.Headers.Add("X-Test-Tenant", tenantId.ToString());
+        nfReq.Headers.Add("X-Test-Property", branchId.ToString());
+
+        var nfRes = await client.SendAsync(nfReq);
+        Assert.Equal(HttpStatusCode.NotFound, nfRes.StatusCode);
+        using (var nfDoc = JsonDocument.Parse(await nfRes.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal("ERR_NOT_FOUND", nfDoc.RootElement.GetProperty("errorCode").GetString());
+            Assert.Equal("corr-nf-404", nfDoc.RootElement.GetProperty("correlationId").GetString());
+        }
+
+        var reqLog404 = Assert.Single(sink.Events, e =>
+            GetLogProperty(e, "SourceContext") == "Serilog.AspNetCore.RequestLoggingMiddleware" &&
+            GetLogProperty(e, "CorrelationId") == "corr-nf-404");
+        Assert.Equal("ERR_NOT_FOUND", GetLogProperty(reqLog404, "ErrorCode"));
+
+        // 3. TenantPropertyContextMiddleware 401 JSON includes correlationId + Group 2 pushes UserId into LogContext
+        using var unauthReq = new HttpRequestMessage(HttpMethod.Get, "/api/platform/ping");
+        unauthReq.Headers.Add(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, "corr-unauth-401");
+        var unauthRes = await client.SendAsync(unauthReq);
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthRes.StatusCode);
+        using (var unauthDoc = JsonDocument.Parse(await unauthRes.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal("ERR_UNAUTHORIZED", unauthDoc.RootElement.GetProperty("errorCode").GetString());
+            Assert.Equal("corr-unauth-401", unauthDoc.RootElement.GetProperty("correlationId").GetString());
+        }
+
+        using var platReq = new HttpRequestMessage(HttpMethod.Get, "/api/platform/ping");
+        platReq.Headers.Add(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, "corr-platform-sa");
+        platReq.Headers.Add("X-Test-User", superAdminId.ToString());
+        platReq.Headers.Add("X-Test-Role", "SuperAdmin");
+        var platRes = await client.SendAsync(platReq);
+        Assert.Equal(HttpStatusCode.OK, platRes.StatusCode);
+
+        var platInnerLog = Assert.Single(sink.Events, e =>
+            e.MessageTemplate.Text == "Inside platform ping" &&
+            GetLogProperty(e, "CorrelationId") == "corr-platform-sa");
+        Assert.Equal(superAdminId.ToString(), GetLogProperty(platInnerLog, "UserId"));
+
+        // 4. Rate limiter 429 includes correlationId in JSON body AND increments hotelsaas_rate_limited_total{policy="auth"}
+        var before429 = GetMetricValueOrZero(SystemMetricsRegistry.ExportPrometheusText(), "hotelsaas_rate_limited_total{policy=\"auth\"}");
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/auth/login-limited")).StatusCode);
+        using var rlReq = new HttpRequestMessage(HttpMethod.Get, "/api/auth/login-limited");
+        rlReq.Headers.Add(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, "corr-429-auth");
+        var rlRes = await client.SendAsync(rlReq);
+        Assert.Equal(HttpStatusCode.TooManyRequests, rlRes.StatusCode);
+        using (var rlDoc = JsonDocument.Parse(await rlRes.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal("ERR_RATE_LIMITED", rlDoc.RootElement.GetProperty("errorCode").GetString());
+            Assert.Equal("corr-429-auth", rlDoc.RootElement.GetProperty("correlationId").GetString());
+        }
+        var after429 = GetMetricValueOrZero(SystemMetricsRegistry.ExportPrometheusText(), "hotelsaas_rate_limited_total{policy=\"auth\"}");
+        Assert.Equal(before429 + 1, after429);
     }
 
     [Fact]

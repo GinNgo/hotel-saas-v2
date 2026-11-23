@@ -84,7 +84,7 @@ public sealed class ToggleTenantStatusCommandHandler
 
         await TryWriteAuditLogAsync(
             tenant.Id,
-            AuditActions.Update,
+            AuditActions.StatusToggle,
             "TenantStatus",
             tenant.Id,
             new { Status = previousStatus.ToString() },

@@ -378,16 +378,26 @@ public sealed class AuditSaveChangesInterceptor : SaveChangesInterceptor
             return;
         }
 
-        // 2. Enforce immutability of existing AuditLog records and skip AuditLog from self-auditing.
+        // 2. Enforce immutability of existing AuditLog records and collect explicit Added AuditLog targets
+        // so domain handlers that record rich canonical actions (Cancel, ApproveRefund, RolePermission update, etc.)
+        // are never duplicated by a generic interceptor Update row for the same (EntityName, EntityId).
+        var explicitAuditedTargets = new HashSet<(string EntityName, Guid EntityId)>();
         foreach (var entry in entries)
         {
-            if (entry.Entity is AuditLog)
+            if (entry.Entity is AuditLog auditEntry)
             {
                 if (entry.State == EntityState.Modified || entry.State == EntityState.Deleted)
                 {
                     throw new ForbiddenException(
                         "ERR_AUDIT_LOG_IMMUTABLE",
                         "Không được phép chỉnh sửa hoặc xóa bản ghi nhật ký kiểm toán (AuditLog).");
+                }
+
+                if (entry.State == EntityState.Added &&
+                    !string.IsNullOrWhiteSpace(auditEntry.EntityName) &&
+                    auditEntry.EntityId != Guid.Empty)
+                {
+                    explicitAuditedTargets.Add((auditEntry.EntityName.Trim().ToUpperInvariant(), auditEntry.EntityId));
                 }
             }
         }
@@ -423,6 +433,15 @@ public sealed class AuditSaveChangesInterceptor : SaveChangesInterceptor
 
             // 4. Resolve EntityId (ensure non-empty Guid on Added entities)
             var entityId = ResolveEntityId(entry);
+
+            // Suppress duplicate generic interceptor Update row when the handler already staged an explicit AuditLog
+            // for the exact same (EntityName, EntityId) in this SaveChangesAsync unit of work.
+            if (entry.State == EntityState.Modified &&
+                entityId != Guid.Empty &&
+                explicitAuditedTargets.Contains((entityName.Trim().ToUpperInvariant(), entityId)))
+            {
+                continue;
+            }
 
             // 5. Build OldValues and NewValues according to action type
             string action;

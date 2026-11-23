@@ -69,22 +69,34 @@ public sealed class ProcessSepayWebhookCommandHandler
     private readonly ICurrentPropertyService? _propertyService;
     private readonly INotificationDispatcher? _notificationDispatcher;
     private readonly ILogger<ProcessSepayWebhookCommandHandler>? _logger;
+    private readonly ISystemMetricsRecorder? _metricsRecorder;
 
     public ProcessSepayWebhookCommandHandler(
         IApplicationDbContext context,
         ICurrentTenantService? tenantService = null,
         ICurrentPropertyService? propertyService = null,
         INotificationDispatcher? notificationDispatcher = null,
-        ILogger<ProcessSepayWebhookCommandHandler>? logger = null)
+        ILogger<ProcessSepayWebhookCommandHandler>? logger = null,
+        ISystemMetricsRecorder? metricsRecorder = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _tenantService = tenantService;
         _propertyService = propertyService;
         _notificationDispatcher = notificationDispatcher;
         _logger = logger;
+        _metricsRecorder = metricsRecorder;
     }
 
     public async Task<ProcessSepayWebhookResult> Handle(
+        ProcessSepayWebhookCommand request,
+        CancellationToken cancellationToken)
+    {
+        var result = await HandleCoreAsync(request, cancellationToken);
+        _metricsRecorder?.RecordSepayWebhook(result.Status);
+        return result;
+    }
+
+    private async Task<ProcessSepayWebhookResult> HandleCoreAsync(
         ProcessSepayWebhookCommand request,
         CancellationToken cancellationToken)
     {

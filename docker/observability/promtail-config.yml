@@ -3,7 +3,7 @@ server:
   grpc_listen_port: 0
 
 positions:
-  filename: /tmp/positions.yaml
+  filename: /var/lib/promtail/positions.yaml
 
 clients:
   - url: http://loki:3100/loki/api/v1/push
@@ -28,9 +28,15 @@ scrape_configs:
             correlation_id: Properties.CorrelationId
             tenant_id: Properties.TenantId
             property_id: Properties.PropertyId
+            error_code: Properties.ErrorCode
             status_code: Properties.StatusCode
             elapsed_ms: Properties.ElapsedMs
+      # Chỉ đánh chỉ mục các nhãn có độ phân mảnh thấp (container + level) để tránh phình index Loki.
       - labels:
           level:
+      # Đẩy các trường định danh độ phân mảnh cao (UUID / CorrelationId / ErrorCode) vào Loki 3.1 structured metadata.
+      - structured_metadata:
+          correlation_id:
           tenant_id:
           property_id:
+          error_code:

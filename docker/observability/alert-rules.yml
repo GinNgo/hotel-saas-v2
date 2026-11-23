@@ -34,3 +34,36 @@ groups:
         annotations:
           summary: "Tỷ lệ lỗi HTTP 5xx trên HotelSaas.WebApi vượt ngưỡng"
           description: "Ghi nhận hơn 5 lỗi máy chủ nội bộ (5xx) trong vòng 5 phút."
+
+      # 4. Backend Service Down Alert
+      - alert: HotelSaasBackendDown
+        expr: up{job="hotelsaas-backend-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Dịch vụ API Backend HotelSaas ngừng phản hồi"
+          description: "Prometheus không thể thu thập metrics từ HotelSaas.WebApi (job=hotelsaas-backend-api) trong hơn 1 phút liên tiếp."
+
+      # 5. High HTTP Latency (P95 > 1.5s) Alert
+      - alert: HotelSaasHighLatencyP95
+        expr: histogram_quantile(0.95, sum(rate(hotelsaas_http_request_duration_seconds_bucket[5m])) by (le)) > 1.5
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Độ trễ API P95 trên HotelSaas.WebApi vượt quá 1.5 giây"
+          description: "95% yêu cầu API có thời gian phản hồi vượt ngưỡng 1.5s kéo dài trong 5 phút gần nhất. Kiểm tra cơ sở dữ liệu và tài nguyên VPS."
+
+      # 6. SePay VietQR Webhook Failure Spike Alert
+      - alert: HotelSaasSepayWebhookFailures
+        expr: sum(increase(hotelsaas_sepay_webhook_total{status=~"auth_failed|rejected_unconfigured_bank_account|error"}[10m])) > 3
+        for: 0m
+        labels:
+          severity: critical
+          category: payment_security
+        annotations:
+          summary: "Phát hiện nhiều lỗi xử lý SePay VietQR Webhook"
+          description: "Ghi nhận hơn 3 sự kiện SePay Webhook thất bại (auth_failed, rejected_unconfigured_bank_account hoặc error) trong vòng 10 phút."

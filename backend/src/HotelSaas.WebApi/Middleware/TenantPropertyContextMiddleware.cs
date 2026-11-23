@@ -126,7 +126,10 @@ public sealed class TenantPropertyContextMiddleware
 
             userContext.SetUser(userId, string.Empty, globalRole);
 
-            await _next(context);
+            using (LogContext.PushProperty("UserId", userId.ToString()))
+            {
+                await _next(context);
+            }
             return;
         }
 
@@ -143,7 +146,10 @@ public sealed class TenantPropertyContextMiddleware
         {
             userContext.SetUser(userId, string.Empty, globalRole);
 
-            await _next(context);
+            using (LogContext.PushProperty("UserId", userId.ToString()))
+            {
+                await _next(context);
+            }
             return;
         }
 
@@ -157,7 +163,10 @@ public sealed class TenantPropertyContextMiddleware
         {
             userContext.SetUser(userId, string.Empty, globalRole);
 
-            await _next(context);
+            using (LogContext.PushProperty("UserId", userId.ToString()))
+            {
+                await _next(context);
+            }
             return;
         }
 
@@ -170,7 +179,10 @@ public sealed class TenantPropertyContextMiddleware
         {
             userContext.SetUser(userId, string.Empty, globalRole);
 
-            await _next(context);
+            using (LogContext.PushProperty("UserId", userId.ToString()))
+            {
+                await _next(context);
+            }
             return;
         }
 
@@ -645,6 +657,14 @@ public sealed class TenantPropertyContextMiddleware
         context.Response.StatusCode = statusCode;
         context.Response.ContentType = "application/json";
 
+        var correlationId = context.Items.TryGetValue("CorrelationId", out var corrObj) &&
+                            corrObj is string corrStr && !string.IsNullOrWhiteSpace(corrStr)
+            ? corrStr
+            : (context.Items.TryGetValue(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, out var hdrObj) &&
+               hdrObj is string hdrStr && !string.IsNullOrWhiteSpace(hdrStr)
+                ? hdrStr
+                : context.TraceIdentifier);
+
         var payload = new
         {
             type = statusCode switch
@@ -658,7 +678,8 @@ public sealed class TenantPropertyContextMiddleware
             },
             title = message,
             status = statusCode,
-            errorCode = errorCode
+            errorCode = errorCode,
+            correlationId = correlationId
         };
 
         await context.Response.WriteAsync(JsonSerializer.Serialize(payload, JsonOptions));

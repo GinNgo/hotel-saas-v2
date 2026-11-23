@@ -44,6 +44,12 @@ import {
   computeChainHqMetrics,
   computePropertyRoomMetrics
 } from '../../core/utils/dashboard-metrics.util';
+import {
+  getAuditActionBadgeClass,
+  getAuditActionLabel,
+  getAuditEntityDisplayLabel,
+  getFriendlyAuditSummary
+} from '../../core/utils/audit-log-display.util';
 import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 
 export type DashboardViewMode = 'PLATFORM' | 'HQ' | 'PROPERTY';
@@ -772,14 +778,21 @@ type PlatformContractSortField = 'contractNumber' | 'tenantName' | 'contractValu
                     @for (log of chainAuditLogs().slice(0, 4); track log.id) {
                       <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-xs space-y-1">
                         <div class="flex items-center justify-between gap-2">
-                          <span class="font-bold text-slate-800 dark:text-slate-100 truncate">{{ log.entityName }}</span>
-                          <span class="px-1.5 py-0.5 rounded text-xs font-semibold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
-                            {{ log.action }}
+                          <span class="font-bold text-slate-800 dark:text-slate-100 truncate">{{ getAuditEntityLabel(log.entityName) }}</span>
+                          <span
+                            class="px-2 py-0.5 rounded-full text-xs font-semibold border shrink-0"
+                            [ngClass]="getAuditActionBadgeClass(log.action)"
+                          >
+                            {{ getAuditActionLabel(log.action) }}
                           </span>
                         </div>
-                        <p class="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
-                          {{ log.changeSummary || ('Thay đổi bởi ' + (log.userFullName || log.userEmail || 'Hệ thống')) }}
+                        <p class="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">
+                          {{ getAuditSummary(log) }}
                         </p>
+                        <div class="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                          <span class="truncate">{{ log.propertyName || 'Toàn chuỗi (HQ)' }}</span>
+                          <span class="shrink-0 truncate">{{ log.userFullName || log.userEmail || 'Hệ thống' }}</span>
+                        </div>
                       </div>
                     }
                   </div>
@@ -1700,5 +1713,24 @@ export class DashboardPage implements OnInit {
       default:
         return 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300';
     }
+  }
+
+  getAuditEntityLabel(entityName?: string | null): string {
+    return getAuditEntityDisplayLabel(entityName);
+  }
+
+  getAuditActionLabel(action?: string | null): string {
+    return getAuditActionLabel(action);
+  }
+
+  getAuditActionBadgeClass(action?: string | null): string {
+    return getAuditActionBadgeClass(action);
+  }
+
+  getAuditSummary(log: AuditLogListItem): string {
+    if (log.changeSummary?.trim()) {
+      return getFriendlyAuditSummary(log.changeSummary, log.action, log.entityName);
+    }
+    return `Thay đổi bởi ${log.userFullName || log.userEmail || 'Hệ thống'}`;
   }
 }

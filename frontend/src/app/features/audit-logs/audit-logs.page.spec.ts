@@ -23,6 +23,7 @@ import { AuditLogsPage } from './audit-logs.page';
 import { AuditLogService } from '../../core/services/audit-log.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
+import { PropertyManagementService } from '../../core/services/property-management.service';
 import { AuditLogDetail, AuditLogListItem } from '../../core/models/audit-log.model';
 
 try {
@@ -396,12 +397,11 @@ describe('AuditLogsPage — T03-C UI Tests', () => {
     expect(component.getEntityDisplayLabel('SepayBankAccountConfigWarning')).toBe('Cảnh báo chưa cấu hình STK SePay');
   });
 
-  it('17. should expose all 17 canonical actions in the filter dropdown and Vietnamese labels', () => {
+  it('17. should expose all 18 canonical actions (including LoginFailed) with clean Vietnamese labels and unlock GuestReview for Owners', () => {
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
-    const actionOptions = Array.from(el.querySelectorAll('#filter-action option'))
-      .map(opt => (opt as HTMLOptionElement).value)
-      .filter(Boolean);
+    const actionOptionEls = Array.from(el.querySelectorAll('#filter-action option')) as HTMLOptionElement[];
+    const actionOptions = actionOptionEls.map(opt => opt.value).filter(Boolean);
 
     const expectedActions = [
       'Create',
@@ -420,19 +420,31 @@ describe('AuditLogsPage — T03-C UI Tests', () => {
       'ConfirmRefundPayout',
       'StatusToggle',
       'PublishApproval',
-      'Upgrade'
+      'Upgrade',
+      'LoginFailed'
     ];
 
-    expect(actionOptions.length).toBe(17);
+    expect(actionOptions.length).toBe(18);
     for (const action of expectedActions) {
       expect(actionOptions).toContain(action);
       expect(component.getActionLabel(action)).not.toBe(action);
+      // Custom actions should use semantic color badges (not dull slate fallback)
+      expect(component.getActionBadgeClass(action)).not.toContain('bg-slate-100');
+    }
+
+    // No raw English parenthetical keys like "(ApproveRefund)" or "(LoginFailed)" in dropdown labels
+    for (const opt of actionOptionEls) {
+      if (opt.value) {
+        expect(opt.textContent).not.toContain(`(${opt.value})`);
+      }
     }
 
     const entityOptions = Array.from(el.querySelectorAll('#filter-entity option'))
       .map(opt => (opt as HTMLOptionElement).value);
     expect(entityOptions).toContain('SepayExpiredHoldAlert');
     expect(entityOptions).toContain('SepayBankAccountConfigWarning');
+    expect(entityOptions).toContain('GuestReview');
+    expect(entityOptions).toContain('Auth');
   });
 
   it('18. should display explicit warning toast when CSV export hits the 1,000-row cap', () => {
@@ -466,6 +478,150 @@ describe('AuditLogsPage — T03-C UI Tests', () => {
       6000
     );
     expect(mockAlertService.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it('19. should pass pasted UUID directly in search param instead of forcing entityId', () => {
+    fixture.detectChanges();
+    mockAuditLogService.getAuditLogs.mockClear();
+
+    const pastedUuid = '44444444-4444-4444-4444-444444444444';
+    component.searchKeyword = pastedUuid;
+    component.onFilterChange();
+
+    expect(mockAuditLogService.getAuditLogs).toHaveBeenCalledWith(expect.objectContaining({
+      search: pastedUuid
+    }));
+    const lastArg = mockAuditLogService.getAuditLogs.mock.calls[0][0];
+    expect(lastArg.entityId).toBeUndefined();
+  });
+
+  it('20. should localize custom action summaries naturally in Vietnamese without raw English prefixes', () => {
+    expect(component.getFriendlySummary('ApproveRefund Payment', 'ApproveRefund', 'Payment'))
+      .toBe('Phê duyệt hoàn tiền cho Giao dịch thanh toán');
+    expect(component.getFriendlySummary('RejectRefund Payment', 'RejectRefund', 'Payment'))
+      .toBe('Từ chối yêu cầu hoàn tiền cho Giao dịch thanh toán');
+    expect(component.getFriendlySummary('ConfirmRefundPayout Payment', 'ConfirmRefundPayout', 'Payment'))
+      .toBe('Xác nhận đã chi hoàn tiền cho Giao dịch thanh toán');
+    expect(component.getFriendlySummary('RegenerateSmartLockPin Reservation', 'RegenerateSmartLockPin', 'Reservation'))
+      .toBe('Cấp lại mã PIN khóa thông minh cho Đơn đặt phòng');
+    expect(component.getFriendlySummary('RevokeSmartLockPin Reservation', 'RevokeSmartLockPin', 'Reservation'))
+      .toBe('Thu hồi mã PIN khóa thông minh của Đơn đặt phòng');
+    expect(component.getFriendlySummary('Cancel Reservation', 'Cancel', 'Reservation'))
+      .toBe('Hủy Đơn đặt phòng');
+    expect(component.getFriendlySummary('LoginFailed Auth', 'LoginFailed', 'Auth'))
+      .toBe('Ghi nhận lần đăng nhập thất bại');
+    expect(component.getFriendlySummary('StatusToggle Tenant', 'StatusToggle', 'Tenant'))
+      .toBe('Thay đổi trạng thái hoạt động của Doanh nghiệp / Chuỗi khách sạn');
+    expect(component.getFriendlySummary('PublishApproval Property', 'PublishApproval', 'Property'))
+      .toBe('Phê duyệt xuất bản Cơ sở & Chi nhánh');
+    expect(component.getFriendlySummary('Upgrade Tenant', 'Upgrade', 'Tenant'))
+      .toBe('Nâng cấp gói dịch vụ cho Doanh nghiệp / Chuỗi khách sạn');
+    expect(component.getFriendlySummary('OverrideLateCheckOutSurcharge Reservation', 'OverrideLateCheckOutSurcharge', 'Reservation'))
+      .toBe('Miễn hoặc điều chỉnh phụ thu trả phòng muộn cho Đơn đặt phòng');
+    expect(component.getFriendlySummary('CheckInDepositWarning Reservation', 'CheckInDepositWarning', 'Reservation'))
+      .toBe('Cảnh báo thiếu tiền cọc khi nhận phòng cho Đơn đặt phòng');
+  });
+
+  it('21. should render Branch/Property filter select for Owners with PROPERTIES:1 permission and show propertyName in table', async () => {
+    TestBed.resetTestingModule();
+    const mockPropertyMgmt = {
+      getTenantProperties: vi.fn().mockReturnValue(of([
+        { id: '22222222-2222-2222-2222-222222222222', name: 'Khách sạn LuxeStay Đà Lạt', code: 'DL-01' },
+        { id: '99999999-9999-9999-9999-999999999999', name: 'LuxeStay Nha Trang', code: 'NT-02' }
+      ]))
+    };
+    const ownerAuth = {
+      ...mockAuthService,
+      hasPermission: vi.fn((code: string, action: number) => code === 'PROPERTIES' && action === 1)
+    };
+
+    await TestBed.configureTestingModule({
+      imports: [AuditLogsPage],
+      providers: [
+        { provide: AuditLogService, useValue: mockAuditLogService },
+        { provide: AuthService, useValue: ownerAuth },
+        { provide: AlertService, useValue: mockAlertService },
+        { provide: PropertyManagementService, useValue: mockPropertyMgmt },
+        { provide: Router, useValue: mockRouter }
+      ]
+    }).compileComponents();
+
+    const ownerFixture = TestBed.createComponent(AuditLogsPage);
+    const ownerComp = ownerFixture.componentInstance;
+    ownerFixture.detectChanges();
+
+    const el = ownerFixture.nativeElement as HTMLElement;
+    const branchSelect = el.querySelector('#filter-property') as HTMLSelectElement | null;
+    expect(branchSelect).not.toBeNull();
+    expect(el.textContent).toContain('Chi nhánh / Doanh nghiệp');
+    expect(el.textContent).toContain('Khách sạn LuxeStay Đà Lạt');
+    expect(el.querySelector('[data-testid="date-preset-today"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="open-grafana-logs-btn"]')).toBeNull();
+
+    mockAuditLogService.getAuditLogs.mockClear();
+    ownerComp.selectedPropertyId = '99999999-9999-9999-9999-999999999999';
+    ownerComp.onFilterChange();
+    expect(mockAuditLogService.getAuditLogs).toHaveBeenCalledWith(expect.objectContaining({
+      propertyId: '99999999-9999-9999-9999-999999999999'
+    }));
+  });
+
+  it('22. should show "Mở Grafana Log" header link and tenantName column value for SuperAdmin', async () => {
+    TestBed.resetTestingModule();
+    const superAdminLogs: AuditLogListItem[] = [
+      {
+        ...sampleItems[0],
+        tenantName: 'Tập đoàn LuxeStay Holdings'
+      }
+    ];
+    mockAuditLogService.getAuditLogs.mockReturnValue(of({
+      success: true,
+      data: {
+        items: superAdminLogs,
+        totalCount: 1,
+        page: 1,
+        pageSize: 20,
+        totalPages: 1,
+        hasPreviousPage: false,
+        hasNextPage: false
+      },
+      message: null,
+      timestamp: new Date().toISOString()
+    }));
+
+    const superAdminAuth = {
+      ...mockAuthService,
+      currentUser: {
+        id: 'sa-1',
+        email: 'admin@hotelsaas.vn',
+        fullName: 'SuperAdmin',
+        globalRole: 'SuperAdmin',
+        tenantId: null
+      },
+      activePropertyId: vi.fn().mockReturnValue(null),
+      hasPermission: vi.fn().mockReturnValue(true)
+    };
+
+    await TestBed.configureTestingModule({
+      imports: [AuditLogsPage],
+      providers: [
+        { provide: AuditLogService, useValue: mockAuditLogService },
+        { provide: AuthService, useValue: superAdminAuth },
+        { provide: AlertService, useValue: mockAlertService },
+        { provide: Router, useValue: mockRouter }
+      ]
+    }).compileComponents();
+
+    const saFixture = TestBed.createComponent(AuditLogsPage);
+    saFixture.detectChanges();
+
+    const el = saFixture.nativeElement as HTMLElement;
+    const grafanaLink = el.querySelector('[data-testid="open-grafana-logs-btn"]') as HTMLAnchorElement | null;
+    expect(grafanaLink).not.toBeNull();
+    expect(grafanaLink?.getAttribute('href')).toBe('/grafana/d/hotelsaas-ops-logs-vn');
+    expect(grafanaLink?.getAttribute('target')).toBe('_blank');
+    expect(grafanaLink?.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(el.textContent).toContain('Tập đoàn LuxeStay Holdings');
   });
 });
 

@@ -1,0 +1,38 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Hotel SaaS Platform v2 — Grafana 11 Unified Alerting Contact Points Template
+# ═══════════════════════════════════════════════════════════════════════════
+# Mặc định tệp này ở trạng thái an toàn (không kích hoạt receiver nào) để
+# Grafana khởi động ổn định ngay cả khi chưa cấu hình ALERT_WEBHOOK_URL hoặc
+# Telegram Bot trên VPS.
+#
+# KHÔNG BAO GIỜ ghi trực tiếp token, mật khẩu hoặc webhook URL bí mật vào tệp này!
+# Luôn truyền biến môi trường từ .env vào container `hotelsaas-grafana`
+# (ví dụ: ALERT_WEBHOOK_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID) rồi mở comment
+# khối `contactPoints:` tương ứng bên dưới.
+# ═══════════════════════════════════════════════════════════════════════════
+
+apiVersion: 1
+
+# contactPoints:
+#   # ── Tùy chọn 1: Webhook tổng quát (Slack / Discord / n8n / Opsgenie) ──
+#   - orgId: 1
+#     name: "HotelSaaS Ops Webhook"
+#     receivers:
+#       - uid: "hotelsaas-ops-webhook"
+#         type: "webhook"
+#         disableResolveMessage: false
+#         settings:
+#           url: "${ALERT_WEBHOOK_URL}"
+#           httpMethod: "POST"
+#
+#   # ── Tùy chọn 2: Telegram Bot cảnh báo vận hành ────────────────────────
+#   - orgId: 1
+#     name: "HotelSaaS Ops Telegram"
+#     receivers:
+#       - uid: "hotelsaas-ops-telegram"
+#         type: "telegram"
+#         disableResolveMessage: false
+#         settings:
+#           bottoken: "${TELEGRAM_BOT_TOKEN}"
+#           chatid: "${TELEGRAM_CHAT_ID}"
+#           parse_mode: "HTML"

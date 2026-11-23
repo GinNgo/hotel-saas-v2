@@ -68,6 +68,7 @@ services:
     command: -config.file=/etc/promtail/config.yml
     volumes:
       - ./observability/promtail-config.yml:/etc/promtail/config.yml:ro
+      - promtail_positions:/var/lib/promtail
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
@@ -94,6 +95,7 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_SERVER_ROOT_URL: "${GRAFANA_ROOT_URL:-https://luxustay.duckdns.org/grafana/}"
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/hotelsaas-ops-logs-vn.json
     volumes:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
@@ -116,6 +118,7 @@ services:
 
 networks:
   hotelsaas-staging-network:
+    name: ${OBSERVABILITY_NETWORK:-hotelsaas-staging-network}
     external: true
   hotelsaas-net:
     driver: bridge
@@ -124,3 +127,4 @@ volumes:
   prometheus-data:
   loki-data:
   grafana-data:
+  promtail_positions:

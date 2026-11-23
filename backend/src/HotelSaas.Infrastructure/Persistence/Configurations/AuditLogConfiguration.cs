@@ -47,12 +47,9 @@ public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
         builder.Property(a => a.CreatedAtUtc)
             .IsRequired();
 
-        // Foreign key to Tenant: ON DELETE RESTRICT
-        builder.HasOne(a => a.Tenant)
-            .WithMany()
-            .HasForeignKey(a => a.TenantId)
-            .OnDelete(DeleteBehavior.Restrict)
-            .HasConstraintName("FK_AuditLogs_Tenants_TenantId");
+        // Logical tenant partition key (Guid.Empty represents platform-level security/IAM audit events).
+        // Ignore Tenant navigation so no strict FK blocks platform-level logs while global query filters enforce isolation.
+        builder.Ignore(a => a.Tenant);
 
         // Optional foreign key to Property: ON DELETE RESTRICT
         builder.HasOne(a => a.Property)

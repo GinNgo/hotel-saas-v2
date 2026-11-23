@@ -1,9 +1,11 @@
+using System.Text.Json;
 using HotelSaas.Application.Auth.DTOs;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace HotelSaas.Application.Auth.Commands.Login;
 
@@ -18,6 +20,8 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
     private readonly IApplicationDbContext _context;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtService _jwtService;
+    private readonly ILogger<LoginCommandHandler>? _logger;
+    private readonly ICurrentUserContext? _currentUserContext;
 
     /// <summary>
     /// Initializes a new instance of <see cref="LoginCommandHandler"/>.
@@ -25,25 +29,45 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
     public LoginCommandHandler(
         IApplicationDbContext context,
         IPasswordHasher passwordHasher,
-        IJwtService jwtService)
+        IJwtService jwtService,
+        ILogger<LoginCommandHandler>? logger = null,
+        ICurrentUserContext? currentUserContext = null)
     {
         _context = context;
         _passwordHasher = passwordHasher;
         _jwtService = jwtService;
+        _logger = logger;
+        _currentUserContext = currentUserContext;
     }
 
     /// <inheritdoc />
     public async Task<LoginResponse> Handle(LoginCommand request, CancellationToken cancellationToken)
     {
+        var safeEmail = request.Email?.Trim() ?? string.Empty;
+
         // 1. Authenticate user credentials first
         var user = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower(), cancellationToken);
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == safeEmail.ToLower(), cancellationToken);
 
         if (user is null || !user.IsActive)
+        {
+            await RecordFailedLoginAsync(
+                user,
+                safeEmail,
+                reason: user is null ? "AccountNotFound" : "AccountInactive",
+                cancellationToken);
             throw new UnauthorizedAccessException("Email hoặc mật khẩu không đúng.");
+        }
 
         if (!_passwordHasher.Verify(request.Password, user.PasswordHash))
+        {
+            await RecordFailedLoginAsync(
+                user,
+                safeEmail,
+                reason: "InvalidPassword",
+                cancellationToken);
             throw new UnauthorizedAccessException("Email hoặc mật khẩu không đúng.");
+        }
 
         // 1.1 Dual-Verification Policy Enforcement:
         // - B2C Guests (Role Customer): Soft-Gating applied; guests may authenticate directly.
@@ -192,5 +216,87 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
             user.EmailVerifiedAtUtc.HasValue);
 
         return new LoginResponse(accessToken, refreshToken, expiresAtUtc, userDto, validMemberships);
+    }
+
+    private async Task RecordFailedLoginAsync(
+        User? user,
+        string email,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        var ipAddress = _currentUserContext?.IpAddress;
+        _logger?.LogWarning(
+            "Authentication failed ({Reason}) for Email={Email}, UserId={UserId}, ClientIp={ClientIp}",
+            reason,
+            email,
+            user?.Id,
+            ipAddress ?? "unknown");
+
+        var resolvedTenantId = await ResolveAuditTenantIdAsync(user, cancellationToken);
+
+        try
+        {
+            _context.AuditLogs.Add(new AuditLog
+            {
+                Id = Guid.NewGuid(),
+                TenantId = resolvedTenantId,
+                PropertyId = null,
+                UserId = user?.Id,
+                Action = AuditActions.LoginFailed,
+                EntityName = "Auth",
+                EntityId = user?.Id ?? Guid.Empty,
+                OldValues = null,
+                NewValues = JsonSerializer.Serialize(new
+                {
+                    Email = email,
+                    Reason = reason,
+                    AccountStatus = user == null ? "Unknown" : (user.IsActive ? "Active" : "Inactive")
+                }),
+                IpAddress = ipAddress,
+                CreatedAtUtc = DateTime.UtcNow
+            });
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (NotImplementedException)
+        {
+            // Optional AuditLogs DbSet in minimal unit test fakes
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(
+                ex,
+                "Unable to persist LoginFailed audit log for Email={Email}",
+                email);
+        }
+    }
+
+    private async Task<Guid> ResolveAuditTenantIdAsync(User? user, CancellationToken cancellationToken)
+    {
+        if (user == null)
+        {
+            return Guid.Empty;
+        }
+
+        if (user.TenantId.HasValue && user.TenantId.Value != Guid.Empty)
+        {
+            return user.TenantId.Value;
+        }
+
+        try
+        {
+            var staffTenantId = await _context.TenantStaffMembers
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(ts => ts.UserId == user.Id)
+                .Select(ts => (Guid?)ts.TenantId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return staffTenantId ?? Guid.Empty;
+        }
+        catch
+        {
+            return Guid.Empty;
+        }
     }
 }

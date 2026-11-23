@@ -23,11 +23,14 @@ export class AuditLogService {
   getAuditLogs(params: AuditLogFilterParams): Observable<ApiResponse<PagedResult<AuditLogListItem>>> {
     let httpParams = new HttpParams();
 
-    if (params.propertyId) {
-      httpParams = httpParams.set('propertyId', params.propertyId);
+    if (params.tenantId?.trim()) {
+      httpParams = httpParams.set('tenantId', params.tenantId.trim());
     }
-    if (params.userId) {
-      httpParams = httpParams.set('userId', params.userId);
+    if (params.propertyId?.trim()) {
+      httpParams = httpParams.set('propertyId', params.propertyId.trim());
+    }
+    if (params.userId?.trim()) {
+      httpParams = httpParams.set('userId', params.userId.trim());
     }
     if (params.action) {
       httpParams = httpParams.set('action', params.action);

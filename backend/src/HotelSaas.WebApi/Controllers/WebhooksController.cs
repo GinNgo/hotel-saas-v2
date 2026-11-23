@@ -3,7 +3,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Payments.Commands.ProcessSepayWebhook;
+using HotelSaas.WebApi.Middleware;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -11,6 +13,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace HotelSaas.WebApi.Controllers;
 
@@ -26,15 +29,21 @@ public sealed class WebhooksController : ControllerBase
     private readonly ISender _mediator;
     private readonly IConfiguration _configuration;
     private readonly IHostEnvironment _environment;
+    private readonly ILogger<WebhooksController>? _logger;
+    private readonly ISystemMetricsRecorder? _metricsRecorder;
 
     public WebhooksController(
         ISender mediator,
         IConfiguration configuration,
-        IHostEnvironment environment)
+        IHostEnvironment environment,
+        ILogger<WebhooksController>? logger = null,
+        ISystemMetricsRecorder? metricsRecorder = null)
     {
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
+        _logger = logger;
+        _metricsRecorder = metricsRecorder;
     }
 
     /// <summary>
@@ -51,11 +60,25 @@ public sealed class WebhooksController : ControllerBase
     {
         if (!IsValidSepayApiKey())
         {
-            return Unauthorized(new SepayWebhookErrorResponse(false, "Unauthorized"));
+            var clientIp = HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
+            var correlationId = ResolveCorrelationId();
+            if (HttpContext != null)
+            {
+                HttpContext.Items["ErrorCode"] = "ERR_SEPAY_UNAUTHORIZED";
+            }
+
+            _logger?.LogWarning(
+                "SePay webhook authentication rejected (401 Unauthorized) from ClientIp={ClientIp} [CorrelationId={CorrelationId}]",
+                clientIp,
+                correlationId);
+            _metricsRecorder?.RecordSepayWebhook("auth_failed");
+
+            return Unauthorized(new SepayWebhookErrorResponse(false, "Unauthorized", correlationId));
         }
 
         if (payload == null)
         {
+            _metricsRecorder?.RecordSepayWebhook("ignored");
             return Ok(new SepayWebhookHttpResponse(true, "ignored", "Empty webhook payload ignored."));
         }
 
@@ -79,8 +102,16 @@ public sealed class WebhooksController : ControllerBase
             ExpectedPlatformAccountNumber: expectedPlatformAccount,
             RequireBankAccountMatch: requireBankAccountMatch);
 
-        var result = await _mediator.Send(command, cancellationToken);
-        return Ok(new SepayWebhookHttpResponse(true, result.Status, result.Message));
+        try
+        {
+            var result = await _mediator.Send(command, cancellationToken);
+            return Ok(new SepayWebhookHttpResponse(true, result.Status, result.Message));
+        }
+        catch
+        {
+            _metricsRecorder?.RecordSepayWebhook("error");
+            throw;
+        }
     }
 
     /// <summary>
@@ -162,6 +193,28 @@ public sealed class WebhooksController : ControllerBase
         return expectedBytes.Length == providedBytes.Length &&
                CryptographicOperations.FixedTimeEquals(expectedBytes, providedBytes);
     }
+
+    private string? ResolveCorrelationId()
+    {
+        if (HttpContext == null)
+        {
+            return null;
+        }
+
+        if (HttpContext.Items.TryGetValue("CorrelationId", out var corrObj) &&
+            corrObj is string corrStr && !string.IsNullOrWhiteSpace(corrStr))
+        {
+            return corrStr;
+        }
+
+        if (HttpContext.Items.TryGetValue(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, out var hdrObj) &&
+            hdrObj is string hdrStr && !string.IsNullOrWhiteSpace(hdrStr))
+        {
+            return hdrStr;
+        }
+
+        return HttpContext.TraceIdentifier;
+    }
 }
 
 public sealed class SepayWebhookPayload
@@ -190,4 +243,4 @@ public sealed class SimulateSepayWebhookRequest
 
 public sealed record SepayWebhookHttpResponse(bool Success, string Status, string Message);
 
-public sealed record SepayWebhookErrorResponse(bool Success, string Message);
+public sealed record SepayWebhookErrorResponse(bool Success, string Message, string? CorrelationId = null);

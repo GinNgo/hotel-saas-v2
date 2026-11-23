@@ -19,6 +19,7 @@ import { TestBed } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
 import { AuditLogService } from './audit-log.service';
+import { TokenStorageService } from './token-storage.service';
 import { environment } from '../../../environments/environment';
 
 try {
@@ -30,12 +31,22 @@ try {
 describe('AuditLogService Unit Tests', () => {
   let service: AuditLogService;
   let httpMock: HttpTestingController;
+  let mockGlobalRole: string | null = 'Owner';
 
   beforeEach(() => {
+    mockGlobalRole = 'Owner';
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [HttpClientTestingModule],
-      providers: [AuditLogService]
+      providers: [
+        AuditLogService,
+        {
+          provide: TokenStorageService,
+          useValue: {
+            getDecodedToken: () => (mockGlobalRole ? { globalRole: mockGlobalRole } : null)
+          }
+        }
+      ]
     });
     service = TestBed.inject(AuditLogService);
     httpMock = TestBed.inject(HttpTestingController);
@@ -102,6 +113,77 @@ describe('AuditLogService Unit Tests', () => {
         action: 'Update',
         entityName: 'RoomTypeRate',
         changes: [{ fieldName: 'NightlyPrice', oldValue: '850000', newValue: '950000' }]
+      },
+      message: null,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  it('3. should forward tenantId, propertyId, and userId query params cleanly', () => {
+    service.getAuditLogs({
+      tenantId: 'tenant-001',
+      propertyId: 'prop-002',
+      userId: 'user-003',
+      search: 'nguyen van a',
+      page: 1,
+      pageSize: 20
+    }).subscribe(res => {
+      expect(res.success).toBe(true);
+    });
+
+    const req = httpMock.expectOne(r =>
+      r.url === `${environment.apiUrl}/audit-logs` &&
+      r.params.get('tenantId') === 'tenant-001' &&
+      r.params.get('propertyId') === 'prop-002' &&
+      r.params.get('userId') === 'user-003' &&
+      r.params.get('search') === 'nguyen van a'
+    );
+    expect(req.request.method).toBe('GET');
+
+    req.flush({
+      success: true,
+      data: {
+        items: [],
+        totalCount: 0,
+        page: 1,
+        pageSize: 20,
+        totalPages: 0,
+        hasPreviousPage: false,
+        hasNextPage: false
+      },
+      message: null,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  it('4. should route SuperAdmin requests to /platform/audit-logs with tenantId filter', () => {
+    mockGlobalRole = 'SuperAdmin';
+    service.getAuditLogs({
+      tenantId: 'tenant-sa-99',
+      action: 'LoginFailed',
+      page: 1,
+      pageSize: 20
+    }).subscribe(res => {
+      expect(res.success).toBe(true);
+    });
+
+    const req = httpMock.expectOne(r =>
+      r.url === `${environment.apiUrl}/platform/audit-logs` &&
+      r.params.get('tenantId') === 'tenant-sa-99' &&
+      r.params.get('action') === 'LoginFailed'
+    );
+    expect(req.request.method).toBe('GET');
+
+    req.flush({
+      success: true,
+      data: {
+        items: [],
+        totalCount: 0,
+        page: 1,
+        pageSize: 20,
+        totalPages: 0,
+        hasPreviousPage: false,
+        hasNextPage: false
       },
       message: null,
       timestamp: new Date().toISOString()

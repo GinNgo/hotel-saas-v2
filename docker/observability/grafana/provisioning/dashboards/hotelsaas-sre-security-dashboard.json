@@ -15,14 +15,29 @@
       }
     ]
   },
+  "description": "Bảng điều khiển SRE & Bảo mật Đa Tenant chuyên sâu: hiệu năng HTTP theo route, cách ly Tenant/Chi nhánh, kết nối SignalR, VNPay IPN và nhật ký JSON có cấu trúc.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Về Bảng Vận hành & Tra cứu Log (Dễ dùng)",
+      "tooltip": "Mở bảng tổng quan tiếng Việt gọn nhẹ với log 1 dòng dễ đọc",
+      "type": "link",
+      "url": "/grafana/d/hotelsaas-ops-logs-vn"
+    }
+  ],
   "panels": [
     {
-      "datasource": "Prometheus",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Tốc độ xử lý yêu cầu HTTP trung bình mỗi giây (Requests/sec) trên HotelSaas.WebApi trong 1 phút gần nhất.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -47,23 +62,33 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "HTTP Throughput (RPS)",
-      "type": "stat",
       "targets": [
         {
-          "datasource": "Prometheus",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "rate(hotelsaas_http_requests_total[1m])",
           "legendFormat": "RPS",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "Lưu lượng HTTP (RPS)",
+      "type": "stat"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Tổng số lỗi máy chủ nội bộ HTTP 5xx phát sinh trong khung giờ đang chọn (không cộng dồn suốt đời). Bấm để mở bảng tra cứu Log lỗi.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "links": [
+            {
+              "targetBlank": false,
+              "title": "Xem Log Lỗi chi tiết (Vận hành & Log)",
+              "url": "/grafana/d/hotelsaas-ops-logs-vn?from=${__from}&to=${__to}"
+            }
+          ],
           "mappings": [],
+          "noValue": "0",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -86,23 +111,33 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "HTTP 5xx Errors (Total)",
-      "type": "stat",
       "targets": [
         {
-          "datasource": "Prometheus",
-          "expr": "hotelsaas_http_5xx_errors_total",
-          "legendFormat": "5xx Total",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "round(increase(hotelsaas_http_5xx_errors_total[$__range]) or vector(0))",
+          "legendFormat": "Lỗi 5xx (trong khung giờ)",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "Lỗi Hệ thống HTTP 5xx (trong khung giờ)",
+      "type": "stat"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Số lượng yêu cầu vi phạm ranh giới Tenant hoặc Chi nhánh bị bộ lọc bảo mật Fail-Closed chặn trong khung giờ đang chọn. Bấm để xem Log chi tiết.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "links": [
+            {
+              "targetBlank": false,
+              "title": "Tra cứu Log Chặn Bảo mật (Vận hành & Log)",
+              "url": "/grafana/d/hotelsaas-ops-logs-vn?from=${__from}&to=${__to}"
+            }
+          ],
           "mappings": [],
+          "noValue": "0",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -125,19 +160,20 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Tenant & Cross-Branch Isolation Blocks",
-      "type": "stat",
       "targets": [
         {
-          "datasource": "Prometheus",
-          "expr": "hotelsaas_tenant_isolation_blocks_total",
-          "legendFormat": "Blocked Requests",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "round(increase(hotelsaas_tenant_isolation_blocks_total[$__range]) or vector(0))",
+          "legendFormat": "Yêu cầu bị chặn",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "Chặn Cách ly Tenant & Chi nhánh (trong khung giờ)",
+      "type": "stat"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Số lượng kết nối WebSocket thời gian thực đang hoạt động trên SignalR NotificationHub.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -164,19 +200,20 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Active SignalR Connections",
-      "type": "stat",
       "targets": [
         {
-          "datasource": "Prometheus",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "hotelsaas_signalr_active_connections",
-          "legendFormat": "Active Connections",
+          "legendFormat": "Kết nối hoạt động",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "Kết nối SignalR Đang hoạt động",
+      "type": "stat"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Lưu lượng HTTP mỗi giây (RPS) theo từng phương thức, đường dẫn API, mã trạng thái và tốc độ phát sinh lỗi HTTP 5xx.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -186,6 +223,13 @@
             "lineWidth": 2,
             "showPoints": "never"
           },
+          "links": [
+            {
+              "targetBlank": false,
+              "title": "Tra cứu Log API trong khung giờ này",
+              "url": "/grafana/d/hotelsaas-ops-logs-vn?from=${__from}&to=${__to}"
+            }
+          ],
           "unit": "reqps"
         },
         "overrides": []
@@ -196,25 +240,26 @@
         "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
-      "title": "HTTP RPS by Route & Status & 5xx Rate",
-      "type": "timeseries",
       "targets": [
         {
-          "datasource": "Prometheus",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "sum by (method, route, status) (rate(hotelsaas_http_route_requests_total[1m]))",
           "legendFormat": "{{method}} {{route}} [{{status}}]",
           "refId": "A"
         },
         {
-          "datasource": "Prometheus",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "rate(hotelsaas_http_5xx_errors_total[1m])",
-          "legendFormat": "HTTP 5xx Error Rate",
+          "legendFormat": "Tốc độ lỗi HTTP 5xx",
           "refId": "B"
         }
-      ]
+      ],
+      "title": "Lưu lượng HTTP theo Endpoint & Tỷ lệ lỗi 5xx (RPS)",
+      "type": "timeseries"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Số lần chặn truy cập liên Tenant / liên Chi nhánh mỗi 5 phút phân nhóm theo mã lỗi bảo mật (error_code). Không cộng trùng tổng số với chi tiết.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -224,6 +269,13 @@
             "lineWidth": 1,
             "stacking": { "group": "A", "mode": "normal" }
           },
+          "links": [
+            {
+              "targetBlank": false,
+              "title": "Xem Log Chặn Bảo mật chi tiết",
+              "url": "/grafana/d/hotelsaas-ops-logs-vn?from=${__from}&to=${__to}"
+            }
+          ],
           "unit": "short"
         },
         "overrides": []
@@ -234,25 +286,20 @@
         "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
-      "title": "Multi-Tenant & Cross-Branch Isolation Blocks by Error Code",
-      "type": "timeseries",
       "targets": [
         {
-          "datasource": "Prometheus",
-          "expr": "increase(hotelsaas_tenant_isolation_blocks_total[5m])",
-          "legendFormat": "Total Blocks (5m)",
-          "refId": "A"
-        },
-        {
-          "datasource": "Prometheus",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "sum by (error_code) (increase(hotelsaas_tenant_isolation_blocks_by_reason_total[5m]))",
           "legendFormat": "{{error_code}}",
-          "refId": "B"
+          "refId": "A"
         }
-      ]
+      ],
+      "title": "Chặn Cách ly Đa Tenant & Chi nhánh theo Mã lỗi (5 phút)",
+      "type": "timeseries"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Diễn biến số lượng kết nối thời gian thực SignalR NotificationHub theo thời gian.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -272,19 +319,20 @@
         "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
         "tooltip": { "mode": "multi", "sort": "none" }
       },
-      "title": "Active SignalR NotificationHub Connections",
-      "type": "timeseries",
       "targets": [
         {
-          "datasource": "Prometheus",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "hotelsaas_signalr_active_connections",
-          "legendFormat": "Active SignalR Connections",
+          "legendFormat": "Kết nối SignalR hoạt động",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "Biểu đồ Kết nối SignalR NotificationHub theo thời gian",
+      "type": "timeseries"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Số lượng callback thanh toán VNPay IPN mỗi 5 phút phân loại theo mã phản hồi rsp_code (00=Thành công, 97=Sai chữ ký HMAC). Không cộng chồng bộ đếm tích lũy suốt đời.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -294,6 +342,13 @@
             "lineWidth": 1,
             "stacking": { "group": "A", "mode": "normal" }
           },
+          "links": [
+            {
+              "targetBlank": false,
+              "title": "Tra cứu Log VNPay trong Bảng Vận hành",
+              "url": "/grafana/d/hotelsaas-ops-logs-vn?from=${__from}&to=${__to}"
+            }
+          ],
           "unit": "short"
         },
         "overrides": []
@@ -304,25 +359,20 @@
         "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
-      "title": "VNPay IPN Callbacks by Response Code (rsp_code)",
-      "type": "timeseries",
       "targets": [
         {
-          "datasource": "Prometheus",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "sum by (rsp_code) (increase(hotelsaas_vnpay_ipn_total[5m]))",
           "legendFormat": "rsp_code={{rsp_code}}",
           "refId": "A"
-        },
-        {
-          "datasource": "Prometheus",
-          "expr": "sum by (rsp_code) (hotelsaas_vnpay_ipn_total)",
-          "legendFormat": "cumulative rsp_code={{rsp_code}}",
-          "refId": "B"
         }
-      ]
+      ],
+      "title": "Giao dịch VNPay IPN theo Mã phản hồi (5 phút)",
+      "type": "timeseries"
     },
     {
-      "datasource": "Loki (Structured Logs)",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Hiển thị tất cả log mức Error, Fatal, Warning hoặc phản hồi HTTP >= 400 (đã loại trừ /health và /metrics, tìm kiếm không phân biệt hoa thường).",
       "gridPos": { "h": 9, "w": 24, "x": 0, "y": 19 },
       "id": 9,
       "options": {
@@ -335,19 +385,20 @@
         "sortOrder": "Descending",
         "wrapLogMessage": true
       },
-      "title": "⚠️ Log Lỗi & Chặn Bảo Mật (Error / Warning / Status >= 400)",
-      "type": "logs",
       "targets": [
         {
-          "datasource": "Loki (Structured Logs)",
-          "expr": "{container=~\"$container\", tenant_id=~\"$tenant_id\", property_id=~\"$property_id\"} |= \"$search\" | json CorrelationId=\"Properties.CorrelationId\", TenantId=\"Properties.TenantId\", PropertyId=\"Properties.PropertyId\", StatusCode=\"Properties.StatusCode\", ElapsedMs=\"Properties.ElapsedMs\", ErrorCode=\"Properties.ErrorCode\", SourceContext=\"Properties.SourceContext\" | level=~\"Error|Warning\" or StatusCode >= 400",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{container=~\"$container\"} != \"/health\" != \"/metrics\" |~ \"(?i)$tenant_id\" |~ \"(?i)$property_id\" |~ \"(?i)$search\" | json CorrelationId=\"Properties.CorrelationId\", TenantId=\"Properties.TenantId\", PropertyId=\"Properties.PropertyId\", StatusCode=\"Properties.StatusCode\", ElapsedMs=\"Properties.ElapsedMs\", ErrorCode=\"Properties.ErrorCode\", SourceContext=\"Properties.SourceContext\" | level=~\"Error|Fatal|Warning\" or StatusCode >= 400",
           "queryType": "range",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "⚠️ Log Lỗi & Chặn Bảo mật (Error / Fatal / Warning / Status >= 400)",
+      "type": "logs"
     },
     {
-      "datasource": "Loki (Structured Logs)",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Hiển thị toàn bộ nhật ký JSON có cấu trúc theo dịch vụ, mức độ log, Mã Tenant, Mã Chi nhánh và từ khóa không phân biệt chữ hoa/thường.",
       "gridPos": { "h": 11, "w": 24, "x": 0, "y": 28 },
       "id": 10,
       "options": {
@@ -360,16 +411,16 @@
         "sortOrder": "Descending",
         "wrapLogMessage": true
       },
-      "title": "📋 Toàn Bộ Structured JSON Logs (Lọc theo thanh chọn ở trên)",
-      "type": "logs",
       "targets": [
         {
-          "datasource": "Loki (Structured Logs)",
-          "expr": "{container=~\"$container\", level=~\"$level\", tenant_id=~\"$tenant_id\", property_id=~\"$property_id\"} |= \"$search\" | json CorrelationId=\"Properties.CorrelationId\", TenantId=\"Properties.TenantId\", PropertyId=\"Properties.PropertyId\", StatusCode=\"Properties.StatusCode\", ElapsedMs=\"Properties.ElapsedMs\", RequestPath=\"Properties.RequestPath\", ErrorCode=\"Properties.ErrorCode\"",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{container=~\"$container\", level=~\"$level\"} != \"/health\" != \"/metrics\" |~ \"(?i)$tenant_id\" |~ \"(?i)$property_id\" |~ \"(?i)$search\" | json CorrelationId=\"Properties.CorrelationId\", TenantId=\"Properties.TenantId\", PropertyId=\"Properties.PropertyId\", StatusCode=\"Properties.StatusCode\", ElapsedMs=\"Properties.ElapsedMs\", RequestPath=\"Properties.RequestPath\", ErrorCode=\"Properties.ErrorCode\"",
           "queryType": "range",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "📋 Toàn bộ Structured JSON Logs (Lọc theo thanh chọn ở trên)",
+      "type": "logs"
     }
   ],
   "refresh": "10s",
@@ -378,27 +429,26 @@
   "templating": {
     "list": [
       {
-        "allValue": "hotelsaas-.*",
+        "allValue": ".+",
         "current": {
           "selected": true,
-          "text": "hotelsaas-backend-api",
-          "value": "hotelsaas-backend-api"
+          "text": ["All"],
+          "value": ["$__all"]
         },
+        "datasource": { "type": "loki", "uid": "loki" },
+        "definition": "label_values(container)",
         "hide": 0,
         "includeAll": true,
-        "label": "Dịch vụ",
-        "multi": false,
+        "label": "Dịch vụ (Container)",
+        "multi": true,
         "name": "container",
-        "options": [
-          { "selected": false, "text": "All", "value": "$__all" },
-          { "selected": true, "text": "hotelsaas-backend-api", "value": "hotelsaas-backend-api" },
-          { "selected": false, "text": "hotelsaas-frontend-app", "value": "hotelsaas-frontend-app" },
-          { "selected": false, "text": "hotelsaas-promtail", "value": "hotelsaas-promtail" },
-          { "selected": false, "text": "hotelsaas-grafana", "value": "hotelsaas-grafana" }
-        ],
-        "query": "hotelsaas-backend-api,hotelsaas-frontend-app,hotelsaas-promtail,hotelsaas-grafana",
+        "options": [],
+        "query": "label_values(container)",
+        "refresh": 2,
+        "regex": "",
         "skipUrlSync": false,
-        "type": "custom"
+        "sort": 1,
+        "type": "query"
       },
       {
         "allValue": ".*",
@@ -416,55 +466,44 @@
           { "selected": true, "text": "All", "value": "$__all" },
           { "selected": false, "text": "Information", "value": "Information" },
           { "selected": false, "text": "Warning", "value": "Warning" },
-          { "selected": false, "text": "Error", "value": "Error" }
+          { "selected": false, "text": "Error", "value": "Error" },
+          { "selected": false, "text": "Fatal", "value": "Fatal" }
         ],
-        "query": "Information,Warning,Error",
+        "query": "Information,Warning,Error,Fatal",
         "skipUrlSync": false,
         "type": "custom"
       },
       {
-        "allValue": ".*",
         "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
+          "selected": false,
+          "text": "",
+          "value": ""
         },
-        "datasource": "Loki (Structured Logs)",
-        "definition": "label_values(tenant_id)",
         "hide": 0,
-        "includeAll": true,
-        "label": "Khách sạn (Tenant)",
-        "multi": false,
+        "label": "Mã Khách sạn (Tenant ID)",
         "name": "tenant_id",
-        "options": [],
-        "query": "label_values(tenant_id)",
-        "refresh": 2,
-        "regex": "",
+        "options": [
+          { "selected": false, "text": "", "value": "" }
+        ],
+        "query": "",
         "skipUrlSync": false,
-        "sort": 1,
-        "type": "query"
+        "type": "textbox"
       },
       {
-        "allValue": ".*",
         "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
+          "selected": false,
+          "text": "",
+          "value": ""
         },
-        "datasource": "Loki (Structured Logs)",
-        "definition": "label_values(property_id)",
         "hide": 0,
-        "includeAll": true,
-        "label": "Chi nhánh (Property)",
-        "multi": false,
+        "label": "Mã Chi nhánh (Property ID)",
         "name": "property_id",
-        "options": [],
-        "query": "label_values(property_id)",
-        "refresh": 2,
-        "regex": "",
+        "options": [
+          { "selected": false, "text": "", "value": "" }
+        ],
+        "query": "",
         "skipUrlSync": false,
-        "sort": 1,
-        "type": "query"
+        "type": "textbox"
       },
       {
         "current": {
@@ -487,7 +526,7 @@
   "time": { "from": "now-1h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "HotelSaaS SRE & Multi-Tenant Security Dashboard",
+  "title": "Hotel SaaS — Giám sát SRE & Bảo mật Đa Tenant",
   "uid": "hotelsaas-sre-security",
-  "version": 2
+  "version": 3
 }
