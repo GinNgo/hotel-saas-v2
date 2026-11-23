@@ -962,27 +962,26 @@ export class PoliciesPage implements OnInit, OnDestroy, HasUnsavedChanges {
   copySepayWebhookUrl(): void {
     const url = this.sepayWebhookUrl();
     if (!url) return;
-    const markCopied = () => {
-      this.isWebhookUrlCopied.set(true);
-      if (this.webhookCopyTimer) {
-        clearTimeout(this.webhookCopyTimer);
-      }
-      this.webhookCopyTimer = setTimeout(() => {
-        this.isWebhookUrlCopied.set(false);
-        this.webhookCopyTimer = undefined;
-        this.cdr?.markForCheck();
-      }, 2000);
-      this.alertService.toastSuccess('Đã sao chép URL Webhook SePay của cơ sở.', 'Đã sao chép');
-      this.cdr?.markForCheck();
-    };
 
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(url).then(markCopied).catch(() => {
-        markCopied();
-      });
-    } else {
-      markCopied();
+      try {
+        void Promise.resolve(navigator.clipboard.writeText(url)).catch(() => {});
+      } catch {
+        // Ignore clipboard permission errors in headless/non-HTTPS contexts
+      }
     }
+
+    this.isWebhookUrlCopied.set(true);
+    if (this.webhookCopyTimer) {
+      clearTimeout(this.webhookCopyTimer);
+    }
+    this.webhookCopyTimer = setTimeout(() => {
+      this.isWebhookUrlCopied.set(false);
+      this.webhookCopyTimer = undefined;
+      this.cdr?.markForCheck();
+    }, 2000);
+    this.alertService.toastSuccess('Đã sao chép URL Webhook SePay của cơ sở.', 'Đã sao chép');
+    this.cdr?.markForCheck();
   }
 
   hasUnsavedChanges(): boolean {
