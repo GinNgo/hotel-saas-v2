@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
-import { PagedResult, ApiResponse } from '../models/api-response.model';
+import { ApiEnvelope, ApiResponse, PagedResult, unwrapApiEnvelope } from '../models/api-response.model';
 import {
   ReservationDto,
   ReservationDetailDto,
@@ -33,6 +33,16 @@ export interface GetReservationsFilter {
   search?: string;
   page?: number;
   pageSize?: number;
+}
+
+export interface CheckInOptionsRequest {
+  applyEarlySurcharge?: boolean;
+}
+
+export interface CheckOutOptionsRequest {
+  applyLateSurcharge?: boolean;
+  overrideLateSurchargeAmount?: number | null;
+  lateSurchargeOverrideReason?: string | null;
 }
 
 export interface GetAvailabilityFilter {
@@ -83,12 +93,14 @@ export class ReservationService {
       params = params.set('search', filter.search.trim());
     }
 
-    return this.http.get<any>(this.apiUrl, { params }).pipe(
-      map(res => {
-        const result = (res.data ? res.data : res) as PagedResult<ReservationDto>;
-        return { ...result, items: result.items.map(normalizeReservation) };
-      })
-    );
+    return this.http
+      .get<ApiEnvelope<PagedResult<ReservationDto>> | PagedResult<ReservationDto>>(this.apiUrl, { params })
+      .pipe(
+        map(res => {
+          const result = unwrapApiEnvelope(res);
+          return { ...result, items: (result.items ?? []).map(normalizeReservation) };
+        })
+      );
   }
 
   /**
@@ -96,23 +108,25 @@ export class ReservationService {
    */
   getReservationById(id: string, propertyId: string): Observable<ReservationDetailDto> {
     const params = new HttpParams().set('propertyId', propertyId);
-    return this.http.get<any>(`${this.apiUrl}/${id}`, { params }).pipe(
-      map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto))
-    );
+    return this.http
+      .get<ApiEnvelope<ReservationDetailDto> | ReservationDetailDto>(`${this.apiUrl}/${id}`, { params })
+      .pipe(map(res => normalizeReservation(unwrapApiEnvelope(res))));
   }
 
   /**
    * Creates a new internal booking with atomic locking and quote verification.
    */
   createReservation(request: CreateReservationRequest): Observable<ReservationDetailDto> {
-    const headers: { [key: string]: string } = {};
+    const headers: Record<string, string> = {};
     if (request.idempotencyKey) {
       headers['Idempotency-Key'] = request.idempotencyKey;
     }
-    return this.http.post<any>(this.apiUrl, request, { headers }).pipe(
-      map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto)),
-      tap(detail => this.broadcastLiveReservationPing('create', detail?.id, request.propertyId))
-    );
+    return this.http
+      .post<ApiEnvelope<ReservationDetailDto> | ReservationDetailDto>(this.apiUrl, request, { headers })
+      .pipe(
+        map(res => normalizeReservation(unwrapApiEnvelope(res))),
+        tap(detail => this.broadcastLiveReservationPing('create', detail?.id, request.propertyId))
+      );
   }
 
   /**
@@ -135,9 +149,9 @@ export class ReservationService {
       params = params.set('checkOutDate', filter.checkOutDate);
     }
 
-    return this.http.get<any>(`${this.apiUrl}/availability`, { params }).pipe(
-      map(res => (res.data ? res.data : res) as RoomAvailabilityDto[])
-    );
+    return this.http
+      .get<ApiEnvelope<RoomAvailabilityDto[]> | RoomAvailabilityDto[]>(`${this.apiUrl}/availability`, { params })
+      .pipe(map(unwrapApiEnvelope));
   }
 
   /**
@@ -152,21 +166,42 @@ export class ReservationService {
   /**
    * Check in a confirmed reservation. Transitions room to Occupied.
    */
-  checkIn(id: string, propertyId: string): Observable<ReservationDetailDto> {
+  checkIn(id: string, propertyId: string, options?: CheckInOptionsRequest): Observable<ReservationDetailDto> {
     const params = new HttpParams().set('propertyId', propertyId);
-    return this.http.post<any>(`${this.apiUrl}/${id}/check-in`, null, { params }).pipe(
-      map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto))
-    );
+    const body = options?.applyEarlySurcharge ? options : null;
+    return this.http
+      .post<ApiEnvelope<ReservationDetailDto> | ReservationDetailDto>(`${this.apiUrl}/${id}/check-in`, body, { params })
+      .pipe(map(res => normalizeReservation(unwrapApiEnvelope(res))));
   }
 
   /**
-   * Check out a checked-in reservation. Transitions room to Dirty.
+   * Check out a checked-in reservation. Transitions room to Dirty, generates HousekeepingTask and Invoice.
    */
-  checkOut(id: string, propertyId: string): Observable<ReservationDetailDto> {
+  checkOut(id: string, propertyId: string, options?: CheckOutOptionsRequest): Observable<ReservationDetailDto> {
     const params = new HttpParams().set('propertyId', propertyId);
-    return this.http.post<any>(`${this.apiUrl}/${id}/check-out`, null, { params }).pipe(
-      map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto)),
-      tap(() => this.broadcastLiveReservationPing('check-out', id, propertyId))
+    const body = options && (options.applyLateSurcharge !== undefined || options.overrideLateSurchargeAmount !== undefined)
+      ? options
+      : null;
+    return this.http
+      .post<ApiEnvelope<ReservationDetailDto> | ReservationDetailDto>(`${this.apiUrl}/${id}/check-out`, body, { params })
+      .pipe(
+        map(res => normalizeReservation(unwrapApiEnvelope(res))),
+        tap(() => this.broadcastLiveReservationPing('check-out', id, propertyId))
+      );
+  }
+
+  /**
+   * Marks a confirmed reservation as No-Show, revoking SmartLock access.
+   */
+  markNoShow(id: string, propertyId: string, reason?: string): Observable<ReservationDetailDto> {
+    const params = new HttpParams().set('propertyId', propertyId);
+    const body = reason ? { reason, propertyId } : null;
+    return this.http.post<ApiResponse<ReservationDetailDto> | ReservationDetailDto>(`${this.apiUrl}/${id}/no-show`, body, { params }).pipe(
+      map(res => {
+        const dto = 'data' in res && res.data ? res.data : (res as ReservationDetailDto);
+        return normalizeReservation(dto);
+      }),
+      tap(() => this.broadcastLiveReservationPing('no-show', id, propertyId))
     );
   }
 
@@ -176,10 +211,12 @@ export class ReservationService {
   cancel(id: string, propertyId: string, reason?: string): Observable<ReservationDetailDto> {
     const params = new HttpParams().set('propertyId', propertyId);
     const body = reason ? { reason } : {};
-    return this.http.post<any>(`${this.apiUrl}/${id}/cancel`, body, { params }).pipe(
-      map(res => normalizeReservation((res.data ? res.data : res) as ReservationDetailDto)),
-      tap(() => this.broadcastLiveReservationPing('cancel', id, propertyId))
-    );
+    return this.http
+      .post<ApiEnvelope<ReservationDetailDto> | ReservationDetailDto>(`${this.apiUrl}/${id}/cancel`, body, { params })
+      .pipe(
+        map(res => normalizeReservation(unwrapApiEnvelope(res))),
+        tap(() => this.broadcastLiveReservationPing('cancel', id, propertyId))
+      );
   }
 
   /**
@@ -204,8 +241,48 @@ export class ReservationService {
     if (request.propertyId) {
       params = params.set('propertyId', request.propertyId);
     }
-    return this.http.post<any>(`${this.apiUrl}/${reservationId}/folio/items`, request, { params }).pipe(
-      map(res => (res.data ? res.data : res) as FolioDto)
+    return this.http
+      .post<ApiEnvelope<FolioDto> | FolioDto>(`${this.apiUrl}/${reservationId}/folio/items`, request, { params })
+      .pipe(map(unwrapApiEnvelope));
+  }
+
+  /**
+   * Cấp mới mã PIN Smart Lock 6 số cho đơn Confirmed / CheckedIn (G0-03).
+   */
+  regenerateSmartLockPin(id: string, propertyId: string, reason?: string): Observable<ReservationDetailDto> {
+    let params = new HttpParams().set('propertyId', propertyId);
+    if (reason?.trim()) {
+      params = params.set('reason', reason.trim());
+    }
+    return this.http.post<ApiResponse<ReservationDetailDto> | ReservationDetailDto>(
+      `${this.apiUrl}/${id}/smart-lock/regenerate`,
+      null,
+      { params }
+    ).pipe(
+      map(res => {
+        const dto = 'data' in res && res.data ? res.data : (res as ReservationDetailDto);
+        return normalizeReservation(dto);
+      })
+    );
+  }
+
+  /**
+   * Thu hồi mã PIN Smart Lock hiện tại nhưng vẫn giữ lịch sử kiểm toán (G0-03).
+   */
+  revokeSmartLockPin(id: string, propertyId: string, reason?: string): Observable<ReservationDetailDto> {
+    let params = new HttpParams().set('propertyId', propertyId);
+    if (reason?.trim()) {
+      params = params.set('reason', reason.trim());
+    }
+    return this.http.post<ApiResponse<ReservationDetailDto> | ReservationDetailDto>(
+      `${this.apiUrl}/${id}/smart-lock/revoke`,
+      null,
+      { params }
+    ).pipe(
+      map(res => {
+        const dto = 'data' in res && res.data ? res.data : (res as ReservationDetailDto);
+        return normalizeReservation(dto);
+      })
     );
   }
 

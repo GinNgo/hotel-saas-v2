@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Properties.DTOs;
+using HotelSaas.Application.Reservations.Services;
 using HotelSaas.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -20,13 +21,16 @@ public sealed class GetTenantPropertiesQueryHandler : IRequestHandler<GetTenantP
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
+    private readonly ICurrentPropertyService? _propertyService;
 
     public GetTenantPropertiesQueryHandler(
         IApplicationDbContext context,
-        ICurrentTenantService currentTenantService)
+        ICurrentTenantService currentTenantService,
+        ICurrentPropertyService? propertyService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _currentTenantService = currentTenantService ?? throw new ArgumentNullException(nameof(currentTenantService));
+        _propertyService = propertyService;
     }
 
     public async Task<IReadOnlyList<TenantPropertySummaryDto>> Handle(GetTenantPropertiesQuery request, CancellationToken cancellationToken)
@@ -34,10 +38,26 @@ public sealed class GetTenantPropertiesQueryHandler : IRequestHandler<GetTenantP
         var tenantId = _currentTenantService.TenantId
             ?? throw new UnauthorizedAccessException("Yêu cầu thông tin Tenant hợp lệ để truy vấn danh sách chi nhánh.");
 
-        var properties = await _context.Properties
-            .Where(p => p.TenantId == tenantId)
+        var excludedIds = _propertyService?.ExcludedPropertyIds ?? Array.Empty<Guid>();
+
+        var propertiesQuery = _context.Properties
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(p => p.TenantId == tenantId);
+
+        if (excludedIds.Count > 0)
+        {
+            propertiesQuery = propertiesQuery.Where(p => !excludedIds.Contains(p.Id));
+        }
+
+        if (_propertyService is { IsTenantWide: false, PropertyId: not null } && _propertyService.PropertyId.Value != Guid.Empty)
+        {
+            var scopedPropId = _propertyService.PropertyId.Value;
+            propertiesQuery = propertiesQuery.Where(p => p.Id == scopedPropId);
+        }
+
+        var properties = await propertiesQuery
             .OrderBy(p => p.Name)
-            .Include(p => p.Rooms)
             .ToListAsync(cancellationToken);
 
         if (properties.Count == 0)
@@ -47,23 +67,39 @@ public sealed class GetTenantPropertiesQueryHandler : IRequestHandler<GetTenantP
 
         var propertyIds = properties.Select(p => p.Id).ToList();
 
-        // Calculate occupancy and today revenue
-        var nowUtc = DateTime.UtcNow;
-        var todayStartUtc = new DateTime(nowUtc.Year, nowUtc.Month, nowUtc.Day, 0, 0, 0, DateTimeKind.Utc);
+        var roomCounts = await _context.Rooms
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(r => r.TenantId == tenantId && r.IsActive && propertyIds.Contains(r.PropertyId))
+            .GroupBy(r => r.PropertyId)
+            .Select(g => new { PropertyId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.PropertyId, x => x.Count, cancellationToken);
+
+        // Calculate occupancy and today revenue using Vietnam business timezone
+        var tz = ReservationTimeHelper.GetVietnamTimeZone();
+        var nowVn = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+        var businessDate = DateOnly.FromDateTime(nowVn);
+        var todayStartUtc = TimeZoneInfo.ConvertTimeToUtc(businessDate.ToDateTime(TimeOnly.MinValue), tz);
         var todayEndUtc = todayStartUtc.AddDays(1);
 
         var activeReservations = await _context.Reservations
-            .Where(r => propertyIds.Contains(r.PropertyId)
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(r => r.TenantId == tenantId
+                && propertyIds.Contains(r.PropertyId)
                 && r.Status == ReservationStatus.CheckedIn)
             .Select(r => new { r.PropertyId, r.RoomId })
             .ToListAsync(cancellationToken);
 
         var todayPayments = await _context.Payments
-            .Where(p => propertyIds.Contains(p.PropertyId)
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(p => p.TenantId == tenantId
+                && propertyIds.Contains(p.PropertyId)
                 && p.Status == PaymentStatus.Completed
                 && (p.TransactionRef == null || !p.TransactionRef.Contains("REFUND"))
-                && p.CreatedAtUtc >= todayStartUtc
-                && p.CreatedAtUtc < todayEndUtc)
+                && p.PaidAtUtc >= todayStartUtc
+                && p.PaidAtUtc < todayEndUtc)
             .Select(p => new { p.PropertyId, p.Amount })
             .ToListAsync(cancellationToken);
 
@@ -77,7 +113,7 @@ public sealed class GetTenantPropertiesQueryHandler : IRequestHandler<GetTenantP
 
         return properties.Select(p =>
         {
-            var total = p.Rooms?.Count ?? 0;
+            var total = roomCounts.TryGetValue(p.Id, out var count) ? count : 0;
             var occupied = occupiedCountByProp.TryGetValue(p.Id, out var occ) ? occ : 0;
             var rev = revenueByProp.TryGetValue(p.Id, out var r) ? r : 0m;
 

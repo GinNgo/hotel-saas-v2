@@ -761,24 +761,57 @@ describe('BookingLookupPageComponent (T02 — Tra cứu và trạng thái không
       expect((component as any).copyTimeout).toBeUndefined();
     });
 
-    it('25. should not report fake success when submitReview is called without approved real API', () => {
-      component.booking.set({ ...sampleBookingA, status: 'CheckedOut' });
+    it('25. should link directly to booking status review section when CheckedIn or CheckedOut and not contain stale disabled text', () => {
+      // CheckedIn without review
+      component.booking.set({ ...sampleBookingA, status: 'CheckedIn', hasReviewed: false });
+      fixture.detectChanges();
 
-      component.submitReview();
+      let compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).not.toContain('chưa hỗ trợ gửi đánh giá');
+      expect(compiled.textContent).not.toContain('chưa khả dụng');
+      expect(compiled.textContent).toContain('Gửi đánh giá ngay');
 
-      expect(mockAlertService.toastWarning).toHaveBeenCalledWith(
-        expect.stringContaining('Tính năng gửi đánh giá trực tuyến hiện chưa được hỗ trợ')
+      const reviewLinkCheckedIn = Array.from(compiled.querySelectorAll('a')).find(a =>
+        a.textContent?.includes('Gửi đánh giá ngay')
       );
-      expect(mockAlertService.success).not.toHaveBeenCalled();
+      expect(reviewLinkCheckedIn?.getAttribute('href')).toContain('/booking/status/tok-token-aaa');
+      expect(reviewLinkCheckedIn?.getAttribute('href')).toContain('#review-section');
+
+      // CheckedOut without review
+      component.booking.set({ ...sampleBookingA, status: 'CheckedOut', hasReviewed: false });
+      fixture.detectChanges();
+      compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Gửi đánh giá ngay');
+      expect(compiled.textContent).not.toContain('chưa khả dụng');
     });
 
-    it('26. should show review unreadiness notice in DOM when booking is CheckedOut', () => {
-      component.booking.set({ ...sampleBookingA, status: 'CheckedOut' });
+    it('26. should display existing review summary and owner reply with link to status page when hasReviewed is true', () => {
+      component.booking.set({
+        ...sampleBookingA,
+        status: 'CheckedOut',
+        hasReviewed: true,
+        existingReview: {
+          id: 'rev-lookup-1',
+          rating: 5,
+          comment: 'Tuyệt vời, sẽ quay lại!',
+          ownerReply: 'Cảm ơn Quý khách rất nhiều!',
+          repliedAtUtc: '2026-11-19T06:00:00Z',
+          createdAtUtc: '2026-11-18T12:00:00Z'
+        }
+      });
       fixture.detectChanges();
 
       const compiled = fixture.nativeElement as HTMLElement;
-      expect(compiled.textContent).toContain('Chức năng đánh giá trực tuyến chưa khả dụng');
-      expect(compiled.textContent).toContain('Hệ thống hiện tại chưa hỗ trợ gửi đánh giá trực tuyến qua API công khai');
+      expect(compiled.textContent).toContain('Bạn đã gửi đánh giá xác thực (5/5 sao)');
+      expect(compiled.textContent).toContain('Tuyệt vời, sẽ quay lại!');
+      expect(compiled.textContent).toContain('Phản hồi từ cơ sở lưu trú:');
+      expect(compiled.textContent).toContain('Cảm ơn Quý khách rất nhiều!');
+      expect(compiled.textContent).toContain('Xem đánh giá & phản hồi');
+
+      const viewReviewLink = Array.from(compiled.querySelectorAll('a')).find(a =>
+        a.textContent?.includes('Xem đánh giá & phản hồi')
+      );
+      expect(viewReviewLink?.getAttribute('href')).toContain('/booking/status/tok-token-aaa#review-section');
     });
 
     it('27. should return correct print label and distinguish confirmed vs unconfirmed status', () => {

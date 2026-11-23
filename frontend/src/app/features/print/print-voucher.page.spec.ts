@@ -32,39 +32,34 @@ try {
 describe('PrintVoucherPage — Guest Booking Confirmation Voucher Print Layout Tests', () => {
   let fixture: ComponentFixture<PrintVoucherPage>;
   let component: PrintVoucherPage;
-  let mockPrintService: any;
+  let mockPrintService: { getVoucher: ReturnType<typeof vi.fn> };
 
   const sampleVoucher: PrintVoucherDto = {
-    hotelInfo: {
-      headerCompanyName: 'Đà Lạt Pine Resort',
-      headerAddress: '12 Hoàng Hoa Thám, Đà Lạt',
-      taxNumber: '0315894321',
-      hotline: '1900 8888',
-      bankName: 'MBBank',
-      bankAccountNumber: '0909123456',
-      bankAccountHolder: 'NGUYEN VAN QUAN LY',
-      footerNote: 'Cảm ơn Quý khách đã đặt phòng!',
-      checkInPolicyText: 'Nhận phòng lúc 14:00, trả phòng 12:00',
-      showVietQrCode: true,
-      defaultPaperSize: 'A5'
-    },
     confirmationCode: 'BOOK-98765',
-    guestName: 'Nguyễn Văn Du Khách',
-    guestPhone: '0988776655',
-    guestEmail: 'guest@example.vn',
+    createdAtUtc: '2026-10-16T08:00:00Z',
     propertyName: 'Đà Lạt Pine Resort',
     propertyAddress: '12 Hoàng Hoa Thám, Đà Lạt',
     propertyPhone: '02633 123 456',
+    propertyEmail: 'contact@dalatpine.vn',
+    guestName: 'Nguyễn Văn Du Khách',
+    guestEmail: 'guest@example.vn',
+    guestPhone: '0988776655',
     roomTypeName: 'Deluxe Double Pine View',
-    roomCount: 1,
-    checkInDate: '17/10/2026 14:00',
-    checkOutDate: '19/10/2026 12:00',
+    roomNumber: '204',
     rentalType: 'Daily',
-    guestCount: 2,
+    checkInDate: '2026-10-17',
+    checkInTime: '14:00',
+    checkOutDate: '2026-10-19',
+    checkOutTime: '12:00',
+    numberOfGuests: 2,
     totalAmount: 2400000,
-    holdStatus: 'Đã xác nhận (Confirmed)',
-    qrCodeUrl: 'https://img.vietqr.io/image/970422-0909123456-compact2.png',
-    specialRequests: 'Khách yêu cầu phòng tầng cao yên tĩnh'
+    status: 'Confirmed',
+    bedType: '1 Giường King',
+    squareMeters: 32,
+    policyNote: 'Nhận phòng lúc 14:00, trả phòng 12:00',
+    footerNote: 'Cảm ơn Quý khách đã đặt phòng!',
+    specialRequests: 'Khách yêu cầu phòng tầng cao yên tĩnh',
+    qrCodeData: 'HOTEL-CHECKIN:BOOK-98765:Nguyễn Văn Du Khách'
   };
 
   beforeEach(async () => {
@@ -99,6 +94,7 @@ describe('PrintVoucherPage — Guest Booking Confirmation Voucher Print Layout T
     expect(mockPrintService.getVoucher).toHaveBeenCalledWith('tok-sample-123');
     expect(component.voucher()).toEqual(sampleVoucher);
     expect(component.isLoading()).toBe(false);
+    expect(component.isImageUrl(sampleVoucher.qrCodeData)).toBe(false);
   });
 
   it('should handle voucher load error gracefully', () => {

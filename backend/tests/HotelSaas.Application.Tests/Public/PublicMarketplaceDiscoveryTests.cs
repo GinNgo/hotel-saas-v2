@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Public.DTOs;
+using HotelSaas.Application.Public.Queries.GetPublicBrands;
 using HotelSaas.Application.Public.Queries.GetPublicProperties;
 using HotelSaas.Application.Public.Queries.GetPublicPropertyBySlug;
 using HotelSaas.Domain.Entities;
@@ -25,11 +26,18 @@ public sealed class PublicMarketplaceDiscoveryTests
 
     private sealed class MarketplaceFakeDbContext : IApplicationDbContext
     {
+        private readonly DbSet<RoomType>? _roomTypes;
+        private readonly DbSet<Room>? _rooms;
+        private readonly DbSet<Reservation>? _reservations;
+
         public MarketplaceFakeDbContext(
             IEnumerable<Property> properties,
             IEnumerable<Tenant>? tenants = null,
             IEnumerable<RoomTypeRate>? rates = null,
-            IEnumerable<GuestReview>? reviews = null)
+            IEnumerable<GuestReview>? reviews = null,
+            IEnumerable<RoomType>? roomTypes = null,
+            IEnumerable<Room>? rooms = null,
+            IEnumerable<Reservation>? reservations = null)
         {
             Properties = new GetPublicPropertiesSyntheticTests.TestAsyncDbSet<Property>(properties);
             Tenants = tenants != null
@@ -41,6 +49,15 @@ public sealed class PublicMarketplaceDiscoveryTests
             GuestReviews = reviews != null
                 ? new GetPublicPropertiesSyntheticTests.TestAsyncDbSet<GuestReview>(reviews)
                 : null!;
+            _roomTypes = roomTypes != null
+                ? new GetPublicPropertiesSyntheticTests.TestAsyncDbSet<RoomType>(roomTypes)
+                : null;
+            _rooms = rooms != null
+                ? new GetPublicPropertiesSyntheticTests.TestAsyncDbSet<Room>(rooms)
+                : null;
+            _reservations = reservations != null
+                ? new GetPublicPropertiesSyntheticTests.TestAsyncDbSet<Reservation>(reservations)
+                : null;
         }
 
         public DbSet<Property> Properties { get; }
@@ -54,9 +71,9 @@ public sealed class PublicMarketplaceDiscoveryTests
         public DbSet<PermissionFunction> PermissionFunctions => throw new NotImplementedException();
         public DbSet<RolePermission> RolePermissions => throw new NotImplementedException();
         public DbSet<TenantStaff> TenantStaffMembers => throw new NotImplementedException();
-        public DbSet<RoomType> RoomTypes => throw new NotImplementedException();
-        public DbSet<Room> Rooms => throw new NotImplementedException();
-        public DbSet<Reservation> Reservations => throw new NotImplementedException();
+        public DbSet<RoomType> RoomTypes => _roomTypes ?? throw new NotImplementedException();
+        public DbSet<Room> Rooms => _rooms ?? throw new NotImplementedException();
+        public DbSet<Reservation> Reservations => _reservations ?? throw new NotImplementedException();
         public DbSet<Payment> Payments => throw new NotImplementedException();
         public DbSet<Subscription> Subscriptions => throw new NotImplementedException();
         public DbSet<SubscriptionPlan> SubscriptionPlans => throw new NotImplementedException();
@@ -242,8 +259,8 @@ public sealed class PublicMarketplaceDiscoveryTests
         Assert.Equal(4.5, single.RatingAverage);
         Assert.Equal(2, single.ReviewCount);
         Assert.Null(single.ImageUrl);
-        Assert.False(string.IsNullOrWhiteSpace(single.ThumbnailUrl));
-        Assert.Equal(3, single.GalleryUrls.Count);
+        Assert.Equal(string.Empty, single.ThumbnailUrl);
+        Assert.Empty(single.GalleryUrls);
         Assert.Equal(220000m, single.HourlyStartingPrice);
         Assert.Equal(680000m, single.NightlyPriceOrStarting());
 
@@ -253,13 +270,15 @@ public sealed class PublicMarketplaceDiscoveryTests
             CancellationToken.None);
         Assert.Empty(suspendedResult);
 
-        // Zero-review 5-star property receives deterministic 4.9 rating fallback and 0 reviewCount
+        // Zero-review 5-star property receives honest 0.0 rating and 0 reviewCount (never fabricated 4.9)
         var villaOnly = await handler.Handle(
             new GetPublicPropertiesQuery(PropertyTypes: new[] { PropertyType.Villa }),
             CancellationToken.None);
         var villa = Assert.Single(villaOnly);
-        Assert.Equal(4.9, villa.RatingAverage);
+        Assert.Equal(0.0, villa.RatingAverage);
         Assert.Equal(0, villa.ReviewCount);
+        Assert.Equal(string.Empty, villa.ThumbnailUrl);
+        Assert.Empty(villa.GalleryUrls);
         Assert.False(string.IsNullOrWhiteSpace(villa.ProvinceCode));
     }
 
@@ -285,6 +304,8 @@ public sealed class PublicMarketplaceDiscoveryTests
             City = "TP. Hồ Chí Minh",
             PropertyType = PropertyType.Apartment,
             StarRating = 4,
+            TaxRatePercent = 8.0m,
+            ServiceFeeRatePercent = 5.0m,
             Latitude = 10.7721,
             Longitude = 106.7024,
             TouristZoneSlug = "quan-1-tphcm",
@@ -303,9 +324,34 @@ public sealed class PublicMarketplaceDiscoveryTests
             NightlyPrice = 1150000m,
             IsActive = true
         };
+        var roomTypes = new[]
+        {
+            new RoomType
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenant.Id,
+                PropertyId = propertyId,
+                Name = "Studio Suite",
+                Code = "STD",
+                BasePrice = 1150000m,
+                MaxOccupancy = 2,
+                ImageUrl = "https://cdn.example.vn/rooms/studio-suite.jpg"
+            },
+            new RoomType
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenant.Id,
+                PropertyId = propertyId,
+                Name = "Penthouse",
+                Code = "PTH",
+                BasePrice = 2400000m,
+                MaxOccupancy = 4,
+                ImageUrl = "https://cdn.example.vn/rooms/penthouse.jpg"
+            }
+        };
 
         var handler = new GetPublicPropertyBySlugQueryHandler(
-            new MarketplaceFakeDbContext(new[] { property }, new[] { tenant }, new[] { rate }),
+            new MarketplaceFakeDbContext(new[] { property }, new[] { tenant }, new[] { rate }, roomTypes: roomTypes),
             LocationService);
 
         var dto = await handler.Handle(new GetPublicPropertyBySlugQuery("urban-express-suites-quan-1"), CancellationToken.None);
@@ -316,8 +362,10 @@ public sealed class PublicMarketplaceDiscoveryTests
         Assert.Equal(PropertyType.Apartment, dto.PropertyType);
         Assert.Equal("Căn hộ dịch vụ", dto.PropertyTypeName);
         Assert.Equal(4, dto.StarRating);
-        Assert.Equal(4.7, dto.RatingAverage);
+        Assert.Equal(0.0, dto.RatingAverage);
         Assert.Equal(0, dto.ReviewCount);
+        Assert.Equal(8.0m, dto.TaxRatePercent);
+        Assert.Equal(5.0m, dto.ServiceFeeRatePercent);
         Assert.Equal("Phường Bến Nghé", dto.WardName);
         Assert.False(string.IsNullOrWhiteSpace(dto.ProvinceCode));
         Assert.Equal(320000m, dto.HourlyStartingPrice);
@@ -326,20 +374,167 @@ public sealed class PublicMarketplaceDiscoveryTests
         Assert.True(dto.AllowHourlyBooking);
         Assert.False(dto.AllowDailyBooking);
         Assert.Null(dto.ImageUrl);
-        Assert.False(string.IsNullOrWhiteSpace(dto.ThumbnailUrl));
-        Assert.Equal(3, dto.GalleryUrls.Count);
+        Assert.Equal("https://cdn.example.vn/rooms/studio-suite.jpg", dto.ThumbnailUrl);
+        Assert.Equal(2, dto.GalleryUrls.Count);
+        Assert.DoesNotContain(dto.GalleryUrls, u => u.Contains("unsplash.com", StringComparison.OrdinalIgnoreCase));
         Assert.NotEmpty(dto.NearbyLandmarks);
 
-        // 1-arg constructor must still succeed when Tenants/GuestReviews are null
+        // 1-arg constructor must still succeed when Tenants/GuestReviews/RoomTypes are null or unimplemented
         var minimalHandler = new GetPublicPropertyBySlugQueryHandler(
             new MarketplaceFakeDbContext(new[] { property }, tenants: null, rates: new[] { rate }, reviews: null));
         var minimalDto = await minimalHandler.Handle(new GetPublicPropertyBySlugQuery("urban-express-suites-quan-1"), CancellationToken.None);
         Assert.Equal(property.Name, minimalDto.TenantBrandName);
         Assert.Equal(property.Slug, minimalDto.TenantSlug);
+        Assert.Equal(0.0, minimalDto.RatingAverage);
+        Assert.Equal(string.Empty, minimalDto.ThumbnailUrl);
+        Assert.Empty(minimalDto.GalleryUrls);
     }
 
     [Fact]
-    public async Task PublicController_GetProperties_FiltersInvalidEnumZeroAndForwardsTenantAndProvinceParams()
+    public async Task Handle_ServerFiltersAndPagination_FilterByPriceGuestsDatesPublishedAndReturnPagedTotal()
+    {
+        var tenantId = Guid.NewGuid();
+        var tenant = new Tenant { Id = tenantId, Name = "Honest Stays", Slug = "honest-stays", Status = TenantStatus.Active };
+
+        var p1Id = Guid.NewGuid();
+        var p2Id = Guid.NewGuid();
+        var p3Id = Guid.NewGuid();
+        var pDraftId = Guid.NewGuid();
+
+        var properties = new[]
+        {
+            new Property { Id = p1Id, TenantId = tenantId, Name = "Alpha Budget", Code = "P1", Slug = "alpha", Address = "1 Lê Lợi", City = "Hà Nội", Status = PropertyStatus.Active, IsPublished = true },
+            new Property { Id = p2Id, TenantId = tenantId, Name = "Beta Family", Code = "P2", Slug = "beta", Address = "2 Lê Lợi", City = "Hà Nội", Status = PropertyStatus.Active, IsPublished = true },
+            new Property { Id = p3Id, TenantId = tenantId, Name = "Gamma Luxury", Code = "P3", Slug = "gamma", Address = "3 Lê Lợi", City = "Hà Nội", Status = PropertyStatus.Active, IsPublished = true },
+            new Property { Id = pDraftId, TenantId = tenantId, Name = "Delta Draft", Code = "P4", Slug = "delta", Address = "4 Lê Lợi", City = "Hà Nội", Status = PropertyStatus.Active, IsPublished = false }
+        };
+
+        var rt1Id = Guid.NewGuid();
+        var rt2Id = Guid.NewGuid();
+        var rt3Id = Guid.NewGuid();
+        var roomTypes = new[]
+        {
+            new RoomType { Id = rt1Id, TenantId = tenantId, PropertyId = p1Id, Name = "Single", Code = "S1", BasePrice = 300000m, MaxOccupancy = 1, ImageUrl = "https://cdn.example.vn/p1.jpg" },
+            new RoomType { Id = rt2Id, TenantId = tenantId, PropertyId = p2Id, Name = "Family", Code = "F2", BasePrice = 800000m, MaxOccupancy = 4, ImageUrl = "https://cdn.example.vn/p2.jpg" },
+            new RoomType { Id = rt3Id, TenantId = tenantId, PropertyId = p3Id, Name = "Suite", Code = "S3", BasePrice = 2500000m, MaxOccupancy = 4 }
+        };
+
+        var room1Id = Guid.NewGuid();
+        var room2Id = Guid.NewGuid();
+        var room3Id = Guid.NewGuid();
+        var rooms = new[]
+        {
+            new Room { Id = room1Id, TenantId = tenantId, PropertyId = p1Id, RoomTypeId = rt1Id, RoomNumber = "101", IsActive = true },
+            new Room { Id = room2Id, TenantId = tenantId, PropertyId = p2Id, RoomTypeId = rt2Id, RoomNumber = "201", IsActive = true },
+            new Room { Id = room3Id, TenantId = tenantId, PropertyId = p3Id, RoomTypeId = rt3Id, RoomNumber = "301", IsActive = true }
+        };
+
+        var reservations = new[]
+        {
+            new Reservation
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                PropertyId = p3Id,
+                RoomId = room3Id,
+                CheckInDate = new DateOnly(2027, 5, 10),
+                CheckOutDate = new DateOnly(2027, 5, 12),
+                Status = ReservationStatus.Confirmed
+            }
+        };
+
+        var rates = new[]
+        {
+            new RoomTypeRate { Id = Guid.NewGuid(), PropertyId = p1Id, RoomTypeId = rt1Id, NightlyPrice = 300000m, IsActive = true },
+            new RoomTypeRate { Id = Guid.NewGuid(), PropertyId = p2Id, RoomTypeId = rt2Id, NightlyPrice = 800000m, IsActive = true },
+            new RoomTypeRate { Id = Guid.NewGuid(), PropertyId = p3Id, RoomTypeId = rt3Id, NightlyPrice = 2500000m, IsActive = true },
+            new RoomTypeRate { Id = Guid.NewGuid(), PropertyId = pDraftId, NightlyPrice = 500000m, IsActive = true }
+        };
+
+        var handler = new GetPublicPropertiesQueryHandler(
+            new MarketplaceFakeDbContext(properties, new[] { tenant }, rates, null, roomTypes, rooms, reservations),
+            LocationService);
+
+        // 1. OnlyPublished excludes draft
+        var publishedOnly = await handler.Handle(new GetPublicPropertiesQuery(OnlyPublished: true), CancellationToken.None);
+        Assert.Equal(3, publishedOnly.Count);
+        Assert.DoesNotContain(publishedOnly, p => p.Id == pDraftId);
+
+        // 2. MinPrice / MaxPrice filter
+        var midRange = await handler.Handle(
+            new GetPublicPropertiesQuery(MinPrice: 400000m, MaxPrice: 1000000m, OnlyPublished: true),
+            CancellationToken.None);
+        var midSingle = Assert.Single(midRange);
+        Assert.Equal(p2Id, midSingle.Id);
+        Assert.Equal("https://cdn.example.vn/p2.jpg", midSingle.ThumbnailUrl);
+
+        // 3. Guests + CheckInDate/CheckOutDate excludes p1 (capacity 1 < 3) and p3 (booked 2027-05-10..12)
+        var availFor3 = await handler.Handle(
+            new GetPublicPropertiesQuery(
+                Guests: 3,
+                CheckInDate: new DateOnly(2027, 5, 10),
+                CheckOutDate: new DateOnly(2027, 5, 12),
+                OnlyPublished: true),
+            CancellationToken.None);
+        var availSingle = Assert.Single(availFor3);
+        Assert.Equal(p2Id, availSingle.Id);
+
+        // 4. Server-side pagination preserves TotalCount
+        var page2 = await handler.Handle(
+            new GetPublicPropertiesQuery(Page: 2, PageSize: 2, OnlyPublished: true, SortBy: "price_asc"),
+            CancellationToken.None);
+        var pagedList = Assert.IsType<PagedPropertyList>(page2);
+        Assert.Equal(3, pagedList.TotalCount);
+        var lastItem = Assert.Single(pagedList);
+        Assert.Equal(p3Id, lastItem.Id);
+    }
+
+    [Fact]
+    public async Task GetPublicBrandsQuery_AggregatesActiveBrandsWithHonestRatingsAndZeroStockMedia()
+    {
+        var activeBrand = new Tenant { Id = Guid.NewGuid(), Name = "Grand Hotel Group", Slug = "grand-hotel-group", Status = TenantStatus.Active };
+        var emptyBrand = new Tenant { Id = Guid.NewGuid(), Name = "No Branches Brand", Slug = "no-branches", Status = TenantStatus.Active };
+        var suspendedBrand = new Tenant { Id = Guid.NewGuid(), Name = "Suspended Brand", Slug = "suspended", Status = TenantStatus.Suspended };
+
+        var p1Id = Guid.NewGuid();
+        var p2Id = Guid.NewGuid();
+        var properties = new[]
+        {
+            new Property { Id = p1Id, TenantId = activeBrand.Id, Name = "Grand Hà Nội", Code = "GH1", Slug = "grand-hn", Address = "15 Ngô Quyền", City = "Hà Nội", PropertyType = PropertyType.Hotel, Status = PropertyStatus.Active, IsPublished = true },
+            new Property { Id = p2Id, TenantId = activeBrand.Id, Name = "Grand Đà Nẵng", Code = "GH2", Slug = "grand-dn", Address = "200 Võ Nguyên Giáp", City = "Đà Nẵng", PropertyType = PropertyType.Resort, Status = PropertyStatus.Active, IsPublished = true },
+            new Property { Id = Guid.NewGuid(), TenantId = suspendedBrand.Id, Name = "Suspended Hotel", Code = "SH1", Slug = "susp-1", Address = "1 ABC", City = "Hà Nội", PropertyType = PropertyType.Hotel, Status = PropertyStatus.Active, IsPublished = true }
+        };
+        var rates = new[]
+        {
+            new RoomTypeRate { Id = Guid.NewGuid(), PropertyId = p1Id, NightlyPrice = 1200000m, IsActive = true },
+            new RoomTypeRate { Id = Guid.NewGuid(), PropertyId = p2Id, NightlyPrice = 950000m, IsActive = true }
+        };
+        var reviews = new[]
+        {
+            new GuestReview { Id = Guid.NewGuid(), OverallRating = 5, IsPublished = true, Reservation = new Reservation { PropertyId = p1Id } },
+            new GuestReview { Id = Guid.NewGuid(), OverallRating = 4, IsPublished = true, Reservation = new Reservation { PropertyId = p1Id } }
+        };
+
+        var ctx = new MarketplaceFakeDbContext(properties, new[] { activeBrand, emptyBrand, suspendedBrand }, rates, reviews);
+        var handler = new GetPublicBrandsQueryHandler(ctx, LocationService);
+        var brands = await handler.Handle(new GetPublicBrandsQuery(), CancellationToken.None);
+
+        var brand = Assert.Single(brands);
+        Assert.Equal(activeBrand.Id, brand.TenantId);
+        Assert.Equal("grand-hotel-group", brand.Slug);
+        Assert.Equal(2, brand.TotalProperties);
+        Assert.Equal(4.5, brand.RatingAverage);
+        Assert.Equal(2, brand.ReviewCount);
+        Assert.Equal(950000m, brand.StartingPrice);
+        Assert.Null(brand.LogoUrl);
+        Assert.Contains("Hà Nội", brand.Provinces);
+        Assert.Contains("Đà Nẵng", brand.Provinces);
+        Assert.Contains(PropertyType.Hotel, brand.PropertyTypes);
+        Assert.Contains(PropertyType.Resort, brand.PropertyTypes);
+    }
+
+    [Fact]
+    public async Task PublicController_GetPropertiesAndGetBrands_ForwardQueryParamsAndSetTotalHeader()
     {
         var sender = new RecordingSender();
         var controller = new PublicController(sender, LocationService)
@@ -354,12 +549,27 @@ public sealed class PublicMarketplaceDiscoveryTests
             propertyTypes: "Hotel,Homestay,0,999,InvalidType",
             tenantSlug: "viet-homestay-boutique",
             provinceCode: "01",
+            minPrice: 200000m,
+            maxPrice: 1500000m,
+            guests: 2,
+            page: 2,
+            pageSize: 10,
+            onlyPublished: true,
+            sortBy: "price_asc",
             cancellationToken: CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result);
+        Assert.True(controller.Response.Headers.ContainsKey("X-Total-Count"));
         var dispatched = Assert.IsType<GetPublicPropertiesQuery>(sender.LastRequest);
         Assert.Equal("viet-homestay-boutique", dispatched.TenantSlug);
         Assert.Equal("01", dispatched.ProvinceCode);
+        Assert.Equal(200000m, dispatched.MinPrice);
+        Assert.Equal(1500000m, dispatched.MaxPrice);
+        Assert.Equal(2, dispatched.Guests);
+        Assert.Equal(2, dispatched.Page);
+        Assert.Equal(10, dispatched.PageSize);
+        Assert.True(dispatched.OnlyPublished);
+        Assert.Equal("price_asc", dispatched.SortBy);
         Assert.NotNull(dispatched.PropertyTypes);
         Assert.Equal(new[] { PropertyType.Hotel, PropertyType.Homestay }, dispatched.PropertyTypes);
     }

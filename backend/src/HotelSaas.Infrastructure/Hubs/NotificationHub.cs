@@ -163,16 +163,7 @@ public class NotificationHub : Hub<INotificationClient>
         var globalRoleStr = user.FindFirst("globalRole")?.Value;
         bool isSuperAdmin = string.Equals(globalRoleStr, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
 
-        if (isSuperAdmin)
-        {
-            await Groups.AddToGroupAsync(Context.ConnectionId, GetPropertyGroupName(propertyId));
-            await Groups.AddToGroupAsync(Context.ConnectionId, GetPropertyFinancialGroupName(propertyId));
-            await Groups.AddToGroupAsync(Context.ConnectionId, GetPropertyHousekeepingGroupName(propertyId));
-            _logger.LogInformation("SuperAdmin {UserId} joined property notification channels for {PropertyId}", userId, propertyId);
-            return;
-        }
-
-        // Verify property exists
+        // Fail-closed: database context is required for ALL callers, including SuperAdmin
         if (_context == null)
         {
             throw new HubException("ERR_UNAVAILABLE: Database context is not available.");
@@ -181,6 +172,7 @@ public class NotificationHub : Hub<INotificationClient>
         var property = await _context.Properties
             .IgnoreQueryFilters()
             .AsNoTracking()
+            .Include(p => p.Tenant)
             .FirstOrDefaultAsync(p => p.Id == targetPropertyGuid);
 
         if (property == null)
@@ -188,8 +180,59 @@ public class NotificationHub : Hub<INotificationClient>
             throw new HubException("ERR_PROPERTY_NOT_FOUND: Chi nhánh khách sạn không tồn tại.");
         }
 
-        // Cross-tenant guard: Check caller's tenant claim against property tenant
-        var tokenTenantStr = user.FindFirst("tenantId")?.Value ?? user.FindFirst("tid")?.Value;
+        if (isSuperAdmin)
+        {
+            var superAdminUser = await _context.Users
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (superAdminUser != null && !superAdminUser.IsActive)
+            {
+                _logger.LogWarning("Security Guard: Deactivated SuperAdmin {UserId} denied JoinProperty for {PropertyId}",
+                    userId, targetPropertyGuid);
+                _metricsRecorder?.RecordIsolationBlock("ERR_USER_DEACTIVATED");
+                throw new HubException("ERR_USER_DEACTIVATED: Tài khoản người dùng đã bị vô hiệu hóa.");
+            }
+
+            var nowUtc = DateTime.UtcNow;
+            var hasActiveSupportGrant = await _context.SupportAccessGrants
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .AnyAsync(g =>
+                    g.TargetSupportUserId == userId &&
+                    g.TenantId == property.TenantId &&
+                    g.RevokedAtUtc == null &&
+                    g.ExpiresAtUtc > nowUtc);
+
+            if (!hasActiveSupportGrant)
+            {
+                _logger.LogWarning("Security Guard: SuperAdmin {UserId} denied JoinProperty for {PropertyId} (Tenant {TenantId}) without an active SupportAccessGrant",
+                    userId, targetPropertyGuid, property.TenantId);
+                _metricsRecorder?.RecordIsolationBlock("ERR_SUPPORT_GRANT_REQUIRED");
+                throw new HubException("ERR_SUPPORT_GRANT_REQUIRED: SuperAdmin cần có SupportAccessGrant đang hiệu lực để tham gia kênh thông báo của chi nhánh khách hàng.");
+            }
+
+            await Groups.AddToGroupAsync(Context.ConnectionId, GetPropertyGroupName(propertyId));
+            await Groups.AddToGroupAsync(Context.ConnectionId, GetPropertyFinancialGroupName(propertyId));
+            await Groups.AddToGroupAsync(Context.ConnectionId, GetPropertyHousekeepingGroupName(propertyId));
+            _logger.LogInformation("SuperAdmin {UserId} joined property notification channels for {PropertyId} under active SupportAccessGrant", userId, propertyId);
+            return;
+        }
+
+        // Cross-tenant guard: Check caller's tenant claim against property tenant (including alias integrity)
+        var tenantIdClaim = user.FindFirst("tenantId")?.Value;
+        var tidClaim = user.FindFirst("tid")?.Value;
+        if (!string.IsNullOrEmpty(tenantIdClaim) && !string.IsNullOrEmpty(tidClaim) &&
+            !string.Equals(tenantIdClaim, tidClaim, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("Security Guard: User {UserId} presented conflicting tenantId/tid claims while joining property {PropertyId}",
+                userId, targetPropertyGuid);
+            _metricsRecorder?.RecordIsolationBlock("ERR_CROSS_TENANT_FORBIDDEN");
+            throw new HubException("ERR_CROSS_TENANT_FORBIDDEN: Token chứa thông tin Tenant không nhất quán.");
+        }
+
+        var tokenTenantStr = tenantIdClaim ?? tidClaim;
         if (Guid.TryParse(tokenTenantStr, out var tokenTenantId) && property.TenantId != tokenTenantId)
         {
             _logger.LogWarning("Security Guard: User {UserId} from tenant {TokenTenant} attempted cross-tenant join to property {PropertyId} (Tenant {PropTenant})",
@@ -198,17 +241,74 @@ public class NotificationHub : Hub<INotificationClient>
             throw new HubException("ERR_CROSS_TENANT_FORBIDDEN: Chi nhánh không thuộc quyền quản lý của khách sạn bạn.");
         }
 
-        // Multi-branch membership verification: User must have active staff assignment for this tenant and property
-        var staff = await _context.TenantStaffMembers
+        // Load all tenant staff assignments for deterministic membership & PO Decision 4 enforcement
+        var memberships = await _context.TenantStaffMembers
             .IgnoreQueryFilters()
             .AsNoTracking()
+            .Include(s => s.User)
             .Include(s => s.Role)
                 .ThenInclude(r => r!.Permissions)
                     .ThenInclude(p => p.Function)
-            .FirstOrDefaultAsync(s => s.UserId == userId &&
-                           s.TenantId == property.TenantId &&
-                           s.IsActive &&
-                           (s.PropertyId == null || s.PropertyId == targetPropertyGuid));
+            .Where(s => s.UserId == userId && s.TenantId == property.TenantId)
+            .ToListAsync();
+
+        if (memberships.Count == 0)
+        {
+            _logger.LogWarning("Security Guard: User {UserId} denied access to property {PropertyId} due to lack of active staff membership",
+                userId, targetPropertyGuid);
+            _metricsRecorder?.RecordIsolationBlock("ERR_PROPERTY_FORBIDDEN");
+            throw new HubException("ERR_PROPERTY_FORBIDDEN: Bạn không có quyền truy cập thông báo của chi nhánh này.");
+        }
+
+        // Verify User.IsActive
+        var staffUser = memberships[0].User ?? await _context.Users
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == userId);
+
+        if (staffUser == null || !staffUser.IsActive)
+        {
+            _logger.LogWarning("Security Guard: Inactive user {UserId} denied SignalR join for property {PropertyId}",
+                userId, targetPropertyGuid);
+            _metricsRecorder?.RecordIsolationBlock("ERR_USER_DEACTIVATED");
+            throw new HubException("ERR_USER_DEACTIVATED: Tài khoản người dùng đã bị vô hiệu hóa.");
+        }
+
+        // Verify Tenant.Status == Active
+        var tenant = property.Tenant ?? await _context.Tenants
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == property.TenantId);
+
+        if (tenant == null || tenant.Status != TenantStatus.Active)
+        {
+            _logger.LogWarning("Security Guard: User {UserId} denied SignalR join because tenant {TenantId} is inactive",
+                userId, property.TenantId);
+            _metricsRecorder?.RecordIsolationBlock("ERR_TENANT_INACTIVE");
+            throw new HubException("ERR_TENANT_INACTIVE: Doanh nghiệp hiện đang bị tạm ngưng hoạt động.");
+        }
+
+        // Verify Property.Status == Active
+        if (property.Status != PropertyStatus.Active)
+        {
+            _logger.LogWarning("Security Guard: User {UserId} denied SignalR join because property {PropertyId} is inactive",
+                userId, targetPropertyGuid);
+            _metricsRecorder?.RecordIsolationBlock("ERR_PROPERTY_INACTIVE");
+            throw new HubException("ERR_PROPERTY_INACTIVE: Chi nhánh hiện đang tạm ngưng hoạt động.");
+        }
+
+        // PO Decision 4: Exact revoked branch membership strictly denies access with ZERO fallback to tenant-wide row
+        var exactBranchRows = memberships.Where(s => s.PropertyId == targetPropertyGuid).ToList();
+        if (exactBranchRows.Any(s => !s.IsActive))
+        {
+            _logger.LogWarning("Security Guard (PO Decision 4): User {UserId} has revoked membership at property {PropertyId}; denying SignalR join without tenant-wide fallback",
+                userId, targetPropertyGuid);
+            _metricsRecorder?.RecordIsolationBlock("ERR_MEMBERSHIP_REVOKED");
+            throw new HubException("ERR_MEMBERSHIP_REVOKED: Quyền nhân sự của bạn tại chi nhánh này đã bị thu hồi.");
+        }
+
+        var staff = exactBranchRows.FirstOrDefault(s => s.IsActive)
+            ?? memberships.FirstOrDefault(s => s.PropertyId == null && s.IsActive);
 
         if (staff == null)
         {

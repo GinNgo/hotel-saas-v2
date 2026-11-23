@@ -10,6 +10,15 @@ rule_files:
 scrape_configs:
   - job_name: 'hotelsaas-backend-api'
     metrics_path: '/metrics'
+    # Backend `/metrics` (TenantPropertyContextMiddleware.IsAuthorizedMetricsRequest)
+    # authorizes non-loopback scrapes via `X-Metrics-Key` matching `Metrics:ApiKey`
+    # (or a SuperAdmin Bearer JWT). Mount the secret file matching `METRICS_API_KEY`
+    # at `/etc/prometheus/secrets/metrics_api_key` — never commit plaintext keys.
+    # Note: `http_headers` requires Prometheus >= v2.55 (or v3.x).
+    http_headers:
+      X-Metrics-Key:
+        files:
+          - '/etc/prometheus/secrets/metrics_api_key'
     static_configs:
       - targets: ['hotelsaas-backend-api:5000']
         labels:

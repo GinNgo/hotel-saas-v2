@@ -22,4 +22,26 @@ public interface IEmailService
         string targetEmail,
         string customerName,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends a password reset link containing a time-limited token.
+    /// </summary>
+    Task<bool> SendPasswordResetEmailAsync(
+        string targetEmail,
+        string customerName,
+        string resetUrl,
+        long expiresInMinutes = 30,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult(false);
+
+    /// <summary>
+    /// Sends a staff onboarding invitation link to set the initial password.
+    /// </summary>
+    Task<bool> SendStaffInvitationEmailAsync(
+        string targetEmail,
+        string staffName,
+        string setupPasswordUrl,
+        long expiresInMinutes = 1440,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult(false);
 }

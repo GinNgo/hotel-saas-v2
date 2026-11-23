@@ -135,11 +135,11 @@ public sealed class GeoSearchAndFuzzyPerfectionTests
         var inZone = LocationService.ReverseGeocode(10.8550, 106.7550);
         Assert.StartsWith("Khu vực ", inZone.DisplayLabel, StringComparison.Ordinal);
 
-        // 3. ~18km from Tân Sơn Nhất, outside 40km zone center? Wait: use distant point > 60km away -> fallback GPS label.
-        var farGps = LocationService.ReverseGeocode(14.5000, 108.5000);
+        // 3. Distant point > 60km away from all zones & landmarks -> fallback GPS label.
+        var farGps = LocationService.ReverseGeocode(19.2000, 105.2000);
         Assert.Null(farGps.NearestLandmarkSlug);
         Assert.Null(farGps.NearestZoneSlug);
-        Assert.Equal("Vị trí GPS (14.5000, 108.5000)", farGps.DisplayLabel);
+        Assert.Equal("Vị trí GPS (19.2000, 105.2000)", farGps.DisplayLabel);
 
         // 4. Between 3km and 30km of a landmark whose tourist zone is >40km or absent (e.g., ~10km north of Sân bay Nội Bài at 21.3000, 105.8072) -> "Quanh ..."
         var aroundLandmark = LocationService.ReverseGeocode(21.3100, 105.8072);
@@ -379,5 +379,206 @@ public sealed class GeoSearchAndFuzzyPerfectionTests
         var matched = Assert.Single(results);
         Assert.Equal(nearbyProp.Id, matched.Id);
         Assert.True(matched.DistanceMeters <= 5000);
+    }
+
+    [Fact]
+    public void LocationLookupService_LoadsExact34Provinces_And13DacKhu_WithoutThiTran()
+    {
+        var provinces = LocationService.GetProvinces();
+        Assert.Equal(34, provinces.Count);
+
+        var expectedCodes = new[]
+        {
+            "01", "04", "08", "11", "12", "14", "15", "19", "20", "22", "24", "25",
+            "31", "33", "37", "38", "40", "42", "44", "46", "48", "51", "52", "56",
+            "66", "68", "75", "79", "80", "82", "86", "91", "92", "96"
+        };
+        Assert.Equal(expectedCodes, provinces.Select(p => p.Code).ToArray());
+
+        var allWards = provinces
+            .SelectMany(p => LocationService.GetWardsByProvince(p.Code))
+            .ToList();
+
+        Assert.NotEmpty(allWards);
+        Assert.DoesNotContain(allWards, w => string.Equals(w.Type, "thị trấn", StringComparison.OrdinalIgnoreCase));
+
+        // Preserve "Phường Hàng Bạc" under "01"
+        Assert.Contains(allWards, w => w.ProvinceCode == "01" && w.Code == "61" && w.Name == "Phường Hàng Bạc");
+
+        // Exact 13 official Đặc khu under their exact parent provinces
+        var dacKhu = allWards
+            .Where(w => string.Equals(w.Type, "đặc khu", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        Assert.Equal(13, dacKhu.Count);
+
+        var expectedDacKhu = new (string ProvinceCode, string Name)[]
+        {
+            ("22", "Đặc khu Vân Đồn"),
+            ("22", "Đặc khu Cô Tô"),
+            ("31", "Đặc khu Cát Hải"),
+            ("31", "Đặc khu Bạch Long Vĩ"),
+            ("44", "Đặc khu Cồn Cỏ"),
+            ("48", "Đặc khu Hoàng Sa"),
+            ("51", "Đặc khu Lý Sơn"),
+            ("56", "Đặc khu Trường Sa"),
+            ("68", "Đặc khu Phú Quý"),
+            ("79", "Đặc khu Côn Đảo"),
+            ("91", "Đặc khu Phú Quốc"),
+            ("91", "Đặc khu Kiên Hải"),
+            ("91", "Đặc khu Thổ Châu")
+        };
+
+        foreach (var (provCode, name) in expectedDacKhu)
+        {
+            Assert.Contains(dacKhu, dk => dk.ProvinceCode == provCode && dk.Name == name);
+        }
+    }
+
+    [Theory]
+    [InlineData("1", "01")]
+    [InlineData("4", "04")]
+    [InlineData("8", "08")]
+    [InlineData("02", "08")]
+    [InlineData("2", "08")]
+    [InlineData("10", "15")]
+    [InlineData("06", "19")]
+    [InlineData("6", "19")]
+    [InlineData("27", "24")]
+    [InlineData("17", "25")]
+    [InlineData("26", "25")]
+    [InlineData("30", "31")]
+    [InlineData("34", "33")]
+    [InlineData("35", "37")]
+    [InlineData("36", "37")]
+    [InlineData("45", "44")]
+    [InlineData("49", "48")]
+    [InlineData("62", "51")]
+    [InlineData("64", "52")]
+    [InlineData("58", "56")]
+    [InlineData("54", "66")]
+    [InlineData("60", "68")]
+    [InlineData("67", "68")]
+    [InlineData("70", "75")]
+    [InlineData("74", "79")]
+    [InlineData("77", "79")]
+    [InlineData("VN-SG", "79")]
+    [InlineData("72", "80")]
+    [InlineData("87", "82")]
+    [InlineData("83", "86")]
+    [InlineData("84", "86")]
+    [InlineData("89", "91")]
+    [InlineData("93", "92")]
+    [InlineData("94", "92")]
+    [InlineData("95", "96")]
+    public void LocationLookupService_ResolvesLegacyAndSingleDigitProvinceCodes(string rawCode, string expectedCanonicalCode)
+    {
+        Assert.Equal(expectedCanonicalCode, LocationLookupService.ResolveCanonicalProvinceCode(rawCode));
+        Assert.True(LocationService.IsValidProvince(rawCode));
+
+        var prov = LocationService.GetProvinceByCode(rawCode);
+        Assert.NotNull(prov);
+        Assert.Equal(expectedCanonicalCode, prov.Code);
+
+        var wards = LocationService.GetWardsByProvince(rawCode);
+        Assert.NotEmpty(wards);
+        Assert.All(wards, w => Assert.Equal(expectedCanonicalCode, w.ProvinceCode));
+    }
+
+    [Fact]
+    public void LocationLookupService_LegacyCodeQueries_ResolveWardsZonesAndLandmarks()
+    {
+        Assert.True(LocationService.IsValidWard("1", "61"));
+        Assert.Equal("Phường Hàng Bạc", LocationService.GetWardByCode("1", "61")?.Name);
+
+        var hcmZonesFrom77 = LocationService.GetTouristZones("77");
+        Assert.Contains(hcmZonesFrom77, z => z.Slug == "vung-tau" && z.ProvinceCode == "79");
+        Assert.Contains(hcmZonesFrom77, z => z.Slug == "con-dao" && z.ProvinceCode == "79");
+
+        var daNangLandmarksFrom49 = LocationService.GetLandmarks("49");
+        Assert.Contains(daNangLandmarksFrom49, l => l.Slug == "pho-co-hoi-an" && l.ProvinceCode == "48");
+
+        var hgZone = LocationService.GetTouristZoneBySlug("ha-giang");
+        Assert.NotNull(hgZone);
+        Assert.Equal("08", hgZone.ProvinceCode);
+
+        var pyZone = LocationService.GetTouristZoneBySlug("phu-yen");
+        Assert.NotNull(pyZone);
+        Assert.Equal("66", pyZone.ProvinceCode);
+
+        var mdZone = LocationService.GetTouristZoneBySlug("mang-den");
+        Assert.NotNull(mdZone);
+        Assert.Equal("51", mdZone.ProvinceCode);
+    }
+
+    [Fact]
+    public async Task GetPublicProperties_ProvinceFilter_MatchesLegacyAndMergedProvinces()
+    {
+        var tenant = new Tenant
+        {
+            Id = Guid.NewGuid(),
+            Name = "Vietnam Stays",
+            Slug = "vietnam-stays",
+            Status = TenantStatus.Active
+        };
+
+        var vungTauProp = new Property
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenant.Id,
+            Name = "Marina Vũng Tàu",
+            Code = "VT-01",
+            Slug = "marina-vung-tau",
+            Address = "115 Trần Phú, Phường 5, Vũng Tàu, Bà Rịa - Vũng Tàu",
+            City = "Bà Rịa - Vũng Tàu",
+            Status = PropertyStatus.Active
+        };
+
+        var binhDuongProp = new Property
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenant.Id,
+            Name = "An Lâm Thuận An",
+            Code = "BD-01",
+            Slug = "an-lam-thuan-an",
+            Address = "21/4 Trung Street, Phường Vĩnh Phú, Bình Dương",
+            City = "Bình Dương",
+            Status = PropertyStatus.Active
+        };
+
+        var hoiAnProp = new Property
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenant.Id,
+            Name = "Anantara Hội An",
+            Code = "HA-01",
+            Slug = "anantara-hoi-an",
+            Address = "1 Phạm Hồng Thái, Phường Cẩm Châu, Hội An, Quảng Nam",
+            City = "Quảng Nam",
+            Status = PropertyStatus.Active
+        };
+
+        var handler = new GetPublicPropertiesQueryHandler(
+            new GeoFakeDbContext(new[] { vungTauProp, binhDuongProp, hoiAnProp }, new[] { tenant }),
+            LocationService);
+
+        // Filtering by canonical TP.HCM ("79") returns merged Vũng Tàu & Bình Dương properties
+        var hcmResults = await handler.Handle(new GetPublicPropertiesQuery(ProvinceCode: "79"), CancellationToken.None);
+        Assert.Equal(2, hcmResults.Count);
+        Assert.All(hcmResults, r => Assert.Equal("79", r.ProvinceCode));
+
+        // Filtering by legacy code ("77") also resolves to canonical TP.HCM ("79")
+        var legacy77Results = await handler.Handle(new GetPublicPropertiesQuery(ProvinceCode: "77"), CancellationToken.None);
+        Assert.Equal(2, legacy77Results.Count);
+
+        // Filtering by canonical Đà Nẵng ("48") returns merged Quảng Nam / Hội An property
+        var daNangResults = await handler.Handle(new GetPublicPropertiesQuery(ProvinceCode: "48"), CancellationToken.None);
+        var singleHoiAn = Assert.Single(daNangResults);
+        Assert.Equal(hoiAnProp.Id, singleHoiAn.Id);
+        Assert.Equal("48", singleHoiAn.ProvinceCode);
+
+        // Filtering by legacy Quảng Nam ("49") also matches canonical Đà Nẵng ("48")
+        var legacy49Results = await handler.Handle(new GetPublicPropertiesQuery(ProvinceCode: "49"), CancellationToken.None);
+        var singleLegacyHoiAn = Assert.Single(legacy49Results);
+        Assert.Equal(hoiAnProp.Id, singleLegacyHoiAn.Id);
     }
 }

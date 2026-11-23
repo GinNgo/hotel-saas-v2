@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, OnInit, Output, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, EventEmitter, Input, OnChanges, OnInit, Output, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { Dialog } from 'primeng/dialog';
@@ -53,13 +54,14 @@ interface HttpErrorPayload {
 
         <!-- Tùy chọn xem Tổng quan Cơ sở tổng (Toàn chuỗi HQ) cho Owner / Quản lý chuỗi -->
         @if (canViewChainHq()) {
-          <div
+          <button
+            type="button"
             (click)="selectChainHqOverview()"
-            class="group relative flex items-center justify-between p-3.5 rounded-xl border transition-all duration-200 cursor-pointer shadow-2xs"
+            [disabled]="switchingPropertyId() !== null"
+            class="w-full text-left group relative flex items-center justify-between p-3.5 rounded-xl border transition-all duration-200 cursor-pointer shadow-2xs disabled:opacity-60 disabled:cursor-not-allowed"
             [ngClass]="{
               'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-500/20': isHqActive(),
-              'border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/70 hover:border-indigo-400': !isHqActive(),
-              'opacity-60 pointer-events-none': switchingPropertyId() !== null
+              'border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/70 hover:border-indigo-400': !isHqActive()
             }"
           >
             <div class="flex items-center gap-3.5 min-w-0">
@@ -97,19 +99,20 @@ interface HttpErrorPayload {
                 <i class="pi pi-chart-bar text-indigo-600 group-hover:translate-x-0.5 transition-all text-base"></i>
               }
             </div>
-          </div>
+          </button>
         }
 
         <!-- Danh sách chi nhánh -->
         <div class="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
           @for (m of branchMemberships(); track m.id) {
-            <div
+            <button
+              type="button"
               (click)="selectBranch(m)"
-              class="group relative flex items-center justify-between p-3.5 rounded-xl border transition-all duration-200 cursor-pointer"
+              [disabled]="switchingPropertyId() !== null"
+              class="w-full text-left group relative flex items-center justify-between p-3.5 rounded-xl border transition-all duration-200 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               [ngClass]="{
                 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/20': isActive(m.propertyId),
-                'border-slate-200 bg-white hover:border-emerald-300 hover:bg-slate-50/80 hover:shadow-xs': !isActive(m.propertyId),
-                'opacity-60 pointer-events-none': switchingPropertyId() !== null
+                'border-slate-200 bg-white hover:border-emerald-300 hover:bg-slate-50/80 hover:shadow-xs': !isActive(m.propertyId)
               }"
             >
               <div class="flex items-center gap-3.5 min-w-0">
@@ -154,7 +157,7 @@ interface HttpErrorPayload {
                   <i class="pi pi-arrow-right text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all text-sm"></i>
                 }
               </div>
-            </div>
+            </button>
           } @empty {
             <div class="py-8 text-center text-slate-500">
               <i class="pi pi-building text-3xl text-slate-300 mb-2"></i>
@@ -180,8 +183,9 @@ interface HttpErrorPayload {
 })
 export class ContextSelectorDialogComponent implements OnInit, OnChanges {
   private readonly authService = inject(AuthService);
-  private readonly notification = inject(NotificationService);
-  private readonly router = inject(Router);
+  private readonly notification = inject(NotificationService, { optional: true });
+  private readonly router = inject(Router, { optional: true });
+  private readonly destroyRef = inject(DestroyRef);
 
   @Input() visible = false;
   @Input() requireSelection = false;
@@ -211,16 +215,16 @@ export class ContextSelectorDialogComponent implements OnInit, OnChanges {
     this.switchingPropertyId.set('HQ');
     this.errorMessage.set(null);
 
-    this.authService.switchToChainHq().subscribe({
+    this.authService.switchToChainHq().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (payload: SwitchContextResponse) => {
         this.switchingPropertyId.set(null);
-        this.notification.success('Đã chuyển về chế độ Tổng quan Toàn chuỗi (HQ)');
+        this.notification?.success('Đã chuyển về chế độ Tổng quan Toàn chuỗi (HQ)');
 
         const hqMembership = this.buildHqMembership(payload);
         this.contextSwitched.emit(hqMembership);
         this.closeDialog();
 
-        if (!this.contextSwitched.observed) {
+        if (!this.contextSwitched.observed && this.router) {
           const currentPath = this.router.url.split('?')[0];
           const targetCommands = currentPath === '/dashboard' ? ['/dashboard'] : ['/properties'];
           void this.router.navigate(targetCommands);
@@ -253,7 +257,7 @@ export class ContextSelectorDialogComponent implements OnInit, OnChanges {
     const list = this.authService.memberships;
     const validBranches = list.filter(m => !!m.propertyId);
     if (validBranches.length === 0) {
-      this.authService.fetchMyMemberships().subscribe({
+      this.authService.fetchMyMemberships().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (fullList) => {
           this.branchMemberships.set(fullList.filter(m => !!m.propertyId));
         },
@@ -283,10 +287,10 @@ export class ContextSelectorDialogComponent implements OnInit, OnChanges {
     this.switchingPropertyId.set(membership.propertyId);
     this.errorMessage.set(null);
 
-    this.authService.switchContext(membership.propertyId).subscribe({
+    this.authService.switchContext(membership.propertyId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.switchingPropertyId.set(null);
-        this.notification.success(`Đã chuyển sang chi nhánh: ${membership.propertyName || membership.propertyCode}`);
+        this.notification?.success(`Đã chuyển sang chi nhánh: ${membership.propertyName || membership.propertyCode}`);
         this.contextSwitched.emit(membership);
         this.closeDialog();
       },

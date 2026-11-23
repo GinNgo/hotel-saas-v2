@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
@@ -121,7 +122,7 @@ public sealed class PlatformAdminAndPrintHttpPipelineTests
         }
     }
 
-    private static async Task<(string SchemaName, Guid TenantId, Guid PropertyId)> InitializeSchemaAsync(string baseConn)
+    private static async Task<(string SchemaName, Guid TenantId, Guid PropertyId, Guid OwnerUserId)> InitializeSchemaAsync(string baseConn)
     {
         ValidateTestDatabaseTarget(baseConn);
         var schemaName = "admin_test_" + Guid.NewGuid().ToString("N")[..12];
@@ -135,6 +136,7 @@ public sealed class PlatformAdminAndPrintHttpPipelineTests
 
         var tenantId = Guid.NewGuid();
         var propId = Guid.NewGuid();
+        var ownerUserId = Guid.NewGuid();
 
         await using var db = CreateSeedDbContext(baseConn, schemaName, tenantId);
         await db.Database.MigrateAsync();
@@ -166,11 +168,51 @@ public sealed class PlatformAdminAndPrintHttpPipelineTests
             CreatedAtUtc = DateTime.UtcNow
         };
         db.Properties.Add(property);
-
-        await SeedData.SeedPlatformAdminDataAsync(db);
         await db.SaveChangesAsync();
 
-        return (schemaName, tenantId, propId);
+        await SeedData.SeedDefaultRolesAndPermissions(db);
+
+        var ownerRole = await db.AccessRoles.FirstAsync(r => r.Code == "OWNER");
+        var ownerUser = new User
+        {
+            Id = ownerUserId,
+            Username = "owner_print_test",
+            Email = "owner@grandgroup.vn",
+            PasswordHash = new HotelSaas.Infrastructure.Services.PasswordHasherService().Hash("Owner@123456!"),
+            FullName = "Owner Grand Test",
+            GlobalRole = GlobalUserRole.TenantStaff,
+            IsActive = true,
+            EmailVerifiedAtUtc = DateTime.UtcNow,
+            PhoneVerifiedAtUtc = DateTime.UtcNow,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        db.Users.Add(ownerUser);
+
+        db.TenantStaffMembers.Add(new TenantStaff
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            UserId = ownerUserId,
+            RoleId = ownerRole.Id,
+            PropertyId = null,
+            StaffRole = StaffRole.Owner,
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        // Remove auto-seeded PrintTemplateConfigs for tenantId so tests verify zero dummy bank fallback before explicit PUT
+        var preSeededConfigs = await db.PrintTemplateConfigs
+            .IgnoreQueryFilters()
+            .Where(c => c.TenantId == tenantId)
+            .ToListAsync();
+        if (preSeededConfigs.Count > 0)
+        {
+            db.PrintTemplateConfigs.RemoveRange(preSeededConfigs);
+        }
+
+        await db.SaveChangesAsync();
+
+        return (schemaName, tenantId, propId, ownerUserId);
     }
 
     private static async Task CleanupSchemaAsync(string baseConn, string schemaName)
@@ -214,11 +256,37 @@ public sealed class PlatformAdminAndPrintHttpPipelineTests
         return tokenHandler.WriteToken(token);
     }
 
+    private static string GenerateTenantOwnerJwt(Guid userId, Guid tenantId, string secretKey)
+    {
+        var tokenHandler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+        var key = System.Text.Encoding.UTF8.GetBytes(secretKey);
+        var tokenDescriptor = new Microsoft.IdentityModel.Tokens.SecurityTokenDescriptor
+        {
+            Subject = new System.Security.Claims.ClaimsIdentity(new[]
+            {
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, userId.ToString()),
+                new System.Security.Claims.Claim("sub", userId.ToString()),
+                new System.Security.Claims.Claim("globalRole", "TenantStaff"),
+                new System.Security.Claims.Claim("tenantId", tenantId.ToString()),
+                new System.Security.Claims.Claim("tid", tenantId.ToString()),
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Email, "owner@grandgroup.vn")
+            }),
+            Expires = DateTime.UtcNow.AddMinutes(30),
+            Issuer = "HotelSaas",
+            Audience = "HotelSaasClient",
+            SigningCredentials = new Microsoft.IdentityModel.Tokens.SigningCredentials(
+                new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(key),
+                Microsoft.IdentityModel.Tokens.SecurityAlgorithms.HmacSha256Signature)
+        };
+        var token = tokenHandler.CreateToken(tokenDescriptor);
+        return tokenHandler.WriteToken(token);
+    }
+
     [Fact]
     public async Task AdminPlans_CRUD_Pipeline_Succeeds()
     {
         var connStr = GetConnectionString();
-        var (schema, tenantId, _) = await InitializeSchemaAsync(connStr);
+        var (schema, tenantId, _, _) = await InitializeSchemaAsync(connStr);
 
         try
         {
@@ -304,7 +372,7 @@ public sealed class PlatformAdminAndPrintHttpPipelineTests
     public async Task AdminContracts_And_PrintDocuments_Pipeline_Succeeds()
     {
         var connStr = GetConnectionString();
-        var (schema, tenantId, propertyId) = await InitializeSchemaAsync(connStr);
+        var (schema, tenantId, propertyId, ownerUserId) = await InitializeSchemaAsync(connStr);
 
         try
         {
@@ -363,16 +431,26 @@ public sealed class PlatformAdminAndPrintHttpPipelineTests
             Assert.Equal("Trần Minh Quân", printContract.TenantRepresentative);
             Assert.Contains("SLA cam kết 99.9%", printContract.TermsAndConditions);
 
-            // 5. GET & PUT /api/print/template-config -> Print branding & VietQR config
-            var getTemplateRes = await client.GetAsync("/api/print/template-config");
+            // 5. GET /api/print/template-config as SuperAdmin without tenant / SETTINGS:Read -> 403 Forbidden (Scenario S2)
+            var superAdminTemplateRes = await client.GetAsync("/api/print/template-config");
+            Assert.Equal(HttpStatusCode.Forbidden, superAdminTemplateRes.StatusCode);
+
+            // 6. GET & PUT /api/print/template-config as Tenant Owner -> strict tenant scope, zero dummy bank fallback
+            var ownerToken = GenerateTenantOwnerJwt(ownerUserId, tenantId, AdminTestWebApplicationFactory.TestJwtSecretKey);
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ownerToken);
+
+            var getTemplateRes = await client.GetAsync($"/api/print/template-config?propertyId={propertyId}");
             Assert.Equal(HttpStatusCode.OK, getTemplateRes.StatusCode);
             var template = await getTemplateRes.Content.ReadFromJsonAsync<PrintTemplateConfigDto>();
             Assert.NotNull(template);
-            Assert.Equal("MBBank", template.BankName);
+            Assert.Equal(string.Empty, template.BankAccountNumber);
+            Assert.Equal(string.Empty, template.BankName);
+            Assert.False(template.ShowVietQrCode);
 
             var updateTemplateReq = new PrintTemplateConfigDto
             {
                 TenantId = tenantId,
+                PropertyId = propertyId,
                 HeaderCompanyName = "Grand Hotel Group Luxury Resorts",
                 HeaderAddress = "777 Nguyễn Huệ, Quận 1, TP. HCM",
                 TaxNumber = "0399887766",
@@ -386,12 +464,35 @@ public sealed class PlatformAdminAndPrintHttpPipelineTests
                 ShowVietQrCode = true,
                 DefaultPaperSize = "A4"
             };
-            var putTemplateRes = await client.PutAsJsonAsync("/api/print/template-config", updateTemplateReq);
+            var putTemplateRes = await client.PutAsJsonAsync($"/api/print/template-config?propertyId={propertyId}", updateTemplateReq);
             Assert.Equal(HttpStatusCode.OK, putTemplateRes.StatusCode);
             var updatedTemplate = await putTemplateRes.Content.ReadFromJsonAsync<PrintTemplateConfigDto>();
             Assert.NotNull(updatedTemplate);
             Assert.Equal("Vietcombank", updatedTemplate.BankName);
             Assert.Equal("0071000999888", updatedTemplate.BankAccountNumber);
+
+            var getUpdatedTemplateRes = await client.GetAsync($"/api/print/template-config?propertyId={propertyId}");
+            Assert.Equal(HttpStatusCode.OK, getUpdatedTemplateRes.StatusCode);
+            var fetchedUpdated = await getUpdatedTemplateRes.Content.ReadFromJsonAsync<PrintTemplateConfigDto>();
+            Assert.NotNull(fetchedUpdated);
+            Assert.Equal("Vietcombank", fetchedUpdated.BankName);
+            Assert.Equal("0071000999888", fetchedUpdated.BankAccountNumber);
+
+            // 7. Wave 8: GET /api/guests with Tenant Owner token MUST succeed (not collide with /api/guest prefix)
+            var guestsRes = await client.GetAsync("/api/guests?page=1&pageSize=20");
+            Assert.Equal(HttpStatusCode.OK, guestsRes.StatusCode);
+
+            // 8. Wave 8: GET /api/print/contract/{id} as Tenant Owner -> 200 OK
+            var ownerPrintContractRes = await client.GetAsync($"/api/print/contract/{newContract.Id}");
+            Assert.Equal(HttpStatusCode.OK, ownerPrintContractRes.StatusCode);
+
+            // 9. Wave 8: GET /api/platform/audit-logs as Tenant Owner -> 403 Forbidden; as SuperAdmin -> 200 OK
+            var ownerPlatformAuditRes = await client.GetAsync("/api/platform/audit-logs?page=1&pageSize=10");
+            Assert.Equal(HttpStatusCode.Forbidden, ownerPlatformAuditRes.StatusCode);
+
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            var superAdminPlatformAuditRes = await client.GetAsync("/api/platform/audit-logs?page=1&pageSize=10");
+            Assert.Equal(HttpStatusCode.OK, superAdminPlatformAuditRes.StatusCode);
         }
         finally
         {

@@ -13,13 +13,30 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 using HotelSaas.Application.Public.Services;
+using HotelSaas.Application.Reservations.Services;
 
 namespace HotelSaas.Application.Public.Queries.GetPublicProperties;
 
 /// <summary>
+/// Preserves the IReadOnlyList&lt;PublicPropertyDto&gt; contract and plain JSON array serialization
+/// while carrying pre-pagination TotalCount for HTTP X-Total-Count headers.
+/// </summary>
+public sealed class PagedPropertyList : List<PublicPropertyDto>
+{
+    public int TotalCount { get; }
+
+    public PagedPropertyList(IEnumerable<PublicPropertyDto> items, int totalCount)
+        : base(items)
+    {
+        TotalCount = totalCount;
+    }
+}
+
+/// <summary>
 /// Query to retrieve active properties available for public discovery.
 /// Supports search, destination keyword, property type filters, rental types, tourist zones, landmarks,
-/// user GPS coordinates, tenant brand slug, province code, and smart fallback recommendations.
+/// user GPS coordinates, tenant brand slug, province code, price range, guest capacity, dates, pagination,
+/// publish guard, sorting, and smart fallback recommendations.
 /// </summary>
 public sealed record GetPublicPropertiesQuery(
     string? Search = null,
@@ -33,7 +50,16 @@ public sealed record GetPublicPropertiesQuery(
     double? UserLatitude = null,
     double? UserLongitude = null,
     string? TenantSlug = null,
-    string? ProvinceCode = null) : IRequest<IReadOnlyList<PublicPropertyDto>>;
+    string? ProvinceCode = null,
+    decimal? MinPrice = null,
+    decimal? MaxPrice = null,
+    int? Guests = null,
+    DateOnly? CheckInDate = null,
+    DateOnly? CheckOutDate = null,
+    int? Page = null,
+    int? PageSize = null,
+    bool OnlyPublished = false,
+    string? SortBy = null) : IRequest<IReadOnlyList<PublicPropertyDto>>;
 
 public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicPropertiesQuery, IReadOnlyList<PublicPropertyDto>>
 {
@@ -73,7 +99,7 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
         }
 
         // Load active tenants safely (supports null or unimplemented DbSets in unit tests)
-        var (activeTenants, tenantsAvailable) = await PublicPropertyMappingHelper.LoadActiveTenantsAsync(_context, cancellationToken);
+        var (activeTenants, inactiveTenantIds, tenantsAvailable) = await PublicPropertyMappingHelper.LoadTenantsMetadataAsync(_context, cancellationToken);
         List<Guid>? matchingTenantIds = null;
         string? normalizedTenantSlug = string.IsNullOrWhiteSpace(request.TenantSlug)
             ? null
@@ -96,7 +122,7 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
         var query = _context.Properties
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(p => p.Status == PropertyStatus.Active);
+            .Where(p => p.Status == PropertyStatus.Active && (!request.OnlyPublished || p.IsPublished));
 
         if (matchingTenantIds != null)
         {
@@ -147,7 +173,7 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
             var fallbackQuery = _context.Properties
                 .IgnoreQueryFilters()
                 .AsNoTracking()
-                .Where(p => p.Status == PropertyStatus.Active);
+                .Where(p => p.Status == PropertyStatus.Active && (!request.OnlyPublished || p.IsPublished));
 
             if (matchingTenantIds != null)
             {
@@ -166,6 +192,13 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
             rawProperties = await fallbackQuery.ToListAsync(cancellationToken);
         }
 
+        if (tenantsAvailable && inactiveTenantIds.Count > 0)
+        {
+            rawProperties = rawProperties
+                .Where(p => !inactiveTenantIds.Contains(p.TenantId))
+                .ToList();
+        }
+
         if (normalizedTenantSlug != null && !tenantsAvailable)
         {
             rawProperties = rawProperties
@@ -180,9 +213,33 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
 
         var propertyIds = rawProperties.Select(p => p.Id).ToList();
 
-        // 3. Load active rates and published reviews safely
+        // 3. Load active rates, published reviews, and real room type media/capacity safely
         var rates = await PublicPropertyMappingHelper.LoadActiveRatesAsync(_context, propertyIds, cancellationToken);
         var reviewStats = await PublicPropertyMappingHelper.LoadPublishedReviewStatsAsync(_context, propertyIds, cancellationToken);
+        var (roomTypes, roomTypesAvailable) = await PublicPropertyMappingHelper.LoadRoomTypesAsync(_context, propertyIds, cancellationToken);
+
+        var roomTypesByProperty = roomTypes.GroupBy(rt => rt.PropertyId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        if ((request.Guests.HasValue && request.Guests.Value > 0) ||
+            (request.CheckInDate.HasValue && request.CheckOutDate.HasValue))
+        {
+            rawProperties = await PublicPropertyMappingHelper.FilterByGuestsAndAvailabilityAsync(
+                _context,
+                rawProperties,
+                propertyIds,
+                roomTypesByProperty,
+                roomTypesAvailable,
+                request.Guests,
+                request.CheckInDate,
+                request.CheckOutDate,
+                cancellationToken);
+
+            if (rawProperties.Count == 0)
+            {
+                return Array.Empty<PublicPropertyDto>();
+            }
+        }
 
         var ratesByProperty = rates.GroupBy(r => r.PropertyId)
             .ToDictionary(g => g.Key, g => g.ToList());
@@ -209,6 +266,7 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
             ratesByProperty.TryGetValue(p.Id, out var propRates);
             activeTenants.TryGetValue(p.TenantId, out var tenant);
             reviewStats.TryGetValue(p.Id, out var reviewStat);
+            roomTypesByProperty.TryGetValue(p.Id, out var propRoomTypes);
 
             // Calculate distance to reference point if available
             double? distanceMeters = null;
@@ -229,13 +287,29 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
                 request.RentalType,
                 _locationService,
                 distanceMeters,
-                distanceFormatted));
+                distanceFormatted,
+                isExpandedNearbySuggestion: false,
+                roomTypes: propRoomTypes));
         }
 
         if (!string.IsNullOrWhiteSpace(request.ProvinceCode))
         {
             allDtos = allDtos
                 .Where(dto => PublicPropertyMappingHelper.MatchesProvinceCode(dto, request.ProvinceCode!, _locationService))
+                .ToList();
+        }
+
+        if (request.MinPrice.HasValue || request.MaxPrice.HasValue)
+        {
+            allDtos = allDtos
+                .Where(dto =>
+                {
+                    var price = dto.StartingPrice;
+                    if (!price.HasValue || price.Value <= 0m) return false;
+                    if (request.MinPrice.HasValue && price.Value < request.MinPrice.Value) return false;
+                    if (request.MaxPrice.HasValue && price.Value > request.MaxPrice.Value) return false;
+                    return true;
+                })
                 .ToList();
         }
 
@@ -304,22 +378,22 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
              effectiveQuery.Contains("Vị trí hiện tại", StringComparison.OrdinalIgnoreCase) ||
              effectiveQuery.Contains("Gần tôi", StringComparison.OrdinalIgnoreCase));
 
+        IReadOnlyList<PublicPropertyDto> matched;
+
         if (isGpsPlaceholder)
         {
-            return resultList
+            matched = resultList
                 .OrderBy(d => d.IsExpandedNearbySuggestion ? 1 : 0)
                 .ThenBy(d => d.DistanceMeters ?? 999999.0)
                 .ToList();
         }
-
-        // If the query was purely a landmark name and we already resolved it, avoid over-filtering with text search
-        if (targetLandmark != null && !string.IsNullOrWhiteSpace(effectiveQuery) &&
+        else if (targetLandmark != null && !string.IsNullOrWhiteSpace(effectiveQuery) &&
             VietnameseTextNormalizer.Matches(targetLandmark.Name, effectiveQuery.Trim()))
         {
-            // If sorted by distance, keep distance order
+            // If the query was purely a landmark name and we already resolved it, avoid over-filtering with text search
             if (refLat.HasValue && refLon.HasValue)
             {
-                return resultList
+                matched = resultList
                     .Where(d => (d.DistanceMeters.HasValue && d.DistanceMeters.Value <= 50000.0) ||
                                 (!d.DistanceMeters.HasValue &&
                                  !string.IsNullOrWhiteSpace(targetLandmark.TouristZoneSlug) &&
@@ -329,40 +403,57 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
                     .ThenBy(d => d.DistanceMeters ?? 999999.0)
                     .ToList();
             }
-            return resultList;
+            else
+            {
+                matched = resultList;
+            }
         }
-
-        // Province keyword resolution (e.g., "Đà Nẵng", "Hà Nội", "TP. Hồ Chí Minh") when no zone/landmark/code is bound
-        if (string.IsNullOrWhiteSpace(request.ProvinceCode) &&
+        else if (string.IsNullOrWhiteSpace(request.ProvinceCode) &&
             targetLandmark == null &&
             string.IsNullOrWhiteSpace(effectiveZoneSlug) &&
             !string.IsNullOrWhiteSpace(effectiveQuery) &&
             _locationService != null)
         {
             var queryProvinceTitle = PublicPropertyMappingHelper.NormalizeProvinceTitle(effectiveQuery);
+            IReadOnlyList<PublicPropertyDto>? provinceMatches = null;
             if (!string.IsNullOrEmpty(queryProvinceTitle))
             {
-                var matchedProv = _locationService.GetProvinces()
-                    .FirstOrDefault(p => string.Equals(
-                        PublicPropertyMappingHelper.NormalizeProvinceTitle(p.Name),
-                        queryProvinceTitle,
-                        StringComparison.OrdinalIgnoreCase));
-
+                var matchedProv = PublicPropertyMappingHelper.FindProvinceByTitleOrAlias(_locationService, queryProvinceTitle);
                 if (matchedProv != null)
                 {
-                    var provinceMatches = resultList
+                    var matches = resultList
                         .Where(dto => PublicPropertyMappingHelper.MatchesProvinceCode(dto, matchedProv.Code, _locationService))
                         .ToList();
-
-                    if (provinceMatches.Count > 0)
+                    if (matches.Count > 0)
                     {
-                        return provinceMatches;
+                        provinceMatches = matches;
                     }
                 }
             }
+
+            matched = provinceMatches ?? FilterAndRank(resultList, effectiveQuery);
+        }
+        else
+        {
+            matched = FilterAndRank(resultList, effectiveQuery);
         }
 
-        return FilterAndRank(resultList, effectiveQuery);
+        if (!string.IsNullOrWhiteSpace(request.SortBy))
+        {
+            matched = PublicPropertyMappingHelper.ApplySort(matched, request.SortBy);
+        }
+
+        if (request.Page.HasValue && request.PageSize.HasValue && request.Page.Value > 0 && request.PageSize.Value > 0)
+        {
+            var totalCount = matched.Count;
+            var paged = matched
+                .Skip((request.Page.Value - 1) * request.PageSize.Value)
+                .Take(request.PageSize.Value)
+                .ToList();
+            return new PagedPropertyList(paged, totalCount);
+        }
+
+        return matched;
     }
 
     public static string? SanitizeVietnameseText(string? text)
@@ -416,70 +507,7 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
 
 internal static class PublicPropertyMappingHelper
 {
-    private static readonly IReadOnlyDictionary<PropertyType, string[]> CuratedGalleriesByType =
-        new Dictionary<PropertyType, string[]>
-        {
-            [PropertyType.Hotel] = new[]
-            {
-                "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=1200&q=80"
-            },
-            [PropertyType.Resort] = new[]
-            {
-                "https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1540541338287-41700207dee6?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1549294413-26f195200c16?auto=format&fit=crop&w=1200&q=80"
-            },
-            [PropertyType.Hostel] = new[]
-            {
-                "https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1623625434462-e5e42318ae49?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1200&q=80"
-            },
-            [PropertyType.BedAndBreakfast] = new[]
-            {
-                "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1595576508898-0ad5c879a061?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1540518614846-7ede433c4574?auto=format&fit=crop&w=1200&q=80"
-            },
-            [PropertyType.Villa] = new[]
-            {
-                "https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80"
-            },
-            [PropertyType.Apartment] = new[]
-            {
-                "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1560185007-cde436f6a4d0?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1493809842364-78817add7ffb?auto=format&fit=crop&w=1200&q=80"
-            },
-            [PropertyType.Motel] = new[]
-            {
-                "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1200&q=80"
-            },
-            [PropertyType.Homestay] = new[]
-            {
-                "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1510798831971-661eb04b3739?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1200&q=80",
-                "https://images.unsplash.com/photo-1449844908441-8829872d2607?auto=format&fit=crop&w=1200&q=80"
-            }
-        };
-
-    internal static async Task<(Dictionary<Guid, Tenant> Tenants, bool Available)> LoadActiveTenantsAsync(
+    internal static async Task<(Dictionary<Guid, Tenant> ActiveTenants, HashSet<Guid> InactiveTenantIds, bool Available)> LoadTenantsMetadataAsync(
         IApplicationDbContext context,
         CancellationToken cancellationToken)
     {
@@ -488,20 +516,27 @@ internal static class PublicPropertyMappingHelper
             var tenantsSet = context.Tenants;
             if (tenantsSet is null)
             {
-                return (new Dictionary<Guid, Tenant>(), false);
+                return (new Dictionary<Guid, Tenant>(), new HashSet<Guid>(), false);
             }
 
             var tenants = await tenantsSet
                 .IgnoreQueryFilters()
                 .AsNoTracking()
-                .Where(t => t.Status == TenantStatus.Active)
                 .ToListAsync(cancellationToken);
 
-            return (tenants.ToDictionary(t => t.Id), true);
+            var active = tenants
+                .Where(t => t.Status == TenantStatus.Active)
+                .ToDictionary(t => t.Id);
+            var inactiveIds = tenants
+                .Where(t => t.Status != TenantStatus.Active)
+                .Select(t => t.Id)
+                .ToHashSet();
+
+            return (active, inactiveIds, true);
         }
         catch (NotImplementedException)
         {
-            return (new Dictionary<Guid, Tenant>(), false);
+            return (new Dictionary<Guid, Tenant>(), new HashSet<Guid>(), false);
         }
     }
 
@@ -563,6 +598,269 @@ internal static class PublicPropertyMappingHelper
         }
     }
 
+    internal static async Task<(List<RoomType> RoomTypes, bool Available)> LoadRoomTypesAsync(
+        IApplicationDbContext context,
+        IReadOnlyCollection<Guid> propertyIds,
+        CancellationToken cancellationToken)
+    {
+        if (propertyIds.Count == 0)
+        {
+            return (new List<RoomType>(), false);
+        }
+
+        try
+        {
+            var roomTypesSet = context.RoomTypes;
+            if (roomTypesSet is null)
+            {
+                return (new List<RoomType>(), false);
+            }
+
+            var roomTypes = await roomTypesSet
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(rt => propertyIds.Contains(rt.PropertyId))
+                .OrderBy(rt => rt.BasePrice)
+                .ThenBy(rt => rt.Name)
+                .ToListAsync(cancellationToken);
+
+            return (roomTypes, true);
+        }
+        catch (NotImplementedException)
+        {
+            return (new List<RoomType>(), false);
+        }
+    }
+
+    internal static async Task<(List<Room> Rooms, bool Available)> LoadActiveRoomsAsync(
+        IApplicationDbContext context,
+        IReadOnlyCollection<Guid> propertyIds,
+        CancellationToken cancellationToken)
+    {
+        if (propertyIds.Count == 0)
+        {
+            return (new List<Room>(), false);
+        }
+
+        try
+        {
+            var roomsSet = context.Rooms;
+            if (roomsSet is null)
+            {
+                return (new List<Room>(), false);
+            }
+
+            var rooms = await roomsSet
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(r => r.IsActive && propertyIds.Contains(r.PropertyId))
+                .ToListAsync(cancellationToken);
+
+            return (rooms, true);
+        }
+        catch (NotImplementedException)
+        {
+            return (new List<Room>(), false);
+        }
+    }
+
+    internal static async Task<(List<Reservation> Reservations, bool Available)> LoadBlockingReservationsAsync(
+        IApplicationDbContext context,
+        IReadOnlyCollection<Guid> propertyIds,
+        CancellationToken cancellationToken)
+    {
+        if (propertyIds.Count == 0)
+        {
+            return (new List<Reservation>(), false);
+        }
+
+        try
+        {
+            var reservationsSet = context.Reservations;
+            if (reservationsSet is null)
+            {
+                return (new List<Reservation>(), false);
+            }
+
+            var reservations = await reservationsSet
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(r => propertyIds.Contains(r.PropertyId) &&
+                            (r.Status == ReservationStatus.PendingPayment ||
+                             r.Status == ReservationStatus.Confirmed ||
+                             r.Status == ReservationStatus.CheckedIn))
+                .ToListAsync(cancellationToken);
+
+            return (reservations, true);
+        }
+        catch (NotImplementedException)
+        {
+            return (new List<Reservation>(), false);
+        }
+    }
+
+    internal static async Task<List<Property>> FilterByGuestsAndAvailabilityAsync(
+        IApplicationDbContext context,
+        List<Property> rawProperties,
+        IReadOnlyCollection<Guid> propertyIds,
+        IReadOnlyDictionary<Guid, List<RoomType>> roomTypesByProperty,
+        bool roomTypesAvailable,
+        int? guests,
+        DateOnly? checkInDate,
+        DateOnly? checkOutDate,
+        CancellationToken cancellationToken)
+    {
+        var checkDates = checkInDate.HasValue && checkOutDate.HasValue;
+        var roomsAvailable = false;
+        Dictionary<Guid, List<Room>> roomsByProperty = new();
+        var reservationsAvailable = false;
+        ILookup<Guid, Reservation>? reservationsByRoom = null;
+
+        if (checkDates)
+        {
+            var loadedRooms = await LoadActiveRoomsAsync(context, propertyIds, cancellationToken);
+            roomsAvailable = loadedRooms.Available;
+            if (roomsAvailable)
+            {
+                roomsByProperty = loadedRooms.Rooms
+                    .GroupBy(r => r.PropertyId)
+                    .ToDictionary(g => g.Key, g => g.ToList());
+
+                if (checkOutDate!.Value > checkInDate!.Value)
+                {
+                    var loadedRes = await LoadBlockingReservationsAsync(context, propertyIds, cancellationToken);
+                    reservationsAvailable = loadedRes.Available;
+                    if (reservationsAvailable)
+                    {
+                        reservationsByRoom = loadedRes.Reservations.ToLookup(r => r.RoomId);
+                    }
+                }
+            }
+        }
+
+        var nowUtc = DateTime.UtcNow;
+        var filtered = new List<Property>(rawProperties.Count);
+
+        foreach (var prop in rawProperties)
+        {
+            var propRoomTypes = roomTypesByProperty.TryGetValue(prop.Id, out var loadedPropRoomTypes)
+                ? loadedPropRoomTypes
+                : (prop.RoomTypes != null ? prop.RoomTypes.ToList() : new List<RoomType>());
+
+            if (guests.HasValue && guests.Value > 0 && (roomTypesAvailable || propRoomTypes.Count > 0))
+            {
+                if (!propRoomTypes.Any(rt => rt.MaxOccupancy >= guests.Value))
+                {
+                    continue;
+                }
+            }
+
+            if (checkDates && roomsAvailable)
+            {
+                roomsByProperty.TryGetValue(prop.Id, out var propRooms);
+                if (propRooms == null || propRooms.Count == 0)
+                {
+                    continue;
+                }
+
+                List<Room> eligibleRooms;
+                if (guests.HasValue && guests.Value > 0 && (roomTypesAvailable || propRoomTypes.Count > 0))
+                {
+                    var eligibleRtIds = propRoomTypes
+                        .Where(rt => rt.MaxOccupancy >= guests.Value)
+                        .Select(rt => rt.Id)
+                        .ToHashSet();
+                    eligibleRooms = propRooms.Where(r => eligibleRtIds.Contains(r.RoomTypeId)).ToList();
+                }
+                else
+                {
+                    eligibleRooms = propRooms;
+                }
+
+                if (eligibleRooms.Count == 0)
+                {
+                    continue;
+                }
+
+                if (reservationsAvailable && reservationsByRoom != null && checkOutDate!.Value > checkInDate!.Value)
+                {
+                    var (reqStartUtc, reqEndUtc) = ReservationTimeHelper.GetOvernightUtcInterval(
+                        checkInDate.Value,
+                        checkOutDate.Value,
+                        prop.CheckInTime,
+                        prop.CheckOutTime);
+                    var bufferMinutes = Math.Max(ReservationTimeHelper.MinimumTurnoverBufferMinutes, prop.BufferMinutes);
+
+                    var hasAvailableRoom = eligibleRooms.Any(room =>
+                    {
+                        var roomReservations = reservationsByRoom[room.Id];
+                        foreach (var existing in roomReservations)
+                        {
+                            if (!ReservationTimeHelper.IsBlockingReservation(existing, nowUtc))
+                            {
+                                continue;
+                            }
+
+                            var (extStart, extEnd) = ReservationTimeHelper.GetEffectiveStayUtcInterval(existing, prop);
+                            if (ReservationTimeHelper.HasOverlap(reqStartUtc, reqEndUtc, extStart, extEnd, bufferMinutes))
+                            {
+                                return false;
+                            }
+                        }
+                        return true;
+                    });
+
+                    if (!hasAvailableRoom)
+                    {
+                        continue;
+                    }
+                }
+            }
+
+            filtered.Add(prop);
+        }
+
+        return filtered;
+    }
+
+    internal static IReadOnlyList<PublicPropertyDto> ApplySort(
+        IReadOnlyList<PublicPropertyDto> items,
+        string sortBy)
+    {
+        var normalized = sortBy.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "price_asc" => items
+                .OrderBy(d => d.IsExpandedNearbySuggestion ? 1 : 0)
+                .ThenBy(d => d.StartingPrice.HasValue && d.StartingPrice.Value > 0m ? 0 : 1)
+                .ThenBy(d => d.StartingPrice ?? decimal.MaxValue)
+                .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(d => d.Id)
+                .ToList(),
+            "price_desc" => items
+                .OrderBy(d => d.IsExpandedNearbySuggestion ? 1 : 0)
+                .ThenBy(d => d.StartingPrice.HasValue && d.StartingPrice.Value > 0m ? 0 : 1)
+                .ThenByDescending(d => d.StartingPrice ?? 0m)
+                .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(d => d.Id)
+                .ToList(),
+            "rating_desc" => items
+                .OrderBy(d => d.IsExpandedNearbySuggestion ? 1 : 0)
+                .ThenByDescending(d => d.RatingAverage)
+                .ThenByDescending(d => d.ReviewCount)
+                .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(d => d.Id)
+                .ToList(),
+            "distance_asc" => items
+                .OrderBy(d => d.IsExpandedNearbySuggestion ? 1 : 0)
+                .ThenBy(d => d.DistanceMeters ?? double.MaxValue)
+                .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(d => d.Id)
+                .ToList(),
+            _ => items
+        };
+    }
+
     internal static async Task<Dictionary<Guid, (double Average, int Count)>> LoadPublishedReviewStatsAsync(
         IApplicationDbContext context,
         IReadOnlyCollection<Guid> propertyIds,
@@ -609,7 +907,8 @@ internal static class PublicPropertyMappingHelper
         ILocationLookupService? locationService,
         double? distanceMeters = null,
         string? distanceFormatted = null,
-        bool isExpandedNearbySuggestion = false)
+        bool isExpandedNearbySuggestion = false,
+        IReadOnlyList<RoomType>? roomTypes = null)
     {
         decimal? hourlyStart = null;
         decimal? overnightStart = null;
@@ -644,12 +943,10 @@ internal static class PublicPropertyMappingHelper
 
         var hasReviews = reviewStat.Count > 0;
         var reviewCount = hasReviews ? reviewStat.Count : 0;
-        var ratingAverage = hasReviews
-            ? reviewStat.Average
-            : (p.StarRating >= 5 ? 4.9 : (p.StarRating == 4 ? 4.7 : (p.StarRating > 0 ? 4.5 : 4.6)));
+        var ratingAverage = hasReviews ? reviewStat.Average : 0.0;
 
         var (provinceCode, provinceName, wardName) = ResolveLocationMetadata(p, locationService);
-        var (thumbnailUrl, galleryUrls) = ResolveVisualGallery(p);
+        var (thumbnailUrl, galleryUrls) = ResolveVisualGallery(p, roomTypes);
 
         return new PublicPropertyDto
         {
@@ -690,6 +987,8 @@ internal static class PublicPropertyMappingHelper
             OvernightStartingPrice = overnightStart,
             DailyStartingPrice = dailyStart,
             StartingPrice = startingPrice,
+            TaxRatePercent = p.TaxRatePercent,
+            ServiceFeeRatePercent = p.ServiceFeeRatePercent,
             NearbyLandmarks = nearbyLandmarks,
             NearestLandmarkInfo = nearestLandmarkInfo,
             DistanceMeters = distanceMeters,
@@ -751,33 +1050,23 @@ internal static class PublicPropertyMappingHelper
         return list;
     }
 
-    internal static (string? ThumbnailUrl, List<string> GalleryUrls) ResolveVisualGallery(Property property)
+    internal static (string ThumbnailUrl, List<string> GalleryUrls) ResolveVisualGallery(
+        Property property,
+        IReadOnlyList<RoomType>? roomTypes = null)
     {
-        if (!CuratedGalleriesByType.TryGetValue(property.PropertyType, out var pool) || pool.Length == 0)
-        {
-            pool = CuratedGalleriesByType[PropertyType.Hotel];
-        }
+        var sourceRoomTypes = roomTypes != null && roomTypes.Count > 0
+            ? roomTypes
+            : (property.RoomTypes != null ? property.RoomTypes.ToList() : new List<RoomType>());
 
-        var seedText = !string.IsNullOrWhiteSpace(property.Slug)
-            ? property.Slug
-            : (!string.IsNullOrWhiteSpace(property.Name) ? property.Name : property.Id.ToString("N"));
+        var gallery = sourceRoomTypes
+            .Select(rt => rt.ImageUrl?.Trim())
+            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .Select(url => url!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
-        uint hash = 2166136261u;
-        foreach (var ch in seedText)
-        {
-            hash ^= char.ToLowerInvariant(ch);
-            hash *= 16777619u;
-        }
-
-        var startIndex = (int)(hash % (uint)pool.Length);
-        var count = Math.Min(3, pool.Length);
-        var gallery = new List<string>(count);
-        for (var i = 0; i < count; i++)
-        {
-            gallery.Add(pool[(startIndex + i) % pool.Length]);
-        }
-
-        return (gallery[0], gallery);
+        var thumbnailUrl = gallery.Count > 0 ? gallery[0] : string.Empty;
+        return (thumbnailUrl, gallery);
     }
 
     internal static (string? ProvinceCode, string? ProvinceName, string? WardName) ResolveLocationMetadata(
@@ -800,30 +1089,176 @@ internal static class PublicPropertyMappingHelper
         return (provinceCode, provinceName, wardName);
     }
 
+    private static readonly IReadOnlyDictionary<string, string> LegacyProvinceCodeToCanonical =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["VN-SG"] = "79",
+            ["1"] = "01",
+            ["01"] = "01",
+            ["4"] = "04",
+            ["04"] = "04",
+            ["2"] = "08",
+            ["02"] = "08",
+            ["8"] = "08",
+            ["08"] = "08",
+            ["10"] = "15",
+            ["6"] = "19",
+            ["06"] = "19",
+            ["27"] = "24",
+            ["17"] = "25",
+            ["26"] = "25",
+            ["30"] = "31",
+            ["34"] = "33",
+            ["35"] = "37",
+            ["36"] = "37",
+            ["45"] = "44",
+            ["49"] = "48",
+            ["62"] = "51",
+            ["64"] = "52",
+            ["58"] = "56",
+            ["54"] = "66",
+            ["60"] = "68",
+            ["67"] = "68",
+            ["70"] = "75",
+            ["74"] = "79",
+            ["77"] = "79",
+            ["72"] = "80",
+            ["87"] = "82",
+            ["83"] = "86",
+            ["84"] = "86",
+            ["89"] = "91",
+            ["93"] = "92",
+            ["94"] = "92",
+            ["95"] = "96"
+        };
+
+    private static readonly IReadOnlyDictionary<string, string> LegacyProvinceTitleToCanonical =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ha giang"] = "08",
+            ["yen bai"] = "15",
+            ["sa pa"] = "15",
+            ["bac kan"] = "19",
+            ["bac can"] = "19",
+            ["bac giang"] = "24",
+            ["hoa binh"] = "25",
+            ["vinh phuc"] = "25",
+            ["hai duong"] = "31",
+            ["thai binh"] = "33",
+            ["ha nam"] = "37",
+            ["nam dinh"] = "37",
+            ["quang binh"] = "44",
+            ["thua thien hue"] = "46",
+            ["quang nam"] = "48",
+            ["hoi an"] = "48",
+            ["kon tum"] = "51",
+            ["mang den"] = "51",
+            ["binh dinh"] = "52",
+            ["quy nhon"] = "52",
+            ["ninh thuan"] = "56",
+            ["nha trang"] = "56",
+            ["phu yen"] = "66",
+            ["tuy hoa"] = "66",
+            ["binh thuan"] = "68",
+            ["phan thiet"] = "68",
+            ["mui ne"] = "68",
+            ["dak nong"] = "68",
+            ["da lat"] = "68",
+            ["binh phuoc"] = "75",
+            ["ba ria - vung tau"] = "79",
+            ["ba ria vung tau"] = "79",
+            ["vung tau"] = "79",
+            ["binh duong"] = "79",
+            ["sai gon"] = "79",
+            ["saigon"] = "79",
+            ["long an"] = "80",
+            ["tien giang"] = "82",
+            ["sa dec"] = "82",
+            ["ben tre"] = "86",
+            ["tra vinh"] = "86",
+            ["kien giang"] = "91",
+            ["phu quoc"] = "91",
+            ["chau doc"] = "91",
+            ["hau giang"] = "92",
+            ["soc trang"] = "92",
+            ["bac lieu"] = "96"
+        };
+
+    internal static string ResolveCanonicalProvinceCode(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return string.Empty;
+
+        var trimmed = code.Trim();
+        if (LegacyProvinceCodeToCanonical.TryGetValue(trimmed, out var canonical))
+        {
+            return canonical;
+        }
+
+        var stripped = trimmed.TrimStart('0');
+        if (!string.IsNullOrEmpty(stripped) && LegacyProvinceCodeToCanonical.TryGetValue(stripped, out var canonicalStripped))
+        {
+            return canonicalStripped;
+        }
+
+        if (trimmed.Length == 1 && char.IsDigit(trimmed[0]))
+        {
+            return "0" + trimmed;
+        }
+
+        return trimmed;
+    }
+
+    internal static ProvinceDto? FindProvinceByTitleOrAlias(ILocationLookupService locationService, string normalizedTitle)
+    {
+        if (string.IsNullOrEmpty(normalizedTitle)) return null;
+
+        var direct = locationService.GetProvinces()
+            .FirstOrDefault(p => string.Equals(
+                NormalizeProvinceTitle(p.Name),
+                normalizedTitle,
+                StringComparison.OrdinalIgnoreCase));
+        if (direct != null) return direct;
+
+        if (LegacyProvinceTitleToCanonical.TryGetValue(normalizedTitle, out var canonicalCode))
+        {
+            return FindProvinceByCode(locationService, canonicalCode);
+        }
+
+        return null;
+    }
+
     internal static bool MatchesProvinceCode(
         PublicPropertyDto dto,
         string requestedProvinceCode,
         ILocationLookupService? locationService)
     {
-        var reqKey = NormalizeProvinceCodeKey(requestedProvinceCode);
-        if (string.IsNullOrEmpty(reqKey))
+        var reqCanonical = ResolveCanonicalProvinceCode(requestedProvinceCode);
+        if (string.IsNullOrEmpty(reqCanonical))
         {
             return true;
         }
 
-        var dtoKey = NormalizeProvinceCodeKey(dto.ProvinceCode);
-        if (!string.IsNullOrEmpty(dtoKey) && string.Equals(dtoKey, reqKey, StringComparison.OrdinalIgnoreCase))
+        var dtoCanonical = ResolveCanonicalProvinceCode(dto.ProvinceCode);
+        if (!string.IsNullOrEmpty(dtoCanonical) &&
+            string.Equals(dtoCanonical, reqCanonical, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var dtoTitle = NormalizeProvinceTitle(dto.ProvinceName ?? dto.City);
+        if (!string.IsNullOrEmpty(dtoTitle) &&
+            LegacyProvinceTitleToCanonical.TryGetValue(dtoTitle, out var legacyDtoCanonical) &&
+            string.Equals(legacyDtoCanonical, reqCanonical, StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
         if (locationService != null)
         {
-            var targetProvince = FindProvinceByCode(locationService, requestedProvinceCode);
+            var targetProvince = FindProvinceByCode(locationService, reqCanonical);
             if (targetProvince != null)
             {
                 var targetTitle = NormalizeProvinceTitle(targetProvince.Name);
-                var dtoTitle = NormalizeProvinceTitle(dto.ProvinceName ?? dto.City);
                 if (!string.IsNullOrEmpty(targetTitle) && !string.IsNullOrEmpty(dtoTitle) &&
                     (string.Equals(dtoTitle, targetTitle, StringComparison.OrdinalIgnoreCase) ||
                      dtoTitle.Contains(targetTitle, StringComparison.OrdinalIgnoreCase)))
@@ -836,6 +1271,18 @@ internal static class PublicPropertyMappingHelper
                 {
                     return true;
                 }
+
+                if (!string.IsNullOrEmpty(normAddress))
+                {
+                    foreach (var kvp in LegacyProvinceTitleToCanonical)
+                    {
+                        if (string.Equals(kvp.Value, targetProvince.Code, StringComparison.OrdinalIgnoreCase) &&
+                            normAddress.Contains(kvp.Key, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return true;
+                        }
+                    }
+                }
             }
         }
 
@@ -844,13 +1291,14 @@ internal static class PublicPropertyMappingHelper
 
     internal static ProvinceDto? FindProvinceByCode(ILocationLookupService locationService, string code)
     {
-        var direct = locationService.GetProvinceByCode(code.Trim());
+        var canonical = ResolveCanonicalProvinceCode(code);
+        var direct = locationService.GetProvinceByCode(canonical);
         if (direct != null)
         {
             return direct;
         }
 
-        var key = NormalizeProvinceCodeKey(code);
+        var key = NormalizeProvinceCodeKey(canonical);
         return locationService.GetProvinces()
             .FirstOrDefault(p => string.Equals(NormalizeProvinceCodeKey(p.Code), key, StringComparison.OrdinalIgnoreCase));
     }
@@ -869,6 +1317,12 @@ internal static class PublicPropertyMappingHelper
             var exact = provinces.FirstOrDefault(pr =>
                 string.Equals(NormalizeProvinceTitle(pr.Name), cityTitle, StringComparison.OrdinalIgnoreCase));
             if (exact != null) return exact;
+
+            if (LegacyProvinceTitleToCanonical.TryGetValue(cityTitle, out var canonicalFromLegacyTitle))
+            {
+                var byLegacyTitle = FindProvinceByCode(locationService, canonicalFromLegacyTitle);
+                if (byLegacyTitle != null) return byLegacyTitle;
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(touristZoneSlug))
@@ -900,6 +1354,15 @@ internal static class PublicPropertyMappingHelper
                 return !string.IsNullOrEmpty(title) && normAddress.Contains(title, StringComparison.OrdinalIgnoreCase);
             });
             if (byAddress != null) return byAddress;
+
+            foreach (var kvp in LegacyProvinceTitleToCanonical)
+            {
+                if (normAddress.Contains(kvp.Key, StringComparison.OrdinalIgnoreCase))
+                {
+                    var byLegacyAddr = FindProvinceByCode(locationService, kvp.Value);
+                    if (byLegacyAddr != null) return byLegacyAddr;
+                }
+            }
         }
 
         return null;

@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace HotelSaas.WebApi.Controllers;
 
 /// <summary>
-/// Public API endpoints for retrieving standardized 2-level Vietnamese administrative divisions.
+/// Public API endpoints for retrieving standardized 34 Vietnamese provinces and 2-level administrative divisions.
 /// </summary>
 [ApiController]
 [Route("api/locations")]
@@ -26,9 +26,9 @@ public sealed class LocationsController : ControllerBase
     }
 
     /// <summary>
-    /// Gets all 63 standardized Vietnamese provinces and centrally-governed cities.
+    /// Gets all 34 standardized Vietnamese provinces and centrally-governed cities (2-level model).
     /// </summary>
-    /// <returns>A list of provinces.</returns>
+    /// <returns>A list of 34 provinces.</returns>
     [HttpGet("provinces")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public IActionResult GetProvinces()
@@ -38,7 +38,7 @@ public sealed class LocationsController : ControllerBase
     }
 
     /// <summary>
-    /// Gets all administrative wards/communes directly under the specified province.
+    /// Gets all administrative wards, communes, and special zones directly under the specified province (2-level model).
     /// </summary>
     /// <param name="provinceCode">The unique code of the province.</param>
     /// <returns>A list of wards.</returns>

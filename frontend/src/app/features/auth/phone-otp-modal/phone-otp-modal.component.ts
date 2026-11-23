@@ -8,8 +8,11 @@ import {
   Output,
   SimpleChanges,
   inject,
+  isDevMode,
   signal
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { A11yModule } from '@angular/cdk/a11y';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FirebaseAuthService } from '../../../core/services/firebase-auth.service';
@@ -22,11 +25,19 @@ export type PhoneOtpMode = 'login' | 'link' | 'verify-for-booking';
 @Component({
   selector: 'app-phone-otp-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, A11yModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (visible) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
+      <div
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="phone-otp-modal-title"
+        (keydown.escape)="closeModal()"
+      >
         <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in duration-150">
           <!-- 1. Header -->
           <div class="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -35,7 +46,7 @@ export type PhoneOtpMode = 'login' | 'link' | 'verify-for-booking';
                 <i class="pi pi-phone text-sm"></i>
               </div>
               <div>
-                <h3 class="font-bold text-slate-900 text-sm">
+                <h3 id="phone-otp-modal-title" class="font-bold text-slate-900 text-sm">
                   {{ mode === 'link' ? 'Liên kết Số Điện Thoại' : (mode === 'verify-for-booking' ? 'Xác thực SĐT Giữ Phòng' : 'Đăng nhập qua SMS OTP') }}
                 </h3>
                 <p class="text-[11px] text-slate-500">Google Identity Platform &bull; reCAPTCHA Invisible</p>
@@ -44,7 +55,8 @@ export type PhoneOtpMode = 'login' | 'link' | 'verify-for-booking';
             <button
               type="button"
               (click)="closeModal()"
-              class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+              aria-label="Đóng hộp thoại xác thực OTP"
+              class="min-h-11 min-w-11 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
             >
               <i class="pi pi-times text-xs"></i>
             </button>
@@ -128,13 +140,15 @@ export type PhoneOtpMode = 'login' | 'link' | 'verify-for-booking';
                   }
                 </button>
 
-                <button
-                  type="button"
-                  (click)="quickFillDemoPhone()"
-                  class="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] transition-colors cursor-pointer"
-                >
-                  Dùng số kiểm thử (+84 123 456 789 / Mã: 123456)
-                </button>
+                @if (devMode) {
+                  <button
+                    type="button"
+                    (click)="quickFillDemoPhone()"
+                    class="w-full min-h-11 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] transition-colors cursor-pointer"
+                  >
+                    Dùng số kiểm thử (+84 123 456 789 / Mã: 123456)
+                  </button>
+                }
               </div>
             </div>
           }
@@ -165,13 +179,13 @@ export type PhoneOtpMode = 'login' | 'link' | 'verify-for-booking';
               <!-- Countdown timer & Resend button -->
               <div class="text-center text-xs text-slate-500">
                 @if (countdown() > 0) {
-                  <span>Gửi lại mã sau <strong class="text-indigo-600 font-mono">{{ countdown() }}s</strong></span>
+                  <span>Gửi lại mã sau <strong class="text-indigo-600 font-mono tabular-nums">{{ countdown() }}s</strong></span>
                 } @else {
                   <button
                     type="button"
                     (click)="sendOtp()"
                     [disabled]="loading()"
-                    class="text-indigo-600 hover:text-indigo-700 font-bold hover:underline cursor-pointer"
+                    class="min-h-11 px-3 text-indigo-600 hover:text-indigo-700 font-bold hover:underline cursor-pointer"
                   >
                     Gửi lại mã OTP mới
                   </button>
@@ -183,7 +197,7 @@ export type PhoneOtpMode = 'login' | 'link' | 'verify-for-booking';
                   type="button"
                   (click)="verifyOtp()"
                   [disabled]="loading() || otpCode.trim().length < 6"
-                  class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="w-full min-h-11 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   @if (loading()) {
                     <i class="pi pi-spin pi-spinner text-xs"></i>
@@ -198,18 +212,21 @@ export type PhoneOtpMode = 'login' | 'link' | 'verify-for-booking';
                   <button
                     type="button"
                     (click)="backToPhoneStep()"
-                    class="text-[11px] text-slate-500 hover:text-slate-800 font-semibold cursor-pointer"
+                    class="min-h-11 px-2 inline-flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-800 font-semibold cursor-pointer"
                   >
-                    ← Đổi số điện thoại
+                    <i class="pi pi-arrow-left text-[10px]"></i>
+                    <span>Đổi số điện thoại</span>
                   </button>
 
-                  <button
-                    type="button"
-                    (click)="quickFillOtp('123456')"
-                    class="text-[11px] text-amber-600 hover:text-amber-700 font-bold cursor-pointer"
-                  >
-                    Nhập mã mẫu 123456
-                  </button>
+                  @if (devMode) {
+                    <button
+                      type="button"
+                      (click)="quickFillOtp('123456')"
+                      class="min-h-11 px-2 inline-flex items-center text-[11px] text-amber-600 hover:text-amber-700 font-bold cursor-pointer"
+                    >
+                      Nhập mã mẫu 123456
+                    </button>
+                  }
                 </div>
               </div>
             </div>
@@ -236,6 +253,7 @@ export class PhoneOtpModalComponent implements OnChanges {
     firebaseIdToken?: string;
   }>();
 
+  readonly devMode = isDevMode();
   step = signal<'phone' | 'otp'>('phone');
   loading = signal<boolean>(false);
   errorMessage = signal<string | null>(null);
@@ -247,7 +265,11 @@ export class PhoneOtpModalComponent implements OnChanges {
   fullName: string = '';
   otpCode: string = '';
 
-  private countdownInterval: any = null;
+  private countdownInterval: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    this.destroyRef.onDestroy(() => this.stopCountdown());
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['visible']?.currentValue === true) {
@@ -267,11 +289,13 @@ export class PhoneOtpModalComponent implements OnChanges {
   }
 
   quickFillDemoPhone(): void {
+    if (!isDevMode()) return;
     this.phoneNumber = '0123456789';
     this.fullName = 'Khách Kiểm Thử (+84123456789)';
   }
 
   quickFillOtp(code: string): void {
+    if (!isDevMode()) return;
     this.otpCode = code;
   }
 
@@ -300,9 +324,9 @@ export class PhoneOtpModalComponent implements OnChanges {
       this.statusMessage.set(res.message || 'Mã xác thực đã được gửi.');
       this.step.set('otp');
       this.startCountdown(60);
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.loading.set(false);
-      const msg = err?.message || 'Không thể gửi mã SMS OTP. Vui lòng thử lại sau.';
+      const msg = err instanceof Error && err.message ? err.message : 'Không thể gửi mã SMS OTP. Vui lòng thử lại sau.';
       this.errorMessage.set(msg);
     }
   }
@@ -338,7 +362,7 @@ export class PhoneOtpModalComponent implements OnChanges {
       this.authService.verifyPhoneFirebase({
         firebaseIdToken: verifyRes.idToken,
         fullName: this.fullName.trim() || undefined
-      }).subscribe({
+      }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (loginResponse) => {
           this.loading.set(false);
           this.notification.success(`Xác thực SĐT ${verifyRes.phoneNumber} thành công!`);
@@ -356,9 +380,10 @@ export class PhoneOtpModalComponent implements OnChanges {
           this.errorMessage.set(detail);
         }
       });
-    } catch (firebaseErr: any) {
+    } catch (firebaseErr: unknown) {
       this.loading.set(false);
-      this.errorMessage.set(firebaseErr?.message || 'Mã OTP không hợp lệ hoặc đã hết hạn.');
+      const msg = firebaseErr instanceof Error && firebaseErr.message ? firebaseErr.message : 'Mã OTP không hợp lệ hoặc đã hết hạn.';
+      this.errorMessage.set(msg);
     }
   }
 

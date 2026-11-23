@@ -26,6 +26,8 @@ import {
 } from './payments.page';
 import { PaymentService } from '../../core/services/payment.service';
 import { AuthService } from '../../core/services/auth.service';
+import { NotificationService } from '../../core/services/notification.service';
+import { NotificationItem } from '../../shared/components/notification-bell/notification-bell.model';
 import {
   PaymentMethod,
   PaymentStatus,
@@ -48,6 +50,8 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
   let component: PaymentsPage;
   let mockPaymentService: any;
   let mockAuthService: any;
+  let mockNotificationService: { notifications: WritableSignal<readonly NotificationItem[]> };
+  let notificationsSignal: WritableSignal<readonly NotificationItem[]>;
   let activePropertyIdSignal: WritableSignal<string | null>;
   let activePropertyNameSignal: WritableSignal<string | null>;
   let hasPermissionMock: ReturnType<typeof vi.fn>;
@@ -205,12 +209,18 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       createPayment: vi.fn().mockReturnValue(of(samplePaymentCreated))
     };
 
+    notificationsSignal = signal<readonly NotificationItem[]>([]);
+    mockNotificationService = {
+      notifications: notificationsSignal
+    };
+
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [PaymentsPage],
       providers: [
         { provide: AuthService, useValue: mockAuthService },
-        { provide: PaymentService, useValue: mockPaymentService }
+        { provide: PaymentService, useValue: mockPaymentService },
+        { provide: NotificationService, useValue: mockNotificationService }
       ]
     }).compileComponents();
   });
@@ -241,9 +251,9 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
 
     // Summary block rendered text
     expect(text).toContain('Tổng kết Thực thu trong ngày');
-    expect(text).toContain('2,500,000');
-    expect(text).toContain('1,500,000');
-    expect(text).toContain('1,000,000');
+    expect(text).toContain('2.500.000');
+    expect(text).toContain('1.500.000');
+    expect(text).toContain('1.000.000');
     expect(text).toContain('3');
 
     // Payments list table rendered text
@@ -334,7 +344,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
     expect(component.paymentsError()).toBeNull();
 
     const text = fixture.nativeElement.textContent || '';
-    expect(text).toContain('999,999');
+    expect(text).toContain('999.999');
     expect(text).toContain('REC-PROP-B');
     expect(text).not.toContain('REC-001');
   });
@@ -373,7 +383,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
     // DOM displays empty state for missing property
     const text = fixture.nativeElement.textContent || '';
     expect(text).toContain('Vui lòng chọn cơ sở hoạt động');
-    expect(text).not.toContain('2,500,000');
+    expect(text).not.toContain('2.500.000');
     expect(text).not.toContain('REC-001');
   });
 
@@ -488,7 +498,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
 
     const text = fixture.nativeElement.textContent || '';
     expect(text).toContain('403 Forbidden');
-    expect(text).not.toContain('2,500,000');
+    expect(text).not.toContain('2.500.000');
   });
 
   it('BAC 4d: populated list + summary 403 should clear BOTH streams, cancel pending payments requests, and reject late responses', () => {
@@ -564,7 +574,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
     expect(text).toContain('Không có quyền truy cập');
     expect(text).toContain('403 Forbidden');
     expect(text).not.toContain('REC-001');
-    expect(text).not.toContain('2,500,000');
+    expect(text).not.toContain('2.500.000');
   });
 
   it('BAC 4f: populated summary + list 403 latches access-denied: blocks subsequent refresh/filter/retry, and recovers only on deliberate validated authority recovery', () => {
@@ -632,7 +642,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
 
     const text = fixture.nativeElement.textContent || '';
     expect(text).not.toContain('Không có quyền truy cập');
-    expect(text).toContain('2,500,000');
+    expect(text).toContain('2.500.000');
     expect(text).toContain('REC-001');
   });
 
@@ -698,7 +708,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
 
     const text = fixture.nativeElement.textContent || '';
     expect(text).not.toContain('Không có quyền truy cập');
-    expect(text).toContain('2,500,000');
+    expect(text).toContain('2.500.000');
     expect(text).toContain('REC-001');
   });
 
@@ -846,8 +856,8 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       const text = fixture.nativeElement.textContent || '';
       expect(text).toContain('CONF-12345');
       expect(text).toContain('Deluxe Ocean View');
-      expect(text).toContain('2,000,000');
-      expect(text).toContain('1,500,000');
+      expect(text).toContain('2.000.000');
+      expect(text).toContain('1.500.000');
     });
 
     it('should fast-fill remaining balance when fillRemainingBalance is triggered', () => {
@@ -860,7 +870,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       expect(component.paymentAmount).toBe(1500000);
     });
 
-    it('should display unconfigured bank notice when BankTransfer is selected without fake account or auto-paying', () => {
+    it('should display unconfigured bank notice with /policies link when BankTransfer is selected without VietQR configuration or auto-paying', () => {
       fixture = TestBed.createComponent(PaymentsPage);
       component = fixture.componentInstance;
       fixture.detectChanges();
@@ -872,10 +882,74 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       fixture.detectChanges();
 
       const compiled = fixture.nativeElement as HTMLElement;
-      expect(compiled.textContent).toContain('Chưa có cấu hình VietQR chính thức');
+      expect(compiled.textContent).toContain('Chưa cấu hình tài khoản ngân hàng VietQR');
+      expect(compiled.querySelector('a[href="/policies"]')).not.toBeNull();
       expect(compiled.textContent).not.toContain('VCB-9876543210');
       // Must not auto-complete payment merely on selecting BankTransfer
       expect(mockPaymentService.createPayment).not.toHaveBeenCalled();
+    });
+
+    it('should render dynamic VietQR image, bank details, and copyable transfer memo when generateVietQr succeeds', () => {
+      mockPaymentService.generateVietQr = vi.fn().mockReturnValue(of({
+        qrImageUrl: 'https://img.vietqr.io/image/970422-0345678910-compact2.png',
+        bankBin: '970422',
+        bankName: 'MB Bank',
+        accountNumber: '0345678910',
+        accountName: 'KHACH SAN BIEN DONG',
+        amount: 1500000,
+        description: 'DATPHONG CONF12345',
+        confirmationCode: 'CONF-12345',
+        quickPayDeepLink: 'vietqr://pay'
+      }));
+
+      fixture = TestBed.createComponent(PaymentsPage);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+
+      component.loadFolio('res-001-bbbb');
+      fixture.detectChanges();
+
+      component.paymentMethod.set(PaymentMethod.BankTransfer);
+      fixture.detectChanges();
+
+      expect(mockPaymentService.generateVietQr).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amount: 1500000,
+          confirmationCode: 'CONF-12345',
+          reservationId: 'res-001-bbbb',
+          propertyId: 'prop-1111'
+        }),
+        'prop-1111'
+      );
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('[data-testid="cashier-vietqr-panel"]')).not.toBeNull();
+      expect(compiled.textContent).toContain('MB Bank');
+      expect(compiled.textContent).toContain('0345678910');
+      expect(compiled.textContent).toContain('KHACH SAN BIEN DONG');
+      expect(compiled.textContent).toContain('DATPHONG CONF12345');
+    });
+
+    it('should display honest unconfigured bank notice + /policies link when backend returns 422 ERR_BANK_ACCOUNT_NOT_CONFIGURED', () => {
+      mockPaymentService.generateVietQr = vi.fn().mockReturnValue(throwError(() => ({
+        status: 422,
+        error: { errorCode: 'ERR_BANK_ACCOUNT_NOT_CONFIGURED', message: 'Chưa cấu hình tài khoản ngân hàng.' }
+      })));
+
+      fixture = TestBed.createComponent(PaymentsPage);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+
+      component.loadFolio('res-001-bbbb');
+      fixture.detectChanges();
+
+      component.paymentMethod.set(PaymentMethod.BankTransfer);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('[data-testid="cashier-vietqr-unconfigured"]')).not.toBeNull();
+      expect(compiled.textContent).toContain('Chưa cấu hình tài khoản ngân hàng VietQR');
+      expect(compiled.querySelector('a[href="/policies"]')).not.toBeNull();
     });
 
     it('should submit payment, refresh Folio, trigger Receipt Voucher Modal, and allow printing/closing', () => {
@@ -911,7 +985,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       const text = fixture.nativeElement.textContent || '';
       expect(text).toContain('Phiếu Xác Nhận Thu Tiền Nội Bộ');
       expect(text).toContain('GIAO DỊCH THÀNH CÔNG');
-      expect(text).toContain('1,500,000 VNĐ');
+      expect(text).toContain('1.500.000 ₫');
       expect(text).toContain('Phiếu xác nhận thu tiền nội bộ, không phải hóa đơn VAT');
 
       // Test print call
@@ -936,8 +1010,8 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
 
       const text = fixture.nativeElement.textContent || '';
       expect(text).toContain('Chi tiết các khoản phí');
-      expect(text).toContain('Cọc yêu cầu: 500,000 VNĐ');
-      expect(text).toContain('Cọc đã thực thu: 500,000 VNĐ');
+      expect(text).toContain('Cọc yêu cầu: 500.000 ₫');
+      expect(text).toContain('Cọc đã thực thu: 500.000 ₫');
       expect(text).toContain('Tiền phòng 2 đêm');
       expect(text).toContain('Đã thanh toán (Chỉ trừ các giao dịch hoàn tất)');
     });
@@ -962,7 +1036,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       fixture.detectChanges();
 
       const text = fixture.nativeElement.textContent || '';
-      expect(text).toContain('Cọc yêu cầu: 500,000 VNĐ');
+      expect(text).toContain('Cọc yêu cầu: 500.000 ₫');
       expect(text).toContain('Cọc đã thực thu: Chưa xác định');
       expect(text).toContain('Phân bổ chi tiết:');
       expect(text).toContain('Chưa xác định (Không có dữ liệu breakdown cấu trúc)');
@@ -997,7 +1071,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       expect(component.isDepositPayment()).toBe(false);
     });
 
-    it('should require bank confirmation and transaction reference for BankTransfer method before submitting', () => {
+    it('should require bank confirmation for BankTransfer method and auto-fill VIETQR-MANUAL when transactionRef is blank', () => {
       fixture = TestBed.createComponent(PaymentsPage);
       component = fixture.componentInstance;
       fixture.detectChanges();
@@ -1009,7 +1083,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       component.paymentMethod.set(PaymentMethod.BankTransfer);
       component.paymentTransactionRef = '';
 
-      // 1. Without transaction ref
+      // 1. Without transaction ref and without confirmation checkbox
       component.submitPayment('res-001-bbbb');
       expect(component.folioError()).toContain('Vui lòng nhập mã giao dịch ngân hàng');
       expect(mockPaymentService.createPayment).not.toHaveBeenCalled();
@@ -1020,7 +1094,7 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       expect(component.folioError()).toContain('Thu ngân phải xác nhận tiền đã vào tài khoản');
       expect(mockPaymentService.createPayment).not.toHaveBeenCalled();
 
-      // 3. With confirmation checkbox checked
+      // 3. With confirmation checkbox checked and explicit ref
       component.toggleBankTransferConfirmed();
       expect(component.isBankTransferConfirmed()).toBe(true);
 
@@ -1036,6 +1110,74 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       );
       // Confirmation reset after submission
       expect(component.isBankTransferConfirmed()).toBe(false);
+
+      // 4. With confirmation checkbox checked and blank ref -> auto-fills VIETQR-MANUAL
+      mockPaymentService.createPayment.mockClear();
+      component.paymentAmount = 500000;
+      component.paymentMethod.set(PaymentMethod.BankTransfer);
+      component.paymentTransactionRef = '';
+      component.toggleBankTransferConfirmed();
+      expect(component.isBankTransferConfirmed()).toBe(true);
+
+      component.submitPayment('res-001-bbbb');
+      expect(mockPaymentService.createPayment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reservationId: 'res-001-bbbb',
+          amount: 500000,
+          method: PaymentMethod.BankTransfer,
+          transactionRef: 'VIETQR-MANUAL'
+        }),
+        'prop-1111'
+      );
+    });
+
+    it('should automatically refresh active Folio, Summary, Payments, and Shift Report when SignalR BookingPaymentConfirmed notification arrives', () => {
+      fixture = TestBed.createComponent(PaymentsPage);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+
+      component.loadFolio('res-001-bbbb');
+      fixture.detectChanges();
+      expect(component.folio()?.remainingBalance).toBe(1500000);
+
+      mockPaymentService.getFolio.mockClear();
+      mockPaymentService.getPaymentSummary.mockClear();
+      mockPaymentService.getPayments.mockClear();
+      mockPaymentService.getShiftReport.mockClear();
+
+      const paidFolio: FolioDto = {
+        ...sampleFolio,
+        paidAmount: 2000000,
+        remainingBalance: 0,
+        isFullyPaid: true
+      };
+      mockPaymentService.getFolio.mockReturnValue(of(paidFolio));
+
+      notificationsSignal.set([
+        {
+          id: 'notif-sepay-live-1',
+          tenantId: 'tenant-1',
+          propertyId: 'prop-1111',
+          type: 'BookingPaymentConfirmed',
+          title: 'SePay đã nhận tiền chuyển khoản',
+          message: 'Đơn CONF-12345 vừa được thanh toán 1.500.000 ₫ qua VietQR SePay.',
+          createdAtUtc: '2026-10-12T06:00:00Z',
+          isRead: false,
+          metadata: {
+            reservationId: 'res-001-bbbb',
+            confirmationCode: 'CONF-12345',
+            amount: 1500000
+          }
+        }
+      ]);
+      fixture.detectChanges();
+
+      expect(mockPaymentService.getFolio).toHaveBeenCalledWith('res-001-bbbb', 'prop-1111');
+      expect(mockPaymentService.getPaymentSummary).toHaveBeenCalled();
+      expect(mockPaymentService.getPayments).toHaveBeenCalled();
+      expect(mockPaymentService.getShiftReport).toHaveBeenCalled();
+      expect(component.folio()?.remainingBalance).toBe(0);
+      expect(component.paymentAmount).toBe(0);
     });
 
     it('should display shift report as "Báo cáo thu theo ca" with 06-14, 14-22, 22-06 shift options and note demo convention', () => {
@@ -1266,6 +1408,100 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
         mockPaymentService.getShiftReport.mockClear();
         component.retryShiftReport();
         expect(mockPaymentService.getShiftReport).not.toHaveBeenCalled();
+      });
+
+      it('7. should render totalRefunded, netCollected, and negative rose amount for refund rows in Shift Report', () => {
+        const shiftReportWithRefund = {
+          ...sampleShiftReport,
+          totalCollected: 1500000,
+          totalRefunded: 300000,
+          netCollected: 1200000,
+          payments: [
+            {
+              ...samplePayments[0],
+              id: 'shift-pay-001',
+              amount: 1500000,
+              transactionRef: 'SHIFT-TX-001'
+            },
+            {
+              ...samplePayments[0],
+              id: 'shift-refund-001',
+              amount: 300000,
+              status: PaymentStatus.Refunded,
+              statusName: 'Đã hoàn tiền',
+              transactionRef: 'REFUND-COMPLETED-001'
+            }
+          ]
+        };
+        mockPaymentService.getShiftReport.mockReturnValue(of(shiftReportWithRefund));
+
+        fixture = TestBed.createComponent(PaymentsPage);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+
+        const el = fixture.nativeElement as HTMLElement;
+        const refundedCard = el.querySelector('[data-testid="shift-total-refunded"]');
+        const netCard = el.querySelector('[data-testid="shift-net-collected"]');
+        expect(refundedCard?.textContent).toContain('Tổng hoàn tiền');
+        expect(refundedCard?.textContent).toContain('300.000 ₫');
+        expect(netCard?.textContent).toContain('Thực thu ròng');
+        expect(netCard?.textContent).toContain('1.200.000 ₫');
+
+        const amountCells = Array.from(el.querySelectorAll('[data-testid="shift-payment-amount"]'));
+        expect(amountCells.length).toBe(2);
+        expect(amountCells[0].textContent?.trim()).toBe('+1.500.000 ₫');
+        expect(amountCells[1].textContent?.trim()).toBe('-300.000 ₫');
+        expect(amountCells[1].className).toContain('text-rose-600');
+      });
+
+      it('8. should render negative rose amount styling for refund rows in main payment history and display daily summary totalRefunded/netCollected', () => {
+        const summaryWithRefund = {
+          ...sampleSummary,
+          totalCollected: 2500000,
+          totalRefunded: 300000,
+          netCollected: 2200000
+        };
+        const paymentsWithRefund: PaymentDto[] = [
+          samplePayments[0],
+          {
+            ...samplePayments[1],
+            id: 'pay-refund-001',
+            amount: 300000,
+            status: PaymentStatus.Refunded,
+            statusName: 'Đã hoàn tiền',
+            transactionRef: 'REFUND-COMPLETED-002'
+          }
+        ];
+        mockPaymentService.getPaymentSummary.mockReturnValue(of(summaryWithRefund));
+        mockPaymentService.getPayments.mockReturnValue(of({
+          items: paymentsWithRefund,
+          totalCount: 2,
+          page: 1,
+          pageSize: 10
+        }));
+
+        fixture = TestBed.createComponent(PaymentsPage);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+
+        const el = fixture.nativeElement as HTMLElement;
+        const summaryRefunded = el.querySelector('[data-testid="summary-total-refunded"]');
+        const summaryNet = el.querySelector('[data-testid="summary-net-collected"]');
+        expect(summaryRefunded?.textContent).toContain('300.000 ₫');
+        expect(summaryNet?.textContent).toContain('2.200.000 ₫');
+
+        const desktopCells = Array.from(el.querySelectorAll('[data-testid="history-payment-amount"]'));
+        expect(desktopCells.length).toBe(2);
+        expect(desktopCells[0].textContent).toContain('1.500.000 ₫');
+        expect(desktopCells[0].className).toContain('text-slate-900');
+        expect(desktopCells[1].textContent).toContain('-300.000 ₫');
+        expect(desktopCells[1].textContent).toContain('Hoàn tiền');
+        expect(desktopCells[1].className).toContain('text-rose-600');
+
+        const mobileCells = Array.from(el.querySelectorAll('[data-testid="history-payment-amount-mobile"]'));
+        expect(mobileCells.length).toBe(2);
+        expect(mobileCells[1].textContent?.trim()).toBe('-300.000 ₫');
+        expect(mobileCells[1].className).toContain('text-rose-600');
       });
     });
   });

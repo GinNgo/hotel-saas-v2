@@ -1,28 +1,28 @@
 using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Exceptions;
-using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
+using HotelSaas.Application.Reports.DTOs;
+using HotelSaas.Application.Reports.Queries.ExportReportCsv;
+using HotelSaas.Application.Reports.Queries.ExportReportExcel;
+using HotelSaas.Application.Reports.Queries.ExportReportPdf;
+using HotelSaas.Application.Reports.Queries.ExportReservationInvoicePdf;
 using HotelSaas.Application.Reports.Queries.GetGroupAnalytics;
-using HotelSaas.Domain.Enums;
+using HotelSaas.Application.Reports.Queries.GetPmsKpi;
+using HotelSaas.Application.Reports.Queries.GetReportRoomTypes;
+using HotelSaas.Application.Reports.Queries.GetRevenueSummary;
 using HotelSaas.WebApi.Authorization;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace HotelSaas.WebApi.Controllers;
 
 /// <summary>
 /// Provides PMS financial reporting, hospitality performance KPIs (ADR, RevPAR, Occupancy),
-/// multi-property group analytics, and accounting CSV exports for hotel managers and enterprise accountants.
+/// multi-property group analytics, and accounting exports for hotel managers and enterprise accountants.
 /// </summary>
 [ApiController]
 [Route("api/reports")]
@@ -31,21 +31,11 @@ namespace HotelSaas.WebApi.Controllers;
 [RequirePermission("REPORTS", 1)]
 public sealed class ReportsController : ControllerBase
 {
-    private readonly IApplicationDbContext _context;
-    private readonly ICurrentUserContext _currentUser;
     private readonly ISender _mediator;
-    private readonly IReportExportService _reportExportService;
 
-    public ReportsController(
-        IApplicationDbContext context,
-        ICurrentUserContext currentUser,
-        ISender mediator,
-        IReportExportService reportExportService)
+    public ReportsController(ISender mediator)
     {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
-        _currentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
-        _reportExportService = reportExportService ?? throw new ArgumentNullException(nameof(reportExportService));
     }
 
     /// <summary>
@@ -59,8 +49,7 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] DateOnly? toDate,
         CancellationToken cancellationToken)
     {
-        var query = new GetGroupAnalyticsQuery(fromDate, toDate);
-        var result = await _mediator.Send(query, cancellationToken);
+        var result = await _mediator.Send(new GetGroupAnalyticsQuery(fromDate, toDate), cancellationToken);
         return Ok(result);
     }
 
@@ -77,115 +66,17 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] Guid? roomTypeId,
         CancellationToken cancellationToken)
     {
-        var tenantId = _currentUser.TenantId;
-        if (!tenantId.HasValue || tenantId == Guid.Empty)
+        try
         {
-            return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn / doanh nghiệp hợp lệ." });
+            var result = await _mediator.Send(
+                new GetRevenueSummaryQuery(fromDate, toDate, propertyId, roomTypeId),
+                cancellationToken);
+            return Ok(result);
         }
-
-        EnsurePropertyAccess(propertyId);
-
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var effectiveFrom = fromDate ?? today.AddDays(-29);
-        var effectiveTo = toDate ?? today;
-
-        if (effectiveFrom > effectiveTo)
+        catch (BadRequestException ex)
         {
-            return BadRequest(new { code = "ERR_INVALID_DATE_RANGE", message = "Ngày bắt đầu không được lớn hơn ngày kết thúc." });
+            return BadRequest(new { code = ex.ErrorCode, message = ex.Message });
         }
-
-        var reservationsQuery = _context.Reservations
-            .AsNoTracking()
-            .Where(r => r.TenantId == tenantId.Value &&
-                        r.Status != ReservationStatus.Cancelled &&
-                        r.CheckInDate <= effectiveTo &&
-                        r.CheckOutDate >= effectiveFrom);
-
-        if (propertyId.HasValue && propertyId != Guid.Empty)
-        {
-            reservationsQuery = reservationsQuery.Where(r => r.PropertyId == propertyId.Value);
-        }
-        if (roomTypeId.HasValue && roomTypeId != Guid.Empty)
-        {
-            var roomIds = _context.Rooms.AsNoTracking()
-                .Where(room => room.TenantId == tenantId.Value && room.RoomTypeId == roomTypeId.Value)
-                .Select(room => room.Id);
-            reservationsQuery = reservationsQuery.Where(reservation => roomIds.Contains(reservation.RoomId));
-        }
-
-        var reservations = await reservationsQuery
-            .Select(r => new { r.CheckInDate, r.CheckOutDate, r.TotalAmount })
-            .ToListAsync(cancellationToken);
-
-        var totalRevenue = reservations.Sum(r => r.TotalAmount);
-        var totalBookings = reservations.Count;
-
-        // Payment method breakdown
-        var paymentsQuery = _context.Payments
-            .AsNoTracking()
-            .Where(p => p.TenantId == tenantId.Value &&
-                        p.Status == PaymentStatus.Completed &&
-                        p.PaidAtUtc >= effectiveFrom.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc) &&
-                        p.PaidAtUtc <= effectiveTo.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc));
-
-        if (propertyId.HasValue && propertyId != Guid.Empty)
-        {
-            paymentsQuery = paymentsQuery.Where(p => p.PropertyId == propertyId.Value);
-        }
-        if (roomTypeId.HasValue && roomTypeId != Guid.Empty)
-        {
-            var reservationIds = reservationsQuery.Select(reservation => reservation.Id);
-            paymentsQuery = paymentsQuery.Where(payment => reservationIds.Contains(payment.ReservationId));
-        }
-
-        var paymentTotals = await paymentsQuery
-            .GroupBy(p => p.Method)
-            .Select(group => new { Method = group.Key, Amount = group.Sum(p => p.Amount), Count = group.Count() })
-            .ToListAsync(cancellationToken);
-        decimal paymentAmount(PaymentMethod method) => paymentTotals.FirstOrDefault(p => p.Method == method)?.Amount ?? 0m;
-        int paymentCount(PaymentMethod method) => paymentTotals.FirstOrDefault(p => p.Method == method)?.Count ?? 0;
-
-        var paymentBreakdown = new List<PaymentMethodBreakdownDto>
-        {
-            new() { Method = "VNPay", Amount = paymentAmount(PaymentMethod.VNPay), Count = paymentCount(PaymentMethod.VNPay) },
-            new() { Method = "Tiền mặt (Cash)", Amount = paymentAmount(PaymentMethod.Cash), Count = paymentCount(PaymentMethod.Cash) },
-            new() { Method = "Chuyển khoản (Bank)", Amount = paymentAmount(PaymentMethod.BankTransfer), Count = paymentCount(PaymentMethod.BankTransfer) },
-            new() { Method = "Thẻ tín dụng (Card)", Amount = paymentAmount(PaymentMethod.CreditCard), Count = paymentCount(PaymentMethod.CreditCard) }
-        };
-
-        // Daily revenue series
-        var dailySeries = new List<DailyRevenuePointDto>();
-        for (var d = effectiveFrom; d <= effectiveTo; d = d.AddDays(1))
-        {
-            var dayRes = reservations.Where(r => r.CheckInDate <= d && r.CheckOutDate > d).ToList();
-            var dayRev = dayRes.Sum(r =>
-            {
-                var nights = Math.Max(1, r.CheckOutDate.DayNumber - r.CheckInDate.DayNumber);
-                return r.TotalAmount / nights;
-            });
-
-            dailySeries.Add(new DailyRevenuePointDto
-            {
-                Date = d.ToString("yyyy-MM-dd"),
-                DisplayDate = d.ToString("dd/MM"),
-                Revenue = Math.Round(dayRev, 0),
-                BookingsCount = dayRes.Count
-            });
-        }
-
-        var result = new RevenueSummaryDto
-        {
-            TenantId = tenantId.Value,
-            FromDate = effectiveFrom.ToString("yyyy-MM-dd"),
-            ToDate = effectiveTo.ToString("yyyy-MM-dd"),
-            TotalRevenue = totalRevenue,
-            TotalBookings = totalBookings,
-            AverageBookingValue = totalBookings > 0 ? Math.Round(totalRevenue / totalBookings, 0) : 0m,
-            PaymentBreakdown = paymentBreakdown,
-            DailySeries = dailySeries
-        };
-
-        return Ok(result);
     }
 
     /// <summary>
@@ -201,139 +92,33 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] Guid? roomTypeId,
         CancellationToken cancellationToken)
     {
-        var tenantId = _currentUser.TenantId;
-        if (!tenantId.HasValue || tenantId == Guid.Empty)
+        try
         {
-            return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
+            var kpi = await _mediator.Send(
+                new GetPmsKpiQuery(fromDate, toDate, propertyId, roomTypeId),
+                cancellationToken);
+            return Ok(kpi);
         }
-
-        EnsurePropertyAccess(propertyId);
-
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var effectiveFrom = fromDate ?? today.AddDays(-29);
-        var effectiveTo = toDate ?? today;
-
-        if (effectiveFrom > effectiveTo)
+        catch (BadRequestException ex)
         {
-            return BadRequest(new { code = "ERR_INVALID_DATE_RANGE", message = "Khoảng thời gian thống kê không hợp lệ." });
+            return BadRequest(new { code = ex.ErrorCode, message = ex.Message });
         }
-
-        // Room count
-        var roomsQuery = _context.Rooms
-            .AsNoTracking()
-            .Where(r => r.TenantId == tenantId.Value);
-
-        if (propertyId.HasValue && propertyId != Guid.Empty)
-        {
-            roomsQuery = roomsQuery.Where(r => r.PropertyId == propertyId.Value);
-        }
-        if (roomTypeId.HasValue && roomTypeId != Guid.Empty)
-            roomsQuery = roomsQuery.Where(room => room.RoomTypeId == roomTypeId.Value);
-
-        var totalRooms = await roomsQuery.CountAsync(cancellationToken);
-        if (totalRooms == 0)
-        {
-            totalRooms = 1; // Safeguard against division by zero
-        }
-
-        var totalDays = Math.Max(1, effectiveTo.DayNumber - effectiveFrom.DayNumber + 1);
-        var availableRoomNights = totalRooms * totalDays;
-
-        var allResQuery = _context.Reservations
-            .AsNoTracking()
-            .Where(r => r.TenantId == tenantId.Value &&
-                        r.CheckInDate <= effectiveTo &&
-                        r.CheckOutDate >= effectiveFrom);
-
-        if (propertyId.HasValue && propertyId != Guid.Empty)
-        {
-            allResQuery = allResQuery.Where(r => r.PropertyId == propertyId.Value);
-        }
-        if (roomTypeId.HasValue && roomTypeId != Guid.Empty)
-        {
-            var roomIds = _context.Rooms.AsNoTracking()
-                .Where(room => room.TenantId == tenantId.Value && room.RoomTypeId == roomTypeId.Value)
-                .Select(room => room.Id);
-            allResQuery = allResQuery.Where(reservation => roomIds.Contains(reservation.RoomId));
-        }
-
-        var allReservations = await allResQuery
-            .Select(r => new { r.CheckInDate, r.CheckOutDate, r.TotalAmount, r.NumberOfGuests, r.Status })
-            .ToListAsync(cancellationToken);
-
-        var validReservations = allReservations
-            .Where(r => r.Status != ReservationStatus.Cancelled && r.Status != ReservationStatus.NoShow)
-            .ToList();
-
-        var totalSoldNights = 0;
-        decimal totalRoomRevenue = 0m;
-        var totalGuests = 0;
-
-        foreach (var r in validReservations)
-        {
-            var overlapStart = r.CheckInDate > effectiveFrom ? r.CheckInDate : effectiveFrom;
-            var overlapEnd = r.CheckOutDate < effectiveTo ? r.CheckOutDate : effectiveTo;
-            var overlapNights = Math.Max(0, overlapEnd.DayNumber - overlapStart.DayNumber);
-
-            totalSoldNights += overlapNights;
-            totalGuests += r.NumberOfGuests;
-
-            var fullNights = Math.Max(1, r.CheckOutDate.DayNumber - r.CheckInDate.DayNumber);
-            totalRoomRevenue += (r.TotalAmount / fullNights) * overlapNights;
-        }
-
-        var occupancyRate = availableRoomNights > 0
-            ? Math.Min(100.0, Math.Round((double)totalSoldNights / availableRoomNights * 100, 1))
-            : 0.0;
-
-        var adr = totalSoldNights > 0
-            ? Math.Round(totalRoomRevenue / totalSoldNights, 0)
-            : 0m;
-
-        var revPar = availableRoomNights > 0
-            ? Math.Round(totalRoomRevenue / availableRoomNights, 0)
-            : 0m;
-
-        var cancelledCount = allReservations.Count(r => r.Status == ReservationStatus.Cancelled);
-        var cancellationRate = allReservations.Count > 0
-            ? Math.Round((double)cancelledCount / allReservations.Count * 100, 1)
-            : 0.0;
-
-        var kpi = new PmsKpiDto
-        {
-            FromDate = effectiveFrom.ToString("yyyy-MM-dd"),
-            ToDate = effectiveTo.ToString("yyyy-MM-dd"),
-            TotalRooms = totalRooms,
-            TotalAvailableNights = availableRoomNights,
-            TotalSoldNights = totalSoldNights,
-            OccupancyRate = occupancyRate,
-            AverageDailyRate = adr,
-            RevPAR = revPar,
-            TotalRevenue = Math.Round(totalRoomRevenue, 0),
-            TotalGuests = totalGuests,
-            TotalBookings = validReservations.Count,
-            CancelledBookings = cancelledCount,
-            CancellationRate = cancellationRate
-        };
-
-        return Ok(kpi);
     }
 
     [HttpGet("room-types")]
-    public async Task<IActionResult> GetReportRoomTypes(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetReportRoomTypes(
+        CancellationToken cancellationToken,
+        [FromQuery] Guid? propertyId = null)
     {
-        var tenantId = _currentUser.TenantId;
-        if (!tenantId.HasValue || tenantId == Guid.Empty)
-            return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
-
-        var query = _context.RoomTypes.AsNoTracking().Where(type => type.TenantId == tenantId.Value);
-        if (!_currentUser.IsTenantWide && _currentUser.PropertyId.HasValue)
-            query = query.Where(type => type.PropertyId == _currentUser.PropertyId.Value);
-
-        var types = await query.OrderBy(type => type.Name)
-            .Select(type => new { type.Id, type.Name })
-            .ToListAsync(cancellationToken);
-        return Ok(types);
+        try
+        {
+            var types = await _mediator.Send(new GetReportRoomTypesQuery(propertyId), cancellationToken);
+            return Ok(types);
+        }
+        catch (BadRequestException ex)
+        {
+            return BadRequest(new { code = ex.ErrorCode, message = ex.Message });
+        }
     }
 
     /// <summary>
@@ -348,81 +133,15 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] Guid? propertyId,
         CancellationToken cancellationToken)
     {
-        var tenantId = _currentUser.TenantId;
-        if (!tenantId.HasValue || tenantId == Guid.Empty)
+        try
         {
-            return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
+            var file = await _mediator.Send(new ExportReportCsvQuery(fromDate, toDate, propertyId), cancellationToken);
+            return File(file.Content, file.ContentType, file.FileName);
         }
-
-        EnsurePropertyAccess(propertyId);
-
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var effectiveFrom = fromDate ?? today.AddDays(-30);
-        var effectiveTo = toDate ?? today;
-
-        var query = _context.Reservations
-            .AsNoTracking()
-            .Include(r => r.Property)
-            .Include(r => r.Room)
-            .Where(r => r.TenantId == tenantId.Value &&
-                        r.CheckInDate <= effectiveTo &&
-                        r.CheckOutDate >= effectiveFrom);
-
-        if (propertyId.HasValue && propertyId != Guid.Empty)
+        catch (BadRequestException ex)
         {
-            query = query.Where(r => r.PropertyId == propertyId.Value);
+            return BadRequest(new { code = ex.ErrorCode, message = ex.Message });
         }
-
-        var list = await query
-            .OrderByDescending(r => r.CreatedAtUtc)
-            .ToListAsync(cancellationToken);
-
-        var sb = new StringBuilder();
-        // CSV Header
-        sb.AppendLine("Mã Đặt Phòng,Khách Hàng,Email,Số Điện Thoại,Chi Nhánh,Số Phòng,Ngày Nhận Phòng,Ngày Trả Phòng,Số Khách,Tổng Tiền (VND),Trạng Thái,Ngày Tạo");
-
-        foreach (var r in list)
-        {
-            var statusText = r.Status switch
-            {
-                ReservationStatus.PendingPayment => "Chờ thanh toán",
-                ReservationStatus.Confirmed => "Đã xác nhận",
-                ReservationStatus.CheckedIn => "Đang ở",
-                ReservationStatus.CheckedOut => "Đã trả phòng",
-                ReservationStatus.Cancelled => "Đã hủy",
-                ReservationStatus.NoShow => "Vắng mặt",
-                _ => r.Status.ToString()
-            };
-
-            var line = string.Format(
-                CultureInfo.InvariantCulture,
-                "\"{0}\",\"{1}\",\"{2}\",\"{3}\",\"{4}\",\"{5}\",\"{6}\",\"{7}\",{8},{9},\"{10}\",\"{11}\"",
-                EscapeCsv(r.ConfirmationCode),
-                EscapeCsv(r.GuestName),
-                EscapeCsv(r.GuestEmail),
-                EscapeCsv(r.GuestPhone ?? string.Empty),
-                EscapeCsv(r.Property?.Name ?? "Chi nhánh"),
-                EscapeCsv(r.Room?.RoomNumber ?? "Chưa chỉ định"),
-                r.CheckInDate.ToString("dd/MM/yyyy"),
-                r.CheckOutDate.ToString("dd/MM/yyyy"),
-                r.NumberOfGuests,
-                r.TotalAmount.ToString("F0", CultureInfo.InvariantCulture),
-                statusText,
-                r.CreatedAtUtc.ToString("dd/MM/yyyy HH:mm")
-            );
-
-            sb.AppendLine(line);
-        }
-
-        // UTF-8 BOM bytes ensure Excel opens Vietnamese characters without garbled text
-        var preamble = Encoding.UTF8.GetPreamble();
-        var contentBytes = Encoding.UTF8.GetBytes(sb.ToString());
-        var fullBytes = new byte[preamble.Length + contentBytes.Length];
-        Buffer.BlockCopy(preamble, 0, fullBytes, 0, preamble.Length);
-        Buffer.BlockCopy(contentBytes, 0, fullBytes, preamble.Length, contentBytes.Length);
-
-        var filename = $"BaoCao_DoanhThu_{effectiveFrom:yyyyMMdd}_{effectiveTo:yyyyMMdd}.csv";
-        return File(fullBytes, "text/csv; charset=utf-8", filename);
     }
 
     [HttpGet("export-excel")]
@@ -433,23 +152,15 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] Guid? propertyId,
         CancellationToken cancellationToken)
     {
-        var tenantId = _currentUser.TenantId;
-        if (!tenantId.HasValue || tenantId == Guid.Empty)
-            return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
-
-        EnsurePropertyAccess(propertyId);
-
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var effectiveFrom = fromDate ?? today.AddDays(-30);
-        var effectiveTo = toDate ?? today;
-        if (effectiveFrom > effectiveTo)
-            return BadRequest(new { code = "ERR_INVALID_DATE_RANGE", message = "Ngày bắt đầu không được lớn hơn ngày kết thúc." });
-
-        var bytes = await _reportExportService.ExportReservationsExcelAsync(
-            effectiveFrom, effectiveTo, propertyId, cancellationToken);
-        return File(bytes,
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            $"BaoCao_DoanhThu_{effectiveFrom:yyyyMMdd}_{effectiveTo:yyyyMMdd}.xlsx");
+        try
+        {
+            var file = await _mediator.Send(new ExportReportExcelQuery(fromDate, toDate, propertyId), cancellationToken);
+            return File(file.Content, file.ContentType, file.FileName);
+        }
+        catch (BadRequestException ex)
+        {
+            return BadRequest(new { code = ex.ErrorCode, message = ex.Message });
+        }
     }
 
     [HttpGet("export-pdf")]
@@ -460,93 +171,31 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] Guid? propertyId,
         CancellationToken cancellationToken)
     {
-        if (!_currentUser.TenantId.HasValue || _currentUser.TenantId == Guid.Empty)
-            return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
-
-        EnsurePropertyAccess(propertyId);
-
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var effectiveFrom = fromDate ?? today.AddDays(-30);
-        var effectiveTo = toDate ?? today;
-        if (effectiveFrom > effectiveTo)
-            return BadRequest(new { code = "ERR_INVALID_DATE_RANGE", message = "Ngày bắt đầu không được lớn hơn ngày kết thúc." });
-        var bytes = await _reportExportService.ExportRevenuePdfAsync(effectiveFrom, effectiveTo, propertyId, cancellationToken);
-        return File(bytes, "application/pdf", $"BaoCao_DoanhThu_{effectiveFrom:yyyyMMdd}_{effectiveTo:yyyyMMdd}.pdf");
+        try
+        {
+            var file = await _mediator.Send(new ExportReportPdfQuery(fromDate, toDate, propertyId), cancellationToken);
+            return File(file.Content, file.ContentType, file.FileName);
+        }
+        catch (BadRequestException ex)
+        {
+            return BadRequest(new { code = ex.ErrorCode, message = ex.Message });
+        }
     }
 
     [HttpGet("reservations/{reservationId:guid}/invoice.pdf")]
     [Produces("application/pdf")]
     public async Task<IActionResult> ExportInvoicePdf(Guid reservationId, CancellationToken cancellationToken)
     {
-        if (!_currentUser.TenantId.HasValue || _currentUser.TenantId == Guid.Empty)
-            return BadRequest(new { code = "ERR_TENANT_REQUIRED", message = "Yêu cầu ngữ cảnh khách sạn hợp lệ." });
-
-        var bytes = await _reportExportService.ExportInvoicePdfAsync(reservationId, cancellationToken);
-        return bytes is null
-            ? NotFound(new { code = "ERR_INVOICE_NOT_FOUND", message = "Không tìm thấy hóa đơn của đơn đặt phòng." })
-            : File(bytes, "application/pdf", $"HoaDon_{reservationId:N}.pdf");
-    }
-
-    private void EnsurePropertyAccess(Guid? propertyId)
-    {
-        if (propertyId.HasValue && propertyId != Guid.Empty &&
-            !_currentUser.IsTenantWide &&
-            _currentUser.PropertyId.HasValue &&
-            propertyId.Value != _currentUser.PropertyId.Value)
+        try
         {
-            throw new ForbiddenException(
-                "ERR_PROPERTY_FORBIDDEN",
-                "Nhân viên chi nhánh không được phép truy cập báo cáo của chi nhánh khác.");
+            var file = await _mediator.Send(new ExportReservationInvoicePdfQuery(reservationId), cancellationToken);
+            return file is null
+                ? NotFound(new { code = "ERR_INVOICE_NOT_FOUND", message = "Không tìm thấy hóa đơn của đơn đặt phòng." })
+                : File(file.Content, file.ContentType, file.FileName);
+        }
+        catch (BadRequestException ex)
+        {
+            return BadRequest(new { code = ex.ErrorCode, message = ex.Message });
         }
     }
-
-    private static string EscapeCsv(string value)
-    {
-        if (string.IsNullOrEmpty(value)) return string.Empty;
-        return value.Replace("\"", "\"\"");
-    }
-}
-
-public sealed class RevenueSummaryDto
-{
-    public Guid TenantId { get; set; }
-    public string FromDate { get; set; } = string.Empty;
-    public string ToDate { get; set; } = string.Empty;
-    public decimal TotalRevenue { get; set; }
-    public int TotalBookings { get; set; }
-    public decimal AverageBookingValue { get; set; }
-    public List<PaymentMethodBreakdownDto> PaymentBreakdown { get; set; } = new();
-    public List<DailyRevenuePointDto> DailySeries { get; set; } = new();
-}
-
-public sealed class PaymentMethodBreakdownDto
-{
-    public string Method { get; set; } = string.Empty;
-    public decimal Amount { get; set; }
-    public int Count { get; set; }
-}
-
-public sealed class DailyRevenuePointDto
-{
-    public string Date { get; set; } = string.Empty;
-    public string DisplayDate { get; set; } = string.Empty;
-    public decimal Revenue { get; set; }
-    public int BookingsCount { get; set; }
-}
-
-public sealed class PmsKpiDto
-{
-    public string FromDate { get; set; } = string.Empty;
-    public string ToDate { get; set; } = string.Empty;
-    public int TotalRooms { get; set; }
-    public int TotalAvailableNights { get; set; }
-    public int TotalSoldNights { get; set; }
-    public double OccupancyRate { get; set; }
-    public decimal AverageDailyRate { get; set; }
-    public decimal RevPAR { get; set; }
-    public decimal TotalRevenue { get; set; }
-    public int TotalGuests { get; set; }
-    public int TotalBookings { get; set; }
-    public int CancelledBookings { get; set; }
-    public double CancellationRate { get; set; }
 }

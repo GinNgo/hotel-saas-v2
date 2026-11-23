@@ -31,7 +31,7 @@ public sealed class GetStaffRolesQueryHandler : IRequestHandler<GetStaffRolesQue
 
         var roles = await _context.AccessRoles
             .AsNoTracking()
-            .Where(r => r.IsSystemRole || (tenantId.HasValue && r.TenantId == tenantId.Value))
+            .Where(r => (r.IsSystemRole && r.Code != "SUPER_ADMIN") || (tenantId.HasValue && r.TenantId == tenantId.Value))
             .OrderBy(r => r.IsSystemRole ? 0 : 1)
             .ThenBy(r => r.Name)
             .Select(r => new AccessRoleDto

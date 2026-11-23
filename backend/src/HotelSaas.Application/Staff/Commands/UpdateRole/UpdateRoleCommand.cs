@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentValidation;
 using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
@@ -27,15 +28,23 @@ public sealed class UpdateRoleCommandValidator : AbstractValidator<UpdateRoleCom
 
 public sealed class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleDetailDto>
 {
+    private static readonly JsonSerializerOptions AuditJsonOptions = new()
+    {
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
     private readonly IApplicationDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
+    private readonly ICurrentUserContext? _currentUserContext;
 
     public UpdateRoleCommandHandler(
         IApplicationDbContext context,
-        ICurrentTenantService currentTenantService)
+        ICurrentTenantService currentTenantService,
+        ICurrentUserContext? currentUserContext = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
+        _currentUserContext = currentUserContext;
     }
 
     public async Task<RoleDetailDto> Handle(
@@ -46,6 +55,7 @@ public sealed class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand
 
         var role = await _context.AccessRoles
             .Include(r => r.Permissions)
+                .ThenInclude(p => p.Function)
             .FirstOrDefaultAsync(r => r.Id == request.Id, cancellationToken);
 
         if (role == null)
@@ -55,7 +65,7 @@ public sealed class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand
 
         if (role.IsSystemRole)
         {
-            throw new InvalidOperationException("Không thể chỉnh sửa chức vụ mặc định của hệ thống.");
+            throw new BadRequestException("ERR_SYSTEM_ROLE_IMMUTABLE", "Không thể chỉnh sửa chức vụ mặc định của hệ thống.");
         }
 
         if (tenantId.HasValue && role.TenantId.HasValue && role.TenantId.Value != tenantId.Value)
@@ -63,9 +73,17 @@ public sealed class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand
             throw new UnauthorizedAccessException("Bạn không có quyền chỉnh sửa chức vụ của tổ chức khác.");
         }
 
+        var oldName = role.Name;
+        var oldDescription = role.Description;
+        var oldPermissionSummary = role.Permissions
+            .Select(rp => $"{rp.Function?.Code ?? rp.FunctionId.ToString("N")}:{rp.ActionMask}")
+            .OrderBy(s => s, StringComparer.Ordinal)
+            .ToList();
+
+        var nowUtc = DateTime.UtcNow;
         role.Name = request.Name.Trim();
         role.Description = request.Description?.Trim();
-        role.UpdatedAtUtc = DateTime.UtcNow;
+        role.UpdatedAtUtc = nowUtc;
 
         // Remove old permissions
         _context.RolePermissions.RemoveRange(role.Permissions);
@@ -89,10 +107,59 @@ public sealed class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand
                 RoleId = role.Id,
                 FunctionId = func.Id,
                 ActionMask = mask,
-                CreatedAtUtc = DateTime.UtcNow
+                CreatedAtUtc = nowUtc
             };
             newRolePermissions.Add(rp);
             _context.RolePermissions.Add(rp);
+        }
+
+        var newPermissionSummary = newRolePermissions
+            .Select(rp => $"{functions[rp.FunctionId].Code}:{rp.ActionMask}")
+            .OrderBy(s => s, StringComparer.Ordinal)
+            .ToList();
+
+        var metadataChanged = !string.Equals(oldName, role.Name, StringComparison.Ordinal) ||
+                              !string.Equals(oldDescription, role.Description, StringComparison.Ordinal);
+        var permissionsChanged = !oldPermissionSummary.SequenceEqual(newPermissionSummary, StringComparer.Ordinal);
+
+        if (metadataChanged || permissionsChanged)
+        {
+            var auditTenantId = role.TenantId ?? tenantId ?? Guid.Empty;
+            if (auditTenantId != Guid.Empty)
+            {
+                try
+                {
+                    var actorId = _currentUserContext?.UserId is Guid uid && uid != Guid.Empty ? uid : (Guid?)null;
+                    _context.AuditLogs.Add(new AuditLog
+                    {
+                        Id = Guid.NewGuid(),
+                        TenantId = auditTenantId,
+                        PropertyId = null,
+                        UserId = actorId,
+                        Action = AuditActions.Update,
+                        EntityName = nameof(AccessRole),
+                        EntityId = role.Id,
+                        OldValues = JsonSerializer.Serialize(new
+                        {
+                            Name = oldName,
+                            Description = oldDescription,
+                            Permissions = string.Join(", ", oldPermissionSummary)
+                        }, AuditJsonOptions),
+                        NewValues = JsonSerializer.Serialize(new
+                        {
+                            Name = role.Name,
+                            Description = role.Description,
+                            Permissions = string.Join(", ", newPermissionSummary)
+                        }, AuditJsonOptions),
+                        IpAddress = _currentUserContext?.IpAddress,
+                        CreatedAtUtc = nowUtc
+                    });
+                }
+                catch (NotImplementedException)
+                {
+                    // Optional AuditLogs DbSet in minimal test stubs
+                }
+            }
         }
 
         await _context.SaveChangesAsync(cancellationToken);

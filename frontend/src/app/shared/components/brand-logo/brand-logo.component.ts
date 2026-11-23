@@ -52,7 +52,7 @@ import { RouterLink } from '@angular/router';
           <div class="flex items-center gap-1.5">
             <span
               [class]="textColorClass"
-              class="font-black tracking-tight text-lg leading-tight uppercase font-serif"
+              class="font-black tracking-tight text-lg leading-tight uppercase font-display"
             >
               Luxe<span class="text-amber-500">Stay</span>
             </span>

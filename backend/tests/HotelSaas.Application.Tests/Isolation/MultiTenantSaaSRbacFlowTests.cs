@@ -335,8 +335,8 @@ public sealed class MultiTenantSaaSRbacFlowTests
                 var branch2Policies = await propCtx.PropertySurchargePolicies.IgnoreQueryFilters()
                     .Where(sp => sp.PropertyId == branch2Id && sp.IsActive)
                     .ToListAsync();
-                Assert.Equal(4, branch1Policies.Count);
-                Assert.Equal(4, branch2Policies.Count);
+                Assert.Equal(6, branch1Policies.Count);
+                Assert.Equal(6, branch2Policies.Count);
 
                 var membershipsUserCtx = new MutableUserContext(
                     new MutableTenantService { TenantId = partnerAResponse.TenantId },
@@ -462,7 +462,8 @@ public sealed class MultiTenantSaaSRbacFlowTests
                     Email = "customer.multi@example.vn",
                     PhoneNumber = "0911223344",
                     PropertyId = branch1Id,
-                    StaffRole = StaffRole.Manager
+                    StaffRole = StaffRole.Manager,
+                    ConfirmCustomerPromotion = true
                 }, CancellationToken.None);
 
                 var assignB2 = await multiStaffHandler.Handle(new CreateStaffMemberCommand

@@ -1,10 +1,13 @@
 using System.Text.Json;
 using HotelSaas.Application.Common.Exceptions;
+using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using Serilog.Context;
 
 namespace HotelSaas.WebApi.Middleware;
 
@@ -13,6 +16,8 @@ namespace HotelSaas.WebApi.Middleware;
 /// </summary>
 public sealed class ExceptionHandlingMiddleware
 {
+    public const string ExceptionLoggedItemKey = "ExceptionLogged";
+
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionHandlingMiddleware> _logger;
     private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -75,8 +80,7 @@ public sealed class ExceptionHandlingMiddleware
                 ex.Message.Contains("đã được sử dụng", StringComparison.OrdinalIgnoreCase) ||
                 ex.Message.Contains("đã tồn tại", StringComparison.OrdinalIgnoreCase) ||
                 ex.Message.Contains("đang có", StringComparison.OrdinalIgnoreCase) ||
-                ex.Message.Contains("chi nhánh", StringComparison.OrdinalIgnoreCase) ||
-                ex.Message.Contains("property", StringComparison.OrdinalIgnoreCase)) => (StatusCodes.Status409Conflict, ApiResponse.Fail("ERR_CONFLICT", ex.Message)),
+                ex.Message.Contains("chi nhánh", StringComparison.OrdinalIgnoreCase)) => (StatusCodes.Status409Conflict, ApiResponse.Fail("ERR_CONFLICT", ex.Message)),
             ForbiddenException ex => (StatusCodes.Status403Forbidden, ApiResponse.Fail(ex.ErrorCode, ex.Message)),
             UnauthorizedAccessException ex => (
                 StatusCodes.Status401Unauthorized,
@@ -86,13 +90,62 @@ public sealed class ExceptionHandlingMiddleware
             _ => (StatusCodes.Status500InternalServerError, ApiResponse.Fail("ERR_SYSTEM", "Đã xảy ra lỗi hệ thống."))
         };
 
-        if (statusCode >= 500)
-            _logger.LogError(exception, "System error");
-        else
-            _logger.LogWarning(exception, "Client error");
+        var errorCode = response.ErrorCode ?? "ERR_SYSTEM";
+        var correlationId = ResolveCorrelationId(context);
+        response.CorrelationId = correlationId;
+
+        context.Items["ErrorCode"] = errorCode;
+        context.Items[ExceptionLoggedItemKey] = true;
+
+        var tenantService = context.RequestServices?.GetService<ICurrentTenantService>();
+        var propertyService = context.RequestServices?.GetService<ICurrentPropertyService>();
+        var userContext = context.RequestServices?.GetService<ICurrentUserContext>();
+
+        var tenantId = tenantService?.TenantId?.ToString() ?? "anonymous";
+        var isTenantWide = propertyService?.IsTenantWide ?? false;
+        var propertyId = propertyService?.PropertyId?.ToString() ?? (isTenantWide ? "tenant-wide" : "unscoped");
+        var userId = userContext is { IsAuthenticated: true } && userContext.UserId != Guid.Empty
+            ? userContext.UserId.ToString()
+            : "anonymous";
+
+        using (LogContext.PushProperty("CorrelationId", correlationId))
+        using (LogContext.PushProperty("TenantId", tenantId))
+        using (LogContext.PushProperty("PropertyId", propertyId))
+        using (LogContext.PushProperty("UserId", userId))
+        using (LogContext.PushProperty("ErrorCode", errorCode))
+        using (LogContext.PushProperty("StatusCode", statusCode))
+        {
+            if (statusCode >= 500)
+                _logger.LogError(exception, "System error {ErrorCode} on {Method} {Path}", errorCode, context.Request.Method, context.Request.Path.Value);
+            else
+                _logger.LogWarning(exception, "Client error {ErrorCode} ({StatusCode}) on {Method} {Path}", errorCode, statusCode, context.Request.Method, context.Request.Path.Value);
+        }
 
         context.Response.StatusCode = statusCode;
         await context.Response.WriteAsync(JsonSerializer.Serialize(response, _jsonOptions));
+    }
+
+    private static string ResolveCorrelationId(HttpContext context)
+    {
+        if (context.Items.TryGetValue("CorrelationId", out var corrObj) &&
+            corrObj is string corrStr && !string.IsNullOrWhiteSpace(corrStr))
+        {
+            return corrStr;
+        }
+
+        if (context.Items.TryGetValue(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, out var itemObj) &&
+            itemObj is string itemStr && !string.IsNullOrWhiteSpace(itemStr))
+        {
+            return itemStr;
+        }
+
+        if (context.Response.Headers.TryGetValue(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, out var hdrVal) &&
+            !string.IsNullOrWhiteSpace(hdrVal))
+        {
+            return hdrVal.ToString();
+        }
+
+        return context.TraceIdentifier;
     }
 
     private static bool TryGetPostgresUniqueViolation(DbUpdateException ex, out string? constraintName)

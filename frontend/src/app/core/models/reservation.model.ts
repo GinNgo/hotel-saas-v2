@@ -5,12 +5,14 @@
 
 export enum RentalType {
   Hourly = 1,
-  Overnight = 2
+  Overnight = 2,
+  Daily = 3
 }
 
 export const RENTAL_TYPE_LABELS: Record<RentalType, string> = {
   [RentalType.Hourly]: 'Thuê theo giờ',
-  [RentalType.Overnight]: 'Thuê theo đêm'
+  [RentalType.Overnight]: 'Thuê theo đêm',
+  [RentalType.Daily]: 'Thuê theo ngày'
 };
 
 export enum ReservationStatus {
@@ -88,6 +90,8 @@ export interface ReservationDto {
   currency: string;
   status: ReservationStatus;
   confirmationCode: string;
+  smartLockPin?: string | null;
+  smartLockStatus?: string | null;
   notes?: string;
   createdAtUtc: string;
 }
@@ -122,11 +126,12 @@ export interface CreateReservationRequest {
   checkInDate?: string;
   checkOutDate?: string;
   guestName: string;
-  guestEmail: string;
+  guestEmail?: string;
   guestPhone?: string;
   numberOfGuests: number;
   customerNotes?: string;
   expectedTotalAmount?: number;
   idempotencyKey?: string;
+  immediateCheckIn?: boolean;
 }
 

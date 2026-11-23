@@ -19,10 +19,11 @@ public sealed record CreateReservationCommand(
     DateOnly? CheckInDate,
     DateOnly? CheckOutDate,
     string GuestName,
-    string GuestEmail,
+    string? GuestEmail,
     string? GuestPhone,
     int NumberOfGuests = 1,
     string? CustomerNotes = null,
     decimal? ExpectedTotalAmount = null,
-    string? IdempotencyKey = null
+    string? IdempotencyKey = null,
+    bool ImmediateCheckIn = false
 ) : IRequest<ReservationDetailDto>;

@@ -11,6 +11,14 @@ public static class AuditActions
     public const string Create = "Create";
     public const string Update = "Update";
     public const string Delete = "Delete";
+    public const string ApproveRefund = "ApproveRefund";
+    public const string RejectRefund = "RejectRefund";
+    public const string ConfirmRefundPayout = "ConfirmRefundPayout";
+    public const string Cancel = "Cancel";
+    public const string StatusToggle = "StatusToggle";
+    public const string PublishApproval = "PublishApproval";
+    public const string Upgrade = "Upgrade";
+    public const string LoginFailed = "LoginFailed";
 }
 
 /// <summary>

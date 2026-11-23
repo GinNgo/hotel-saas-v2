@@ -1,4 +1,5 @@
 using ClosedXML.Excel;
+using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Reservations.DTOs;
 using HotelSaas.Domain.Enums;
@@ -23,7 +24,9 @@ public sealed class ReportExportService(
         var tenantId = currentUser.TenantId
             ?? throw new InvalidOperationException("Tenant context is required to export reports.");
 
-        var query = context.Reservations.AsNoTracking()
+        var query = context.Reservations
+            .IgnoreQueryFilters()
+            .AsNoTracking()
             .Include(reservation => reservation.Property)
             .Include(reservation => reservation.Room)
             .Include(reservation => reservation.Payments)
@@ -34,7 +37,10 @@ public sealed class ReportExportService(
         if (effectivePropertyId.HasValue && effectivePropertyId.Value != Guid.Empty)
             query = query.Where(reservation => reservation.PropertyId == effectivePropertyId.Value);
 
-        var propertiesQuery = context.Properties.AsNoTracking().Where(property => property.TenantId == tenantId);
+        var propertiesQuery = context.Properties
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(property => property.TenantId == tenantId);
         if (effectivePropertyId.HasValue && effectivePropertyId.Value != Guid.Empty)
             propertiesQuery = propertiesQuery.Where(property => property.Id == effectivePropertyId.Value);
         var propertyInfo = await propertiesQuery
@@ -64,7 +70,9 @@ public sealed class ReportExportService(
                 invoice?.ServiceFeeAmount ?? 0m,
                 invoice?.TaxAmount ?? 0m,
                 invoice?.PaidAmount ?? reservation.Payments
-                    .Where(payment => payment.Status == PaymentStatus.Completed)
+                    .Where(payment => payment.Status == PaymentStatus.Completed &&
+                        (payment.TransactionRef == null ||
+                         !payment.TransactionRef.Contains("REFUND", StringComparison.OrdinalIgnoreCase)))
                     .Sum(payment => payment.Amount),
                 reservation.Status.ToString());
         }).ToArray();
@@ -133,7 +141,9 @@ public sealed class ReportExportService(
     {
         var tenantId = currentUser.TenantId
             ?? throw new InvalidOperationException("Tenant context is required to export reports.");
-        var query = context.Reservations.AsNoTracking()
+        var query = context.Reservations
+            .IgnoreQueryFilters()
+            .AsNoTracking()
             .Include(reservation => reservation.Property)
             .Include(reservation => reservation.Payments)
             .Where(reservation => reservation.TenantId == tenantId &&
@@ -141,20 +151,33 @@ public sealed class ReportExportService(
         var effectivePropertyId = ResolvePropertyId(propertyId);
         if (effectivePropertyId.HasValue && effectivePropertyId.Value != Guid.Empty)
             query = query.Where(reservation => reservation.PropertyId == effectivePropertyId.Value);
-        var rows = await query.OrderBy(reservation => reservation.CheckInDate)
+        var rawRows = await query.OrderBy(reservation => reservation.CheckInDate)
             .ThenBy(reservation => reservation.ConfirmationCode)
             .Select(reservation => new
             {
                 reservation.ConfirmationCode,
                 reservation.GuestName,
-                PropertyName = reservation.Property!.Name,
+                PropertyName = reservation.Property != null ? reservation.Property.Name : string.Empty,
                 reservation.CheckInDate,
                 reservation.CheckOutDate,
-                PaidAmount = reservation.Payments
+                CompletedPayments = reservation.Payments
                     .Where(payment => payment.Status == PaymentStatus.Completed)
-                    .Sum(payment => payment.Amount)
+                    .Select(payment => new { payment.Amount, payment.TransactionRef })
             })
             .ToListAsync(cancellationToken);
+
+        var rows = rawRows.Select(reservation => new
+        {
+            reservation.ConfirmationCode,
+            reservation.GuestName,
+            reservation.PropertyName,
+            reservation.CheckInDate,
+            reservation.CheckOutDate,
+            PaidAmount = reservation.CompletedPayments
+                .Where(payment => payment.TransactionRef == null ||
+                    !payment.TransactionRef.Contains("REFUND", StringComparison.OrdinalIgnoreCase))
+                .Sum(payment => payment.Amount)
+        }).ToList();
 
         QuestPDF.Settings.License = LicenseType.Community;
         return Document.Create(document => document.Page(page =>
@@ -206,15 +229,58 @@ public sealed class ReportExportService(
     {
         var tenantId = currentUser.TenantId
             ?? throw new InvalidOperationException("Tenant context is required to export invoices.");
-        if (!currentUser.IsTenantWide && !currentUser.PropertyId.HasValue)
-            throw new InvalidOperationException("Property context is required to export invoices.");
+
+        if (!currentUser.IsTenantWide && (!currentUser.PropertyId.HasValue || currentUser.PropertyId.Value == Guid.Empty))
+        {
+            throw new ForbiddenException(
+                "ERR_PROPERTY_REQUIRED",
+                "Yêu cầu ngữ cảnh chi nhánh hợp lệ để xuất hóa đơn.");
+        }
+
         var invoice = await context.Invoices.AsNoTracking()
             .Include(item => item.InvoiceItems)
             .Include(item => item.Reservation)
-            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.ReservationId == reservationId &&
-                (currentUser.IsTenantWide || !currentUser.PropertyId.HasValue || item.Reservation!.PropertyId == currentUser.PropertyId.Value),
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId && item.ReservationId == reservationId,
                 cancellationToken);
-        if (invoice is null) return null;
+
+        if (invoice is null)
+        {
+            if (!currentUser.IsTenantWide && currentUser.PropertyId.HasValue)
+            {
+                var reservationPropertyId = await context.Reservations.IgnoreQueryFilters().AsNoTracking()
+                    .Where(r => r.TenantId == tenantId && r.Id == reservationId)
+                    .Select(r => (Guid?)r.PropertyId)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (reservationPropertyId.HasValue && reservationPropertyId.Value != currentUser.PropertyId.Value)
+                {
+                    throw new ForbiddenException(
+                        "ERR_PROPERTY_FORBIDDEN",
+                        "Nhân viên chi nhánh không được phép truy cập hóa đơn của chi nhánh khác.");
+                }
+            }
+
+            return null;
+        }
+
+        if (!currentUser.IsTenantWide && currentUser.PropertyId.HasValue)
+        {
+            var invoicePropertyId = invoice.Reservation?.PropertyId;
+            if (!invoicePropertyId.HasValue)
+            {
+                invoicePropertyId = await context.Reservations.IgnoreQueryFilters().AsNoTracking()
+                    .Where(r => r.TenantId == tenantId && r.Id == reservationId)
+                    .Select(r => (Guid?)r.PropertyId)
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+
+            if (invoicePropertyId.HasValue && invoicePropertyId.Value != currentUser.PropertyId.Value)
+            {
+                throw new ForbiddenException(
+                    "ERR_PROPERTY_FORBIDDEN",
+                    "Nhân viên chi nhánh không được phép truy cập hóa đơn của chi nhánh khác.");
+            }
+        }
 
         var reservationSnapshot = ReservationSnapshotHelper.TryDeserialize(invoice.Reservation?.Notes);
         var lookupToken = reservationSnapshot is { IsTokenRevoked: false, LookupToken: { Length: > 0 } token } &&
@@ -310,9 +376,30 @@ public sealed class ReportExportService(
 
     private Guid? ResolvePropertyId(Guid? requestedPropertyId)
     {
-        if (currentUser.IsTenantWide) return requestedPropertyId;
-        return currentUser.PropertyId
-            ?? throw new InvalidOperationException("Property context is required to export reports.");
+        if (currentUser.IsTenantWide)
+        {
+            return requestedPropertyId.HasValue && requestedPropertyId.Value != Guid.Empty
+                ? requestedPropertyId.Value
+                : null;
+        }
+
+        if (!currentUser.PropertyId.HasValue || currentUser.PropertyId.Value == Guid.Empty)
+        {
+            throw new ForbiddenException(
+                "ERR_PROPERTY_REQUIRED",
+                "Yêu cầu ngữ cảnh chi nhánh hợp lệ để xuất báo cáo.");
+        }
+
+        if (requestedPropertyId.HasValue &&
+            requestedPropertyId.Value != Guid.Empty &&
+            requestedPropertyId.Value != currentUser.PropertyId.Value)
+        {
+            throw new ForbiddenException(
+                "ERR_PROPERTY_FORBIDDEN",
+                "Nhân viên chi nhánh không được phép truy cập báo cáo của chi nhánh khác.");
+        }
+
+        return currentUser.PropertyId.Value;
     }
 }
 

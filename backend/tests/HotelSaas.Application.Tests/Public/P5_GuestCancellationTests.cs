@@ -1219,9 +1219,9 @@ public sealed class P5_GuestCancellationTests
             .Where(a => a.EntityId == resId && a.EntityName == "Reservation")
             .ToListAsync();
 
-        Assert.NotEmpty(auditLogs);
+        Assert.Single(auditLogs);
         var log = auditLogs.First();
-        Assert.Equal(AuditActions.Update, log.Action);
+        Assert.Equal(AuditActions.Cancel, log.Action);
         Assert.Contains("Cancelled", log.NewValues);
         Assert.Contains("Kế hoạch gia đình thay đổi", log.NewValues);
     }

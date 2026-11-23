@@ -49,16 +49,23 @@ describe('Public and management route boundaries', () => {
     router = TestBed.inject(Router);
   });
 
-  it.each(['/', '/booking', '/booking/properties/demo', '/booking/lookup'])('opens %s without a session', async url => {
+  it.each(['/', '/booking', '/booking/properties/demo', '/booking/lookup', '/booking/vnpay-return'])('opens %s without a session', async url => {
     await router.navigateByUrl(url);
     expect(router.url).toBe(url === '/' ? '/booking' : url);
+  });
+
+  it('resolves /booking/vnpay-return with VNPay query params publicly without redirecting', async () => {
+    await router.navigateByUrl('/booking/vnpay-return?vnp_ResponseCode=00&vnp_TxnRef=RES-A111');
+    const destination = router.parseUrl(router.url);
+    expect(destination.root.children['primary'].segments.map(s => s.path)).toEqual(['booking', 'vnpay-return']);
+    expect(destination.queryParams).toEqual({ vnp_ResponseCode: '00', vnp_TxnRef: 'RES-A111' });
   });
 
   it('sends unauthenticated management traffic to its own login portal', async () => {
     await router.navigateByUrl('/admin/dashboard');
     const destination = router.parseUrl(router.url);
     expect(destination.root.children['primary'].segments.map(segment => segment.path)).toEqual(['auth', 'login']);
-    expect(destination.queryParams).toEqual({ portal: 'admin', returnUrl: '/admin/dashboard' });
+    expect(destination.queryParams).toEqual({ portal: 'admin', returnUrl: '/dashboard' });
   });
 
   it('keeps customer tokens out of the PMS layout', async () => {
@@ -67,15 +74,37 @@ describe('Public and management route boundaries', () => {
     expect(router.url).toBe('/booking/profile');
   });
 
-  it.each(['/admin/plans', '/admin/contracts', '/plans', '/contracts'])('blocks staff from platform page %s', async url => {
+  it.each(['/admin/plans', '/admin/contracts', '/admin/ops-readiness', '/plans', '/contracts', '/ops-readiness'])('blocks staff from platform page %s', async url => {
     role = 'TenantStaff';
     await router.navigateByUrl(url);
     expect(router.url).toBe('/forbidden');
   });
 
-  it('lets the platform administrator reach plan management', async () => {
+  it('lets the platform administrator reach plan management and ops readiness', async () => {
     role = 'SuperAdmin';
     await router.navigateByUrl('/admin/plans');
-    expect(router.url).toBe('/admin/plans');
+    expect(router.url).toBe('/plans');
+
+    await router.navigateByUrl('/admin/ops-readiness');
+    expect(router.url).toBe('/ops-readiness');
+
+    await router.navigateByUrl('/ops-readiness');
+    expect(router.url).toBe('/ops-readiness');
+  });
+
+  it('routes /admin/users and /platform-users exclusively to SuperAdmin', async () => {
+    role = 'TenantStaff';
+    await router.navigateByUrl('/admin/users');
+    expect(router.url).toBe('/forbidden');
+
+    await router.navigateByUrl('/platform-users');
+    expect(router.url).toBe('/forbidden');
+
+    role = 'SuperAdmin';
+    await router.navigateByUrl('/admin/users');
+    expect(router.url).toBe('/platform-users');
+
+    await router.navigateByUrl('/admin/platform-users');
+    expect(router.url).toBe('/platform-users');
   });
 });

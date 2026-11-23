@@ -1,4 +1,15 @@
-import { Component, EventEmitter, HostListener, Input, OnInit, Output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  EventEmitter,
+  HostListener,
+  Input,
+  OnChanges,
+  OnInit,
+  Output,
+  SimpleChanges,
+  signal
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DatePicker } from 'primeng/datepicker';
@@ -11,12 +22,34 @@ import {
   getStartOfNextDayUtc
 } from '../../../core/utils/date-time.util';
 
+export type DateRangePresetKey = 'today' | '7d' | '30d';
+
 export interface DateRangeFilterValue {
   mode: 'single' | 'range';
   fromDate: string; // Định dạng YYYY-MM-DD
   toDate: string;   // Định dạng YYYY-MM-DD
   startUtc: string; // ISO UTC bắt đầu: [start
   endExclusiveUtc: string; // ISO UTC đầu ngày tiếp theo: endExclusive)
+}
+
+function getVietnamTodayDateString(now: Date = new Date()): string {
+  const vnMs = now.getTime() + BUSINESS_TIMEZONE_OFFSET_HOURS * 3600 * 1000;
+  const vnDate = new Date(vnMs);
+  const year = vnDate.getUTCFullYear();
+  const month = String(vnDate.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(vnDate.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function shiftCalendarDate(dateStr: string, deltaDays: number): string {
+  const parts = parseDateParts(dateStr);
+  if (!parts) return '';
+  const utcMs = Date.UTC(parts.year, parts.month - 1, parts.day) + deltaDays * 24 * 3600 * 1000;
+  const shifted = new Date(utcMs);
+  const year = shifted.getUTCFullYear();
+  const month = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(shifted.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 // Re-export utility constants & functions for backwards-compatibility
@@ -40,134 +73,179 @@ export { BUSINESS_TIMEZONE_OFFSET_HOURS, getStartOfDayUtc, getStartOfNextDayUtc 
   selector: 'app-date-range-filter',
   standalone: true,
   imports: [CommonModule, FormsModule, DatePicker],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 p-2 bg-slate-50/80 rounded-xl border border-slate-200/80 text-xs">
-      <!-- Mode Toggle -->
-      <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shrink-0 shadow-2xs" role="group" aria-label="Chế độ lọc thời gian">
-        <button
-          type="button"
-          (click)="setMode('single')"
-          aria-label="Chế độ lọc một ngày"
-          class="px-2.5 py-1 rounded-md font-medium transition-colors"
-          [class.bg-emerald-600]="mode === 'single'"
-          [class.text-white]="mode === 'single'"
-          [class.text-slate-600]="mode !== 'single'"
-          [class.hover:text-slate-900]="mode !== 'single'"
-        >
-          Một ngày
-        </button>
-        <button
-          type="button"
-          (click)="setMode('range')"
-          aria-label="Chế độ lọc khoảng ngày"
-          class="px-2.5 py-1 rounded-md font-medium transition-colors"
-          [class.bg-emerald-600]="mode === 'range'"
-          [class.text-white]="mode === 'range'"
-          [class.text-slate-600]="mode !== 'range'"
-          [class.hover:text-slate-900]="mode !== 'range'"
-        >
-          Khoảng ngày
-        </button>
-      </div>
+    <div class="flex flex-col gap-2.5 p-2 bg-slate-50/80 dark:bg-slate-900/70 rounded-xl border border-slate-200/80 dark:border-slate-700/80 text-xs">
+      @if (showPresets) {
+        <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="Chọn nhanh khoảng thời gian">
+          <span class="text-slate-500 dark:text-slate-400 font-semibold mr-1">Chọn nhanh:</span>
+          @for (preset of presets; track preset.key) {
+            <button
+              type="button"
+              (click)="applyPreset(preset.key)"
+              [attr.aria-pressed]="activePreset() === preset.key"
+              [attr.data-testid]="'date-preset-' + preset.key"
+              class="min-h-11 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              [ngClass]="
+                activePreset() === preset.key
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:border-emerald-300 dark:hover:border-emerald-700'
+              "
+            >
+              {{ preset.label }}
+            </button>
+          }
+        </div>
+      }
 
-      <!-- PrimeNG DatePicker Inputs Container -->
-      <div class="flex flex-wrap items-center gap-2">
-        @if (mode === 'single') {
-          <div class="flex items-center gap-1.5">
-            <label for="filterSingleDateInput" class="text-slate-500 font-medium whitespace-nowrap">{{ label }}:</label>
-            <p-datepicker
-              inputId="filterSingleDateInput"
-              name="filterSingleDate"
-              [(ngModel)]="fromDateValue"
-              (ngModelChange)="onFromDateChange($event)"
-              dateFormat="dd/mm/yy"
-              [showIcon]="true"
-              iconDisplay="input"
-              [showClear]="true"
-              [showButtonBar]="true"
-              [touchUI]="isMobile()"
-              appendTo="body"
-              [firstDayOfWeek]="1"
-              placeholder="dd/mm/yyyy"
-              [ariaLabel]="label + ' (dd/mm/yyyy)'"
-              styleClass="w-44 sm:w-48 text-xs"
-              inputStyleClass="w-full text-xs py-1.5 pl-3 pr-14 rounded-lg border border-slate-200 bg-white text-slate-800 shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-medium"
-            />
-          </div>
-        } @else {
-          <div class="flex items-center gap-1.5">
-            <label for="filterFromDateInput" class="text-slate-500 font-medium whitespace-nowrap">Từ ngày:</label>
-            <p-datepicker
-              inputId="filterFromDateInput"
-              name="filterFromDate"
-              [(ngModel)]="fromDateValue"
-              (ngModelChange)="onFromDateChange($event)"
-              dateFormat="dd/mm/yy"
-              [showIcon]="true"
-              iconDisplay="input"
-              [showClear]="true"
-              [showButtonBar]="true"
-              [touchUI]="isMobile()"
-              appendTo="body"
-              [firstDayOfWeek]="1"
-              placeholder="dd/mm/yyyy"
-              ariaLabel="Từ ngày (dd/mm/yyyy)"
-              styleClass="w-44 sm:w-48 text-xs"
-              inputStyleClass="w-full text-xs py-1.5 pl-3 pr-14 rounded-lg border border-slate-200 bg-white text-slate-800 shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-medium"
-            />
-          </div>
-          <div class="flex items-center gap-1.5">
-            <label for="filterToDateInput" class="text-slate-500 font-medium whitespace-nowrap">Đến ngày:</label>
-            <p-datepicker
-              inputId="filterToDateInput"
-              name="filterToDate"
-              [(ngModel)]="toDateValue"
-              (ngModelChange)="onToDateChange($event)"
-              dateFormat="dd/mm/yy"
-              [showIcon]="true"
-              iconDisplay="input"
-              [showClear]="true"
-              [showButtonBar]="true"
-              [touchUI]="isMobile()"
-              appendTo="body"
-              [firstDayOfWeek]="1"
-              placeholder="dd/mm/yyyy"
-              ariaLabel="Đến ngày (dd/mm/yyyy)"
-              styleClass="w-44 sm:w-48 text-xs"
-              inputStyleClass="w-full text-xs py-1.5 pl-3 pr-14 rounded-lg border border-slate-200 bg-white text-slate-800 shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-medium"
-            />
-          </div>
-        }
-
-        <!-- Reset Button -->
-        @if (hasFilter()) {
+      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2.5">
+        <!-- Mode Toggle -->
+        <div class="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-0.5 shrink-0 shadow-2xs" role="group" aria-label="Chế độ lọc thời gian">
           <button
             type="button"
-            (click)="resetFilter()"
-            class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer border border-transparent hover:border-rose-200"
-            title="Xóa toàn bộ bộ lọc ngày"
-            aria-label="Xóa toàn bộ bộ lọc ngày"
+            (click)="setMode('single')"
+            [attr.aria-pressed]="mode === 'single'"
+            aria-label="Chế độ lọc một ngày"
+            class="min-h-11 px-3 py-2 rounded-md font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            [class.bg-emerald-600]="mode === 'single'"
+            [class.text-white]="mode === 'single'"
+            [class.text-slate-600]="mode !== 'single'"
+            [class.dark:text-slate-300]="mode !== 'single'"
+            [class.hover:text-slate-900]="mode !== 'single'"
+            [class.dark:hover:text-white]="mode !== 'single'"
           >
-            <i class="pi pi-times text-[10px]"></i>
-            <span>Xóa lọc</span>
+            Một ngày
           </button>
-        }
+          <button
+            type="button"
+            (click)="setMode('range')"
+            [attr.aria-pressed]="mode === 'range'"
+            aria-label="Chế độ lọc khoảng ngày"
+            class="min-h-11 px-3 py-2 rounded-md font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            [class.bg-emerald-600]="mode === 'range'"
+            [class.text-white]="mode === 'range'"
+            [class.text-slate-600]="mode !== 'range'"
+            [class.dark:text-slate-300]="mode !== 'range'"
+            [class.hover:text-slate-900]="mode !== 'range'"
+            [class.dark:hover:text-white]="mode !== 'range'"
+          >
+            Khoảng ngày
+          </button>
+        </div>
+
+        <!-- PrimeNG DatePicker Inputs Container -->
+        <div class="flex flex-wrap items-center gap-2">
+          @if (mode === 'single') {
+            <div class="flex items-center gap-1.5">
+              <label [for]="singleDateInputId" class="text-slate-600 dark:text-slate-300 font-medium whitespace-nowrap">{{ label }}:</label>
+              <p-datepicker
+                [inputId]="singleDateInputId"
+                name="filterSingleDate"
+                [(ngModel)]="fromDateValue"
+                (ngModelChange)="onFromDateChange($event)"
+                dateFormat="dd/mm/yy"
+                [showIcon]="true"
+                iconDisplay="input"
+                [showClear]="true"
+                [showButtonBar]="true"
+                [touchUI]="isMobile()"
+                appendTo="body"
+                [firstDayOfWeek]="1"
+                placeholder="dd/mm/yyyy"
+                [ariaLabel]="label + ' (dd/mm/yyyy)'"
+                styleClass="w-44 sm:w-48 text-xs"
+                inputStyleClass="w-full min-h-11 text-xs py-2 pl-3 pr-14 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 shadow-2xs focus-visible:outline-none focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500 font-medium tabular-nums"
+              />
+            </div>
+          } @else {
+            <div class="flex items-center gap-1.5">
+              <label [for]="fromDateInputId" class="text-slate-600 dark:text-slate-300 font-medium whitespace-nowrap">Từ ngày:</label>
+              <p-datepicker
+                [inputId]="fromDateInputId"
+                name="filterFromDate"
+                [(ngModel)]="fromDateValue"
+                (ngModelChange)="onFromDateChange($event)"
+                dateFormat="dd/mm/yy"
+                [showIcon]="true"
+                iconDisplay="input"
+                [showClear]="true"
+                [showButtonBar]="true"
+                [touchUI]="isMobile()"
+                appendTo="body"
+                [firstDayOfWeek]="1"
+                placeholder="dd/mm/yyyy"
+                ariaLabel="Từ ngày (dd/mm/yyyy)"
+                styleClass="w-44 sm:w-48 text-xs"
+                inputStyleClass="w-full min-h-11 text-xs py-2 pl-3 pr-14 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 shadow-2xs focus-visible:outline-none focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500 font-medium tabular-nums"
+              />
+            </div>
+            <div class="flex items-center gap-1.5">
+              <label [for]="toDateInputId" class="text-slate-600 dark:text-slate-300 font-medium whitespace-nowrap">Đến ngày:</label>
+              <p-datepicker
+                [inputId]="toDateInputId"
+                name="filterToDate"
+                [(ngModel)]="toDateValue"
+                (ngModelChange)="onToDateChange($event)"
+                dateFormat="dd/mm/yy"
+                [showIcon]="true"
+                iconDisplay="input"
+                [showClear]="true"
+                [showButtonBar]="true"
+                [touchUI]="isMobile()"
+                appendTo="body"
+                [firstDayOfWeek]="1"
+                placeholder="dd/mm/yyyy"
+                ariaLabel="Đến ngày (dd/mm/yyyy)"
+                styleClass="w-44 sm:w-48 text-xs"
+                inputStyleClass="w-full min-h-11 text-xs py-2 pl-3 pr-14 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 shadow-2xs focus-visible:outline-none focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500 font-medium tabular-nums"
+              />
+            </div>
+          }
+
+          <!-- Reset Button -->
+          @if (hasFilter()) {
+            <button
+              type="button"
+              (click)="resetFilter()"
+              class="inline-flex items-center justify-center gap-1.5 min-h-11 min-w-11 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer border border-transparent hover:border-rose-200 dark:hover:border-rose-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              title="Xóa toàn bộ bộ lọc ngày"
+              aria-label="Xóa toàn bộ bộ lọc ngày"
+            >
+              <i class="pi pi-times text-xs" aria-hidden="true"></i>
+              <span>Xóa lọc</span>
+            </button>
+          }
+        </div>
       </div>
 
       <!-- Validation Error -->
       @if (errorMessage()) {
-        <div class="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1 sm:mt-0" role="alert" aria-live="polite">
-          <i class="pi pi-exclamation-circle"></i>
+        <div class="text-xs text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1.5" role="alert" aria-live="polite">
+          <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
           <span>{{ errorMessage() }}</span>
         </div>
       }
     </div>
   `
 })
-export class DateRangeFilterComponent implements OnInit {
+export class DateRangeFilterComponent implements OnInit, OnChanges {
+  private static nextInstanceId = 0;
+  private readonly uid = ++DateRangeFilterComponent.nextInstanceId;
+
+  readonly singleDateInputId = `filterSingleDateInput-${this.uid}`;
+  readonly fromDateInputId = `filterFromDateInput-${this.uid}`;
+  readonly toDateInputId = `filterToDateInput-${this.uid}`;
+
+  readonly presets: ReadonlyArray<{ key: DateRangePresetKey; label: string }> = [
+    { key: 'today', label: 'Hôm nay' },
+    { key: '7d', label: '7 ngày' },
+    { key: '30d', label: '30 ngày' }
+  ];
+
   @Input() label: string = 'Ngày tạo';
   @Input() initialFromDate: string = '';
   @Input() initialToDate: string = '';
+  @Input() showPresets: boolean = false;
 
   @Output() filterChange = new EventEmitter<DateRangeFilterValue | null>();
 
@@ -178,6 +256,7 @@ export class DateRangeFilterComponent implements OnInit {
   fromDateValue: Date | null = null;
   toDateValue: Date | null = null;
 
+  activePreset = signal<DateRangePresetKey | null>(null);
   errorMessage = signal<string | null>(null);
   isMobile = signal<boolean>(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
@@ -206,9 +285,90 @@ export class DateRangeFilterComponent implements OnInit {
         this.errorMessage.set('Ngày kết thúc khởi tạo không hợp lệ.');
       }
     }
+    this.syncActivePreset();
     if (this.fromDate || this.toDate) {
       this.onDateChange();
     }
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    const fromChange = changes['initialFromDate'];
+    const toChange = changes['initialToDate'];
+    if ((!fromChange || fromChange.firstChange) && (!toChange || toChange.firstChange)) {
+      return;
+    }
+
+    const nextFrom = (this.initialFromDate || '').trim();
+    const nextTo = (this.initialToDate || '').trim();
+
+    if (!nextFrom && !nextTo) {
+      this.clearWithoutEmit();
+      return;
+    }
+
+    // Tránh đổi chế độ single -> range khi parent phản hồi lại đúng giá trị single date { fromDate: X, toDate: X }
+    if (this.mode === 'single' && nextFrom === this.fromDate && (nextTo === '' || nextTo === nextFrom)) {
+      return;
+    }
+
+    if (nextFrom === this.fromDate && nextTo === this.toDate) {
+      return;
+    }
+
+    this.errorMessage.set(null);
+
+    if (nextFrom) {
+      if (parseDateParts(nextFrom)) {
+        this.fromDate = nextFrom;
+        this.fromDateValue = parseCalendarDate(nextFrom);
+      } else {
+        this.errorMessage.set('Ngày khởi tạo không hợp lệ.');
+      }
+    } else {
+      this.fromDate = '';
+      this.fromDateValue = null;
+    }
+
+    if (nextTo) {
+      if (parseDateParts(nextTo)) {
+        this.toDate = nextTo;
+        this.toDateValue = parseCalendarDate(nextTo);
+        if (!nextFrom || nextTo !== nextFrom) {
+          this.mode = 'range';
+        }
+      } else {
+        this.errorMessage.set('Ngày kết thúc khởi tạo không hợp lệ.');
+      }
+    } else {
+      this.toDate = '';
+      this.toDateValue = null;
+    }
+
+    this.syncActivePreset();
+  }
+
+  applyPreset(preset: DateRangePresetKey, referenceDate: Date = new Date()): void {
+    const today = getVietnamTodayDateString(referenceDate);
+    this.errorMessage.set(null);
+
+    if (preset === 'today') {
+      this.mode = 'single';
+      this.fromDate = today;
+      this.toDate = '';
+      this.fromDateValue = parseCalendarDate(today);
+      this.toDateValue = null;
+    } else {
+      const lookbackDays = preset === '7d' ? 6 : 29;
+      const start = shiftCalendarDate(today, -lookbackDays);
+      this.mode = 'range';
+      this.fromDate = start;
+      this.toDate = today;
+      this.fromDateValue = parseCalendarDate(start);
+      this.toDateValue = parseCalendarDate(today);
+    }
+
+    this.activePreset.set(preset);
+    this.onDateChange();
   }
 
   setMode(mode: 'single' | 'range'): void {
@@ -217,6 +377,7 @@ export class DateRangeFilterComponent implements OnInit {
       this.toDate = '';
       this.toDateValue = null;
     }
+    this.syncActivePreset();
     this.onDateChange();
   }
 
@@ -224,25 +385,51 @@ export class DateRangeFilterComponent implements OnInit {
     return !!this.fromDate || !!this.toDate;
   }
 
-  resetFilter(): void {
+  clearWithoutEmit(): void {
     this.fromDate = '';
     this.toDate = '';
     this.fromDateValue = null;
     this.toDateValue = null;
     this.errorMessage.set(null);
+    this.activePreset.set(null);
+  }
+
+  resetFilter(): void {
+    this.clearWithoutEmit();
     this.filterChange.emit(null);
   }
 
   onFromDateChange(val: Date | null): void {
     this.fromDateValue = val;
     this.fromDate = formatCalendarDate(val);
+    this.syncActivePreset();
     this.onDateChange();
   }
 
   onToDateChange(val: Date | null): void {
     this.toDateValue = val;
     this.toDate = formatCalendarDate(val);
+    this.syncActivePreset();
     this.onDateChange();
+  }
+
+  private syncActivePreset(referenceDate: Date = new Date()): void {
+    const today = getVietnamTodayDateString(referenceDate);
+    if (this.mode === 'single' && this.fromDate === today) {
+      this.activePreset.set('today');
+      return;
+    }
+    if (this.mode === 'range' && this.toDate === today) {
+      if (this.fromDate === shiftCalendarDate(today, -6)) {
+        this.activePreset.set('7d');
+        return;
+      }
+      if (this.fromDate === shiftCalendarDate(today, -29)) {
+        this.activePreset.set('30d');
+        return;
+      }
+    }
+    this.activePreset.set(null);
   }
 
   onDateChange(): void {

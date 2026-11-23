@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using HotelSaas.Application.Common.Interfaces;
 using Microsoft.AspNetCore.Http;
@@ -10,12 +11,39 @@ namespace HotelSaas.WebApi.Middleware;
 
 /// <summary>
 /// Thread-safe in-memory Prometheus metrics registry for Hotel SaaS Platform v2.
-/// Tracks HTTP latency, multi-tenant isolation blocks, SignalR connections, and VNPay IPN statuses.
+/// Tracks HTTP latency, multi-tenant isolation blocks, SignalR connections, VNPay IPN, SePay webhooks, and 429 rate limits.
 /// </summary>
 public static class SystemMetricsRegistry
 {
     private const int MaxMetricCardinality = 256;
     private static readonly object CardinalityLock = new();
+
+    private static readonly double[] LatencyBucketBounds = [0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0];
+    private static readonly string[] LatencyBucketLabels = ["0.05", "0.1", "0.25", "0.5", "1", "2.5", "5"];
+    private static readonly long[] LatencyBucketCounts = new long[LatencyBucketBounds.Length];
+    private static long _latencyTotalCount;
+    private static long _latencyTotalMicroseconds;
+
+    private static readonly string[] KnownSepayWebhookStatuses =
+    [
+        "confirmed",
+        "partial",
+        "duplicate",
+        "ignored",
+        "expired_hold_alert",
+        "rejected_unconfigured_bank_account",
+        "auth_failed",
+        "error"
+    ];
+
+    private static readonly string[] KnownRateLimitPolicies =
+    [
+        "auth",
+        "webhooks",
+        "public-print",
+        "public-api",
+        "ai-chat"
+    ];
 
     private static long _totalRequests;
     private static long _totalErrors5xx;
@@ -30,6 +58,21 @@ public static class SystemMetricsRegistry
     private static readonly ConcurrentDictionary<string, long> RouteRequestCounts = new();
     private static readonly ConcurrentDictionary<string, long> IsolationBlockReasons = new();
     private static readonly ConcurrentDictionary<string, long> TenantActiveRequests = new();
+    private static readonly ConcurrentDictionary<string, long> SepayWebhookCounts = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, long> RateLimitedCounts = new(StringComparer.OrdinalIgnoreCase);
+
+    static SystemMetricsRegistry()
+    {
+        foreach (var status in KnownSepayWebhookStatuses)
+        {
+            SepayWebhookCounts.TryAdd(status, 0);
+        }
+
+        foreach (var policy in KnownRateLimitPolicies)
+        {
+            RateLimitedCounts.TryAdd(policy, 0);
+        }
+    }
 
     public static void RecordHttpRequest(
         string method,
@@ -41,6 +84,18 @@ public static class SystemMetricsRegistry
         string? errorCode = null)
     {
         Interlocked.Increment(ref _totalRequests);
+
+        var clampedElapsedMs = Math.Max(0d, elapsedMs);
+        var elapsedSeconds = clampedElapsedMs / 1000.0;
+        Interlocked.Increment(ref _latencyTotalCount);
+        Interlocked.Add(ref _latencyTotalMicroseconds, (long)Math.Round(clampedElapsedMs * 1000.0));
+        for (var i = 0; i < LatencyBucketBounds.Length; i++)
+        {
+            if (elapsedSeconds <= LatencyBucketBounds[i])
+            {
+                Interlocked.Increment(ref LatencyBucketCounts[i]);
+            }
+        }
 
         var normalizedRoute = NormalizeRoute(path);
         if (statusCode == StatusCodes.Status404NotFound &&
@@ -159,6 +214,18 @@ public static class SystemMetricsRegistry
         }
     }
 
+    public static void RecordSepayWebhook(string status)
+    {
+        var normalized = string.IsNullOrWhiteSpace(status) ? "unknown" : status.Trim().ToLowerInvariant();
+        IncrementBounded(SepayWebhookCounts, normalized, "other_overflow");
+    }
+
+    public static void RecordRateLimited(string policy)
+    {
+        var normalized = string.IsNullOrWhiteSpace(policy) ? "default" : policy.Trim().ToLowerInvariant();
+        IncrementBounded(RateLimitedCounts, normalized, "other_overflow");
+    }
+
     public static void IncrementSignalRConnection() => Interlocked.Increment(ref _activeSignalRConnections);
 
     public static void DecrementSignalRConnection()
@@ -215,6 +282,38 @@ public static class SystemMetricsRegistry
         sb.AppendLine($"hotelsaas_vnpay_ipn_total{{rsp_code=\"04\"}} {Interlocked.Read(ref _vnpayIpnInvalidAmountCount)}");
         sb.AppendLine($"hotelsaas_vnpay_ipn_total{{rsp_code=\"97\"}} {Interlocked.Read(ref _vnpayIpnInvalidChecksumCount)}");
 
+        sb.AppendLine("# HELP hotelsaas_http_request_duration_seconds HTTP request latency distribution in seconds.");
+        sb.AppendLine("# TYPE hotelsaas_http_request_duration_seconds histogram");
+        long runningBucketCount = 0;
+        for (var i = 0; i < LatencyBucketLabels.Length; i++)
+        {
+            var bucketCount = Interlocked.Read(ref LatencyBucketCounts[i]);
+            if (bucketCount > runningBucketCount)
+            {
+                runningBucketCount = bucketCount;
+            }
+            sb.AppendLine($"hotelsaas_http_request_duration_seconds_bucket{{le=\"{LatencyBucketLabels[i]}\"}} {runningBucketCount}");
+        }
+        var totalLatencyCount = Math.Max(runningBucketCount, Interlocked.Read(ref _latencyTotalCount));
+        var totalLatencySeconds = Interlocked.Read(ref _latencyTotalMicroseconds) / 1_000_000.0;
+        sb.AppendLine($"hotelsaas_http_request_duration_seconds_bucket{{le=\"+Inf\"}} {totalLatencyCount}");
+        sb.AppendLine($"hotelsaas_http_request_duration_seconds_sum {totalLatencySeconds.ToString("0.######", CultureInfo.InvariantCulture)}");
+        sb.AppendLine($"hotelsaas_http_request_duration_seconds_count {totalLatencyCount}");
+
+        sb.AppendLine("# HELP hotelsaas_sepay_webhook_total Total SePay VietQR webhook callbacks grouped by processing status.");
+        sb.AppendLine("# TYPE hotelsaas_sepay_webhook_total counter");
+        foreach (var kvp in SepayWebhookCounts.OrderBy(k => k.Key, StringComparer.Ordinal))
+        {
+            sb.AppendLine($"hotelsaas_sepay_webhook_total{{status=\"{EscapeLabelValue(kvp.Key)}\"}} {kvp.Value}");
+        }
+
+        sb.AppendLine("# HELP hotelsaas_rate_limited_total Total HTTP 429 Too Many Requests responses grouped by rate limiter policy.");
+        sb.AppendLine("# TYPE hotelsaas_rate_limited_total counter");
+        foreach (var kvp in RateLimitedCounts.OrderBy(k => k.Key, StringComparer.Ordinal))
+        {
+            sb.AppendLine($"hotelsaas_rate_limited_total{{policy=\"{EscapeLabelValue(kvp.Key)}\"}} {kvp.Value}");
+        }
+
         if (!RouteRequestCounts.IsEmpty)
         {
             sb.AppendLine("# HELP hotelsaas_http_route_requests_total Total HTTP requests grouped by method, normalized route, and status code.");
@@ -259,6 +358,8 @@ public sealed class SystemMetricsRecorder : ISystemMetricsRecorder
     public void IncrementSignalRConnection() => SystemMetricsRegistry.IncrementSignalRConnection();
     public void DecrementSignalRConnection() => SystemMetricsRegistry.DecrementSignalRConnection();
     public void RecordIsolationBlock(string errorCode) => SystemMetricsRegistry.RecordIsolationBlock(errorCode);
+    public void RecordSepayWebhook(string status) => SystemMetricsRegistry.RecordSepayWebhook(status);
+    public void RecordRateLimited(string policy) => SystemMetricsRegistry.RecordRateLimited(policy);
 }
 
 /// <summary>
@@ -268,6 +369,7 @@ public sealed class SystemMetricsRecorder : ISystemMetricsRecorder
 public sealed class CorrelationAndStructuredLogMiddleware
 {
     public const string CorrelationIdHeaderName = "X-Correlation-Id";
+    public const string RequestStartTimestampItemKey = "RequestStartTimestamp";
 
     private readonly RequestDelegate _next;
     private readonly ILogger<CorrelationAndStructuredLogMiddleware> _logger;
@@ -280,6 +382,20 @@ public sealed class CorrelationAndStructuredLogMiddleware
         _logger = logger;
     }
 
+    public static bool IsObservabilityProbePath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        var normalized = path.Length > 1 ? path.TrimEnd('/') : path;
+        return normalized.Equals("/health", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Equals("/health/live", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Equals("/health/ready", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Equals("/metrics", StringComparison.OrdinalIgnoreCase);
+    }
+
     public async Task InvokeAsync(
         HttpContext context,
         ICurrentTenantService tenantService,
@@ -288,6 +404,8 @@ public sealed class CorrelationAndStructuredLogMiddleware
     {
         var correlationId = ResolveOrGenerateCorrelationId(context);
         context.Items[CorrelationIdHeaderName] = correlationId;
+        context.Items["CorrelationId"] = correlationId;
+        context.Items[RequestStartTimestampItemKey] = Stopwatch.GetTimestamp();
         if (!context.Response.Headers.ContainsKey(CorrelationIdHeaderName))
         {
             context.Response.Headers[CorrelationIdHeaderName] = correlationId;
@@ -317,7 +435,6 @@ public sealed class CorrelationAndStructuredLogMiddleware
             var tenantId = tenantService.TenantId;
             var propertyId = propertyService.PropertyId;
             var isTenantWide = propertyService.IsTenantWide;
-            var userId = userContext.UserId;
             var statusCode = context.Response.StatusCode;
             var elapsedMs = Math.Round(sw.Elapsed.TotalMilliseconds, 2);
 
@@ -328,9 +445,15 @@ public sealed class CorrelationAndStructuredLogMiddleware
             using (LogContext.PushProperty("ElapsedMs", elapsedMs))
             {
                 var errorCode = context.Items.TryGetValue("ErrorCode", out var codeObj) ? codeObj?.ToString() : null;
-                SystemMetricsRegistry.RecordHttpRequest(method, path, statusCode, elapsedMs, tenantId, propertyId, errorCode);
+                if (!IsObservabilityProbePath(path))
+                {
+                    SystemMetricsRegistry.RecordHttpRequest(method, path, statusCode, elapsedMs, tenantId, propertyId, errorCode);
+                }
 
-                if (statusCode >= 500)
+                var exceptionAlreadyLogged = context.Items.TryGetValue(ExceptionHandlingMiddleware.ExceptionLoggedItemKey, out var loggedObj)
+                    && loggedObj is true;
+
+                if (statusCode >= 500 && !exceptionAlreadyLogged)
                 {
                     _logger.LogError(
                         "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMs}ms [CorrelationId={CorrelationId}, TenantId={TenantId}, PropertyId={PropertyId}]",

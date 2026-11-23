@@ -8,14 +8,18 @@ using HotelSaas.Application.Public.Commands.CancelGuestBooking;
 using HotelSaas.Application.Public.Commands.ConfirmGuestBooking;
 using HotelSaas.Application.Public.Commands.CreateGuestHold;
 using HotelSaas.Application.Public.Commands.ExtendGuestHold;
+using HotelSaas.Application.Public.Commands.RescheduleGuestBooking;
 using HotelSaas.Application.Public.DTOs;
 using HotelSaas.Application.Public.Queries.CalculatePublicQuote;
 using HotelSaas.Application.Public.Queries.GetGuestBookingByToken;
 using HotelSaas.Application.Public.Queries.GetGuestCancellationPreview;
 using HotelSaas.Application.Public.Queries.GetPublicAvailability;
+using HotelSaas.Application.Public.Queries.GetPublicBrands;
 using HotelSaas.Application.Public.Queries.GetPublicProperties;
 using HotelSaas.Application.Public.Queries.GetPublicPropertyBySlug;
 using HotelSaas.Application.Public.Queries.GetPublicRoomTypes;
+using HotelSaas.Application.Promotions.DTOs;
+using HotelSaas.Application.Promotions.Queries.GetPublicPromotions;
 using HotelSaas.Application.Quotes.DTOs;
 using HotelSaas.Application.Reviews.Commands.SubmitGuestReview;
 using HotelSaas.Application.Reviews.DTOs;
@@ -27,6 +31,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace HotelSaas.WebApi.Controllers;
 
@@ -37,6 +42,7 @@ namespace HotelSaas.WebApi.Controllers;
 [ApiController]
 [Route("api/public")]
 [Produces("application/json")]
+[EnableRateLimiting("public-api")]
 public sealed class PublicController : ControllerBase
 {
     private readonly ISender _mediator;
@@ -67,6 +73,15 @@ public sealed class PublicController : ControllerBase
         [FromQuery] double? userLongitude = null,
         [FromQuery] string? tenantSlug = null,
         [FromQuery] string? provinceCode = null,
+        [FromQuery] decimal? minPrice = null,
+        [FromQuery] decimal? maxPrice = null,
+        [FromQuery] int? guests = null,
+        [FromQuery] DateOnly? checkInDate = null,
+        [FromQuery] DateOnly? checkOutDate = null,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null,
+        [FromQuery] bool onlyPublished = false,
+        [FromQuery] string? sortBy = null,
         CancellationToken cancellationToken = default)
     {
         List<PropertyType>? parsedTypes = null;
@@ -118,9 +133,37 @@ public sealed class PublicController : ControllerBase
             UserLatitude: userLatitude,
             UserLongitude: userLongitude,
             TenantSlug: tenantSlug,
-            ProvinceCode: provinceCode);
+            ProvinceCode: provinceCode,
+            MinPrice: minPrice,
+            MaxPrice: maxPrice,
+            Guests: guests,
+            CheckInDate: checkInDate,
+            CheckOutDate: checkOutDate,
+            Page: page,
+            PageSize: pageSize,
+            OnlyPublished: onlyPublished,
+            SortBy: sortBy);
 
         var result = await _mediator.Send(query, cancellationToken);
+        if (HttpContext?.Response != null)
+        {
+            var totalCount = result is PagedPropertyList paged ? paged.TotalCount : result.Count;
+            HttpContext.Response.Headers["X-Total-Count"] = totalCount.ToString();
+        }
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Gets active partner brand profiles with real property counts and aggregated review metrics.
+    /// </summary>
+    [HttpGet("brands")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(IReadOnlyList<PublicBrandDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetBrands(
+        [FromQuery] bool onlyPublished = false,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _mediator.Send(new GetPublicBrandsQuery(onlyPublished), cancellationToken);
         return Ok(result);
     }
 
@@ -198,6 +241,20 @@ public sealed class PublicController : ControllerBase
     }
 
     /// <summary>
+    /// Lists active, non-expired public promotions across published partner brands.
+    /// </summary>
+    [HttpGet("promotions")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(IReadOnlyList<PublicPromotionDealDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPromotions(
+        [FromQuery] string? tenantSlug = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _mediator.Send(new GetPublicPromotionsQuery(tenantSlug), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Calculates authoritative quote using the core pricing engine.
     /// </summary>
     [HttpPost("quotes/calculate")]
@@ -208,8 +265,13 @@ public sealed class PublicController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> CalculateQuote(
         [FromBody] CalculatePublicQuoteRequest request,
-        CancellationToken cancellationToken)
+        [FromQuery] string? promoCode = null,
+        CancellationToken cancellationToken = default)
     {
+        var resolvedPromoCode = !string.IsNullOrWhiteSpace(request.PromoCode)
+            ? request.PromoCode
+            : promoCode;
+
         var query = new CalculatePublicQuoteQuery(
             request.PropertySlug,
             request.RoomTypeId,
@@ -217,7 +279,8 @@ public sealed class PublicController : ControllerBase
             request.StartAtUtc,
             request.EndAtUtc,
             request.CheckInDate,
-            request.CheckOutDate);
+            request.CheckOutDate,
+            resolvedPromoCode);
 
         var result = await _mediator.Send(query, cancellationToken);
         return Ok(result);
@@ -272,7 +335,9 @@ public sealed class PublicController : ControllerBase
             request.PointsToRedeem,
             guestUserId,
             request.FirebaseIdToken,
-            request.PaymentMethodPreference);
+            request.PaymentMethodPreference,
+            request.PromoCode,
+            request.SpecialRequests);
 
         var result = await _mediator.Send(command, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, result);
@@ -304,6 +369,50 @@ public sealed class PublicController : ControllerBase
     public async Task<IActionResult> ExtendHold(string lookupToken, CancellationToken cancellationToken)
     {
         var result = await _mediator.Send(new ExtendGuestHoldCommand(lookupToken), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Reschedules a PendingPayment or Confirmed guest booking under row lock and recalculates pricing (`G0-05`).
+    /// </summary>
+    [HttpPost("bookings/{lookupToken}/reschedule")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(GuestBookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> RescheduleBooking(
+        string lookupToken,
+        [FromBody] RescheduleGuestBookingApiRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (request == null)
+        {
+            return BadRequest(new { code = "ERR_EMPTY_BODY", message = "Dữ liệu đổi lịch lưu trú không hợp lệ." });
+        }
+
+        Guid? authenticatedUserId = null;
+        if (User?.Identity?.IsAuthenticated == true)
+        {
+            var subClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? User.FindFirst("sub")?.Value;
+            if (Guid.TryParse(subClaim, out var parsedUserId))
+            {
+                authenticatedUserId = parsedUserId;
+            }
+        }
+
+        var command = new RescheduleGuestBookingCommand(
+            LookupToken: lookupToken,
+            NewStartAtUtc: request.NewStartAtUtc,
+            NewEndAtUtc: request.NewEndAtUtc,
+            NewCheckInDate: request.NewCheckInDate,
+            NewCheckOutDate: request.NewCheckOutDate,
+            Reason: request.Reason,
+            AuthenticatedUserId: authenticatedUserId);
+
+        var result = await _mediator.Send(command, cancellationToken);
         return Ok(result);
     }
 
@@ -488,7 +597,8 @@ public sealed record CalculatePublicQuoteRequest(
     DateTime StartAtUtc,
     DateTime EndAtUtc,
     DateOnly? CheckInDate = null,
-    DateOnly? CheckOutDate = null
+    DateOnly? CheckOutDate = null,
+    string? PromoCode = null
 );
 
 public sealed record CreateGuestHoldRequest(
@@ -508,7 +618,17 @@ public sealed record CreateGuestHoldRequest(
     int? PointsToRedeem = null,
     Guid? GuestUserId = null,
     string? FirebaseIdToken = null,
-    PaymentMethodPreference PaymentMethodPreference = HotelSaas.Domain.Enums.PaymentMethodPreference.VNPay
+    PaymentMethodPreference PaymentMethodPreference = HotelSaas.Domain.Enums.PaymentMethodPreference.VNPay,
+    string? PromoCode = null,
+    string? SpecialRequests = null
+);
+
+public sealed record RescheduleGuestBookingApiRequest(
+    DateTime NewStartAtUtc,
+    DateTime NewEndAtUtc,
+    DateOnly? NewCheckInDate = null,
+    DateOnly? NewCheckOutDate = null,
+    string? Reason = null
 );
 
 public sealed record ConfirmGuestBookingRequest(

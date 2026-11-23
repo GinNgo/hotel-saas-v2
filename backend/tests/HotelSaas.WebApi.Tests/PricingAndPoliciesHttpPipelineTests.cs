@@ -469,6 +469,21 @@ public sealed class PricingAndPoliciesHttpPipelineTests
             });
             Assert.Equal(HttpStatusCode.BadRequest, pastRateResp.StatusCode);
 
+            var todayVn = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+            var futureCheckInVn = todayVn.AddDays(1);
+            var futureCheckOutVn = futureCheckInVn.AddDays(2);
+            var effectiveToVn = todayVn.AddDays(14);
+            var hourlyStartUtc = futureCheckInVn.ToDateTime(new TimeOnly(8, 0), DateTimeKind.Utc).ToString("O");
+            var hourlyEnd3hUtc = futureCheckInVn.ToDateTime(new TimeOnly(11, 0), DateTimeKind.Utc).ToString("O");
+            var hourlyEnd2hUtc = futureCheckInVn.ToDateTime(new TimeOnly(10, 0), DateTimeKind.Utc).ToString("O");
+            var hourlyEnd10hUtc = futureCheckInVn.ToDateTime(new TimeOnly(18, 0), DateTimeKind.Utc).ToString("O");
+            // Branch policy: Check-in 14:00 (07:00 UTC), Check-out 12:00 (05:00 UTC), Early check-in 10:00 local (03:00 UTC)
+            var overnightStartUtc = futureCheckInVn.ToDateTime(new TimeOnly(7, 0), DateTimeKind.Utc).ToString("O");
+            var overnightEarlyStartUtc = futureCheckInVn.ToDateTime(new TimeOnly(3, 0), DateTimeKind.Utc).ToString("O");
+            var overnightEndUtc = futureCheckOutVn.ToDateTime(new TimeOnly(5, 0), DateTimeKind.Utc).ToString("O");
+            var checkInDateStr = futureCheckInVn.ToString("yyyy-MM-dd");
+            var checkOutDateStr = futureCheckOutVn.ToString("yyyy-MM-dd");
+
             // 3b. POST valid future rate -> 201 Created
             var validRateResp = await client.PostAsJsonAsync($"/api/room-types/{roomTypeId}/rates", new
             {
@@ -477,8 +492,8 @@ public sealed class PricingAndPoliciesHttpPipelineTests
                 firstHoursPrice = 300000m,
                 additionalHourPrice = 100000m,
                 nightlyPrice = 1200000m,
-                effectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)).ToString("yyyy-MM-dd"),
-                effectiveTo = "2026-11-30",
+                effectiveFrom = todayVn.ToString("yyyy-MM-dd"),
+                effectiveTo = effectiveToVn.ToString("yyyy-MM-dd"),
                 changeReason = "Winter schedule"
             });
             Assert.Equal(HttpStatusCode.Created, validRateResp.StatusCode);
@@ -504,8 +519,8 @@ public sealed class PricingAndPoliciesHttpPipelineTests
                 propertyId = propId,
                 roomTypeId = roomTypeId,
                 rentalType = 1, // Hourly
-                startAtUtc = "2026-11-18T08:00:00Z",
-                endAtUtc = "2026-11-18T11:00:00Z"
+                startAtUtc = hourlyStartUtc,
+                endAtUtc = hourlyEnd3hUtc
             });
             Assert.Equal(HttpStatusCode.OK, hourlyQuoteResp.StatusCode);
             var hourlyQuoteJson = await hourlyQuoteResp.Content.ReadFromJsonAsync<JsonElement>();
@@ -519,14 +534,14 @@ public sealed class PricingAndPoliciesHttpPipelineTests
                 propertyId = propId,
                 roomTypeId = roomTypeId,
                 rentalType = 1, // Hourly
-                startAtUtc = "2026-11-18T08:00:00Z",
-                endAtUtc = "2026-11-18T18:00:00Z" // 10 hours!
+                startAtUtc = hourlyStartUtc,
+                endAtUtc = hourlyEnd10hUtc // 10 hours!
             });
             Assert.Equal(HttpStatusCode.UnprocessableEntity, exceededHourlyResp.StatusCode);
             var exceededJson = await exceededHourlyResp.Content.ReadFromJsonAsync<JsonElement>();
             Assert.Equal("ERR_HOURLY_LIMIT_EXCEEDED", exceededJson.GetProperty("errorCode").GetString());
 
-            // 4c. Overnight standard quote: 2 nights (Nov 18 to Nov 20 = 2 * 1,200,000 = 2,400,000)
+            // 4c. Overnight standard quote: 2 nights (2 * 1,200,000 = 2,400,000)
             // Branch policy: Check-in 14:00, Check-out 12:00
             // In Vietnam time (UTC+7): 14:00 local is 07:00 UTC, 12:00 local is 05:00 UTC
             var overnightQuoteResp = await client.PostAsJsonAsync("/api/quotes/calculate", new
@@ -534,10 +549,10 @@ public sealed class PricingAndPoliciesHttpPipelineTests
                 propertyId = propId,
                 roomTypeId = roomTypeId,
                 rentalType = 2, // Overnight
-                startAtUtc = "2026-11-18T07:00:00Z",
-                endAtUtc = "2026-11-20T05:00:00Z",
-                checkInDate = "2026-11-18",
-                checkOutDate = "2026-11-20"
+                startAtUtc = overnightStartUtc,
+                endAtUtc = overnightEndUtc,
+                checkInDate = checkInDateStr,
+                checkOutDate = checkOutDateStr
             });
             Assert.Equal(HttpStatusCode.OK, overnightQuoteResp.StatusCode);
             var overnightJson = await overnightQuoteResp.Content.ReadFromJsonAsync<JsonElement>();
@@ -551,10 +566,10 @@ public sealed class PricingAndPoliciesHttpPipelineTests
                 propertyId = propId,
                 roomTypeId = roomTypeId,
                 rentalType = 2, // Overnight
-                startAtUtc = "2026-11-18T03:00:00Z", // 10:00 local -> Early check-in
-                endAtUtc = "2026-11-20T05:00:00Z",
-                checkInDate = "2026-11-18",
-                checkOutDate = "2026-11-20"
+                startAtUtc = overnightEarlyStartUtc, // 10:00 local -> Early check-in
+                endAtUtc = overnightEndUtc,
+                checkInDate = checkInDateStr,
+                checkOutDate = checkOutDateStr
             });
             Assert.Equal(HttpStatusCode.OK, earlySurchargeQuoteResp.StatusCode);
             var earlyJson = await earlySurchargeQuoteResp.Content.ReadFromJsonAsync<JsonElement>();
@@ -588,8 +603,8 @@ public sealed class PricingAndPoliciesHttpPipelineTests
                 propertyId = propId,
                 roomTypeId = roomTypeId,
                 rentalType = 1,
-                startAtUtc = "2026-11-18T08:00:00Z",
-                endAtUtc = "2026-11-18T10:00:00Z"
+                startAtUtc = hourlyStartUtc,
+                endAtUtc = hourlyEnd2hUtc
             });
             Assert.Equal(HttpStatusCode.Forbidden, quoteForbiddenResp.StatusCode);
 
@@ -615,8 +630,8 @@ public sealed class PricingAndPoliciesHttpPipelineTests
                 propertyId = propId,
                 roomTypeId = roomTypeId,
                 rentalType = 1,
-                startAtUtc = "2026-11-18T08:00:00Z",
-                endAtUtc = "2026-11-18T10:00:00Z"
+                startAtUtc = hourlyStartUtc,
+                endAtUtc = hourlyEnd2hUtc
             });
             Assert.Equal(HttpStatusCode.OK, quoteResAllowedResp.StatusCode);
 
@@ -627,8 +642,8 @@ public sealed class PricingAndPoliciesHttpPipelineTests
                 propertyId = otherPropId,
                 roomTypeId = roomTypeId,
                 rentalType = 1,
-                startAtUtc = "2026-11-18T08:00:00Z",
-                endAtUtc = "2026-11-18T10:00:00Z"
+                startAtUtc = hourlyStartUtc,
+                endAtUtc = hourlyEnd2hUtc
             });
             Assert.Equal(HttpStatusCode.BadRequest, crossBranchQuoteResp.StatusCode);
         }

@@ -1,7 +1,7 @@
 using System;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Payments.Commands.ApproveRefund;
@@ -9,6 +9,7 @@ using HotelSaas.Application.Payments.Commands.ConfirmRefundPayout;
 using HotelSaas.Application.Payments.Commands.CreatePayment;
 using HotelSaas.Application.Payments.Commands.RejectRefund;
 using HotelSaas.Application.Payments.DTOs;
+using HotelSaas.Application.Payments.Queries.GenerateVietQr;
 using HotelSaas.Application.Payments.Queries.GetPayments;
 using HotelSaas.Application.Payments.Queries.GetPaymentSummary;
 using HotelSaas.Application.Payments.Queries.GetRefundRequests;
@@ -21,6 +22,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace HotelSaas.WebApi.Controllers;
 
@@ -351,6 +353,7 @@ public sealed class PaymentsController : ControllerBase
     [HttpGet("vnpay-ipn")]
     [HttpGet("/api/public/payments/vnpay/ipn")]
     [AllowAnonymous]
+    [EnableRateLimiting("webhooks")]
     [ProducesResponseType(typeof(HotelSaas.Application.Payments.Commands.ProcessVnpayIpn.VnpayIpnResponseDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> VnpayIpn(CancellationToken cancellationToken)
     {
@@ -397,32 +400,48 @@ public sealed class PaymentsController : ControllerBase
 
     /// <summary>
     /// Generates dynamic VietQR code for bank transfer with confirmation code in description (Task A02).
+    /// Queries PrintTemplateConfigs for the reservation's PropertyId (or TenantId fallback) and returns 422 if bank info is not configured.
     /// </summary>
     [HttpPost("vietqr/generate")]
     [HttpPost("/api/public/payments/vietqr/generate")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<VietQrResult>), StatusCodes.Status200OK)]
-    public IActionResult GenerateVietQr(
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> GenerateVietQr(
         [FromBody] VietQrApiRequest request,
-        [FromServices] IVietQrService vietQrService)
+        CancellationToken cancellationToken = default)
     {
-        if (request == null || request.Amount <= 0)
+        if (request == null)
         {
             return BadRequest(ApiResponse.Fail("ERR_INVALID_AMOUNT", "Số tiền chuyển khoản không hợp lệ."));
         }
 
-        var payload = new VietQrPayload(
-            BankBin: request.BankBin ?? "970422",
-            AccountNumber: request.AccountNumber ?? "0345678910",
-            AccountName: request.AccountName ?? "HOTEL SAAS RESORT",
-            Amount: request.Amount,
-            Description: request.Description ?? $"DATPHONG {request.ConfirmationCode ?? "HOTEL"}",
-            ConfirmationCode: request.ConfirmationCode ?? "HOTEL",
-            ReservationId: request.ReservationId
-        );
+        try
+        {
+            var result = await _mediator.Send(new GenerateVietQrQuery(
+                request.Amount,
+                request.ConfirmationCode,
+                request.ReservationId,
+                request.BankBin,
+                request.AccountNumber,
+                request.AccountName,
+                request.Description,
+                request.PropertyId), cancellationToken);
 
-        var result = vietQrService.GenerateDynamicQr(payload);
-        return Ok(ApiResponse.Ok(result, "Sinh mã VietQR thành công."));
+            return Ok(ApiResponse.Ok(result, "Sinh mã VietQR thành công."));
+        }
+        catch (BadRequestException ex)
+        {
+            return BadRequest(ApiResponse.Fail(ex.ErrorCode, ex.Message));
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ApiResponse.Fail("ERR_RESERVATION_NOT_FOUND", ex.Message));
+        }
+        catch (UnprocessableEntityException ex)
+        {
+            return UnprocessableEntity(ApiResponse.Fail(ex.ErrorCode, ex.Message));
+        }
     }
 
     private Guid? ResolveTargetPropertyId(Guid? queryPropertyId)
@@ -449,4 +468,12 @@ public sealed record CreateVnpayUrlApiRequest(
     string? LookupToken = null,
     string? ReturnUrl = null
 );
-public sealed record VietQrApiRequest(decimal Amount, string? ConfirmationCode = null, Guid? ReservationId = null, string? BankBin = null, string? AccountNumber = null, string? AccountName = null, string? Description = null);
+public sealed record VietQrApiRequest(
+    decimal Amount,
+    string? ConfirmationCode = null,
+    Guid? ReservationId = null,
+    string? BankBin = null,
+    string? AccountNumber = null,
+    string? AccountName = null,
+    string? Description = null,
+    Guid? PropertyId = null);

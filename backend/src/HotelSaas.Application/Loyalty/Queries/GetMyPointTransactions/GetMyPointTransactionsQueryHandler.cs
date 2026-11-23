@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Loyalty.DTOs;
 using HotelSaas.Domain.Enums;
@@ -34,6 +33,7 @@ public sealed class GetMyPointTransactionsQueryHandler : IRequestHandler<GetMyPo
         }
 
         var membershipIds = await _context.GuestLoyaltyMemberships
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(m => m.UserId == userId)
             .Select(m => m.Id)
@@ -45,6 +45,7 @@ public sealed class GetMyPointTransactionsQueryHandler : IRequestHandler<GetMyPo
         }
 
         var query = _context.LoyaltyPointTransactions
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Include(t => t.Tenant)
             .Include(t => t.Property)

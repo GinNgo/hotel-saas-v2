@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal, computed } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -9,6 +10,7 @@ import { Province, Ward } from '../../../core/models/location.model';
 import { HttpErrorResponse } from '@angular/common/http';
 import { SearchableSelectComponent, SearchableSelectItem } from '../../../shared/components/searchable-select/searchable-select.component';
 import { GoogleMapPickerComponent, LocationPickerResult } from '../../../shared/components/google-map-picker/google-map-picker.component';
+import { HasUnsavedChanges } from '../../../core/guards/unsaved-changes.guard';
 
 interface PartnerPropertyTypeOption {
   readonly value: number;
@@ -19,17 +21,27 @@ interface PartnerPropertyTypeOption {
 
 function passwordMatchValidator(control: AbstractControl): ValidationErrors | null {
   const password = control.get('password')?.value;
-  const confirmPassword = control.get('confirmPassword')?.value;
+  const confirmControl = control.get('confirmPassword');
+  const confirmPassword = confirmControl?.value;
+  if (!confirmControl) return null;
+
   if (password && confirmPassword && password !== confirmPassword) {
-    control.get('confirmPassword')?.setErrors({ passwordMismatch: true });
+    const existingErrors = confirmControl.errors ? { ...confirmControl.errors } : {};
+    existingErrors['passwordMismatch'] = true;
+    confirmControl.setErrors(existingErrors);
     return { passwordMismatch: true };
+  }
+
+  if (confirmControl.hasError('passwordMismatch')) {
+    const { passwordMismatch: _removed, ...rest } = confirmControl.errors ?? {};
+    confirmControl.setErrors(Object.keys(rest).length > 0 ? rest : null);
   }
   return null;
 }
 
 /**
  * Trang Đăng ký Đối tác Mở Khách sạn & Nâng cấp Chủ Khách sạn
- * Tích hợp Google Maps Places, Bản đồ vị trí tương tác và Bộ chọn 63 Tỉnh/Thành phố thông minh.
+ * Tích hợp Google Maps Places, Bản đồ vị trí tương tác và Bộ chọn 34 Tỉnh/Thành phố (mô hình 2 cấp) thông minh.
  */
 @Component({
   selector: 'app-partner-register',
@@ -112,9 +124,10 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
           @if (registeredTenantSlug()) {
             <a
               [routerLink]="['/booking/brands', registeredTenantSlug()]"
-              class="mt-3 text-xs font-semibold text-indigo-700 hover:underline"
+              class="mt-3 min-h-11 inline-flex items-center gap-1.5 px-3 text-xs font-semibold text-indigo-700 hover:underline"
             >
-              Xem trang thương hiệu đối tác →
+              <span>Xem trang thương hiệu đối tác</span>
+              <i class="pi pi-arrow-right text-[10px]"></i>
             </a>
           }
         </div>
@@ -312,11 +325,11 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
                     }
                   </div>
 
-                  <!-- Tỉnh / Thành phố Searchable Dropdown (Đủ 63 tỉnh thành có tìm kiếm) -->
+                  <!-- Tỉnh / Thành phố Searchable Dropdown (Đủ 34 tỉnh thành 2 cấp có tìm kiếm) -->
                   <div>
                     <div class="flex items-center justify-between mb-1">
                       <label for="provinceCode" class="block text-xs font-semibold text-slate-700">
-                        Tỉnh / Thành phố (63 đơn vị) <span class="text-rose-500">*</span>
+                        Tỉnh / Thành phố (34 đơn vị) <span class="text-rose-500">*</span>
                       </label>
                       <span class="text-[10px] text-indigo-600 font-medium">Tìm kiếm nhanh</span>
                     </div>
@@ -335,11 +348,11 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
                     }
                   </div>
 
-                  <!-- Phường / Xã Searchable Dropdown -->
+                  <!-- Phường / Xã / Đặc khu Searchable Dropdown -->
                   <div>
                     <div class="flex items-center justify-between mb-1">
                       <label for="wardCode" class="block text-xs font-semibold text-slate-700">
-                        Phường / Xã / Thị trấn <span class="text-rose-500">*</span>
+                        Phường / Xã / Đặc khu <span class="text-rose-500">*</span>
                       </label>
                       @if (wardsLoading()) {
                         <span class="text-[11px] text-indigo-600 flex items-center gap-1 font-medium">
@@ -349,17 +362,17 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
                     </div>
                     <app-searchable-select
                       [items]="wardItems()"
-                      [placeholder]="selectedProvinceCode ? '-- Chọn hoặc gõ tìm Phường / Xã --' : '-- Chọn Tỉnh/Thành trước --'"
-                      searchPlaceholder="Tìm kiếm phường, xã..."
+                      [placeholder]="selectedProvinceCode ? '-- Chọn hoặc gõ tìm Phường / Xã / Đặc khu --' : '-- Chọn Tỉnh/Thành trước --'"
+                      searchPlaceholder="Tìm kiếm phường, xã, đặc khu..."
                       formControlName="wardCode"
                       [loading]="wardsLoading()"
                       [invalid]="isFieldInvalid('wardCode')"
                     />
                     @if (!selectedProvinceCode) {
-                      <p class="text-[11px] text-slate-400 mt-1">Hãy chọn Tỉnh/Thành phố trước để tải danh sách Phường/Xã.</p>
+                      <p class="text-[11px] text-slate-400 mt-1">Hãy chọn Tỉnh/Thành phố trước để tải danh sách Phường / Xã / Đặc khu.</p>
                     } @else if (isFieldInvalid('wardCode')) {
                       <p class="text-[11px] text-rose-500 mt-1 flex items-center gap-1">
-                        <i class="pi pi-exclamation-circle text-[10px]"></i> Vui lòng chọn Phường/Xã.
+                        <i class="pi pi-exclamation-circle text-[10px]"></i> Vui lòng chọn Phường / Xã / Đặc khu.
                       </p>
                     }
                   </div>
@@ -415,7 +428,8 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
                   <button
                     type="button"
                     (click)="selectStarRating(star)"
-                    class="px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center gap-1"
+                    [attr.aria-label]="'Chọn hạng ' + star + ' sao'"
+                    class="min-h-11 min-w-11 px-3 py-2 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1"
                     [class]="registerForm.get('starRating')?.value === star
                       ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-2xs'
                       : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-amber-300'"
@@ -596,10 +610,15 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
     </div>
   `
 })
-export class PartnerRegisterPage implements OnInit {
+export class PartnerRegisterPage implements OnInit, HasUnsavedChanges {
   private readonly fb = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly locationService = inject(LocationService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  hasUnsavedChanges(): boolean {
+    return this.registerForm.dirty && !this.successMessage();
+  }
 
   readonly isLoading = signal(false);
   readonly errorMessage = signal('');
@@ -702,7 +721,7 @@ export class PartnerRegisterPage implements OnInit {
   }
 
   loadProvinces(): void {
-    this.locationService.getProvinces().subscribe({
+    this.locationService.getProvinces().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (list) => {
         this.provinces.set(list);
       },
@@ -724,14 +743,14 @@ export class PartnerRegisterPage implements OnInit {
 
     this.registerForm.get('wardCode')?.enable();
     this.wardsLoading.set(true);
-    this.locationService.getWards(provinceCode).subscribe({
+    this.locationService.getWards(provinceCode).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (list) => {
         this.wards.set(list);
         this.wardsLoading.set(false);
       },
       error: () => {
         this.wardsLoading.set(false);
-        this.errorMessage.set('Không thể tải danh sách Phường/Xã cho tỉnh/thành đã chọn.');
+        this.errorMessage.set('Không thể tải danh sách Phường / Xã / Đặc khu cho tỉnh/thành đã chọn.');
       }
     });
   }
@@ -754,9 +773,13 @@ export class PartnerRegisterPage implements OnInit {
       this.registerForm.patchValue({ address: result.address });
     }
 
-    if (result.provinceCode) {
-      this.registerForm.patchValue({ provinceCode: result.provinceCode });
-      this.onProvinceChange(result.provinceCode);
+    const matchedByCode = result.provinceCode
+      ? this.provinces().find(p => p.code === result.provinceCode)
+      : undefined;
+
+    if (matchedByCode) {
+      this.registerForm.patchValue({ provinceCode: matchedByCode.code });
+      this.onProvinceChange(matchedByCode.code);
     } else if (result.provinceName) {
       const match = this.locationService.findProvinceByKeyword(result.provinceName, this.provinces());
       if (match) {
@@ -806,7 +829,7 @@ export class PartnerRegisterPage implements OnInit {
       allowHourlyBooking: formVal.allowHourlyBooking ?? true,
       defaultNightlyPrice: Number.isFinite(nightlyPrice) && nightlyPrice > 0 ? nightlyPrice : null,
       defaultHourlyPrice: Number.isFinite(hourlyPrice) && hourlyPrice > 0 ? hourlyPrice : null,
-    }).subscribe({
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.isLoading.set(false);
         this.registeredPropertySlug.set(res.data?.propertySlug || '');

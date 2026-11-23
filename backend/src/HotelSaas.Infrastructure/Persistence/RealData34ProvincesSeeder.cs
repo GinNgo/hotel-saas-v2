@@ -96,13 +96,13 @@ public static class RealData34ProvincesSeeder
         }
 
         tenants["GHG"] = await EnsureTenantAsync("GHG", "Grand Hotel Group", "grand-hotel-group",
-            "15 Ngô Quyền, Phường Tràng Tiền, Quận Hoàn Kiếm", "Hà Nội", "02438266919", "contact@grandhotel.vn",
+            "15 Ngô Quyền, Phường Tràng Tiền, Hà Nội", "Hà Nội", "02438266919", "contact@grandhotel.vn",
             PropertyType.Hotel, 5);
         tenants["VEH"] = await EnsureTenantAsync("VEH", "Vietnam Eco & Heritage Resorts", "vietnam-eco-heritage",
-            "Khu VII.2 Hồ Tuyền Lâm, Phường 4", "Lâm Đồng", "02633831515", "booking@vietnamecoresorts.vn",
+            "Khu VII.2 Hồ Tuyền Lâm, Phường 4, Đà Lạt", "Lâm Đồng", "02633831515", "booking@vietnamecoresorts.vn",
             PropertyType.Resort, 5);
         tenants["SCR"] = await EnsureTenantAsync("SCR", "Sun Coast Hotels & Resorts", "sun-coast-resorts",
-            "Bán đảo Sơn Trà, Phường Thọ Quang, Quận Sơn Trà", "Đà Nẵng", "02363938888", "reservations@suncoastresorts.vn",
+            "Bán đảo Sơn Trà, Phường Thọ Quang, Đà Nẵng", "Đà Nẵng", "02363938888", "reservations@suncoastresorts.vn",
             PropertyType.Resort, 5);
         tenants["VHG"] = await EnsureTenantAsync("VHG", "Việt Homestay & Boutique Stays", "viet-homestay-boutique",
             "18 Phan Bội Châu, Phường 1, Đà Lạt", "Lâm Đồng", "02633901234", "hello@viethomestay.vn",
@@ -111,7 +111,7 @@ public static class RealData34ProvincesSeeder
             "88 Trần Phú, Phường Lộc Thọ, Nha Trang", "Khánh Hòa", "02583889999", "concierge@mekongvillas.vn",
             PropertyType.Villa, 5);
         tenants["UEM"] = await EnsureTenantAsync("UEM", "Urban Express Aparthotel & Motel", "urban-express-stays",
-            "120 Nguyễn Huệ, Phường Bến Nghé, Quận 1", "TP. Hồ Chí Minh", "02838221122", "stay@urbanexpress.vn",
+            "120 Nguyễn Huệ, Phường Bến Nghé, TP. Hồ Chí Minh", "TP. Hồ Chí Minh", "02838221122", "stay@urbanexpress.vn",
             PropertyType.Apartment, 3);
 
         // ── 2. Catalogue of Authentic Properties Across Vietnam ──────────────
@@ -183,6 +183,8 @@ public static class RealData34ProvincesSeeder
                 {
                     property = existingProp;
                     // Keep existing property.TenantId intact to avoid FK breaks; sync published metadata safely
+                    property.Address = def.Address;
+                    property.City = def.City;
                     property.PropertyType = def.PropertyType;
                     property.IsPublished = true;
                     property.Status = PropertyStatus.Active;
@@ -209,8 +211,11 @@ public static class RealData34ProvincesSeeder
                 }
 
                 // ── Seed RoomTypes, Rooms & Rates ───────────────────────────────
-                foreach (var rtDef in def.RoomTypes)
+                for (var rtIndex = 0; rtIndex < def.RoomTypes.Count; rtIndex++)
                 {
+                    var rtDef = def.RoomTypes[rtIndex];
+                    var seedImg = ResolveSeedRoomImage(def, rtDef, rtIndex);
+
                     var existingRt = await context.RoomTypes.IgnoreQueryFilters()
                         .FirstOrDefaultAsync(rt => rt.TenantId == property.TenantId && rt.PropertyId == property.Id && rt.Code == rtDef.Code);
 
@@ -226,6 +231,7 @@ public static class RealData34ProvincesSeeder
                             Name = rtDef.Name,
                             BasePrice = rtDef.NightlyPrice,
                             MaxOccupancy = rtDef.MaxOccupancy,
+                            ImageUrl = seedImg,
                             CreatedAtUtc = DateTime.UtcNow,
                             UpdatedAtUtc = DateTime.UtcNow
                         };
@@ -235,6 +241,11 @@ public static class RealData34ProvincesSeeder
                     else
                     {
                         roomType = existingRt;
+                        if (string.IsNullOrWhiteSpace(existingRt.ImageUrl))
+                        {
+                            existingRt.ImageUrl = seedImg;
+                            await context.SaveChangesAsync();
+                        }
                     }
 
                     // Physical Rooms
@@ -306,6 +317,141 @@ public static class RealData34ProvincesSeeder
         }
     }
 
+    private static readonly string[] SeedRoomInteriorImages =
+    {
+        "/images/deluxe-double-pine.png",
+        "/images/executive-suite-river.png",
+        "/images/family-ocean-suite.png",
+        "/images/presidential-penthouse.png",
+        "/images/standard-twin-heritage.png"
+    };
+
+    private static int ComputeStableSeedHash(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return 0;
+
+        int hash = 23;
+        foreach (var ch in value)
+        {
+            hash = unchecked((hash * 31) + char.ToUpperInvariant(ch));
+        }
+        return hash & 0x7FFFFFFF;
+    }
+
+    private static string ResolveSeedRoomImage(
+        RealPropertySeedDefinition def,
+        RealRoomTypeSeedDefinition rtDef,
+        int rtIndex)
+    {
+        var propHash = ComputeStableSeedHash(def.Code);
+
+        if (rtIndex == 0)
+        {
+            var zone = (def.TouristZoneSlug ?? string.Empty).Trim().ToLowerInvariant();
+            var city = (def.City ?? string.Empty).Trim();
+
+            // 1. Mountain / Highlands / Pine / Eco Valleys
+            if (zone is "da-lat" or "sa-pa" or "mu-cang-chai" or "ha-giang" or "cao-bang"
+                     or "mai-chau" or "buon-ma-thuot" or "mang-den" or "pleiku" or "phong-nha" ||
+                city.Contains("Lào Cai", StringComparison.OrdinalIgnoreCase) ||
+                city.Contains("Cao Bằng", StringComparison.OrdinalIgnoreCase) ||
+                city.Contains("Tuyên Quang", StringComparison.OrdinalIgnoreCase) ||
+                city.Contains("Phú Thọ", StringComparison.OrdinalIgnoreCase))
+            {
+                return "/images/dalat-pine-resort.png";
+            }
+
+            // 2. Central & Northern Coast / Islands
+            if (zone is "da-nang" or "ha-long" or "cat-ba" or "quang-tri" or "ly-son" or "quy-nhon" or "phu-yen" ||
+                city.Contains("Quảng Ninh", StringComparison.OrdinalIgnoreCase) ||
+                city.Contains("Hải Phòng", StringComparison.OrdinalIgnoreCase))
+            {
+                if (zone is "quy-nhon" or "phu-yen" || def.PropertyType == PropertyType.Apartment)
+                {
+                    var coastalPair = new[] { "/images/danang-ocean-suites.png", "/images/nhatrang-grand-hotel.png" };
+                    return coastalPair[propHash % coastalPair.Length];
+                }
+                return "/images/danang-ocean-suites.png";
+            }
+
+            // 3. Southern Coast & Tropical Bays
+            if (zone is "nha-trang" or "phu-quoc" or "vung-tau" or "phan-thiet-mui-ne" ||
+                city.Contains("Khánh Hòa", StringComparison.OrdinalIgnoreCase))
+            {
+                if (def.PropertyType == PropertyType.Villa)
+                {
+                    var southCoastPair = new[] { "/images/nhatrang-grand-hotel.png", "/images/danang-ocean-suites.png" };
+                    return southCoastPair[propHash % southCoastPair.Length];
+                }
+                return "/images/nhatrang-grand-hotel.png";
+            }
+
+            // 4. Heritage / Ancient Capital / Northern Culture
+            if (zone is "ha-noi-pho-co" or "ninh-binh" or "hoi-an" or "hue" or "lang-son" ||
+                city.Contains("Hà Nội", StringComparison.OrdinalIgnoreCase) ||
+                city.Contains("Ninh Bình", StringComparison.OrdinalIgnoreCase) ||
+                city.Contains("Huế", StringComparison.OrdinalIgnoreCase))
+            {
+                if (def.PropertyType == PropertyType.Motel)
+                {
+                    return "/images/saigon-riverside-tower.png";
+                }
+                if (zone == "ninh-binh" && def.PropertyType == PropertyType.Resort)
+                {
+                    return "/images/dalat-pine-resort.png";
+                }
+                return "/images/hanoi-old-quarter-hotel.png";
+            }
+
+            // 5. Urban Metropolis & Southern / Mekong Riverfront
+            if (def.PropertyType == PropertyType.Homestay || zone == "chau-doc")
+            {
+                return "/images/dalat-pine-resort.png";
+            }
+
+            var urbanRiverPool = new[]
+            {
+                "/images/saigon-riverside-tower.png",
+                "/images/hanoi-old-quarter-hotel.png"
+            };
+            return zone is "quan-1-tphcm" or "binh-duong" or "can-tho"
+                ? "/images/saigon-riverside-tower.png"
+                : urbanRiverPool[propHash % urbanRiverPool.Length];
+        }
+
+        // For rtIndex >= 1: select distinct room interior assets so GalleryUrls has 2-3 distinct images
+        var rtUpper = $"{rtDef.Code} {rtDef.Name}".ToUpperInvariant();
+        int baseSlot;
+        if (rtUpper.Contains("PEN") || rtUpper.Contains("PRESIDENT") || rtDef.NightlyPrice >= 6000000m)
+        {
+            baseSlot = 3; // presidential-penthouse.png
+        }
+        else if (rtUpper.Contains("OCEAN") || rtUpper.Contains("SEA") || rtUpper.Contains("BCH") || rtUpper.Contains("FAM"))
+        {
+            baseSlot = 2; // family-ocean-suite.png
+        }
+        else if (rtUpper.Contains("PINE") || rtUpper.Contains("MTN") || rtUpper.Contains("BUN") || rtUpper.Contains("VAL"))
+        {
+            baseSlot = 0; // deluxe-double-pine.png
+        }
+        else if (rtUpper.Contains("HERITAGE") || rtUpper.Contains("COL") || rtUpper.Contains("TWIN") || rtUpper.Contains("STD"))
+        {
+            baseSlot = 4; // standard-twin-heritage.png
+        }
+        else if (rtUpper.Contains("RIV") || rtUpper.Contains("SUI") || rtUpper.Contains("EXE"))
+        {
+            baseSlot = 1; // executive-suite-river.png
+        }
+        else
+        {
+            baseSlot = propHash % SeedRoomInteriorImages.Length;
+        }
+
+        var resolvedIndex = (baseSlot + (rtIndex - 1)) % SeedRoomInteriorImages.Length;
+        return SeedRoomInteriorImages[resolvedIndex];
+    }
+
     public static IReadOnlyList<RealPropertySeedDefinition> Get34ProvincesCatalogue()
     {
         return new List<RealPropertySeedDefinition>
@@ -318,7 +464,7 @@ public static class RealData34ProvincesSeeder
                 Code: "HN-METROPOLE",
                 Name: "Sofitel Legend Metropole Hanoi",
                 Slug: "sofitel-legend-metropole-hanoi",
-                Address: "15 Ngô Quyền, Phường Tràng Tiền, Quận Hoàn Kiếm, Hà Nội",
+                Address: "15 Ngô Quyền, Phường Tràng Tiền, TP. Hà Nội",
                 WardName: "Phường Tràng Tiền",
                 City: "Hà Nội",
                 ProvinceCode: "01",
@@ -342,7 +488,7 @@ public static class RealData34ProvincesSeeder
                 Code: "QN-VINPEARL",
                 Name: "Vinpearl Resort & Spa Hạ Long",
                 Slug: "vinpearl-resort-spa-ha-long",
-                Address: "Đảo Rều, Phường Bãi Cháy, TP. Hạ Long, Tỉnh Quảng Ninh",
+                Address: "Đảo Rều, Phường Bãi Cháy, Tỉnh Quảng Ninh",
                 WardName: "Phường Bãi Cháy",
                 City: "Quảng Ninh",
                 ProvinceCode: "22",
@@ -366,10 +512,10 @@ public static class RealData34ProvincesSeeder
                 Code: "LC-COUPOLE",
                 Name: "Hotel de la Coupole - MGallery Sa Pa",
                 Slug: "hotel-de-la-coupole-mgallery-sa-pa",
-                Address: "1 Hoàng Liên, Phường Sa Pa, Thị xã Sa Pa, Tỉnh Lào Cai",
+                Address: "1 Hoàng Liên, Phường Sa Pa, Tỉnh Lào Cai",
                 WardName: "Phường Sa Pa",
                 City: "Lào Cai",
-                ProvinceCode: "10",
+                ProvinceCode: "15",
                 Latitude: 22.3354,
                 Longitude: 103.8427,
                 PropertyType: PropertyType.Hotel,
@@ -390,7 +536,7 @@ public static class RealData34ProvincesSeeder
                 Code: "NB-EMERALDA",
                 Name: "Emeralda Resort Ninh Bình",
                 Slug: "emeralda-resort-ninh-binh",
-                Address: "Khu Bảo Tồn Vân Long, Xã Gia Vân, Huyện Gia Viễn, Tỉnh Ninh Bình",
+                Address: "Khu Bảo Tồn Vân Long, Xã Gia Vân, Tỉnh Ninh Bình",
                 WardName: "Xã Gia Vân",
                 City: "Ninh Bình",
                 ProvinceCode: "37",
@@ -414,8 +560,8 @@ public static class RealData34ProvincesSeeder
                 Code: "HP-FLAMINGO",
                 Name: "Flamingo Cat Ba Beach Resort",
                 Slug: "flamingo-cat-ba-beach-resort",
-                Address: "Bãi tắm Cát Cò 1, Thị trấn Cát Bà, Huyện Cát Hải, TP. Hải Phòng",
-                WardName: "Thị trấn Cát Bà",
+                Address: "Bãi tắm Cát Cò 1, Đặc khu Cát Hải, TP. Hải Phòng",
+                WardName: "Đặc khu Cát Hải",
                 City: "Hải Phòng",
                 ProvinceCode: "31",
                 Latitude: 20.7186,
@@ -438,10 +584,10 @@ public static class RealData34ProvincesSeeder
                 Code: "HG-HMONG",
                 Name: "H'Mong Village Resort Quản Bạ",
                 Slug: "hmong-village-resort-quan-ba",
-                Address: "Khu Tráng Kìm, Xã Đông Hà, Huyện Quản Bạ, Tỉnh Hà Giang",
+                Address: "Khu Tráng Kìm, Xã Đông Hà, Tỉnh Tuyên Quang",
                 WardName: "Xã Đông Hà",
-                City: "Hà Giang",
-                ProvinceCode: "03",
+                City: "Tuyên Quang",
+                ProvinceCode: "08",
                 Latitude: 23.0784,
                 Longitude: 105.0135,
                 PropertyType: PropertyType.Resort,
@@ -462,7 +608,7 @@ public static class RealData34ProvincesSeeder
                 Code: "CB-BANGIOC",
                 Name: "Sài Gòn - Bản Giốc Resort",
                 Slug: "sai-gon-ban-gioc-resort",
-                Address: "Xã Đàm Thủy, Huyện Trùng Khánh, Tỉnh Cao Bằng",
+                Address: "Xã Đàm Thủy, Tỉnh Cao Bằng",
                 WardName: "Xã Đàm Thủy",
                 City: "Cao Bằng",
                 ProvinceCode: "04",
@@ -486,10 +632,10 @@ public static class RealData34ProvincesSeeder
                 Code: "HB-SERENA",
                 Name: "Serena Resort Kim Bôi",
                 Slug: "serena-resort-kim-boi",
-                Address: "Thôn Khai Đồi, Xã Sào Báy, Huyện Kim Bôi, Tỉnh Hòa Bình",
+                Address: "Thôn Khai Đồi, Xã Sào Báy, Tỉnh Phú Thọ",
                 WardName: "Xã Sào Báy",
-                City: "Hòa Bình",
-                ProvinceCode: "17",
+                City: "Phú Thọ",
+                ProvinceCode: "25",
                 Latitude: 20.6548,
                 Longitude: 105.5124,
                 PropertyType: PropertyType.Resort,
@@ -510,9 +656,9 @@ public static class RealData34ProvincesSeeder
                 Code: "YB-LECHAMP",
                 Name: "Le Champ Tú Lệ Resort Hot Spring & Spa",
                 Slug: "le-champ-tu-le-resort-hot-spring",
-                Address: "Bản Nước Nóng, Xã Tú Lệ, Huyện Văn Chấn, Tỉnh Yên Bái",
+                Address: "Bản Nước Nóng, Xã Tú Lệ, Tỉnh Lào Cai",
                 WardName: "Xã Tú Lệ",
-                City: "Yên Bái",
+                City: "Lào Cai",
                 ProvinceCode: "15",
                 Latitude: 21.7684,
                 Longitude: 104.3125,
@@ -534,7 +680,7 @@ public static class RealData34ProvincesSeeder
                 Code: "LS-SHERATON",
                 Name: "Four Points by Sheraton Lạng Sơn",
                 Slug: "four-points-by-sheraton-lang-son",
-                Address: "2 Trần Hưng Đạo, Phường Chi Lăng, TP. Lạng Sơn, Tỉnh Lạng Sơn",
+                Address: "2 Trần Hưng Đạo, Phường Chi Lăng, Tỉnh Lạng Sơn",
                 WardName: "Phường Chi Lăng",
                 City: "Lạng Sơn",
                 ProvinceCode: "20",
@@ -562,7 +708,7 @@ public static class RealData34ProvincesSeeder
                 Code: "DN-INTERCON",
                 Name: "InterContinental Danang Sun Peninsula Resort",
                 Slug: "intercontinental-danang-sun-peninsula-resort",
-                Address: "Bãi Bắc, Bán đảo Sơn Trà, Phường Thọ Quang, Quận Sơn Trà, TP. Đà Nẵng",
+                Address: "Bãi Bắc, Bán đảo Sơn Trà, Phường Thọ Quang, TP. Đà Nẵng",
                 WardName: "Phường Thọ Quang",
                 City: "Đà Nẵng",
                 ProvinceCode: "48",
@@ -586,10 +732,10 @@ public static class RealData34ProvincesSeeder
                 Code: "QN-ANANTARA",
                 Name: "Anantara Hoi An Resort",
                 Slug: "anantara-hoi-an-resort",
-                Address: "1 Phạm Hồng Thái, Phường Cẩm Châu, TP. Hội An, Tỉnh Quảng Nam",
+                Address: "1 Phạm Hồng Thái, Phường Cẩm Châu, Hội An, TP. Đà Nẵng",
                 WardName: "Phường Cẩm Châu",
-                City: "Quảng Nam",
-                ProvinceCode: "49",
+                City: "Đà Nẵng",
+                ProvinceCode: "48",
                 Latitude: 15.8772,
                 Longitude: 108.3360,
                 PropertyType: PropertyType.Resort,
@@ -610,7 +756,7 @@ public static class RealData34ProvincesSeeder
                 Code: "KH-SIXSENSES",
                 Name: "Six Senses Ninh Van Bay",
                 Slug: "six-senses-ninh-van-bay",
-                Address: "Vịnh Ninh Vân, Thị xã Ninh Hòa, Tỉnh Khánh Hòa",
+                Address: "Vịnh Ninh Vân, Xã Ninh Phước, Tỉnh Khánh Hòa",
                 WardName: "Xã Ninh Phước",
                 City: "Khánh Hòa",
                 ProvinceCode: "56",
@@ -634,9 +780,9 @@ public static class RealData34ProvincesSeeder
                 Code: "HUE-AZERAI",
                 Name: "Azerai La Residence Huế",
                 Slug: "azerai-la-residence-hue",
-                Address: "5 Lê Lợi, Phường Vĩnh Ninh, TP. Huế, Tỉnh Thừa Thiên Huế",
+                Address: "5 Lê Lợi, Phường Vĩnh Ninh, TP. Huế",
                 WardName: "Phường Vĩnh Ninh",
-                City: "Thừa Thiên Huế",
+                City: "Huế",
                 ProvinceCode: "46",
                 Latitude: 16.4582,
                 Longitude: 107.5814,
@@ -658,9 +804,9 @@ public static class RealData34ProvincesSeeder
                 Code: "BD-ANANTARA",
                 Name: "Anantara Quy Nhon Villas",
                 Slug: "anantara-quy-nhon-villas",
-                Address: "Cầu Bãi Dại, Phường Ghềnh Ráng, TP. Quy Nhơn, Tỉnh Bình Định",
+                Address: "Cầu Bãi Dại, Phường Ghềnh Ráng, Quy Nhơn, Tỉnh Gia Lai",
                 WardName: "Phường Ghềnh Ráng",
-                City: "Bình Định",
+                City: "Gia Lai",
                 ProvinceCode: "52",
                 Latitude: 13.7125,
                 Longitude: 109.2145,
@@ -682,10 +828,10 @@ public static class RealData34ProvincesSeeder
                 Code: "BT-CLIFF",
                 Name: "The Cliff Resort & Residences Mũi Né",
                 Slug: "the-cliff-resort-residences-mui-ne",
-                Address: "Khu phố 5, Phường Phú Hài, TP. Phan Thiết, Tỉnh Bình Thuận",
+                Address: "Khu phố 5, Phường Phú Hài, Phan Thiết, Tỉnh Lâm Đồng",
                 WardName: "Phường Phú Hài",
-                City: "Bình Thuận",
-                ProvinceCode: "60",
+                City: "Lâm Đồng",
+                ProvinceCode: "68",
                 Latitude: 10.9436,
                 Longitude: 108.2045,
                 PropertyType: PropertyType.Resort,
@@ -706,10 +852,10 @@ public static class RealData34ProvincesSeeder
                 Code: "PY-ZANNIER",
                 Name: "Zannier Hotels Bãi San Hô Phú Yên",
                 Slug: "zannier-hotels-bai-san-ho-phu-yen",
-                Address: "Hòa Thạnh, Xã Xuân Cảnh, Thị xã Sông Cầu, Tỉnh Phú Yên",
+                Address: "Hòa Thạnh, Xã Xuân Cảnh, Tỉnh Đắk Lắk",
                 WardName: "Xã Xuân Cảnh",
-                City: "Phú Yên",
-                ProvinceCode: "54",
+                City: "Đắk Lắk",
+                ProvinceCode: "66",
                 Latitude: 13.5684,
                 Longitude: 109.2845,
                 PropertyType: PropertyType.Resort,
@@ -730,9 +876,9 @@ public static class RealData34ProvincesSeeder
                 Code: "QB-CHAYLAP",
                 Name: "Chay Lap Farmstay & Resort Phong Nha",
                 Slug: "chay-lap-farmstay-resort-phong-nha",
-                Address: "Làng Chày Lập, Xã Phúc Trạch, Huyện Bố Trạch, Tỉnh Quảng Bình",
+                Address: "Làng Chày Lập, Xã Phúc Trạch, Tỉnh Quảng Trị",
                 WardName: "Xã Phúc Trạch",
-                City: "Quảng Bình",
+                City: "Quảng Trị",
                 ProvinceCode: "44",
                 Latitude: 17.5842,
                 Longitude: 106.2845,
@@ -754,10 +900,10 @@ public static class RealData34ProvincesSeeder
                 Code: "QT-SEPON",
                 Name: "Sepon Boutique Resort Cửa Việt",
                 Slug: "sepon-boutique-resort-cua-viet",
-                Address: "Bãi biển Cửa Việt, Thị trấn Cửa Việt, Huyện Gio Linh, Tỉnh Quảng Trị",
-                WardName: "Thị trấn Cửa Việt",
+                Address: "Bãi biển Cửa Việt, Xã Cửa Việt, Tỉnh Quảng Trị",
+                WardName: "Xã Cửa Việt",
                 City: "Quảng Trị",
-                ProvinceCode: "45",
+                ProvinceCode: "44",
                 Latitude: 16.8942,
                 Longitude: 107.1845,
                 PropertyType: PropertyType.Resort,
@@ -778,8 +924,8 @@ public static class RealData34ProvincesSeeder
                 Code: "QNG-LYSON",
                 Name: "Mường Thanh Holiday Lý Sơn",
                 Slug: "muong-thanh-holiday-ly-son",
-                Address: "Thôn Tây, Xã An Vĩnh, Huyện Lý Sơn, Tỉnh Quảng Ngãi",
-                WardName: "Xã An Vĩnh",
+                Address: "Thôn Tây, Đặc khu Lý Sơn, Tỉnh Quảng Ngãi",
+                WardName: "Đặc khu Lý Sơn",
                 City: "Quảng Ngãi",
                 ProvinceCode: "51",
                 Latitude: 15.3784,
@@ -806,7 +952,7 @@ public static class RealData34ProvincesSeeder
                 Code: "LD-EDENSEE",
                 Name: "Dalat Edensee Lake Resort & Spa",
                 Slug: "dalat-edensee-lake-resort-spa",
-                Address: "Khu VII.2, Hồ Tuyền Lâm, Phường 4, TP. Đà Lạt, Tỉnh Lâm Đồng",
+                Address: "Khu VII.2, Hồ Tuyền Lâm, Phường 4, Đà Lạt, Tỉnh Lâm Đồng",
                 WardName: "Phường 4",
                 City: "Lâm Đồng",
                 ProvinceCode: "68",
@@ -830,7 +976,7 @@ public static class RealData34ProvincesSeeder
                 Code: "DL-LAKTENTED",
                 Name: "Lak Tented Camp Resort",
                 Slug: "lak-tented-camp-resort",
-                Address: "Thôn Yang Tao, Huyện Lắk, Tỉnh Đắk Lắk",
+                Address: "Thôn Yang Tao, Xã Yang Tao, Tỉnh Đắk Lắk",
                 WardName: "Xã Yang Tao",
                 City: "Đắk Lắk",
                 ProvinceCode: "66",
@@ -854,16 +1000,16 @@ public static class RealData34ProvincesSeeder
                 Code: "KT-GOLDEN",
                 Name: "Golden Boutique Hotel Măng Đen",
                 Slug: "golden-boutique-hotel-mang-den",
-                Address: "Đường Nguyễn Du, Thị trấn Măng Đen, Huyện Kon Plông, Tỉnh Kon Tum",
-                WardName: "Thị trấn Măng Đen",
-                City: "Kon Tum",
-                ProvinceCode: "62",
+                Address: "Đường Nguyễn Du, Xã Măng Đen, Tỉnh Quảng Ngãi",
+                WardName: "Xã Măng Đen",
+                City: "Quảng Ngãi",
+                ProvinceCode: "51",
                 Latitude: 14.6042,
                 Longitude: 108.2845,
                 PropertyType: PropertyType.Hotel,
                 StarRating: 4,
                 TouristZoneSlug: "mang-den",
-                TouristZoneName: "Măng Đen - Đà Lạt Thứ Hai Của Kon Tum",
+                TouristZoneName: "Măng Đen - Đà Lạt Thứ Hai Của Quảng Ngãi",
                 PhoneNumber: "02603888999",
                 Email: "goldenmangden@gmail.com",
                 NearbyLandmarksJson: "[{\"Name\":\"Thác Pa Sỹ\",\"Category\":\"Kỳ quan thác nước\",\"DistanceKm\":3.1},{\"Name\":\"Tượng Đức Mẹ Măng Đen\",\"Category\":\"Tâm linh\",\"DistanceKm\":2.0}]",
@@ -878,10 +1024,10 @@ public static class RealData34ProvincesSeeder
                 Code: "GL-PLEIKU",
                 Name: "Pleiku Hotel Heritage",
                 Slug: "pleiku-hotel-heritage",
-                Address: "124 Lê Lợi, Phường Hoa Lư, TP. Pleiku, Tỉnh Gia Lai",
+                Address: "124 Lê Lợi, Phường Hoa Lư, Pleiku, Tỉnh Gia Lai",
                 WardName: "Phường Hoa Lư",
                 City: "Gia Lai",
-                ProvinceCode: "64",
+                ProvinceCode: "52",
                 Latitude: 13.9845,
                 Longitude: 108.0124,
                 PropertyType: PropertyType.Hotel,
@@ -906,7 +1052,7 @@ public static class RealData34ProvincesSeeder
                 Code: "SG-REVERIE",
                 Name: "The Reverie Saigon Luxury Hotel",
                 Slug: "the-reverie-saigon-luxury-hotel",
-                Address: "22-36 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
+                Address: "22-36 Nguyễn Huệ, Phường Bến Nghé, TP. Hồ Chí Minh",
                 WardName: "Phường Bến Nghé",
                 City: "TP. Hồ Chí Minh",
                 ProvinceCode: "79",
@@ -915,7 +1061,7 @@ public static class RealData34ProvincesSeeder
                 PropertyType: PropertyType.Hotel,
                 StarRating: 5,
                 TouristZoneSlug: "quan-1-tphcm",
-                TouristZoneName: "TP. Hồ Chí Minh - Trung Tâm Quận 1 & Phố Đi Bộ",
+                TouristZoneName: "TP. Hồ Chí Minh - Trung Tâm Sài Gòn & Phố Đi Bộ",
                 PhoneNumber: "02838236688",
                 Email: "info@thereveriesaigon.com",
                 NearbyLandmarksJson: "[{\"Name\":\"Phố Đi Bộ Nguyễn Huệ\",\"Category\":\"Phố đi bộ\",\"DistanceKm\":0.1},{\"Name\":\"Chợ Bến Thành\",\"Category\":\"Chợ truyền thống\",\"DistanceKm\":0.8}]",
@@ -930,10 +1076,10 @@ public static class RealData34ProvincesSeeder
                 Code: "VT-MARINA",
                 Name: "Marina Bay Vung Tau Resort & Spa",
                 Slug: "marina-bay-vung-tau-resort-spa",
-                Address: "115 Trần Phú, Phường 5, TP. Vũng Tàu, Tỉnh Bà Rịa - Vũng Tàu",
+                Address: "115 Trần Phú, Phường 5, Vũng Tàu, TP. Hồ Chí Minh",
                 WardName: "Phường 5",
-                City: "Bà Rịa - Vũng Tàu",
-                ProvinceCode: "77",
+                City: "TP. Hồ Chí Minh",
+                ProvinceCode: "79",
                 Latitude: 10.3725,
                 Longitude: 107.0545,
                 PropertyType: PropertyType.Resort,
@@ -954,9 +1100,9 @@ public static class RealData34ProvincesSeeder
                 Code: "PQ-MARRIOTT",
                 Name: "JW Marriott Phu Quoc Emerald Bay",
                 Slug: "jw-marriott-phu-quoc-emerald-bay",
-                Address: "Bãi Khem, Phường An Thới, TP. Phú Quốc, Tỉnh Kiên Giang",
-                WardName: "Phường An Thới",
-                City: "Kiên Giang",
+                Address: "Bãi Khem, Đặc khu Phú Quốc, Tỉnh An Giang",
+                WardName: "Đặc khu Phú Quốc",
+                City: "An Giang",
                 ProvinceCode: "91",
                 Latitude: 10.0384,
                 Longitude: 104.0285,
@@ -978,7 +1124,7 @@ public static class RealData34ProvincesSeeder
                 Code: "CT-AZERAI",
                 Name: "Azerai Can Tho Resort",
                 Slug: "azerai-can-tho-resort",
-                Address: "Cồn Ấu, Phường Hưng Phú, Quận Cái Răng, TP. Cần Thơ",
+                Address: "Cồn Ấu, Phường Hưng Phú, TP. Cần Thơ",
                 WardName: "Phường Hưng Phú",
                 City: "Cần Thơ",
                 ProvinceCode: "92",
@@ -1002,10 +1148,10 @@ public static class RealData34ProvincesSeeder
                 Code: "AG-VICTORIA",
                 Name: "Victoria Nui Sam Lodge Châu Đốc",
                 Slug: "victoria-nui-sam-lodge-chau-doc",
-                Address: "Vĩnh Cao, Phường Núi Sam, TP. Châu Đốc, Tỉnh An Giang",
+                Address: "Vĩnh Cao, Phường Núi Sam, Châu Đốc, Tỉnh An Giang",
                 WardName: "Phường Núi Sam",
                 City: "An Giang",
-                ProvinceCode: "89",
+                ProvinceCode: "91",
                 Latitude: 10.6845,
                 Longitude: 105.0845,
                 PropertyType: PropertyType.Hotel,
@@ -1026,10 +1172,10 @@ public static class RealData34ProvincesSeeder
                 Code: "BT-RIVERSIDE",
                 Name: "Ben Tre Riverside Resort",
                 Slug: "ben-tre-riverside-resort",
-                Address: "708 Nguyễn Văn Tư, Phường 7, TP. Bến Tre, Tỉnh Bến Tre",
+                Address: "708 Nguyễn Văn Tư, Phường 7, Bến Tre, Tỉnh Vĩnh Long",
                 WardName: "Phường 7",
-                City: "Bến Tre",
-                ProvinceCode: "83",
+                City: "Vĩnh Long",
+                ProvinceCode: "86",
                 Latitude: 10.2245,
                 Longitude: 106.3745,
                 PropertyType: PropertyType.Resort,
@@ -1050,10 +1196,10 @@ public static class RealData34ProvincesSeeder
                 Code: "DT-TRAMCHIM",
                 Name: "Tràm Chim Ecolodge Sa Đéc",
                 Slug: "tram-chim-ecolodge-sa-dec",
-                Address: "Khóm 4, Thị trấn Tràm Chim, Huyện Tam Nông, Tỉnh Đồng Tháp",
-                WardName: "Thị trấn Tràm Chim",
+                Address: "Khóm 4, Xã Tràm Chim, Tỉnh Đồng Tháp",
+                WardName: "Xã Tràm Chim",
                 City: "Đồng Tháp",
-                ProvinceCode: "87",
+                ProvinceCode: "82",
                 Latitude: 10.6945,
                 Longitude: 105.5245,
                 PropertyType: PropertyType.Homestay,
@@ -1074,10 +1220,10 @@ public static class RealData34ProvincesSeeder
                 Code: "TN-VINPEARL",
                 Name: "Melia Vinpearl Tây Ninh",
                 Slug: "melia-vinpearl-tay-ninh",
-                Address: "90 Lê Duẩn, Khu phố 5, Phường 3, TP. Tây Ninh, Tỉnh Tây Ninh",
+                Address: "90 Lê Duẩn, Khu phố 5, Phường 3, Tỉnh Tây Ninh",
                 WardName: "Phường 3",
                 City: "Tây Ninh",
-                ProvinceCode: "72",
+                ProvinceCode: "80",
                 Latitude: 11.3125,
                 Longitude: 106.1045,
                 PropertyType: PropertyType.Hotel,
@@ -1098,7 +1244,7 @@ public static class RealData34ProvincesSeeder
                 Code: "CM-MUONGTHANH",
                 Name: "Mường Thanh Luxury Cà Mau",
                 Slug: "muong-thanh-luxury-ca-mau",
-                Address: "Lô C3A Khu Trung Tâm Hành Chính, Phường 9, TP. Cà Mau, Tỉnh Cà Mau",
+                Address: "Lô C3A Khu Trung Tâm Hành Chính, Phường 9, Tỉnh Cà Mau",
                 WardName: "Phường 9",
                 City: "Cà Mau",
                 ProvinceCode: "96",
@@ -1122,10 +1268,10 @@ public static class RealData34ProvincesSeeder
                 Code: "BD-ANLAM",
                 Name: "An Lâm Retreats Saigon River",
                 Slug: "an-lam-retreats-saigon-river",
-                Address: "21/4 Trung Street, Phường Vĩnh Phú, TP. Thuận An, Tỉnh Bình Dương",
+                Address: "21/4 Trung Street, Phường Vĩnh Phú, Thuận An, TP. Hồ Chí Minh",
                 WardName: "Phường Vĩnh Phú",
-                City: "Bình Dương",
-                ProvinceCode: "74",
+                City: "TP. Hồ Chí Minh",
+                ProvinceCode: "79",
                 Latitude: 10.8745,
                 Longitude: 106.6985,
                 PropertyType: PropertyType.Resort,
@@ -1150,7 +1296,7 @@ public static class RealData34ProvincesSeeder
                 Code: "HN-LADO-HS",
                 Name: "Lá Đỏ Phố Cổ Homestay",
                 Slug: "la-do-pho-co-homestay",
-                Address: "38 Hàng Bạc, Phường Hàng Bạc, Quận Hoàn Kiếm, Hà Nội",
+                Address: "38 Hàng Bạc, Phường Hàng Bạc, Hà Nội",
                 WardName: "Phường Hàng Bạc",
                 City: "Hà Nội",
                 ProvinceCode: "01",
@@ -1174,9 +1320,9 @@ public static class RealData34ProvincesSeeder
                 Code: "DL-THONGXANH-HS",
                 Name: "Thông Xanh Pine Hill Homestay Đà Lạt",
                 Slug: "thong-xanh-pine-hill-homestay-da-lat",
-                Address: "45 Đặng Thái Thân, Phường 3, TP. Đà Lạt, Lâm Đồng",
+                Address: "45 Đặng Thái Thân, Phường 3, Đà Lạt, Tỉnh Lâm Đồng",
                 WardName: "Phường 3",
-                City: "Đà Lạt",
+                City: "Lâm Đồng",
                 ProvinceCode: "68",
                 Latitude: 11.9365,
                 Longitude: 108.4412,
@@ -1198,9 +1344,9 @@ public static class RealData34ProvincesSeeder
                 Code: "HA-LANTERN-BB",
                 Name: "Phố Đèn Lồng Boutique Bed & Breakfast",
                 Slug: "pho-den-long-boutique-bnb-hoi-an",
-                Address: "62 Nguyễn Thái Học, Phường Minh An, TP. Hội An, Quảng Nam",
+                Address: "62 Nguyễn Thái Học, Phường Minh An, Hội An, TP. Đà Nẵng",
                 WardName: "Phường Minh An",
-                City: "Hội An",
+                City: "Đà Nẵng",
                 ProvinceCode: "48",
                 Latitude: 15.8774,
                 Longitude: 108.3282,
@@ -1222,9 +1368,9 @@ public static class RealData34ProvincesSeeder
                 Code: "SP-MAYNGAN-HS",
                 Name: "Mây Ngàn Tả Phìn Homestay Sa Pa",
                 Slug: "may-ngan-ta-phin-homestay-sapa",
-                Address: "Thôn Tả Chải, Xã Tả Phìn, Thị xã Sa Pa, Lào Cai",
+                Address: "Thôn Tả Chải, Xã Tả Phìn, Sa Pa, Tỉnh Lào Cai",
                 WardName: "Xã Tả Phìn",
-                City: "Sa Pa",
+                City: "Lào Cai",
                 ProvinceCode: "15",
                 Latitude: 22.3622,
                 Longitude: 103.8548,
@@ -1246,9 +1392,9 @@ public static class RealData34ProvincesSeeder
                 Code: "DL-HIGHLAND-VL",
                 Name: "Highland Pine Sanctuary Villas Đà Lạt",
                 Slug: "highland-pine-sanctuary-villas-da-lat",
-                Address: "12 Khu Biệt Thự Trần Hưng Đạo, Phường 10, TP. Đà Lạt, Lâm Đồng",
+                Address: "12 Khu Biệt Thự Trần Hưng Đạo, Phường 10, Đà Lạt, Tỉnh Lâm Đồng",
                 WardName: "Phường 10",
-                City: "Đà Lạt",
+                City: "Lâm Đồng",
                 ProvinceCode: "68",
                 Latitude: 11.9384,
                 Longitude: 108.4560,
@@ -1270,9 +1416,9 @@ public static class RealData34ProvincesSeeder
                 Code: "PQ-PEARL-VL",
                 Name: "Mekong Pearl Sunset Pool Villa Phú Quốc",
                 Slug: "mekong-pearl-sunset-pool-villa-phu-quoc",
-                Address: "Bãi Trường, Phường Dương Tơ, TP. Phú Quốc, Kiên Giang",
-                WardName: "Phường Dương Tơ",
-                City: "Phú Quốc",
+                Address: "Bãi Trường, Đặc khu Phú Quốc, Tỉnh An Giang",
+                WardName: "Đặc khu Phú Quốc",
+                City: "An Giang",
                 ProvinceCode: "91",
                 Latitude: 10.1552,
                 Longitude: 103.9725,
@@ -1294,9 +1440,9 @@ public static class RealData34ProvincesSeeder
                 Code: "VT-CLIFF-VL",
                 Name: "Bãi Sau Cliffside Sanctuary Villa Vũng Tàu",
                 Slug: "bai-sau-cliffside-villa-vung-tau",
-                Address: "102 Thùy Vân, Phường Thắng Tam, TP. Vũng Tàu, Bà Rịa - Vũng Tàu",
+                Address: "102 Thùy Vân, Phường Thắng Tam, Vũng Tàu, TP. Hồ Chí Minh",
                 WardName: "Phường Thắng Tam",
-                City: "Vũng Tàu",
+                City: "TP. Hồ Chí Minh",
                 ProvinceCode: "79",
                 Latitude: 10.3352,
                 Longitude: 107.0894,
@@ -1318,7 +1464,7 @@ public static class RealData34ProvincesSeeder
                 Code: "CT-RIVER-VL",
                 Name: "Mekong Riverfront Heritage Villa Cần Thơ",
                 Slug: "mekong-riverfront-villa-can-tho",
-                Address: "16 Hai Bà Trưng, Phường Tân An, Quận Ninh Kiều, TP. Cần Thơ",
+                Address: "16 Hai Bà Trưng, Phường Tân An, TP. Cần Thơ",
                 WardName: "Phường Tân An",
                 City: "Cần Thơ",
                 ProvinceCode: "92",
@@ -1340,9 +1486,9 @@ public static class RealData34ProvincesSeeder
             new(
                 TenantCode: "UEM",
                 Code: "HCM-SUITES-APT",
-                Name: "Urban Express Suites Quận 1 Aparthotel",
+                Name: "Urban Express Suites Trung Tâm Sài Gòn Aparthotel",
                 Slug: "urban-express-suites-quan-1-aparthotel",
-                Address: "78 Tôn Thất Đạm, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
+                Address: "78 Tôn Thất Đạm, Phường Bến Nghé, TP. Hồ Chí Minh",
                 WardName: "Phường Bến Nghé",
                 City: "TP. Hồ Chí Minh",
                 ProvinceCode: "79",
@@ -1351,7 +1497,7 @@ public static class RealData34ProvincesSeeder
                 PropertyType: PropertyType.Apartment,
                 StarRating: 4,
                 TouristZoneSlug: "quan-1-tphcm",
-                TouristZoneName: "Trung Tâm Quận 1 & Phố Đi Bộ",
+                TouristZoneName: "Trung Tâm Sài Gòn & Phố Đi Bộ",
                 PhoneNumber: "02838234567",
                 Email: "q1suites@urbanexpress.vn",
                 NearbyLandmarksJson: "[{\"Name\":\"Phố Đi Bộ Nguyễn Huệ\",\"Category\":\"Trung tâm giải trí\",\"DistanceKm\":0.3},{\"Name\":\"Chợ Bến Thành\",\"Category\":\"Mua sắm\",\"DistanceKm\":0.7}]",
@@ -1366,7 +1512,7 @@ public static class RealData34ProvincesSeeder
                 Code: "DN-MYKHE-APT",
                 Name: "Urban Oceanfront Serviced Apartment Đà Nẵng",
                 Slug: "urban-oceanfront-serviced-apartment-da-nang",
-                Address: "240 Võ Nguyên Giáp, Phường Phước Mỹ, Quận Sơn Trà, Đà Nẵng",
+                Address: "240 Võ Nguyên Giáp, Phường Phước Mỹ, TP. Đà Nẵng",
                 WardName: "Phường Phước Mỹ",
                 City: "Đà Nẵng",
                 ProvinceCode: "48",
@@ -1390,7 +1536,7 @@ public static class RealData34ProvincesSeeder
                 Code: "HN-MYDINH-MTL",
                 Name: "Urban Express Smart Motel Mỹ Đình",
                 Slug: "urban-express-smart-motel-my-dinh",
-                Address: "14 Lê Đức Thọ, Phường Mỹ Đình 2, Quận Nam Từ Liêm, Hà Nội",
+                Address: "14 Lê Đức Thọ, Phường Mỹ Đình 2, TP. Hà Nội",
                 WardName: "Phường Mỹ Đình 2",
                 City: "Hà Nội",
                 ProvinceCode: "01",
@@ -1414,7 +1560,7 @@ public static class RealData34ProvincesSeeder
                 Code: "NB-TRANGAN-HST",
                 Name: "Tràng An Explorer Backpacker Hostel",
                 Slug: "trang-an-explorer-backpacker-hostel",
-                Address: "Xóm 3, Xã Ninh Xuân, Huyện Hoa Lư, Ninh Bình",
+                Address: "Xóm 3, Xã Ninh Xuân, Tỉnh Ninh Bình",
                 WardName: "Xã Ninh Xuân",
                 City: "Ninh Bình",
                 ProvinceCode: "37",

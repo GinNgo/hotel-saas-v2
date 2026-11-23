@@ -61,14 +61,14 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Run Multi-Tenant, Cross-Branch, SignalR & VNPay Isolation Tests
+      - name: Run Multi-Tenant, Cross-Branch, SignalR, Payment & Security Isolation Tests
         working-directory: backend
         env:
           TEST_DB_CONNECTION: "Host=localhost;Port=5432;Database=hotel_saas_p1b01a_test;Username=postgres;Password=postgres;Persist Security Info=true;Pooling=false;"
         run: |
           dotnet test HotelSaas.slnx \
             --configuration Release \
-            --filter "FullyQualifiedName~MultiTenantBranchIsolationTests|FullyQualifiedName~TenantPropertyContextMiddlewareTests|FullyQualifiedName~NotificationHubSecurityTests|FullyQualifiedName~VnpayIntegrationTests" \
+            --filter "FullyQualifiedName~MultiTenantBranchIsolationTests|FullyQualifiedName~TenantPropertyContextMiddlewareTests|FullyQualifiedName~NotificationHubSecurityTests|FullyQualifiedName~VnpayIntegrationTests|FullyQualifiedName~SepayWebhookTests|FullyQualifiedName~Wave10SecurityHardeningTests|FullyQualifiedName~ObservabilityMetricsAndLoggingTests" \
             --logger "trx;LogFileName=isolation-gate.trx"
 
   # ── Stage 2: Build & Push Immutable Docker Images ──────────────────────
@@ -126,8 +126,23 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-and-push]
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    env:
+      IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
 
     steps:
+      - name: Checkout observability & reverse proxy configs
+        uses: actions/checkout@v4
+
+      - name: Sync observability configs & Caddyfile to VPS
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          source: "docker/docker-compose.observability.yml,docker/observability/,deploy/Caddyfile"
+          target: "/opt/hotel-saas"
+
       - name: Execute Rolling Update on VPS
         uses: appleboy/ssh-action@v1.1.0
         with:
@@ -140,16 +155,90 @@ jobs:
             set -euo pipefail
             cd /opt/hotel-saas
 
-            echo "[1/4] Authenticating Docker with GHCR on VPS..."
+            read_env_value() {
+              local key="$1"
+              local file="${2:-.env}"
+              if [ ! -f "${file}" ]; then
+                return 0
+              fi
+              local line
+              line=$(grep -E "^[[:space:]]*(export[[:space:]]+)?${key}=" "${file}" | tail -n 1 || true)
+              if [ -z "${line}" ]; then
+                return 0
+              fi
+              local val="${line#*=}"
+              val="${val%$'\r'}"
+              val="${val#\"}"
+              val="${val%\"}"
+              val="${val#\'}"
+              val="${val%\'}"
+              printf '%s' "${val}"
+            }
+
+            sync_metrics_key_file() {
+              local key_file="$1"
+              local key_value="$2"
+              local key_dir
+              key_dir="$(dirname "${key_file}")"
+
+              if [ "$(id -u)" -eq 0 ] || [ -w "${key_dir}" ]; then
+                mkdir -p "${key_dir}"
+                printf '%s' "${key_value}" > "${key_file}"
+                chmod 644 "${key_file}"
+              else
+                sudo mkdir -p "${key_dir}"
+                printf '%s' "${key_value}" | sudo tee "${key_file}" >/dev/null
+                sudo chmod 644 "${key_file}"
+              fi
+            }
+
+            export IMAGE_TAG="${{ env.IMAGE_TAG }}"
+            if [ -z "$IMAGE_TAG" ]; then
+              echo "❌ IMAGE_TAG is empty; refusing to deploy bare :latest!"
+              exit 1
+            fi
+
+            echo "[1/6] Authenticating Docker with GHCR on VPS..."
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            echo "[2/4] Pulling latest immutable images from GHCR..."
-            docker compose -f docker-compose.staging.yml pull
+            echo "[2/6] Pulling immutable images (${IMAGE_TAG}) from GHCR..."
+            IMAGE_TAG="${IMAGE_TAG}" docker compose -f docker-compose.staging.yml pull
 
-            echo "[3/4] Gracefully rolling update backend & frontend containers..."
-            docker compose -f docker-compose.staging.yml up -d --no-deps backend frontend
+            echo "[3/6] Gracefully rolling update backend & frontend containers (${IMAGE_TAG})..."
+            IMAGE_TAG="${IMAGE_TAG}" docker compose -f docker-compose.staging.yml up -d --no-deps backend frontend
 
-            echo "[4/4] Verifying health probes..."
+            echo "[4/6] Deploying observability stack (if GF_SECURITY_ADMIN_PASSWORD is configured)..."
+            if [ -f docker/docker-compose.observability.yml ]; then
+              EFFECTIVE_GF_PASSWORD="${GF_SECURITY_ADMIN_PASSWORD:-$(read_env_value GF_SECURITY_ADMIN_PASSWORD .env)}"
+              EFFECTIVE_METRICS_KEY="${METRICS_API_KEY:-$(read_env_value METRICS_API_KEY .env)}"
+              METRICS_KEY_FILE="${PROMETHEUS_METRICS_KEY_FILE:-$(read_env_value PROMETHEUS_METRICS_KEY_FILE .env)}"
+              METRICS_KEY_FILE="${METRICS_KEY_FILE:-/etc/hotelsaas/metrics_api_key}"
+
+              if [ -z "${EFFECTIVE_GF_PASSWORD}" ]; then
+                echo "ℹ️ Skipping observability stack deploy: GF_SECURITY_ADMIN_PASSWORD is not set in /opt/hotel-saas/.env."
+              else
+                if [ -n "${EFFECTIVE_METRICS_KEY}" ]; then
+                  sync_metrics_key_file "${METRICS_KEY_FILE}" "${EFFECTIVE_METRICS_KEY}"
+                  echo "✔ Synced Prometheus metrics key file: ${METRICS_KEY_FILE} (mode 644)"
+                elif [ ! -f "${METRICS_KEY_FILE}" ]; then
+                  sync_metrics_key_file "${METRICS_KEY_FILE}" ""
+                  echo "⚠️ METRICS_API_KEY not set in .env; initialized empty ${METRICS_KEY_FILE} so Prometheus can start."
+                fi
+
+                if [ -f .env ]; then
+                  docker compose --env-file .env -f docker/docker-compose.observability.yml up -d
+                else
+                  docker compose -f docker/docker-compose.observability.yml up -d
+                fi
+              fi
+            fi
+
+            echo "[5/6] Reloading Caddy reverse proxy gracefully (if running)..."
+            if docker ps --format '{{.Names}}' | grep -qx 'hotelsaas-caddy'; then
+              docker exec hotelsaas-caddy caddy reload --config /etc/caddy/Caddyfile || echo "⚠️ Caddy reload returned non-zero (continuing to health verification)"
+            fi
+
+            echo "[6/6] Verifying health probes..."
             HEALTHY=0
             for i in $(seq 1 20); do
               if curl -sk https://luxustay.duckdns.org/health | grep -q '"status":"healthy"'; then

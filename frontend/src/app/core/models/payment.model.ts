@@ -251,3 +251,23 @@ export interface ConfirmRefundPayoutRequest {
   bankTransactionRef: string;
   notes?: string;
 }
+
+export interface VietQrGenerateRequest {
+  amount: number;
+  confirmationCode?: string;
+  reservationId?: string;
+  propertyId?: string;
+  description?: string;
+}
+
+export interface VietQrResultDto {
+  qrImageUrl: string;
+  bankBin: string;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  amount: number;
+  description: string;
+  confirmationCode: string;
+  quickPayDeepLink: string;
+}

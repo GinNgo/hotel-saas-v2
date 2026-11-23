@@ -14,17 +14,17 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
       <div class="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4 border-b border-slate-200/80 pb-4">
         <div>
           <div class="flex items-center gap-2 mb-1.5">
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-widest uppercase bg-amber-500/10 text-amber-700 border border-amber-500/20">
-              <i class="pi pi-compass text-[10px] text-amber-600"></i>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-slate-100 text-slate-700 border border-slate-200">
+              <i class="pi pi-compass text-[10px] text-[var(--brand-primary)]"></i>
               Bản Đồ Nghỉ Dưỡng Việt Nam
             </span>
-            <span class="text-xs text-slate-400 font-medium">34 Tỉnh Thành Trọng Điểm</span>
+            <span class="text-xs text-slate-500 font-medium">34 Tỉnh Thành Trọng Điểm</span>
           </div>
-          <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-serif">
+          <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight font-display">
             Khám Phá Địa Danh &amp; Resort Nghỉ Dưỡng
           </h2>
-          <p class="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            Hơn 1.500+ khách sạn, resort 5 sao, homestay săn mây và nhà nghỉ ven biển trải dài từ địa đầu Lũng Cú đến Mũi Cà Mau.
+          <p class="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">
+            Khám phá mạng lưới điểm đến theo chuẩn địa giới 34 tỉnh/thành phố từ địa đầu Lũng Cú đến Mũi Cà Mau.
           </p>
         </div>
 
@@ -38,13 +38,15 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
               [ngModel]="searchQuery()"
               (ngModelChange)="searchQuery.set($event)"
               placeholder="Tìm tỉnh, vịnh, đèo, chợ..."
-              class="w-full pl-8 pr-7 py-2 rounded-xl text-xs bg-slate-100 hover:bg-slate-200/60 focus:bg-white border border-slate-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
+              aria-label="Tìm kiếm điểm đến"
+              class="w-full min-h-11 pl-8 pr-11 py-2 rounded-xl text-xs bg-white hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
             />
             @if (searchQuery()) {
               <button
                 type="button"
                 (click)="searchQuery.set('')"
-                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                aria-label="Xóa từ khóa tìm kiếm điểm đến"
+                class="min-w-11 min-h-11 flex items-center justify-center absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
               >
                 <i class="pi pi-times-circle"></i>
               </button>
@@ -59,113 +61,114 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
           type="button"
           (click)="selectedRegion.set('all')"
           [class]="selectedRegion() === 'all' ? activeTabClass : inactiveTabClass"
-          class="px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
+          class="min-h-11 px-3.5 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
         >
           <span>Tất Cả</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">34</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums" [class]="selectedRegion() === 'all' ? 'bg-black/15 dark:bg-white/25 text-[var(--brand-primary-fg)]' : 'bg-slate-200 text-slate-700'">{{ totalCount() }}</span>
         </button>
 
         <button
           type="button"
           (click)="selectedRegion.set('north')"
           [class]="selectedRegion() === 'north' ? activeTabClass : inactiveTabClass"
-          class="px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
+          class="min-h-11 px-3.5 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
         >
           <span>Miền Bắc</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'north' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">10</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums" [class]="selectedRegion() === 'north' ? 'bg-black/15 dark:bg-white/25 text-[var(--brand-primary-fg)]' : 'bg-slate-200 text-slate-700'">{{ northCount() }}</span>
         </button>
 
         <button
           type="button"
           (click)="selectedRegion.set('central')"
           [class]="selectedRegion() === 'central' ? activeTabClass : inactiveTabClass"
-          class="px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
+          class="min-h-11 px-3.5 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
         >
           <span>Miền Trung</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'central' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">10</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums" [class]="selectedRegion() === 'central' ? 'bg-black/15 dark:bg-white/25 text-[var(--brand-primary-fg)]' : 'bg-slate-200 text-slate-700'">{{ centralCount() }}</span>
         </button>
 
         <button
           type="button"
           (click)="selectedRegion.set('highlands')"
           [class]="selectedRegion() === 'highlands' ? activeTabClass : inactiveTabClass"
-          class="px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
+          class="min-h-11 px-3.5 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
         >
           <span>Tây Nguyên</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'highlands' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">4</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums" [class]="selectedRegion() === 'highlands' ? 'bg-black/15 dark:bg-white/25 text-[var(--brand-primary-fg)]' : 'bg-slate-200 text-slate-700'">{{ highlandsCount() }}</span>
         </button>
 
         <button
           type="button"
           (click)="selectedRegion.set('south')"
           [class]="selectedRegion() === 'south' ? activeTabClass : inactiveTabClass"
-          class="px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
+          class="min-h-11 px-3.5 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-2xs"
         >
           <span>Miền Nam</span>
-          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold opacity-80" [class]="selectedRegion() === 'south' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'">10</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums" [class]="selectedRegion() === 'south' ? 'bg-black/15 dark:bg-white/25 text-[var(--brand-primary-fg)]' : 'bg-slate-200 text-slate-700'">{{ southCount() }}</span>
         </button>
       </div>
 
-      <!-- Responsive Grid of Destinations (Double-Bezel Luxury Cards) -->
+      <!-- Responsive Grid of Destinations (Bright Photo-Top Cards) -->
       @if (filteredDestinations().length > 0) {
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3.5 sm:gap-4">
           @for (dest of displayedDestinations(); track dest.id) {
             <button
               type="button"
               (click)="onSelect(dest)"
-              class="group text-left relative rounded-2xl overflow-hidden bg-slate-900 shadow-sm hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500 border border-slate-200/40 dark:border-slate-800 flex flex-col justify-end aspect-3/4 sm:aspect-4/5 p-3.5 cursor-pointer"
+              class="group text-left rounded-2xl overflow-hidden bg-white border border-slate-200 hover:border-slate-300 shadow-2xs hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] flex flex-col cursor-pointer"
             >
-              <!-- High-Res Visual Image with Zoom on Hover -->
-              <img
-                [src]="dest.imageUrl"
-                [alt]="dest.name"
-                (error)="$any($event.target).src = '/images/hanoi-old-quarter-hotel.png'"
-                class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
-                loading="lazy"
-              />
+              <!-- Bright Local Asset Image -->
+              <div class="relative h-36 sm:h-40 w-full overflow-hidden bg-slate-100 shrink-0">
+                @if (dest.imageUrl) {
+                  <img
+                    [src]="dest.imageUrl"
+                    [alt]="dest.name"
+                    width="360"
+                    height="450"
+                    (error)="onDestinationImageError($event)"
+                    class="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+                    loading="lazy"
+                  />
+                }
 
-              <!-- Multi-stop Architectural Dark Gradient Overlay -->
-              <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-slate-950/20"></div>
-
-              <!-- Top Micro Badges (Rating & Tag) -->
-              <div class="relative z-10 mb-auto flex items-center justify-between w-full gap-1">
-                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-black/40 backdrop-blur-md text-amber-300 border border-amber-400/30">
-                  <i class="pi pi-star-fill text-[8px] text-amber-400"></i>
-                  {{ dest.rating }}
-                </span>
-                <span class="inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold tracking-tight bg-white/20 backdrop-blur-md text-white border border-white/20 truncate max-w-[90px]">
-                  {{ dest.tag }}
-                </span>
-              </div>
-
-              <!-- Bottom Content Details -->
-              <div class="relative z-10 text-white min-w-0">
-                <div class="flex items-baseline justify-between gap-1">
-                  <h3 class="text-sm sm:text-base font-black tracking-tight leading-tight group-hover:text-amber-300 transition-colors truncate font-serif">
-                    {{ dest.shortName }}
-                  </h3>
-                  <span class="text-[10px] font-semibold text-slate-300 shrink-0">
-                    {{ dest.propertyCount }}+ chỗ nghỉ
+                <!-- Top Micro Badges (Region & Tag) -->
+                <div class="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-white/90 backdrop-blur-xs text-slate-700 border border-slate-200/80 shadow-2xs">
+                    {{ dest.regionName }}
+                  </span>
+                  <span class="inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold tracking-tight bg-slate-900/75 backdrop-blur-xs text-white truncate max-w-[90px]">
+                    {{ dest.tag }}
                   </span>
                 </div>
+              </div>
 
-                <p class="text-[10px] text-amber-200/90 font-medium truncate mt-0.5">
-                  {{ dest.touristZone }}
-                </p>
+              <!-- Bottom Clean White Content Details -->
+              <div class="p-3.5 flex-1 flex flex-col justify-between bg-white w-full min-w-0">
+                <div>
+                  <div class="flex items-baseline justify-between gap-1">
+                    <h3 class="text-sm sm:text-base font-bold text-slate-900 tracking-tight leading-tight group-hover:text-[var(--brand-primary)] transition-colors truncate font-display">
+                      {{ dest.shortName }}
+                    </h3>
+                    <span class="text-[10px] font-semibold text-slate-400 shrink-0 tabular-nums">
+                      #{{ dest.code }}
+                    </span>
+                  </div>
 
-                <!-- Hot Landmark Snippet -->
-                <div class="mt-1 flex items-center gap-1 text-[9px] text-slate-300 truncate">
-                  <i class="pi pi-map-marker text-[9px] text-amber-400 shrink-0"></i>
-                  <span class="truncate">{{ dest.hotLandmarks[0] }}</span>
+                  <p class="text-[11px] text-slate-600 font-medium truncate mt-0.5">
+                    {{ dest.touristZone }}
+                  </p>
+
+                  <!-- Hot Landmark Snippet -->
+                  <div class="mt-1 flex items-center gap-1 text-[10px] text-slate-500 truncate">
+                    <i class="pi pi-map-marker text-[9px] text-[var(--brand-primary)] shrink-0"></i>
+                    <span class="truncate">{{ dest.hotLandmarks[0] }}</span>
+                  </div>
                 </div>
 
-                <!-- Price & Action Footer -->
-                <div class="mt-2.5 pt-2 border-t border-white/15 flex items-center justify-between gap-1">
-                  <div>
-                    <span class="text-[9px] text-slate-400 block -mb-0.5 font-medium">Từ</span>
-                    <span class="text-xs font-black text-amber-400">{{ dest.startPrice }}</span>
-                  </div>
-                  <div class="w-6 h-6 rounded-full bg-white/10 group-hover:bg-amber-500 group-hover:text-slate-950 flex items-center justify-center transition-colors shrink-0">
+                <!-- Action Footer -->
+                <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
+                  <span class="text-[11px] font-semibold text-[var(--brand-primary)]">Xem cơ sở lưu trú</span>
+                  <div class="w-6 h-6 rounded-full bg-slate-100 group-hover:bg-[var(--brand-primary)] group-hover:text-[var(--brand-primary-fg)] text-slate-600 flex items-center justify-center transition-colors shrink-0">
                     <i class="pi pi-arrow-right text-[10px]"></i>
                   </div>
                 </div>
@@ -180,7 +183,7 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
             <button
               type="button"
               (click)="toggleShowAll()"
-              class="inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider bg-white hover:bg-slate-50 text-slate-800 border border-slate-300/80 shadow-xs hover:shadow-md transition-all cursor-pointer"
+              class="min-h-11 inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl text-xs font-bold bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 shadow-2xs hover:shadow-sm transition-all cursor-pointer"
             >
               <span>{{ showAll() ? 'Thu Gọn Danh Sách' : 'Xem Thêm ' + (filteredDestinations().length - initialLimit) + ' Tỉnh Thành Khác' }}</span>
               <i class="pi" [class]="showAll() ? 'pi-chevron-up' : 'pi-chevron-down'"></i>
@@ -196,7 +199,7 @@ import { VIETNAM_34_PROVINCES, VietnamProvinceDestination, VietnamRegion } from 
           <button
             type="button"
             (click)="searchQuery.set('')"
-            class="mt-3 text-xs font-bold text-amber-600 hover:text-amber-700 underline cursor-pointer"
+            class="mt-3 text-xs font-semibold text-[var(--brand-primary)] hover:underline cursor-pointer"
           >
             Xem toàn bộ 34 tỉnh thành
           </button>
@@ -211,11 +214,17 @@ export class PopularDestinationsComponent {
   readonly allDestinations = VIETNAM_34_PROVINCES;
   readonly initialLimit = 12;
 
+  readonly totalCount = computed(() => this.allDestinations.length);
+  readonly northCount = computed(() => this.allDestinations.filter(d => d.region === 'north').length);
+  readonly centralCount = computed(() => this.allDestinations.filter(d => d.region === 'central').length);
+  readonly highlandsCount = computed(() => this.allDestinations.filter(d => d.region === 'highlands').length);
+  readonly southCount = computed(() => this.allDestinations.filter(d => d.region === 'south').length);
+
   readonly selectedRegion = signal<VietnamRegion>('all');
   readonly searchQuery = signal<string>('');
   readonly showAll = signal<boolean>(false);
 
-  readonly activeTabClass = 'bg-slate-900 text-white font-black shadow-sm';
+  readonly activeTabClass = 'bg-[var(--brand-primary)] text-[var(--brand-primary-fg)] font-semibold shadow-2xs';
   readonly inactiveTabClass = 'bg-slate-100 hover:bg-slate-200/80 text-slate-600 hover:text-slate-900';
 
   readonly filteredDestinations = computed(() => {
@@ -251,5 +260,12 @@ export class PopularDestinationsComponent {
 
   onSelect(destination: VietnamProvinceDestination): void {
     this.selectDestination.emit(destination.searchTerm);
+  }
+
+  onDestinationImageError(event: Event): void {
+    const img = event.target as HTMLImageElement | null;
+    if (img) {
+      img.style.display = 'none';
+    }
   }
 }

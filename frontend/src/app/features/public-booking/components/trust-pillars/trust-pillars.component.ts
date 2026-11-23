@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 interface TrustPillar {
@@ -14,17 +14,18 @@ interface TrustPillar {
   selector: 'app-trust-pillars',
   standalone: true,
   imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="mb-14" aria-label="Cam kết dịch vụ & Lý do chọn Hotel SaaS">
+    <section class="mb-14" aria-label="Nguyên tắc vận hành & Đặt phòng minh bạch">
       <div class="text-center max-w-2xl mx-auto mb-8">
         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold uppercase tracking-wider mb-2">
-          <i class="pi pi-shield"></i> Cam Kết Dịch Vụ Khách Hàng
+          <i class="pi pi-shield"></i> Vận Hành Minh Bạch
         </span>
-        <h2 class="font-serif text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-          An Tâm Đặt Phòng &amp; Tận Hưởng Kỳ Nghỉ Trọn Vẹn
+        <h2 class="font-display text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+          An Tâm Kiểm Tra Phòng Trống &amp; Báo Giá Trực Tiếp
         </h2>
         <p class="text-xs sm:text-sm text-slate-500 mt-1">
-          Nền tảng ứng dụng công nghệ khách sạn thông minh, bảo vệ quyền lợi tối đa cho khách lưu trú.
+          Dữ liệu phòng trống, thuế phí và chính sách hủy phòng được đồng bộ trực tiếp từ từng cơ sở lưu trú.
         </p>
       </div>
 
@@ -56,7 +57,7 @@ interface TrustPillar {
 
             <div class="mt-4 pt-3 border-t border-slate-100 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
               <i class="pi pi-check-circle text-xs"></i>
-              <span>Tiêu chuẩn hệ thống</span>
+              <span>Đồng bộ từ hệ thống PMS</span>
             </div>
           </div>
         }
@@ -67,36 +68,36 @@ interface TrustPillar {
 export class TrustPillarsComponent {
   readonly pillars: TrustPillar[] = [
     {
-      icon: 'pi pi-key',
+      icon: 'pi pi-clock',
       iconBg: 'bg-indigo-50',
       iconColor: 'text-indigo-600',
-      badge: 'Tự động 24/7',
-      title: 'Mở Khóa Thông Minh Smart Lock',
-      description: 'Nhận mật mã số PIN và mã QR mở khóa phòng tự động ngay sau khi đặt, vào phòng 24/7 mà không cần chờ lễ tân.'
+      badge: 'Giữ chỗ 15p',
+      title: 'Giữ Phòng Tạm Thời Theo Thời Gian Thực',
+      description: 'Giữ chỗ trong 15 phút (có thể gia hạn 1 lần thêm 5 phút) trong lúc bạn kiểm tra thông tin và hoàn tất đặt phòng.'
     },
     {
       icon: 'pi pi-verified',
       iconBg: 'bg-emerald-50',
       iconColor: 'text-emerald-600',
-      badge: 'Bảo chứng 100%',
-      title: 'Bảo Đảm Hoàn Tiền Rõ Ràng',
-      description: 'Hủy phòng miễn phí trước 24 giờ theo chính sách niêm yết. Hoàn tiền minh bạch, tự động về tài khoản ngân hàng.'
+      badge: 'Chính sách rõ',
+      title: 'Xem Trước Điều Kiện Hủy Phòng',
+      description: 'Hiển thị rõ mức phí hủy và số tiền dự kiến hoàn trả theo chính sách của cơ sở trước khi bạn xác nhận hủy.'
     },
     {
       icon: 'pi pi-wallet',
       iconBg: 'bg-amber-50',
       iconColor: 'text-amber-600',
-      badge: 'Minh bạch 100%',
-      title: 'Giá Cuối Cùng – Không Phí Ẩn',
-      description: 'Báo giá chính xác gồm thuế VAT và phí dịch vụ. Cam kết không phát sinh phụ thu bất ngờ khi nhận phòng tại quầy.'
+      badge: 'Quote Engine',
+      title: 'Báo Giá Theo Biểu Giá Cơ Sở',
+      description: 'Tính giá trực tiếp theo giờ, qua đêm hoặc theo ngày cùng thuế VAT và phí dịch vụ do từng cơ sở cấu hình.'
     },
     {
       icon: 'pi pi-sparkles',
       iconBg: 'bg-purple-50',
       iconColor: 'text-purple-600',
-      badge: 'Hỗ trợ 24/7',
-      title: 'Giữ Phòng Trong 30 Giây & AI',
-      description: 'Trợ lý AI tiếng Việt hỗ trợ tìm phòng và so sánh tiện nghi tức thì. Lịch trống được xác thực trực tiếp theo thời gian thực.'
+      badge: 'Trực tuyến',
+      title: 'Tra Cứu Mã Đặt Phòng & Trợ Lý AI',
+      description: 'Hỗ trợ tìm kiếm chỗ nghỉ theo khu vực, khoảng cách địa danh và tra cứu chi tiết đơn đặt phòng bằng mã bảo mật.'
     }
   ];
 }

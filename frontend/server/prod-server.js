@@ -1,5 +1,7 @@
 const http = require('node:http');
 const https = require('node:https');
+const net = require('node:net');
+const tls = require('node:tls');
 const fs = require('node:fs');
 const path = require('node:path');
 const { handleChat } = require('./ai-chat-handler.js');
@@ -130,8 +132,11 @@ const server = http.createServer((req, res) => {
     if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
       const ext = path.extname(filePath).toLowerCase();
       const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+      const isFingerprinted = /[.-][a-zA-Z0-9]{8,}\.(js|mjs|css|woff2?|ttf|eot)$/.test(path.basename(filePath));
       const cacheControl =
-        ext === '.html' ? 'no-cache, no-store, must-revalidate' : 'public, max-age=31536000, immutable';
+        ext === '.html'
+          ? 'no-cache, no-store, must-revalidate'
+          : (isFingerprinted ? 'public, max-age=31536000, immutable' : 'no-cache');
       res.writeHead(200, {
         'Content-Type': contentType,
         'Cache-Control': cacheControl
@@ -156,6 +161,117 @@ const server = http.createServer((req, res) => {
 
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
   res.end('<!doctype html><html><body><h1>Hotel SaaS Platform v2 is starting...</h1></body></html>');
+});
+
+function isProxyWebSocketPath(pathname) {
+  return pathname.startsWith('/hubs/') || pathname === '/hubs' || pathname.startsWith('/api/');
+}
+
+function writeHttpSocketErrorAndClose(socket, statusLine) {
+  if (!socket.destroyed && socket.writable) {
+    try {
+      socket.write(`${statusLine}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
+    } catch {
+      // Ignore write error on closing socket
+    }
+  }
+  if (!socket.destroyed) {
+    socket.destroy();
+  }
+}
+
+/**
+ * WebSocket upgrade proxy for /hubs/* (SignalR) and /api/* to BACKEND_TARGET
+ */
+server.on('upgrade', (req, socket, head) => {
+  const rawUrl = req.url || '/';
+  const pathname = rawUrl.split('?')[0];
+
+  if (!isProxyWebSocketPath(pathname)) {
+    writeHttpSocketErrorAndClose(socket, 'HTTP/1.1 404 Not Found');
+    return;
+  }
+
+  let targetUrl;
+  try {
+    targetUrl = new URL(rawUrl, BACKEND_TARGET);
+  } catch {
+    writeHttpSocketErrorAndClose(socket, 'HTTP/1.1 400 Bad Request');
+    return;
+  }
+
+  const isTls = targetUrl.protocol === 'https:';
+  const port = Number(targetUrl.port) || (isTls ? 443 : 80);
+  const hostname = targetUrl.hostname;
+  const requestPath = targetUrl.pathname + targetUrl.search;
+
+  const upstreamSocket = isTls
+    ? tls.connect({ host: hostname, port, servername: hostname })
+    : net.connect({ host: hostname, port });
+
+  socket.setNoDelay(true);
+  upstreamSocket.setNoDelay(true);
+
+  let connected = false;
+  let cleanedUp = false;
+
+  const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    if (!socket.destroyed) socket.destroy();
+    if (!upstreamSocket.destroyed) upstreamSocket.destroy();
+  };
+
+  upstreamSocket.on(isTls ? 'secureConnect' : 'connect', () => {
+    connected = true;
+    const headerLines = [`GET ${requestPath} HTTP/1.1`, `Host: ${targetUrl.host}`];
+    const raw = Array.isArray(req.rawHeaders) ? req.rawHeaders : [];
+    let hasUpgrade = false;
+    let hasConnection = false;
+
+    for (let i = 0; i < raw.length; i += 2) {
+      const name = String(raw[i] ?? '').replace(/[\r\n]+/g, '');
+      if (!name) continue;
+      const value = String(raw[i + 1] ?? '').replace(/[\r\n]+/g, ' ');
+      const lower = name.toLowerCase();
+      if (lower === 'host') continue;
+      if (lower === 'upgrade') hasUpgrade = true;
+      if (lower === 'connection') hasConnection = true;
+      headerLines.push(`${name}: ${value}`);
+    }
+
+    if (!hasUpgrade && req.headers.upgrade) {
+      headerLines.push(`Upgrade: ${String(req.headers.upgrade).replace(/[\r\n]+/g, ' ')}`);
+    }
+    if (!hasConnection && req.headers.connection) {
+      headerLines.push(`Connection: ${String(req.headers.connection).replace(/[\r\n]+/g, ' ')}`);
+    }
+
+    upstreamSocket.write(`${headerLines.join('\r\n')}\r\n\r\n`);
+    if (head && head.length > 0) {
+      upstreamSocket.write(head);
+    }
+
+    upstreamSocket.pipe(socket);
+    socket.pipe(upstreamSocket);
+  });
+
+  upstreamSocket.on('error', () => {
+    if (!connected) {
+      writeHttpSocketErrorAndClose(socket, 'HTTP/1.1 502 Bad Gateway');
+    }
+    cleanup();
+  });
+
+  socket.on('error', cleanup);
+  upstreamSocket.on('end', () => {
+    if (!socket.destroyed) socket.end();
+  });
+  socket.on('end', () => {
+    if (!upstreamSocket.destroyed) upstreamSocket.end();
+  });
+  upstreamSocket.on('close', cleanup);
+  socket.on('close', cleanup);
 });
 
 server.listen(PORT, HOST, () => {

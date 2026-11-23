@@ -172,7 +172,7 @@ public sealed class ApproveRefundCommandHandler : IRequestHandler<ApproveRefundC
                 TenantId = payment.TenantId,
                 PropertyId = payment.PropertyId,
                 UserId = userId,
-                Action = AuditActions.Update,
+                Action = AuditActions.ApproveRefund,
                 EntityName = nameof(Payment),
                 EntityId = payment.Id,
                 OldValues = JsonSerializer.Serialize(new { Status = "PendingApproval", TransactionRef = oldTxRef }, AuditJsonOptions),

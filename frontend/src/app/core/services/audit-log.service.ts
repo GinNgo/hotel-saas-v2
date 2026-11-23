@@ -4,11 +4,18 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ApiResponse, PagedResult } from '../models/api-response.model';
 import { AuditLogDetail, AuditLogFilterParams, AuditLogListItem } from '../models/audit-log.model';
+import { TokenStorageService } from './token-storage.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuditLogService {
   private readonly http = inject(HttpClient);
+  private readonly tokenStorage = inject(TokenStorageService);
   private readonly apiUrl = `${environment.apiUrl}/audit-logs`;
+  private readonly platformApiUrl = `${environment.apiUrl}/platform/audit-logs`;
+
+  private getEndpointUrl(): string {
+    return this.tokenStorage.getDecodedToken()?.globalRole === 'SuperAdmin' ? this.platformApiUrl : this.apiUrl;
+  }
 
   /**
    * Tra cứu danh sách nhật ký kiểm toán với bộ lọc và phân trang server-side.
@@ -16,11 +23,14 @@ export class AuditLogService {
   getAuditLogs(params: AuditLogFilterParams): Observable<ApiResponse<PagedResult<AuditLogListItem>>> {
     let httpParams = new HttpParams();
 
-    if (params.propertyId) {
-      httpParams = httpParams.set('propertyId', params.propertyId);
+    if (params.tenantId?.trim()) {
+      httpParams = httpParams.set('tenantId', params.tenantId.trim());
     }
-    if (params.userId) {
-      httpParams = httpParams.set('userId', params.userId);
+    if (params.propertyId?.trim()) {
+      httpParams = httpParams.set('propertyId', params.propertyId.trim());
+    }
+    if (params.userId?.trim()) {
+      httpParams = httpParams.set('userId', params.userId.trim());
     }
     if (params.action) {
       httpParams = httpParams.set('action', params.action);
@@ -30,6 +40,9 @@ export class AuditLogService {
     }
     if (params.entityId) {
       httpParams = httpParams.set('entityId', params.entityId);
+    }
+    if (params.search?.trim()) {
+      httpParams = httpParams.set('search', params.search.trim());
     }
     if (params.fromUtc) {
       httpParams = httpParams.set('fromUtc', params.fromUtc);
@@ -44,7 +57,7 @@ export class AuditLogService {
       httpParams = httpParams.set('pageSize', params.pageSize.toString());
     }
 
-    return this.http.get<ApiResponse<PagedResult<AuditLogListItem>>>(this.apiUrl, { params: httpParams });
+    return this.http.get<ApiResponse<PagedResult<AuditLogListItem>>>(this.getEndpointUrl(), { params: httpParams });
   }
 
   /**
@@ -55,7 +68,7 @@ export class AuditLogService {
     if (propertyId) {
       httpParams = httpParams.set('propertyId', propertyId);
     }
-    return this.http.get<ApiResponse<AuditLogDetail>>(`${this.apiUrl}/${id}`, { params: httpParams });
+    return this.http.get<ApiResponse<AuditLogDetail>>(`${this.getEndpointUrl()}/${id}`, { params: httpParams });
   }
 
   /**
@@ -66,8 +79,8 @@ export class AuditLogService {
     entityName: string;
     entityId: string;
     propertyId?: string | null;
-    oldValues?: any;
-    newValues?: any;
+    oldValues?: unknown;
+    newValues?: unknown;
   }): Observable<ApiResponse<string>> {
     return this.http.post<ApiResponse<string>>(`${this.apiUrl}/events`, event);
   }

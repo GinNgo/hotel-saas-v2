@@ -1,6 +1,9 @@
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
+  DestroyRef,
+  HostListener,
   OnInit,
   OnDestroy,
   computed,
@@ -12,6 +15,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePicker } from 'primeng/datepicker';
 import { A11yModule } from '@angular/cdk/a11y';
 
@@ -29,6 +33,7 @@ import {
 
 import { PaginationComponent } from '../../../../shared/components/pagination/pagination.component';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
+import { BusinessDateTimePipe, VndCurrencyPipe } from '../../../../shared';
 
 export interface ParsedTransactionRef {
   businessRef: string | null;
@@ -91,7 +96,9 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
     DatePicker,
     A11yModule,
     PaginationComponent,
-    EmptyStateComponent
+    EmptyStateComponent,
+    BusinessDateTimePipe,
+    VndCurrencyPipe
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -103,7 +110,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
       <div class="flex items-start justify-between">
         <div>
           <span class="text-xs font-medium uppercase tracking-wider text-slate-500">Tổng yêu cầu hoàn</span>
-          <div class="text-2xl font-bold text-slate-900 tracking-tight mt-1">
+          <div class="text-2xl font-bold text-slate-900 tracking-tight mt-1 tabular-nums">
             {{ totalCount() }}
             <span class="text-xs font-normal text-slate-500 ml-1">yêu cầu</span>
           </div>
@@ -113,7 +120,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
         </div>
       </div>
       <div class="text-xs text-slate-500 pt-3 mt-2 border-t border-slate-100 truncate">
-        Tổng giá trị: <span class="font-semibold text-slate-800 tabular-nums whitespace-nowrap">{{ totalRefundAmount() | number:'1.0-0' }} đ</span>
+        Tổng giá trị: <span class="font-semibold text-slate-800 tabular-nums whitespace-nowrap">{{ totalRefundAmount() | vndCurrency }}</span>
       </div>
     </div>
 
@@ -187,7 +194,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
           type="button"
           (click)="onFilterStatusChange('all')"
           [class]="statusFilter() === 'all' ? 'bg-slate-900 text-white font-medium shadow-2xs' : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/80'"
-          class="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer whitespace-nowrap"
+          class="min-h-11 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer whitespace-nowrap"
         >
           Tất cả
         </button>
@@ -195,11 +202,11 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
           type="button"
           (click)="onFilterStatusChange('PendingApproval')"
           [class]="statusFilter() === 'PendingApproval' ? 'bg-amber-600 text-white font-medium shadow-2xs' : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/80'"
-          class="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5"
+          class="min-h-11 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5"
         >
           <span>Chờ phê duyệt</span>
           @if (totalPendingCount() > 0) {
-            <span class="px-1.5 py-0.2 rounded-full text-[10px] font-bold" [class]="statusFilter() === 'PendingApproval' ? 'bg-white text-amber-700' : 'bg-amber-200/80 text-amber-900'">
+            <span class="px-1.5 py-0.2 rounded-full text-[10px] font-bold tabular-nums" [class]="statusFilter() === 'PendingApproval' ? 'bg-white text-amber-700' : 'bg-amber-200/80 text-amber-900'">
               {{ totalPendingCount() }}
             </span>
           }
@@ -208,7 +215,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
           type="button"
           (click)="onFilterStatusChange('Approved')"
           [class]="statusFilter() === 'Approved' ? 'bg-sky-600 text-white font-medium shadow-2xs' : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/80'"
-          class="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer whitespace-nowrap"
+          class="min-h-11 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer whitespace-nowrap"
         >
           Đã duyệt (Chờ chi trả)
         </button>
@@ -216,7 +223,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
           type="button"
           (click)="onFilterStatusChange('Completed')"
           [class]="statusFilter() === 'Completed' ? 'bg-emerald-600 text-white font-medium shadow-2xs' : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/80'"
-          class="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer whitespace-nowrap"
+          class="min-h-11 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer whitespace-nowrap"
         >
           Đã hoàn tất
         </button>
@@ -224,7 +231,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
           type="button"
           (click)="onFilterStatusChange('Rejected')"
           [class]="statusFilter() === 'Rejected' ? 'bg-rose-600 text-white font-medium shadow-2xs' : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/80'"
-          class="px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer whitespace-nowrap"
+          class="min-h-11 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer whitespace-nowrap"
         >
           Đã từ chối
         </button>
@@ -236,7 +243,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
         (click)="loadRefundRequests()"
         [disabled]="isLoading()"
         title="Làm mới danh sách"
-        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap"
+        class="inline-flex items-center gap-1.5 min-h-11 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap"
       >
         <i class="pi pi-refresh text-xs" [class.animate-spin]="isLoading()"></i>
         <span>Làm mới</span>
@@ -257,13 +264,14 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
             (ngModelChange)="onSearchChange($event)"
             (keyup.enter)="onSearchSubmit()"
             placeholder="Nhập mã booking hoặc tên khách để tìm kiếm..."
-            class="w-full h-10 pl-9 pr-8 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 shadow-2xs transition-colors"
+            class="w-full min-h-11 pl-9 pr-12 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 shadow-2xs transition-colors"
           />
           @if (searchTerm) {
             <button
               type="button"
               (click)="searchTerm = ''; onSearchSubmit()"
-              class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+              aria-label="Xóa từ khóa tìm kiếm hoàn tiền"
+              class="absolute right-0.5 top-1/2 -translate-y-1/2 min-h-11 min-w-11 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded cursor-pointer"
               title="Xóa nhanh từ khóa"
             >
               <i class="pi pi-times text-xs"></i>
@@ -282,6 +290,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
           dateFormat="dd/mm/yy"
           [showIcon]="true"
           iconDisplay="input"
+          [touchUI]="isMobile()"
           appendTo="body"
           [firstDayOfWeek]="1"
           placeholder="dd/mm/yyyy"
@@ -301,6 +310,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
           dateFormat="dd/mm/yy"
           [showIcon]="true"
           iconDisplay="input"
+          [touchUI]="isMobile()"
           appendTo="body"
           [firstDayOfWeek]="1"
           placeholder="dd/mm/yyyy"
@@ -311,12 +321,13 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
       </div>
 
       <!-- Reset Button -->
-      <div class="lg:col-span-1 flex items-center h-10">
+      <div class="lg:col-span-1 flex items-center min-h-11">
         <button
           type="button"
           (click)="resetFilters()"
+          aria-label="Đặt lại bộ lọc hoàn tiền"
           title="Đặt lại bộ lọc"
-          class="w-full sm:w-10 h-10 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+          class="w-full sm:w-11 min-h-11 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
         >
           <i class="pi pi-times text-xs"></i>
           <span class="sm:hidden text-xs font-medium">Đặt lại lọc</span>
@@ -368,7 +379,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
           </span>
         </div>
         <div class="absolute top-0 inset-x-0 h-1 bg-sky-100 overflow-hidden z-40">
-          <div class="h-full bg-sky-600 animate-pulse w-full"></div>
+          <div class="h-full bg-sky-600 animate-pulse motion-reduce:animate-none w-full"></div>
         </div>
       }
       <!-- Desktop Table (Visible on md and up) -->
@@ -402,28 +413,28 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
                   <div class="font-medium text-slate-800">{{ item.propertyName }}</div>
                   <div class="text-[11px] text-slate-500 mt-0.5 tabular-nums flex items-center gap-1">
                     <i class="pi pi-calendar text-[10px] text-slate-400"></i>
-                    <span>{{ item.createdAtUtc | date:'dd/MM/yyyy HH:mm' }}</span>
+                    <span>{{ item.createdAtUtc | businessDateTime }}</span>
                   </div>
                 </td>
 
                 <!-- 3. Paid & Total Amount -->
                 <td class="py-3.5 px-4 text-right">
                   <div class="font-medium text-slate-800 tabular-nums whitespace-nowrap">
-                    {{ item.paidAmount | number:'1.0-0' }} đ
+                    {{ item.paidAmount | vndCurrency }}
                   </div>
                   <div class="text-[11px] text-slate-400 mt-0.5 tabular-nums whitespace-nowrap">
-                    Tổng: {{ item.totalAmount | number:'1.0-0' }} đ
+                    Tổng: {{ item.totalAmount | vndCurrency }}
                   </div>
                 </td>
 
                 <!-- 4. Cancellation Fee -->
                 <td class="py-3.5 px-4 text-right font-medium text-rose-600 tabular-nums whitespace-nowrap">
-                  {{ item.cancellationFee | number:'1.0-0' }} đ
+                  {{ item.cancellationFee | vndCurrency }}
                 </td>
 
                 <!-- 5. Refundable Amount (Prominent) -->
                 <td class="py-3.5 px-4 text-right font-bold text-emerald-700 text-sm tabular-nums whitespace-nowrap">
-                  {{ item.refundableAmount | number:'1.0-0' }} đ
+                  {{ item.refundableAmount | vndCurrency }}
                 </td>
 
                 <!-- 6. Status Badge -->
@@ -445,7 +456,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
                     <button
                       type="button"
                       (click)="openDetail(item)"
-                      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 transition-colors shadow-2xs whitespace-nowrap cursor-pointer"
+                      class="inline-flex items-center gap-1.5 min-h-11 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 transition-colors shadow-2xs whitespace-nowrap cursor-pointer"
                     >
                       <i class="pi pi-check-square text-xs"></i>
                       <span>Xét duyệt</span>
@@ -454,7 +465,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
                     <button
                       type="button"
                       (click)="openDetail(item)"
-                      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 transition-colors shadow-2xs whitespace-nowrap cursor-pointer"
+                      class="inline-flex items-center gap-1.5 min-h-11 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 transition-colors shadow-2xs whitespace-nowrap cursor-pointer"
                     >
                       <i class="pi pi-eye text-xs text-slate-500"></i>
                       <span>Chi tiết</span>
@@ -497,28 +508,28 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
             <div class="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200/70 text-xs">
               <div>
                 <span class="text-[11px] text-slate-400 block">Đã thanh toán:</span>
-                <span class="font-semibold text-slate-700 tabular-nums whitespace-nowrap">{{ item.paidAmount | number:'1.0-0' }} đ</span>
+                <span class="font-semibold text-slate-700 tabular-nums whitespace-nowrap">{{ item.paidAmount | vndCurrency }}</span>
               </div>
               <div>
                 <span class="text-[11px] text-slate-400 block">Phí hủy:</span>
-                <span class="font-semibold text-rose-600 tabular-nums whitespace-nowrap">{{ item.cancellationFee | number:'1.0-0' }} đ</span>
+                <span class="font-semibold text-rose-600 tabular-nums whitespace-nowrap">{{ item.cancellationFee | vndCurrency }}</span>
               </div>
               <div class="col-span-2 pt-1.5 border-t border-slate-200/60 flex items-center justify-between">
                 <span class="font-bold text-slate-700">Được hoàn:</span>
-                <span class="font-bold text-emerald-700 text-sm tabular-nums whitespace-nowrap">{{ item.refundableAmount | number:'1.0-0' }} đ</span>
+                <span class="font-bold text-emerald-700 text-sm tabular-nums whitespace-nowrap">{{ item.refundableAmount | vndCurrency }}</span>
               </div>
             </div>
 
             <!-- Card Footer: Date & Action Button -->
             <div class="flex items-center justify-between pt-1">
               <span class="text-xs text-slate-400 tabular-nums">
-                {{ item.createdAtUtc | date:'dd/MM/yyyy HH:mm' }}
+                {{ item.createdAtUtc | businessDateTime }}
               </span>
               @if (item.status === 'PendingApproval' && canApproveRefund()) {
                 <button
                   type="button"
                   (click)="openDetail(item)"
-                  class="min-h-[36px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 transition-colors shadow-2xs cursor-pointer"
+                  class="min-h-11 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 transition-colors shadow-2xs cursor-pointer"
                 >
                   <i class="pi pi-check-square text-xs"></i>
                   <span>Xét duyệt</span>
@@ -527,7 +538,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
                 <button
                   type="button"
                   (click)="openDetail(item)"
-                  class="min-h-[36px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 transition-colors shadow-2xs cursor-pointer"
+                  class="min-h-11 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 transition-colors shadow-2xs cursor-pointer"
                 >
                   <i class="pi pi-eye text-xs text-slate-500"></i>
                   <span>Xem chi tiết</span>
@@ -597,8 +608,9 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
         <button
           type="button"
           (click)="closeDetail()"
+          aria-label="Đóng chi tiết yêu cầu hoàn tiền"
           title="Đóng hộp thoại (ESC)"
-          class="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+          class="min-h-11 min-w-11 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
         >
           <i class="pi pi-times text-base"></i>
         </button>
@@ -607,7 +619,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
       <!-- B. Modal Body (Scrollable Independently) -->
       <div class="p-6 overflow-y-auto space-y-6">
         @if (isLoadingDetail()) {
-          <div class="space-y-4 py-8 animate-pulse">
+          <div class="space-y-4 py-8 animate-pulse motion-reduce:animate-none">
             <div class="h-6 bg-slate-100 rounded-lg w-1/3"></div>
             <div class="h-20 bg-slate-100/70 rounded-xl"></div>
             <div class="h-28 bg-slate-100/70 rounded-xl"></div>
@@ -688,7 +700,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
                   } @else if (detail.status === 'Rejected') {
                     Lý do: {{ detail.rejectionReason || 'Không đủ điều kiện' }}
                   } @else {
-                    Hạn mức hoàn: {{ detail.refundableAmount | number:'1.0-0' }} đ
+                    Hạn mức hoàn: {{ detail.refundableAmount | vndCurrency }}
                   }
                 </div>
                 <div class="text-[10px] text-slate-400 pt-0.5 flex items-center gap-1">
@@ -805,14 +817,14 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
               <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
                 <span class="text-slate-500 block text-[11px] font-medium">Tổng giá trị booking</span>
                 <span class="text-slate-800 font-bold text-sm tabular-nums whitespace-nowrap mt-0.5 block">
-                  {{ detail.totalAmount | number:'1.0-0' }} đ
+                  {{ detail.totalAmount | vndCurrency }}
                 </span>
               </div>
 
               <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
                 <span class="text-slate-500 block text-[11px] font-medium">Đã thanh toán</span>
                 <span class="text-slate-800 font-bold text-sm tabular-nums whitespace-nowrap mt-0.5 block">
-                  {{ detail.paidAmount | number:'1.0-0' }} đ
+                  {{ detail.paidAmount | vndCurrency }}
                 </span>
               </div>
 
@@ -824,14 +836,14 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
                 <span class="font-bold text-sm tabular-nums whitespace-nowrap mt-0.5 block"
                       [class.text-rose-600]="detail.cancellationFee > 0"
                       [class.text-slate-800]="detail.cancellationFee === 0">
-                  {{ detail.cancellationFee | number:'1.0-0' }} đ
+                  {{ detail.cancellationFee | vndCurrency }}
                 </span>
               </div>
 
               <div class="p-3 rounded-xl bg-emerald-50/70 border border-emerald-300 shadow-2xs">
                 <span class="text-emerald-800 block text-[11px] font-bold uppercase tracking-wide">Số tiền được hoàn</span>
                 <span class="text-emerald-700 font-extrabold text-base tabular-nums whitespace-nowrap mt-0.5 block">
-                  {{ detail.refundableAmount | number:'1.0-0' }} đ
+                  {{ detail.refundableAmount | vndCurrency }}
                 </span>
               </div>
             </div>
@@ -932,7 +944,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
                           }
                         </td>
                         <td class="py-2.5 px-3 text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
-                          {{ p.amount | number:'1.0-0' }} đ
+                          {{ p.amount | vndCurrency }}
                         </td>
                         <td class="py-2.5 px-3">
                           <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
@@ -1034,7 +1046,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
             <button
               type="button"
               (click)="closeDetail()"
-              class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 transition-colors shadow-2xs cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+              class="min-h-11 px-4 py-2 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 transition-colors shadow-2xs cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
             >
               Đóng
             </button>
@@ -1047,7 +1059,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
                   type="button"
                   (click)="promptReject()"
                   [disabled]="isSubmitting()"
-                  class="px-4 py-2 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 transition-colors shadow-2xs disabled:opacity-50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+                  class="min-h-11 px-4 py-2 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 transition-colors shadow-2xs disabled:opacity-50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
                 >
                   <i class="pi pi-times mr-1"></i>
                   <span>Từ chối</span>
@@ -1057,7 +1069,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
                   type="button"
                   (click)="promptApprove()"
                   [disabled]="isSubmitting()"
-                  class="px-4 py-2 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-2xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                  class="min-h-11 px-4 py-2 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-2xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                 >
                   <i class="pi pi-check text-xs"></i>
                   <span>Phê duyệt yêu cầu</span>
@@ -1070,7 +1082,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
                   type="button"
                   (click)="promptConfirmPayout()"
                   [disabled]="isSubmitting()"
-                  class="px-4 py-2 rounded-lg text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 transition-colors shadow-2xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                  class="min-h-11 px-4 py-2 rounded-lg text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 transition-colors shadow-2xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
                 >
                   <i class="pi pi-wallet text-xs"></i>
                   <span>Xác nhận chi trả</span>
@@ -1095,7 +1107,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
     aria-label="Xác nhận thao tác hoàn tiền"
     cdkTrapFocus
     [cdkTrapFocusAutoCapture]="true"
-    (keydown.escape)="closeActionModal()"
+    (keydown.escape)="$event.stopPropagation(); closeActionModal()"
     (click)="closeActionModal()"
   >
     <div
@@ -1135,7 +1147,8 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
         <button
           type="button"
           (click)="closeActionModal()"
-          class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+          aria-label="Đóng hộp thoại xác nhận hoàn tiền"
+          class="min-h-11 min-w-11 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
         >
           <i class="pi pi-times text-sm"></i>
         </button>
@@ -1154,7 +1167,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
           </div>
           <div class="flex justify-between pt-1 border-t border-slate-200/60">
             <span class="font-bold text-slate-700">Số tiền được hoàn:</span>
-            <strong class="font-bold text-emerald-700 text-sm tabular-nums whitespace-nowrap">{{ detail.refundableAmount | number:'1.0-0' }} đ</strong>
+            <strong class="font-bold text-emerald-700 text-sm tabular-nums whitespace-nowrap">{{ detail.refundableAmount | vndCurrency }}</strong>
           </div>
         </div>
       }
@@ -1204,7 +1217,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
                 type="button"
                 (click)="payoutMethod = PaymentMethod.BankTransfer"
                 [class]="payoutMethod === PaymentMethod.BankTransfer ? 'border-sky-500 bg-sky-50 text-sky-900 font-bold ring-1 ring-sky-500' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
-                class="p-2.5 rounded-lg border text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                class="min-h-11 p-2.5 rounded-lg border text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
                 <i class="pi pi-building-columns text-sm text-sky-600"></i>
                 <span>Chuyển khoản (BankTransfer)</span>
@@ -1213,7 +1226,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
                 type="button"
                 (click)="payoutMethod = PaymentMethod.Cash"
                 [class]="payoutMethod === PaymentMethod.Cash ? 'border-emerald-500 bg-emerald-50 text-emerald-900 font-bold ring-1 ring-emerald-500' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
-                class="p-2.5 rounded-lg border text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                class="min-h-11 p-2.5 rounded-lg border text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
                 <i class="pi pi-wallet text-sm text-emerald-600"></i>
                 <span>Tiền mặt (Cash)</span>
@@ -1266,7 +1279,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
           type="button"
           (click)="closeActionModal()"
           [disabled]="isSubmitting()"
-          class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
+          class="min-h-11 px-4 py-2 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
         >
           Hủy bỏ
         </button>
@@ -1280,7 +1293,7 @@ export function cleanBankTransactionRef(raw: string | null | undefined): string 
             'bg-rose-600 hover:bg-rose-700 text-white': actionModalType() === 'reject',
             'bg-sky-600 hover:bg-sky-700 text-white': actionModalType() === 'confirmPayout'
           }"
-          class="px-4 py-2 rounded-lg text-xs font-bold transition-colors shadow-2xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+          class="min-h-11 px-4 py-2 rounded-lg text-xs font-bold transition-colors shadow-2xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
         >
           @if (isSubmitting()) {
             <i class="pi pi-spin pi-spinner text-xs"></i>
@@ -1308,6 +1321,11 @@ export class RefundApprovalComponent implements OnInit, OnDestroy {
   private readonly paymentService = inject(PaymentService);
   private readonly authService = inject(AuthService);
   private readonly alertService = inject(AlertService);
+  private readonly cdr = inject(ChangeDetectorRef, { optional: true });
+
+  private fallbackDestroyCallbacks: Array<() => void> = [];
+  private isFallbackDestroyed = false;
+  private readonly destroyRef = inject(DestroyRef, { optional: true }) ?? this.createFallbackDestroyRef();
 
   private searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingAutoOpenCode: string | null = null;
@@ -1317,7 +1335,15 @@ export class RefundApprovalComponent implements OnInit, OnDestroy {
   readonly autoOpenTrigger = input<number>(0);
 
   // Context Signals
+  readonly isMobile = signal<boolean>(typeof window !== 'undefined' && window.innerWidth < 768);
   readonly activePropertyId = computed(() => this.authService.activePropertyId());
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    if (typeof window !== 'undefined') {
+      this.isMobile.set(window.innerWidth < 768);
+    }
+  }
   readonly activePropertyName = computed(() => this.authService.activePropertyName());
 
   // RBAC Permission: PAYMENTS:Approve is bit 16 per Decision D23
@@ -1406,6 +1432,35 @@ export class RefundApprovalComponent implements OnInit, OnDestroy {
     if (this.searchDebounceTimer) {
       clearTimeout(this.searchDebounceTimer);
     }
+    this.isFallbackDestroyed = true;
+    const callbacks = this.fallbackDestroyCallbacks.splice(0);
+    callbacks.forEach(cb => cb());
+  }
+
+  private createFallbackDestroyRef(): DestroyRef {
+    const comp = this;
+    return {
+      get destroyed(): boolean {
+        return comp.isFallbackDestroyed;
+      },
+      onDestroy: (callback: () => void) => {
+        comp.fallbackDestroyCallbacks.push(callback);
+        return () => {
+          comp.fallbackDestroyCallbacks = comp.fallbackDestroyCallbacks.filter(cb => cb !== callback);
+        };
+      }
+    };
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscapeKey(): void {
+    if (this.isActionModalOpen()) {
+      this.closeActionModal();
+      return;
+    }
+    if (this.isDetailOpen()) {
+      this.closeDetail();
+    }
   }
 
   loadRefundRequests(): void {
@@ -1429,32 +1484,37 @@ export class RefundApprovalComponent implements OnInit, OnDestroy {
       pageSize: this.pageSize
     };
 
-    this.paymentService.getRefundRequests(filter).subscribe({
-      next: (res) => {
-        const loadedItems = res.items || [];
-        this.items.set(loadedItems);
-        this.totalCount.set(res.totalCount || 0);
-        this.isLoading.set(false);
+    this.paymentService
+      .getRefundRequests(filter)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          const loadedItems = res.items || [];
+          this.items.set(loadedItems);
+          this.totalCount.set(res.totalCount || 0);
+          this.isLoading.set(false);
 
-        if (this.pendingAutoOpenCode) {
-          const target = this.pendingAutoOpenCode.toUpperCase();
-          this.pendingAutoOpenCode = null;
-          const match =
-            loadedItems.find(i => i.confirmationCode?.toUpperCase() === target) ||
-            loadedItems.find(i => i.reservationId?.toUpperCase() === target) ||
-            (loadedItems.length === 1 ? loadedItems[0] : undefined);
-          if (match) {
-            this.openDetail(match);
+          if (this.pendingAutoOpenCode) {
+            const target = this.pendingAutoOpenCode.toUpperCase();
+            this.pendingAutoOpenCode = null;
+            const match =
+              loadedItems.find(i => i.confirmationCode?.toUpperCase() === target) ||
+              loadedItems.find(i => i.reservationId?.toUpperCase() === target) ||
+              (loadedItems.length === 1 ? loadedItems[0] : undefined);
+            if (match) {
+              this.openDetail(match);
+            }
           }
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          this.isLoading.set(false);
+          const msg = err?.error?.detail || err?.error?.message || 'Không thể tải danh sách yêu cầu hoàn tiền.';
+          this.errorMessage.set(msg);
+          this.alertService.toastError(msg);
+          this.cdr?.markForCheck();
         }
-      },
-      error: (err) => {
-        this.isLoading.set(false);
-        const msg = err?.error?.detail || err?.error?.message || 'Không thể tải danh sách yêu cầu hoàn tiền.';
-        this.errorMessage.set(msg);
-        this.alertService.toastError(msg);
-      }
-    });
+      });
   }
 
   onFilterStatusChange(status: string): void {
@@ -1522,17 +1582,22 @@ export class RefundApprovalComponent implements OnInit, OnDestroy {
     this.isLoadingDetail.set(true);
     this.isDetailOpen.set(true);
 
-    this.paymentService.getRefundRequestDetail(item.paymentId, propId).subscribe({
-      next: (detail) => {
-        this.selectedDetail.set(detail);
-        this.isLoadingDetail.set(false);
-      },
-      error: (err) => {
-        this.isLoadingDetail.set(false);
-        const msg = err?.error?.detail || err?.error?.message || 'Không thể tải chi tiết yêu cầu hoàn tiền.';
-        this.alertService.toastError(msg);
-      }
-    });
+    this.paymentService
+      .getRefundRequestDetail(item.paymentId, propId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (detail) => {
+          this.selectedDetail.set(detail);
+          this.isLoadingDetail.set(false);
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          this.isLoadingDetail.set(false);
+          const msg = err?.error?.detail || err?.error?.message || 'Không thể tải chi tiết yêu cầu hoàn tiền.';
+          this.alertService.toastError(msg);
+          this.cdr?.markForCheck();
+        }
+      });
   }
 
   closeDetail(): void {
@@ -1576,19 +1641,24 @@ export class RefundApprovalComponent implements OnInit, OnDestroy {
 
     if (modalType === 'approve') {
       this.isSubmitting.set(true);
-      this.paymentService.approveRefund(detail.paymentId, propId, this.actionNotes.trim() || undefined).subscribe({
-        next: () => {
-          this.isSubmitting.set(false);
-          this.closeActionModal();
-          this.alertService.toastSuccess('Yêu cầu hoàn tiền đã được phê duyệt thành công.');
-          this.refreshCurrentDetailAndList();
-        },
-        error: (err) => {
-          this.isSubmitting.set(false);
-          const msg = err?.error?.detail || err?.error?.message || 'Lỗi khi phê duyệt hoàn tiền.';
-          this.alertService.toastError(msg);
-        }
-      });
+      this.paymentService
+        .approveRefund(detail.paymentId, propId, this.actionNotes.trim() || undefined)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => {
+            this.isSubmitting.set(false);
+            this.closeActionModal();
+            this.alertService.toastSuccess('Yêu cầu hoàn tiền đã được phê duyệt thành công.');
+            this.refreshCurrentDetailAndList();
+            this.cdr?.markForCheck();
+          },
+          error: (err) => {
+            this.isSubmitting.set(false);
+            const msg = err?.error?.detail || err?.error?.message || 'Lỗi khi phê duyệt hoàn tiền.';
+            this.alertService.toastError(msg);
+            this.cdr?.markForCheck();
+          }
+        });
     } else if (modalType === 'reject') {
       const reason = this.rejectionReason.trim();
       if (!reason) {
@@ -1597,19 +1667,24 @@ export class RefundApprovalComponent implements OnInit, OnDestroy {
       }
 
       this.isSubmitting.set(true);
-      this.paymentService.rejectRefund(detail.paymentId, propId, reason).subscribe({
-        next: () => {
-          this.isSubmitting.set(false);
-          this.closeActionModal();
-          this.alertService.toastSuccess('Đã từ chối yêu cầu hoàn tiền thành công.');
-          this.refreshCurrentDetailAndList();
-        },
-        error: (err) => {
-          this.isSubmitting.set(false);
-          const msg = err?.error?.detail || err?.error?.message || 'Lỗi khi từ chối hoàn tiền.';
-          this.alertService.toastError(msg);
-        }
-      });
+      this.paymentService
+        .rejectRefund(detail.paymentId, propId, reason)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => {
+            this.isSubmitting.set(false);
+            this.closeActionModal();
+            this.alertService.toastSuccess('Đã từ chối yêu cầu hoàn tiền thành công.');
+            this.refreshCurrentDetailAndList();
+            this.cdr?.markForCheck();
+          },
+          error: (err) => {
+            this.isSubmitting.set(false);
+            const msg = err?.error?.detail || err?.error?.message || 'Lỗi khi từ chối hoàn tiền.';
+            this.alertService.toastError(msg);
+            this.cdr?.markForCheck();
+          }
+        });
     } else if (modalType === 'confirmPayout') {
       const bankRef = this.bankTransactionRef.trim();
       if (!bankRef) {
@@ -1627,19 +1702,24 @@ export class RefundApprovalComponent implements OnInit, OnDestroy {
       };
 
       this.isSubmitting.set(true);
-      this.paymentService.confirmRefundPayout(detail.paymentId, propId, req).subscribe({
-        next: () => {
-          this.isSubmitting.set(false);
-          this.closeActionModal();
-          this.alertService.toastSuccess('Đã xác nhận chi trả hoàn tiền thành công.');
-          this.refreshCurrentDetailAndList();
-        },
-        error: (err) => {
-          this.isSubmitting.set(false);
-          const msg = err?.error?.detail || err?.error?.message || 'Lỗi khi xác nhận chi trả.';
-          this.alertService.toastError(msg);
-        }
-      });
+      this.paymentService
+        .confirmRefundPayout(detail.paymentId, propId, req)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => {
+            this.isSubmitting.set(false);
+            this.closeActionModal();
+            this.alertService.toastSuccess('Đã xác nhận chi trả hoàn tiền thành công.');
+            this.refreshCurrentDetailAndList();
+            this.cdr?.markForCheck();
+          },
+          error: (err) => {
+            this.isSubmitting.set(false);
+            const msg = err?.error?.detail || err?.error?.message || 'Lỗi khi xác nhận chi trả.';
+            this.alertService.toastError(msg);
+            this.cdr?.markForCheck();
+          }
+        });
     }
   }
 
@@ -1647,10 +1727,16 @@ export class RefundApprovalComponent implements OnInit, OnDestroy {
     const detail = this.selectedDetail();
     const propId = this.activePropertyId();
     if (detail && propId) {
-      this.paymentService.getRefundRequestDetail(detail.paymentId, propId).subscribe({
-        next: (updatedDetail) => this.selectedDetail.set(updatedDetail),
-        error: () => {}
-      });
+      this.paymentService
+        .getRefundRequestDetail(detail.paymentId, propId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (updatedDetail) => {
+            this.selectedDetail.set(updatedDetail);
+            this.cdr?.markForCheck();
+          },
+          error: () => {}
+        });
     }
     this.loadRefundRequests();
   }

@@ -15,5 +15,6 @@ public sealed record CalculateQuoteQuery(
     DateTime StartAtUtc,
     DateTime EndAtUtc,
     DateOnly? CheckInDate = null,
-    DateOnly? CheckOutDate = null
+    DateOnly? CheckOutDate = null,
+    string? PromoCode = null
 ) : IRequest<QuoteDto>;

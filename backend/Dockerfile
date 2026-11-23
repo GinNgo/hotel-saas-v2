@@ -3,7 +3,7 @@
 # Multi-stage Enterprise Dockerfile
 # ═══════════════════════════════════════════════════════════════
 
-ARG DOTNET_VERSION=10.0-preview
+ARG DOTNET_VERSION=10.0
 
 # ── Stage 1: Dependency Restore & Build ──
 FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION} AS build
@@ -30,6 +30,11 @@ RUN dotnet publish -c Release -o /app/publish --no-restore
 FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET_VERSION} AS runtime
 WORKDIR /app
 
+# Install curl for container healthchecks (minimal aspnet image ships without curl/wget)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # Configure default container environment
 ENV ASPNETCORE_URLS=http://+:5000 \
     ASPNETCORE_ENVIRONMENT=Production \
@@ -48,6 +53,6 @@ EXPOSE 5000
 
 # Container healthcheck against lightweight /health endpoint
 HEALTHCHECK --interval=20s --timeout=4s --retries=3 --start-period=10s \
-  CMD wget -qO- http://localhost:5000/health || exit 1
+  CMD curl -fsS http://localhost:5000/health || exit 1
 
 ENTRYPOINT ["dotnet", "HotelSaas.WebApi.dll"]

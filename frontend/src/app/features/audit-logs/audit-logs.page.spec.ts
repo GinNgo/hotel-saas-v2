@@ -23,6 +23,7 @@ import { AuditLogsPage } from './audit-logs.page';
 import { AuditLogService } from '../../core/services/audit-log.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
+import { PropertyManagementService } from '../../core/services/property-management.service';
 import { AuditLogDetail, AuditLogListItem } from '../../core/models/audit-log.model';
 
 try {
@@ -127,6 +128,7 @@ describe('AuditLogsPage — T03-C UI Tests', () => {
         tenantId: '11111111-1111-1111-1111-111111111111'
       },
       activePropertyId: vi.fn().mockReturnValue('22222222-2222-2222-2222-222222222222'),
+      activePropertyCode: vi.fn().mockReturnValue('DL-01'),
       activeRoleName: vi.fn().mockReturnValue('Owner'),
       memberships: [
         {
@@ -140,7 +142,9 @@ describe('AuditLogsPage — T03-C UI Tests', () => {
 
     mockAlertService = {
       error: vi.fn(),
-      success: vi.fn()
+      success: vi.fn(),
+      toastSuccess: vi.fn(),
+      toastWarning: vi.fn()
     };
 
     mockRouter = {
@@ -341,6 +345,283 @@ describe('AuditLogsPage — T03-C UI Tests', () => {
 
     expect(component.isDetailModalOpen()).toBe(false);
     expect(component.selectedDetail()).toBe(null);
+  });
+
+  it('15. should paginate CSV export in chunks of pageSize 100 until hasNextPage is false without exceeding backend limit', () => {
+    const createObjectURL = vi.fn().mockReturnValue('blob:mock-csv');
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, configurable: true, writable: true });
+    Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectURL, configurable: true, writable: true });
+
+    const page1Items = Array.from({ length: 100 }, (_, i) => ({
+      ...sampleItems[0],
+      id: `p1-${i}`
+    }));
+    const page2Items = Array.from({ length: 25 }, (_, i) => ({
+      ...sampleItems[1],
+      id: `p2-${i}`
+    }));
+
+    component.auditLogs.set(sampleItems);
+    component.totalRecords.set(125);
+    mockAuditLogService.getAuditLogs.mockReset();
+    mockAuditLogService.getAuditLogs
+      .mockReturnValueOnce(of({
+        success: true,
+        data: { items: page1Items, totalCount: 125, page: 1, pageSize: 100, totalPages: 2, hasPreviousPage: false, hasNextPage: true },
+        message: null,
+        timestamp: new Date().toISOString()
+      }))
+      .mockReturnValueOnce(of({
+        success: true,
+        data: { items: page2Items, totalCount: 125, page: 2, pageSize: 100, totalPages: 2, hasPreviousPage: true, hasNextPage: false },
+        message: null,
+        timestamp: new Date().toISOString()
+      }));
+
+    component.exportToCsv();
+
+    expect(mockAuditLogService.getAuditLogs).toHaveBeenCalledTimes(2);
+    expect(mockAuditLogService.getAuditLogs).toHaveBeenNthCalledWith(1, expect.objectContaining({ page: 1, pageSize: 100 }));
+    expect(mockAuditLogService.getAuditLogs).toHaveBeenNthCalledWith(2, expect.objectContaining({ page: 2, pageSize: 100 }));
+    expect(component.exporting()).toBe(false);
+    expect(mockAlertService.toastSuccess).toHaveBeenCalledWith(expect.stringContaining('125 bản ghi'));
+  });
+
+  it('16. should display Vietnamese labels for platform audit entities (TenantStatus, PropertyPublishApproval, SubscriptionUpgrade, GuestReview)', () => {
+    expect(component.getEntityDisplayLabel('TenantStatus')).toBe('Trạng thái thuê bao');
+    expect(component.getEntityDisplayLabel('PropertyPublishApproval')).toBe('Duyệt xuất bản cơ sở');
+    expect(component.getEntityDisplayLabel('SubscriptionUpgrade')).toBe('Nâng cấp gói cước');
+    expect(component.getEntityDisplayLabel('GuestReview')).toBe('Đánh giá khách lưu trú');
+    expect(component.getEntityDisplayLabel('SepayExpiredHoldAlert')).toBe('Cảnh báo chuyển khoản quá hạn SePay');
+    expect(component.getEntityDisplayLabel('SepayBankAccountConfigWarning')).toBe('Cảnh báo chưa cấu hình STK SePay');
+  });
+
+  it('17. should expose all 18 canonical actions (including LoginFailed) with clean Vietnamese labels and unlock GuestReview for Owners', () => {
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const actionOptionEls = Array.from(el.querySelectorAll('#filter-action option')) as HTMLOptionElement[];
+    const actionOptions = actionOptionEls.map(opt => opt.value).filter(Boolean);
+
+    const expectedActions = [
+      'Create',
+      'Update',
+      'Delete',
+      'Cancel',
+      'Reschedule',
+      'MarkNoShow',
+      'NightAuditAutoNoShow',
+      'RegenerateSmartLockPin',
+      'RevokeSmartLockPin',
+      'CheckInDepositWarning',
+      'OverrideLateCheckOutSurcharge',
+      'ApproveRefund',
+      'RejectRefund',
+      'ConfirmRefundPayout',
+      'StatusToggle',
+      'PublishApproval',
+      'Upgrade',
+      'LoginFailed'
+    ];
+
+    expect(actionOptions.length).toBe(18);
+    for (const action of expectedActions) {
+      expect(actionOptions).toContain(action);
+      expect(component.getActionLabel(action)).not.toBe(action);
+      // Custom actions should use semantic color badges (not dull slate fallback)
+      expect(component.getActionBadgeClass(action)).not.toContain('bg-slate-100');
+    }
+
+    // No raw English parenthetical keys like "(ApproveRefund)" or "(LoginFailed)" in dropdown labels
+    for (const opt of actionOptionEls) {
+      if (opt.value) {
+        expect(opt.textContent).not.toContain(`(${opt.value})`);
+      }
+    }
+
+    const entityOptions = Array.from(el.querySelectorAll('#filter-entity option'))
+      .map(opt => (opt as HTMLOptionElement).value);
+    expect(entityOptions).toContain('SepayExpiredHoldAlert');
+    expect(entityOptions).toContain('SepayBankAccountConfigWarning');
+    expect(entityOptions).toContain('GuestReview');
+    expect(entityOptions).toContain('Auth');
+  });
+
+  it('18. should display explicit warning toast when CSV export hits the 1,000-row cap', () => {
+    const createObjectURL = vi.fn().mockReturnValue('blob:mock-csv');
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, configurable: true, writable: true });
+    Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectURL, configurable: true, writable: true });
+
+    component.auditLogs.set(sampleItems);
+    component.totalRecords.set(1250);
+    mockAuditLogService.getAuditLogs.mockReset();
+    mockAuditLogService.getAuditLogs.mockImplementation(({ page }: { page: number }) => {
+      const items = Array.from({ length: 100 }, (_, i) => ({
+        ...sampleItems[0],
+        id: `p${page}-${i}`
+      }));
+      return of({
+        success: true,
+        data: { items, totalCount: 1250, page, pageSize: 100, totalPages: 13, hasPreviousPage: page > 1, hasNextPage: page < 13 },
+        message: null,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    component.exportToCsv();
+
+    expect(mockAuditLogService.getAuditLogs).toHaveBeenCalledTimes(10);
+    expect(mockAlertService.toastWarning).toHaveBeenCalledWith(
+      expect.stringContaining('1.000'),
+      'Giới hạn xuất CSV',
+      6000
+    );
+    expect(mockAlertService.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it('19. should pass pasted UUID directly in search param instead of forcing entityId', () => {
+    fixture.detectChanges();
+    mockAuditLogService.getAuditLogs.mockClear();
+
+    const pastedUuid = '44444444-4444-4444-4444-444444444444';
+    component.searchKeyword = pastedUuid;
+    component.onFilterChange();
+
+    expect(mockAuditLogService.getAuditLogs).toHaveBeenCalledWith(expect.objectContaining({
+      search: pastedUuid
+    }));
+    const lastArg = mockAuditLogService.getAuditLogs.mock.calls[0][0];
+    expect(lastArg.entityId).toBeUndefined();
+  });
+
+  it('20. should localize custom action summaries naturally in Vietnamese without raw English prefixes', () => {
+    expect(component.getFriendlySummary('ApproveRefund Payment', 'ApproveRefund', 'Payment'))
+      .toBe('Phê duyệt hoàn tiền cho Giao dịch thanh toán');
+    expect(component.getFriendlySummary('RejectRefund Payment', 'RejectRefund', 'Payment'))
+      .toBe('Từ chối yêu cầu hoàn tiền cho Giao dịch thanh toán');
+    expect(component.getFriendlySummary('ConfirmRefundPayout Payment', 'ConfirmRefundPayout', 'Payment'))
+      .toBe('Xác nhận đã chi hoàn tiền cho Giao dịch thanh toán');
+    expect(component.getFriendlySummary('RegenerateSmartLockPin Reservation', 'RegenerateSmartLockPin', 'Reservation'))
+      .toBe('Cấp lại mã PIN khóa thông minh cho Đơn đặt phòng');
+    expect(component.getFriendlySummary('RevokeSmartLockPin Reservation', 'RevokeSmartLockPin', 'Reservation'))
+      .toBe('Thu hồi mã PIN khóa thông minh của Đơn đặt phòng');
+    expect(component.getFriendlySummary('Cancel Reservation', 'Cancel', 'Reservation'))
+      .toBe('Hủy Đơn đặt phòng');
+    expect(component.getFriendlySummary('LoginFailed Auth', 'LoginFailed', 'Auth'))
+      .toBe('Ghi nhận lần đăng nhập thất bại');
+    expect(component.getFriendlySummary('StatusToggle Tenant', 'StatusToggle', 'Tenant'))
+      .toBe('Thay đổi trạng thái hoạt động của Doanh nghiệp / Chuỗi khách sạn');
+    expect(component.getFriendlySummary('PublishApproval Property', 'PublishApproval', 'Property'))
+      .toBe('Phê duyệt xuất bản Cơ sở & Chi nhánh');
+    expect(component.getFriendlySummary('Upgrade Tenant', 'Upgrade', 'Tenant'))
+      .toBe('Nâng cấp gói dịch vụ cho Doanh nghiệp / Chuỗi khách sạn');
+    expect(component.getFriendlySummary('OverrideLateCheckOutSurcharge Reservation', 'OverrideLateCheckOutSurcharge', 'Reservation'))
+      .toBe('Miễn hoặc điều chỉnh phụ thu trả phòng muộn cho Đơn đặt phòng');
+    expect(component.getFriendlySummary('CheckInDepositWarning Reservation', 'CheckInDepositWarning', 'Reservation'))
+      .toBe('Cảnh báo thiếu tiền cọc khi nhận phòng cho Đơn đặt phòng');
+  });
+
+  it('21. should render Branch/Property filter select for Owners with PROPERTIES:1 permission and show propertyName in table', async () => {
+    TestBed.resetTestingModule();
+    const mockPropertyMgmt = {
+      getTenantProperties: vi.fn().mockReturnValue(of([
+        { id: '22222222-2222-2222-2222-222222222222', name: 'Khách sạn LuxeStay Đà Lạt', code: 'DL-01' },
+        { id: '99999999-9999-9999-9999-999999999999', name: 'LuxeStay Nha Trang', code: 'NT-02' }
+      ]))
+    };
+    const ownerAuth = {
+      ...mockAuthService,
+      hasPermission: vi.fn((code: string, action: number) => code === 'PROPERTIES' && action === 1)
+    };
+
+    await TestBed.configureTestingModule({
+      imports: [AuditLogsPage],
+      providers: [
+        { provide: AuditLogService, useValue: mockAuditLogService },
+        { provide: AuthService, useValue: ownerAuth },
+        { provide: AlertService, useValue: mockAlertService },
+        { provide: PropertyManagementService, useValue: mockPropertyMgmt },
+        { provide: Router, useValue: mockRouter }
+      ]
+    }).compileComponents();
+
+    const ownerFixture = TestBed.createComponent(AuditLogsPage);
+    const ownerComp = ownerFixture.componentInstance;
+    ownerFixture.detectChanges();
+
+    const el = ownerFixture.nativeElement as HTMLElement;
+    const branchSelect = el.querySelector('#filter-property') as HTMLSelectElement | null;
+    expect(branchSelect).not.toBeNull();
+    expect(el.textContent).toContain('Chi nhánh / Doanh nghiệp');
+    expect(el.textContent).toContain('Khách sạn LuxeStay Đà Lạt');
+    expect(el.querySelector('[data-testid="date-preset-today"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="open-grafana-logs-btn"]')).toBeNull();
+
+    mockAuditLogService.getAuditLogs.mockClear();
+    ownerComp.selectedPropertyId = '99999999-9999-9999-9999-999999999999';
+    ownerComp.onFilterChange();
+    expect(mockAuditLogService.getAuditLogs).toHaveBeenCalledWith(expect.objectContaining({
+      propertyId: '99999999-9999-9999-9999-999999999999'
+    }));
+  });
+
+  it('22. should show "Mở Grafana Log" header link and tenantName column value for SuperAdmin', async () => {
+    TestBed.resetTestingModule();
+    const superAdminLogs: AuditLogListItem[] = [
+      {
+        ...sampleItems[0],
+        tenantName: 'Tập đoàn LuxeStay Holdings'
+      }
+    ];
+    mockAuditLogService.getAuditLogs.mockReturnValue(of({
+      success: true,
+      data: {
+        items: superAdminLogs,
+        totalCount: 1,
+        page: 1,
+        pageSize: 20,
+        totalPages: 1,
+        hasPreviousPage: false,
+        hasNextPage: false
+      },
+      message: null,
+      timestamp: new Date().toISOString()
+    }));
+
+    const superAdminAuth = {
+      ...mockAuthService,
+      currentUser: {
+        id: 'sa-1',
+        email: 'admin@hotelsaas.vn',
+        fullName: 'SuperAdmin',
+        globalRole: 'SuperAdmin',
+        tenantId: null
+      },
+      activePropertyId: vi.fn().mockReturnValue(null),
+      hasPermission: vi.fn().mockReturnValue(true)
+    };
+
+    await TestBed.configureTestingModule({
+      imports: [AuditLogsPage],
+      providers: [
+        { provide: AuditLogService, useValue: mockAuditLogService },
+        { provide: AuthService, useValue: superAdminAuth },
+        { provide: AlertService, useValue: mockAlertService },
+        { provide: Router, useValue: mockRouter }
+      ]
+    }).compileComponents();
+
+    const saFixture = TestBed.createComponent(AuditLogsPage);
+    saFixture.detectChanges();
+
+    const el = saFixture.nativeElement as HTMLElement;
+    const grafanaLink = el.querySelector('[data-testid="open-grafana-logs-btn"]') as HTMLAnchorElement | null;
+    expect(grafanaLink).not.toBeNull();
+    expect(grafanaLink?.getAttribute('href')).toBe('/grafana/d/hotelsaas-ops-logs-vn');
+    expect(grafanaLink?.getAttribute('target')).toBe('_blank');
+    expect(grafanaLink?.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(el.textContent).toContain('Tập đoàn LuxeStay Holdings');
   });
 });
 

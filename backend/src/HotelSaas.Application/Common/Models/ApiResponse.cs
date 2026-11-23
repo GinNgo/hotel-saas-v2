@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace HotelSaas.Application.Common.Models;
 
 /// <summary>
@@ -26,6 +28,12 @@ public sealed class ApiResponse<T>
     /// Mã lỗi chuẩn hóa cho client dịch đa ngôn ngữ.
     /// </summary>
     public string? ErrorCode { get; init; }
+
+    /// <summary>
+    /// Mã tra cứu yêu cầu (Correlation ID) giúp đối chiếu nhanh log lỗi trên Grafana/Loki.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CorrelationId { get; set; }
 
     /// <summary>
     /// Danh sách chi tiết các lỗi xác thực dữ liệu đầu vào.

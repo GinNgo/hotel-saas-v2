@@ -1,12 +1,33 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, effect, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  HostListener,
+  Injector,
+  OnInit,
+  OnDestroy,
+  inject,
+  signal,
+  computed,
+  effect,
+  untracked
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { A11yModule } from '@angular/cdk/a11y';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { DatePicker } from 'primeng/datepicker';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
+import { NotificationService } from '../../core/services/notification.service';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 import { PaymentService, GetPaymentsFilter } from '../../core/services/payment.service';
+import { ReservationService } from '../../core/services/reservation.service';
+import { ReservationDto } from '../../core/models/reservation.model';
+import { environment } from '../../../environments/environment';
 import {
   PaymentDto,
   PaymentSummaryDto,
@@ -17,11 +38,28 @@ import {
   FolioDto,
   ShiftReportDto,
   ShiftType,
-  SHIFT_TYPE_LABELS
+  SHIFT_TYPE_LABELS,
+  VietQrResultDto
 } from '../../core/models/payment.model';
+import {
+  PageHeaderComponent,
+  BusinessDatePipe,
+  BusinessDateTimePipe
+} from '../../shared';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { RefundApprovalComponent } from './components/refund-approval/refund-approval.component';
+import { ContextSelectorDialogComponent } from '../auth/context-selector/context-selector.dialog';
+
+type PaymentSummaryViewDto = PaymentSummaryDto & {
+  totalRefunded?: number;
+  netCollected?: number;
+};
+
+type ShiftReportViewDto = ShiftReportDto & {
+  totalRefunded?: number;
+  netCollected?: number;
+};
 
 /**
  * Helper: Lấy chuỗi ngày YYYY-MM-DD theo múi giờ Việt Nam (UTC+7).
@@ -37,7 +75,7 @@ export function getTodayVietnamDateString(baseDate: Date = new Date()): string {
 }
 
 /**
- * Helper: Định dạng timestamp ISO sang chuỗi Ngày Giờ theo múi giờ Việt Nam (UTC+7) (dd/MM/yyyy HH:mm:ss Giờ VN).
+ * Helper: Định dạng timestamp ISO sang chuỗi Ngày Giờ theo múi giờ chuẩn UTC (dd/MM/yyyy HH:mm:ss UTC).
  */
 export function formatUtcDateTimeString(isoString: string | null | undefined): string {
   if (!isoString) return '—';
@@ -73,43 +111,50 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
 @Component({
   selector: 'app-payments',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePicker, EmptyStateComponent, PaginationComponent, RefundApprovalComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    CommonModule,
+    A11yModule,
+    FormsModule,
+    DatePicker,
+    PageHeaderComponent,
+    BusinessDatePipe,
+    BusinessDateTimePipe,
+    VndCurrencyPipe,
+    EmptyStateComponent,
+    PaginationComponent,
+    RefundApprovalComponent,
+    ContextSelectorDialogComponent
+  ],
   template: `
     <div class="max-w-7xl mx-auto space-y-6 pb-12">
       <!-- Page Header -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/80">
-        <div>
-          <div class="flex items-center gap-2.5 flex-wrap">
-            <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-              {{ activeTab() === 'cashier' ? 'Thu ngân & Nhật ký Giao dịch' : 'Quản lý & Phê duyệt Hoàn tiền D23' }}
-            </h1>
-            @if (activeTab() === 'cashier') {
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                Tra cứu & Đối soát
+      <app-page-header
+        [title]="activeTab() === 'cashier' ? 'Thu ngân & Nhật ký Giao dịch' : 'Quản lý & Phê duyệt Hoàn tiền D23'"
+        [subtitle]="activeTab() === 'cashier'
+          ? 'Theo dõi tổng kết thực thu trong ngày và tra cứu lịch sử các giao dịch ghi nhận tại quầy chi nhánh.'
+          : 'Quy trình kiểm soát hoàn tiền booking hủy theo Quyết định D23 — Phê duyệt và Xác nhận chi trả.'"
+      >
+        <div class="flex items-center gap-2 flex-wrap">
+          @if (activeTab() === 'cashier') {
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+              Tra cứu & Đối soát
+            </span>
+          } @else {
+            @if (canApproveRefund()) {
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <i class="pi pi-check-circle text-xs text-emerald-600"></i>
+                <span>Có quyền Phê duyệt</span>
               </span>
             } @else {
-              @if (canApproveRefund()) {
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <i class="pi pi-check-circle text-xs text-emerald-600"></i>
-                  <span>Có quyền Phê duyệt</span>
-                </span>
-              } @else {
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                  <i class="pi pi-eye text-xs text-slate-500"></i>
-                  <span>Chế độ Theo dõi (Chỉ đọc)</span>
-                </span>
-              }
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                <i class="pi pi-eye text-xs text-slate-500"></i>
+                <span>Chế độ Theo dõi (Chỉ đọc)</span>
+              </span>
             }
-          </div>
-          <p class="text-xs sm:text-sm text-slate-500 mt-1">
-            {{ activeTab() === 'cashier'
-              ? 'Theo dõi tổng kết thực thu trong ngày và tra cứu lịch sử các giao dịch ghi nhận tại quầy chi nhánh.'
-              : 'Quy trình kiểm soát hoàn tiền booking hủy theo Quyết định D23 — Phê duyệt và Xác nhận chi trả.' }}
-          </p>
-        </div>
+          }
 
-        <!-- Property Context Indicator -->
-        <div class="flex items-center gap-2 shrink-0">
+          <!-- Property Context Indicator -->
           @if (activePropertyId()) {
             <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/90 text-xs text-slate-700 font-medium border border-slate-200/80 shadow-2xs">
               <i class="pi pi-building text-sky-600"></i>
@@ -122,7 +167,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
             </div>
           }
         </div>
-      </div>
+      </app-page-header>
 
       <!-- Navigation Tabs: Cashier Operations vs Refund Approval -->
       <div class="flex items-center gap-1 border-b border-slate-200 overflow-x-auto scrollbar-none mb-6">
@@ -130,7 +175,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
           type="button"
           (click)="activeTab.set('cashier')"
           [class]="activeTab() === 'cashier' ? 'border-emerald-600 text-emerald-800 font-semibold border-b-2 bg-emerald-50/30' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'"
-          class="pb-2.5 pt-2 px-3.5 text-xs sm:text-sm rounded-t-lg transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap"
+          class="min-h-11 pb-2.5 pt-2 px-3.5 text-xs sm:text-sm rounded-t-lg transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap"
         >
           <i class="pi pi-wallet text-sm" [class.text-emerald-600]="activeTab() === 'cashier'"></i>
           <span>Thu ngân & Ca trực</span>
@@ -139,7 +184,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
           type="button"
           (click)="activeTab.set('refunds')"
           [class]="activeTab() === 'refunds' ? 'border-sky-600 text-sky-800 font-semibold border-b-2 bg-sky-50/30' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'"
-          class="pb-2.5 pt-2 px-3.5 text-xs sm:text-sm rounded-t-lg transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap"
+          class="min-h-11 pb-2.5 pt-2 px-3.5 text-xs sm:text-sm rounded-t-lg transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap"
         >
           <i class="pi pi-undo text-sm" [class.text-sky-600]="activeTab() === 'refunds'"></i>
           <span>Yêu cầu hoàn tiền</span>
@@ -157,7 +202,10 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
         <app-empty-state
           [iconClass]="'pi pi-building'"
           [title]="'Vui lòng chọn cơ sở hoạt động'"
-          [description]="'Hệ thống yêu cầu xác định chi nhánh hoạt động để tra cứu dữ liệu thu ngân. Hãy chọn chi nhánh từ bộ chuyển ngữ cảnh ở thanh điều hướng trên cùng.'"
+          [description]="'Hệ thống yêu cầu xác định chi nhánh hoạt động để tra cứu dữ liệu thu ngân. Vui lòng chọn một chi nhánh để tiếp tục.'"
+          [actionLabel]="'Chọn chi nhánh làm việc'"
+          [actionIcon]="'pi pi-building'"
+          (actionClick)="openContextSelector()"
         ></app-empty-state>
       } @else {
         @if (activeTab() === 'cashier') {
@@ -201,6 +249,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                 dateFormat="dd/mm/yy"
                 [showIcon]="true"
                 [maxDate]="todayDate"
+                [touchUI]="isMobile()"
                 appendTo="body"
                 [inputStyleClass]="'w-full text-xs pr-10'"
               />
@@ -208,8 +257,9 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                 type="button"
                 (click)="loadSummary()"
                 [disabled]="isLoadingSummary()"
+                aria-label="Làm mới tổng kết thực thu"
                 title="Làm mới tổng kết"
-                class="p-2 rounded-xl text-slate-500 hover:text-emerald-700 hover:bg-slate-100 transition-all disabled:opacity-50"
+                class="min-h-11 min-w-11 flex items-center justify-center rounded-xl text-slate-500 hover:text-emerald-700 hover:bg-slate-100 transition-all disabled:opacity-50 cursor-pointer"
               >
                 <i class="pi pi-refresh text-sm" [class.animate-spin]="isLoadingSummary()"></i>
               </button>
@@ -218,7 +268,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
 
           <!-- Loading State for Summary -->
           @if (isLoadingSummary()) {
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 py-4 animate-pulse">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 py-4 animate-pulse motion-reduce:animate-none">
               @for (i of [1, 2, 3, 4]; track i) {
                 <div class="h-28 rounded-xl bg-slate-100/80 border border-slate-200/60"></div>
               }
@@ -227,7 +277,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
 
           <!-- Error State for Summary -->
           @if (!isLoadingSummary() && summaryError()) {
-            <div class="rounded-xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-800 flex items-center justify-between gap-3">
+            <div role="alert" class="rounded-xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-800 flex items-center justify-between gap-3">
               <div class="flex items-center gap-2">
                 <i class="pi pi-exclamation-circle text-rose-600 text-base shrink-0"></i>
                 <span>{{ summaryError() }}</span>
@@ -235,7 +285,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               <button
                 type="button"
                 (click)="retrySummary()"
-                class="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs transition-colors shrink-0 shadow-2xs"
+                class="min-h-11 px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs transition-colors shrink-0 shadow-2xs cursor-pointer"
               >
                 Thử lại
               </button>
@@ -245,19 +295,47 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
           <!-- Data Content for Summary -->
           @if (!isLoadingSummary() && !summaryError()) {
             @if (summary(); as s) {
-              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <!-- Total Collected KPI (Hero Card) -->
                 <div class="rounded-xl bg-emerald-50/70 border border-emerald-200/80 p-4 shadow-2xs space-y-1">
                   <div class="flex items-center justify-between">
                     <span class="text-xs font-semibold text-emerald-800 uppercase tracking-wider">Tổng Thực Thu</span>
                     <i class="pi pi-wallet text-emerald-600 text-base"></i>
                   </div>
-                  <div class="text-xl sm:text-2xl font-extrabold text-emerald-900 tracking-tight">
-                    {{ s.totalCollected | number:'1.0-0' }} <span class="text-xs font-semibold text-emerald-700">VNĐ</span>
+                  <div class="text-xl sm:text-2xl font-extrabold text-emerald-900 tracking-tight tabular-nums">
+                    {{ s.totalCollected | vndCurrency }}
                   </div>
-                  <div class="text-[11px] text-emerald-700 flex items-center gap-1 pt-1">
+                  <div class="text-[11px] text-emerald-700 flex items-center gap-1 pt-1 tabular-nums">
                     <i class="pi pi-check-circle text-[10px]"></i>
                     <span>{{ s.completedCount }} giao dịch hoàn tất</span>
+                  </div>
+                </div>
+
+                <!-- Total Refunded KPI Card -->
+                <div data-testid="summary-total-refunded" class="rounded-xl bg-rose-50/70 border border-rose-200/80 p-4 shadow-2xs space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-rose-800 uppercase tracking-wider">Tổng hoàn tiền</span>
+                    <i class="pi pi-undo text-rose-600 text-base"></i>
+                  </div>
+                  <div class="text-xl sm:text-2xl font-extrabold text-rose-900 tracking-tight tabular-nums">
+                    {{ getSummaryTotalRefunded(s) | vndCurrency }}
+                  </div>
+                  <div class="text-[11px] text-rose-700 pt-1">
+                    Các khoản hoàn tiền đã chi trong ngày
+                  </div>
+                </div>
+
+                <!-- Net Collected KPI Card -->
+                <div data-testid="summary-net-collected" class="rounded-xl bg-indigo-50/70 border border-indigo-200/80 p-4 shadow-2xs space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-indigo-800 uppercase tracking-wider">Thực thu ròng</span>
+                    <i class="pi pi-chart-line text-indigo-600 text-base"></i>
+                  </div>
+                  <div class="text-xl sm:text-2xl font-extrabold text-indigo-900 tracking-tight tabular-nums">
+                    {{ getSummaryNetCollected(s) | vndCurrency }}
+                  </div>
+                  <div class="text-[11px] text-indigo-700 pt-1">
+                    Tổng thu trừ hoàn tiền trong ngày
                   </div>
                 </div>
 
@@ -267,8 +345,8 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                     <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Tiền Mặt</span>
                     <i class="pi pi-money-bill text-emerald-600 text-base"></i>
                   </div>
-                  <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight">
-                    {{ s.cashCollected | number:'1.0-0' }} <span class="text-xs font-medium text-slate-500">VNĐ</span>
+                  <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight tabular-nums">
+                    {{ s.cashCollected | vndCurrency }}
                   </div>
                   <div class="text-[11px] text-slate-400 pt-1">
                     Thực thu tiền mặt tại quầy
@@ -281,8 +359,8 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                     <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Chuyển Khoản</span>
                     <i class="pi pi-arrow-right-arrow-left text-blue-600 text-base"></i>
                   </div>
-                  <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight">
-                    {{ s.bankTransferCollected | number:'1.0-0' }} <span class="text-xs font-medium text-slate-500">VNĐ</span>
+                  <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight tabular-nums">
+                    {{ s.bankTransferCollected | vndCurrency }}
                   </div>
                   <div class="text-[11px] text-slate-400 pt-1">
                     Giao dịch qua ngân hàng
@@ -295,8 +373,8 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                     <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Thẻ Tín Dụng</span>
                     <i class="pi pi-credit-card text-purple-600 text-base"></i>
                   </div>
-                  <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight">
-                    {{ s.creditCardCollected | number:'1.0-0' }} <span class="text-xs font-medium text-slate-500">VNĐ</span>
+                  <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight tabular-nums">
+                    {{ s.creditCardCollected | vndCurrency }}
                   </div>
                   <div class="text-[11px] text-slate-400 pt-1">
                     Thanh toán qua POS/Thẻ
@@ -338,6 +416,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                 dateFormat="dd/mm/yy"
                 [showIcon]="true"
                 [maxDate]="todayDate"
+                [touchUI]="isMobile()"
                 appendTo="body"
                 [inputStyleClass]="'w-full text-xs pr-10'"
               />
@@ -345,8 +424,9 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                 type="button"
                 (click)="loadShiftReport()"
                 [disabled]="isLoadingShiftReport()"
+                aria-label="Làm mới báo cáo thu theo ca"
                 title="Làm mới báo cáo ca"
-                class="p-2 rounded-xl text-slate-500 hover:text-amber-700 hover:bg-slate-100 transition-all disabled:opacity-50"
+                class="min-h-11 min-w-11 flex items-center justify-center rounded-xl text-slate-500 hover:text-amber-700 hover:bg-slate-100 transition-all disabled:opacity-50 cursor-pointer"
               >
                 <i class="pi pi-refresh text-sm" [class.animate-spin]="isLoadingShiftReport()"></i>
               </button>
@@ -360,7 +440,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               type="button"
               (click)="selectShiftType(ShiftType.Morning)"
               [class]="selectedShiftType() === ShiftType.Morning ? 'bg-amber-600 text-white font-bold shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
-              class="px-3 py-1.5 rounded-xl text-xs transition-colors cursor-pointer"
+              class="min-h-11 px-3 py-1.5 rounded-xl text-xs transition-colors cursor-pointer"
             >
               Ca 1 - Sáng (06:00 - 14:00)
             </button>
@@ -368,7 +448,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               type="button"
               (click)="selectShiftType(ShiftType.Afternoon)"
               [class]="selectedShiftType() === ShiftType.Afternoon ? 'bg-amber-600 text-white font-bold shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
-              class="px-3 py-1.5 rounded-xl text-xs transition-colors cursor-pointer"
+              class="min-h-11 px-3 py-1.5 rounded-xl text-xs transition-colors cursor-pointer"
             >
               Ca 2 - Chiều (14:00 - 22:00)
             </button>
@@ -376,7 +456,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               type="button"
               (click)="selectShiftType(ShiftType.Night)"
               [class]="selectedShiftType() === ShiftType.Night ? 'bg-amber-600 text-white font-bold shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
-              class="px-3 py-1.5 rounded-xl text-xs transition-colors cursor-pointer"
+              class="min-h-11 px-3 py-1.5 rounded-xl text-xs transition-colors cursor-pointer"
             >
               Ca 3 - Đêm (22:00 - 06:00)
             </button>
@@ -384,7 +464,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
 
           <!-- Loading State for Shift Report -->
           @if (isLoadingShiftReport()) {
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 py-4 animate-pulse">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 py-4 animate-pulse motion-reduce:animate-none">
               @for (i of [1, 2, 3, 4]; track i) {
                 <div class="h-24 rounded-xl bg-slate-100/80 border border-slate-200/60"></div>
               }
@@ -393,7 +473,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
 
           <!-- Error State for Shift Report -->
           @if (!isLoadingShiftReport() && shiftReportError()) {
-            <div class="rounded-xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-800 flex items-center justify-between gap-3">
+            <div role="alert" class="rounded-xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-800 flex items-center justify-between gap-3">
               <div class="flex items-center gap-2">
                 <i class="pi pi-exclamation-circle text-rose-600 text-base shrink-0"></i>
                 <span>{{ shiftReportError() }}</span>
@@ -401,7 +481,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               <button
                 type="button"
                 (click)="loadShiftReport()"
-                class="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs transition-colors shrink-0 shadow-2xs"
+                class="min-h-11 px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs transition-colors shrink-0 shadow-2xs cursor-pointer"
               >
                 Thử lại
               </button>
@@ -413,19 +493,41 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
             @if (shiftReport(); as sr) {
               <div class="space-y-4">
                 <!-- Shift KPIs -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div class="rounded-xl bg-amber-50/70 border border-amber-200/80 p-4 shadow-2xs space-y-1">
                     <div class="flex items-center justify-between">
                       <span class="text-xs font-semibold text-amber-800 uppercase tracking-wider">Tổng Thu Theo Ca</span>
                       <i class="pi pi-calculator text-amber-600 text-base"></i>
                     </div>
-                    <div class="text-xl sm:text-2xl font-extrabold text-amber-900 tracking-tight">
-                      {{ sr.totalCollected | number:'1.0-0' }} <span class="text-xs font-semibold text-amber-700">VNĐ</span>
+                    <div class="text-xl sm:text-2xl font-extrabold text-amber-900 tracking-tight tabular-nums">
+                      {{ sr.totalCollected | vndCurrency }}
                     </div>
-                    <div class="text-[11px] text-amber-700 flex items-center gap-1 pt-1">
+                    <div class="text-[11px] text-amber-700 flex items-center gap-1 pt-1 tabular-nums">
                       <i class="pi pi-check-circle text-[10px]"></i>
                       <span>{{ sr.completedCount }} giao dịch trong ca</span>
                     </div>
+                  </div>
+
+                  <div data-testid="shift-total-refunded" class="rounded-xl bg-rose-50/70 border border-rose-200/80 p-4 shadow-2xs space-y-1">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-semibold text-rose-800 uppercase tracking-wider">Tổng hoàn tiền</span>
+                      <i class="pi pi-undo text-rose-600 text-base"></i>
+                    </div>
+                    <div class="text-xl sm:text-2xl font-extrabold text-rose-900 tracking-tight tabular-nums">
+                      {{ getShiftTotalRefunded(sr) | vndCurrency }}
+                    </div>
+                    <div class="text-[11px] text-rose-700 pt-1">Các khoản hoàn tiền đã chi trong ca</div>
+                  </div>
+
+                  <div data-testid="shift-net-collected" class="rounded-xl bg-emerald-50/70 border border-emerald-200/80 p-4 shadow-2xs space-y-1">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-semibold text-emerald-800 uppercase tracking-wider">Thực thu ròng</span>
+                      <i class="pi pi-wallet text-emerald-600 text-base"></i>
+                    </div>
+                    <div class="text-xl sm:text-2xl font-extrabold text-emerald-900 tracking-tight tabular-nums">
+                      {{ getShiftNetCollected(sr) | vndCurrency }}
+                    </div>
+                    <div class="text-[11px] text-emerald-700 pt-1">Tổng thu trừ hoàn tiền trong ca</div>
                   </div>
 
                   <div class="rounded-xl bg-white border border-slate-200/80 p-4 shadow-2xs space-y-1">
@@ -433,8 +535,8 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                       <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Tiền Mặt Thu Trong Ca</span>
                       <i class="pi pi-money-bill text-emerald-600 text-base"></i>
                     </div>
-                    <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight">
-                      {{ sr.cashCollected | number:'1.0-0' }} <span class="text-xs font-medium text-slate-500">VNĐ</span>
+                    <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight tabular-nums">
+                      {{ sr.cashCollected | vndCurrency }}
                     </div>
                     <div class="text-[11px] text-slate-400 pt-1">Giao dịch tiền mặt ghi nhận hệ thống</div>
                   </div>
@@ -444,8 +546,8 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                       <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Chuyển Khoản Thu Trong Ca</span>
                       <i class="pi pi-arrow-right-arrow-left text-blue-600 text-base"></i>
                     </div>
-                    <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight">
-                      {{ sr.bankTransferCollected | number:'1.0-0' }} <span class="text-xs font-medium text-slate-500">VNĐ</span>
+                    <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight tabular-nums">
+                      {{ sr.bankTransferCollected | vndCurrency }}
                     </div>
                     <div class="text-[11px] text-slate-400 pt-1">Giao dịch ngân hàng nhận trong ca</div>
                   </div>
@@ -455,8 +557,8 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                       <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Thẻ / POS Thu Trong Ca</span>
                       <i class="pi pi-credit-card text-purple-600 text-base"></i>
                     </div>
-                    <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight">
-                      {{ sr.creditCardCollected | number:'1.0-0' }} <span class="text-xs font-medium text-slate-500">VNĐ</span>
+                    <div class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight tabular-nums">
+                      {{ sr.creditCardCollected | vndCurrency }}
                     </div>
                     <div class="text-[11px] text-slate-400 pt-1">Giao dịch thẻ POS ghi nhận hệ thống</div>
                   </div>
@@ -470,14 +572,20 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                         <i class="pi pi-list text-amber-600"></i>
                         <span>Bảng kê các giao dịch trong {{ sr.shiftName }}:</span>
                       </span>
-                      <span class="text-slate-500 font-mono">{{ sr.payments.length }} bút toán</span>
+                      <span class="text-slate-500 font-mono tabular-nums">{{ sr.payments.length }} bút toán</span>
                     </div>
                     <div class="divide-y divide-slate-100 max-h-56 overflow-y-auto">
                       @for (p of sr.payments; track p.id) {
                         <div class="p-3 text-xs flex flex-wrap items-center justify-between gap-2 hover:bg-slate-50/60 transition-colors">
-                          <div class="flex items-center gap-2">
+                          <div class="flex items-center gap-2 flex-wrap">
                             <span [class]="getMethodBadgeClass(p.method)">{{ p.methodName || getMethodLabel(p.method) }}</span>
-                            <span class="font-mono text-[11px] text-slate-400">{{ formatUtc(p.createdAtUtc) }}</span>
+                            @if (isRefundTransaction(p)) {
+                              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                Hoàn tiền
+                              </span>
+                            }
+                            <span class="font-mono tabular-nums text-[11px] text-slate-700 font-medium">{{ p.createdAtUtc | businessDateTime }} (Giờ VN)</span>
+                            <span class="font-mono tabular-nums text-[10px] text-slate-400">({{ formatUtc(p.createdAtUtc) }})</span>
                             @if (p.reservationId) {
                               <span class="text-[11px] font-mono text-indigo-600">Mã đơn: {{ p.reservationId.substring(0, 8) }}...</span>
                             }
@@ -486,7 +594,11 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                             @if (p.transactionRef) {
                               <span class="text-[11px] text-slate-500 font-mono">Ref: {{ p.transactionRef }}</span>
                             }
-                            <span class="font-bold text-slate-800">+{{ p.amount | number:'1.0-0' }} VNĐ</span>
+                            @if (isRefundTransaction(p)) {
+                              <span data-testid="shift-payment-amount" class="font-bold text-rose-600 tabular-nums">-{{ absAmount(p.amount) | vndCurrency }}</span>
+                            } @else {
+                              <span data-testid="shift-payment-amount" class="font-bold text-slate-800 tabular-nums">+{{ p.amount | vndCurrency }}</span>
+                            }
                           </div>
                         </div>
                       }
@@ -521,21 +633,22 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
 
             <!-- Folio Search Bar -->
             <div class="flex items-center gap-2 w-full sm:w-auto">
-              <div class="relative flex-1 sm:w-72">
+              <div class="relative flex-1 sm:w-80">
                 <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                 <input
                   type="text"
                   [(ngModel)]="searchReservationId"
                   (keyup.enter)="loadFolio()"
-                  placeholder="Nhập mã đơn đặt phòng (UUID)..."
-                  class="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
+                  aria-label="Tìm Folio theo mã đặt phòng (RES-...), số phòng hoặc UUID"
+                  placeholder="Nhập mã đơn (RES-...), số phòng hoặc UUID..."
+                  class="w-full min-h-11 pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
                 />
               </div>
               <button
                 type="button"
                 (click)="loadFolio()"
                 [disabled]="!searchReservationId.trim() || isLoadingFolio()"
-                class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs transition-colors shrink-0 disabled:opacity-50 flex items-center gap-1.5 shadow-2xs"
+                class="min-h-11 px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs transition-colors shrink-0 disabled:opacity-50 flex items-center gap-1.5 shadow-2xs cursor-pointer"
               >
                 @if (isLoadingFolio()) {
                   <i class="pi pi-spin pi-spinner text-xs"></i>
@@ -547,9 +660,29 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
             </div>
           </div>
 
+          <!-- Quick picks from loaded branch reservations -->
+          @if (recentReservations().length > 0 && !folio()) {
+            <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
+              <span class="text-slate-500 font-medium mr-1">Gợi ý nhanh:</span>
+              @for (resItem of recentReservations().slice(0, 6); track resItem.id) {
+                <button
+                  type="button"
+                  (click)="inspectReservationFolio(resItem.id)"
+                  class="min-h-11 px-2.5 py-1 rounded-lg border border-indigo-200/80 bg-indigo-50/50 hover:bg-indigo-100 text-indigo-800 font-medium transition-colors cursor-pointer inline-flex items-center gap-1.5 tabular-nums"
+                >
+                  <span class="font-mono font-bold">{{ resItem.confirmationCode }}</span>
+                  @if (resItem.roomNumber) {
+                    <span class="text-indigo-600">• P.{{ resItem.roomNumber }}</span>
+                  }
+                  <span class="text-slate-500 truncate max-w-[110px]">{{ resItem.guestName }}</span>
+                </button>
+              }
+            </div>
+          }
+
           <!-- Folio Error Alert -->
           @if (folioError()) {
-            <div class="rounded-xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-800 flex items-center justify-between gap-3">
+            <div role="alert" class="rounded-xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-800 flex items-center justify-between gap-3">
               <div class="flex items-center gap-2">
                 <i class="pi pi-exclamation-circle text-rose-600 text-base shrink-0"></i>
                 <span>{{ folioError() }}</span>
@@ -557,7 +690,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               <button
                 type="button"
                 (click)="loadFolio()"
-                class="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs transition-colors shrink-0 shadow-2xs"
+                class="min-h-11 px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs transition-colors shrink-0 shadow-2xs cursor-pointer"
               >
                 Thử lại
               </button>
@@ -582,9 +715,21 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                       </span>
                     }
                   </div>
-                  <span class="text-xs text-slate-500 font-medium">
-                    Phòng: <strong class="text-slate-800">{{ f.roomNumber || 'Chưa gán' }}</strong> ({{ f.roomTypeName || 'Tiêu chuẩn' }})
-                  </span>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-500 font-medium">
+                      Phòng: <strong class="text-slate-800">{{ f.roomNumber || 'Chưa gán' }}</strong> ({{ f.roomTypeName || 'Tiêu chuẩn' }})
+                    </span>
+                    <button
+                      type="button"
+                      (click)="openPrintInvoice(f.reservationId)"
+                      aria-label="In hóa đơn thanh toán"
+                      title="Mở trang in hóa đơn cho đơn đặt phòng này"
+                      class="min-h-11 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition-colors cursor-pointer"
+                    >
+                      <i class="pi pi-print text-xs"></i>
+                      <span>In hóa đơn</span>
+                    </button>
+                  </div>
                 </div>
 
                 <!-- Guest & Stay details -->
@@ -597,8 +742,12 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                     }
                   </div>
                   <div>
-                    <span class="text-slate-400 block text-[11px]">Thời gian lưu trú:</span>
-                    <span class="text-slate-700 font-mono text-[11px]">{{ f.checkInDate }} → {{ f.checkOutDate }}</span>
+                    <span class="text-slate-400 block text-[11px]">Thời gian lưu trú (Giờ VN):</span>
+                    <span class="text-slate-700 font-mono text-[11px] tabular-nums inline-flex items-center gap-1">
+                      <span>{{ f.checkInDate | businessDate }}</span>
+                      <i class="pi pi-arrow-right text-[9px] text-slate-400" aria-hidden="true"></i>
+                      <span>{{ f.checkOutDate | businessDate }}</span>
+                    </span>
                   </div>
                 </div>
 
@@ -611,12 +760,12 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                     </span>
                     @if (f.depositRequired && f.depositRequired > 0) {
                       <div class="flex items-center gap-2 flex-wrap">
-                        <span class="text-[11px] font-normal text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                          Cọc yêu cầu: {{ f.depositRequired | number:'1.0-0' }} VNĐ
+                        <span class="text-[11px] font-normal text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 tabular-nums">
+                          Cọc yêu cầu: {{ f.depositRequired | vndCurrency }}
                         </span>
                         @if (f.depositPaid !== null && f.depositPaid !== undefined) {
-                          <span class="text-[11px] font-normal text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                            Cọc đã thực thu: {{ f.depositPaid | number:'1.0-0' }} VNĐ
+                          <span class="text-[11px] font-normal text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 tabular-nums">
+                            Cọc đã thực thu: {{ f.depositPaid | vndCurrency }}
                           </span>
                         } @else {
                           <span class="text-[11px] font-normal text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-300" title="Đã có thanh toán nhưng không có giao dịch gắn thẻ cọc có cấu trúc [PURPOSE:DEPOSIT]">
@@ -633,7 +782,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                       @for (item of f.breakdown; track $index) {
                         <div class="flex justify-between items-center text-slate-600">
                           <span class="truncate max-w-[240px]" [title]="item.description">{{ item.description }}</span>
-                          <span class="font-mono font-medium text-slate-700">{{ item.amount | number:'1.0-0' }} VNĐ</span>
+                          <span class="font-mono font-medium text-slate-700 tabular-nums">{{ item.amount | vndCurrency }}</span>
                         </div>
                       }
                     </div>
@@ -642,9 +791,9 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                   <!-- Subtotal rows -->
                   <div class="space-y-1 pt-1 text-slate-600">
                     @if (f.baseRoomAmount !== null && f.baseRoomAmount !== undefined) {
-                      <div class="flex justify-between items-center">
+                      <div class="flex justify-between items-center tabular-nums">
                         <span>Tiền phòng gốc:</span>
-                        <span class="font-medium text-slate-800">{{ f.baseRoomAmount | number:'1.0-0' }} VNĐ</span>
+                        <span class="font-medium text-slate-800">{{ f.baseRoomAmount | vndCurrency }}</span>
                       </div>
                     } @else {
                       <div class="flex justify-between items-center text-slate-400 italic text-[11px]">
@@ -653,31 +802,31 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                       </div>
                     }
                     @if (f.surchargesAmount !== null && f.surchargesAmount !== undefined && f.surchargesAmount > 0) {
-                      <div class="flex justify-between items-center text-amber-700">
+                      <div class="flex justify-between items-center text-amber-700 tabular-nums">
                         <span>Phụ thu nhận sớm / trả muộn / lễ:</span>
-                        <span class="font-medium">+{{ f.surchargesAmount | number:'1.0-0' }} VNĐ</span>
+                        <span class="font-medium">+{{ f.surchargesAmount | vndCurrency }}</span>
                       </div>
                     }
                     @if (f.servicesAmount !== null && f.servicesAmount !== undefined && f.servicesAmount > 0) {
-                      <div class="flex justify-between items-center text-blue-700">
+                      <div class="flex justify-between items-center text-blue-700 tabular-nums">
                         <span>Dịch vụ & Minibar:</span>
-                        <span class="font-medium">+{{ f.servicesAmount | number:'1.0-0' }} VNĐ</span>
+                        <span class="font-medium">+{{ f.servicesAmount | vndCurrency }}</span>
                       </div>
                     }
-                    <div class="flex justify-between items-center font-semibold text-slate-800 pt-1 border-t border-slate-100">
+                    <div class="flex justify-between items-center font-semibold text-slate-800 pt-1 border-t border-slate-100 tabular-nums">
                       <span>Tổng cộng tiền phòng & phụ phí:</span>
-                      <span>{{ f.totalAmount | number:'1.0-0' }} VNĐ</span>
+                      <span>{{ f.totalAmount | vndCurrency }}</span>
                     </div>
-                    <div class="flex justify-between items-center text-emerald-700 font-medium">
+                    <div class="flex justify-between items-center text-emerald-700 font-medium tabular-nums">
                       <span>Đã thanh toán (Chỉ trừ các giao dịch hoàn tất):</span>
-                      <span>- {{ f.paidAmount | number:'1.0-0' }} VNĐ</span>
+                      <span>- {{ f.paidAmount | vndCurrency }}</span>
                     </div>
                   </div>
 
-                  <div class="border-t border-slate-200 pt-2 flex justify-between items-center text-sm font-bold">
+                  <div class="border-t border-slate-200 pt-2 flex justify-between items-center text-sm font-bold tabular-nums">
                     <span class="text-slate-800">Số dư còn phải thu:</span>
                     <span [class]="f.remainingBalance > 0 ? 'text-rose-600 text-base font-extrabold' : 'text-emerald-600'">
-                      {{ f.remainingBalance | number:'1.0-0' }} VNĐ
+                      {{ f.remainingBalance | vndCurrency }}
                     </span>
                   </div>
                 </div>
@@ -688,12 +837,22 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                     <h4 class="text-xs font-semibold text-slate-700 mb-2">Lịch sử thanh toán đơn này:</h4>
                     <div class="space-y-1.5 max-h-36 overflow-y-auto pr-1">
                       @for (p of f.payments; track p.id) {
-                        <div class="flex items-center justify-between text-xs p-2 rounded-lg bg-white border border-slate-100">
-                          <div class="flex items-center gap-2">
+                        <div class="flex items-center justify-between text-xs p-2 rounded-lg bg-white border border-slate-100 gap-2">
+                          <div class="flex flex-wrap items-center gap-2">
                             <span [class]="getMethodBadgeClass(p.method)">{{ p.methodName || getMethodLabel(p.method) }}</span>
-                            <span class="font-mono text-[11px] text-slate-400">{{ formatUtc(p.createdAtUtc) }}</span>
+                            @if (isRefundTransaction(p)) {
+                              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                Hoàn tiền
+                              </span>
+                            }
+                            <span class="font-mono tabular-nums text-[11px] text-slate-700">{{ p.createdAtUtc | businessDateTime }} (Giờ VN)</span>
+                            <span class="font-mono tabular-nums text-[10px] text-slate-400">({{ formatUtc(p.createdAtUtc) }})</span>
                           </div>
-                          <span class="font-bold text-slate-800">+{{ p.amount | number:'1.0-0' }} VNĐ</span>
+                          @if (isRefundTransaction(p)) {
+                            <span class="font-bold text-rose-600 tabular-nums shrink-0">-{{ absAmount(p.amount) | vndCurrency }}</span>
+                          } @else {
+                            <span class="font-bold text-slate-800 tabular-nums shrink-0">+{{ p.amount | vndCurrency }}</span>
+                          }
                         </div>
                       }
                     </div>
@@ -712,7 +871,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                     <button
                       type="button"
                       (click)="fillRemainingBalance(f.remainingBalance)"
-                      class="text-[11px] font-medium text-indigo-700 hover:text-indigo-900 underline transition-colors"
+                      class="min-h-11 px-2 text-[11px] font-medium text-indigo-700 hover:text-indigo-900 underline transition-colors cursor-pointer"
                     >
                       Điền toàn bộ số dư
                     </button>
@@ -723,16 +882,16 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                 <div class="space-y-3 text-xs">
                   <!-- Amount -->
                   <div>
-                    <label class="block text-[11px] font-medium text-slate-600 mb-1">Số tiền thu (VNĐ):</label>
+                    <label class="block text-[11px] font-medium text-slate-600 mb-1">Số tiền thu (VND):</label>
                     <div class="relative">
                       <input
                         type="number"
                         [(ngModel)]="paymentAmount"
                         min="1000"
                         placeholder="Nhập số tiền..."
-                        class="w-full pl-3 pr-12 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-900 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        class="w-full min-h-11 pl-3 pr-12 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-900 bg-white tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500"
                       />
-                      <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">VNĐ</span>
+                      <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">VND</span>
                     </div>
                   </div>
 
@@ -744,7 +903,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                         type="button"
                         (click)="paymentMethod.set(PaymentMethod.Cash)"
                         [class]="paymentMethod() === PaymentMethod.Cash ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-semibold shadow-2xs' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
-                        class="p-2 rounded-xl border text-xs flex items-center justify-center gap-1.5 transition-all"
+                        class="min-h-11 p-2 rounded-xl border text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                       >
                         <i class="pi pi-money-bill"></i>
                         <span>Tiền mặt</span>
@@ -753,26 +912,120 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                         type="button"
                         (click)="paymentMethod.set(PaymentMethod.BankTransfer)"
                         [class]="paymentMethod() === PaymentMethod.BankTransfer ? 'border-blue-500 bg-blue-50 text-blue-800 font-semibold shadow-2xs' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
-                        class="p-2 rounded-xl border text-xs flex items-center justify-center gap-1.5 transition-all"
+                        class="min-h-11 p-2 rounded-xl border text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                       >
                         <i class="pi pi-qrcode"></i>
-                        <span>VietQR / CK</span>
+                        <span>VietQR / CK (SePay)</span>
                       </button>
                     </div>
                   </div>
 
-                  <!-- Bank Transfer Guidance (No unverified fake bank accounts) -->
+                  <!-- Live Dynamic VietQR Block (POST /api/payments/vietqr/generate) -->
                   @if (paymentMethod() === PaymentMethod.BankTransfer) {
-                    <div class="p-3 bg-amber-50/80 rounded-xl border border-amber-200 text-amber-900 space-y-1.5 shadow-2xs">
-                      <div class="flex items-start gap-1.5">
-                        <i class="pi pi-info-circle text-amber-600 text-xs mt-0.5 shrink-0"></i>
-                        <span class="text-[11px] font-semibold">Chưa có cấu hình VietQR chính thức:</span>
+                    @if (isLoadingCashierVietQr()) {
+                      <div class="p-3 bg-blue-50/70 rounded-xl border border-blue-200 text-blue-900 flex items-center gap-2 text-xs">
+                        <i class="pi pi-spin pi-spinner text-blue-600 text-xs"></i>
+                        <span>Đang tạo mã VietQR động cho đơn {{ f.confirmationCode }}...</span>
                       </div>
-                      <p class="text-[10px] text-amber-800 leading-relaxed">
-                        Hệ thống không hiển thị mã QR chuyển khoản do cơ sở chưa thiết lập tài khoản ngân hàng thụ hưởng được nhóm xác nhận.
-                        Thu ngân vui lòng hướng dẫn khách chuyển khoản theo số tài khoản do quản lý chi nhánh chỉ định và đối chiếu số tiền thực nhận.
-                      </p>
-                    </div>
+                    } @else if (cashierVietQr(); as qr) {
+                      <div
+                        data-testid="cashier-vietqr-panel"
+                        class="p-3.5 bg-white rounded-xl border-2 border-blue-200 shadow-2xs space-y-2.5"
+                      >
+                        <div class="flex items-center justify-between gap-2">
+                          <span class="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-900">
+                            <i class="pi pi-qrcode text-blue-600"></i>
+                            <span>VietQR 24/7 — Tự động đối soát SePay</span>
+                          </span>
+                          <button
+                            type="button"
+                            (click)="loadCashierVietQr()"
+                            class="min-h-11 px-2.5 rounded-lg text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 inline-flex items-center gap-1 cursor-pointer"
+                            title="Tạo lại mã QR theo số tiền thu hiện tại"
+                          >
+                            <i class="pi pi-refresh text-[10px]"></i>
+                            <span>Cập nhật QR</span>
+                          </button>
+                        </div>
+
+                        <div class="flex items-start gap-3">
+                          <img
+                            [src]="qr.qrImageUrl"
+                            alt="Mã VietQR thanh toán"
+                            width="96"
+                            height="96"
+                            loading="lazy"
+                            class="w-24 h-24 object-contain rounded-lg border border-slate-200 bg-white p-1 shrink-0"
+                          />
+                          <div class="text-[11px] space-y-1 min-w-0 flex-1">
+                            <div class="font-bold text-slate-900 truncate">{{ qr.bankName }}</div>
+                            <div class="text-slate-600 flex items-center gap-1.5 flex-wrap">
+                              <span>STK: <strong class="font-mono text-indigo-700">{{ qr.accountNumber }}</strong></span>
+                              <button
+                                type="button"
+                                (click)="copyCashierQrField(qr.accountNumber, 'account')"
+                                class="min-h-11 px-2 rounded-lg text-[11px] font-semibold text-blue-700 hover:bg-blue-50 hover:underline inline-flex items-center cursor-pointer"
+                              >
+                                {{ copiedCashierQrField() === 'account' ? 'Đã chép' : 'Sao chép' }}
+                              </button>
+                            </div>
+                            <div class="text-slate-600 truncate">
+                              Chủ TK: <strong class="text-slate-900">{{ qr.accountName }}</strong>
+                            </div>
+                            <div class="text-emerald-700 font-mono font-bold tabular-nums">
+                              Số tiền: {{ qr.amount | vndCurrency }}
+                            </div>
+                            <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
+                              <span class="px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 font-mono font-bold text-[10px] text-amber-900 break-all">
+                                {{ qr.description }}
+                              </span>
+                              <button
+                                type="button"
+                                (click)="copyCashierQrField(qr.description, 'memo')"
+                                class="min-h-11 px-2 rounded-lg text-[11px] font-semibold text-amber-800 hover:bg-amber-50 hover:underline inline-flex items-center cursor-pointer"
+                              >
+                                {{ copiedCashierQrField() === 'memo' ? 'Đã chép nội dung' : 'Sao chép nội dung CK' }}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    } @else if (cashierVietQrUnconfigured()) {
+                      <div
+                        data-testid="cashier-vietqr-unconfigured"
+                        class="p-3 bg-amber-50/80 rounded-xl border border-amber-200 text-amber-900 space-y-1.5 shadow-2xs"
+                      >
+                        <div class="flex items-start gap-1.5">
+                          <i class="pi pi-info-circle text-amber-600 text-xs mt-0.5 shrink-0"></i>
+                          <span class="text-[11px] font-semibold">Chưa cấu hình tài khoản ngân hàng VietQR</span>
+                        </div>
+                        <p class="text-[10px] text-amber-800 leading-relaxed">
+                          Cơ sở chưa thiết lập tài khoản ngân hàng thụ hưởng để sinh mã VietQR động.
+                          Quản lý vui lòng cấu hình thông tin ngân hàng tại mục Chính sách &amp; Mẫu in hoặc đối chiếu chuyển khoản thủ công.
+                        </p>
+                        <a
+                          href="/policies"
+                          (click)="openPoliciesPage($event)"
+                          class="min-h-11 inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 hover:text-indigo-900 underline underline-offset-2"
+                        >
+                          <i class="pi pi-cog text-[10px]"></i>
+                          <span>Đi tới cấu hình tài khoản ngân hàng (/policies)</span>
+                        </a>
+                      </div>
+                    } @else if (cashierVietQrError()) {
+                      <div class="p-3 bg-rose-50/80 rounded-xl border border-rose-200 text-rose-900 space-y-1.5 text-[11px]">
+                        <div class="flex items-center justify-between gap-2">
+                          <span>{{ cashierVietQrError() }}</span>
+                          <button
+                            type="button"
+                            (click)="loadCashierVietQr()"
+                            class="min-h-11 px-2.5 rounded-lg font-bold text-rose-700 hover:bg-rose-100 hover:underline inline-flex items-center cursor-pointer shrink-0"
+                          >
+                            Thử lại
+                          </button>
+                        </div>
+                      </div>
+                    }
                   }
 
                   <!-- Transaction Ref -->
@@ -780,13 +1033,13 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                     <label class="block text-[11px] font-medium text-slate-600 mb-1">
                       Mã tham chiếu / Ghi chú:
                       @if (paymentMethod() === PaymentMethod.BankTransfer) {
-                        <span class="text-rose-600 font-bold">* (Bắt buộc với Chuyển khoản)</span>
+                        <span class="text-slate-400 font-normal">(Tùy chọn nếu xác nhận thủ công)</span>
                       }
                     </label>
                     <input
                       type="text"
                       [(ngModel)]="paymentTransactionRef"
-                      [placeholder]="paymentMethod() === PaymentMethod.BankTransfer ? 'Nhập mã giao dịch ngân hàng (FT... / Ref ID)...' : 'Mã GD / số biên lai (tùy chọn)...'"
+                      [placeholder]="paymentMethod() === PaymentMethod.BankTransfer ? 'Mã GD ngân hàng (FT...) hoặc để trống nếu đã kiểm tra tiền vào...' : 'Mã GD / số biên lai (tùy chọn)...'"
                       class="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     />
                   </div>
@@ -800,7 +1053,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                         (change)="toggleBankTransferConfirmed()"
                         class="mt-0.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
-                      <span>Thu ngân xác nhận tiền <b>đã vào tài khoản ngân hàng</b> chi nhánh và đã kiểm tra mã giao dịch.</span>
+                      <span>Tôi xác nhận đã kiểm tra tiền <b>đã vào tài khoản ngân hàng</b> chi nhánh (hoặc hệ thống tự động thu khi khách quét mã VietQR SePay).</span>
                     </label>
                   }
 
@@ -819,15 +1072,15 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                   <button
                     type="button"
                     (click)="submitPayment(f.reservationId)"
-                    [disabled]="paymentAmount <= 0 || isSubmittingPayment() || (paymentMethod() === PaymentMethod.BankTransfer && (!paymentTransactionRef.trim() || !isBankTransferConfirmed()))"
-                    class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors shadow-2xs disabled:opacity-50 flex items-center justify-center gap-2 mt-2 cursor-pointer disabled:cursor-not-allowed"
+                    [disabled]="paymentAmount <= 0 || isSubmittingPayment() || (paymentMethod() === PaymentMethod.BankTransfer && !isBankTransferConfirmed())"
+                    class="w-full min-h-11 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors shadow-2xs disabled:opacity-50 flex items-center justify-center gap-2 mt-2 cursor-pointer disabled:cursor-not-allowed tabular-nums"
                   >
                     @if (isSubmittingPayment()) {
                       <i class="pi pi-spin pi-spinner text-xs"></i>
                       <span>Đang xử lý giao dịch...</span>
                     } @else {
                       <i class="pi pi-check-circle text-xs"></i>
-                      <span>Xác nhận thu {{ paymentAmount | number:'1.0-0' }} VNĐ</span>
+                      <span>Xác nhận thu {{ paymentAmount | vndCurrency }}</span>
                     }
                   </button>
                 </div>
@@ -859,7 +1112,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
             </div>
 
             <!-- Page Count & Info -->
-            <div class="text-xs text-slate-500">
+            <div class="text-xs text-slate-500 tabular-nums">
               Tổng số: <span class="font-semibold text-slate-800">{{ totalCount() }}</span> bản ghi
             </div>
           </div>
@@ -875,6 +1128,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                 (ngModelChange)="onFilterDateFromChange($event)"
                 dateFormat="dd/mm/yy"
                 [showIcon]="true"
+                [touchUI]="isMobile()"
                 appendTo="body"
                 placeholder="Chọn ngày"
                 [inputStyleClass]="'w-full text-xs pr-10'"
@@ -890,6 +1144,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                 (ngModelChange)="onFilterDateToChange($event)"
                 dateFormat="dd/mm/yy"
                 [showIcon]="true"
+                [touchUI]="isMobile()"
                 appendTo="body"
                 placeholder="Chọn ngày"
                 [inputStyleClass]="'w-full text-xs pr-10'"
@@ -907,9 +1162,11 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               >
                 <option [ngValue]="null">Tất cả phương thức</option>
                 <option [ngValue]="PaymentMethod.Cash">Tiền mặt</option>
-                <option [ngValue]="PaymentMethod.BankTransfer">Chuyển khoản</option>
-                <option [ngValue]="PaymentMethod.CreditCard">Thẻ tín dụng</option>
-                <option [ngValue]="PaymentMethod.VNPay">VNPay</option>
+                <option [ngValue]="PaymentMethod.BankTransfer">VietQR / Chuyển khoản (SePay)</option>
+                @if (showVnpay) {
+                  <option [ngValue]="PaymentMethod.CreditCard">Thẻ tín dụng</option>
+                  <option [ngValue]="PaymentMethod.VNPay">VNPay</option>
+                }
               </select>
             </div>
 
@@ -937,7 +1194,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               <button
                 type="button"
                 (click)="resetFilters()"
-                class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 text-xs font-medium transition-colors"
+                class="w-full min-h-11 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 text-xs font-medium transition-colors cursor-pointer"
               >
                 <i class="pi pi-filter-slash mr-1"></i> Đặt lại
               </button>
@@ -946,7 +1203,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
 
           <!-- Loading State for Payments -->
           @if (isLoadingPayments()) {
-            <div class="space-y-2 py-6 animate-pulse">
+            <div class="space-y-2 py-6 animate-pulse motion-reduce:animate-none">
               @for (i of [1, 2, 3, 4, 5]; track i) {
                 <div class="h-10 rounded-lg bg-slate-100/80"></div>
               }
@@ -955,7 +1212,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
 
           <!-- Error State for Payments -->
           @if (!isLoadingPayments() && paymentsError()) {
-            <div class="rounded-xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-800 flex items-center justify-between gap-3">
+            <div role="alert" class="rounded-xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-800 flex items-center justify-between gap-3">
               <div class="flex items-center gap-2">
                 <i class="pi pi-exclamation-circle text-rose-600 text-base shrink-0"></i>
                 <span>{{ paymentsError() }}</span>
@@ -963,7 +1220,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               <button
                 type="button"
                 (click)="retryPayments()"
-                class="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs transition-colors shrink-0 shadow-2xs"
+                class="min-h-11 px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs transition-colors shrink-0 shadow-2xs cursor-pointer"
               >
                 Thử lại
               </button>
@@ -986,23 +1243,42 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               @for (p of payments(); track p.id) {
                 <div class="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs space-y-2.5">
                   <div class="flex items-center justify-between">
-                    <span class="font-bold text-sm text-slate-900">
-                      {{ p.amount | number:'1.0-0' }} <span class="text-xs font-normal text-slate-500">{{ p.currency || 'VND' }}</span>
-                    </span>
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span
+                        data-testid="history-payment-amount-mobile"
+                        class="font-bold text-sm tabular-nums"
+                        [ngClass]="isRefundTransaction(p) ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900'"
+                      >{{ isRefundTransaction(p) ? '-' : '' }}{{ (!p.currency || p.currency === 'VND') ? ((isRefundTransaction(p) ? absAmount(p.amount) : p.amount) | vndCurrency) : ((isRefundTransaction(p) ? absAmount(p.amount) : p.amount) | number:'1.0-0') + ' ' + p.currency }}</span>
+                      @if (isRefundTransaction(p)) {
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                          Hoàn tiền
+                        </span>
+                      }
+                    </div>
                     <span [class]="getStatusBadgeClass(p.status)">
                       {{ p.statusName || getStatusLabel(p.status) }}
                     </span>
                   </div>
-                  <div class="flex items-center gap-2">
+                  <div class="flex flex-wrap items-center gap-2">
                     <span [class]="getMethodBadgeClass(p.method)">
                       {{ p.methodName || getMethodLabel(p.method) }}
                     </span>
-                    <span class="text-[11px] text-slate-400 font-mono">
-                      {{ formatUtc(p.createdAtUtc) }}
-                    </span>
+                    <div class="text-[11px] font-mono tabular-nums">
+                      <span class="text-slate-600">{{ formatUtc(p.createdAtUtc) }}</span>
+                      <span class="text-slate-400 ml-1">({{ p.createdAtUtc | businessDateTime }} VN)</span>
+                    </div>
                   </div>
                   <div class="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
                     <span class="font-mono" [title]="p.id">Mã: {{ p.id.substring(0, 8) }}...</span>
+                    @if (p.reservationId) {
+                      <button
+                        type="button"
+                        (click)="inspectReservationFolio(p.reservationId)"
+                        class="min-h-11 px-2 text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
+                      >
+                        Xem Folio
+                      </button>
+                    }
                     @if (p.transactionRef) {
                       <span class="font-mono">Ref: {{ p.transactionRef }}</span>
                     }
@@ -1025,7 +1301,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                     <th class="py-3 px-3.5">Phương Thức</th>
                     <th class="py-3 px-3.5">Trạng Thái</th>
                     <th class="py-3 px-3.5">Mã Tham Chiếu</th>
-                    <th class="py-3 px-3.5">Thời Gian Tạo (Giờ VN)</th>
+                    <th class="py-3 px-3.5">Thời Gian Tạo (UTC / Giờ VN)</th>
                     <th class="py-3 px-3.5">Ghi Chú</th>
                   </tr>
                 </thead>
@@ -1044,7 +1320,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                             type="button"
                             (click)="inspectReservationFolio(p.reservationId)"
                             title="Tra cứu bảng kê Folio đơn này"
-                            class="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 hover:underline font-mono"
+                            class="min-h-11 inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 hover:underline font-mono cursor-pointer"
                           >
                             <i class="pi pi-bookmark text-[10px]"></i>
                             <span>{{ p.reservationId.substring(0, 8) }}...</span>
@@ -1055,8 +1331,21 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                       </td>
 
                       <!-- Amount -->
-                      <td class="py-3 px-3.5 font-bold text-slate-900">
-                        {{ p.amount | number:'1.0-0' }} <span class="text-[10px] font-normal text-slate-500">{{ p.currency || 'VND' }}</span>
+                      <td
+                        data-testid="history-payment-amount"
+                        class="py-3 px-3.5 font-bold tabular-nums"
+                        [ngClass]="isRefundTransaction(p) ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900'"
+                      >
+                        @if (isRefundTransaction(p)) {
+                          <div class="inline-flex items-center gap-1.5 flex-wrap">
+                            <span>-{{ (!p.currency || p.currency === 'VND') ? (absAmount(p.amount) | vndCurrency) : (absAmount(p.amount) | number:'1.0-0') + ' ' + p.currency }}</span>
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              Hoàn tiền
+                            </span>
+                          </div>
+                        } @else {
+                          {{ (!p.currency || p.currency === 'VND') ? (p.amount | vndCurrency) : (p.amount | number:'1.0-0') + ' ' + p.currency }}
+                        }
                       </td>
 
                       <!-- Method Badge -->
@@ -1078,9 +1367,10 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                         {{ p.transactionRef || '—' }}
                       </td>
 
-                      <!-- CreatedAt VN -->
-                      <td class="py-3 px-3.5 text-slate-600 font-mono text-[11px] whitespace-nowrap">
-                        {{ formatUtc(p.createdAtUtc) }}
+                      <!-- CreatedAt UTC + Business Time (VN) -->
+                      <td class="py-3 px-3.5 text-slate-600 font-mono text-[11px] whitespace-nowrap tabular-nums">
+                        <div>{{ formatUtc(p.createdAtUtc) }}</div>
+                        <div class="text-[10px] text-slate-400">{{ p.createdAtUtc | businessDateTime }} (Giờ VN)</div>
                       </td>
 
                       <!-- Notes -->
@@ -1117,8 +1407,17 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
     <!-- MODAL XUẤT PHIẾU THU TIỀN TẠI QUẦY (RECEIPT VOUCHER)                      -->
     <!-- ========================================================================= -->
     @if (receiptVoucher(); as voucher) {
-      <div class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 overflow-y-auto">
-          <div class="bg-white rounded-2xl shadow-2xl border border-slate-200/80 max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-8">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Phiếu Xác Nhận Thu Tiền Nội Bộ"
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
+        (keydown.escape)="closeReceiptModal()"
+        (click)="closeReceiptModal()"
+        class="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] !m-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 overflow-y-auto"
+      >
+          <div (click)="$event.stopPropagation()" class="bg-white rounded-2xl shadow-2xl border border-slate-200/80 max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-8">
             <!-- Modal Header -->
             <div class="px-5 py-4 bg-emerald-600 text-white flex items-center justify-between">
               <div class="flex items-center gap-2.5">
@@ -1130,7 +1429,8 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               <button
                 type="button"
                 (click)="closeReceiptModal()"
-                class="w-8 h-8 rounded-xl flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                aria-label="Đóng phiếu xác nhận thu tiền"
+                class="min-h-11 min-w-11 rounded-xl flex items-center justify-center text-white/90 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               >
                 <i class="pi pi-times text-sm"></i>
               </button>
@@ -1170,16 +1470,19 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                   </div>
                 }
                 <div class="flex justify-between items-center">
-                  <span class="text-slate-500">Thời gian:</span>
-                  <span class="font-mono text-slate-700">{{ formatUtc(voucher.createdAtUtc) }}</span>
+                  <span class="text-slate-500">Thời gian (Giờ VN):</span>
+                  <div class="text-right font-mono tabular-nums">
+                    <div class="text-slate-800 font-semibold">{{ voucher.createdAtUtc | businessDateTime }}</div>
+                    <div class="text-[10px] text-slate-400">({{ formatUtc(voucher.createdAtUtc) }})</div>
+                  </div>
                 </div>
               </div>
 
               <!-- Amount Highlight -->
               <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center">
                 <span class="text-[11px] text-slate-500 uppercase block font-bold tracking-wider">Số tiền đã thu</span>
-                <span class="text-2xl font-black text-emerald-700 font-mono mt-0.5 block">
-                  {{ voucher.amount | number:'1.0-0' }} VNĐ
+                <span class="text-2xl font-black text-emerald-700 font-mono tabular-nums mt-0.5 block">
+                  {{ voucher.amount | vndCurrency }}
                 </span>
               </div>
 
@@ -1198,7 +1501,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               <button
                 type="button"
                 (click)="printReceipt()"
-                class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-semibold text-xs sm:text-sm transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
+                class="min-h-11 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-semibold text-xs sm:text-sm transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
               >
                 <i class="pi pi-print text-xs"></i>
                 <span>In phiếu thu</span>
@@ -1206,7 +1509,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               <button
                 type="button"
                 (click)="closeReceiptModal()"
-                class="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm transition-colors cursor-pointer"
+                class="min-h-11 px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm transition-colors cursor-pointer"
               >
                 Đóng
               </button>
@@ -1214,12 +1517,34 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
           </div>
         </div>
       }
+
+      @if (showContextSelector()) {
+        <app-context-selector-dialog
+          [visible]="showContextSelector()"
+          (visibleChange)="showContextSelector.set($event)"
+        />
+      }
   `
 })
 export class PaymentsPage implements OnInit, OnDestroy {
   readonly authService = inject(AuthService);
   private readonly paymentService = inject(PaymentService);
+  private readonly notificationService = inject(NotificationService, { optional: true });
+  private readonly injector = inject(Injector);
+  private readonly cdr = inject(ChangeDetectorRef, { optional: true });
   private readonly route = inject(ActivatedRoute, { optional: true });
+  private readonly router = inject(Router, { optional: true });
+  readonly showVnpay = environment.enableVnpay;
+  private lastProcessedPaymentNotifId: string | null = null;
+
+  private fallbackDestroyCallbacks: Array<() => void> = [];
+  private isFallbackDestroyed = false;
+  private readonly destroyRef = inject(DestroyRef, { optional: true }) ?? this.createFallbackDestroyRef();
+
+  readonly showContextSelector = signal(false);
+  openContextSelector(): void {
+    this.showContextSelector.set(true);
+  }
 
   readonly PaymentMethod = PaymentMethod;
   readonly PaymentStatus = PaymentStatus;
@@ -1244,11 +1569,21 @@ export class PaymentsPage implements OnInit, OnDestroy {
   summaryDate = getTodayVietnamDateString();
   summaryDateObj: Date = new Date();
   readonly todayDate: Date = new Date();
-  readonly summary = signal<PaymentSummaryDto | null>(null);
+  readonly summary = signal<PaymentSummaryViewDto | null>(null);
   readonly isLoadingSummary = signal<boolean>(false);
   readonly summaryError = signal<string | null>(null);
   private summaryRequestId = 0;
   private summarySub?: Subscription;
+
+  readonly isMobile = signal<boolean>(typeof window !== 'undefined' && window.innerWidth < 768);
+  private readonly vndPipe = new VndCurrencyPipe();
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    if (typeof window !== 'undefined') {
+      this.isMobile.set(window.innerWidth < 768);
+    }
+  }
 
   // Stream 1B: Shift Report State (Cashier Shift Audit)
   shiftDate = getTodayVietnamDateString();
@@ -1256,7 +1591,7 @@ export class PaymentsPage implements OnInit, OnDestroy {
   readonly selectedShiftType = signal<ShiftType>(ShiftType.Morning);
   readonly ShiftType = ShiftType;
   readonly SHIFT_TYPE_LABELS = SHIFT_TYPE_LABELS;
-  readonly shiftReport = signal<ShiftReportDto | null>(null);
+  readonly shiftReport = signal<ShiftReportViewDto | null>(null);
   readonly isLoadingShiftReport = signal<boolean>(false);
   readonly shiftReportError = signal<string | null>(null);
   private shiftReportRequestId = 0;
@@ -1297,6 +1632,11 @@ export class PaymentsPage implements OnInit, OnDestroy {
   readonly isBankTransferConfirmed = signal<boolean>(false);
   readonly isDepositPayment = signal<boolean>(false);
   readonly isSubmittingPayment = signal<boolean>(false);
+  readonly cashierVietQr = signal<VietQrResultDto | null>(null);
+  readonly isLoadingCashierVietQr = signal<boolean>(false);
+  readonly cashierVietQrError = signal<string | null>(null);
+  readonly cashierVietQrUnconfigured = signal<boolean>(false);
+  readonly copiedCashierQrField = signal<'account' | 'memo' | null>(null);
   readonly receiptVoucher = signal<{
     paymentId: string;
     reservationId: string;
@@ -1306,8 +1646,14 @@ export class PaymentsPage implements OnInit, OnDestroy {
     transactionRef?: string;
     createdAtUtc: string;
   } | null>(null);
+  readonly recentReservations = signal<ReservationDto[]>([]);
   private folioSub?: Subscription;
   private submitPaymentSub?: Subscription;
+  private recentReservationsSub?: Subscription;
+  private reservationLookupSub?: Subscription;
+  private cashierVietQrSub?: Subscription;
+  private cashierVietQrRequestId = 0;
+  private cashierQrCopyTimer: ReturnType<typeof setTimeout> | null = null;
   private activePaymentIntent: {
     key: string;
     reservationId: string;
@@ -1327,14 +1673,81 @@ export class PaymentsPage implements OnInit, OnDestroy {
       });
     });
 
-    if (this.authService.currentUser$) {
-      this.authSub = this.authService.currentUser$.subscribe(() => {
-        if (!this.canReadPayments()) {
-          this.handleAccessDenied('Quyền truy cập thu ngân đã bị thu hồi (PAYMENTS:Read).');
-        } else if (this.isAccessDenied()) {
-          this.recoverAccess();
+    effect(() => {
+      const method = this.paymentMethod();
+      const activeFolio = this.folio();
+      const propId = this.activePropertyId();
+      untracked(() => {
+        if (method === PaymentMethod.BankTransfer && activeFolio && propId && !this.isAccessDenied()) {
+          this.loadCashierVietQr();
+        } else {
+          this.resetCashierVietQrState();
         }
       });
+    });
+
+    effect(() => {
+      const notifs = this.notificationService?.notifications() ?? [];
+      const activeFolio = this.folio();
+      const latest = notifs[0];
+      if (!latest || !activeFolio || this.isAccessDenied()) {
+        return;
+      }
+      if (latest.id === this.lastProcessedPaymentNotifId) {
+        return;
+      }
+      const isPaymentNotif =
+        latest.type === 'BookingPaymentConfirmed' ||
+        String(latest.type).toLowerCase().includes('payment');
+      const matchesReservation =
+        (latest.metadata?.reservationId && latest.metadata.reservationId === activeFolio.reservationId) ||
+        (latest.metadata?.confirmationCode && latest.metadata.confirmationCode === activeFolio.confirmationCode) ||
+        (activeFolio.confirmationCode && latest.message?.includes(activeFolio.confirmationCode));
+      if (isPaymentNotif && (matchesReservation || (!latest.metadata?.reservationId && !latest.metadata?.confirmationCode))) {
+        this.lastProcessedPaymentNotifId = latest.id;
+        untracked(() => {
+          this.loadFolio(activeFolio.reservationId);
+          this.loadSummary();
+          this.loadPayments();
+          this.loadShiftReport();
+        });
+      }
+    });
+
+    if (this.authService.currentUser$) {
+      this.authSub = this.authService.currentUser$
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => {
+          if (!this.canReadPayments()) {
+            this.handleAccessDenied('Quyền truy cập thu ngân đã bị thu hồi (PAYMENTS:Read).');
+          } else if (this.isAccessDenied()) {
+            this.recoverAccess();
+          }
+          this.cdr?.markForCheck();
+        });
+    }
+  }
+
+  private createFallbackDestroyRef(): DestroyRef {
+    const page = this;
+    return {
+      get destroyed(): boolean {
+        return page.isFallbackDestroyed;
+      },
+      onDestroy: (callback: () => void) => {
+        page.fallbackDestroyCallbacks.push(callback);
+        return () => {
+          page.fallbackDestroyCallbacks = page.fallbackDestroyCallbacks.filter(cb => cb !== callback);
+        };
+      }
+    };
+  }
+
+  private resolveReservationService(): ReservationService | null {
+    try {
+      return this.injector.get(ReservationService, null);
+    } catch {
+      return null;
     }
   }
 
@@ -1366,6 +1779,18 @@ export class PaymentsPage implements OnInit, OnDestroy {
     if (this.submitPaymentSub && !this.submitPaymentSub.closed) {
       this.submitPaymentSub.unsubscribe();
       this.submitPaymentSub = undefined;
+    }
+    if (this.recentReservationsSub && !this.recentReservationsSub.closed) {
+      this.recentReservationsSub.unsubscribe();
+      this.recentReservationsSub = undefined;
+    }
+    if (this.reservationLookupSub && !this.reservationLookupSub.closed) {
+      this.reservationLookupSub.unsubscribe();
+      this.reservationLookupSub = undefined;
+    }
+    if (this.cashierVietQrSub && !this.cashierVietQrSub.closed) {
+      this.cashierVietQrSub.unsubscribe();
+      this.cashierVietQrSub = undefined;
     }
   }
 
@@ -1401,6 +1826,7 @@ export class PaymentsPage implements OnInit, OnDestroy {
     this.folio.set(null);
     this.folioError.set(null);
     this.receiptVoucher.set(null);
+    this.resetCashierVietQrState();
   }
 
   /**
@@ -1461,8 +1887,10 @@ export class PaymentsPage implements OnInit, OnDestroy {
     this.folio.set(null);
     this.folioError.set(null);
     this.searchReservationId = '';
+    this.recentReservations.set([]);
     this.receiptVoucher.set(null);
     this.isDepositPayment.set(false);
+    this.resetCashierVietQrState();
 
     if (!propId) {
       this.isLoadingSummary.set(false);
@@ -1481,6 +1909,7 @@ export class PaymentsPage implements OnInit, OnDestroy {
       return;
     }
     this.loadPayments();
+    this.loadRecentReservationsForFolio(propId);
   }
 
   loadShiftReport(): void {
@@ -1496,22 +1925,27 @@ export class PaymentsPage implements OnInit, OnDestroy {
     this.shiftReportError.set(null);
 
     this.shiftReportSub?.unsubscribe();
-    this.shiftReportSub = this.paymentService.getShiftReport(propId, this.shiftDate, this.selectedShiftType()).subscribe({
-      next: (report) => {
-        if (currentReqId !== this.shiftReportRequestId || this.activePropertyId() !== propId || this.isAccessDenied()) return;
-        this.shiftReport.set(report);
-        this.isLoadingShiftReport.set(false);
-      },
-      error: (err: HttpErrorResponse) => {
-        if (currentReqId !== this.shiftReportRequestId) return;
-        if (err?.status === 403) {
-          this.handleAccessDenied('Bạn không có quyền truy cập báo cáo ca thu ngân chi nhánh này (403 Forbidden).');
-        } else if (!this.isAccessDenied()) {
+    this.shiftReportSub = this.paymentService
+      .getShiftReport(propId, this.shiftDate, this.selectedShiftType())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (report) => {
+          if (currentReqId !== this.shiftReportRequestId || this.activePropertyId() !== propId || this.isAccessDenied()) return;
+          this.shiftReport.set(report);
           this.isLoadingShiftReport.set(false);
-          this.shiftReportError.set(err?.error?.message || 'Không thể tải báo cáo ca thu ngân.');
+          this.cdr?.markForCheck();
+        },
+        error: (err: HttpErrorResponse) => {
+          if (currentReqId !== this.shiftReportRequestId) return;
+          if (err?.status === 403) {
+            this.handleAccessDenied('Bạn không có quyền truy cập báo cáo ca thu ngân chi nhánh này (403 Forbidden).');
+          } else if (!this.isAccessDenied()) {
+            this.isLoadingShiftReport.set(false);
+            this.shiftReportError.set(err?.error?.message || 'Không thể tải báo cáo ca thu ngân.');
+          }
+          this.cdr?.markForCheck();
         }
-      }
-    });
+      });
   }
 
   retryShiftReport(): void {
@@ -1530,29 +1964,62 @@ export class PaymentsPage implements OnInit, OnDestroy {
     this.loadShiftReport();
   }
 
+  getSummaryTotalRefunded(s: PaymentSummaryViewDto): number {
+    return s.totalRefunded ?? 0;
+  }
+
+  getSummaryNetCollected(s: PaymentSummaryViewDto): number {
+    return s.netCollected ?? (s.totalCollected - (s.totalRefunded ?? 0));
+  }
+
+  getShiftTotalRefunded(sr: ShiftReportViewDto): number {
+    return sr.totalRefunded ?? 0;
+  }
+
+  getShiftNetCollected(sr: ShiftReportViewDto): number {
+    return sr.netCollected ?? (sr.totalCollected - (sr.totalRefunded ?? 0));
+  }
+
+  isRefundTransaction(p: PaymentDto): boolean {
+    if (p.amount < 0) return true;
+    if (p.status === PaymentStatus.Refunded) return true;
+    const statusName = (p.statusName || '').toLowerCase();
+    if (statusName.includes('refund') || statusName.includes('hoàn')) return true;
+    const txRef = (p.transactionRef || '').toUpperCase();
+    if (txRef.includes('REFUND')) return true;
+    return false;
+  }
+
+  absAmount(amount: number): number {
+    return Math.abs(amount);
+  }
+
   ngOnInit(): void {
     // Ngữ cảnh chi nhánh và quyền được kích hoạt tự động qua context effect
     if (this.route?.queryParams) {
-      this.queryParamsSub = this.route.queryParams.subscribe(params => {
-        const tab = params['tab'];
-        const code = params['code'] ? String(params['code']).trim() : '';
-        const reservationId = params['reservationId'] ? String(params['reservationId']).trim() : '';
+      this.queryParamsSub = this.route.queryParams
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(params => {
+          const tab = params['tab'];
+          const code = params['code'] ? String(params['code']).trim() : '';
+          const reservationId = params['reservationId'] ? String(params['reservationId']).trim() : '';
 
-        if (tab === 'refunds') {
-          this.activeTab.set('refunds');
-          if (code || reservationId) {
-            this.refundSearchCode.set(code || reservationId);
-            this.refundAutoOpenTrigger.update(v => v + 1);
+          if (tab === 'refunds') {
+            this.activeTab.set('refunds');
+            if (code || reservationId) {
+              this.refundSearchCode.set(code || reservationId);
+              this.refundAutoOpenTrigger.update(v => v + 1);
+            }
+          } else if (tab === 'cashier') {
+            this.activeTab.set('cashier');
+            if (reservationId) {
+              setTimeout(() => {
+                this.inspectReservationFolio(reservationId);
+              }, 50);
+            }
           }
-        } else if (tab === 'cashier') {
-          this.activeTab.set('cashier');
-          if (reservationId) {
-            setTimeout(() => {
-              this.inspectReservationFolio(reservationId);
-            }, 50);
-          }
-        }
-      });
+          this.cdr?.markForCheck();
+        });
     }
   }
 
@@ -1569,8 +2036,15 @@ export class PaymentsPage implements OnInit, OnDestroy {
       clearTimeout(this.filterDebounceTimer);
       this.filterDebounceTimer = null;
     }
+    if (this.cashierQrCopyTimer) {
+      clearTimeout(this.cashierQrCopyTimer);
+      this.cashierQrCopyTimer = null;
+    }
     this.summaryRequestId++;
     this.paymentsRequestId++;
+    this.isFallbackDestroyed = true;
+    const callbacks = this.fallbackDestroyCallbacks.splice(0);
+    callbacks.forEach(cb => cb());
   }
 
   /**
@@ -1591,30 +2065,35 @@ export class PaymentsPage implements OnInit, OnDestroy {
     this.isLoadingSummary.set(true);
     this.summaryError.set(null);
 
-    this.summarySub = this.paymentService.getPaymentSummary(propId, this.summaryDate || undefined).subscribe({
-      next: (data) => {
-        // Stale response rejection
-        if (currentReqId !== this.summaryRequestId) return;
-        // Kiểm tra lại ngữ cảnh và quyền tại thời điểm nhận phản hồi
-        if (this.isAccessDenied() || !this.canReadPayments() || this.activePropertyId() !== propId) {
-          this.handleAccessDenied();
-          return;
-        }
-        this.summary.set(data);
-        this.isLoadingSummary.set(false);
-      },
-      error: (err) => {
-        // Stale response rejection
-        if (currentReqId !== this.summaryRequestId) return;
-        if (err?.status === 403) {
-          this.handleAccessDenied('Bạn không có quyền truy cập dữ liệu thu ngân chi nhánh này (403 Forbidden).');
-        } else if (!this.isAccessDenied()) {
-          // Lỗi thông thường (500, network error) duy trì tính độc lập của luồng
+    this.summarySub = this.paymentService
+      .getPaymentSummary(propId, this.summaryDate || undefined)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (data) => {
+          // Stale response rejection
+          if (currentReqId !== this.summaryRequestId) return;
+          // Kiểm tra lại ngữ cảnh và quyền tại thời điểm nhận phản hồi
+          if (this.isAccessDenied() || !this.canReadPayments() || this.activePropertyId() !== propId) {
+            this.handleAccessDenied();
+            return;
+          }
+          this.summary.set(data);
           this.isLoadingSummary.set(false);
-          this.summaryError.set(err?.error?.message || 'Không thể tải tổng kết thực thu trong ngày.');
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          // Stale response rejection
+          if (currentReqId !== this.summaryRequestId) return;
+          if (err?.status === 403) {
+            this.handleAccessDenied('Bạn không có quyền truy cập dữ liệu thu ngân chi nhánh này (403 Forbidden).');
+          } else if (!this.isAccessDenied()) {
+            // Lỗi thông thường (500, network error) duy trì tính độc lập của luồng
+            this.isLoadingSummary.set(false);
+            this.summaryError.set(err?.error?.message || 'Không thể tải tổng kết thực thu trong ngày.');
+          }
+          this.cdr?.markForCheck();
         }
-      }
-    });
+      });
   }
 
   retrySummary(): void {
@@ -1656,31 +2135,36 @@ export class PaymentsPage implements OnInit, OnDestroy {
     if (this.filterMethod !== null) filter.method = this.filterMethod;
     if (this.filterStatus !== null) filter.status = this.filterStatus;
 
-    this.paymentsSub = this.paymentService.getPayments(filter).subscribe({
-      next: (res) => {
-        // Stale response rejection
-        if (currentReqId !== this.paymentsRequestId) return;
-        // Kiểm tra lại ngữ cảnh và quyền tại thời điểm nhận phản hồi
-        if (this.isAccessDenied() || !this.canReadPayments() || this.activePropertyId() !== propId) {
-          this.handleAccessDenied();
-          return;
-        }
-        this.payments.set(res.items || []);
-        this.totalCount.set(res.totalCount || 0);
-        this.isLoadingPayments.set(false);
-      },
-      error: (err) => {
-        // Stale response rejection
-        if (currentReqId !== this.paymentsRequestId) return;
-        if (err?.status === 403) {
-          this.handleAccessDenied('Bạn không có quyền truy cập nhật ký giao dịch chi nhánh này (403 Forbidden).');
-        } else if (!this.isAccessDenied()) {
-          // Lỗi thông thường (500, network error) duy trì tính độc lập của luồng
+    this.paymentsSub = this.paymentService
+      .getPayments(filter)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          // Stale response rejection
+          if (currentReqId !== this.paymentsRequestId) return;
+          // Kiểm tra lại ngữ cảnh và quyền tại thời điểm nhận phản hồi
+          if (this.isAccessDenied() || !this.canReadPayments() || this.activePropertyId() !== propId) {
+            this.handleAccessDenied();
+            return;
+          }
+          this.payments.set(res.items || []);
+          this.totalCount.set(res.totalCount || 0);
           this.isLoadingPayments.set(false);
-          this.paymentsError.set(err?.error?.message || 'Không thể tải danh sách giao dịch thanh toán.');
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          // Stale response rejection
+          if (currentReqId !== this.paymentsRequestId) return;
+          if (err?.status === 403) {
+            this.handleAccessDenied('Bạn không có quyền truy cập nhật ký giao dịch chi nhánh này (403 Forbidden).');
+          } else if (!this.isAccessDenied()) {
+            // Lỗi thông thường (500, network error) duy trì tính độc lập của luồng
+            this.isLoadingPayments.set(false);
+            this.paymentsError.set(err?.error?.message || 'Không thể tải danh sách giao dịch thanh toán.');
+          }
+          this.cdr?.markForCheck();
         }
-      }
-    });
+      });
   }
 
   retryPayments(): void {
@@ -1820,43 +2304,279 @@ export class PaymentsPage implements OnInit, OnDestroy {
   // FOLIO & CASHIER COLLECTION METHODS
   // =========================================================================
 
-  loadFolio(reservationId?: string): void {
-    if (this.isAccessDenied()) return;
-    const propId = this.activePropertyId();
-    const resId = (reservationId || this.searchReservationId || '').trim();
-    if (!propId || !resId) return;
-
-    if (this.activePaymentIntent && this.activePaymentIntent.reservationId !== resId) {
-      this.activePaymentIntent = null;
+  private loadRecentReservationsForFolio(propId: string): void {
+    const reservationSvc = this.resolveReservationService();
+    if (!reservationSvc || typeof reservationSvc.getReservations !== 'function') {
+      return;
     }
 
-    this.searchReservationId = resId;
-    this.isLoadingFolio.set(true);
-    this.folioError.set(null);
+    this.recentReservationsSub?.unsubscribe();
+    this.recentReservationsSub = reservationSvc
+      .getReservations({ propertyId: propId, page: 1, pageSize: 50 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (paged) => {
+          if (this.activePropertyId() !== propId || this.isAccessDenied()) return;
+          this.recentReservations.set(paged?.items || []);
+          this.cdr?.markForCheck();
+        },
+        error: () => {
+          // Non-fatal suggestion cache failure
+        }
+      });
+  }
 
+  private findMatchingReservationId(query: string): string | null {
+    const raw = query.trim();
+    const lower = raw.toLowerCase();
+    const roomClean = lower.replace(/^phòng\s*/i, '').replace(/^p\.?/i, '').trim();
+
+    const reservationMatch = this.recentReservations().find(
+      (r) =>
+        r.id.toLowerCase() === lower ||
+        (r.confirmationCode && r.confirmationCode.toLowerCase() === lower) ||
+        (r.roomNumber && (r.roomNumber.toLowerCase() === lower || r.roomNumber.toLowerCase() === roomClean))
+    );
+    if (reservationMatch) {
+      return reservationMatch.id;
+    }
+
+    const fromPayments = this.payments().find(
+      (p) =>
+        p.reservationId &&
+        (p.reservationId.toLowerCase() === lower ||
+          (p.transactionRef && p.transactionRef.toLowerCase().includes(lower)))
+    );
+    if (fromPayments?.reservationId) {
+      return fromPayments.reservationId;
+    }
+
+    const fromShift = this.shiftReport()?.payments?.find(
+      (p) =>
+        p.reservationId &&
+        (p.reservationId.toLowerCase() === lower ||
+          (p.transactionRef && p.transactionRef.toLowerCase().includes(lower)))
+    );
+    return fromShift?.reservationId || null;
+  }
+
+  private isDirectReservationIdentifier(value: string): boolean {
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidPattern.test(value) || /^res-[0-9a-z-]+$/i.test(value);
+  }
+
+  private fetchFolioById(resId: string, propId: string): void {
     if (this.folioSub && !this.folioSub.closed) {
       this.folioSub.unsubscribe();
     }
 
-    this.folioSub = this.paymentService.getFolio(resId, propId).subscribe({
-      next: (f) => {
-        this.folio.set(f);
-        this.isLoadingFolio.set(false);
-        if (f.remainingBalance > 0) {
-          this.paymentAmount = f.remainingBalance;
-        } else {
-          this.paymentAmount = 0;
+    this.folioSub = this.paymentService
+      .getFolio(resId, propId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (f) => {
+          this.folio.set(f);
+          this.isLoadingFolio.set(false);
+          if (f.remainingBalance > 0) {
+            this.paymentAmount = f.remainingBalance;
+          } else {
+            this.paymentAmount = 0;
+          }
+          this.cdr?.markForCheck();
+        },
+        error: (err) => {
+          this.isLoadingFolio.set(false);
+          this.folioError.set(err?.error?.message || 'Không thể tra cứu thông tin hóa đơn Folio cho đơn đặt phòng này.');
+          this.cdr?.markForCheck();
         }
-      },
-      error: (err) => {
-        this.isLoadingFolio.set(false);
-        this.folioError.set(err?.error?.message || 'Không thể tra cứu thông tin hóa đơn Folio cho đơn đặt phòng này.');
+      });
+  }
+
+  loadFolio(reservationId?: string): void {
+    if (this.isAccessDenied()) return;
+    const propId = this.activePropertyId();
+    const rawQuery = (reservationId || this.searchReservationId || '').trim();
+    if (!propId || !rawQuery) return;
+
+    this.searchReservationId = rawQuery;
+    this.isLoadingFolio.set(true);
+    this.folioError.set(null);
+
+    const localMatchedId = this.findMatchingReservationId(rawQuery);
+    const resolvedDirectId = reservationId ? rawQuery : localMatchedId;
+
+    if (resolvedDirectId) {
+      if (this.activePaymentIntent && this.activePaymentIntent.reservationId !== resolvedDirectId) {
+        this.activePaymentIntent = null;
       }
-    });
+      this.fetchFolioById(resolvedDirectId, propId);
+      return;
+    }
+
+    const reservationSvc = this.resolveReservationService();
+    if (!this.isDirectReservationIdentifier(rawQuery) && reservationSvc && typeof reservationSvc.getReservations === 'function') {
+      const normalizedSearch = rawQuery.replace(/^phòng\s*/i, '').replace(/^p\.?/i, '').trim() || rawQuery;
+      this.reservationLookupSub?.unsubscribe();
+      this.reservationLookupSub = reservationSvc
+        .getReservations({ propertyId: propId, search: normalizedSearch, page: 1, pageSize: 20 })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (res) => {
+            if (this.activePropertyId() !== propId || this.isAccessDenied()) return;
+            const list = res?.items || [];
+            const lower = rawQuery.toLowerCase();
+            const roomClean = normalizedSearch.toLowerCase();
+            const matched =
+              list.find((r) => r.confirmationCode?.toLowerCase() === lower) ||
+              list.find((r) => r.roomNumber && (r.roomNumber.toLowerCase() === lower || r.roomNumber.toLowerCase() === roomClean)) ||
+              list[0];
+
+            if (matched) {
+              if (this.activePaymentIntent && this.activePaymentIntent.reservationId !== matched.id) {
+                this.activePaymentIntent = null;
+              }
+              this.fetchFolioById(matched.id, propId);
+            } else {
+              this.isLoadingFolio.set(false);
+              this.folioError.set(`Không tìm thấy đơn đặt phòng khớp với mã hoặc số phòng "${rawQuery}".`);
+              this.cdr?.markForCheck();
+            }
+          },
+          error: () => {
+            this.fetchFolioById(rawQuery, propId);
+          }
+        });
+      return;
+    }
+
+    if (this.activePaymentIntent && this.activePaymentIntent.reservationId !== rawQuery) {
+      this.activePaymentIntent = null;
+    }
+    this.fetchFolioById(rawQuery, propId);
   }
 
   fillRemainingBalance(amount: number): void {
     this.paymentAmount = Math.max(0, amount);
+    if (this.paymentMethod() === PaymentMethod.BankTransfer && this.folio()) {
+      this.loadCashierVietQr();
+    }
+  }
+
+  private resetCashierVietQrState(): void {
+    this.cashierVietQrRequestId++;
+    if (this.cashierVietQrSub && !this.cashierVietQrSub.closed) {
+      this.cashierVietQrSub.unsubscribe();
+      this.cashierVietQrSub = undefined;
+    }
+    this.cashierVietQr.set(null);
+    this.isLoadingCashierVietQr.set(false);
+    this.cashierVietQrError.set(null);
+    this.cashierVietQrUnconfigured.set(false);
+  }
+
+  loadCashierVietQr(): void {
+    const activeFolio = this.folio();
+    const propId = this.activePropertyId();
+    if (!activeFolio || !propId || this.isAccessDenied()) {
+      this.resetCashierVietQrState();
+      return;
+    }
+
+    const reqId = ++this.cashierVietQrRequestId;
+    if (this.cashierVietQrSub && !this.cashierVietQrSub.closed) {
+      this.cashierVietQrSub.unsubscribe();
+      this.cashierVietQrSub = undefined;
+    }
+
+    if (typeof this.paymentService.generateVietQr !== 'function') {
+      this.cashierVietQr.set(null);
+      this.isLoadingCashierVietQr.set(false);
+      this.cashierVietQrError.set(null);
+      this.cashierVietQrUnconfigured.set(true);
+      this.cdr?.markForCheck();
+      return;
+    }
+
+    const qrAmount =
+      Number(this.paymentAmount) > 0
+        ? Number(this.paymentAmount)
+        : activeFolio.remainingBalance > 0
+          ? activeFolio.remainingBalance
+          : activeFolio.totalAmount;
+
+    if (!qrAmount || qrAmount <= 0) {
+      this.cashierVietQr.set(null);
+      this.isLoadingCashierVietQr.set(false);
+      this.cashierVietQrUnconfigured.set(false);
+      this.cashierVietQrError.set('Vui lòng nhập số tiền lớn hơn 0 để tạo mã VietQR.');
+      this.cdr?.markForCheck();
+      return;
+    }
+
+    this.isLoadingCashierVietQr.set(true);
+    this.cashierVietQrError.set(null);
+    this.cashierVietQrUnconfigured.set(false);
+
+    this.cashierVietQrSub = this.paymentService
+      .generateVietQr(
+        {
+          amount: qrAmount,
+          confirmationCode: activeFolio.confirmationCode,
+          reservationId: activeFolio.reservationId,
+          propertyId: propId
+        },
+        propId
+      )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: qr => {
+          if (reqId !== this.cashierVietQrRequestId || this.activePropertyId() !== propId) return;
+          this.cashierVietQr.set(qr);
+          this.isLoadingCashierVietQr.set(false);
+          this.cashierVietQrUnconfigured.set(false);
+          this.cashierVietQrError.set(null);
+          this.cdr?.markForCheck();
+        },
+        error: (err: HttpErrorResponse) => {
+          if (reqId !== this.cashierVietQrRequestId) return;
+          this.cashierVietQr.set(null);
+          this.isLoadingCashierVietQr.set(false);
+          const errCode = err?.error?.errorCode || err?.error?.code;
+          if (err?.status === 422 || errCode === 'ERR_BANK_ACCOUNT_NOT_CONFIGURED') {
+            this.cashierVietQrUnconfigured.set(true);
+            this.cashierVietQrError.set(null);
+          } else {
+            this.cashierVietQrUnconfigured.set(false);
+            this.cashierVietQrError.set(
+              err?.error?.message || 'Không thể sinh mã VietQR lúc này. Vui lòng thử lại.'
+            );
+          }
+          this.cdr?.markForCheck();
+        }
+      });
+  }
+
+  copyCashierQrField(value: string, field: 'account' | 'memo'): void {
+    if (!value || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return;
+    navigator.clipboard.writeText(value).then(() => {
+      this.copiedCashierQrField.set(field);
+      if (this.cashierQrCopyTimer) {
+        clearTimeout(this.cashierQrCopyTimer);
+      }
+      this.cashierQrCopyTimer = setTimeout(() => {
+        this.copiedCashierQrField.set(null);
+        this.cashierQrCopyTimer = null;
+        this.cdr?.markForCheck();
+      }, 2000);
+      this.cdr?.markForCheck();
+    }).catch(() => {});
+  }
+
+  openPoliciesPage(event: Event): void {
+    if (this.router) {
+      event.preventDefault();
+      void this.router.navigate(['/policies']);
+    }
   }
 
   toggleBankTransferConfirmed(): void {
@@ -1879,19 +2599,22 @@ export class PaymentsPage implements OnInit, OnDestroy {
     }
 
     if (this.paymentMethod() === PaymentMethod.BankTransfer) {
-      if (!this.paymentTransactionRef.trim()) {
-        this.folioError.set('Vui lòng nhập mã giao dịch ngân hàng đối với hình thức Chuyển khoản.');
-        return;
-      }
       if (!this.isBankTransferConfirmed()) {
+        if (!this.paymentTransactionRef.trim()) {
+          this.folioError.set('Vui lòng nhập mã giao dịch ngân hàng hoặc tích xác nhận tiền đã vào tài khoản đối với hình thức Chuyển khoản.');
+          return;
+        }
         this.folioError.set('Thu ngân phải xác nhận tiền đã vào tài khoản ngân hàng chi nhánh trước khi ghi nhận.');
         return;
+      }
+      if (!this.paymentTransactionRef.trim()) {
+        this.paymentTransactionRef = 'VIETQR-MANUAL';
       }
     }
 
     const currentFolio = this.folio();
     if (currentFolio && currentFolio.reservationId === reservationId && amount > currentFolio.remainingBalance) {
-      this.folioError.set(`Số tiền thanh toán (${amount.toLocaleString('vi-VN')} đ) vượt quá dư nợ còn lại (${currentFolio.remainingBalance.toLocaleString('vi-VN')} đ).`);
+      this.folioError.set(`Số tiền thanh toán (${this.vndPipe.transform(amount)}) vượt quá dư nợ còn lại (${this.vndPipe.transform(currentFolio.remainingBalance)}).`);
       return;
     }
 
@@ -1932,59 +2655,64 @@ export class PaymentsPage implements OnInit, OnDestroy {
       this.submitPaymentSub.unsubscribe();
     }
 
-    this.submitPaymentSub = this.paymentService.createPayment({
-      reservationId,
-      amount,
-      method,
-      transactionRef: cleanRef,
-      idempotencyKey,
-      isDeposit
-    }, propId).subscribe({
-      next: (payment) => {
-        this.isSubmittingPayment.set(false);
-        this.activePaymentIntent = null;
-
-        const activeFolio = this.folio();
-        const guestName = activeFolio?.guestName || 'Khách hàng';
-
-        // Trigger Receipt Voucher Modal
-        this.receiptVoucher.set({
-          paymentId: payment.id,
-          reservationId: payment.reservationId || reservationId,
-          guestName,
-          amount: payment.amount,
-          methodName: payment.methodName || this.getMethodLabel(payment.method),
-          transactionRef: payment.transactionRef,
-          createdAtUtc: payment.createdAtUtc
-        });
-
-        // Reset payment form fields
-        this.paymentAmount = 0;
-        this.paymentTransactionRef = '';
-        this.isBankTransferConfirmed.set(false);
-        this.isDepositPayment.set(false);
-
-        // Refresh Folio and all data streams independently (preserving shiftDate and shiftType)
-        this.loadFolio(reservationId);
-        this.loadSummary();
-        this.loadPayments();
-        this.loadShiftReport();
-      },
-      error: (err: HttpErrorResponse) => {
-        this.isSubmittingPayment.set(false);
-        const status = err?.status;
-        const code = err?.error?.code;
-
-        const isDefinitiveBusinessError = status === 400 || status === 404 || status === 422 ||
-          (status === 409 && (code === 'ERR_FOLIO_ALREADY_PAID' || code === 'ERR_RESERVATION_CANCELLED' || code === 'ERR_RESERVATION_SETTLED' || code === 'ERR_IDEMPOTENCY_PAYLOAD_MISMATCH'));
-
-        if (isDefinitiveBusinessError) {
+    this.submitPaymentSub = this.paymentService
+      .createPayment({
+        reservationId,
+        amount,
+        method,
+        transactionRef: cleanRef,
+        idempotencyKey,
+        isDeposit
+      }, propId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (payment) => {
+          this.isSubmittingPayment.set(false);
           this.activePaymentIntent = null;
-        }
 
-        this.folioError.set(err?.error?.message || 'Giao dịch thu tiền thất bại. Vui lòng kiểm tra lại thông tin.');
-      }
-    });
+          const activeFolio = this.folio();
+          const guestName = activeFolio?.guestName || 'Khách hàng';
+
+          // Trigger Receipt Voucher Modal
+          this.receiptVoucher.set({
+            paymentId: payment.id,
+            reservationId: payment.reservationId || reservationId,
+            guestName,
+            amount: payment.amount,
+            methodName: payment.methodName || this.getMethodLabel(payment.method),
+            transactionRef: payment.transactionRef,
+            createdAtUtc: payment.createdAtUtc
+          });
+
+          // Reset payment form fields
+          this.paymentAmount = 0;
+          this.paymentTransactionRef = '';
+          this.isBankTransferConfirmed.set(false);
+          this.isDepositPayment.set(false);
+
+          // Refresh Folio and all data streams independently (preserving shiftDate and shiftType)
+          this.loadFolio(reservationId);
+          this.loadSummary();
+          this.loadPayments();
+          this.loadShiftReport();
+          this.cdr?.markForCheck();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.isSubmittingPayment.set(false);
+          const status = err?.status;
+          const code = err?.error?.code;
+
+          const isDefinitiveBusinessError = status === 400 || status === 404 || status === 422 ||
+            (status === 409 && (code === 'ERR_FOLIO_ALREADY_PAID' || code === 'ERR_RESERVATION_CANCELLED' || code === 'ERR_RESERVATION_SETTLED' || code === 'ERR_IDEMPOTENCY_PAYLOAD_MISMATCH'));
+
+          if (isDefinitiveBusinessError) {
+            this.activePaymentIntent = null;
+          }
+
+          this.folioError.set(err?.error?.message || 'Giao dịch thu tiền thất bại. Vui lòng kiểm tra lại thông tin.');
+          this.cdr?.markForCheck();
+        }
+      });
   }
 
   inspectReservationFolio(resId: string): void {
@@ -2001,6 +2729,15 @@ export class PaymentsPage implements OnInit, OnDestroy {
   printReceipt(): void {
     if (typeof window !== 'undefined') {
       window.print();
+    }
+  }
+
+  openPrintInvoice(reservationId: string): void {
+    if (!reservationId) return;
+    if (this.router) {
+      void this.router.navigate(['/print/invoice', reservationId]);
+    } else if (typeof window !== 'undefined') {
+      window.open(`/print/invoice/${reservationId}`, '_blank');
     }
   }
 

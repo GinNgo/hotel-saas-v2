@@ -21,6 +21,7 @@ import { of, throwError } from 'rxjs';
 import { ActivatedRoute } from '@angular/router';
 import { PrintInvoicePage } from './print-invoice.page';
 import { PrintDocumentsService } from '../../core/services/print-documents.service';
+import { TokenStorageService } from '../../core/services/token-storage.service';
 import { PrintInvoiceDto } from '../../core/models/print-document.model';
 
 try {
@@ -32,61 +33,55 @@ try {
 describe('PrintInvoicePage — Electronic Invoice & VietQR Print Layout Tests', () => {
   let fixture: ComponentFixture<PrintInvoicePage>;
   let component: PrintInvoicePage;
-  let mockPrintService: any;
+  let mockPrintService: { getInvoice: ReturnType<typeof vi.fn> };
 
   const sampleInvoice: PrintInvoiceDto = {
-    hotelInfo: {
-      headerCompanyName: 'TẬP ĐOÀN KHÁCH SẠN SAAS PINE',
-      headerAddress: '12 Đường Hoàng Hoa Thám, Phường 10, TP. Đà Lạt',
-      taxNumber: '0315894321',
-      hotline: '1900 8888',
-      bankName: 'MBBank',
-      bankAccountNumber: '0909123456',
-      bankAccountHolder: 'NGUYEN VAN QUAN LY',
-      footerNote: 'Cảm ơn Quý khách đã nghỉ dưỡng tại Đà Lạt Pine Resort!',
-      checkInPolicyText: 'Nhận phòng từ 14:00, trả phòng trước 12:00',
-      showVietQrCode: true,
-      defaultPaperSize: 'A4'
-    },
     reservationId: 'res-12345',
     invoiceNumber: 'INV-20261017-001',
-    issuedDate: '17/10/2026',
+    confirmationCode: 'RES-12345',
+    issuedDate: '2026-10-17T08:00:00Z',
+    headerCompanyName: 'TẬP ĐOÀN KHÁCH SẠN SAAS PINE',
+    headerAddress: '12 Đường Hoàng Hoa Thám, Phường 10, TP. Đà Lạt',
+    taxNumber: '0315894321',
+    hotline: '1900 8888',
+    logoUrl: null,
     propertyName: 'Đà Lạt Pine Resort & Spa',
     guestName: 'Nguyễn Văn Du Khách',
+    guestEmail: 'guest@example.vn',
     guestPhone: '0988776655',
     roomNumber: '102 - Biệt thự thông reo',
     roomTypeName: 'Deluxe Pine View',
     rentalType: 'Daily',
-    checkInActual: '17/10/2026 14:00',
-    checkOutActual: '19/10/2026 12:00',
-    roomRate: 1200000,
-    durationText: '2 ngày',
-    roomTotal: 2400000,
-    surchargeTotal: 0,
-    serviceTotal: 300000,
-    discountTotal: 100000,
-    loyaltyPointsUsed: 0,
-    loyaltyDiscountAmount: 0,
-    subTotal: 2700000,
+    checkInDate: '2026-10-17',
+    checkOutDate: '2026-10-19',
+    numberOfGuests: 2,
+    subTotal: 2600000,
     vatRate: 8,
     vatAmount: 216000,
-    grandTotal: 2816000,
+    totalAmount: 2816000,
     paidAmount: 2816000,
-    balanceDue: 0,
-    paymentMethod: 'Chuyển khoản VietQR',
-    vietQrUrl: 'https://img.vietqr.io/image/970422-0909123456-compact2.png',
-    lineItems: [
+    remainingAmount: 0,
+    status: 'ĐÃ THANH TOÁN ĐỦ',
+    paymentMethod: 'BankTransfer',
+    vietQrImageUrl: '',
+    showVietQrCode: false,
+    bankAccountNumber: '0909123456',
+    bankAccountHolder: 'NGUYEN VAN QUAN LY',
+    bankName: 'MBBank',
+    checkInPolicyText: 'Nhận phòng từ 14:00, trả phòng trước 12:00',
+    footerNote: 'Cảm ơn Quý khách đã nghỉ dưỡng tại Đà Lạt Pine Resort!',
+    items: [
       {
-        name: 'Tiền phòng 2 đêm',
+        description: 'Tiền phòng 2 đêm',
         quantity: 2,
         unitPrice: 1200000,
-        total: 2400000
+        amount: 2400000
       },
       {
-        name: 'Phí dịch vụ BBQ sân vườn',
+        description: 'Phí dịch vụ BBQ sân vườn',
         quantity: 1,
-        unitPrice: 300000,
-        total: 300000
+        unitPrice: 200000,
+        amount: 200000
       }
     ]
   };
@@ -107,6 +102,9 @@ describe('PrintInvoicePage — Electronic Invoice & VietQR Print Layout Tests', 
             snapshot: {
               paramMap: {
                 get: vi.fn().mockReturnValue('res-12345')
+              },
+              queryParamMap: {
+                get: vi.fn().mockReturnValue(null)
               }
             }
           }
@@ -123,6 +121,17 @@ describe('PrintInvoicePage — Electronic Invoice & VietQR Print Layout Tests', 
     expect(mockPrintService.getInvoice).toHaveBeenCalledWith('res-12345');
     expect(component.invoice()).toEqual(sampleInvoice);
     expect(component.isLoading()).toBe(false);
+    expect(component.isPaidInFull(sampleInvoice)).toBe(true);
+  });
+
+  it('should not mark invoice as paid in full when remainingAmount > 0', () => {
+    const unpaidInvoice: PrintInvoiceDto = {
+      ...sampleInvoice,
+      paidAmount: 1000000,
+      remainingAmount: 1816000,
+      status: 'CÒN CÔNG NỢ'
+    };
+    expect(component.isPaidInFull(unpaidInvoice)).toBe(false);
   });
 
   it('should handle invoice load error gracefully', () => {
@@ -137,5 +146,65 @@ describe('PrintInvoicePage — Electronic Invoice & VietQR Print Layout Tests', 
     component.windowPrint();
     expect(printSpy).toHaveBeenCalled();
     printSpy.mockRestore();
+  });
+
+  it('should route Back button to /booking/lookup when unauthenticated, /booking/profile for Customer, and /reservations for PMS staff', () => {
+    const tokenStorage = TestBed.inject(TokenStorageService);
+
+    vi.spyOn(tokenStorage, 'isTokenExpired').mockReturnValue(true);
+    vi.spyOn(tokenStorage, 'getDecodedToken').mockReturnValue(null);
+    expect(component.backRoute).toBe('/booking/lookup');
+
+    vi.spyOn(tokenStorage, 'isTokenExpired').mockReturnValue(false);
+    vi.spyOn(tokenStorage, 'getDecodedToken').mockReturnValue({
+      sub: 'cust-1',
+      email: 'guest@example.vn',
+      fullName: 'Khách',
+      globalRole: 'Customer',
+      exp: Math.floor(Date.now() / 1000) + 3600
+    });
+    expect(component.backRoute).toBe('/booking/profile');
+
+    vi.spyOn(tokenStorage, 'getDecodedToken').mockReturnValue({
+      sub: 'staff-1',
+      email: 'staff@hotel.vn',
+      fullName: 'Lễ tân',
+      globalRole: 'TenantStaff',
+      exp: Math.floor(Date.now() / 1000) + 3600
+    });
+    expect(component.backRoute).toBe('/reservations');
+  });
+
+  it('should display service fee and discount rows with vndCurrency when > 0 and hide when 0/omitted', () => {
+    const tokenStorage = TestBed.inject(TokenStorageService);
+    vi.spyOn(tokenStorage, 'isTokenExpired').mockReturnValue(true);
+    vi.spyOn(tokenStorage, 'getDecodedToken').mockReturnValue(null);
+
+    const invoiceWithFees = {
+      ...sampleInvoice,
+      subTotal: 2000000,
+      vatAmount: 160000,
+      serviceFeeAmount: 100000,
+      discountAmount: 260000,
+      totalAmount: 2000000
+    };
+    mockPrintService.getInvoice.mockReturnValue(of(invoiceWithFees));
+
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    const feeRow = el.querySelector('[data-testid="invoice-service-fee-row"]');
+    const discountRow = el.querySelector('[data-testid="invoice-discount-row"]');
+    expect(feeRow).not.toBeNull();
+    expect(feeRow?.textContent).toContain('Phí dịch vụ');
+    expect(feeRow?.textContent).toContain('100.000 ₫');
+    expect(discountRow).not.toBeNull();
+    expect(discountRow?.textContent).toContain('Giảm giá / Điểm thưởng');
+    expect(discountRow?.textContent).toContain('-260.000 ₫');
+
+    component.invoice.set({ ...sampleInvoice, serviceFeeAmount: 0, discountAmount: 0 });
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="invoice-service-fee-row"]')).toBeNull();
+    expect(el.querySelector('[data-testid="invoice-discount-row"]')).toBeNull();
   });
 });

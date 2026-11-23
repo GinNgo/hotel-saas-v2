@@ -32,6 +32,22 @@ public sealed class UpdatePropertyPoliciesCommandValidator : AbstractValidator<U
                 .WithMessage("Giới hạn thời gian thuê theo giờ phải từ 1 đến 24 giờ.");
         });
 
+        When(x => x.TaxRatePercent.HasValue, () =>
+        {
+            RuleFor(x => x.TaxRatePercent!.Value)
+                .InclusiveBetween(0m, 100m)
+                .WithErrorCode("ERR_INVALID_TAX_RATE")
+                .WithMessage("Thuế VAT (%) phải nằm trong khoảng 0 đến 100.");
+        });
+
+        When(x => x.ServiceFeeRatePercent.HasValue, () =>
+        {
+            RuleFor(x => x.ServiceFeeRatePercent!.Value)
+                .InclusiveBetween(0m, 100m)
+                .WithErrorCode("ERR_INVALID_SERVICE_FEE_RATE")
+                .WithMessage("Phí dịch vụ (%) phải nằm trong khoảng 0 đến 100.");
+        });
+
         When(x => x.Surcharges != null && x.Surcharges.Count > 0, () =>
         {
             RuleForEach(x => x.Surcharges).SetValidator(new UpdateSurchargeItemValidator());

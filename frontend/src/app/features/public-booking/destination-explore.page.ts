@@ -12,11 +12,12 @@ import {
   PublicPropertyDto,
   PublicPropertiesFilter
 } from '../../core/models/public-booking.model';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 
 @Component({
   selector: 'app-destination-explore',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, VndCurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="min-h-screen bg-slate-50 py-6 sm:py-8 font-sans">
@@ -65,14 +66,18 @@ import {
                   [routerLink]="['/booking/destinations', zone.slug]"
                   class="group bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md hover:border-indigo-300 transition-all flex flex-col cursor-pointer"
                 >
-                  <div class="h-40 overflow-hidden relative">
-                    <img
-                      [src]="getZoneImage(zone.slug)"
-                      [alt]="zone.name"
-                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div class="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end p-3.5">
-                      <span class="text-white font-extrabold text-base">{{ zone.name }}</span>
+                  <div class="h-40 overflow-hidden relative bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-800 flex flex-col justify-between p-4">
+                    <div class="flex items-center justify-between">
+                      <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/10 text-indigo-200 border border-white/15">
+                        {{ zone.provinceName || 'Điểm đến' }}
+                      </span>
+                      <i class="pi pi-compass text-indigo-300/80 text-lg"></i>
+                    </div>
+                    <div>
+                      <span class="text-white font-extrabold text-base block leading-snug">{{ zone.name }}</span>
+                      @if (zone.landmarksCount) {
+                        <span class="text-[11px] text-indigo-200/80 mt-0.5 block">{{ zone.landmarksCount }} địa danh nổi bật</span>
+                      }
                     </div>
                   </div>
 
@@ -103,7 +108,7 @@ import {
                 >
                   <div class="flex items-center gap-3 truncate">
                     <div class="w-8 h-8 rounded-xl bg-indigo-50 group-hover:bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs shrink-0 transition-colors">
-                      📍
+                      <i class="pi pi-map-marker text-xs"></i>
                     </div>
                     <div class="truncate">
                       <span class="text-xs font-bold text-slate-900 block truncate group-hover:text-indigo-600 transition-colors">{{ lm.name }}</span>
@@ -123,8 +128,9 @@ import {
           <div class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <span class="px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 inline-block mb-2">
-                  📍 Điểm đến du lịch
+                <span class="px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 inline-flex items-center gap-1.5 mb-2">
+                  <i class="pi pi-map-marker text-[11px]"></i>
+                  <span>Điểm đến du lịch</span>
                 </span>
                 <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                   Khách sạn &amp; Nhà nghỉ quanh {{ activeTitle() }}
@@ -134,8 +140,9 @@ import {
                 </p>
               </div>
 
-              <a routerLink="/booking/destinations" class="text-xs text-indigo-600 hover:underline font-bold">
-                ← Chọn địa danh khác
+              <a routerLink="/booking/destinations" class="min-h-11 inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:underline font-bold">
+                <i class="pi pi-arrow-left text-[10px]"></i>
+                <span>Chọn địa danh khác</span>
               </a>
             </div>
 
@@ -147,7 +154,7 @@ import {
                 <button
                   type="button"
                   (click)="setRadius(null)"
-                  class="px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border"
+                  class="min-h-11 px-3.5 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer border"
                   [class.bg-indigo-600]="selectedRadiusMeters() === null"
                   [class.text-white]="selectedRadiusMeters() === null"
                   [class.border-indigo-600]="selectedRadiusMeters() === null"
@@ -160,7 +167,7 @@ import {
                 <button
                   type="button"
                   (click)="setRadius(500)"
-                  class="px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border"
+                  class="min-h-11 px-3.5 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer border inline-flex items-center gap-1"
                   [class.bg-indigo-600]="selectedRadiusMeters() === 500"
                   [class.text-white]="selectedRadiusMeters() === 500"
                   [class.border-indigo-600]="selectedRadiusMeters() === 500"
@@ -168,12 +175,13 @@ import {
                   [class.text-slate-700]="selectedRadiusMeters() !== 500"
                   [class.border-slate-200]="selectedRadiusMeters() !== 500"
                 >
-                  🚶 Ngay sát (&lt; 500m)
+                  <i class="pi pi-directions-alt text-[11px]"></i>
+                  <span>Ngay sát (&lt; 500m)</span>
                 </button>
                 <button
                   type="button"
                   (click)="setRadius(1000)"
-                  class="px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border"
+                  class="min-h-11 px-3.5 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer border"
                   [class.bg-indigo-600]="selectedRadiusMeters() === 1000"
                   [class.text-white]="selectedRadiusMeters() === 1000"
                   [class.border-indigo-600]="selectedRadiusMeters() === 1000"
@@ -186,7 +194,7 @@ import {
                 <button
                   type="button"
                   (click)="setRadius(3000)"
-                  class="px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border"
+                  class="min-h-11 px-3.5 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer border"
                   [class.bg-indigo-600]="selectedRadiusMeters() === 3000"
                   [class.text-white]="selectedRadiusMeters() === 3000"
                   [class.border-indigo-600]="selectedRadiusMeters() === 3000"
@@ -204,7 +212,8 @@ import {
                 <select
                   [ngModel]="sortBy()"
                   (ngModelChange)="sortBy.set($event)"
-                  class="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 focus:outline-indigo-500"
+                  aria-label="Sắp xếp kết quả cơ sở lưu trú"
+                  class="min-h-11 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 focus:outline-indigo-500"
                 >
                   <option value="distance">Gần nhất</option>
                   <option value="price_asc">Giá rẻ nhất</option>
@@ -217,13 +226,13 @@ import {
           <!-- KẾT QUẢ TÌM THẤY -->
           <div class="space-y-4">
             <div class="flex items-center justify-between text-xs text-slate-500">
-              <span>Tìm thấy <b>{{ filteredProperties().length }}</b> cơ sở lưu trú phù hợp:</span>
+              <span>Tìm thấy <b class="tabular-nums">{{ filteredProperties().length }}</b> cơ sở lưu trú phù hợp:</span>
             </div>
 
             @if (isLoading()) {
               <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 @for (item of [1, 2, 3]; track item) {
-                  <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs animate-pulse">
+                  <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs animate-pulse motion-reduce:animate-none">
                     <div class="h-48 bg-slate-200"></div>
                     <div class="p-5 space-y-3">
                       <div class="h-4 bg-slate-200 rounded w-3/4"></div>
@@ -234,8 +243,8 @@ import {
               </div>
             } @else if (filteredProperties().length === 0) {
               <div class="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-3">
-                <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto text-xl">
-                  🏨
+                <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center mx-auto text-xl">
+                  <i class="pi pi-building text-lg"></i>
                 </div>
                 <h3 class="text-sm font-bold text-slate-800">Chưa có cơ sở lưu trú trong bán kính này</h3>
                 <p class="text-xs text-slate-500 max-w-sm mx-auto">
@@ -244,7 +253,7 @@ import {
                 <button
                   type="button"
                   (click)="setRadius(null)"
-                  class="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                  class="min-h-11 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors cursor-pointer"
                 >
                   Xem mọi khoảng cách
                 </button>
@@ -253,27 +262,39 @@ import {
               <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 @for (prop of filteredProperties(); track (prop.propertyId || prop.id || prop.slug)) {
                   <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col">
-                    <div class="h-48 overflow-hidden relative">
-                      <img
-                        [src]="prop.imageUrl || prop.thumbnailUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800'"
-                        [alt]="prop.name"
-                        class="w-full h-full object-cover"
-                      />
+                    <div class="h-48 overflow-hidden relative bg-slate-100">
+                      @if (prop.thumbnailUrl || prop.imageUrl) {
+                        <img
+                          [src]="prop.thumbnailUrl || prop.imageUrl"
+                          [alt]="prop.name"
+                          width="400"
+                          height="192"
+                          loading="lazy"
+                          class="w-full h-full object-cover"
+                        />
+                      } @else {
+                        <div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400">
+                          <i class="pi pi-building text-3xl mb-1.5"></i>
+                          <span class="text-xs font-medium text-slate-500">Chưa có ảnh đại diện</span>
+                        </div>
+                      }
                       <div class="absolute top-3 left-3 flex flex-wrap gap-1.5">
                         <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white">
                           {{ prop.propertyTypeName || 'Khách sạn' }}
                         </span>
                         @if (prop.starRating && prop.starRating > 0) {
                           <span class="px-2 py-1 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950 flex items-center gap-0.5">
-                            ★ {{ prop.starRating }}
+                            <i class="pi pi-star-fill text-[9px]"></i>
+                            <span>{{ prop.starRating }}</span>
                           </span>
                         }
                       </div>
 
                       @if (prop.distanceFormatted) {
                         <div class="absolute bottom-3 left-3">
-                          <span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-indigo-600 text-white shadow-xs">
-                            📍 {{ prop.distanceFormatted }}
+                          <span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-indigo-600 text-white shadow-xs inline-flex items-center gap-1">
+                            <i class="pi pi-map-marker text-[10px]"></i>
+                            <span>{{ prop.distanceFormatted }}</span>
                           </span>
                         </div>
                       }
@@ -287,18 +308,38 @@ import {
                         <p class="text-xs text-slate-500 mt-1 line-clamp-1">
                           {{ prop.address || prop.addressLine }}, {{ prop.city || prop.provinceName }}
                         </p>
+                        <div class="mt-2 flex items-center gap-1.5 text-xs">
+                          @if (prop.reviewCount && prop.reviewCount > 0 && prop.ratingAverage > 0) {
+                            <span class="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 tabular-nums">
+                              <i class="pi pi-star-fill text-amber-500 text-[10px]"></i>
+                              <span>{{ prop.ratingAverage.toFixed(1) }}</span>
+                            </span>
+                            <span class="text-slate-500 tabular-nums">({{ prop.reviewCount }} đánh giá)</span>
+                          } @else {
+                            <span class="text-slate-500 italic">Chưa có đánh giá</span>
+                          }
+                        </div>
                       </div>
 
                       <!-- Rental modes -->
                       <div class="flex flex-wrap gap-1 text-[10px] font-medium text-slate-600">
                         @if (prop.allowHourlyBooking) {
-                          <span class="px-2 py-0.5 rounded-md bg-slate-100">⏰ Thuê giờ</span>
+                          <span class="px-2 py-0.5 rounded-md bg-slate-100 inline-flex items-center gap-1">
+                            <i class="pi pi-clock text-[9px]"></i>
+                            <span>Thuê giờ</span>
+                          </span>
                         }
                         @if (prop.allowOvernightBooking) {
-                          <span class="px-2 py-0.5 rounded-md bg-slate-100">🌙 Qua đêm</span>
+                          <span class="px-2 py-0.5 rounded-md bg-slate-100 inline-flex items-center gap-1">
+                            <i class="pi pi-moon text-[9px]"></i>
+                            <span>Qua đêm</span>
+                          </span>
                         }
                         @if (prop.allowDailyBooking) {
-                          <span class="px-2 py-0.5 rounded-md bg-slate-100">☀️ Theo ngày</span>
+                          <span class="px-2 py-0.5 rounded-md bg-slate-100 inline-flex items-center gap-1">
+                            <i class="pi pi-sun text-[9px]"></i>
+                            <span>Theo ngày</span>
+                          </span>
                         }
                       </div>
 
@@ -306,8 +347,8 @@ import {
                         <div>
                           <span class="text-[10px] text-slate-400 block">Giá khởi điểm từ</span>
                           @if ((prop.hourlyStartingPrice || prop.startingPriceForSelectedMode || prop.startingPrice || 0) > 0) {
-                            <span class="text-base font-extrabold text-indigo-700">
-                              {{ (prop.hourlyStartingPrice || prop.startingPriceForSelectedMode || prop.startingPrice) | number:'1.0-0' }} ₫
+                            <span class="text-base font-extrabold text-indigo-700 tabular-nums">
+                              {{ (prop.hourlyStartingPrice || prop.startingPriceForSelectedMode || prop.startingPrice) | vndCurrency }}
                             </span>
                           } @else {
                             <span class="text-xs font-semibold text-slate-500">Liên hệ báo giá</span>
@@ -316,9 +357,10 @@ import {
 
                         <a
                           [routerLink]="['/booking/properties', prop.slug]"
-                          class="px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors"
+                          class="min-h-11 px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors inline-flex items-center gap-1.5"
                         >
-                          Xem phòng →
+                          <span>Xem phòng</span>
+                          <i class="pi pi-arrow-right text-[10px]"></i>
                         </a>
                       </div>
                     </div>
@@ -430,20 +472,4 @@ export class DestinationExplorePageComponent implements OnInit {
     this.selectedRadiusMeters.set(meters);
   }
 
-  getZoneImage(slug: string): string {
-    const map: Record<string, string> = {
-      'da-lat': 'https://images.unsplash.com/photo-1579202673506-ca3ce28943ef?w=800',
-      'vung-tau': 'https://images.unsplash.com/photo-1590523741831-ab7e8b8f9c7f?w=800',
-      'da-nang': 'https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=800',
-      'hoi-an': 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800',
-      'phu-quoc': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800',
-      'sa-pa': 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800',
-      'ha-noi-pho-co': 'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=800',
-      'quan-1-tphcm': 'https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=800',
-      'ha-long': 'https://images.unsplash.com/photo-1528127269322-539801943592?w=800',
-      'phan-thiet-mui-ne': 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800',
-      'quy-nhon': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800'
-    };
-    return map[slug] || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800';
-  }
 }

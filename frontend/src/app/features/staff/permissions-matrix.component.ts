@@ -29,35 +29,35 @@ export type CrudColumnKey = 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
   template: `
     <div class="space-y-3.5" data-testid="permissions-matrix-root">
       <!-- 1. Thông tin cơ chế cấp quyền phân cấp & Thống kê số tính năng -->
-      <div class="p-3.5 rounded-xl bg-gradient-to-r from-indigo-50/90 via-slate-50 to-emerald-50/80 border border-indigo-200/80 shadow-2xs">
+      <div class="p-3.5 rounded-xl bg-gradient-to-r from-indigo-50/90 via-slate-50 to-emerald-50/80 dark:from-indigo-950/40 dark:via-slate-900 dark:to-emerald-950/40 border border-indigo-200/80 dark:border-indigo-800/60 shadow-2xs">
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div class="space-y-1">
             <div class="flex items-center flex-wrap gap-2">
-              <span class="inline-flex items-center gap-1.5 text-xs font-extrabold text-indigo-950">
-                <i class="pi pi-shield text-indigo-600 text-xs"></i>
+              <span class="inline-flex items-center gap-1.5 text-xs font-extrabold text-indigo-950 dark:text-indigo-200">
+                <i class="pi pi-shield text-indigo-600 dark:text-indigo-400 text-xs" aria-hidden="true"></i>
                 <span>Ma trận Phân quyền Chức năng (CRUD):</span>
               </span>
               <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-600 text-white">
                 Tự động kế thừa quyền Xem
               </span>
             </div>
-            <p class="text-[11px] text-slate-600 leading-relaxed">
-              Khi bật quyền <strong class="text-sky-700">Thêm</strong>, <strong class="text-amber-700">Sửa</strong> hoặc <strong class="text-rose-700">Xóa</strong>, hệ thống tự động cấp quyền <strong class="text-emerald-700">Xem</strong> cho tính năng đó. Khi tắt quyền <strong class="text-emerald-700">Xem</strong>, toàn bộ quyền thao tác của dòng sẽ được thu hồi.
+            <p class="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+              Khi bật quyền <strong class="text-sky-700 dark:text-sky-400">Thêm</strong>, <strong class="text-amber-700 dark:text-amber-400">Sửa</strong> hoặc <strong class="text-rose-700 dark:text-rose-400">Xóa</strong>, hệ thống tự động cấp quyền <strong class="text-emerald-700 dark:text-emerald-400">Xem</strong> cho tính năng đó. Khi tắt quyền <strong class="text-emerald-700 dark:text-emerald-400">Xem</strong>, toàn bộ quyền thao tác của dòng sẽ được thu hồi.
             </p>
           </div>
 
           <!-- Thống kê số tính năng & thao tác đang cấp -->
-          <div class="flex items-center gap-3 bg-white/90 px-3.5 py-2 rounded-xl border border-indigo-200/80 shrink-0 self-start lg:self-center">
+          <div class="flex items-center gap-3 bg-white/90 dark:bg-slate-900/90 px-3.5 py-2 rounded-xl border border-indigo-200/80 dark:border-indigo-800/60 shrink-0 self-start lg:self-center">
             <div>
               <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Phân hệ được cấp</div>
-              <div class="text-sm font-extrabold text-emerald-700 mt-0.5">
+              <div class="text-sm font-extrabold text-emerald-700 dark:text-emerald-400 mt-0.5 tabular-nums">
                 {{ activeModulesCount() }} / {{ rows().length }} tính năng
               </div>
             </div>
-            <div class="h-7 w-px bg-slate-200"></div>
+            <div class="h-7 w-px bg-slate-200 dark:bg-slate-700"></div>
             <div>
               <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Quyền đang bật</div>
-              <div class="text-sm font-extrabold text-indigo-700 mt-0.5">
+              <div class="text-sm font-extrabold text-indigo-700 dark:text-indigo-400 mt-0.5 tabular-nums">
                 {{ totalCheckedActions() }} quyền CRUD
               </div>
             </div>
@@ -69,23 +69,23 @@ export type CrudColumnKey = 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
         <!-- Search feature input -->
         <div class="relative flex-1 max-w-xs">
-          <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+          <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" aria-hidden="true"></i>
           <input
             type="text"
             [ngModel]="featureSearch()"
             (ngModelChange)="featureSearch.set($event)"
             placeholder="Tìm nhanh tính năng (VD: Đặt phòng, Hóa đơn)..."
             aria-label="Tìm nhanh tính năng trong ma trận"
-            class="w-full h-9 pl-8 pr-7 rounded-lg border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+            class="w-full min-h-11 pl-8 pr-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
           />
           @if (featureSearch()) {
             <button
               type="button"
               (click)="featureSearch.set('')"
-              class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              class="min-w-11 min-h-11 inline-flex items-center justify-center absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
               aria-label="Xóa tìm kiếm tính năng"
             >
-              <i class="pi pi-times text-[10px]"></i>
+              <i class="pi pi-times text-xs" aria-hidden="true"></i>
             </button>
           }
         </div>
@@ -93,19 +93,19 @@ export type CrudColumnKey = 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
         <!-- Quick Permission Level Presets (Không hiển thị điểm số) -->
         @if (!readonly()) {
           <div class="flex items-center flex-wrap gap-1.5">
-            <span class="text-[11px] font-semibold text-slate-500 mr-1">Chọn nhanh cấp độ:</span>
+            <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mr-1">Chọn nhanh cấp độ:</span>
             <button
               type="button"
               (click)="applyGlobalScorePreset(15)"
-              class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs transition-all cursor-pointer"
+              class="min-h-11 inline-flex items-center gap-1 px-3 py-2 rounded-lg text-[11px] font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs transition-all cursor-pointer"
             >
-              <i class="pi pi-check-circle text-[10px]"></i>
+              <i class="pi pi-check-circle text-[10px]" aria-hidden="true"></i>
               <span>Chọn tất cả</span>
             </button>
             <button
               type="button"
               (click)="applyGlobalScorePreset(7)"
-              class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-all cursor-pointer"
+              class="min-h-11 inline-flex items-center gap-1 px-3 py-2 rounded-lg text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition-all cursor-pointer"
               title="Cấp quyền Xem, Thêm và Sửa (Không bao gồm Xóa)"
             >
               <span>Nghiệp vụ (Xem, Thêm, Sửa)</span>
@@ -113,7 +113,7 @@ export type CrudColumnKey = 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
             <button
               type="button"
               (click)="applyGlobalScorePreset(3)"
-              class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 transition-all cursor-pointer"
+              class="min-h-11 inline-flex items-center gap-1 px-3 py-2 rounded-lg text-[11px] font-bold bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 transition-all cursor-pointer"
               title="Cấp quyền Xem và Thêm mới"
             >
               <span>Tác nghiệp (Xem, Thêm)</span>
@@ -121,7 +121,7 @@ export type CrudColumnKey = 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
             <button
               type="button"
               (click)="applyGlobalScorePreset(1)"
-              class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-all cursor-pointer"
+              class="min-h-11 inline-flex items-center gap-1 px-3 py-2 rounded-lg text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition-all cursor-pointer"
               title="Chỉ cấp quyền Xem dữ liệu"
             >
               <span>Chỉ xem</span>
@@ -129,7 +129,7 @@ export type CrudColumnKey = 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
             <button
               type="button"
               (click)="applyGlobalScorePreset(0)"
-              class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 transition-all cursor-pointer"
+              class="min-h-11 inline-flex items-center gap-1 px-3 py-2 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
             >
               <span>Bỏ chọn hết</span>
             </button>
@@ -138,20 +138,20 @@ export type CrudColumnKey = 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
       </div>
 
       <!-- 3. Bảng Ma trận Cấp quyền CRUD (Permissions Matrix Grid) -->
-      <div class="border border-slate-200/90 rounded-2xl overflow-hidden bg-white shadow-2xs">
+      <div class="border border-slate-200/90 dark:border-slate-700 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-2xs">
         <div class="overflow-x-auto max-h-[460px] overflow-y-auto">
-          <table class="w-full text-left text-xs text-slate-600 border-collapse" data-testid="permissions-matrix-table">
-            <thead class="bg-slate-50/95 sticky top-0 z-10 text-[11px] font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200 backdrop-blur-xs">
+          <table class="w-full text-left text-xs text-slate-600 dark:text-slate-300 border-collapse" data-testid="permissions-matrix-table">
+            <thead class="bg-slate-50/95 dark:bg-slate-800/95 sticky top-0 z-10 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 backdrop-blur-xs">
               <tr>
                 <th scope="col" class="px-4 py-3 min-w-[240px]">Tính năng & Phân hệ nghiệp vụ</th>
 
                 <!-- Column Header: Xem (Read) with Master Column Tick -->
-                <th scope="col" class="px-2.5 py-3 text-center min-w-[96px] whitespace-nowrap">
+                <th scope="col" class="px-2.5 py-2 text-center min-w-[96px] whitespace-nowrap">
                   <button
                     type="button"
                     [disabled]="readonly()"
                     (click)="toggleColumn('canRead')"
-                    class="group inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-default"
+                    class="min-h-11 px-2 group inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-default"
                     aria-label="Chọn tất cả cột Xem (Read)"
                     title="Nhấn để bật/tắt toàn bộ cột Xem"
                   >
@@ -165,17 +165,17 @@ export type CrudColumnKey = 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
                         <i class="pi pi-minus text-[9px] font-extrabold"></i>
                       }
                     </span>
-                    <span class="text-slate-700 group-hover:text-emerald-700">Xem (Read)</span>
+                    <span class="text-slate-700 dark:text-slate-200 group-hover:text-emerald-700 dark:group-hover:text-emerald-400">Xem (Read)</span>
                   </button>
                 </th>
 
                 <!-- Column Header: Thêm (Create) with Master Column Tick -->
-                <th scope="col" class="px-2.5 py-3 text-center min-w-[96px] whitespace-nowrap">
+                <th scope="col" class="px-2.5 py-2 text-center min-w-[96px] whitespace-nowrap">
                   <button
                     type="button"
                     [disabled]="readonly()"
                     (click)="toggleColumn('canCreate')"
-                    class="group inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-default"
+                    class="min-h-11 px-2 group inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-default"
                     aria-label="Chọn tất cả cột Thêm (Create)"
                     title="Nhấn để bật/tắt toàn bộ cột Thêm"
                   >
@@ -189,17 +189,17 @@ export type CrudColumnKey = 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
                         <i class="pi pi-minus text-[9px] font-extrabold"></i>
                       }
                     </span>
-                    <span class="text-slate-700 group-hover:text-sky-700">Thêm (Create)</span>
+                    <span class="text-slate-700 dark:text-slate-200 group-hover:text-sky-700 dark:group-hover:text-sky-400">Thêm (Create)</span>
                   </button>
                 </th>
 
                 <!-- Column Header: Sửa (Update) with Master Column Tick -->
-                <th scope="col" class="px-2.5 py-3 text-center min-w-[96px] whitespace-nowrap">
+                <th scope="col" class="px-2.5 py-2 text-center min-w-[96px] whitespace-nowrap">
                   <button
                     type="button"
                     [disabled]="readonly()"
                     (click)="toggleColumn('canUpdate')"
-                    class="group inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-default"
+                    class="min-h-11 px-2 group inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-default"
                     aria-label="Chọn tất cả cột Sửa (Update)"
                     title="Nhấn để bật/tắt toàn bộ cột Sửa"
                   >
@@ -213,17 +213,17 @@ export type CrudColumnKey = 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
                         <i class="pi pi-minus text-[9px] font-extrabold"></i>
                       }
                     </span>
-                    <span class="text-slate-700 group-hover:text-amber-700">Sửa (Update)</span>
+                    <span class="text-slate-700 dark:text-slate-200 group-hover:text-amber-700 dark:group-hover:text-amber-400">Sửa (Update)</span>
                   </button>
                 </th>
 
                 <!-- Column Header: Xóa (Delete) with Master Column Tick -->
-                <th scope="col" class="px-2.5 py-3 text-center min-w-[96px] whitespace-nowrap">
+                <th scope="col" class="px-2.5 py-2 text-center min-w-[96px] whitespace-nowrap">
                   <button
                     type="button"
                     [disabled]="readonly()"
                     (click)="toggleColumn('canDelete')"
-                    class="group inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-default"
+                    class="min-h-11 px-2 group inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-default"
                     aria-label="Chọn tất cả cột Xóa (Delete)"
                     title="Nhấn để bật/tắt toàn bộ cột Xóa"
                   >
@@ -237,7 +237,7 @@ export type CrudColumnKey = 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
                         <i class="pi pi-minus text-[9px] font-extrabold"></i>
                       }
                     </span>
-                    <span class="text-slate-700 group-hover:text-rose-700">Xóa (Delete)</span>
+                    <span class="text-slate-700 dark:text-slate-200 group-hover:text-rose-700 dark:group-hover:text-rose-400">Xóa (Delete)</span>
                   </button>
                 </th>
 
@@ -247,12 +247,12 @@ export type CrudColumnKey = 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
                 </th>
 
                 <!-- Column Header: Ô Tick Chung Cả Dòng (Master Row Toggle) -->
-                <th scope="col" class="px-3.5 py-3 text-center min-w-[125px] whitespace-nowrap">
+                <th scope="col" class="px-3.5 py-2 text-center min-w-[125px] whitespace-nowrap">
                   <button
                     type="button"
                     [disabled]="readonly()"
                     (click)="toggleAllMaster()"
-                    class="group inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-default whitespace-nowrap"
+                    class="min-h-11 px-2 group inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-default whitespace-nowrap"
                     aria-label="Ô tick chung toàn bảng"
                     title="Bật/Tắt toàn quyền cho tất cả tính năng"
                   >
@@ -303,7 +303,7 @@ export type CrudColumnKey = 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
                       (click)="toggleCell(row, 'canRead')"
                       [attr.aria-label]="getDisplayName(row) + ' - Quyền Xem'"
                       [attr.aria-pressed]="row.canRead"
-                      class="group inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all duration-150 cursor-pointer disabled:cursor-default select-none"
+                      class="min-h-11 group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl border transition-all duration-150 cursor-pointer disabled:cursor-default select-none"
                       [ngClass]="row.canRead
                         ? 'bg-emerald-50/90 border-emerald-300 text-emerald-900 shadow-2xs'
                         : 'bg-white border-slate-200 text-slate-400 hover:border-emerald-300 hover:bg-emerald-50/30'"
@@ -328,7 +328,7 @@ export type CrudColumnKey = 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
                       (click)="toggleCell(row, 'canCreate')"
                       [attr.aria-label]="getDisplayName(row) + ' - Quyền Thêm'"
                       [attr.aria-pressed]="row.canCreate"
-                      class="group inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all duration-150 cursor-pointer disabled:cursor-default select-none"
+                      class="min-h-11 group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl border transition-all duration-150 cursor-pointer disabled:cursor-default select-none"
                       [ngClass]="row.canCreate
                         ? 'bg-sky-50/90 border-sky-300 text-sky-900 shadow-2xs'
                         : 'bg-white border-slate-200 text-slate-400 hover:border-sky-300 hover:bg-sky-50/30'"
@@ -353,7 +353,7 @@ export type CrudColumnKey = 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
                       (click)="toggleCell(row, 'canUpdate')"
                       [attr.aria-label]="getDisplayName(row) + ' - Quyền Sửa'"
                       [attr.aria-pressed]="row.canUpdate"
-                      class="group inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all duration-150 cursor-pointer disabled:cursor-default select-none"
+                      class="min-h-11 group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl border transition-all duration-150 cursor-pointer disabled:cursor-default select-none"
                       [ngClass]="row.canUpdate
                         ? 'bg-amber-50/90 border-amber-300 text-amber-900 shadow-2xs'
                         : 'bg-white border-slate-200 text-slate-400 hover:border-amber-300 hover:bg-amber-50/30'"
@@ -378,7 +378,7 @@ export type CrudColumnKey = 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
                       (click)="toggleCell(row, 'canDelete')"
                       [attr.aria-label]="getDisplayName(row) + ' - Quyền Xóa'"
                       [attr.aria-pressed]="row.canDelete"
-                      class="group inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all duration-150 cursor-pointer disabled:cursor-default select-none"
+                      class="min-h-11 group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl border transition-all duration-150 cursor-pointer disabled:cursor-default select-none"
                       [ngClass]="row.canDelete
                         ? 'bg-rose-50/90 border-rose-300 text-rose-900 shadow-2xs'
                         : 'bg-white border-slate-200 text-slate-400 hover:border-rose-300 hover:bg-rose-50/30'"
@@ -422,7 +422,7 @@ export type CrudColumnKey = 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete';
                       [disabled]="readonly()"
                       (click)="toggleRow(row)"
                       [attr.aria-label]="'Ô tick chung cả dòng ' + getDisplayName(row)"
-                      class="group inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all duration-150 cursor-pointer disabled:cursor-default select-none whitespace-nowrap"
+                      class="min-h-11 group inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border transition-all duration-150 cursor-pointer disabled:cursor-default select-none whitespace-nowrap"
                       [ngClass]="getRowScore(row) === 15
                         ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs shadow-indigo-500/20'
                         : getRowScore(row) > 0

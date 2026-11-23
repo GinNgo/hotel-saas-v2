@@ -33,6 +33,7 @@ public static class AuditPayloadSanitizer
         "LookupToken",
         "IdToken",
         "ApiKey",
+        "sepayapikey",
         "Secret",
         "SecretKey",
         "PrivateKey",
@@ -69,6 +70,10 @@ public static class AuditPayloadSanitizer
     private static readonly Regex SensitiveValuePatternRegex = new(
         @"(Bearer\s+[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+|\beyJ[A-Za-z0-9\-_]{10,}\.[A-Za-z0-9\-_]{10,}\.[A-Za-z0-9\-_]{10,}\b|(?i)(password|pwd|secret|apikey|token)\s*=\s*[^;\s]+)",
         RegexOptions.Compiled);
+
+    private static readonly Regex SensitiveJsonPairRegex = new(
+        @"((?:\\?"")(?:lookupToken|accessToken|refreshToken|tokenHash|passwordHash|password|smartLockPin|passcode|apiKey|sepayApiKey|secretKey|privateKey|clientSecret|digitalSignatureHash)(?:\\?"")\s*:\s*(\\""|""))[^""\\]*\2",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>
     /// Result of sanitizing and summarizing an <see cref="AuditLog"/> entry's JSON payloads.
@@ -248,12 +253,60 @@ public static class AuditPayloadSanitizer
             return value;
         }
 
-        if (SensitiveValuePatternRegex.IsMatch(value))
+        var result = value;
+        var trimmed = value.Trim();
+        if (trimmed.StartsWith("{", StringComparison.Ordinal) && trimmed.EndsWith("}", StringComparison.Ordinal))
         {
-            return SensitiveValuePatternRegex.Replace(value, "[REDACTED]");
+            try
+            {
+                using var nestedDoc = JsonDocument.Parse(trimmed);
+                if (nestedDoc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    var sanitizedNested = SanitizeJsonObjectElement(nestedDoc.RootElement);
+                    return JsonSerializer.Serialize(sanitizedNested, JsonOptions);
+                }
+            }
+            catch (JsonException)
+            {
+                // Fall back to regex scrubbing below
+            }
         }
 
-        return value;
+        if (SensitiveJsonPairRegex.IsMatch(result))
+        {
+            result = SensitiveJsonPairRegex.Replace(result, "$1[REDACTED]$2");
+        }
+
+        if (SensitiveValuePatternRegex.IsMatch(result))
+        {
+            result = SensitiveValuePatternRegex.Replace(result, "[REDACTED]");
+        }
+
+        return result;
+    }
+
+    private static Dictionary<string, object?> SanitizeJsonObjectElement(JsonElement obj)
+    {
+        var map = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var prop in obj.EnumerateObject())
+        {
+            if (IsSensitiveField(prop.Name))
+            {
+                map[prop.Name] = "[REDACTED]";
+                continue;
+            }
+
+            if (prop.Value.ValueKind == JsonValueKind.Object)
+            {
+                map[prop.Name] = SanitizeJsonObjectElement(prop.Value);
+            }
+            else
+            {
+                var (sanitizedObj, _) = ExtractSanitizedJsonValue(prop.Value);
+                map[prop.Name] = sanitizedObj;
+            }
+        }
+        return map;
     }
 
     private static string BuildSafeSummary(

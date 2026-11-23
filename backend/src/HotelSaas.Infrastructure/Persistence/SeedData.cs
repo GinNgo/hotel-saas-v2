@@ -1,24 +1,41 @@
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace HotelSaas.Infrastructure.Persistence;
 
 /// <summary>
 /// Seeds default RBAC roles and permission functions into the database.
-/// Only runs when no <see cref="AccessRole"/> records exist.
+/// Only runs full dev platform bootstrap when explicitly enabled.
 /// </summary>
 public static class SeedData
 {
     /// <summary>
-    /// Creates default system permission functions and RBAC roles with bitmask-based action grants.
+    /// Backward-compatible overload for local development and integration tests that expect
+    /// default RBAC roles plus development platform bootstrap data.
+    /// Non-Development startup code MUST call the explicit overload with <c>allowDevPlatformBootstrap</c>.
     /// </summary>
     /// <param name="context">The application database context.</param>
-    public static async Task SeedDefaultRolesAndPermissions(ApplicationDbContext context)
+    public static Task SeedDefaultRolesAndPermissions(ApplicationDbContext context)
+        => SeedDefaultRolesAndPermissions(context, allowDevPlatformBootstrap: true, configuration: null);
+
+    /// <summary>
+    /// Creates default system permission functions and RBAC roles with bitmask-based action grants.
+    /// Gates development SuperAdmin, dummy print template configs, dummy contracts, and test account
+    /// auto-verification strictly behind <paramref name="allowDevPlatformBootstrap"/>.
+    /// </summary>
+    /// <param name="context">The application database context.</param>
+    /// <param name="allowDevPlatformBootstrap">Whether development-only bootstrap records may be seeded.</param>
+    /// <param name="configuration">Optional configuration for explicit non-dev SuperAdmin bootstrap via PlatformBootstrap:*.</param>
+    public static async Task SeedDefaultRolesAndPermissions(
+        ApplicationDbContext context,
+        bool allowDevPlatformBootstrap,
+        IConfiguration? configuration = null)
     {
         if (await context.AccessRoles.AnyAsync())
         {
-            await EnsureRolePermissionsUpToDateAsync(context);
+            await EnsureRolePermissionsUpToDateAsync(context, allowDevPlatformBootstrap, configuration);
             return;
         }
 
@@ -44,6 +61,7 @@ public static class SeedData
             ("PROMOTIONS",    "Promotions",           "PROMOTIONS"),
             ("REVIEWS",       "Guest Reviews",        "REVIEWS"),
             ("AI_FEATURES",   "AI Features",          "AI_FEATURES"),
+            ("AUDIT_LOGS",    "Audit Logs",           "STAFF"),
         };
 
         foreach (var (code, name, module) in permissionDefs)
@@ -105,7 +123,7 @@ public static class SeedData
             ("HOUSEKEEPING", All), ("PAYMENTS", All), ("INVOICES", All),
             ("REPORTS", All), ("STAFF", All), ("ROLES", All),
             ("SETTINGS", All), ("SUBSCRIPTIONS", All), ("PROMOTIONS", All),
-            ("REVIEWS", All), ("AI_FEATURES", All));
+            ("REVIEWS", All), ("AI_FEATURES", All), ("AUDIT_LOGS", All));
 
         // ── OWNER ─────────────────────────────────────────────────────────
         var ownerId = Guid.NewGuid();
@@ -123,7 +141,7 @@ public static class SeedData
             ("HOUSEKEEPING", All), ("PAYMENTS", All), ("INVOICES", All),
             ("REPORTS", All), ("STAFF", All), ("ROLES", All),
             ("SETTINGS", All), ("SUBSCRIPTIONS", All), ("PROMOTIONS", All),
-            ("REVIEWS", All), ("AI_FEATURES", All));
+            ("REVIEWS", All), ("AI_FEATURES", All), ("AUDIT_LOGS", Read));
 
         // ── MANAGER ───────────────────────────────────────────────────────
         var managerId = Guid.NewGuid();
@@ -139,7 +157,8 @@ public static class SeedData
             ("DASHBOARD", Read), ("PROPERTIES", ReadUpdate), ("ROOMS", All), ("ROOM_TYPES", All),
             ("RESERVATIONS", All), ("GUESTS", All), ("CHECK_IN_OUT", All), ("HOUSEKEEPING", All),
             ("PAYMENTS", All), ("INVOICES", All), ("REPORTS", All),
-            ("STAFF", ReadCreate), ("ROLES", Read), ("SETTINGS", Read));
+            ("STAFF", ReadCreate), ("ROLES", Read), ("SETTINGS", Read),
+            ("PROMOTIONS", All), ("REVIEWS", All), ("AI_FEATURES", All), ("AUDIT_LOGS", Read));
 
         // ── RECEPTIONIST ──────────────────────────────────────────────────
         var receptionistId = Guid.NewGuid();
@@ -154,8 +173,8 @@ public static class SeedData
         var receptionistPerms = BuildPermissions(receptionistId, permissions,
             ("DASHBOARD", Read), ("ROOMS", Read), ("ROOM_TYPES", Read),
             ("RESERVATIONS", ReadCreateUpdate), ("GUESTS", ReadCreateUpdate),
-            ("CHECK_IN_OUT", ReadCreateUpdate), ("PAYMENTS", ReadCreate),
-            ("INVOICES", ReadExport));
+            ("CHECK_IN_OUT", ReadCreateUpdate), ("HOUSEKEEPING", ReadCreateUpdate),
+            ("PAYMENTS", ReadCreate), ("INVOICES", ReadExport));
 
         // ── HOUSEKEEPER ───────────────────────────────────────────────────
         var housekeeperId = Guid.NewGuid();
@@ -169,7 +188,7 @@ public static class SeedData
         };
         var housekeeperPerms = BuildPermissions(housekeeperId, permissions,
             ("DASHBOARD", Read), ("ROOMS", Read),
-            ("HOUSEKEEPING", ReadUpdate));
+            ("HOUSEKEEPING", ReadCreateUpdate));
 
         // ── Persist ───────────────────────────────────────────────────────
         context.AccessRoles.AddRange(superAdmin, owner, manager, receptionist, housekeeper);
@@ -178,16 +197,161 @@ public static class SeedData
              .. receptionistPerms, .. housekeeperPerms]);
 
         await context.SaveChangesAsync();
-        await SeedPlatformAdminDataAsync(context);
-        await EnsureTestPersonnelAccountsVerifiedAsync(context);
+        await EnsureSubscriptionPlansSeededAsync(context);
+
+        if (allowDevPlatformBootstrap)
+        {
+            await SeedPlatformAdminDataAsync(context);
+            await EnsureTestPersonnelAccountsVerifiedAsync(context);
+        }
+        else
+        {
+            await EnsureConfiguredPlatformAdminAsync(context, configuration);
+        }
     }
 
     /// <summary>
-    /// Seeds default platform subscription plans, print template configurations, and sample tenant contracts.
+    /// Seeds system subscription plan catalog entries (STARTER, PRO, ENTERPRISE) if absent.
+    /// Safe to execute in all environments (contains zero secrets or sample tenant records).
+    /// </summary>
+    private static async Task EnsureSubscriptionPlansSeededAsync(ApplicationDbContext context)
+    {
+        if (await context.SubscriptionPlans.AnyAsync())
+        {
+            return;
+        }
+
+        var starter = new SubscriptionPlan
+        {
+            Id = Guid.NewGuid(),
+            Code = "STARTER",
+            Name = "Gói Khởi Nghiệp (Starter)",
+            MonthlyPrice = 299000,
+            YearlyPrice = 2990000,
+            Description = "Phù hợp cho nhà nghỉ, homestay và khách sạn mini quy mô dưới 15 phòng.",
+            MaxRooms = 15,
+            MaxProperties = 1,
+            MaxStaff = 3,
+            FeaturesJson = "[\"Quản lý sơ đồ phòng trực quan\",\"Đặt phòng theo Giờ, Đêm, Ngày\",\"In hóa đơn & phiếu VietQR tự động\",\"Báo cáo doanh thu & công suất cơ bản\"]",
+            IsPopular = false,
+            SortOrder = 1,
+            HasVnPay = true,
+            HasAdvancedReports = false,
+            IsActive = true
+        };
+
+        var pro = new SubscriptionPlan
+        {
+            Id = Guid.NewGuid(),
+            Code = "PRO",
+            Name = "Gói Chuyên Nghiệp (Pro)",
+            MonthlyPrice = 699000,
+            YearlyPrice = 6990000,
+            Description = "Tối ưu cho khách sạn boutique, chuỗi 2-3 cơ sở với tính năng AI gợi ý giá và thanh toán tự động.",
+            MaxRooms = 50,
+            MaxProperties = 3,
+            MaxStaff = 10,
+            FeaturesJson = "[\"Toàn bộ tính năng gói Starter\",\"Hỗ trợ chuỗi tối đa 3 chi nhánh\",\"AI gợi ý giá phòng & phân tích công suất\",\"Đồng bộ cổng thanh toán VietQR & VNPay\",\"Báo cáo chuyên sâu P&L và công suất phòng\",\"Quản lý kho mini-bar & dịch vụ giặt là\"]",
+            IsPopular = true,
+            SortOrder = 2,
+            HasVnPay = true,
+            HasAdvancedReports = true,
+            IsActive = true
+        };
+
+        var enterprise = new SubscriptionPlan
+        {
+            Id = Guid.NewGuid(),
+            Code = "ENTERPRISE",
+            Name = "Gói Doanh Nghiệp (Enterprise)",
+            MonthlyPrice = 1499000,
+            YearlyPrice = 14990000,
+            Description = "Giải pháp toàn diện cho chuỗi khách sạn lớn, resort cao cấp không giới hạn chi nhánh và phòng.",
+            MaxRooms = 9999,
+            MaxProperties = 50,
+            MaxStaff = 100,
+            FeaturesJson = "[\"Không giới hạn số phòng và số chi nhánh\",\"Hệ thống Loyalty & tích điểm thành viên chuỗi\",\"Tích hợp API phần mềm kế toán & khóa từ thông minh\",\"Hỗ trợ kỹ thuật 24/7 & chuyên viên triển khai riêng\",\"Ký hợp đồng dịch vụ SLA cam kết 99.9% uptime\"]",
+            IsPopular = false,
+            SortOrder = 3,
+            HasVnPay = true,
+            HasAdvancedReports = true,
+            IsActive = true
+        };
+
+        context.SubscriptionPlans.AddRange(starter, pro, enterprise);
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Bootstraps a non-dev SuperAdmin account ONLY when both <c>PlatformBootstrap:AdminEmail</c>
+    /// and <c>PlatformBootstrap:AdminPassword</c> are explicitly supplied via environment/configuration.
+    /// Zero hardcoded credentials are ever created.
+    /// </summary>
+    private static async Task EnsureConfiguredPlatformAdminAsync(
+        ApplicationDbContext context,
+        IConfiguration? configuration)
+    {
+        var adminEmail = configuration?["PlatformBootstrap:AdminEmail"]?.Trim();
+        var adminPassword = configuration?["PlatformBootstrap:AdminPassword"];
+        if (string.IsNullOrWhiteSpace(adminEmail) || string.IsNullOrWhiteSpace(adminPassword))
+        {
+            return;
+        }
+
+        var normalizedEmail = adminEmail.ToLowerInvariant();
+        var exists = await context.Users
+            .IgnoreQueryFilters()
+            .AnyAsync(u => u.Email.ToLower() == normalizedEmail);
+        if (exists)
+        {
+            return;
+        }
+
+        var username = configuration?["PlatformBootstrap:AdminUsername"]?.Trim();
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            var atIndex = normalizedEmail.IndexOf('@');
+            username = atIndex > 0 ? normalizedEmail[..atIndex] : normalizedEmail;
+        }
+
+        var usernameTaken = await context.Users
+            .IgnoreQueryFilters()
+            .AnyAsync(u => u.Username.ToLower() == username.ToLower());
+        if (usernameTaken)
+        {
+            username = $"{username}_{Guid.NewGuid():N}"[..Math.Min(username.Length + 9, 50)];
+        }
+
+        var fullName = configuration?["PlatformBootstrap:AdminFullName"]?.Trim();
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            fullName = "Platform Super Administrator";
+        }
+
+        var hasher = new HotelSaas.Infrastructure.Services.PasswordHasherService();
+        context.Users.Add(new User
+        {
+            Id = Guid.NewGuid(),
+            Username = username,
+            Email = normalizedEmail,
+            PasswordHash = hasher.Hash(adminPassword),
+            FullName = fullName,
+            GlobalRole = GlobalUserRole.SuperAdmin,
+            IsActive = true,
+            EmailVerifiedAtUtc = DateTime.UtcNow,
+            PhoneVerifiedAtUtc = DateTime.UtcNow,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Seeds development-only platform admin user, subscription plans, sample print template configurations,
+    /// and sample tenant contracts. Must NEVER run automatically in Staging or Production.
     /// </summary>
     public static async Task SeedPlatformAdminDataAsync(ApplicationDbContext context)
     {
-        // 0. SuperAdmin User Account
+        // 0. Dev SuperAdmin User Account
         var existingSuperAdmin = await context.Users
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.Email == "superadmin@hotelsaas.platform");
@@ -231,68 +395,7 @@ public static class SeedData
         }
 
         // 1. Subscription Plans
-        if (!await context.SubscriptionPlans.AnyAsync())
-        {
-            var starter = new SubscriptionPlan
-            {
-                Id = Guid.NewGuid(),
-                Code = "STARTER",
-                Name = "Gói Khởi Nghiệp (Starter)",
-                MonthlyPrice = 299000,
-                YearlyPrice = 2990000,
-                Description = "Phù hợp cho nhà nghỉ, homestay và khách sạn mini quy mô dưới 15 phòng.",
-                MaxRooms = 15,
-                MaxProperties = 1,
-                MaxStaff = 3,
-                FeaturesJson = "[\"Quản lý sơ đồ phòng trực quan\",\"Đặt phòng theo Giờ, Đêm, Ngày\",\"In hóa đơn & phiếu VietQR tự động\",\"Báo cáo doanh thu & công suất cơ bản\"]",
-                IsPopular = false,
-                SortOrder = 1,
-                HasVnPay = true,
-                HasAdvancedReports = false,
-                IsActive = true
-            };
-
-            var pro = new SubscriptionPlan
-            {
-                Id = Guid.NewGuid(),
-                Code = "PRO",
-                Name = "Gói Chuyên Nghiệp (Pro)",
-                MonthlyPrice = 699000,
-                YearlyPrice = 6990000,
-                Description = "Tối ưu cho khách sạn boutique, chuỗi 2-3 cơ sở với tính năng AI gợi ý giá và thanh toán tự động.",
-                MaxRooms = 50,
-                MaxProperties = 3,
-                MaxStaff = 10,
-                FeaturesJson = "[\"Toàn bộ tính năng gói Starter\",\"Hỗ trợ chuỗi tối đa 3 chi nhánh\",\"AI gợi ý giá phòng & phân tích công suất\",\"Đồng bộ cổng thanh toán VietQR & VNPay\",\"Báo cáo chuyên sâu P&L và công suất phòng\",\"Quản lý kho mini-bar & dịch vụ giặt là\"]",
-                IsPopular = true,
-                SortOrder = 2,
-                HasVnPay = true,
-                HasAdvancedReports = true,
-                IsActive = true
-            };
-
-            var enterprise = new SubscriptionPlan
-            {
-                Id = Guid.NewGuid(),
-                Code = "ENTERPRISE",
-                Name = "Gói Doanh Nghiệp (Enterprise)",
-                MonthlyPrice = 1499000,
-                YearlyPrice = 14990000,
-                Description = "Giải pháp toàn diện cho chuỗi khách sạn lớn, resort cao cấp không giới hạn chi nhánh và phòng.",
-                MaxRooms = 9999,
-                MaxProperties = 50,
-                MaxStaff = 100,
-                FeaturesJson = "[\"Không giới hạn số phòng và số chi nhánh\",\"Hệ thống Loyalty & tích điểm thành viên chuỗi\",\"Tích hợp API phần mềm kế toán & khóa từ thông minh\",\"Hỗ trợ kỹ thuật 24/7 & chuyên viên triển khai riêng\",\"Ký hợp đồng dịch vụ SLA cam kết 99.9% uptime\"]",
-                IsPopular = false,
-                SortOrder = 3,
-                HasVnPay = true,
-                HasAdvancedReports = true,
-                IsActive = true
-            };
-
-            context.SubscriptionPlans.AddRange(starter, pro, enterprise);
-            await context.SaveChangesAsync();
-        }
+        await EnsureSubscriptionPlansSeededAsync(context);
 
         // 2. Print Template Config for existing Tenants
         var tenants = await context.Tenants.IgnoreQueryFilters().ToListAsync();
@@ -357,11 +460,12 @@ public static class SeedData
         }
 
         await context.SaveChangesAsync();
-
-
     }
 
-    private static async Task EnsureRolePermissionsUpToDateAsync(ApplicationDbContext context)
+    private static async Task EnsureRolePermissionsUpToDateAsync(
+        ApplicationDbContext context,
+        bool allowDevPlatformBootstrap,
+        IConfiguration? configuration)
     {
         const int All = 127;
         const int Read = 1;
@@ -374,10 +478,32 @@ public static class SeedData
             ["MANAGER"], Read, exactMatch: false);
         await UpsertRolePermissionAsync(context, "ROOM_TYPES", "Room Type Management", "ROOMS",
             ["RECEPTIONIST"], Read, exactMatch: false);
+        await UpsertRolePermissionAsync(context, "PROMOTIONS", "Promotions", "PROMOTIONS",
+            ["OWNER", "MANAGER", "SUPER_ADMIN"], All, exactMatch: false);
+        await UpsertRolePermissionAsync(context, "REVIEWS", "Guest Reviews", "REVIEWS",
+            ["OWNER", "MANAGER", "SUPER_ADMIN"], All, exactMatch: false);
+        await UpsertRolePermissionAsync(context, "AI_FEATURES", "AI Features", "AI_FEATURES",
+            ["OWNER", "MANAGER", "SUPER_ADMIN"], All, exactMatch: false);
+        await UpsertRolePermissionAsync(context, "HOUSEKEEPING", "Housekeeping", "HOUSEKEEPING",
+            ["HOUSEKEEPER"], 7, exactMatch: false);
+        await UpsertRolePermissionAsync(context, "HOUSEKEEPING", "Housekeeping", "HOUSEKEEPING",
+            ["RECEPTIONIST"], 7, exactMatch: false);
+        await UpsertRolePermissionAsync(context, "AUDIT_LOGS", "Audit Logs", "STAFF",
+            ["OWNER", "MANAGER"], Read, exactMatch: false);
+        await UpsertRolePermissionAsync(context, "AUDIT_LOGS", "Audit Logs", "STAFF",
+            ["SUPER_ADMIN"], All, exactMatch: false);
 
-        // Also ensure platform admin data is seeded even if roles already exist
-        await SeedPlatformAdminDataAsync(context);
-        await EnsureTestPersonnelAccountsVerifiedAsync(context);
+        await EnsureSubscriptionPlansSeededAsync(context);
+
+        if (allowDevPlatformBootstrap)
+        {
+            await SeedPlatformAdminDataAsync(context);
+            await EnsureTestPersonnelAccountsVerifiedAsync(context);
+        }
+        else
+        {
+            await EnsureConfiguredPlatformAdminAsync(context, configuration);
+        }
     }
 
     private static async Task UpsertRolePermissionAsync(
@@ -406,7 +532,7 @@ public static class SeedData
         }
 
         var roles = await context.AccessRoles
-            .Where(r => roleCodes.Contains(r.Code))
+            .Where(r => r.IsSystemRole && roleCodes.Contains(r.Code))
             .ToListAsync();
 
         var modified = false;
@@ -479,6 +605,12 @@ public static class SeedData
             if (!user.PhoneVerifiedAtUtc.HasValue)
             {
                 user.PhoneVerifiedAtUtc = now;
+                anyModified = true;
+            }
+            if (string.Equals(user.Email, "guest.vip@hotelsaas.local", StringComparison.OrdinalIgnoreCase) &&
+                string.IsNullOrWhiteSpace(user.PhoneNumber))
+            {
+                user.PhoneNumber = "+84908889999";
                 anyModified = true;
             }
         }

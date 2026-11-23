@@ -1132,5 +1132,140 @@ public sealed class T03A_AuditLoggingTests
             await DropIsolatedSchemaAsync(conn, testSchema);
         }
     }
+
+    // =========================================================================
+    // WAVE 11: INTERCEPTOR DEDUP & PLATFORM-LEVEL AUDITLOG PERSISTENCE (POSTGRESQL)
+    // =========================================================================
+
+    [Fact]
+    public async Task Wave11_AuditInterceptor_SuppressesDuplicateUpdateRow_AndAllowsPlatformScopeAuditLog()
+    {
+        var testSchema = $"p1b01b_test_{Guid.NewGuid():N}";
+        await using var conn = await CreateIsolatedSchemaAsync(testSchema);
+
+        try
+        {
+            var (tenantId, propertyAId, _, roomTypeAId, _) = await SeedBaselineHierarchyAsync(conn.ConnectionString, testSchema);
+            var actorUserId = Guid.NewGuid();
+            var tenantSvc = new StubTenantService { TenantId = tenantId };
+            var propSvc = new StubPropertyService { PropertyId = propertyAId, IsTenantWide = false };
+            var userCtx = new StubUserContext { UserId = actorUserId, TenantId = tenantId, PropertyId = propertyAId };
+
+            var roomId = Guid.NewGuid();
+            var reservationId = Guid.NewGuid();
+
+            await using (var seedCtx = CreateUnAuditedDbContext(conn.ConnectionString, testSchema, tenantSvc, propSvc))
+            {
+                seedCtx.Rooms.Add(new Room
+                {
+                    Id = roomId,
+                    TenantId = tenantId,
+                    PropertyId = propertyAId,
+                    RoomTypeId = roomTypeAId,
+                    RoomNumber = "205",
+                    Floor = 2,
+                    Status = RoomStatus.Clean
+                });
+
+                seedCtx.Reservations.Add(new Reservation
+                {
+                    Id = reservationId,
+                    TenantId = tenantId,
+                    PropertyId = propertyAId,
+                    RoomId = roomId,
+                    ConfirmationCode = "RES-DEDUP01",
+                    GuestName = "Nguyen Dedup",
+                    GuestEmail = "dedup@example.com",
+                    CheckInDate = new DateOnly(2026, 12, 1),
+                    CheckOutDate = new DateOnly(2026, 12, 3),
+                    NumberOfGuests = 2,
+                    TotalAmount = 1_200_000m,
+                    Status = ReservationStatus.Confirmed
+                });
+
+                await seedCtx.SaveChangesAsync();
+            }
+
+            // 1. Modify Reservation AND add explicit canonical "Cancel" AuditLog in the SAME SaveChangesAsync
+            //    -> AuditSaveChangesInterceptor MUST suppress duplicate generic "Update" row (total == 1)
+            await using (var auditedCtx = CreateAuditedDbContext(conn.ConnectionString, testSchema, tenantSvc, propSvc, userCtx))
+            {
+                var trackedRes = await auditedCtx.Reservations.SingleAsync(r => r.Id == reservationId);
+                trackedRes.Status = ReservationStatus.Cancelled;
+                trackedRes.CancellationReason = "Khách đổi lịch";
+
+                auditedCtx.AuditLogs.Add(new AuditLog
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenantId,
+                    PropertyId = propertyAId,
+                    UserId = actorUserId,
+                    Action = AuditActions.Cancel,
+                    EntityName = nameof(Reservation),
+                    EntityId = reservationId,
+                    OldValues = "{\"Status\":\"Confirmed\"}",
+                    NewValues = "{\"Status\":\"Cancelled\",\"Reason\":\"Khách đổi lịch\"}",
+                    IpAddress = "127.0.0.1",
+                    CreatedAtUtc = DateTime.UtcNow
+                });
+
+                await auditedCtx.SaveChangesAsync();
+
+                var reservationAuditLogs = await auditedCtx.AuditLogs
+                    .AsNoTracking()
+                    .Where(a => a.EntityName == nameof(Reservation) && a.EntityId == reservationId)
+                    .ToListAsync();
+
+                var singleLog = Assert.Single(reservationAuditLogs);
+                Assert.Equal(AuditActions.Cancel, singleLog.Action);
+            }
+
+            // 2. Platform-level security AuditLog (TenantId = Guid.Empty) persists cleanly on real PostgreSQL
+            //    when no ambient TenantId is set, AND stays invisible to tenant-scoped queries
+            var platformTenantSvc = new StubTenantService { TenantId = null };
+            var platformPropSvc = new StubPropertyService { PropertyId = null, IsTenantWide = true };
+            var platformUserCtx = new StubUserContext { UserId = actorUserId, GlobalRole = GlobalUserRole.SuperAdmin, TenantId = null };
+
+            var loginFailedLogId = Guid.NewGuid();
+            await using (var platformCtx = CreateAuditedDbContext(conn.ConnectionString, testSchema, platformTenantSvc, platformPropSvc, platformUserCtx))
+            {
+                platformCtx.AuditLogs.Add(new AuditLog
+                {
+                    Id = loginFailedLogId,
+                    TenantId = Guid.Empty,
+                    PropertyId = null,
+                    UserId = null,
+                    Action = AuditActions.LoginFailed,
+                    EntityName = "Auth",
+                    EntityId = Guid.Empty,
+                    NewValues = "{\"Email\":\"attacker@example.com\",\"Reason\":\"InvalidPassword\"}",
+                    IpAddress = "198.51.100.7",
+                    CreatedAtUtc = DateTime.UtcNow
+                });
+
+                await platformCtx.SaveChangesAsync();
+
+                var persistedPlatformLog = await platformCtx.AuditLogs
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .SingleAsync(a => a.Id == loginFailedLogId);
+                Assert.Equal(Guid.Empty, persistedPlatformLog.TenantId);
+                Assert.Equal(AuditActions.LoginFailed, persistedPlatformLog.Action);
+            }
+
+            // Tenant-scoped query MUST NOT see TenantId == Guid.Empty platform logs
+            await using (var tenantReadCtx = CreateAuditedDbContext(conn.ConnectionString, testSchema, tenantSvc, propSvc, userCtx))
+            {
+                var visibleToTenant = await tenantReadCtx.AuditLogs
+                    .AsNoTracking()
+                    .AnyAsync(a => a.Id == loginFailedLogId);
+                Assert.False(visibleToTenant);
+            }
+        }
+        finally
+        {
+            await DropIsolatedSchemaAsync(conn, testSchema);
+        }
+    }
 }
 

@@ -1,5 +1,6 @@
 import '@angular/compiler';
-import { describe, it, expect } from 'vitest';
+import { SimpleChange } from '@angular/core';
+import { describe, it, expect, vi } from 'vitest';
 import { DateRangeFilterComponent, DateRangeFilterValue } from './date-range-filter.component';
 
 describe('DateRangeFilterComponent Logic', () => {
@@ -81,5 +82,92 @@ describe('DateRangeFilterComponent Logic', () => {
     expect(comp.toDateValue).toBeNull();
     expect(comp.errorMessage()).toBeNull();
     expect(emitted).toBeNull();
+  });
+
+  it('clears DatePicker values when parent resets initialFromDate and initialToDate via ngOnChanges', () => {
+    const comp = new DateRangeFilterComponent();
+    comp.mode = 'range';
+    comp.fromDate = '2026-10-01';
+    comp.toDate = '2026-10-31';
+    comp.fromDateValue = new Date(2026, 9, 1, 12, 0, 0);
+    comp.toDateValue = new Date(2026, 9, 31, 12, 0, 0);
+    comp.activePreset.set('30d');
+
+    const emitSpy = vi.fn();
+    comp.filterChange.subscribe(emitSpy);
+
+    comp.initialFromDate = '';
+    comp.initialToDate = '';
+    comp.ngOnChanges({
+      initialFromDate: new SimpleChange('2026-10-01', '', false),
+      initialToDate: new SimpleChange('2026-10-31', '', false)
+    });
+
+    expect(comp.fromDate).toBe('');
+    expect(comp.toDate).toBe('');
+    expect(comp.fromDateValue).toBeNull();
+    expect(comp.toDateValue).toBeNull();
+    expect(comp.activePreset()).toBeNull();
+    expect(comp.hasFilter()).toBe(false);
+    expect(emitSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps single mode intact when parent echoes single-date selection back via inputs', () => {
+    const comp = new DateRangeFilterComponent();
+    comp.mode = 'single';
+    comp.fromDate = '2026-10-09';
+    comp.fromDateValue = new Date(2026, 9, 9, 12, 0, 0);
+
+    comp.initialFromDate = '2026-10-09';
+    comp.initialToDate = '2026-10-09';
+    comp.ngOnChanges({
+      initialFromDate: new SimpleChange('', '2026-10-09', false),
+      initialToDate: new SimpleChange('', '2026-10-09', false)
+    });
+
+    expect(comp.mode).toBe('single');
+    expect(comp.fromDate).toBe('2026-10-09');
+  });
+
+  it('applies quick presets (Hôm nay, 7 ngày, 30 ngày) and emits immediately', () => {
+    const comp = new DateRangeFilterComponent();
+    const emissions: Array<DateRangeFilterValue | null> = [];
+    comp.filterChange.subscribe(val => emissions.push(val));
+
+    // 2026-11-23 10:00 UTC => 2026-11-23 17:00 Asia/Ho_Chi_Minh
+    const refNow = new Date('2026-11-23T10:00:00.000Z');
+
+    comp.applyPreset('today', refNow);
+    expect(comp.mode).toBe('single');
+    expect(comp.activePreset()).toBe('today');
+    expect(emissions[0]).toEqual({
+      mode: 'single',
+      fromDate: '2026-11-23',
+      toDate: '2026-11-23',
+      startUtc: '2026-11-22T17:00:00.000Z',
+      endExclusiveUtc: '2026-11-23T17:00:00.000Z'
+    });
+
+    comp.applyPreset('7d', refNow);
+    expect(comp.mode).toBe('range');
+    expect(comp.activePreset()).toBe('7d');
+    expect(emissions[1]).toEqual({
+      mode: 'range',
+      fromDate: '2026-11-17',
+      toDate: '2026-11-23',
+      startUtc: '2026-11-16T17:00:00.000Z',
+      endExclusiveUtc: '2026-11-23T17:00:00.000Z'
+    });
+
+    comp.applyPreset('30d', refNow);
+    expect(comp.mode).toBe('range');
+    expect(comp.activePreset()).toBe('30d');
+    expect(emissions[2]).toEqual({
+      mode: 'range',
+      fromDate: '2026-10-25',
+      toDate: '2026-11-23',
+      startUtc: '2026-10-24T17:00:00.000Z',
+      endExclusiveUtc: '2026-11-23T17:00:00.000Z'
+    });
   });
 });

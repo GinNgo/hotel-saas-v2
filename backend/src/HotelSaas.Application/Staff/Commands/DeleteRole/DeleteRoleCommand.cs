@@ -38,7 +38,7 @@ public sealed class DeleteRoleCommandHandler : IRequestHandler<DeleteRoleCommand
 
         if (role.IsSystemRole)
         {
-            throw new InvalidOperationException("Không thể xóa chức vụ mặc định của hệ thống.");
+            throw new BadRequestException("ERR_SYSTEM_ROLE_IMMUTABLE", "Không thể xóa chức vụ mặc định của hệ thống.");
         }
 
         if (tenantId.HasValue && role.TenantId.HasValue && role.TenantId.Value != tenantId.Value)
@@ -52,7 +52,7 @@ public sealed class DeleteRoleCommandHandler : IRequestHandler<DeleteRoleCommand
 
         if (hasStaff)
         {
-            throw new InvalidOperationException("Không thể xóa chức vụ đang được gán cho nhân viên. Hãy phân công lại vai trò cho nhân viên trước.");
+            throw new ConflictException("ERR_ROLE_IN_USE", "Không thể xóa chức vụ đang được gán cho nhân viên. Hãy phân công lại vai trò cho nhân viên trước.");
         }
 
         _context.RolePermissions.RemoveRange(role.Permissions);

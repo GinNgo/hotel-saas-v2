@@ -11,31 +11,33 @@ import { PublicPropertyDto, PublicRoomTypeAvailabilityDto, RentalType, PropertyR
 import { QuoteDto } from '../../core/models/reservation.model';
 import { PublicStayContext, publicStayInterval, readPublicStay } from '../../core/models/public-stay-context';
 import { PhotoGalleryModalComponent, GalleryPhotoItem } from '../../shared';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 import { resolvePropertyGallery, resolveRoomThumbnail } from '../../core/utils';
 import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-time.util';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-property-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, PhotoGalleryModalComponent, DatePicker],
+  imports: [CommonModule, FormsModule, RouterLink, PhotoGalleryModalComponent, DatePicker, VndCurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="min-h-screen bg-[#EFECE6] py-6 sm:py-8 font-sans text-stone-900">
+    <div class="min-h-screen bg-[var(--surface-canvas)] pt-6 sm:pt-8 pb-24 font-sans text-stone-900">
       <main class="max-w-7xl mx-auto px-4 sm:px-6 space-y-6 sm:space-y-8">
       <!-- 1. TOP NAV: BREADCRUMB & RETURN LINK -->
       <nav class="flex items-center justify-between text-xs text-stone-600 pb-3 border-b border-stone-200" aria-label="Điều hướng">
         <a
           routerLink="/booking"
           [queryParams]="returnQueryParams()"
-          class="inline-flex min-h-11 items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white border border-stone-200/90 shadow-2xs text-stone-700 hover:text-[#C05621] font-semibold transition-all cursor-pointer"
+          class="inline-flex min-h-11 items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white border border-stone-200/90 shadow-2xs text-stone-700 hover:text-[var(--brand-cta)] font-semibold transition-all cursor-pointer"
         >
-          <i class="pi pi-arrow-left text-[11px] text-[#C05621]"></i>
+          <i class="pi pi-arrow-left text-[11px] text-[var(--brand-cta)]"></i>
           <span>Quay lại tìm kiếm cơ sở</span>
         </a>
         <div class="hidden sm:flex items-center gap-2 text-stone-400 bg-white px-3.5 py-1.5 rounded-xl border border-stone-200/80 shadow-2xs">
           <span>Khách sạn &amp; Resort</span>
           <span>&bull;</span>
-          <span class="text-[#0D2E28] font-bold">{{ property()?.name || 'Chi tiết' }}</span>
+          <span class="text-[var(--brand-primary)] font-bold">{{ property()?.name || 'Chi tiết' }}</span>
         </div>
       </nav>
 
@@ -54,7 +56,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
 
       @if (loading()) {
         <div class="p-16 text-center space-y-3" role="status">
-          <i class="pi pi-spin pi-spinner text-3xl text-[#0D2E28]"></i>
+          <i class="pi pi-spin pi-spinner text-3xl text-[var(--brand-primary)]"></i>
           <p class="text-sm font-medium text-stone-600">Đang tải hồ sơ chỗ nghỉ &amp; biểu giá di sản…</p>
         </div>
       }
@@ -64,7 +66,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
         <header class="space-y-3">
           <div class="flex flex-wrap items-center gap-2">
             @if (hotel.tenantBrandName) {
-              <span class="text-xs font-extrabold text-[#C05621] uppercase tracking-widest">
+              <span class="text-xs font-extrabold text-[var(--brand-cta)] uppercase tracking-widest">
                 {{ hotel.tenantBrandName }}
               </span>
               <span class="text-stone-300">&bull;</span>
@@ -75,12 +77,12 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
             @if (hotel.starRating && hotel.starRating >= 3) {
               <span class="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200/80">
                 <i class="pi pi-star-fill text-[10px] text-amber-500"></i>
-                <span>{{ hotel.starRating }}★ Tiêu chuẩn cao cấp</span>
+                <span>{{ hotel.starRating }} sao — Tiêu chuẩn cao cấp</span>
               </span>
             }
           </div>
 
-          <h1 class="font-serif text-3xl sm:text-4xl lg:text-5xl font-normal text-stone-900 tracking-tight leading-[1.15]">
+          <h1 class="font-display text-3xl sm:text-4xl lg:text-5xl font-normal text-stone-900 tracking-tight leading-[1.15]">
             {{ hotel.name }}
           </h1>
 
@@ -89,97 +91,111 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
               [href]="googleMapsDirectionsUrl()"
               target="_blank"
               rel="noopener noreferrer"
-              class="flex items-center gap-1.5 text-stone-700 hover:text-[#C05621] transition-colors group cursor-pointer"
+              class="min-h-11 flex items-center gap-1.5 text-stone-700 hover:text-[var(--brand-cta)] transition-colors group cursor-pointer"
               title="Xem vị trí & chỉ đường trên Google Maps"
             >
-              <i class="pi pi-map-marker text-[#C05621]"></i>
-              <span class="underline decoration-stone-300 underline-offset-2 group-hover:decoration-[#C05621]">
+              <i class="pi pi-map-marker text-[var(--brand-cta)]"></i>
+              <span class="underline decoration-stone-300 underline-offset-2 group-hover:decoration-[var(--brand-cta)]">
                 {{ hotel.addressLine || hotel.address }}, {{ hotel.provinceName || hotel.city }}
               </span>
-              <i class="pi pi-external-link text-[10px] text-stone-400 group-hover:text-[#C05621]"></i>
+              <i class="pi pi-external-link text-[10px] text-stone-400 group-hover:text-[var(--brand-cta)]"></i>
             </a>
-            @if (hotel.reviewCount > 0) {
+            @if (hotel.reviewCount > 0 && hotel.ratingAverage > 0) {
               <span class="text-stone-300 hidden sm:inline">&bull;</span>
-              <p class="flex items-center gap-1 text-stone-800 font-semibold">
+              <p class="flex items-center gap-1 text-stone-800 font-semibold tabular-nums">
                 <i class="pi pi-star-fill text-amber-500 text-xs"></i>
                 <span>{{ hotel.ratingAverage | number:'1.1-1' }}</span>
                 <span class="text-stone-500 font-normal">({{ hotel.reviewCount }} đánh giá xác thực)</span>
               </p>
             } @else {
               <span class="text-stone-300 hidden sm:inline">&bull;</span>
-              <p class="text-xs text-stone-400">Được quản lý trên nền tảng Hotel SaaS</p>
+              <p class="text-xs text-stone-500">Chưa có đánh giá</p>
             }
           </div>
         </header>
 
-        <!-- 3. ASYMMETRIC 5-PHOTO EDITORIAL GALLERY MOSAIC -->
+        <!-- 3. HONEST EDITORIAL GALLERY MOSAIC (NO STOCK PLACEHOLDERS) -->
         <section aria-label="Bộ sưu tập ảnh chỗ nghỉ" class="rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm border border-stone-200/90 bg-stone-100">
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-2 sm:gap-2.5 p-2 sm:p-2.5">
-            <!-- Hero Photo: Spans 2 cols, 2 rows on desktop -->
-            <button
-              type="button"
-              (click)="openGallery()"
-              class="relative md:col-span-2 md:row-span-2 h-72 sm:h-96 md:h-[420px] rounded-xl sm:rounded-2xl overflow-hidden group cursor-pointer text-left focus-visible:outline-[#C05621]"
-              aria-label="Xem ảnh chính cơ sở"
-            >
-              <img
-                [src]="getPhotoUrl(hotel, 0)"
-                [alt]="hotel.name"
-                class="w-full h-full object-cover group-hover:scale-104 transition-transform duration-500"
-              />
-              <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent"></div>
-              <div class="absolute bottom-4 left-4 right-4 flex items-center justify-between text-white">
-                <span class="px-3 py-1.5 rounded-xl bg-black/50 backdrop-blur-md text-xs font-semibold flex items-center gap-1.5 border border-white/20">
-                  <i class="pi pi-camera text-amber-300 text-xs"></i>
-                  <span>Ảnh chính khuôn viên</span>
-                </span>
-                <span class="hidden sm:inline-flex text-[11px] text-stone-200 bg-black/40 px-2.5 py-1 rounded-lg">
-                  Nhấn để phóng to
-                </span>
-              </div>
-            </button>
-
-            <!-- 4 Auxiliary Mosaic Photos -->
-            @for (idx of [1, 2, 3, 4]; track idx) {
-              <button
-                type="button"
-                (click)="openGallery()"
-                class="relative hidden sm:block h-[205px] rounded-xl sm:rounded-2xl overflow-hidden group cursor-pointer text-left focus-visible:outline-[#C05621]"
-                [attr.aria-label]="'Xem ảnh ' + (idx + 1)"
-              >
-                <img
-                  [src]="getPhotoUrl(hotel, idx)"
-                  [alt]="hotel.name + ' - Ảnh ' + (idx + 1)"
-                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  loading="lazy"
-                />
-                @if (idx === 4) {
-                  <!-- Tinted Overlay on 4th thumbnail to view entire album -->
-                  <div class="absolute inset-0 bg-slate-950/70 backdrop-blur-[2px] flex flex-col items-center justify-center text-white p-2 text-center group-hover:bg-slate-950/80 transition-colors">
-                    <i class="pi pi-images text-2xl mb-1 text-amber-300"></i>
-                    <span class="text-xs font-bold uppercase tracking-wider">Xem tất cả ảnh</span>
-                    <span class="text-[11px] text-stone-300 mt-0.5">{{ totalPhotosCount(hotel) }} ảnh chi tiết</span>
+          @if (propertyGalleryUrls(hotel); as galleryUrls) {
+            @if (galleryUrls.length > 0) {
+              <div class="grid grid-cols-1 md:grid-cols-4 gap-2 sm:gap-2.5 p-2 sm:p-2.5">
+                <button
+                  type="button"
+                  (click)="openGallery()"
+                  [class]="galleryUrls.length === 1
+                    ? 'relative md:col-span-4 h-72 sm:h-96 md:h-[420px] rounded-xl sm:rounded-2xl overflow-hidden group cursor-pointer text-left focus-visible:outline-[var(--brand-cta)]'
+                    : 'relative md:col-span-2 md:row-span-2 h-72 sm:h-96 md:h-[420px] rounded-xl sm:rounded-2xl overflow-hidden group cursor-pointer text-left focus-visible:outline-[var(--brand-cta)]'"
+                  aria-label="Xem ảnh chính cơ sở"
+                >
+                  <img
+                    [src]="galleryUrls[0]"
+                    [alt]="hotel.name"
+                    width="800"
+                    height="420"
+                    loading="lazy"
+                    class="w-full h-full object-cover group-hover:scale-104 transition-transform duration-500"
+                  />
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent"></div>
+                  <div class="absolute bottom-4 left-4 right-4 flex items-center justify-between text-white">
+                    <span class="px-3 py-1.5 rounded-xl bg-black/50 backdrop-blur-md text-xs font-semibold flex items-center gap-1.5 border border-white/20">
+                      <i class="pi pi-camera text-amber-300 text-xs"></i>
+                      <span>Ảnh thực tế từ cơ sở</span>
+                    </span>
+                    <span class="hidden sm:inline-flex text-[11px] text-stone-200 bg-black/40 px-2.5 py-1 rounded-lg">
+                      Nhấn để xem {{ galleryUrls.length }} ảnh
+                    </span>
                   </div>
+                </button>
+
+                @for (auxUrl of galleryUrls.slice(1, 5); track auxUrl; let auxIdx = $index) {
+                  <button
+                    type="button"
+                    (click)="openGallery()"
+                    class="relative hidden sm:block h-[205px] rounded-xl sm:rounded-2xl overflow-hidden group cursor-pointer text-left focus-visible:outline-[var(--brand-cta)]"
+                    [attr.aria-label]="'Xem ảnh ' + (auxIdx + 2)"
+                  >
+                    <img
+                      [src]="auxUrl"
+                      [alt]="hotel.name + ' - Ảnh ' + (auxIdx + 2)"
+                      width="400"
+                      height="205"
+                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
+                    />
+                    @if (auxIdx === galleryUrls.slice(1, 5).length - 1 && galleryUrls.length > 2) {
+                      <div class="absolute inset-0 bg-slate-950/65 backdrop-blur-[2px] flex flex-col items-center justify-center text-white p-2 text-center group-hover:bg-slate-950/80 transition-colors">
+                        <i class="pi pi-images text-2xl mb-1 text-amber-300"></i>
+                        <span class="text-xs font-bold uppercase tracking-wider">Xem tất cả ảnh</span>
+                        <span class="text-[11px] text-stone-300 mt-0.5">{{ galleryUrls.length }} ảnh chi tiết</span>
+                      </div>
+                    }
+                  </button>
                 }
-              </button>
+              </div>
+            } @else {
+              <div class="h-56 sm:h-64 flex flex-col items-center justify-center bg-gradient-to-br from-stone-100 to-slate-200 text-stone-500 p-6 text-center gap-2">
+                <i class="pi pi-building text-4xl text-stone-400"></i>
+                <p class="text-sm font-semibold text-stone-700">Cơ sở chưa tải lên hình ảnh thực tế</p>
+                <p class="text-xs text-stone-500">Thông tin hạng phòng, lịch trống và báo giá bên dưới được đồng bộ trực tiếp từ hệ thống.</p>
+              </div>
             }
-          </div>
+          }
         </section>
 
         <!-- 4. MAIN CONTENT (2 COLUMNS: LEFT ROOMS & POLICIES / RIGHT STICKY QUOTE) -->
         <div class="grid lg:grid-cols-3 gap-8 items-start pt-2">
           <!-- CỘT TRÁI: CONCIERGE BAR & ROOM LIST (2 CỘT) -->
-          <div class="lg:col-span-2 space-y-6">
+          <div class="lg:col-span-2 min-w-0 space-y-6">
             <!-- CONCIERGE BOOKING SELECTOR -->
-            <section class="bg-white rounded-3xl border-2 border-stone-300 shadow-md p-6 sm:p-7 space-y-5" aria-labelledby="stay-title">
-              <div class="flex items-center justify-between pb-3 border-b border-stone-100">
+            <section class="bg-white rounded-3xl border border-slate-200 shadow-xs p-6 sm:p-7 space-y-5" aria-labelledby="stay-title">
+              <div class="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div class="flex items-center gap-2.5">
-                  <div class="w-9 h-9 rounded-xl bg-[#0D2E28] text-amber-200 flex items-center justify-center font-bold text-sm">
+                  <div class="w-9 h-9 rounded-xl bg-slate-100 text-[var(--brand-primary)] flex items-center justify-center font-bold text-sm">
                     <i class="pi pi-calendar-clock"></i>
                   </div>
                   <div>
-                    <h2 id="stay-title" class="text-base font-bold text-stone-900">Chọn Lịch &amp; Kiểm Tra Phòng Trống</h2>
-                    <p class="text-xs text-stone-500">Đồng bộ lịch phòng thực từ hệ thống PMS thời gian thực</p>
+                    <h2 id="stay-title" class="text-base font-bold text-slate-900">Chọn Lịch &amp; Kiểm Tra Phòng Trống</h2>
+                    <p class="text-xs text-slate-500">Đồng bộ lịch phòng thực từ hệ thống PMS thời gian thực</p>
                   </div>
                 </div>
 
@@ -200,11 +216,11 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                     id="stay-rental-type"
                     [ngModel]="stay().rentalType"
                     (ngModelChange)="updateStay('rentalType', $event)"
-                    class="w-full h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-stone-300 bg-[#FBF9F5] text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#C05621]/20 focus:border-[#C05621] shadow-2xs transition-all font-medium"
+                    class="w-full h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-stone-300 bg-[var(--surface-canvas)] text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-cta)]/20 focus:border-[var(--brand-cta)] shadow-2xs transition-all font-medium"
                   >
                     @for (mode of supportedModes(); track mode) {
                       <option [value]="mode">
-                        {{ mode === 'Daily' ? '☀️ Theo ngày (Nhận 14:00 - Trả 12:00)' : mode === 'Hourly' ? '⏱️ Theo giờ linh hoạt' : '🌙 Qua đêm (21:00 - 10:00)' }}
+                        {{ mode === 'Daily' ? 'Theo ngày (Nhận ' + formatTimeHm(hotel.checkInTime, '14:00') + ' - Trả ' + formatTimeHm(hotel.checkOutTime, '12:00') + ')' : mode === 'Hourly' ? 'Theo giờ linh hoạt' : 'Qua đêm (' + formatTimeHm(hotel.overnightCheckInTime, '21:00') + ' - ' + formatTimeHm(hotel.overnightCheckOutTime, '10:00') + ')' }}
                       </option>
                     }
                   </select>
@@ -221,7 +237,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                     max="20"
                     [ngModel]="stay().guests"
                     (ngModelChange)="updateStay('guests', $event)"
-                    class="w-full h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-stone-300 bg-[#FBF9F5] text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#C05621]/20 focus:border-[#C05621] shadow-2xs transition-all font-medium"
+                    class="w-full h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-stone-300 bg-[var(--surface-canvas)] text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-cta)]/20 focus:border-[var(--brand-cta)] shadow-2xs transition-all font-medium tabular-nums"
                   />
                 </div>
 
@@ -236,12 +252,13 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                     dateFormat="dd/mm/yy"
                     [showIcon]="true"
                     iconDisplay="input"
+                    [touchUI]="isMobileViewport()"
                     appendTo="body"
                     [firstDayOfWeek]="1"
                     placeholder="dd/mm/yyyy"
                     ariaLabel="Ngày nhận phòng"
                     styleClass="w-full"
-                    inputStyleClass="w-full h-11 text-xs sm:text-sm pl-3.5 pr-10 rounded-xl border border-stone-300 bg-[#FBF9F5] text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#C05621]/20 focus:border-[#C05621] shadow-2xs transition-all font-medium"
+                    inputStyleClass="w-full h-11 text-xs sm:text-sm pl-3.5 pr-10 rounded-xl border border-stone-300 bg-[var(--surface-canvas)] text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-cta)]/20 focus:border-[var(--brand-cta)] shadow-2xs transition-all font-medium"
                   />
                 </div>
 
@@ -257,12 +274,13 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                       dateFormat="dd/mm/yy"
                       [showIcon]="true"
                       iconDisplay="input"
+                      [touchUI]="isMobileViewport()"
                       appendTo="body"
                       [firstDayOfWeek]="1"
                       placeholder="dd/mm/yyyy"
                       ariaLabel="Ngày trả phòng"
                       styleClass="w-full"
-                      inputStyleClass="w-full h-11 text-xs sm:text-sm pl-3.5 pr-10 rounded-xl border border-stone-300 bg-[#FBF9F5] text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#C05621]/20 focus:border-[#C05621] shadow-2xs transition-all font-medium"
+                      inputStyleClass="w-full h-11 text-xs sm:text-sm pl-3.5 pr-10 rounded-xl border border-stone-300 bg-[var(--surface-canvas)] text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-cta)]/20 focus:border-[var(--brand-cta)] shadow-2xs transition-all font-medium"
                     />
                   </div>
                 } @else {
@@ -275,7 +293,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                       type="time"
                       [ngModel]="stay().checkInTime"
                       (ngModelChange)="updateStay('checkInTime', $event)"
-                      class="w-full h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-stone-300 bg-[#FBF9F5] text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#C05621]/20 focus:border-[#C05621] shadow-2xs transition-all font-medium"
+                      class="w-full h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-stone-300 bg-[var(--surface-canvas)] text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-cta)]/20 focus:border-[var(--brand-cta)] shadow-2xs transition-all font-medium tabular-nums"
                     />
                   </div>
                   <div>
@@ -289,7 +307,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                       [max]="hotel.maxHourlyHours || 24"
                       [ngModel]="stay().durationHours"
                       (ngModelChange)="updateStay('durationHours', $event)"
-                      class="w-full h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-stone-300 bg-[#FBF9F5] text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#C05621]/20 focus:border-[#C05621] shadow-2xs transition-all font-medium"
+                      class="w-full h-11 text-xs sm:text-sm px-3.5 rounded-xl border border-stone-300 bg-[var(--surface-canvas)] text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-cta)]/20 focus:border-[var(--brand-cta)] shadow-2xs transition-all font-medium tabular-nums"
                     />
                   </div>
                 }
@@ -297,8 +315,8 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
 
               <!-- Note -->
               <div class="p-3.5 rounded-2xl bg-stone-100/80 border border-stone-200/70 text-xs text-stone-600 flex items-center gap-2">
-                <i class="pi pi-clock text-[#C05621]"></i>
-                <span>Giờ Việt Nam &bull; nhận {{ hotel.checkInTime || '14:00' }} / trả {{ hotel.checkOutTime || '12:00' }} theo cấu hình cơ sở. Tồn phòng được kiểm tra trực tiếp.</span>
+                <i class="pi pi-clock text-[var(--brand-cta)]"></i>
+                <span class="tabular-nums">Giờ Việt Nam &bull; nhận {{ formatTimeHm(hotel.checkInTime, '14:00') }} / trả {{ formatTimeHm(hotel.checkOutTime, '12:00') }} theo cấu hình cơ sở. Tồn phòng được kiểm tra trực tiếp.</span>
               </div>
 
               <!-- Check action -->
@@ -306,13 +324,13 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                 type="button"
                 (click)="checkAvailability()"
                 [disabled]="loading() || availabilityLoading()"
-                class="w-full sm:w-auto h-11 px-6 rounded-xl bg-[#0D2E28] hover:bg-[#15473e] active:bg-[#071a17] text-white font-bold text-xs uppercase tracking-wider shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                class="w-full sm:w-auto h-11 px-6 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider shadow-2xs hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 @if (availabilityLoading()) {
-                  <i class="pi pi-spin pi-spinner text-sm text-amber-300"></i>
+                  <i class="pi pi-spin pi-spinner text-sm text-white"></i>
                   <span>Đang kiểm tra phòng trống…</span>
                 } @else {
-                  <i class="pi pi-search text-sm text-amber-300"></i>
+                  <i class="pi pi-search text-sm text-white"></i>
                   <span>Kiểm Tra Phòng Trống</span>
                 }
               </button>
@@ -321,11 +339,11 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
             <!-- ROOMS LISTING -->
             <section aria-labelledby="rooms-title" class="space-y-4">
               <div class="flex items-center justify-between">
-                <h2 id="rooms-title" class="font-serif text-xl sm:text-2xl font-normal text-stone-900 tracking-tight">
+                <h2 id="rooms-title" class="font-display text-xl sm:text-2xl font-normal text-stone-900 tracking-tight">
                   Hạng Phòng Sẵn Sàng Đón Khách
                 </h2>
                 @if (rooms().length > 0) {
-                  <span class="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200/80">
+                  <span class="text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 tabular-nums">
                     {{ rooms().length }} hạng phòng trống
                   </span>
                 }
@@ -333,7 +351,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
 
               @if (availabilityLoading()) {
                 <div role="status" class="bg-white rounded-3xl p-10 border border-stone-200 text-center flex flex-col items-center gap-2 shadow-sm">
-                  <i class="pi pi-spin pi-spinner text-2xl text-[#0D2E28]"></i>
+                  <i class="pi pi-spin pi-spinner text-2xl text-[var(--brand-primary)]"></i>
                   <p class="text-xs font-medium text-stone-500">Đang đối soát tình trạng phòng từ cơ sở…</p>
                 </div>
               } @else if (availabilityChecked() && rooms().length === 0) {
@@ -348,28 +366,37 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
 
               @for (room of rooms(); track room.roomTypeId) {
                 <article
-                  class="p-5 sm:p-6 bg-white rounded-3xl border transition-all space-y-4 shadow-sm"
-                  [class.border-[#C05621]]="selectedRoom()?.roomTypeId === room.roomTypeId"
-                  [class.ring-2]="selectedRoom()?.roomTypeId === room.roomTypeId"
-                  [class.ring-amber-200]="selectedRoom()?.roomTypeId === room.roomTypeId"
-                  [class.border-stone-200]="selectedRoom()?.roomTypeId !== room.roomTypeId"
+                  class="p-5 sm:p-6 bg-white rounded-3xl border transition-all space-y-4 shadow-2xs"
+                  [class.border-[var(--brand-primary)]]="selectedRoom()?.roomTypeId === room.roomTypeId"
+                  [class.ring-1]="selectedRoom()?.roomTypeId === room.roomTypeId"
+                  [class.ring-[var(--brand-primary)]/25]="selectedRoom()?.roomTypeId === room.roomTypeId"
+                  [class.border-slate-200]="selectedRoom()?.roomTypeId !== room.roomTypeId"
                 >
                   <div class="flex flex-col sm:flex-row items-start gap-4">
                     <div class="w-full sm:w-44 h-32 rounded-2xl overflow-hidden shrink-0 bg-stone-100 shadow-inner border border-stone-200/80">
-                      <img
-                        [src]="getRoomPhoto(room, $index)"
-                        [alt]="room.name || room.roomTypeName"
-                        class="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
-                        loading="lazy"
-                      />
+                      @if (getRoomPhoto(room, $index); as roomPhotoUrl) {
+                        <img
+                          [src]="roomPhotoUrl"
+                          [alt]="room.name || room.roomTypeName"
+                          width="176"
+                          height="128"
+                          class="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                          loading="lazy"
+                        />
+                      } @else {
+                        <div class="w-full h-full flex flex-col items-center justify-center text-stone-400 gap-1">
+                          <i class="pi pi-image text-2xl"></i>
+                          <span class="text-[11px] font-medium">Chưa có ảnh phòng</span>
+                        </div>
+                      }
                     </div>
                     <div class="flex-1 flex flex-col sm:flex-row sm:items-start justify-between gap-3 w-full">
                     <div class="space-y-1">
                       <div class="flex items-center gap-2 flex-wrap">
-                        <h3 class="font-serif text-lg sm:text-xl font-normal text-stone-900">
+                        <h3 class="font-display text-lg sm:text-xl font-normal text-stone-900">
                           {{ room.name || room.roomTypeName }}
                         </h3>
-                        <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 tabular-nums">
                           Còn {{ room.availableRoomsCount }} phòng trống
                         </span>
                       </div>
@@ -393,9 +420,9 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
 
                     @if (startingPrice(room) !== null) {
                       <div class="sm:text-right">
-                        <span class="text-[10px] text-stone-400 uppercase font-bold tracking-wider block">Giá cơ bản:</span>
-                        <span class="text-lg sm:text-xl font-mono font-black text-[#C05621]">
-                          {{ startingPrice(room) | number:'1.0-0' }} ₫
+                        <span class="text-[10px] text-slate-500 uppercase font-semibold tracking-wider block">Giá cơ bản:</span>
+                        <span class="text-lg sm:text-xl font-sans font-bold tracking-tight text-slate-900 tabular-nums">
+                          {{ startingPrice(room) | vndCurrency }}
                         </span>
                       </div>
                     } @else {
@@ -422,16 +449,16 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                       type="button"
                       (click)="selectRoom(room)"
                       [disabled]="availabilityLoading()"
-                      class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                      [class.bg-[#0D2E28]]="selectedRoom()?.roomTypeId === room.roomTypeId"
-                      [class.text-white]="selectedRoom()?.roomTypeId === room.roomTypeId"
+                      class="min-h-11 px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                      [class.bg-[var(--brand-primary)]]="selectedRoom()?.roomTypeId === room.roomTypeId"
+                      [class.text-[var(--brand-primary-fg)]]="selectedRoom()?.roomTypeId === room.roomTypeId"
                       [class.shadow-sm]="selectedRoom()?.roomTypeId === room.roomTypeId"
                       [class.bg-stone-100]="selectedRoom()?.roomTypeId !== room.roomTypeId"
                       [class.text-stone-800]="selectedRoom()?.roomTypeId !== room.roomTypeId"
                       [class.hover:bg-stone-200]="selectedRoom()?.roomTypeId !== room.roomTypeId"
                     >
                       @if (selectedRoom()?.roomTypeId === room.roomTypeId) {
-                        <i class="pi pi-check text-xs text-amber-300"></i>
+                        <i class="pi pi-check text-xs text-[var(--brand-primary-fg)]"></i>
                         <span>Đã chọn — Bấm để tính lại giá</span>
                       } @else {
                         <span>Chọn phòng &amp; xem báo giá</span>
@@ -452,7 +479,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
             >
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-100">
                 <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-[#0D2E28] flex items-center justify-center font-bold text-lg border border-emerald-100">
+                  <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-[var(--brand-primary)] flex items-center justify-center font-bold text-lg border border-emerald-100">
                     <i class="pi pi-map text-emerald-700"></i>
                   </div>
                   <div>
@@ -474,10 +501,10 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                     [href]="googleMapsDirectionsUrl()"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="h-9 px-3.5 rounded-xl bg-[#0D2E28] hover:bg-[#15473e] text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs transition-colors"
+                    class="min-h-11 px-3.5 py-2 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs transition-colors"
                     title="Chỉ đường tới cơ sở trên Google Maps"
                   >
-                    <i class="pi pi-directions text-amber-300 text-xs"></i>
+                    <i class="pi pi-directions text-[var(--brand-primary-fg)] text-xs"></i>
                     <span>Chỉ đường</span>
                   </a>
                   @if (hasGpsCoordinates()) {
@@ -485,7 +512,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                       [href]="googleMapsStreetViewUrl()"
                       target="_blank"
                       rel="noopener noreferrer"
-                      class="h-9 px-3.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-[#C05621] border border-amber-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+                      class="min-h-11 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-[var(--brand-cta)] border border-amber-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
                       title="Xem phối cảnh Street View 360° xung quanh"
                     >
                       <i class="pi pi-eye text-xs"></i>
@@ -510,13 +537,13 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                 }
                 <!-- GPS Badge Overlay on Map -->
                 @if (hotel.latitude && hotel.longitude) {
-                  <div class="absolute top-3 left-3 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-stone-200/80 shadow-sm flex items-center gap-2 text-xs font-mono text-stone-700">
-                    <i class="pi pi-compass text-[#C05621]"></i>
+                  <div class="absolute top-3 left-3 bg-white/95 backdrop-blur-md px-3 py-1 rounded-xl border border-stone-200/80 shadow-sm flex items-center gap-2 text-xs font-mono text-stone-700 tabular-nums">
+                    <i class="pi pi-compass text-[var(--brand-cta)]"></i>
                     <span>{{ hotel.latitude | number:'1.4-4' }}, {{ hotel.longitude | number:'1.4-4' }}</span>
                     <button
                       type="button"
                       (click)="copyCoordinates(hotel.latitude, hotel.longitude)"
-                      class="ml-1 text-[10px] font-sans font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer"
+                      class="min-h-11 px-2 -my-1 text-[10px] font-sans font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer"
                     >
                       {{ copiedCoordinates() ? 'Đã sao chép!' : 'Sao chép' }}
                     </button>
@@ -529,20 +556,20 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                 <div class="space-y-2 pt-1">
                   <div class="flex items-center justify-between text-xs text-stone-700 font-semibold">
                     <span class="flex items-center gap-1.5">
-                      <i class="pi pi-map-marker text-[#C05621]"></i>
+                      <i class="pi pi-map-marker text-[var(--brand-cta)]"></i>
                       <span>Địa danh du lịch &amp; danh thắng xung quanh (Khoảng cách trắc địa Haversine):</span>
                     </span>
                     <span class="text-[10px] text-stone-400">R = 6,371 km</span>
                   </div>
                   <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
                     @for (landmark of hotel.nearbyLandmarks; track (landmark.landmarkId || landmark.name || $index)) {
-                      <div class="p-3 rounded-xl bg-[#FBF9F5] border border-stone-200/80 flex items-center justify-between gap-2">
+                      <div class="p-3 rounded-xl bg-[var(--surface-canvas)] border border-stone-200/80 flex items-center justify-between gap-2">
                         <div class="truncate">
                           <p class="text-xs font-bold text-stone-800 truncate">{{ landmark.landmarkName || landmark.name }}</p>
                           <p class="text-[10px] text-stone-500">{{ landmark.category || 'Điểm tham quan' }}</p>
                         </div>
                         @if (landmark.distanceMeters) {
-                          <span class="shrink-0 text-xs font-mono font-bold px-2 py-0.5 rounded-lg bg-amber-100 text-[#C05621] border border-amber-200">
+                          <span class="shrink-0 text-xs font-mono font-bold px-2 py-0.5 rounded-lg bg-amber-100 text-[var(--brand-cta)] border border-amber-200 tabular-nums">
                             {{ formatDistance(landmark.distanceMeters) }}
                           </span>
                         }
@@ -555,11 +582,11 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
               <!-- Chính sách nhận phòng & tiện ích lưu trú -->
               <div class="p-4 rounded-2xl bg-stone-50 border border-stone-200/70 text-xs text-stone-600 leading-relaxed">
                 <div class="font-bold text-stone-800 mb-1 flex items-center gap-1.5">
-                  <i class="pi pi-shield text-[#0D2E28]"></i>
+                  <i class="pi pi-shield text-[var(--brand-primary)]"></i>
                   <span>Chính sách nhận phòng &amp; lưu trú:</span>
                 </div>
                 <span>
-                  Nhận phòng từ <strong>{{ hotel.checkInTime || '14:00' }}</strong> &bull; Trả phòng trước <strong>{{ hotel.checkOutTime || '12:00' }}</strong> theo giờ chuẩn Việt Nam.
+                  Nhận phòng từ <strong>{{ formatTimeHm(hotel.checkInTime, '14:00') }}</strong> &bull; Trả phòng trước <strong>{{ formatTimeHm(hotel.checkOutTime, '12:00') }}</strong> theo giờ chuẩn Việt Nam.
                   Vui lòng xuất trình giấy tờ tùy thân (CCCD / Hộ chiếu) hợp lệ khi làm thủ tục tại quầy tiếp tân.
                 </span>
               </div>
@@ -569,7 +596,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
             <section class="p-6 bg-white border border-stone-200/90 rounded-3xl space-y-6 shadow-2xs" aria-labelledby="reviews-section-title">
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-stone-100">
                 <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 rounded-2xl bg-amber-50 text-[#C05621] flex items-center justify-center font-bold text-lg border border-amber-200/60">
+                  <div class="w-10 h-10 rounded-2xl bg-amber-50 text-[var(--brand-cta)] flex items-center justify-center font-bold text-lg border border-amber-200/60">
                     <i class="pi pi-star-fill text-amber-500"></i>
                   </div>
                   <div>
@@ -584,76 +611,90 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                 </div>
 
                 <div class="flex items-center gap-3">
-                  <span class="text-2xl sm:text-3xl font-mono font-black text-[#0D2E28]">
-                    {{ (reviewsSummary()?.totalReviews || hotel.reviewCount || 0) > 0 ? ((reviewsSummary()?.averageRating || hotel.ratingAverage || 5.0) | number:'1.1-1') : 'Mới' }}
-                  </span>
-                  <div class="text-xs">
-                    <div class="flex items-center text-amber-500 text-xs">
-                      <i class="pi pi-star-fill"></i>
-                      <i class="pi pi-star-fill"></i>
-                      <i class="pi pi-star-fill"></i>
-                      <i class="pi pi-star-fill"></i>
-                      <i class="pi pi-star-fill"></i>
+                  @if ((reviewsSummary()?.totalReviews ?? hotel.reviewCount ?? 0) > 0 && (reviewsSummary()?.averageRating ?? hotel.ratingAverage ?? 0) > 0) {
+                    <span class="text-2xl sm:text-3xl font-mono font-black text-[var(--brand-primary)] tabular-nums">
+                      {{ (reviewsSummary()?.averageRating ?? hotel.ratingAverage) | number:'1.1-1' }}
+                    </span>
+                    <div class="text-xs">
+                      <div class="flex items-center text-amber-500 text-xs">
+                        @for (star of [1, 2, 3, 4, 5]; track star) {
+                          <i class="pi" [class.pi-star-fill]="star <= Math.round(reviewsSummary()?.averageRating ?? hotel.ratingAverage ?? 0)" [class.pi-star]="star > Math.round(reviewsSummary()?.averageRating ?? hotel.ratingAverage ?? 0)"></i>
+                        }
+                      </div>
+                      <span class="text-stone-500 font-medium tabular-nums">({{ reviewsSummary()?.totalReviews ?? hotel.reviewCount }} đánh giá)</span>
                     </div>
-                    <span class="text-stone-500 font-medium">({{ reviewsSummary()?.totalReviews || hotel.reviewCount || 0 }} đánh giá)</span>
-                  </div>
+                  } @else {
+                    <div class="text-right">
+                      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-stone-100 text-stone-600 text-xs font-semibold border border-stone-200">
+                        Chưa có đánh giá
+                      </span>
+                    </div>
+                  }
                 </div>
               </div>
 
-              <!-- Sub-ratings Grid -->
-              @if ((reviewsSummary()?.totalReviews || hotel.reviewCount || 0) > 0) {
+              <!-- Sub-ratings Grid (only displayed when real sub-ratings exist) -->
+              @if ((reviewsSummary()?.totalReviews ?? hotel.reviewCount ?? 0) > 0) {
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Vệ sinh phòng</span>
-                    <div class="flex items-baseline justify-between">
-                      <span class="text-base font-mono font-bold text-[#0D2E28]">
-                        {{ (reviewsSummary()?.cleanlinessAverage || 4.9) | number:'1.1-1' }}/5
-                      </span>
-                      <i class="pi pi-sparkles text-emerald-600 text-xs"></i>
+                  @if ((reviewsSummary()?.cleanlinessAverage ?? 0) > 0) {
+                    <div class="p-3.5 rounded-2xl bg-[var(--surface-canvas)] border border-stone-200/80 space-y-1">
+                      <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Vệ sinh phòng</span>
+                      <div class="flex items-baseline justify-between">
+                        <span class="text-base font-mono font-bold text-[var(--brand-primary)] tabular-nums">
+                          {{ reviewsSummary()!.cleanlinessAverage | number:'1.1-1' }}/5
+                        </span>
+                        <i class="pi pi-sparkles text-emerald-600 text-xs"></i>
+                      </div>
+                      <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
+                        <div class="bg-emerald-600 h-1.5 rounded-full" [style.width.%]="(reviewsSummary()!.cleanlinessAverage / 5) * 100"></div>
+                      </div>
                     </div>
-                    <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
-                      <div class="bg-emerald-600 h-1.5 rounded-full" [style.width.%]="((reviewsSummary()?.cleanlinessAverage || 4.9) / 5) * 100"></div>
-                    </div>
-                  </div>
+                  }
 
-                  <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Vị trí thuận tiện</span>
-                    <div class="flex items-baseline justify-between">
-                      <span class="text-base font-mono font-bold text-[#0D2E28]">
-                        {{ (reviewsSummary()?.locationAverage || 4.8) | number:'1.1-1' }}/5
-                      </span>
-                      <i class="pi pi-map-marker text-[#C05621] text-xs"></i>
+                  @if ((reviewsSummary()?.locationAverage ?? 0) > 0) {
+                    <div class="p-3.5 rounded-2xl bg-[var(--surface-canvas)] border border-stone-200/80 space-y-1">
+                      <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Vị trí thuận tiện</span>
+                      <div class="flex items-baseline justify-between">
+                        <span class="text-base font-mono font-bold text-[var(--brand-primary)] tabular-nums">
+                          {{ reviewsSummary()!.locationAverage | number:'1.1-1' }}/5
+                        </span>
+                        <i class="pi pi-map-marker text-[var(--brand-cta)] text-xs"></i>
+                      </div>
+                      <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
+                        <div class="bg-[var(--brand-cta)] h-1.5 rounded-full" [style.width.%]="(reviewsSummary()!.locationAverage / 5) * 100"></div>
+                      </div>
                     </div>
-                    <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
-                      <div class="bg-[#C05621] h-1.5 rounded-full" [style.width.%]="((reviewsSummary()?.locationAverage || 4.8) / 5) * 100"></div>
-                    </div>
-                  </div>
+                  }
 
-                  <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Dịch vụ lễ tân</span>
-                    <div class="flex items-baseline justify-between">
-                      <span class="text-base font-mono font-bold text-[#0D2E28]">
-                        {{ (reviewsSummary()?.serviceAverage || 4.9) | number:'1.1-1' }}/5
-                      </span>
-                      <i class="pi pi-heart text-rose-500 text-xs"></i>
+                  @if ((reviewsSummary()?.serviceAverage ?? 0) > 0) {
+                    <div class="p-3.5 rounded-2xl bg-[var(--surface-canvas)] border border-stone-200/80 space-y-1">
+                      <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Dịch vụ lễ tân</span>
+                      <div class="flex items-baseline justify-between">
+                        <span class="text-base font-mono font-bold text-[var(--brand-primary)] tabular-nums">
+                          {{ reviewsSummary()!.serviceAverage | number:'1.1-1' }}/5
+                        </span>
+                        <i class="pi pi-heart text-rose-500 text-xs"></i>
+                      </div>
+                      <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
+                        <div class="bg-rose-500 h-1.5 rounded-full" [style.width.%]="(reviewsSummary()!.serviceAverage / 5) * 100"></div>
+                      </div>
                     </div>
-                    <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
-                      <div class="bg-rose-500 h-1.5 rounded-full" [style.width.%]="((reviewsSummary()?.serviceAverage || 4.9) / 5) * 100"></div>
-                    </div>
-                  </div>
+                  }
 
-                  <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-stone-200/80 space-y-1">
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Đáng giá tiền</span>
-                    <div class="flex items-baseline justify-between">
-                      <span class="text-base font-mono font-bold text-[#0D2E28]">
-                        {{ (reviewsSummary()?.valueAverage || 4.8) | number:'1.1-1' }}/5
-                      </span>
-                      <i class="pi pi-tag text-amber-600 text-xs"></i>
+                  @if ((reviewsSummary()?.valueAverage ?? 0) > 0) {
+                    <div class="p-3.5 rounded-2xl bg-[var(--surface-canvas)] border border-stone-200/80 space-y-1">
+                      <span class="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Đáng giá tiền</span>
+                      <div class="flex items-baseline justify-between">
+                        <span class="text-base font-mono font-bold text-[var(--brand-primary)] tabular-nums">
+                          {{ reviewsSummary()!.valueAverage | number:'1.1-1' }}/5
+                        </span>
+                        <i class="pi pi-tag text-amber-600 text-xs"></i>
+                      </div>
+                      <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
+                        <div class="bg-amber-600 h-1.5 rounded-full" [style.width.%]="(reviewsSummary()!.valueAverage / 5) * 100"></div>
+                      </div>
                     </div>
-                    <div class="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
-                      <div class="bg-amber-600 h-1.5 rounded-full" [style.width.%]="((reviewsSummary()?.valueAverage || 4.8) / 5) * 100"></div>
-                    </div>
-                  </div>
+                  }
                 </div>
               }
 
@@ -664,14 +705,15 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                     <article class="pt-4 first:pt-0 space-y-2.5">
                       <div class="flex items-start justify-between gap-3">
                         <div class="flex items-center gap-3">
-                          <div class="w-10 h-10 rounded-full bg-[#0D2E28] text-amber-200 font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                          <div class="w-10 h-10 rounded-full bg-[var(--brand-primary)] text-[var(--brand-primary-fg)] font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
                             {{ rev.guestName.substring(0, 2).toUpperCase() }}
                           </div>
                           <div>
                             <div class="flex items-center gap-2">
                               <span class="text-xs font-bold text-stone-900">{{ rev.guestName }}</span>
-                              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                ✓ Đã lưu trú
+                              <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                <i class="pi pi-check text-[9px]"></i>
+                                <span>Đã lưu trú</span>
                               </span>
                             </div>
                             <div class="flex items-center gap-2 text-[11px] text-stone-400 mt-0.5">
@@ -698,8 +740,8 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
 
                       @if (rev.ownerReply) {
                         <div class="ml-13 p-3.5 rounded-2xl bg-stone-50 border border-stone-200/80 text-xs space-y-1">
-                          <div class="flex items-center gap-1.5 font-bold text-[#0D2E28]">
-                            <i class="pi pi-reply text-xs text-[#C05621]"></i>
+                          <div class="flex items-center gap-1.5 font-bold text-[var(--brand-primary)]">
+                            <i class="pi pi-reply text-xs text-[var(--brand-cta)]"></i>
                             <span>Phản hồi từ Ban quản lý:</span>
                           </div>
                           <p class="text-stone-600 leading-relaxed">{{ rev.ownerReply }}</p>
@@ -710,7 +752,7 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
                 </div>
               } @else {
                 <!-- Empty State -->
-                <div class="p-8 rounded-2xl bg-[#FBF9F5] border border-dashed border-stone-300 text-center space-y-2">
+                <div class="p-8 rounded-2xl bg-[var(--surface-canvas)] border border-dashed border-stone-300 text-center space-y-2">
                   <i class="pi pi-comments text-3xl text-stone-300"></i>
                   <p class="text-xs font-bold text-stone-700">Chưa có bình luận nào cho cơ sở này</p>
                   <p class="text-[11px] text-stone-500 max-w-sm mx-auto">
@@ -722,67 +764,88 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
           </div>
 
           <!-- CỘT PHẢI: STICKY LIVE QUOTE SUMMARY (ASIDE) (1 CỘT) -->
-          <aside class="bg-[#FAF7F2] border border-[#E7E2D8] rounded-3xl p-6 space-y-5 shadow-sm lg:sticky lg:top-24 ring-1 ring-amber-900/5" aria-label="Báo giá">
-            <div class="flex items-center gap-2.5 pb-3 border-b border-stone-100">
-              <div class="w-9 h-9 rounded-xl bg-amber-50 text-[#C05621] flex items-center justify-center font-bold text-sm">
+          <aside class="bg-[var(--surface-card)] border border-[var(--border-subtle)] rounded-3xl p-6 space-y-5 shadow-xs lg:sticky lg:top-24" aria-label="Báo giá">
+            <div class="flex items-center gap-2.5 pb-3 border-b border-[var(--border-subtle)]">
+              <div class="w-9 h-9 rounded-xl bg-[var(--surface-subtle)] text-[var(--text-secondary)] flex items-center justify-center font-bold text-sm">
                 <i class="pi pi-receipt"></i>
               </div>
               <div>
-                <h2 class="text-base font-bold text-stone-900">Báo Giá Từ Cơ Sở</h2>
-                <p class="text-xs text-stone-500">Tính toán minh bạch, không phí ẩn</p>
+                <h2 class="text-base font-bold text-[var(--text-primary)]">Báo Giá Từ Cơ Sở</h2>
+                <p class="text-xs text-[var(--text-muted)]">Tính toán minh bạch, không phí ẩn</p>
               </div>
             </div>
 
+            @if (promoCode(); as activePromo) {
+              <div
+                data-testid="detail-promo-pill"
+                class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900"
+              >
+                <span class="inline-flex items-center gap-1.5 font-semibold">
+                  <i class="pi pi-ticket text-emerald-700 text-xs" aria-hidden="true"></i>
+                  <span>Mã ưu đãi: <strong class="font-mono uppercase">{{ activePromo }}</strong></span>
+                </span>
+                <span class="text-[11px] font-medium text-emerald-700">Áp dụng tự động</span>
+              </div>
+            }
+
             @if (quoteLoading()) {
-              <div role="status" class="p-6 text-center text-xs text-stone-500 flex flex-col items-center gap-2">
-                <i class="pi pi-spin pi-spinner text-xl text-[#0D2E28]"></i>
+              <div role="status" class="p-6 text-center text-xs text-[var(--text-muted)] flex flex-col items-center gap-2">
+                <i class="pi pi-spin pi-spinner text-xl text-[var(--brand-primary)]"></i>
                 <span>Đang kết nối Quote Engine tính giá…</span>
               </div>
             }
 
             @if (quote(); as price) {
               <div class="space-y-4">
-                <div class="p-3.5 rounded-2xl bg-[#FBF9F5] border border-amber-200/80">
-                  <div class="text-[10px] uppercase font-bold text-[#C05621] tracking-wider">Hạng phòng đã chọn</div>
-                  <div class="text-sm font-bold text-stone-900 mt-0.5 font-serif">{{ price.roomTypeName }}</div>
+                <div class="p-3.5 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--border-subtle)]">
+                  <div class="text-[10px] uppercase font-semibold text-[var(--text-muted)] tracking-wider">Hạng phòng đã chọn</div>
+                  <div class="text-sm font-bold text-[var(--text-primary)] mt-0.5 font-display">{{ price.roomTypeName }}</div>
                 </div>
 
-                <div class="space-y-1.5 text-xs divide-y divide-stone-100">
+                <div class="space-y-1.5 text-xs divide-y divide-[var(--border-subtle)]">
                   @for (line of price.breakdown; track $index) {
-                    <div class="flex justify-between items-center text-stone-600 pt-1.5">
+                    <div class="flex justify-between items-center text-[var(--text-secondary)] pt-1.5">
                       <span class="truncate pr-2">{{ line.description }}</span>
-                      <span class="font-mono font-semibold text-stone-800 shrink-0">{{ line.amount | number:'1.0-0' }} ₫</span>
+                      <span class="font-sans font-semibold text-[var(--text-primary)] shrink-0 tabular-nums">{{ line.amount | vndCurrency }}</span>
                     </div>
                   }
                 </div>
 
-                <div class="p-4 rounded-2xl bg-[#0D2E28] text-white space-y-1">
-                  <span class="text-[10px] uppercase font-bold text-stone-300 tracking-wider block">Tổng thanh toán dự kiến</span>
-                  <div class="text-2xl font-mono font-black text-amber-300">{{ price.totalAmount | number:'1.0-0' }} ₫</div>
-                  <p class="text-[10px] text-stone-300">Đã bao gồm 10% VAT &amp; phí dịch vụ cơ sở</p>
+                <div class="p-4 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--border-strong)] space-y-1">
+                  <span class="text-[11px] uppercase font-semibold text-[var(--text-secondary)] tracking-wider block">Tổng thanh toán dự kiến</span>
+                  <div class="text-2xl sm:text-3xl font-sans font-bold tracking-tight text-[var(--text-primary)] tabular-nums">
+                    {{ price.totalAmount | vndCurrency }}
+                  </div>
+                  @if ((hotel.taxRatePercent ?? 0) > 0 || (hotel.serviceFeeRatePercent ?? 0) > 0) {
+                    <p class="text-[11px] text-[var(--text-muted)] tabular-nums">
+                      Chính sách cơ sở: thuế VAT {{ hotel.taxRatePercent ?? 0 }}%, phí dịch vụ {{ hotel.serviceFeeRatePercent ?? 0 }}%
+                    </p>
+                  } @else {
+                    <p class="text-[11px] text-[var(--text-muted)]">Báo giá tính theo biểu giá niêm yết của cơ sở</p>
+                  }
                 </div>
 
                 <!-- Live SignalR & Payment Guarantees -->
-                <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200/70 text-xs text-emerald-800 space-y-1">
-                  <div class="flex items-center gap-1.5 font-bold">
+                <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600 space-y-1">
+                  <div class="flex items-center gap-1.5 font-semibold text-[var(--text-primary)]">
                     <i class="pi pi-bolt text-emerald-600"></i>
-                    <span>Xác nhận tức thì qua VietQR / VNPay</span>
+                    <span>{{ showVnpay ? 'Xác nhận tức thì qua VietQR / VNPay' : 'Xác nhận tức thì qua VietQR (SePay)' }}</span>
                   </div>
-                  <p class="text-[11px] text-emerald-700 leading-relaxed">
+                  <p class="text-[11px] text-[var(--text-muted)] leading-relaxed">
                     Thông báo trực tiếp cho Lễ tân cơ sở qua SignalR Realtime ngay khi thanh toán thành công.
                   </p>
                 </div>
 
-                <p class="text-[11px] text-stone-400 flex items-center gap-1">
+                <p class="text-[11px] text-[var(--text-muted)] flex items-center gap-1 tabular-nums">
                   <i class="pi pi-clock text-[10px]"></i>
                   <span>Báo giá có hiệu lực đến {{ price.expiresAtUtc | date:'HH:mm:ss':'+0700' }}</span>
                 </p>
               </div>
             } @else if (!quoteLoading()) {
-              <div class="p-6 rounded-2xl bg-stone-50 border border-stone-200/70 text-center space-y-1.5">
-                <i class="pi pi-info-circle text-xl text-stone-400"></i>
-                <p class="text-xs font-bold text-stone-800">Chưa chọn hạng phòng</p>
-                <p class="text-[11px] text-stone-500 leading-relaxed">
+              <div class="p-6 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--border-subtle)] text-center space-y-1.5">
+                <i class="pi pi-info-circle text-xl text-[var(--text-muted)]"></i>
+                <p class="text-xs font-bold text-[var(--text-primary)]">Chưa chọn hạng phòng</p>
+                <p class="text-[11px] text-[var(--text-muted)] leading-relaxed">
                   Kiểm tra lịch và chọn một hạng phòng ở danh sách bên cạnh để xem bảng báo giá chi tiết.
                 </p>
               </div>
@@ -792,9 +855,9 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
               type="button"
               (click)="proceedToHold()"
               [disabled]="!quote() || quoteLoading() || availabilityLoading()"
-              class="w-full h-12 rounded-xl bg-[#C05621] hover:bg-[#a34315] active:bg-[#823510] text-white font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              class="w-full h-12 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--brand-primary-fg)] font-bold text-xs uppercase tracking-wider shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <span>Tiếp Tục Giữ Phòng &amp; Nhận Mã PIN</span>
+              <span>Tiếp Tục Giữ Phòng &amp; Đặt Ngay</span>
               <i class="pi pi-arrow-right text-xs"></i>
             </button>
           </aside>
@@ -812,6 +875,8 @@ import { parseCalendarDate, formatCalendarDate } from '../../core/utils/date-tim
   `,
 })
 export class PropertyDetailPageComponent implements OnInit {
+  protected readonly Math = Math;
+  readonly showVnpay = environment.enableVnpay;
   readonly checkInDateValue = computed(() => parseCalendarDate(this.stay().checkInDate));
   readonly checkOutDateValue = computed(() => parseCalendarDate(this.stay().checkOutDate));
 
@@ -827,7 +892,7 @@ export class PropertyDetailPageComponent implements OnInit {
     }
   }
   getRoomPhoto(room: PublicRoomTypeAvailabilityDto, index: number = 0): string {
-    return resolveRoomThumbnail(room.name || room.roomTypeName, index, room.imageUrl);
+    return resolveRoomThumbnail(room.name || room.roomTypeName, index, room.imageUrl || room.images?.[0]);
   }
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -837,6 +902,7 @@ export class PropertyDetailPageComponent implements OnInit {
 
   readonly property = signal<PublicPropertyDto | null>(null);
   readonly stay = signal<PublicStayContext>(readPublicStay({}));
+  readonly promoCode = signal<string>('');
   readonly rooms = signal<PublicRoomTypeAvailabilityDto[]>([]);
   readonly selectedRoom = signal<PublicRoomTypeAvailabilityDto | null>(null);
   readonly quote = signal<QuoteDto | null>(null);
@@ -849,6 +915,42 @@ export class PropertyDetailPageComponent implements OnInit {
   readonly copiedCoordinates = signal(false);
   readonly reviewsSummary = signal<PropertyReviewsSummaryDto | null>(null);
   readonly reviewsLoading = signal(false);
+  readonly isMobileViewport = signal<boolean>(this.detectMobileViewport());
+
+  constructor() {
+    this.registerViewportListeners();
+  }
+
+  private detectMobileViewport(): boolean {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    if (typeof window.matchMedia === 'function') {
+      return window.matchMedia('(max-width: 767px)').matches;
+    }
+    return window.innerWidth < 768;
+  }
+
+  private registerViewportListeners(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    if (typeof window.matchMedia === 'function') {
+      const mediaQuery = window.matchMedia('(max-width: 767px)');
+      const handleMediaChange = (event: MediaQueryListEvent) => {
+        this.isMobileViewport.set(event.matches);
+      };
+      if (typeof mediaQuery.addEventListener === 'function') {
+        mediaQuery.addEventListener('change', handleMediaChange);
+        this.destroyRef.onDestroy(() => mediaQuery.removeEventListener('change', handleMediaChange));
+      }
+    }
+    const handleResize = () => {
+      this.isMobileViewport.set(this.detectMobileViewport());
+    };
+    window.addEventListener('resize', handleResize, { passive: true });
+    this.destroyRef.onDestroy(() => window.removeEventListener('resize', handleResize));
+  }
 
   readonly hasGpsCoordinates = computed<boolean>(() => {
     const p = this.property();
@@ -920,6 +1022,10 @@ export class PropertyDetailPageComponent implements OnInit {
     return typeof price === 'number' && Number.isFinite(price) && price > 0 ? price : null;
   }
 
+  propertyGalleryUrls(hotel: PublicPropertyDto): string[] {
+    return resolvePropertyGallery(hotel.name, hotel.thumbnailUrl, hotel.galleryUrls);
+  }
+
   galleryPhotos(): GalleryPhotoItem[] {
     const hotel = this.property();
     if (!hotel) return [];
@@ -929,11 +1035,11 @@ export class PropertyDetailPageComponent implements OnInit {
 
   getPhotoUrl(hotel: PublicPropertyDto, index: number): string {
     const urls = resolvePropertyGallery(hotel.name, hotel.thumbnailUrl, hotel.galleryUrls);
-    return urls[index % urls.length];
+    return urls[index] ?? '';
   }
 
   totalPhotosCount(hotel: PublicPropertyDto): number {
-    return Math.max(1, hotel.galleryUrls?.length || (hotel.thumbnailUrl ? 1 : 0));
+    return resolvePropertyGallery(hotel.name, hotel.thumbnailUrl, hotel.galleryUrls).length;
   }
 
   returnQueryParams(): Record<string, unknown> {
@@ -942,8 +1048,10 @@ export class PropertyDetailPageComponent implements OnInit {
       'destinationKeyword', 'provinceCode', 'touristZoneSlug', 'landmarkSlug', 'propertyTypes',
       'selectedTenantId', 'maxDistanceMeters', 'minPrice', 'maxPrice', 'sortBy', 'userLatitude', 'userLongitude'
     ] as const;
+    const promo = this.promoCode();
     return {
       ...this.stay(),
+      ...(promo ? { promoCode: promo } : {}),
       ...Object.fromEntries(
         discoveryKeys
           .filter(key => params[key] !== undefined && params[key] !== null && params[key] !== '')
@@ -957,9 +1065,14 @@ export class PropertyDetailPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    combineLatest([this.route.paramMap, this.route.queryParams ?? of(this.route.snapshot.queryParams)])
+    const queryParams$ = this.route.queryParams ?? of(this.route.snapshot?.queryParams ?? {});
+    combineLatest([this.route.paramMap, queryParams$])
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.refresh());
+      .subscribe(([, qp]) => {
+        const rawPromo = qp?.['promoCode'] ?? this.route.snapshot?.queryParams?.['promoCode'];
+        this.promoCode.set(typeof rawPromo === 'string' ? rawPromo.trim() : '');
+        this.refresh();
+      });
   }
 
   refresh(): void {
@@ -995,6 +1108,12 @@ export class PropertyDetailPageComponent implements OnInit {
     });
 
     try {
+      const snapPromo = this.route.snapshot?.queryParams?.['promoCode'];
+      if (typeof snapPromo === 'string') {
+        this.promoCode.set(snapPromo.trim());
+      } else if (!this.route.queryParams) {
+        this.promoCode.set('');
+      }
       this.stay.set(readPublicStay(this.route.snapshot.queryParams));
     } catch (error) {
       this.loading.set(false);
@@ -1087,10 +1206,12 @@ export class PropertyDetailPageComponent implements OnInit {
     this.error.set('');
 
     try {
+      const promo = this.promoCode();
       this.service.calculateQuote({
         propertySlug: property.slug,
         roomTypeId: room.roomTypeId,
-        ...publicStayInterval(this.stay(), property)
+        ...publicStayInterval(this.stay(), property),
+        ...(promo ? { promoCode: promo } : {})
       }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: quote => {
           if (generation !== this.quoteGeneration) return;
@@ -1109,6 +1230,11 @@ export class PropertyDetailPageComponent implements OnInit {
     }
   }
 
+  formatTimeHm(value?: string | null, fallback = '14:00'): string {
+    const raw = (value || fallback).trim();
+    return raw.length >= 5 ? raw.slice(0, 5) : raw;
+  }
+
   proceedToHold(): void {
     const price = this.quote(), property = this.property(), room = this.selectedRoom();
     if (!price || !property || !room || this.quoteLoading() || this.availabilityLoading()) return;
@@ -1123,11 +1249,13 @@ export class PropertyDetailPageComponent implements OnInit {
       this.error.set('Báo giá đã hết hiệu lực. Vui lòng chọn lại phòng.');
       return;
     }
+    const promo = this.promoCode();
     this.router.navigate(['/booking/hold'], {
       queryParams: {
         propertySlug: property.slug,
         roomTypeId: room.roomTypeId,
-        ...this.stay()
+        ...this.stay(),
+        ...(promo ? { promoCode: promo } : {})
       }
     });
   }

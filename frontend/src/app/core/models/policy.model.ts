@@ -35,6 +35,8 @@ export interface PropertyPoliciesDto {
   checkOutTime: string;
   bufferMinutes: number;
   maxHourlyHours: number;
+  taxRatePercent?: number;
+  serviceFeeRatePercent?: number;
   surcharges: SurchargePolicyDto[];
 }
 
@@ -54,5 +56,35 @@ export interface UpdatePropertyPoliciesRequest {
   checkOutTime: string;
   bufferMinutes: number;
   maxHourlyHours: number;
+  taxRatePercent?: number;
+  serviceFeeRatePercent?: number;
   surcharges: UpdateSurchargeItemRequest[];
 }
+
+export interface CancellationPolicyTier {
+  windowLabel: string;
+  feeRateLabel: string;
+  refundRateLabel: string;
+  description: string;
+}
+
+export const POL_C03_CANCELLATION_TIERS: readonly CancellationPolicyTier[] = [
+  {
+    windowLabel: '>= 72 giờ trước nhận phòng',
+    feeRateLabel: 'Miễn phí (0%)',
+    refundRateLabel: 'Hoàn 100% cọc',
+    description: 'Khách hủy sớm trước 3 ngày được hoàn toàn bộ tiền cọc đã thanh toán.'
+  },
+  {
+    windowLabel: '24 - 72 giờ trước nhận phòng',
+    feeRateLabel: 'Phí hủy 50% cọc',
+    refundRateLabel: 'Hoàn 50% cọc',
+    description: 'Giữ lại 50% tiền cọc và hoàn trả phần còn lại (chuyển khoản/VNPay).'
+  },
+  {
+    windowLabel: '< 24 giờ hoặc Vắng mặt (No-Show)',
+    feeRateLabel: 'Phí hủy 100% cọc',
+    refundRateLabel: 'Không hoàn (0%)',
+    description: 'Khấu trừ toàn bộ tiền cọc; áp dụng cho hủy cận giờ hoặc không đến nhận phòng.'
+  }
+];

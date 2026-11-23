@@ -5,7 +5,7 @@
 set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:5000}"
-PROFILE="${1:-smoke}" # smoke | load | stress
+PROFILE="${TEST_TIER:-${1:-smoke}}" # smoke | load | stress
 REPORT_DIR="./docs/reports/load-tests"
 
 case "$PROFILE" in
@@ -25,23 +25,27 @@ echo "=================================================================="
 
 if ! command -v k6 >/dev/null 2>&1; then
   echo "[INFO] k6 binary not found locally. Executing via grafana/k6 Docker container..."
-  K6_CMD="docker run --rm -i --network=host -v $(pwd):/work -w /work grafana/k6:latest"
+  K6_CMD=(docker run --rm -i --network=host -v "$(pwd):/work" -w /work grafana/k6:latest)
 else
-  K6_CMD="k6"
+  K6_CMD=(k6)
 fi
 
-EXTRA_ENV_ARGS=(-e BASE_URL="$BASE_URL" -e TEST_TIER="$PROFILE")
-[ -n "${JWT_TOKEN:-}" ] && EXTRA_ENV_ARGS+=(-e JWT_TOKEN="$JWT_TOKEN")
-[ -n "${PROPERTY_ID:-}" ] && EXTRA_ENV_ARGS+=(-e PROPERTY_ID="$PROPERTY_ID")
-[ -n "${FORBIDDEN_PROPERTY_ID:-}" ] && EXTRA_ENV_ARGS+=(-e FORBIDDEN_PROPERTY_ID="$FORBIDDEN_PROPERTY_ID")
-[ -n "${STAFF_EMAIL:-}" ] && EXTRA_ENV_ARGS+=(-e STAFF_EMAIL="$STAFF_EMAIL")
-[ -n "${STAFF_PASSWORD:-}" ] && EXTRA_ENV_ARGS+=(-e STAFF_PASSWORD="$STAFF_PASSWORD")
-[ -n "${VNP_TMN_CODE:-}" ] && EXTRA_ENV_ARGS+=(-e VNP_TMN_CODE="$VNP_TMN_CODE")
-[ -n "${VNP_HASH_SECRET:-}" ] && EXTRA_ENV_ARGS+=(-e VNP_HASH_SECRET="$VNP_HASH_SECRET")
-[ -n "${RESERVATION_ID:-}" ] && EXTRA_ENV_ARGS+=(-e RESERVATION_ID="$RESERVATION_ID")
-[ -n "${RESERVATION_CODE:-}" ] && EXTRA_ENV_ARGS+=(-e RESERVATION_CODE="$RESERVATION_CODE")
-[ -n "${LOOKUP_TOKEN:-}" ] && EXTRA_ENV_ARGS+=(-e LOOKUP_TOKEN="$LOOKUP_TOKEN")
-[ -n "${AMOUNT_VND:-}" ] && EXTRA_ENV_ARGS+=(-e AMOUNT_VND="$AMOUNT_VND")
+K6_ENV_VARS=("BASE_URL=$BASE_URL" "TEST_TIER=$PROFILE")
+K6_DOCKER_ENV_ARGS=(-e "BASE_URL=$BASE_URL" -e "TEST_TIER=$PROFILE")
+for name in JWT_TOKEN PROPERTY_ID FORBIDDEN_PROPERTY_ID STAFF_EMAIL STAFF_PASSWORD TEST_EMAIL TEST_PASSWORD VNP_TMN_CODE VNP_HASH_SECRET RESERVATION_ID RESERVATION_CODE LOOKUP_TOKEN AMOUNT_VND FIREBASE_ID_TOKEN FIREBASE_ID_TOKEN_CHECKOUT FIREBASE_ID_TOKEN_IPN; do
+  if [ -n "${!name:-}" ]; then
+    K6_ENV_VARS+=("$name=${!name}")
+    K6_DOCKER_ENV_ARGS+=(-e "$name=${!name}")
+  fi
+done
+
+if [[ "$BASE_URL" == https://* && "$PROFILE" != smoke ]]; then
+  echo "[WARN] Running ${PROFILE} against a remote HTTPS host can affect shared staging capacity."
+  echo "       Set ALLOW_REMOTE_LOAD_TEST=true to confirm this run." >&2
+  if [ "${ALLOW_REMOTE_LOAD_TEST:-false}" != true ]; then
+    exit 2
+  fi
+fi
 
 redact_summary_tokens() {
   local summary_file="$1"
@@ -54,8 +58,13 @@ redact_summary_tokens() {
 
 echo "[1/2] Running SignalR NotificationHub WebSocket & Multi-Branch Isolation Load Test..."
 set +e
-$K6_CMD run \
-  "${EXTRA_ENV_ARGS[@]}" \
+if [ "${K6_CMD[0]}" = docker ]; then
+  K6_RUN_PREFIX=("${K6_CMD[@]}" "${K6_DOCKER_ENV_ARGS[@]}" run)
+else
+  K6_RUN_PREFIX=(env "${K6_ENV_VARS[@]}" "${K6_CMD[@]}" run)
+fi
+
+"${K6_RUN_PREFIX[@]}" \
   --summary-export="${REPORT_DIR}/signalr-summary-${PROFILE}.json" \
   scripts/load-tests/signalr-hub.k6.js
 SIGNALR_EXIT=$?
@@ -67,8 +76,7 @@ fi
 
 echo "[2/2] Running VNPay Checkout & IPN Concurrency Storm Load Test..."
 set +e
-$K6_CMD run \
-  "${EXTRA_ENV_ARGS[@]}" \
+"${K6_RUN_PREFIX[@]}" \
   --summary-export="${REPORT_DIR}/vnpay-summary-${PROFILE}.json" \
   scripts/load-tests/vnpay-checkout-ipn.k6.js
 VNPAY_EXIT=$?

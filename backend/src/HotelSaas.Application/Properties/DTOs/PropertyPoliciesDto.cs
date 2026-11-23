@@ -13,5 +13,7 @@ public sealed record PropertyPoliciesDto
     public TimeOnly CheckOutTime { get; init; }
     public int BufferMinutes { get; init; }
     public int MaxHourlyHours { get; init; }
+    public decimal TaxRatePercent { get; init; }
+    public decimal ServiceFeeRatePercent { get; init; }
     public IReadOnlyList<SurchargePolicyDto> Surcharges { get; init; } = Array.Empty<SurchargePolicyDto>();
 }

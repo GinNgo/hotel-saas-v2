@@ -23,7 +23,7 @@ import { AdminContractsService } from '../../core/services/admin-contracts.servi
 import { AdminPlansService } from '../../core/services/admin-plans.service';
 import { AlertService } from '../../core/services/alert.service';
 import { Router } from '@angular/router';
-import { TenantContractDto } from '../../core/models/admin-contract.model';
+import { TenantContractDto, UpdateContractStatusRequest } from '../../core/models/admin-contract.model';
 
 try {
   TestBed.initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -34,10 +34,22 @@ try {
 describe('AdminContractsPage — Platform Contracts Management Tests', () => {
   let fixture: ComponentFixture<AdminContractsPage>;
   let component: AdminContractsPage;
-  let mockContractsService: any;
-  let mockPlansService: any;
-  let mockAlertService: any;
-  let mockRouter: any;
+  let mockContractsService: {
+    getAllContracts: ReturnType<typeof vi.fn>;
+    createContract: ReturnType<typeof vi.fn>;
+    updateContractStatus: ReturnType<typeof vi.fn>;
+  };
+  let mockPlansService: {
+    getAllPlans: ReturnType<typeof vi.fn>;
+  };
+  let mockAlertService: {
+    success: ReturnType<typeof vi.fn>;
+    error: ReturnType<typeof vi.fn>;
+    info: ReturnType<typeof vi.fn>;
+  };
+  let mockRouter: {
+    navigate: ReturnType<typeof vi.fn>;
+  };
 
   const sampleContracts: TenantContractDto[] = [
     {
@@ -86,15 +98,21 @@ describe('AdminContractsPage — Platform Contracts Management Tests', () => {
     mockContractsService = {
       getAllContracts: vi.fn().mockReturnValue(of(sampleContracts)),
       createContract: vi.fn().mockReturnValue(of(sampleContracts[0])),
-      updateContractStatus: vi.fn().mockImplementation((id, req) =>
-        of({ ...sampleContracts[0], id, status: req.status, digitalSignatureHash: req.digitalSignatureHash })
+      updateContractStatus: vi.fn().mockImplementation((id: string, req: UpdateContractStatusRequest) =>
+        of({
+          ...sampleContracts[1],
+          id,
+          status: req.status,
+          notes: req.note,
+          hasDigitalSignature: req.status === 'Active'
+        })
       )
     };
 
     mockPlansService = {
       getAllPlans: vi.fn().mockReturnValue(of([
-        { id: 'plan-pro-id', code: 'PRO', name: 'Gói Chuyên Nghiệp (Pro)', yearlyPrice: 6990000 },
-        { id: 'plan-ent-id', code: 'ENTERPRISE', name: 'Gói Doanh Nghiệp (Enterprise)', yearlyPrice: 15990000 }
+        { id: 'plan-pro-id', code: 'PRO', name: 'Gói Chuyên Nghiệp (Pro)', monthlyPrice: 699000, yearlyPrice: 6990000 },
+        { id: 'plan-ent-id', code: 'ENTERPRISE', name: 'Gói Doanh Nghiệp (Enterprise)', monthlyPrice: 1599000, yearlyPrice: 15990000 }
       ]))
     };
 
@@ -153,16 +171,49 @@ describe('AdminContractsPage — Platform Contracts Management Tests', () => {
     expect(component.filteredContracts()[0].contractNumber).toBe('HD-2026-0002');
   });
 
-  it('should sign and activate a contract electronically', () => {
+  it('should sign and activate a contract without client-side hash and preserve full fields', () => {
     component.ngOnInit();
     const pendingContract = sampleContracts[1];
     component.signContract(pendingContract);
 
     expect(mockContractsService.updateContractStatus).toHaveBeenCalledWith(
       pendingContract.id,
-      expect.objectContaining({ status: 'Active' })
+      expect.objectContaining({
+        status: 'Active',
+        note: expect.any(String)
+      })
     );
+    const sentPayload = mockContractsService.updateContractStatus.mock.calls[0][1] as Record<string, unknown>;
+    expect(sentPayload['digitalSignatureHash']).toBeUndefined();
+    const updatedInList = component.contracts().find(c => c.id === pendingContract.id);
+    expect(updatedInList?.planName).toBe('Gói Doanh Nghiệp (Enterprise)');
+    expect(updatedInList?.contractValue).toBe(15990000);
     expect(mockAlertService.success).toHaveBeenCalled();
+  });
+
+  it('should start create contract form without hardcoded personal defaults and send string billingCycle', () => {
+    component.ngOnInit();
+    component.openCreateModal();
+
+    expect(component.newRepName).toBe('');
+    expect(component.newRepEmail).toBe('');
+    expect(component.newRepPhone).toBe('');
+
+    component.newTenantId = 'tenant-guid-1';
+    component.newRepName = 'Lê Thị B';
+    component.newRepEmail = 'rep@hotel.vn';
+    component.newRepPhone = '0901234567';
+    component.newBillingCycle = 'Annual';
+    component.submitCreateContract();
+
+    expect(mockContractsService.createContract).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 'tenant-guid-1',
+        representativeName: 'Lê Thị B',
+        representativeEmail: 'rep@hotel.vn',
+        billingCycle: 'Annual'
+      })
+    );
   });
 
   it('should validate tenantId before submitting create contract', () => {

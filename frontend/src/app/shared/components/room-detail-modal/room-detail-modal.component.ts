@@ -3,11 +3,12 @@ import { A11yModule } from '@angular/cdk/a11y';
 import { CommonModule } from '@angular/common';
 import { PublicRoomTypeAvailabilityDto } from '../../../core/models/public-booking.model';
 import { RoomPhoto, RoomAmenityItem } from '../../../core/services/room-gallery.service';
+import { VndCurrencyPipe } from '../../pipes/vnd-currency.pipe';
 
 @Component({
   selector: 'app-room-detail-modal',
   standalone: true,
-  imports: [CommonModule, A11yModule],
+  imports: [CommonModule, A11yModule, VndCurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
@@ -31,6 +32,9 @@ import { RoomPhoto, RoomAmenityItem } from '../../../core/services/room-gallery.
             *ngIf="heroImageUrl; else fallbackHero"
             [src]="heroImageUrl"
             [alt]="roomType.roomTypeName || roomType.name"
+            width="800"
+            height="450"
+            loading="lazy"
             class="w-full h-full object-cover"
           />
           <ng-template #fallbackHero>
@@ -50,7 +54,7 @@ import { RoomPhoto, RoomAmenityItem } from '../../../core/services/room-gallery.
             type="button"
             (click)="closeModal()"
             cdkFocusInitial
-            class="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-slate-900/60 hover:bg-slate-900/90 text-white flex items-center justify-center transition-colors focus-visible:outline-2 focus-visible:outline-white cursor-pointer"
+            class="absolute top-4 right-4 z-10 min-w-11 min-h-11 w-11 h-11 rounded-full bg-slate-900/60 hover:bg-slate-900/90 text-white flex items-center justify-center transition-colors focus-visible:outline-2 focus-visible:outline-white cursor-pointer"
             aria-label="Đóng chi tiết phòng">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
@@ -60,8 +64,8 @@ import { RoomPhoto, RoomAmenityItem } from '../../../core/services/room-gallery.
             <span *ngIf="propertyName" class="px-3 py-1 rounded-full text-xs font-bold bg-white/95 text-slate-800 backdrop-blur-md shadow-xs">
               {{ propertyName }}
             </span>
-            <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-600/90 text-white backdrop-blur-md flex items-center gap-1">
-              <i class="pi pi-sparkles text-[10px]"></i> Smart Lock 24/7
+            <span *ngIf="roomType.availableRoomsCount > 0" class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-600/90 text-white backdrop-blur-md flex items-center gap-1">
+              <i class="pi pi-check-circle text-[10px]"></i> Còn {{ roomType.availableRoomsCount }} phòng
             </span>
           </div>
 
@@ -72,7 +76,7 @@ import { RoomPhoto, RoomAmenityItem } from '../../../core/services/room-gallery.
                 {{ roomType.roomTypeName || roomType.name }}
               </h2>
               <p class="text-xs text-slate-300 mt-1 line-clamp-1">
-                {{ roomType.description || 'Không gian nghỉ dưỡng tiện nghi, thoáng mát với đầy đủ tiện ích cơ bản.' }}
+                {{ roomType.description || 'Thông tin mô tả chi tiết đang được cơ sở cập nhật.' }}
               </p>
             </div>
 
@@ -98,7 +102,7 @@ import { RoomPhoto, RoomAmenityItem } from '../../../core/services/room-gallery.
               </div>
               <div class="min-w-0">
                 <span class="text-[10px] uppercase font-bold text-slate-400 block">Sức chứa</span>
-                <strong class="text-xs sm:text-sm font-bold text-slate-800">{{ (roomType.maxOccupancy || roomType.maxGuests) ? (roomType.maxOccupancy || roomType.maxGuests) + ' khách' : 'Tiêu chuẩn' }}</strong>
+                <strong class="text-xs sm:text-sm font-bold text-slate-800">{{ (roomType.maxOccupancy || roomType.maxGuests) ? (roomType.maxOccupancy || roomType.maxGuests) + ' khách' : 'Chưa công bố' }}</strong>
               </div>
             </div>
 
@@ -108,7 +112,7 @@ import { RoomPhoto, RoomAmenityItem } from '../../../core/services/room-gallery.
               </div>
               <div class="min-w-0">
                 <span class="text-[10px] uppercase font-bold text-slate-400 block">Loại giường</span>
-                <strong class="text-xs sm:text-sm font-bold text-slate-800 truncate block">{{ roomType.bedType || roomType.bedConfiguration || 'Giường tiêu chuẩn' }}</strong>
+                <strong class="text-xs sm:text-sm font-bold text-slate-800 truncate block">{{ roomType.bedType || roomType.bedConfiguration || 'Chưa công bố' }}</strong>
               </div>
             </div>
 
@@ -118,17 +122,17 @@ import { RoomPhoto, RoomAmenityItem } from '../../../core/services/room-gallery.
               </div>
               <div class="min-w-0">
                 <span class="text-[10px] uppercase font-bold text-slate-400 block">Diện tích</span>
-                <strong class="text-xs sm:text-sm font-bold text-slate-800">{{ (roomType.squareMeters || roomType.areaSqm) ? (roomType.squareMeters || roomType.areaSqm) + ' m²' : 'Tiêu chuẩn' }}</strong>
+                <strong class="text-xs sm:text-sm font-bold text-slate-800">{{ (roomType.squareMeters || roomType.areaSqm) ? (roomType.squareMeters || roomType.areaSqm) + ' m²' : 'Chưa công bố' }}</strong>
               </div>
             </div>
 
             <div class="flex items-center gap-2.5">
               <div class="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-                <i class="pi pi-key text-sm"></i>
+                <i class="pi pi-info-circle text-sm"></i>
               </div>
               <div class="min-w-0">
-                <span class="text-[10px] uppercase font-bold text-slate-400 block">Khóa phòng</span>
-                <strong class="text-xs sm:text-sm font-bold text-slate-800 truncate block">Smart Lock</strong>
+                <span class="text-[10px] uppercase font-bold text-slate-400 block">Tình trạng</span>
+                <strong class="text-xs sm:text-sm font-bold text-slate-800 truncate block">{{ roomType.availableRoomsCount > 0 ? 'Còn ' + roomType.availableRoomsCount + ' phòng' : 'Chưa công bố' }}</strong>
               </div>
             </div>
           </div>
@@ -157,7 +161,7 @@ import { RoomPhoto, RoomAmenityItem } from '../../../core/services/room-gallery.
               } @else {
                 <div class="col-span-2 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-500 flex items-center gap-2">
                   <i class="pi pi-info-circle text-indigo-500"></i>
-                  <span>Trang bị đầy đủ điều hòa, nước nóng, wifi cáp quang, máy sấy tóc và vật dụng cá nhân.</span>
+                  <span>Cơ sở chưa liệt kê chi tiết tiện nghi cho hạng phòng này.</span>
                 </div>
               }
             </div>
@@ -170,9 +174,9 @@ import { RoomPhoto, RoomAmenityItem } from '../../../core/services/room-gallery.
               <span>Chính sách lưu trú &amp; Cam kết nhận phòng</span>
             </h4>
             <ul class="space-y-1.5 text-slate-600 pl-4 list-disc marker:text-indigo-500">
-              <li>Mã số Smart Lock sẽ được cấp tự động sau khi hoàn tất giữ phòng &amp; xác nhận cọc.</li>
+              <li>Thông tin giữ phòng và mã xác nhận được cấp sau khi hoàn tất bước đặt giữ chỗ.</li>
               <li>Giá và phòng trống được đối soát trực tiếp theo thời gian thực từ cơ sở lưu trú.</li>
-              <li>Đảm bảo 100% có phòng đúng thời gian đăng ký lưu trú.</li>
+              <li>Vui lòng kiểm tra lịch nhận/trả phòng và điều kiện hủy ở bước báo giá trước khi đặt.</li>
             </ul>
           </div>
 
@@ -183,8 +187,8 @@ import { RoomPhoto, RoomAmenityItem } from '../../../core/services/room-gallery.
           <div>
             <span class="text-[10px] uppercase font-bold text-slate-400 block">Giá dự kiến:</span>
             <div *ngIf="displayPrice > 0; else referencePrice" class="flex items-baseline gap-1">
-              <strong class="text-xl sm:text-2xl font-black text-indigo-600">
-                {{ displayPrice | number:'1.0-0' }} ₫
+              <strong class="text-xl sm:text-2xl font-black text-indigo-600 tabular-nums">
+                {{ displayPrice | vndCurrency }}
               </strong>
               <span class="text-xs text-slate-500">theo biểu giá cơ sở</span>
             </div>

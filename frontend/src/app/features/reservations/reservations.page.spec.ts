@@ -195,6 +195,7 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
       createReservation: vi.fn().mockReturnValue(of(sampleReservationDto)),
       checkIn: vi.fn().mockReturnValue(of({ ...sampleReservationDetailDto, status: ReservationStatus.CheckedIn })),
       checkOut: vi.fn().mockReturnValue(of({ ...sampleReservationDetailDto, status: ReservationStatus.CheckedOut })),
+      markNoShow: vi.fn().mockReturnValue(of({ ...sampleReservationDetailDto, status: ReservationStatus.NoShow })),
       cancel: vi.fn().mockReturnValue(of({ ...sampleReservationDetailDto, status: ReservationStatus.Cancelled, cancellationReason: 'Test reason', cancelledAtUtc: '2026-10-10T12:00:00Z' })),
       getTimelineReservations: vi.fn().mockReturnValue(of([sampleReservationDto]))
     };
@@ -1816,7 +1817,7 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
     expect(floors[1].availableCount).toBe(1);
   });
 
-  it('43. should compute 50% estimated deposit requirement based on quote totalAmount', () => {
+  it('43. should compute 30% estimated deposit requirement based on quote totalAmount (G0-04)', () => {
     const comp = createComponent();
     comp.ngOnInit();
 
@@ -1827,7 +1828,7 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
       totalAmount: 1200000
     });
 
-    expect(comp.estimatedDeposit()).toBe(600000);
+    expect(comp.estimatedDeposit()).toBe(360000);
   });
 
   it('44. should package CCCD, nationality, and administrative location into customerNotes on submission and reload timeline if active', () => {
@@ -2088,5 +2089,64 @@ describe('ReservationsPage Logic, Quote Integration, Snapshot Display & Availabi
     const outstandingBadge = comp.getFolioSettlementBadge(outstandingFolio, confirmedDetail);
     expect(outstandingBadge.label).toBe('Còn dư nợ');
     expect(outstandingBadge.badgeClass).toContain('bg-amber-50');
+  });
+
+  it('53. should mark reservation No-Show and call markNoShow service endpoint', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+
+    comp.openNoShowModal(sampleReservationDto);
+    expect(comp.noShowModalReservation()?.id).toBe('res-001');
+    comp.noShowReasonInput.set('Khách không đến nhận phòng');
+    comp.confirmNoShowModal();
+
+    expect(comp.noShowModalReservation()).toBeNull();
+    expect(mockReservationService.markNoShow).toHaveBeenCalledWith('res-001', 'prop-123', 'Khách không đến nhận phòng');
+    expect(mockAlertService.toastSuccess).toHaveBeenCalledWith(expect.stringContaining('No-Show'));
+  });
+
+  it('54. should support RentalType.Daily (3) as first-class multi-day option for quote, availability, submission, and tooltip', () => {
+    const comp = createComponent();
+    comp.ngOnInit();
+    comp.openCreateModal();
+
+    expect(RentalType.Daily).toBe(3);
+    expect(comp.getRentalTypeLabel(RentalType.Daily)).toBe('Thuê theo ngày');
+
+    comp.createForm.patchValue({
+      rentalType: RentalType.Daily,
+      roomTypeId: 'rt-101',
+      checkInDate: '2026-10-15',
+      checkInTime: '14:00',
+      checkOutDate: '2026-10-17',
+      checkOutTime: '12:00',
+      guestName: 'Trần Minh Quân',
+      guestEmail: 'quan@example.com',
+      numberOfGuests: 2
+    });
+    comp.onRentalTypeChanged();
+
+    expect(comp.isMultiDayRentalType(RentalType.Daily)).toBe(true);
+    expect(comp.canCheckAvailability()).toBe(true);
+
+    comp.onCalculateQuoteAndAvailability();
+    expect(mockReservationService.calculateQuote).toHaveBeenCalledWith(expect.objectContaining({
+      propertyId: 'prop-123',
+      roomTypeId: 'rt-101',
+      rentalType: RentalType.Daily,
+      checkInDate: '2026-10-15',
+      checkOutDate: '2026-10-17'
+    }));
+
+    comp.selectedRoomId.set('room-101');
+    comp.onSubmitCreate();
+    expect(mockReservationService.createReservation).toHaveBeenCalledWith(expect.objectContaining({
+      rentalType: RentalType.Daily,
+      checkInDate: '2026-10-15',
+      checkOutDate: '2026-10-17'
+    }));
+
+    const tooltip = comp.getBookingTooltip({ ...sampleReservationDto, rentalType: RentalType.Daily });
+    expect(tooltip).toContain('Theo ngày');
   });
 });

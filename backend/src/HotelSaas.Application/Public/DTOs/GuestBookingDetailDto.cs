@@ -46,5 +46,24 @@ public sealed class GuestBookingDetailDto
     public decimal? RefundableAmount { get; set; }
     public string? RefundStatus { get; set; }
     public bool IsPhoneVerified { get; set; }
+    public bool HasReviewed { get; set; }
+    public GuestBookingReviewSummaryDto? ExistingReview { get; set; }
     public IReadOnlyList<QuoteBreakdownItemDto> Breakdown { get; set; } = Array.Empty<QuoteBreakdownItemDto>();
+}
+
+/// <summary>
+/// Summary of an existing verified guest review attached to a booking detail lookup.
+/// </summary>
+public sealed class GuestBookingReviewSummaryDto
+{
+    public Guid Id { get; set; }
+    public int Rating { get; set; }
+    public int? CleanlinessRating { get; set; }
+    public int? LocationRating { get; set; }
+    public int? ServiceRating { get; set; }
+    public int? ValueRating { get; set; }
+    public string? Comment { get; set; }
+    public string? OwnerReply { get; set; }
+    public DateTime? RepliedAtUtc { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
 }

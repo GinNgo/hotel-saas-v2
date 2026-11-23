@@ -1,10 +1,17 @@
+using System.Net;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
+using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog.Context;
 
@@ -53,6 +60,36 @@ public sealed class TenantPropertyContextMiddleware
         // ── 1. Pipeline Classification: Group 1 - Anonymous / Public Endpoints ──
         if (IsPublicEndpoint(context, path))
         {
+            if (context.User.Identity?.IsAuthenticated == true &&
+                (path.StartsWith("/api/print/invoice", StringComparison.OrdinalIgnoreCase) ||
+                 path.StartsWith("/api/print/voucher", StringComparison.OrdinalIgnoreCase)))
+            {
+                await TryHydratePublicPrintUserContextAsync(context, userContext, membershipLookupService);
+            }
+
+            await _next(context);
+            return;
+        }
+
+        // ── 1b. Observability /metrics Protection (Loopback, SuperAdmin, or X-Metrics-Key) ──
+        if (path.Equals("/metrics", StringComparison.OrdinalIgnoreCase))
+        {
+            var configuration = context.RequestServices?.GetService<IConfiguration>();
+            if (!IsAuthorizedMetricsRequest(context, configuration, out var isAuthenticatedNonSuperAdmin))
+            {
+                if (isAuthenticatedNonSuperAdmin)
+                {
+                    await WriteErrorResponseAsync(context, StatusCodes.Status403Forbidden, "ERR_FORBIDDEN",
+                        "Chỉ SuperAdmin hoặc hệ thống giám sát nội bộ mới được phép truy cập /metrics.");
+                }
+                else
+                {
+                    await WriteErrorResponseAsync(context, StatusCodes.Status401Unauthorized, "ERR_UNAUTHORIZED",
+                        "Yêu cầu xác thực SuperAdmin hoặc X-Metrics-Key để truy cập /metrics.");
+                }
+                return;
+            }
+
             await _next(context);
             return;
         }
@@ -89,48 +126,256 @@ public sealed class TenantPropertyContextMiddleware
 
             userContext.SetUser(userId, string.Empty, globalRole);
 
-            await _next(context);
+            using (LogContext.PushProperty("UserId", userId.ToString()))
+            {
+                await _next(context);
+            }
             return;
         }
 
         // ── 2b. Pipeline Classification: Print & Document Templates for SuperAdmin ──
-        if (path.StartsWith("/api/print/", StringComparison.OrdinalIgnoreCase) && globalRole == GlobalUserRole.SuperAdmin)
+        var isReadOnlyHttpMethod = HttpMethods.IsGet(context.Request.Method) ||
+                                   HttpMethods.IsHead(context.Request.Method) ||
+                                   HttpMethods.IsOptions(context.Request.Method);
+        var hasSupportGrantHeader = context.Request.Headers.ContainsKey("X-Support-Grant-Id");
+
+        if (path.StartsWith("/api/print/", StringComparison.OrdinalIgnoreCase) &&
+            globalRole == GlobalUserRole.SuperAdmin &&
+            isReadOnlyHttpMethod &&
+            !hasSupportGrantHeader)
         {
             userContext.SetUser(userId, string.Empty, globalRole);
 
-            await _next(context);
+            using (LogContext.PushProperty("UserId", userId.ToString()))
+            {
+                await _next(context);
+            }
             return;
         }
 
-        // ── 3. Pipeline Classification: Group 3 - Context-Bootstrap & Switching Endpoints ──
+        // ── 3. Pipeline Classification: Group 3 - Context-Bootstrap, Switching & Self-Auth Endpoints ──
         if (path.Equals("/api/auth/switch-context", StringComparison.OrdinalIgnoreCase) ||
-            path.Equals("/api/auth/me/memberships", StringComparison.OrdinalIgnoreCase))
+            path.Equals("/api/auth/me/memberships", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/api/auth/revoke-token", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/api/auth/change-password", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/api/auth/social-accounts", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/api/auth/social-accounts/", StringComparison.OrdinalIgnoreCase))
         {
             userContext.SetUser(userId, string.Empty, globalRole);
 
-            await _next(context);
+            using (LogContext.PushProperty("UserId", userId.ToString()))
+            {
+                await _next(context);
+            }
             return;
         }
 
         // ── 3b. Pipeline Classification: Group 3b - Customer / Guest Portal Endpoints ──────
         // Authenticated customer/guest end-users accessing their own personal bookings, profile, or loyalty (Gate G3 / US3).
         // Guests belong to the B2C platform, not a specific tenant staff organization, and do not possess TenantId/PropertyId claims.
-        if (path.StartsWith("/api/guest", StringComparison.OrdinalIgnoreCase) ||
+        if (path.Equals("/api/guest", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/api/guest/", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/api/v1/loyalty", StringComparison.OrdinalIgnoreCase))
         {
             userContext.SetUser(userId, string.Empty, globalRole);
 
-            await _next(context);
+            using (LogContext.PushProperty("UserId", userId.ToString()))
+            {
+                await _next(context);
+            }
             return;
         }
 
         // ── 4. Pipeline Classification: Group 4 - Business Endpoints ───────────
 
-        // SuperAdmin isolation per P0-D24 / GAP-04: Forbidden from business endpoints without Support Grant
+        // SuperAdmin isolation per P0-D24 / GAP-04: Forbidden from business endpoints without valid SupportAccessGrant
         if (globalRole == GlobalUserRole.SuperAdmin)
         {
-            await WriteErrorResponseAsync(context, StatusCodes.Status403Forbidden, "ERR_FORBIDDEN",
-                "Platform Admin không được phép truy cập trực tiếp dữ liệu nghiệp vụ của khách hàng.");
+            if (!context.Request.Headers.TryGetValue("X-Support-Grant-Id", out var xSupportGrantVal))
+            {
+                await WriteErrorResponseAsync(context, StatusCodes.Status403Forbidden, "ERR_FORBIDDEN",
+                    "Platform Admin không được phép truy cập trực tiếp dữ liệu nghiệp vụ của khách hàng.");
+                return;
+            }
+
+            if (!Guid.TryParse(xSupportGrantVal.ToString(), out var grantId) || grantId == Guid.Empty)
+            {
+                await WriteErrorResponseAsync(context, StatusCodes.Status403Forbidden, "ERR_SUPPORT_GRANT_INVALID",
+                    "Mã quyền hỗ trợ X-Support-Grant-Id không hợp lệ.");
+                return;
+            }
+
+            var db = context.RequestServices?.GetService<IApplicationDbContext>();
+            if (db == null)
+            {
+                await WriteErrorResponseAsync(context, StatusCodes.Status403Forbidden, "ERR_FORBIDDEN",
+                    "Platform Admin không được phép truy cập trực tiếp dữ liệu nghiệp vụ của khách hàng.");
+                return;
+            }
+
+            SupportAccessGrant? grant;
+            try
+            {
+                var nowUtc = DateTime.UtcNow;
+                grant = await db.SupportAccessGrants
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(g =>
+                        g.Id == grantId &&
+                        g.TargetSupportUserId == userId &&
+                        g.RevokedAtUtc == null &&
+                        g.ExpiresAtUtc > nowUtc,
+                        context.RequestAborted);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Fail-Closed: Database error while validating SupportAccessGrant {GrantId}.", grantId);
+                await WriteErrorResponseAsync(context, StatusCodes.Status503ServiceUnavailable, "ERR_SERVICE_UNAVAILABLE",
+                    "Hệ thống xác thực cơ sở dữ liệu tạm thời không phản hồi. Vui lòng thử lại sau.");
+                return;
+            }
+
+            if (grant == null)
+            {
+                await WriteErrorResponseAsync(context, StatusCodes.Status403Forbidden, "ERR_SUPPORT_GRANT_INVALID",
+                    "SupportAccessGrant không tồn tại, đã hết hạn, bị thu hồi hoặc không thuộc tài khoản hiện tại.");
+                return;
+            }
+
+            if (context.Request.Headers.TryGetValue("X-Tenant-Id", out var xSupportTenantVal))
+            {
+                if (!Guid.TryParse(xSupportTenantVal.ToString(), out var headerTenantId) || headerTenantId != grant.TenantId)
+                {
+                    await WriteErrorResponseAsync(context, StatusCodes.Status400BadRequest, "ERR_CONTEXT_MISMATCH",
+                        "X-Tenant-Id gửi trong header không khớp với TenantId của SupportAccessGrant.");
+                    return;
+                }
+            }
+
+            var isReadOnlyGrant = string.Equals(grant.Scope, "READ_ONLY", StringComparison.OrdinalIgnoreCase);
+            var isDiagnosticGrant = string.Equals(grant.Scope, "DIAGNOSTIC", StringComparison.OrdinalIgnoreCase);
+            if (!isReadOnlyGrant && !isDiagnosticGrant)
+            {
+                await WriteErrorResponseAsync(context, StatusCodes.Status403Forbidden, "ERR_SUPPORT_GRANT_INVALID",
+                    "Phạm vi của SupportAccessGrant không hợp lệ.");
+                return;
+            }
+
+            if (isReadOnlyGrant &&
+                !HttpMethods.IsGet(context.Request.Method) &&
+                !HttpMethods.IsHead(context.Request.Method) &&
+                !HttpMethods.IsOptions(context.Request.Method))
+            {
+                await WriteErrorResponseAsync(context, StatusCodes.Status403Forbidden, "ERR_SUPPORT_GRANT_READ_ONLY",
+                    "SupportAccessGrant ở chế độ READ_ONLY chỉ cho phép các thao tác đọc dữ liệu.");
+                return;
+            }
+
+            tenantService.TenantId = grant.TenantId;
+
+            Guid? resolvedSupportPropertyId = null;
+            if (context.Request.Headers.TryGetValue("X-Property-Id", out var xSupportPropVal))
+            {
+                if (!Guid.TryParse(xSupportPropVal.ToString(), out var headerPropId))
+                {
+                    await WriteErrorResponseAsync(context, StatusCodes.Status400BadRequest, "ERR_CONTEXT_MISMATCH",
+                        "Header X-Property-Id không đúng định dạng GUID hợp lệ.");
+                    return;
+                }
+
+                bool propertyExists;
+                try
+                {
+                    propertyExists = await db.Properties
+                        .IgnoreQueryFilters()
+                        .AsNoTracking()
+                        .AnyAsync(p => p.Id == headerPropId && p.TenantId == grant.TenantId, context.RequestAborted);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Fail-Closed: Database error while validating PropertyId {PropertyId} for SupportAccessGrant {GrantId}.", headerPropId, grantId);
+                    await WriteErrorResponseAsync(context, StatusCodes.Status503ServiceUnavailable, "ERR_SERVICE_UNAVAILABLE",
+                        "Hệ thống xác thực cơ sở dữ liệu tạm thời không phản hồi. Vui lòng thử lại sau.");
+                    return;
+                }
+
+                if (!propertyExists)
+                {
+                    await WriteErrorResponseAsync(context, StatusCodes.Status404NotFound, "ERR_PROPERTY_NOT_FOUND",
+                        "Chi nhánh không tồn tại hoặc không thuộc tổ chức doanh nghiệp này.");
+                    return;
+                }
+
+                resolvedSupportPropertyId = headerPropId;
+                propertyService.PropertyId = headerPropId;
+                propertyService.HeaderPropertyId = headerPropId;
+                propertyService.IsTenantWide = true;
+            }
+            else
+            {
+                propertyService.PropertyId = null;
+                propertyService.IsTenantWide = true;
+            }
+
+            AccessRole? supportAccessRole = null;
+            try
+            {
+                var preferredCodes = isDiagnosticGrant
+                    ? new[] { "OWNER", "SUPER_ADMIN", "MANAGER" }
+                    : new[] { "OWNER", "MANAGER", "RECEPTIONIST" };
+
+                var candidateRoles = await db.AccessRoles
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(r => (r.IsSystemRole && r.TenantId == null) || r.TenantId == grant.TenantId)
+                    .OrderByDescending(r => r.IsSystemRole && r.TenantId == null)
+                    .ToListAsync(context.RequestAborted);
+
+                foreach (var code in preferredCodes)
+                {
+                    supportAccessRole = candidateRoles.FirstOrDefault(r =>
+                        string.Equals(r.Code, code, StringComparison.OrdinalIgnoreCase));
+                    if (supportAccessRole != null)
+                    {
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Fail-Closed: Database error while resolving AccessRole for SupportAccessGrant {GrantId}.", grantId);
+                await WriteErrorResponseAsync(context, StatusCodes.Status503ServiceUnavailable, "ERR_SERVICE_UNAVAILABLE",
+                    "Hệ thống xác thực cơ sở dữ liệu tạm thời không phản hồi. Vui lòng thử lại sau.");
+                return;
+            }
+
+            var resolvedStaffRole = supportAccessRole?.Code?.ToUpperInvariant() switch
+            {
+                "OWNER" or "SUPER_ADMIN" => StaffRole.Owner,
+                "MANAGER" => StaffRole.Manager,
+                "RECEPTIONIST" => StaffRole.Receptionist,
+                "HOUSEKEEPER" => StaffRole.Housekeeper,
+                _ => StaffRole.Owner
+            };
+
+            userContext.SetUser(userId, string.Empty, globalRole);
+            userContext.SetMembershipContext(
+                grant.TenantId,
+                TenantStatus.Active,
+                resolvedSupportPropertyId,
+                resolvedSupportPropertyId.HasValue ? PropertyStatus.Active : null,
+                resolvedStaffRole,
+                supportAccessRole?.Id,
+                isTenantWide: true);
+
+            var supportLogPropertyId = resolvedSupportPropertyId?.ToString() ?? "tenant-wide";
+            using (LogContext.PushProperty("TenantId", grant.TenantId.ToString()))
+            using (LogContext.PushProperty("PropertyId", supportLogPropertyId))
+            using (LogContext.PushProperty("UserId", userId.ToString()))
+            using (LogContext.PushProperty("SupportGrantId", grant.Id.ToString()))
+            {
+                await _next(context);
+            }
             return;
         }
 
@@ -337,15 +582,66 @@ public sealed class TenantPropertyContextMiddleware
             path.StartsWith("/api/print/voucher", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/health", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/health/", StringComparison.OrdinalIgnoreCase) ||
-            path.Equals("/metrics", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/auth/login", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/auth/register", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/auth/partner-register", StringComparison.OrdinalIgnoreCase) ||
-            path.Equals("/api/auth/social-login", StringComparison.OrdinalIgnoreCase) ||
             path.Equals("/api/auth/refresh-token", StringComparison.OrdinalIgnoreCase))
         {
             return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Validates access to Prometheus <c>/metrics</c>: allows loopback connections (including TestServer
+    /// where <see cref="ConnectionInfo.RemoteIpAddress"/> is null), authenticated <see cref="GlobalUserRole.SuperAdmin"/>
+    /// callers, or callers providing a configured <c>Metrics:ApiKey</c> via the <c>X-Metrics-Key</c> header.
+    /// </summary>
+    public static bool IsAuthorizedMetricsRequest(
+        HttpContext context,
+        IConfiguration? configuration,
+        out bool isAuthenticatedNonSuperAdmin)
+    {
+        isAuthenticatedNonSuperAdmin = false;
+
+        var remoteIp = context.Connection.RemoteIpAddress;
+        if (remoteIp is null)
+        {
+            return true;
+        }
+
+        var normalizedIp = remoteIp.IsIPv4MappedToIPv6 ? remoteIp.MapToIPv4() : remoteIp;
+        if (IPAddress.IsLoopback(normalizedIp))
+        {
+            return true;
+        }
+
+        var configuredKey = configuration?["Metrics:ApiKey"];
+        if (!string.IsNullOrWhiteSpace(configuredKey) &&
+            context.Request.Headers.TryGetValue("X-Metrics-Key", out var providedKeyValues))
+        {
+            var expectedBytes = Encoding.UTF8.GetBytes(configuredKey.Trim());
+            var providedBytes = Encoding.UTF8.GetBytes(providedKeyValues.ToString().Trim());
+            if (expectedBytes.Length == providedBytes.Length &&
+                CryptographicOperations.FixedTimeEquals(expectedBytes, providedBytes))
+            {
+                return true;
+            }
+        }
+
+        if (context.User.Identity?.IsAuthenticated == true)
+        {
+            var globalRoleClaim = context.User.FindFirst("globalRole")?.Value
+                ?? context.User.FindFirst(ClaimTypes.Role)?.Value;
+            if (Enum.TryParse<GlobalUserRole>(globalRoleClaim, ignoreCase: true, out var role) &&
+                role == GlobalUserRole.SuperAdmin)
+            {
+                return true;
+            }
+
+            isAuthenticatedNonSuperAdmin = true;
         }
 
         return false;
@@ -361,6 +657,14 @@ public sealed class TenantPropertyContextMiddleware
         context.Response.StatusCode = statusCode;
         context.Response.ContentType = "application/json";
 
+        var correlationId = context.Items.TryGetValue("CorrelationId", out var corrObj) &&
+                            corrObj is string corrStr && !string.IsNullOrWhiteSpace(corrStr)
+            ? corrStr
+            : (context.Items.TryGetValue(CorrelationAndStructuredLogMiddleware.CorrelationIdHeaderName, out var hdrObj) &&
+               hdrObj is string hdrStr && !string.IsNullOrWhiteSpace(hdrStr)
+                ? hdrStr
+                : context.TraceIdentifier);
+
         var payload = new
         {
             type = statusCode switch
@@ -374,9 +678,90 @@ public sealed class TenantPropertyContextMiddleware
             },
             title = message,
             status = statusCode,
-            errorCode = errorCode
+            errorCode = errorCode,
+            correlationId = correlationId
         };
 
         await context.Response.WriteAsync(JsonSerializer.Serialize(payload, JsonOptions));
+    }
+
+    private static async Task TryHydratePublicPrintUserContextAsync(
+        HttpContext context,
+        ICurrentUserContext userContext,
+        IMembershipLookupService membershipLookupService)
+    {
+        var userIdClaim = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? context.User.FindFirst("sub")?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var pubUserId) || pubUserId == Guid.Empty)
+        {
+            return;
+        }
+
+        var globalRoleClaim = context.User.FindFirst("globalRole")?.Value;
+        Enum.TryParse<GlobalUserRole>(globalRoleClaim, ignoreCase: true, out var pubGlobalRole);
+        userContext.SetUser(pubUserId, string.Empty, pubGlobalRole);
+
+        if (pubGlobalRole != GlobalUserRole.TenantStaff)
+        {
+            return;
+        }
+
+        var tenantIdClaim = context.User.FindFirst("tenantId")?.Value;
+        var tidClaim = context.User.FindFirst("tid")?.Value;
+        if (!string.IsNullOrEmpty(tenantIdClaim) && !string.IsNullOrEmpty(tidClaim) &&
+            !string.Equals(tenantIdClaim, tidClaim, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (!Guid.TryParse(tenantIdClaim ?? tidClaim, out var pubTenantId) || pubTenantId == Guid.Empty)
+        {
+            return;
+        }
+
+        var propertyIdClaim = context.User.FindFirst("propertyId")?.Value;
+        var pidClaim = context.User.FindFirst("pid")?.Value;
+        if (!string.IsNullOrEmpty(propertyIdClaim) && !string.IsNullOrEmpty(pidClaim) &&
+            !string.Equals(propertyIdClaim, pidClaim, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        Guid? targetPubPropId = Guid.TryParse(propertyIdClaim ?? pidClaim, out var tokenPropId)
+            ? tokenPropId
+            : null;
+
+        if (!targetPubPropId.HasValue &&
+            context.Request.Headers.TryGetValue("X-Property-Id", out var xPropVal) &&
+            Guid.TryParse(xPropVal.ToString(), out var headerPropId) &&
+            headerPropId != Guid.Empty)
+        {
+            targetPubPropId = headerPropId;
+        }
+
+        try
+        {
+            var lookup = await membershipLookupService.ResolveMembershipAsync(
+                pubTenantId,
+                pubUserId,
+                targetPubPropId,
+                context.RequestAborted);
+
+            if (lookup.Status == MembershipLookupStatus.Success)
+            {
+                userContext.SetMembershipContext(
+                    pubTenantId,
+                    TenantStatus.Active,
+                    lookup.PropertyId,
+                    lookup.PropertyStatus ?? PropertyStatus.Active,
+                    lookup.StaffRole,
+                    lookup.RoleId,
+                    lookup.IsTenantWide);
+            }
+        }
+        catch
+        {
+            // Ignore optional hydration failures on public print endpoints; caller stays masked
+        }
     }
 }

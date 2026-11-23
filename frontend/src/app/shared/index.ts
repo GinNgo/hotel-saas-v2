@@ -20,6 +20,8 @@ export * from './components/google-map-picker/google-map-picker.component';
 export * from './components/form-field/form-field.component';
 export * from './components/notification-bell/notification-bell.component';
 export * from './components/breadcrumb/breadcrumb.component';
+export * from './components/chart-card/chart-card.component';
 
 // Shared Pipes
 export * from './pipes/business-date.pipe';
+export * from './pipes/vnd-currency.pipe';

@@ -268,7 +268,7 @@ public sealed class CancelReservationCommandHandler : IRequestHandler<CancelRese
                 TenantId = reservation.TenantId,
                 PropertyId = reservation.PropertyId,
                 UserId = userId,
-                Action = AuditActions.Update,
+                Action = AuditActions.Cancel,
                 EntityName = nameof(Reservation),
                 EntityId = reservation.Id,
                 OldValues = JsonSerializer.Serialize(new { Status = oldStatus.ToString() }),

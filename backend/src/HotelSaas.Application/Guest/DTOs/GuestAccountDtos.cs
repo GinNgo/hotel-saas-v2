@@ -37,7 +37,8 @@ public sealed record GuestBookingSummaryDto(
     string Status,
     decimal TotalAmount,
     string Currency = "VND",
-    DateTime CreatedAtUtc = default
+    DateTime CreatedAtUtc = default,
+    string? LookupToken = null
 );
 
 public sealed record GuestBookingDetailDto(
@@ -58,5 +59,6 @@ public sealed record GuestBookingDetailDto(
     string? BuyerTaxCode,
     string? BuyerAddress,
     string Currency = "VND",
-    DateTime CreatedAtUtc = default
+    DateTime CreatedAtUtc = default,
+    string? LookupToken = null
 );

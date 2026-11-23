@@ -123,6 +123,8 @@ public sealed class GetPublicPropertiesSerializationTests
         "allowHourlyBooking",
         "allowOvernightBooking",
         "allowDailyBooking",
+        "taxRatePercent",
+        "serviceFeeRatePercent",
         "nearbyLandmarks",
         "isExpandedNearbySuggestion"
     };
@@ -170,6 +172,8 @@ public sealed class GetPublicPropertiesSerializationTests
         "overnightStartingPrice",
         "dailyStartingPrice",
         "startingPrice",
+        "taxRatePercent",
+        "serviceFeeRatePercent",
         "nearbyLandmarks",
         "nearestLandmarkInfo",
         "distanceMeters",

@@ -2,9 +2,14 @@
 useDefault = true
 
 [allowlist]
-description = "Allowlist documentation samples, unit tests, and local scripts"
+description = "Allowlist documentation samples, unit tests, local scripts, public Firebase Web client config, and UI sessionStorage keys"
 paths = [
     '''docs/''',
     '''backend/tests/''',
-    '''scripts/'''
+    '''scripts/''',
+    '''^frontend/src/environments/environment\.ts$''',
+    '''^frontend/src/environments/environment\.development\.ts$'''
+]
+regexes = [
+    '''hotelsaas_dismissed_banners_v1'''
 ]

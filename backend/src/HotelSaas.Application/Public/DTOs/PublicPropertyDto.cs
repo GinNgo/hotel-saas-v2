@@ -57,6 +57,8 @@ public sealed class PublicPropertyDto
     public decimal? OvernightStartingPrice { get; set; }
     public decimal? DailyStartingPrice { get; set; }
     public decimal? StartingPrice { get; set; }
+    public decimal TaxRatePercent { get; set; }
+    public decimal ServiceFeeRatePercent { get; set; }
 
     public List<PublicLandmarkDistanceDto> NearbyLandmarks { get; set; } = new();
     public string? NearestLandmarkInfo { get; set; }

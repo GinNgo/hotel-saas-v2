@@ -20,6 +20,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Xunit;
 
@@ -158,6 +160,38 @@ public sealed class P5_GuestBookingHttpPipelineTests
 
                 config.AddInMemoryCollection(testConfig);
             });
+
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<Application.Common.Interfaces.IFirebaseAuthService>();
+                services.AddSingleton<Application.Common.Interfaces.IFirebaseAuthService, StubTestingFirebaseAuthService>();
+            });
+        }
+    }
+
+    private sealed class StubTestingFirebaseAuthService : Application.Common.Interfaces.IFirebaseAuthService
+    {
+        public Task<Application.Common.Interfaces.FirebasePhoneVerificationResult> VerifyIdTokenAsync(string idToken, System.Threading.CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(idToken))
+            {
+                return Task.FromResult(new Application.Common.Interfaces.FirebasePhoneVerificationResult(false, null, null, "Mã xác thực (idToken) không được để trống."));
+            }
+
+            if (idToken.StartsWith("dev-mock-token:", StringComparison.OrdinalIgnoreCase))
+            {
+                var raw = idToken.Substring("dev-mock-token:".Length).Trim();
+                var cleaned = System.Text.RegularExpressions.Regex.Replace(raw, @"[^\d+]", "");
+                var phone = string.IsNullOrWhiteSpace(cleaned)
+                    ? "+84901234567"
+                    : cleaned.StartsWith("0") && cleaned.Length >= 10
+                        ? "+84" + cleaned.Substring(1)
+                        : cleaned.StartsWith("+") ? cleaned : "+84" + cleaned;
+                var mockUid = $"mock-uid-{Math.Abs(phone.GetHashCode())}";
+                return Task.FromResult(new Application.Common.Interfaces.FirebasePhoneVerificationResult(true, phone, mockUid));
+            }
+
+            return Task.FromResult(new Application.Common.Interfaces.FirebasePhoneVerificationResult(false, null, null, "Mã xác thực Firebase không hợp lệ."));
         }
     }
 

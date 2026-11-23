@@ -1,6 +1,7 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, effect, untracked } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, DestroyRef, inject, signal, computed, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, FormArray, ReactiveFormsModule, Validators } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription } from 'rxjs';
 import { PolicyService } from '../../core/services/policy.service';
 import {
@@ -11,18 +12,41 @@ import {
   SurchargeCalculationMethod,
   SURCHARGE_CALCULATION_METHOD_LABELS,
   UpdatePropertyPoliciesRequest,
-  UpdateSurchargeItemRequest
+  UpdateSurchargeItemRequest,
+  POL_C03_CANCELLATION_TIERS
 } from '../../core/models/policy.model';
 import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
 import { PrintDocumentsService } from '../../core/services/print-documents.service';
 import { PrintTemplateConfigDto } from '../../core/models/print-document.model';
+import { HasUnsavedChanges } from '../../core/guards/unsaved-changes.guard';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { ContextSelectorDialogComponent } from '../auth/context-selector/context-selector.dialog';
+
+interface SurchargeFormValue {
+  id?: string | null;
+  surchargeType: SurchargeType;
+  fromTime: string;
+  toTime: string;
+  calculationMethod: SurchargeCalculationMethod;
+  percentage: number | null;
+  flatAmount: number | null;
+  isActive: boolean;
+}
+
+interface ErrorWithMessage {
+  message?: string;
+  error?: {
+    message?: string;
+    title?: string;
+  } | null;
+}
 
 @Component({
   selector: 'app-policies',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, EmptyStateComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [CommonModule, ReactiveFormsModule, EmptyStateComponent, ContextSelectorDialogComponent],
   template: `
     <div class="max-w-6xl mx-auto space-y-6">
       <!-- Page Header -->
@@ -66,7 +90,7 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
               [disabled]="isSaving() || isLoading() || !propertyId() || loadedPropertyId() !== propertyId()"
               aria-label="Lưu thay đổi chính sách"
               title="Lưu thay đổi chính sách"
-              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs transition-all shadow-xs cursor-pointer disabled:cursor-not-allowed"
+              class="inline-flex items-center gap-2 min-h-11 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs transition-all shadow-xs cursor-pointer disabled:cursor-not-allowed"
             >
               @if (isSaving()) {
                 <i class="pi pi-spin pi-spinner text-sm"></i>
@@ -91,11 +115,14 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
         <app-empty-state
           iconClass="pi pi-building"
           title="Chưa chọn chi nhánh làm việc"
-          description="Vui lòng bấm vào bộ chuyển chi nhánh ở thanh tiêu đề trên cùng để chọn chi nhánh cần quản lý chính sách."
+          description="Vui lòng chọn chi nhánh làm việc để xem và cấu hình chính sách vận hành của cơ sở."
+          actionLabel="Chọn chi nhánh làm việc"
+          actionIcon="pi pi-building"
+          (actionClick)="openContextSelector()"
         />
       } @else if (isLoading()) {
         <!-- Skeleton Loading State -->
-        <div class="space-y-6 animate-pulse">
+        <div class="space-y-6 animate-pulse motion-reduce:animate-none">
           <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-2xs space-y-4">
             <div class="h-5 w-48 bg-slate-200 rounded"></div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
@@ -112,7 +139,7 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
         </div>
       } @else if (errorMessage()) {
         <!-- Error State -->
-        <div class="p-6 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-3">
+        <div role="alert" class="p-6 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-3">
           <div class="flex items-center gap-2.5">
             <i class="pi pi-exclamation-triangle text-xl text-rose-600"></i>
             <h3 class="font-bold text-sm">Không thể tải cấu hình chính sách chi nhánh</h3>
@@ -122,7 +149,7 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
             type="button"
             (click)="loadPolicies()"
             aria-label="Thử tải lại chính sách"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors cursor-pointer"
+            class="inline-flex items-center gap-1.5 min-h-11 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors cursor-pointer"
           >
             <i class="pi pi-refresh"></i>
             <span>Thử lại</span>
@@ -133,7 +160,7 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
         <form [formGroup]="policyForm" class="space-y-6">
           <!-- Client Validation Alert -->
           @if (clientErrors().length > 0) {
-            <div class="p-4 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-900 text-xs space-y-1">
+            <div role="alert" class="p-4 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-900 text-xs space-y-1">
               <div class="font-bold flex items-center gap-2 text-amber-800">
                 <i class="pi pi-exclamation-circle text-amber-600"></i>
                 <span>Vui lòng kiểm tra lại thông tin:</span>
@@ -237,6 +264,48 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
                 </div>
                 <p class="text-[10px] text-slate-400">Quyết định D14: Từ 1 đến 24 giờ</p>
               </div>
+
+              <!-- Thuế VAT (%) -->
+              <div class="space-y-1.5">
+                <label class="block text-xs font-semibold text-slate-700">
+                  Thuế VAT (%) <span class="text-rose-500">*</span>
+                </label>
+                <div class="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    formControlName="taxRatePercent"
+                    [readonly]="!canUpdate()"
+                    aria-label="Thuế VAT phần trăm"
+                    title="Thuế VAT (%)"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-xs text-slate-800 transition-all"
+                  />
+                </div>
+                <p class="text-[10px] text-slate-400">Áp dụng xuất hóa đơn điện tử / in hóa đơn (0% – 100%)</p>
+              </div>
+
+              <!-- Phí dịch vụ (%) -->
+              <div class="space-y-1.5">
+                <label class="block text-xs font-semibold text-slate-700">
+                  Phí dịch vụ (%) <span class="text-rose-500">*</span>
+                </label>
+                <div class="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    formControlName="serviceFeeRatePercent"
+                    [readonly]="!canUpdate()"
+                    aria-label="Phí dịch vụ phần trăm"
+                    title="Phí dịch vụ (%)"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-xs text-slate-800 transition-all"
+                  />
+                </div>
+                <p class="text-[10px] text-slate-400">Service charge trích trên hóa đơn thanh toán (0% – 100%)</p>
+              </div>
             </div>
           </div>
 
@@ -249,21 +318,33 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
                 </div>
                 <div>
                   <h2 class="text-sm font-bold text-slate-800">Quy tắc Phụ thu (Early Check-In & Late Check-Out)</h2>
-                  <p class="text-[11px] text-slate-400">Tự động cộng thêm phụ thu khi khách check-in sớm hoặc check-out muộn</p>
+                  <p class="text-[11px] text-slate-400">Tự động cộng thêm phụ thu khi khách check-in sớm hoặc check-out muộn (hỗ trợ đủ khung 24/24)</p>
                 </div>
               </div>
 
               @if (canUpdate()) {
-                <button
-                  type="button"
-                  (click)="addSurcharge()"
-                  aria-label="Thêm khung phụ thu"
-                  title="Thêm khung phụ thu"
-                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
-                >
-                  <i class="pi pi-plus text-xs"></i>
-                  <span>Thêm khung phụ thu</span>
-                </button>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    (click)="applyFull24hSurchargePreset()"
+                    aria-label="Nạp nhanh biểu phí phụ thu 24/24 tiêu chuẩn"
+                    title="Tự động điền 6 khung phụ thu nhận sớm / trả muộn phủ đủ 24/24"
+                    class="inline-flex items-center gap-1.5 min-h-11 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    <i class="pi pi-bolt text-xs"></i>
+                    <span>Nạp chuẩn 24/24</span>
+                  </button>
+                  <button
+                    type="button"
+                    (click)="addSurcharge()"
+                    aria-label="Thêm khung phụ thu"
+                    title="Thêm khung phụ thu"
+                    class="inline-flex items-center gap-1.5 min-h-11 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    <i class="pi pi-plus text-xs"></i>
+                    <span>Thêm khung phụ thu</span>
+                  </button>
+                </div>
               }
             </div>
 
@@ -283,17 +364,17 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
                   >
                     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
                       <div class="flex items-center gap-2">
-                        <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center">
+                        <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center tabular-nums">
                           {{ $index + 1 }}
                         </span>
-                        <span class="text-xs font-bold text-slate-700">
+                        <span class="text-xs font-bold text-slate-700 tabular-nums">
                           Khung quy tắc #{{ $index + 1 }}
                         </span>
                       </div>
 
                       <div class="flex items-center gap-3">
                         <!-- Active Checkbox -->
-                        <label class="inline-flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+                        <label class="inline-flex items-center gap-1.5 min-h-11 text-xs text-slate-600 cursor-pointer">
                           <input
                             type="checkbox"
                             formControlName="isActive"
@@ -309,9 +390,9 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
                           <button
                             type="button"
                             (click)="removeSurcharge($index)"
-                            class="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            class="min-h-11 min-w-11 inline-flex items-center justify-center p-2 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                             title="Xóa quy tắc này"
-                            aria-label="Xóa quy tắc này"
+                            aria-label="Xóa quy tắc phụ thu này"
                           >
                             <i class="pi pi-trash text-xs"></i>
                           </button>
@@ -424,6 +505,37 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
             }
           </div>
 
+          <!-- Block 2b: Chính sách hủy phòng bậc thang POL-C03 & Tiền cọc 30% -->
+          <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-rose-50 text-rose-700 flex items-center justify-center font-bold text-sm">
+                  <i class="pi pi-shield"></i>
+                </div>
+                <div>
+                  <h2 class="text-sm font-bold text-slate-800">Chính sách Hủy phòng bậc thang (POL-C03) & Đặt cọc 30%</h2>
+                  <p class="text-[11px] text-slate-400">Hệ thống áp dụng tỷ lệ giữ chỗ tối thiểu 30% tổng giá trị đơn và tự động tính phí hủy theo mốc thời gian trước giờ Check-in</p>
+                </div>
+              </div>
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Cọc chuẩn: 30%
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              @for (tier of cancellationTiers; track tier.windowLabel) {
+                <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                  <div class="text-xs font-bold text-slate-800">{{ tier.windowLabel }}</div>
+                  <div class="flex items-center justify-between text-[11px]">
+                    <span class="font-semibold text-rose-700">{{ tier.feeRateLabel }}</span>
+                    <span class="font-semibold text-emerald-700">{{ tier.refundRateLabel }}</span>
+                  </div>
+                  <p class="text-[11px] text-slate-500 leading-relaxed">{{ tier.description }}</p>
+                </div>
+              }
+            </div>
+          </div>
+
           <!-- Bottom Save Actions -->
           @if (canUpdate()) {
             <div class="flex items-center justify-end gap-3 pt-2">
@@ -433,7 +545,7 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
                 [disabled]="isSaving() || isLoading() || !propertyId()"
                 aria-label="Hủy thay đổi và tải lại"
                 title="Hủy thay đổi và tải lại"
-                class="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold transition-colors cursor-pointer"
+                class="min-h-11 px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold transition-colors cursor-pointer"
               >
                 Hủy thay đổi
               </button>
@@ -443,7 +555,7 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
                 [disabled]="isSaving() || isLoading() || !propertyId() || loadedPropertyId() !== propertyId()"
                 aria-label="Lưu thay đổi chính sách"
                 title="Lưu thay đổi chính sách"
-                class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs transition-all shadow-xs cursor-pointer disabled:cursor-not-allowed"
+                class="inline-flex items-center gap-2 min-h-11 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs transition-all shadow-xs cursor-pointer disabled:cursor-not-allowed"
               >
                 @if (isSaving()) {
                   <i class="pi pi-spin pi-spinner text-sm"></i>
@@ -475,7 +587,8 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
                 <button
                   type="submit"
                   [disabled]="isSavingPrintConfig()"
-                  class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                  aria-label="Lưu mẫu in hóa đơn và tài khoản VietQR"
+                  class="inline-flex items-center gap-1.5 min-h-11 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
                 >
                   @if (isSavingPrintConfig()) {
                     <i class="pi pi-spin pi-spinner text-xs"></i>
@@ -541,18 +654,18 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
               </div>
             </div>
 
-            <!-- VietQR Banking Info -->
-            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                  <i class="pi pi-qrcode text-indigo-600"></i>
-                  <span>Tài khoản Ngân hàng tích hợp mã thanh toán VietQR tự động</span>
+            <!-- VietQR & SePay Banking Info -->
+            <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700 space-y-4">
+              <div class="flex items-center justify-between flex-wrap gap-2">
+                <span class="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                  <i class="pi pi-qrcode text-indigo-600 dark:text-indigo-400"></i>
+                  <span>Tài khoản Ngân hàng tích hợp mã thanh toán VietQR &amp; SePay tự động</span>
                 </span>
-                <label class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                <label class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
                   <input
                     type="checkbox"
                     formControlName="showVietQrCode"
-                    class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
                   />
                   <span>In mã VietQR lên hóa đơn</span>
                 </label>
@@ -560,31 +673,136 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
 
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div class="space-y-1">
-                  <label class="block text-[11px] font-medium text-slate-600">Ngân hàng (Mã BIN / Tên NH)</label>
+                  <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-300">Ngân hàng (Mã BIN / Tên NH)</label>
                   <input
                     type="text"
                     formControlName="bankName"
+                    list="vietqr-banks-list"
                     placeholder="MBBank, Vietcombank, ACB..."
-                    class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs text-slate-800"
+                    class="w-full min-h-11 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-100"
                   />
+                  <datalist id="vietqr-banks-list">
+                    @for (bank of supportedVietQrBanks; track bank) {
+                      <option [value]="bank">{{ bank }}</option>
+                    }
+                  </datalist>
                 </div>
                 <div class="space-y-1">
-                  <label class="block text-[11px] font-medium text-slate-600">Số tài khoản nhận tiền</label>
+                  <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-300">Số tài khoản nhận tiền</label>
                   <input
                     type="text"
                     formControlName="bankAccountNumber"
                     placeholder="999988887777"
-                    class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-mono font-bold text-indigo-900"
+                    class="w-full min-h-11 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-mono font-bold text-indigo-900 dark:text-indigo-300"
                   />
                 </div>
                 <div class="space-y-1">
-                  <label class="block text-[11px] font-medium text-slate-600">Tên chủ tài khoản</label>
+                  <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-300">Tên chủ tài khoản</label>
                   <input
                     type="text"
                     formControlName="bankAccountHolder"
                     placeholder="CTY CP KHACH SAN..."
-                    class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs uppercase font-semibold text-slate-800"
+                    class="w-full min-h-11 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs uppercase font-semibold text-slate-800 dark:text-slate-100"
                   />
+                </div>
+              </div>
+
+              <!-- Per-Property SePay Webhook API Key & Ready-to-Copy Webhook URL -->
+              <div class="pt-3 border-t border-slate-200/80 dark:border-slate-700 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="space-y-1.5">
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <label for="sepay-api-key-input" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+                      SePay Webhook API Key riêng của cơ sở (Tùy chọn)
+                    </label>
+                    @if (hasSepayApiKey()) {
+                      <span
+                        data-testid="sepay-key-status-badge"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                      >
+                        <i class="pi pi-check-circle text-[9px]"></i>
+                        <span>Đã cấu hình Key riêng</span>
+                      </span>
+                    } @else {
+                      <span
+                        data-testid="sepay-key-status-badge"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
+                      >
+                        <i class="pi pi-globe text-[9px]"></i>
+                        <span>Dùng cổng SePay chung toàn hệ thống</span>
+                      </span>
+                    }
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <div class="relative flex-1 min-w-0">
+                      <input
+                        id="sepay-api-key-input"
+                        data-testid="sepay-api-key-input"
+                        [type]="showSepayApiKey() ? 'text' : 'password'"
+                        formControlName="sepayApiKey"
+                        (input)="onSepayApiKeyInput()"
+                        placeholder="Để trống nếu dùng SePay API Key chung hoặc nhập Key riêng của chi nhánh..."
+                        autocomplete="off"
+                        class="w-full min-h-11 pl-3 pr-11 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-mono text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
+                      />
+                      <button
+                        type="button"
+                        data-testid="toggle-sepay-key-visibility-btn"
+                        (click)="toggleSepayApiKeyVisibility()"
+                        [attr.aria-label]="showSepayApiKey() ? 'Ẩn SePay API Key' : 'Hiện SePay API Key'"
+                        class="min-h-11 min-w-11 absolute right-0 top-0 bottom-0 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+                      >
+                        <i class="pi text-xs" [ngClass]="showSepayApiKey() ? 'pi-eye-slash' : 'pi-eye'"></i>
+                      </button>
+                    </div>
+
+                    @if (hasSepayApiKey() || printConfigForm.get('sepayApiKey')?.value) {
+                      <button
+                        type="button"
+                        data-testid="clear-sepay-api-key-btn"
+                        (click)="clearSepayApiKey()"
+                        class="min-h-11 px-3 py-1.5 rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/70 text-rose-700 dark:text-rose-300 text-xs font-semibold transition-colors cursor-pointer shrink-0"
+                      >
+                        Xóa Key riêng
+                      </button>
+                    }
+                  </div>
+                  <p class="text-[10px] text-slate-500 dark:text-slate-400">
+                    Mỗi cơ sở có thể dùng tài khoản ngân hàng &amp; SePay API Key độc lập. Nếu để trống, hệ thống tự động đối chiếu bằng Key mặc định.
+                  </p>
+                </div>
+
+                <!-- Ready-to-Copy Webhook URL Card -->
+                <div class="p-3 rounded-xl bg-white dark:bg-slate-900 border border-indigo-200/80 dark:border-indigo-800/70 space-y-2 flex flex-col justify-between">
+                  <div class="space-y-1">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-[11px] font-bold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                        <i class="pi pi-link text-indigo-600 dark:text-indigo-400 text-xs"></i>
+                        <span>Địa chỉ nhận SePay Webhook của cơ sở này</span>
+                      </span>
+                      @if (isWebhookUrlCopied()) {
+                        <span class="text-[10px] font-bold text-emerald-700 dark:text-emerald-400">Đã sao chép!</span>
+                      }
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <code
+                        data-testid="sepay-webhook-url-code"
+                        class="flex-1 min-w-0 px-2.5 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-mono text-indigo-900 dark:text-indigo-300 break-all select-all border border-slate-200/70 dark:border-slate-700"
+                      >{{ sepayWebhookUrl() }}</code>
+                      <button
+                        type="button"
+                        data-testid="copy-sepay-webhook-url-btn"
+                        (click)="copySepayWebhookUrl()"
+                        class="min-h-11 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                      >
+                        <i class="pi text-xs" [ngClass]="isWebhookUrlCopied() ? 'pi-check text-emerald-600' : 'pi-copy'"></i>
+                        <span>Sao chép URL Webhook</span>
+                      </button>
+                    </div>
+                  </div>
+                  <p class="text-[10px] text-slate-600 dark:text-slate-400 leading-snug">
+                    Cài trên SePay Dashboard -&gt; Webhooks: Sự kiện Tiền vào (In) | Chứng thực: API Key | JSON
+                  </p>
                 </div>
               </div>
             </div>
@@ -611,14 +829,31 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
         }
       }
     </div>
+
+    @if (showContextSelector()) {
+      <app-context-selector-dialog
+        [visible]="showContextSelector()"
+        (visibleChange)="showContextSelector.set($event)"
+      />
+    }
   `
 })
-export class PoliciesPage implements OnInit, OnDestroy {
+export class PoliciesPage implements OnInit, OnDestroy, HasUnsavedChanges {
   private readonly fb = inject(FormBuilder);
   readonly authService = inject(AuthService);
   private readonly policyService = inject(PolicyService);
   private readonly alertService = inject(AlertService);
   private readonly printService = inject(PrintDocumentsService, { optional: true });
+  private readonly cdr = inject(ChangeDetectorRef, { optional: true });
+
+  private fallbackDestroyCallbacks: Array<() => void> = [];
+  private isFallbackDestroyed = false;
+  private readonly destroyRef = inject(DestroyRef, { optional: true }) ?? this.createFallbackDestroyRef();
+
+  readonly showContextSelector = signal(false);
+  openContextSelector(): void {
+    this.showContextSelector.set(true);
+  }
 
   readonly isLoading = signal(false);
   readonly isSaving = signal(false);
@@ -630,12 +865,52 @@ export class PoliciesPage implements OnInit, OnDestroy {
   readonly propertyId = computed(() => this.authService.activePropertyId());
   readonly canRead = computed(() => this.authService.hasPermission('PROPERTIES', 1));
   readonly canUpdate = computed(() => this.authService.hasPermission('PROPERTIES', 4));
+  readonly cancellationTiers = POL_C03_CANCELLATION_TIERS;
+  readonly supportedVietQrBanks: readonly string[] = [
+    'MBBank',
+    'Vietcombank',
+    'VietinBank',
+    'BIDV',
+    'ACB',
+    'Techcombank',
+    'VPBank',
+    'TPBank',
+    'Sacombank',
+    'VIB',
+    'HDBank',
+    'MSB',
+    'OCB',
+    'SHB',
+    'SeABank',
+    'Eximbank',
+    'Agribank'
+  ];
+
+  readonly showSepayApiKey = signal(false);
+  readonly hasSepayApiKey = signal(false);
+  readonly isWebhookUrlCopied = signal(false);
+  private webhookCopyTimer?: ReturnType<typeof setTimeout>;
+
+  readonly webhookOrigin = computed(() => {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return window.location.origin;
+    }
+    return 'http://localhost';
+  });
+
+  readonly sepayWebhookUrl = computed(() => {
+    const propId = this.propertyId();
+    const origin = this.webhookOrigin();
+    return propId ? `${origin}/api/webhooks/sepay/${propId}` : `${origin}/api/webhooks/sepay`;
+  });
 
   policyForm!: FormGroup;
   printConfigForm!: FormGroup;
 
   private loadSub?: Subscription;
   private saveSub?: Subscription;
+  private printLoadSub?: Subscription;
+  private printSaveSub?: Subscription;
 
   constructor() {
     this.initForm();
@@ -659,6 +934,84 @@ export class PoliciesPage implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.cancelPendingRequests();
+    if (this.webhookCopyTimer) {
+      clearTimeout(this.webhookCopyTimer);
+      this.webhookCopyTimer = undefined;
+    }
+    this.isFallbackDestroyed = true;
+    const callbacks = this.fallbackDestroyCallbacks.splice(0);
+    callbacks.forEach(cb => cb());
+  }
+
+  toggleSepayApiKeyVisibility(): void {
+    this.showSepayApiKey.update(v => !v);
+  }
+
+  onSepayApiKeyInput(): void {
+    const val = String(this.printConfigForm?.get('sepayApiKey')?.value ?? '').trim();
+    this.hasSepayApiKey.set(val.length > 0);
+  }
+
+  clearSepayApiKey(): void {
+    if (!this.canUpdate()) return;
+    this.printConfigForm?.patchValue({ sepayApiKey: '' });
+    this.printConfigForm?.markAsDirty();
+    this.hasSepayApiKey.set(false);
+  }
+
+  copySepayWebhookUrl(): void {
+    const url = this.sepayWebhookUrl();
+    if (!url) return;
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      try {
+        void Promise.resolve(navigator.clipboard.writeText(url)).catch(() => {});
+      } catch {
+        // Ignore clipboard permission errors in headless/non-HTTPS contexts
+      }
+    }
+
+    this.isWebhookUrlCopied.set(true);
+    if (this.webhookCopyTimer) {
+      clearTimeout(this.webhookCopyTimer);
+    }
+    this.webhookCopyTimer = setTimeout(() => {
+      this.isWebhookUrlCopied.set(false);
+      this.webhookCopyTimer = undefined;
+      this.cdr?.markForCheck();
+    }, 2000);
+    this.alertService.toastSuccess('Đã sao chép URL Webhook SePay của cơ sở.', 'Đã sao chép');
+    this.cdr?.markForCheck();
+  }
+
+  hasUnsavedChanges(): boolean {
+    if (this.isSaving() || this.isSavingPrintConfig()) {
+      return false;
+    }
+    return Boolean(this.policyForm?.dirty || this.printConfigForm?.dirty);
+  }
+
+  private createFallbackDestroyRef(): DestroyRef {
+    const page = this;
+    return {
+      get destroyed(): boolean {
+        return page.isFallbackDestroyed;
+      },
+      onDestroy: (callback: () => void) => {
+        page.fallbackDestroyCallbacks.push(callback);
+        return () => {
+          page.fallbackDestroyCallbacks = page.fallbackDestroyCallbacks.filter(cb => cb !== callback);
+        };
+      }
+    };
+  }
+
+  private extractErrorMessage(err: unknown, fallback: string): string {
+    if (err && typeof err === 'object') {
+      const apiErr = err as ErrorWithMessage;
+      return apiErr.error?.message || apiErr.message || fallback;
+    }
+    return fallback;
   }
 
   get surchargesArray(): FormArray {
@@ -671,6 +1024,8 @@ export class PoliciesPage implements OnInit, OnDestroy {
       checkOutTime: ['12:00', [Validators.required]],
       bufferMinutes: [30, [Validators.required, Validators.min(30)]],
       maxHourlyHours: [12, [Validators.required, Validators.min(1), Validators.max(24)]],
+      taxRatePercent: [0, [Validators.required, Validators.min(0), Validators.max(100)]],
+      serviceFeeRatePercent: [0, [Validators.required, Validators.min(0), Validators.max(100)]],
       surcharges: this.fb.array([])
     });
 
@@ -683,6 +1038,7 @@ export class PoliciesPage implements OnInit, OnDestroy {
       bankName: ['MBBank'],
       bankAccountNumber: [''],
       bankAccountHolder: [''],
+      sepayApiKey: [''],
       footerNote: ['Cảm ơn Quý khách đã sử dụng dịch vụ của chúng tôi!'],
       checkInPolicyText: ['Vui lòng xuất trình CCCD/Hộ chiếu khi làm thủ tục nhận phòng.'],
       showVietQrCode: [true],
@@ -695,11 +1051,18 @@ export class PoliciesPage implements OnInit, OnDestroy {
       checkInTime: '12:00',
       checkOutTime: '12:00',
       bufferMinutes: 30,
-      maxHourlyHours: 12
+      maxHourlyHours: 12,
+      taxRatePercent: 0,
+      serviceFeeRatePercent: 0
     });
     this.surchargesArray.clear();
     this.policyForm.markAsPristine();
     this.policyForm.markAsUntouched();
+    this.printConfigForm?.patchValue({ sepayApiKey: '' });
+    this.hasSepayApiKey.set(false);
+    this.showSepayApiKey.set(false);
+    this.printConfigForm?.markAsPristine();
+    this.printConfigForm?.markAsUntouched();
   }
 
   handlePropertyContextChange(newPropId: string | null): void {
@@ -738,49 +1101,65 @@ export class PoliciesPage implements OnInit, OnDestroy {
     this.clientErrors.set([]);
 
     const requestedPropId = propId;
-    this.loadSub = this.policyService.getPolicies(requestedPropId).subscribe({
-      next: (data: PropertyPoliciesDto) => {
-        // Discard response if branch context changed while request was in-flight
-        if (this.propertyId() !== requestedPropId) {
-          return;
+    this.loadSub = this.policyService
+      .getPolicies(requestedPropId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (data: PropertyPoliciesDto) => {
+          // Discard response if branch context changed while request was in-flight
+          if (this.propertyId() !== requestedPropId) {
+            return;
+          }
+          this.populateForm(data);
+          this.loadedPropertyId.set(requestedPropId);
+          this.isLoading.set(false);
+          this.cdr?.markForCheck();
+        },
+        error: (err: unknown) => {
+          // Discard error if branch context changed while request was in-flight
+          if (this.propertyId() !== requestedPropId) {
+            return;
+          }
+          this.isLoading.set(false);
+          this.errorMessage.set(this.extractErrorMessage(err, 'Không thể tải chính sách của chi nhánh.'));
+          this.cdr?.markForCheck();
         }
-        this.populateForm(data);
-        this.loadedPropertyId.set(requestedPropId);
-        this.isLoading.set(false);
-      },
-      error: (err: any) => {
-        // Discard error if branch context changed while request was in-flight
-        if (this.propertyId() !== requestedPropId) {
-          return;
-        }
-        this.isLoading.set(false);
-        const msg = err?.error?.message || err?.message || 'Không thể tải chính sách của chi nhánh.';
-        this.errorMessage.set(msg);
-      }
-    });
+      });
 
     if (this.printService) {
-      this.printService.getTemplateConfig(requestedPropId).subscribe({
-        next: (cfg: PrintTemplateConfigDto) => {
-          if (cfg && this.printConfigForm) {
-            this.printConfigForm.patchValue({
-              headerCompanyName: cfg.headerCompanyName || '',
-              headerAddress: cfg.headerAddress || '',
-              taxNumber: cfg.taxNumber || '',
-              hotline: cfg.hotline || '',
-              logoUrl: cfg.logoUrl || '',
-              bankName: cfg.bankName || 'MBBank',
-              bankAccountNumber: cfg.bankAccountNumber || '',
-              bankAccountHolder: cfg.bankAccountHolder || '',
-              footerNote: cfg.footerNote || '',
-              checkInPolicyText: cfg.checkInPolicyText || '',
-              showVietQrCode: cfg.showVietQrCode ?? true,
-              defaultPaperSize: cfg.defaultPaperSize || 'A4'
-            });
-          }
-        },
-        error: () => {}
-      });
+      this.printLoadSub?.unsubscribe();
+      this.printLoadSub = this.printService
+        .getTemplateConfig(requestedPropId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (cfg: PrintTemplateConfigDto) => {
+            if (this.propertyId() !== requestedPropId) {
+              return;
+            }
+            if (cfg && this.printConfigForm) {
+              const keyVal = cfg.sepayApiKey || '';
+              this.printConfigForm.patchValue({
+                headerCompanyName: cfg.headerCompanyName || '',
+                headerAddress: cfg.headerAddress || '',
+                taxNumber: cfg.taxNumber || '',
+                hotline: cfg.hotline || '',
+                logoUrl: cfg.logoUrl || '',
+                bankName: cfg.bankName || 'MBBank',
+                bankAccountNumber: cfg.bankAccountNumber || '',
+                bankAccountHolder: cfg.bankAccountHolder || '',
+                sepayApiKey: keyVal,
+                footerNote: cfg.footerNote || '',
+                checkInPolicyText: cfg.checkInPolicyText || '',
+                showVietQrCode: cfg.showVietQrCode ?? true,
+                defaultPaperSize: cfg.defaultPaperSize || 'A4'
+              });
+              this.hasSepayApiKey.set(Boolean(cfg.hasSepayApiKey ?? keyVal.trim().length > 0));
+              this.printConfigForm.markAsPristine();
+              this.cdr?.markForCheck();
+            }
+          },
+          error: () => {}
+        });
     }
   }
 
@@ -790,19 +1169,31 @@ export class PoliciesPage implements OnInit, OnDestroy {
     const raw = this.printConfigForm.getRawValue() as PrintTemplateConfigDto;
 
     this.isSavingPrintConfig.set(true);
-    this.printService.updateTemplateConfig(raw, propId).subscribe({
-      next: (updated) => {
-        this.isSavingPrintConfig.set(false);
-        if (updated) {
-          this.printConfigForm.patchValue(updated);
+    this.printSaveSub?.unsubscribe();
+    this.printSaveSub = this.printService
+      .updateTemplateConfig(raw, propId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          this.isSavingPrintConfig.set(false);
+          if (updated) {
+            this.printConfigForm.patchValue(updated);
+            const updatedKey = String(updated.sepayApiKey ?? raw.sepayApiKey ?? '').trim();
+            this.hasSepayApiKey.set(Boolean(updated.hasSepayApiKey ?? updatedKey.length > 0));
+          } else {
+            const rawKey = String(raw.sepayApiKey ?? '').trim();
+            this.hasSepayApiKey.set(rawKey.length > 0);
+          }
+          this.printConfigForm.markAsPristine();
+          this.alertService.toastSuccess('Đã lưu cấu hình mẫu in hóa đơn & VietQR.', 'Thành công');
+          this.cdr?.markForCheck();
+        },
+        error: (err: unknown) => {
+          this.isSavingPrintConfig.set(false);
+          this.alertService.toastError(this.extractErrorMessage(err, 'Không thể lưu cấu hình mẫu in.'), 'Lỗi');
+          this.cdr?.markForCheck();
         }
-        this.alertService.toastSuccess('Đã lưu cấu hình mẫu in hóa đơn & VietQR.', 'Thành công');
-      },
-      error: (err) => {
-        this.isSavingPrintConfig.set(false);
-        this.alertService.toastError(err?.error?.message || 'Không thể lưu cấu hình mẫu in.', 'Lỗi');
-      }
-    });
+      });
   }
 
   private populateForm(data: PropertyPoliciesDto): void {
@@ -813,7 +1204,9 @@ export class PoliciesPage implements OnInit, OnDestroy {
       checkInTime: checkIn,
       checkOutTime: checkOut,
       bufferMinutes: data.bufferMinutes ?? 30,
-      maxHourlyHours: data.maxHourlyHours ?? 12
+      maxHourlyHours: data.maxHourlyHours ?? 12,
+      taxRatePercent: data.taxRatePercent ?? 0,
+      serviceFeeRatePercent: data.serviceFeeRatePercent ?? 0
     });
 
     this.surchargesArray.clear();
@@ -851,11 +1244,29 @@ export class PoliciesPage implements OnInit, OnDestroy {
       percentage: 30,
       isActive: true
     }));
+    this.policyForm.markAsDirty();
+  }
+
+  applyFull24hSurchargePreset(): void {
+    if (!this.canUpdate()) return;
+    const preset: Array<Partial<SurchargePolicyDto>> = [
+      { surchargeType: SurchargeType.EarlyCheckIn, fromTime: '00:00', toTime: '06:00', calculationMethod: SurchargeCalculationMethod.PercentageOfNightly, percentage: 100, isActive: true },
+      { surchargeType: SurchargeType.EarlyCheckIn, fromTime: '06:00', toTime: '09:00', calculationMethod: SurchargeCalculationMethod.PercentageOfNightly, percentage: 50, isActive: true },
+      { surchargeType: SurchargeType.EarlyCheckIn, fromTime: '09:00', toTime: '14:00', calculationMethod: SurchargeCalculationMethod.PercentageOfNightly, percentage: 30, isActive: true },
+      { surchargeType: SurchargeType.LateCheckOut, fromTime: '12:00', toTime: '15:00', calculationMethod: SurchargeCalculationMethod.PercentageOfNightly, percentage: 30, isActive: true },
+      { surchargeType: SurchargeType.LateCheckOut, fromTime: '15:00', toTime: '18:00', calculationMethod: SurchargeCalculationMethod.PercentageOfNightly, percentage: 50, isActive: true },
+      { surchargeType: SurchargeType.LateCheckOut, fromTime: '18:00', toTime: '23:59', calculationMethod: SurchargeCalculationMethod.PercentageOfNightly, percentage: 100, isActive: true }
+    ];
+    this.surchargesArray.clear();
+    preset.forEach(item => this.surchargesArray.push(this.createSurchargeGroup(item)));
+    this.policyForm.markAsDirty();
+    this.clientErrors.set([]);
   }
 
   removeSurcharge(index: number): void {
     if (!this.canUpdate()) return;
     this.surchargesArray.removeAt(index);
+    this.policyForm.markAsDirty();
   }
 
   validateForm(): string[] {
@@ -873,6 +1284,14 @@ export class PoliciesPage implements OnInit, OnDestroy {
     }
     if (val.maxHourlyHours === null || val.maxHourlyHours === undefined || val.maxHourlyHours < 1 || val.maxHourlyHours > 24) {
       errors.push('Giới hạn thời gian thuê theo giờ phải từ 1 đến 24 giờ (Quyết định D14).');
+    }
+    const taxRate = Number(val.taxRatePercent ?? 0);
+    if (Number.isNaN(taxRate) || taxRate < 0 || taxRate > 100) {
+      errors.push('Thuế VAT (%) phải nằm trong khoảng 0% đến 100%.');
+    }
+    const serviceFeeRate = Number(val.serviceFeeRatePercent ?? 0);
+    if (Number.isNaN(serviceFeeRate) || serviceFeeRate < 0 || serviceFeeRate > 100) {
+      errors.push('Phí dịch vụ (%) phải nằm trong khoảng 0% đến 100%.');
     }
 
     const surcharges = (val.surcharges || []) as Array<{
@@ -959,7 +1378,7 @@ export class PoliciesPage implements OnInit, OnDestroy {
     const val = this.policyForm.value;
     const formatTime = (t: string) => (t && t.length === 5 ? `${t}:00` : t);
 
-    const surchargesPayload: UpdateSurchargeItemRequest[] = (val.surcharges || []).map((s: any) => ({
+    const surchargesPayload: UpdateSurchargeItemRequest[] = ((val.surcharges || []) as SurchargeFormValue[]).map((s) => ({
       id: s.id || null,
       surchargeType: s.surchargeType,
       fromTime: formatTime(s.fromTime),
@@ -975,6 +1394,8 @@ export class PoliciesPage implements OnInit, OnDestroy {
       checkOutTime: formatTime(val.checkOutTime),
       bufferMinutes: Number(val.bufferMinutes),
       maxHourlyHours: Number(val.maxHourlyHours),
+      taxRatePercent: Number(val.taxRatePercent ?? 0),
+      serviceFeeRatePercent: Number(val.serviceFeeRatePercent ?? 0),
       surcharges: surchargesPayload
     };
 
@@ -982,28 +1403,33 @@ export class PoliciesPage implements OnInit, OnDestroy {
     this.saveSub?.unsubscribe();
     const savingPropId = propId;
 
-    this.saveSub = this.policyService.updatePolicies(savingPropId, payload).subscribe({
-      next: (res: PropertyPoliciesDto) => {
-        this.isSaving.set(false);
-        // Discard response if branch context changed while request was in-flight
-        if (this.propertyId() !== savingPropId) {
-          return;
+    this.saveSub = this.policyService
+      .updatePolicies(savingPropId, payload)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res: PropertyPoliciesDto) => {
+          this.isSaving.set(false);
+          // Discard response if branch context changed while request was in-flight
+          if (this.propertyId() !== savingPropId) {
+            return;
+          }
+          this.populateForm(res);
+          this.loadedPropertyId.set(savingPropId);
+          this.clientErrors.set([]);
+          this.alertService.toastSuccess('Cập nhật chính sách chi nhánh thành công.');
+          this.cdr?.markForCheck();
+        },
+        error: (err: unknown) => {
+          this.isSaving.set(false);
+          // Discard error if branch context changed while request was in-flight
+          if (this.propertyId() !== savingPropId) {
+            return;
+          }
+          const detail = this.extractErrorMessage(err, 'Lỗi khi lưu chính sách chi nhánh.');
+          this.alertService.toastError(detail, 'Lỗi cập nhật');
+          this.cdr?.markForCheck();
         }
-        this.populateForm(res);
-        this.loadedPropertyId.set(savingPropId);
-        this.clientErrors.set([]);
-        this.alertService.toastSuccess('Cập nhật chính sách chi nhánh thành công.');
-      },
-      error: (err: any) => {
-        this.isSaving.set(false);
-        // Discard error if branch context changed while request was in-flight
-        if (this.propertyId() !== savingPropId) {
-          return;
-        }
-        const detail = err?.error?.message || err?.message || 'Lỗi khi lưu chính sách chi nhánh.';
-        this.alertService.toastError(detail, 'Lỗi cập nhật');
-      }
-    });
+      });
   }
 
   private cancelPendingRequests(): void {
@@ -1014,6 +1440,14 @@ export class PoliciesPage implements OnInit, OnDestroy {
     if (this.saveSub) {
       this.saveSub.unsubscribe();
       this.saveSub = undefined;
+    }
+    if (this.printLoadSub) {
+      this.printLoadSub.unsubscribe();
+      this.printLoadSub = undefined;
+    }
+    if (this.printSaveSub) {
+      this.printSaveSub.unsubscribe();
+      this.printSaveSub = undefined;
     }
   }
 }

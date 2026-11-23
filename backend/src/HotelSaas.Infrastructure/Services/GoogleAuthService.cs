@@ -71,7 +71,7 @@ public sealed class GoogleAuthService : IGoogleAuthService
             }
 
             var mockSub = $"google-mock-{Math.Abs(email.GetHashCode())}";
-            var mockAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80";
+            const string? mockAvatar = null;
 
             _logger.LogInformation("Sandbox Google OAuth accepted for mock user: {Email}", email);
             return new GoogleTokenVerificationResult(true, mockSub, email, fullName, mockAvatar);

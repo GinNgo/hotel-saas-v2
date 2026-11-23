@@ -7,6 +7,7 @@ using HotelSaas.Application.Common.Exceptions;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Application.Common.Models;
 using HotelSaas.Application.Quotes.DTOs;
+using HotelSaas.Application.Quotes.Services;
 using HotelSaas.Domain.Entities;
 using HotelSaas.Domain.Enums;
 using MediatR;
@@ -128,6 +129,8 @@ public sealed class CalculateQuoteQueryHandler : IRequestHandler<CalculateQuoteQ
         var tz = GetVietnamTimeZone();
         var breakdown = new List<QuoteBreakdownItemDto>();
         decimal totalAmount = 0m;
+        int nights = 0;
+        decimal? firstNightPrice = null;
 
         if (request.RentalType == RentalType.Hourly)
         {
@@ -239,7 +242,7 @@ public sealed class CalculateQuoteQueryHandler : IRequestHandler<CalculateQuoteQ
                     "Thời gian thuê qua đêm phải có ngày trả phòng sau ngày nhận phòng (tối thiểu 1 đêm).");
             }
 
-            var nights = checkOutDate.DayNumber - checkInDate.DayNumber;
+            nights = checkOutDate.DayNumber - checkInDate.DayNumber;
 
             RoomTypeRate? firstNightRate = null;
             RoomTypeRate? lastNightRate = null;
@@ -262,7 +265,11 @@ public sealed class CalculateQuoteQueryHandler : IRequestHandler<CalculateQuoteQ
                         $"Không tìm thấy bảng giá thuê đêm cho ngày {d:yyyy-MM-dd}.");
                 }
 
-                if (d == checkInDate) firstNightRate = rate;
+                if (d == checkInDate)
+                {
+                    firstNightRate = rate;
+                    firstNightPrice = Math.Round(rate.NightlyPrice, 0, MidpointRounding.AwayFromZero);
+                }
                 if (d == checkOutDate.AddDays(-1)) lastNightRate = rate;
 
                 var nightlyPrice = Math.Round(rate.NightlyPrice, 0, MidpointRounding.AwayFromZero);
@@ -369,12 +376,25 @@ public sealed class CalculateQuoteQueryHandler : IRequestHandler<CalculateQuoteQ
                 "Hình thức thuê không hợp lệ. Chỉ chấp nhận Hourly, Overnight hoặc Daily.");
         }
 
-        // Finding 4 & 5: Safety check - totalAmount must be strictly positive
+        // Finding 4 & 5: Safety check - totalAmount before promo must be strictly positive
         if (totalAmount <= 0)
         {
             throw new UnprocessableEntityException("ERR_INVALID_QUOTE_TOTAL",
                 "Tổng tiền báo giá không hợp lệ (nhỏ hơn hoặc bằng 0).");
         }
+
+        var (appliedPromoCode, promoDiscountAmount) = await PricingCalculator.ApplyPromoCodeAsync(
+            _context,
+            property.TenantId,
+            request.PromoCode,
+            request.RentalType,
+            nights,
+            totalAmount,
+            firstNightPrice,
+            breakdown,
+            cancellationToken);
+
+        totalAmount = Math.Max(0m, totalAmount - promoDiscountAmount);
 
         return new QuoteDto
         {
@@ -392,7 +412,9 @@ public sealed class CalculateQuoteQueryHandler : IRequestHandler<CalculateQuoteQ
                 BufferMinutes = property.BufferMinutes,
                 CheckInTime = property.CheckInTime,
                 CheckOutTime = property.CheckOutTime
-            }
+            },
+            PromoCode = appliedPromoCode,
+            PromoDiscountAmount = promoDiscountAmount
         };
     }
 }

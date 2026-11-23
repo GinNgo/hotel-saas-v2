@@ -35,6 +35,7 @@ export interface StaffMemberDto {
   staffRoleName: string;
   isActive: boolean;
   createdAtUtc: string;
+  invitedViaEmail?: boolean;
 }
 
 export interface AccessRoleDto {
@@ -115,6 +116,8 @@ export interface CreateStaffMemberRequest {
   propertyId?: string | null;
   roleId?: string;
   staffRole: StaffRole;
+  confirmCustomerPromotion?: boolean;
+  appUrl?: string;
 }
 
 export interface UpdateStaffMemberRequest {

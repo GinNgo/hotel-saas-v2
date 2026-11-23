@@ -1,12 +1,27 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnDestroy, OnInit, computed, inject, isDevMode, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { of, take } from 'rxjs';
-import { PublicBookingService } from '../../core/services/public-booking.service';
+import { A11yModule } from '@angular/cdk/a11y';
+import { take } from 'rxjs';
+import { LIVE_CHANNEL_SENDER_ID, PublicBookingService } from '../../core/services/public-booking.service';
 import { AlertService } from '../../core/services/alert.service';
-import { GuestBookingDetailDto, GuestCancellationPreviewDto, CancelGuestBookingRequest } from '../../core/models/public-booking.model';
+import {
+  GuestBookingDetailDto,
+  GuestBookingReviewSummaryDto,
+  GuestCancellationPreviewDto,
+  CancelGuestBookingRequest,
+  RescheduleGuestBookingRequest,
+  VnpayReturnVerificationDto
+} from '../../core/models/public-booking.model';
+import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
+import { environment } from '../../../environments/environment';
+
+export interface PolicyTextPart {
+  text: string;
+  variant: 'plain' | 'penalty' | 'window' | 'free';
+}
 
 export interface StatusErrorState {
   title: string;
@@ -17,10 +32,10 @@ export interface StatusErrorState {
 @Component({
   selector: 'app-booking-status',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, A11yModule, VndCurrencyPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="min-h-screen bg-[#EFECE6] py-6 sm:py-8 font-sans text-stone-900">
+    <div class="min-h-screen bg-[var(--surface-canvas)] py-6 sm:py-8 font-sans text-stone-900">
       <div class="max-w-4xl mx-auto px-4 sm:px-6 space-y-6">
 
         <!-- 1. BREADCRUMB -->
@@ -66,7 +81,7 @@ export interface StatusErrorState {
                   <button
                     type="submit"
                     [disabled]="!searchToken.trim()"
-                    class="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-2"
+                    class="min-h-11 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-2"
                   >
                     <i class="pi pi-search text-xs"></i>
                     <span>Tra cứu ngay</span>
@@ -98,7 +113,7 @@ export interface StatusErrorState {
                           <button
                             type="button"
                             (click)="onSearch()"
-                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-2xs cursor-pointer transition-colors"
+                            class="min-h-11 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-2xs cursor-pointer transition-colors"
                           >
                             <i class="pi pi-refresh text-[10px]"></i>
                             <span>Thử lại</span>
@@ -110,7 +125,7 @@ export interface StatusErrorState {
                   <button
                     type="button"
                     (click)="dismissSearchError()"
-                    class="text-rose-400 hover:text-rose-600 p-1 rounded-lg cursor-pointer shrink-0"
+                    class="min-h-11 min-w-11 inline-flex items-center justify-center text-rose-400 hover:text-rose-600 p-2 -mr-2 -mt-2 rounded-lg cursor-pointer shrink-0"
                     title="Đóng thông báo"
                     aria-label="Đóng thông báo"
                   >
@@ -130,12 +145,66 @@ export interface StatusErrorState {
           </div>
         }
 
+        <!-- KẾT QUẢ XÁC THỰC VNPAY RETURN -->
+        @if (isVerifyingVnpay()) {
+          <div role="status" class="bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl p-4 flex items-center gap-3 text-xs font-semibold print:hidden">
+            <i class="pi pi-spin pi-spinner text-blue-600 text-base"></i>
+            <span>Đang xác thực chữ ký giao dịch VNPay từ máy chủ...</span>
+          </div>
+        } @else if (vnpayReturnResult(); as vnpRes) {
+          <div
+            [attr.role]="vnpRes.success ? 'status' : 'alert'"
+            class="rounded-2xl border p-4 sm:p-5 flex items-start justify-between gap-3 text-xs shadow-2xs print:hidden"
+            [ngClass]="vnpRes.success ? 'bg-emerald-50 border-emerald-200 text-emerald-950' : 'bg-rose-50 border-rose-200 text-rose-950'"
+          >
+            <div class="flex items-start gap-3">
+              <div
+                class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                [ngClass]="vnpRes.success ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'"
+              >
+                <i class="pi text-base" [ngClass]="vnpRes.success ? 'pi-check-circle' : 'pi-times-circle'"></i>
+              </div>
+              <div class="space-y-1">
+                <div class="font-bold text-sm">
+                  {{ vnpRes.success ? 'Thanh toán VNPay hợp lệ' : 'Kết quả thanh toán VNPay chưa thành công' }}
+                </div>
+                <p class="leading-relaxed">{{ vnpRes.message }}</p>
+                @if (vnpRes.txnRef || vnpRes.transactionNo) {
+                  <div class="font-mono text-[11px] opacity-85 flex flex-wrap gap-3 pt-0.5">
+                    @if (vnpRes.txnRef) { <span>Mã GD: {{ vnpRes.txnRef }}</span> }
+                    @if (vnpRes.transactionNo) { <span>VNPay No: {{ vnpRes.transactionNo }}</span> }
+                    @if (vnpRes.amount) { <span>Số tiền: {{ vnpRes.amount | vndCurrency }}</span> }
+                  </div>
+                }
+              </div>
+            </div>
+            <button
+              type="button"
+              (click)="vnpayReturnResult.set(null)"
+              aria-label="Đóng thông báo VNPay"
+              class="min-h-11 min-w-11 inline-flex items-center justify-center p-2 -mr-2 -mt-2 rounded-lg opacity-60 hover:opacity-100 cursor-pointer shrink-0"
+            >
+              <i class="pi pi-times text-xs"></i>
+            </button>
+          </div>
+        } @else if (vnpayVerifyError()) {
+          <div role="alert" class="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs font-medium print:hidden">
+            <div class="flex items-center gap-2.5">
+              <i class="pi pi-exclamation-triangle text-amber-600"></i>
+              <span>{{ vnpayVerifyError() }}</span>
+            </div>
+            <button type="button" (click)="vnpayVerifyError.set('')" aria-label="Đóng cảnh báo VNPay" class="min-h-11 min-w-11 inline-flex items-center justify-center p-2 -mr-2 rounded-lg cursor-pointer shrink-0">
+              <i class="pi pi-times text-xs"></i>
+            </button>
+          </div>
+        }
+
         <!-- 3. KẾT QUẢ THEO DÕI ĐẶT PHÒNG -->
         @if (booking(); as detail) {
           <article class="bg-white rounded-3xl border-2 border-stone-300 shadow-md overflow-hidden space-y-0 animate-in fade-in duration-200 print:hidden">
 
             <!-- A. HEADER & TRẠNG THÁI TỔNG QUAN -->
-            <div class="p-6 sm:p-8 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-[#0D2E28] via-[#103A32] to-[#15463D] text-white rounded-t-3xl shadow-xs">
+            <div class="p-6 sm:p-8 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[var(--brand-primary)] text-[var(--brand-primary-fg)] rounded-t-3xl shadow-xs">
               <div class="space-y-2">
                 <div class="flex flex-wrap items-center gap-2">
                   <span [class]="getStatusBadgeClass(detail.status)" class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full border shadow-2xs">
@@ -143,15 +212,15 @@ export interface StatusErrorState {
                     <span>{{ getStatusLabel(detail.status) }}</span>
                   </span>
                   @if (detail.status !== 'Confirmed') {
-                    <span class="text-xs text-amber-200 font-mono font-bold bg-white/10 px-3 py-1 rounded-lg border border-amber-400/30 backdrop-blur-xs">
+                    <span class="text-xs text-[var(--brand-primary-fg)] font-mono font-bold bg-black/15 dark:bg-white/25 px-3 py-1 rounded-lg border border-current/25 backdrop-blur-xs">
                       Mã đơn: {{ detail.confirmationCode }}
                     </span>
                   }
                 </div>
-                <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight">{{ detail.propertyName }}</h1>
+                <h1 class="text-2xl sm:text-3xl font-black text-[var(--brand-primary-fg)] tracking-tight">{{ detail.propertyName }}</h1>
                 @if (detail.propertyAddress) {
-                  <p class="text-xs text-emerald-200/90 flex items-center gap-1.5 font-medium">
-                    <i class="pi pi-map-marker text-amber-400 text-xs"></i>
+                  <p class="text-xs text-[var(--brand-primary-fg)] opacity-95 flex items-center gap-1.5 font-medium">
+                    <i class="pi pi-map-marker text-[var(--brand-primary-fg)] text-xs"></i>
                     <span>{{ detail.propertyAddress }}</span>
                   </p>
                 }
@@ -164,17 +233,25 @@ export interface StatusErrorState {
                     [href]="getDirectionsUrl()"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
+                    class="min-h-11 px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
                   >
                     <i class="pi pi-directions text-xs text-indigo-600"></i>
                     <span>Chỉ đường</span>
                   </a>
                 }
 
+                <a
+                  [routerLink]="['/print/voucher', detail.lookupToken || detail.confirmationCode]"
+                  class="min-h-11 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-xs font-bold text-white flex items-center gap-2 cursor-pointer shadow-xs transition-colors"
+                >
+                  <i class="pi pi-file text-xs"></i>
+                  <span>In phiếu xác nhận (Voucher)</span>
+                </a>
+
                 <button
                   type="button"
                   (click)="printConfirmation()"
-                  class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-xs font-bold text-white flex items-center gap-2 cursor-pointer shadow-xs transition-colors"
+                  class="min-h-11 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-xs font-bold text-white flex items-center gap-2 cursor-pointer shadow-xs transition-colors"
                   [title]="getPrintButtonLabel(detail.status)"
                 >
                   <i class="pi pi-print text-xs"></i>
@@ -186,18 +263,18 @@ export interface StatusErrorState {
             <!-- B. BOOKING STATUS HERO (DUY NHẤT 1 CARD CHÍNH THEO TRẠNG THÁI NGHIỆP VỤ) -->
             @if (detail.status === 'PendingPayment') {
               <!-- GIỮ PHÒNG TẠM THỜI — DUY NHẤT 1 HERO CARD VÀ 1 ĐỒNG HỒ COUNTDOWN -->
-              <div class="mx-6 sm:mx-8 my-6 p-6 sm:p-7 bg-gradient-to-br from-amber-50/90 via-orange-50/40 to-amber-100/30 border border-amber-200/90 rounded-3xl text-amber-950 shadow-sm space-y-5">
+              <div class="mx-6 sm:mx-8 my-6 p-6 sm:p-7 bg-gradient-to-br from-amber-50/90 via-orange-50/40 to-amber-100/30 dark:from-amber-950/60 dark:via-slate-900 dark:to-amber-950/40 border border-amber-200/90 dark:border-amber-500/40 rounded-3xl text-amber-950 dark:text-amber-100 shadow-sm space-y-5">
                 <!-- Hàng trên: Thông tin giữ phòng & Countdown Timer -->
                 <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                   <!-- Cột trái: Badges, Title, Mô tả, Tiền cọc -->
                   <div class="space-y-2.5 max-w-2xl flex-1">
                     <div class="flex flex-wrap items-center gap-2">
-                      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-100/90 text-amber-900 border border-amber-300/70">
-                        <i class="pi pi-clock text-[11px] text-amber-700"></i>
+                      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-100/90 dark:bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-300/70 dark:border-amber-500/40">
+                        <i class="pi pi-clock text-[11px] text-amber-700 dark:text-amber-300"></i>
                         <span>Chờ thanh toán</span>
                       </span>
                       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/80 text-amber-900 border border-amber-200 shadow-2xs">
-                        <i class="pi pi-info-circle text-[11px] text-amber-600"></i>
+                        <i class="pi pi-info-circle text-[11px] text-amber-600 dark:text-amber-300"></i>
                         <span>Đơn giữ phòng tạm thời — Chưa xác nhận</span>
                       </span>
                       @if (isExpiringSoon()) {
@@ -218,19 +295,19 @@ export interface StatusErrorState {
                       Phòng của bạn đang được giữ tạm thời
                     </h2>
 
-                    <p class="text-xs sm:text-sm text-amber-900/90 font-medium leading-relaxed">
+                    <p class="text-xs sm:text-sm text-amber-900/90 dark:text-amber-100/90 font-medium leading-relaxed">
                       Vui lòng hoàn tất đặt cọc để xác nhận đặt phòng. Đơn đặt phòng chưa được xác nhận, vui lòng hoàn tất khoản đặt cọc theo quy định trước khi thời hạn giữ phòng kết thúc để phòng được bảo đảm.
                     </p>
 
                     @if (detail.depositRequired > 0) {
                       <div class="pt-1 flex flex-wrap items-center gap-2 text-xs sm:text-sm">
                         <span class="text-amber-800 font-semibold">Khoản đặt cọc yêu cầu:</span>
-                        <span class="font-mono font-bold text-amber-950 text-sm sm:text-base bg-white/95 px-3 py-1 rounded-xl border border-amber-300/80 shadow-2xs">
-                          {{ detail.depositRequired | number:'1.0-0' }} ₫
+                        <span class="font-mono font-bold text-amber-950 text-sm sm:text-base bg-white/95 px-3 py-1 rounded-xl border border-amber-300/80 shadow-2xs tabular-nums">
+                          {{ detail.depositRequired | vndCurrency }}
                         </span>
                         @if (getRemainingDeposit(detail) > 0 && detail.paidAmount > 0) {
-                          <span class="text-amber-700 font-medium text-xs">
-                            (Còn thiếu: <strong class="font-mono font-bold text-amber-900">{{ getRemainingDeposit(detail) | number:'1.0-0' }} ₫</strong>)
+                          <span class="text-amber-700 dark:text-amber-300 font-medium text-xs tabular-nums">
+                            (Còn thiếu: <strong class="font-mono font-bold text-amber-900">{{ getRemainingDeposit(detail) | vndCurrency }}</strong>)
                           </span>
                         }
                       </div>
@@ -299,7 +376,7 @@ export interface StatusErrorState {
                             type="button"
                             (click)="extendHold()"
                             [disabled]="isExtendingHold()"
-                            class="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-all inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+                            class="min-h-11 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-all inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
                           >
                             @if (isExtendingHold()) {
                               <i class="pi pi-spin pi-spinner text-xs"></i>
@@ -324,7 +401,7 @@ export interface StatusErrorState {
                         <i class="pi pi-exclamation-circle text-rose-600 shrink-0"></i>
                         <span>{{ extendHoldError() }}</span>
                       </div>
-                      <button type="button" (click)="extendHoldError.set('')" class="text-rose-400 hover:text-rose-600 p-1 rounded cursor-pointer" aria-label="Đóng thông báo lỗi gia hạn">
+                      <button type="button" (click)="extendHoldError.set('')" class="min-h-11 min-w-11 inline-flex items-center justify-center text-rose-400 hover:text-rose-600 p-2 -mr-2 rounded-lg cursor-pointer shrink-0" aria-label="Đóng thông báo lỗi gia hạn">
                         <i class="pi pi-times text-xs"></i>
                       </button>
                     </div>
@@ -337,7 +414,7 @@ export interface StatusErrorState {
                       <i class="pi pi-clock text-rose-600 text-base"></i>
                       <span>Thời gian giữ phòng đã hết. Vui lòng tìm và chọn phòng lại để thực hiện đặt chỗ mới.</span>
                     </div>
-                    <a routerLink="/booking" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold text-center shrink-0 transition-colors">
+                    <a routerLink="/booking" class="min-h-11 inline-flex items-center justify-center px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold text-center shrink-0 transition-colors">
                       Tìm phòng lại
                     </a>
                   </div>
@@ -345,7 +422,7 @@ export interface StatusErrorState {
               </div>
             } @else if (detail.status === 'Confirmed') {
               <!-- ĐÃ XÁC NHẬN: CONFIRMATION HERO (MÃ ĐẶT PHÒNG NỔI BẬT & GIAO DIỆN TỐI GIẢN) -->
-              <div class="mx-6 sm:mx-8 my-6 p-6 sm:p-7 bg-gradient-to-r from-emerald-50/80 via-emerald-50/50 to-green-50/30 border border-emerald-200/80 rounded-2xl sm:rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xs">
+              <div class="mx-6 sm:mx-8 my-6 p-6 sm:p-7 bg-gradient-to-r from-emerald-50/80 via-emerald-50/50 to-green-50/30 dark:from-emerald-950/60 dark:via-slate-900 dark:to-emerald-950/40 border border-emerald-200/80 dark:border-emerald-500/40 rounded-2xl sm:rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xs">
                 <div class="flex items-start gap-4 flex-1 min-w-0">
                   <div class="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
                     <i class="pi pi-check text-xl font-bold"></i>
@@ -367,7 +444,7 @@ export interface StatusErrorState {
                       id="btn-copy-confirmation-code"
                       type="button"
                       (click)="copyConfirmationCode(detail.confirmationCode)"
-                      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold text-emerald-800 uppercase tracking-wider hover:bg-emerald-50 active:bg-emerald-100 transition-colors cursor-pointer group"
+                      class="min-h-11 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold text-emerald-800 uppercase tracking-wider hover:bg-emerald-50 active:bg-emerald-100 transition-colors cursor-pointer group"
                       title="Sao chép mã đặt phòng"
                       aria-label="Sao chép mã đặt phòng"
                     >
@@ -375,13 +452,15 @@ export interface StatusErrorState {
                       <i class="pi text-xs transition-transform group-hover:scale-110" [ngClass]="isCodeCopied() ? 'pi-check text-emerald-700' : 'pi-copy text-emerald-600'"></i>
                     </button>
                   </div>
-                  <div
+                  <button
+                    type="button"
                     (click)="copyConfirmationCode(detail.confirmationCode)"
-                    class="font-mono text-2xl sm:text-3xl font-extrabold text-emerald-600 tracking-wider py-1 select-all cursor-pointer hover:text-emerald-700 transition-colors"
+                    class="min-h-11 w-full font-mono text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 tracking-wider py-1 select-all cursor-pointer hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors text-center"
                     title="Nhấp để sao chép mã đặt phòng"
+                    aria-label="Sao chép mã đặt phòng {{ detail.confirmationCode }}"
                   >
                     {{ detail.confirmationCode }}
-                  </div>
+                  </button>
                   <p class="text-[11px] text-slate-500 font-medium mt-0.5">
                     Vui lòng cung cấp mã này tại quầy lễ tân
                   </p>
@@ -420,204 +499,6 @@ export interface StatusErrorState {
                     </p>
                   </div>
                 </div>
-
-                <!-- KHU VỰC ĐÁNH GIÁ TRỰC TUYẾN DÀNH CHO KHÁCH LƯU TRÚ -->
-                @if (reviewSubmitted()) {
-                  <!-- ĐÃ GỬI ĐÁNH GIÁ THÀNH CÔNG -->
-                  <div class="p-6 rounded-2xl bg-gradient-to-br from-emerald-50 via-teal-50 to-green-50 border border-emerald-200 text-emerald-950 space-y-3">
-                    <div class="flex items-center gap-3">
-                      <div class="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
-                        <i class="pi pi-check"></i>
-                      </div>
-                      <div>
-                        <h3 class="text-sm sm:text-base font-bold text-emerald-950">Cảm ơn bạn đã gửi đánh giá!</h3>
-                        <p class="text-xs text-emerald-700">Đánh giá của bạn đã được đối soát xác thực và hiển thị công khai trên hồ sơ của {{ detail.propertyName }}.</p>
-                      </div>
-                    </div>
-                    <div class="flex items-center gap-2 pt-2 border-t border-emerald-200/60 text-xs text-emerald-800">
-                      <span class="font-semibold">Điểm bạn đã đánh giá:</span>
-                      <div class="flex items-center text-amber-500">
-                        @for (s of [1,2,3,4,5]; track s) {
-                          <i class="pi" [ngClass]="s <= reviewRating() ? 'pi-star-fill' : 'pi-star text-stone-200'"></i>
-                        }
-                      </div>
-                      <span class="font-bold">({{ reviewRating() }}/5 sao - {{ getRatingLabel(reviewRating()) }})</span>
-                    </div>
-                  </div>
-                } @else {
-                  <!-- FORM NHẬP ĐÁNH GIÁ -->
-                  <section aria-label="Đánh giá kỳ nghỉ" class="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-5">
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                      <div class="space-y-0.5">
-                        <h3 class="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2">
-                          <i class="pi pi-star-fill text-amber-500"></i>
-                          <span>Đánh giá kỳ nghỉ của bạn</span>
-                        </h3>
-                        <p class="text-xs text-slate-500">
-                          Chia sẻ cảm nhận thực tế để hỗ trợ cơ sở hoàn thiện chất lượng và giúp cộng đồng du khách.
-                        </p>
-                      </div>
-                      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 self-start sm:self-auto">
-                        <i class="pi pi-shield text-[10px]"></i>
-                        <span>Đánh giá xác thực 100%</span>
-                      </span>
-                    </div>
-
-                    <!-- 1. Overall Rating -->
-                    <div class="space-y-2">
-                      <label class="block text-xs font-bold text-slate-700">
-                        Đánh giá tổng quan <span class="text-rose-500">*</span>
-                      </label>
-                      <div class="flex flex-wrap items-center gap-3">
-                        <div class="flex items-center gap-1 text-2xl cursor-pointer" role="radiogroup" aria-label="Số sao">
-                          @for (star of [1,2,3,4,5]; track star) {
-                            <button
-                              type="button"
-                              (click)="setReviewRating(star)"
-                              class="text-amber-400 hover:text-amber-500 hover:scale-110 active:scale-95 transition-all p-1 cursor-pointer focus:outline-none"
-                              [title]="star + ' sao'"
-                              [attr.aria-label]="star + ' sao'"
-                            >
-                              <i class="pi text-2xl" [ngClass]="star <= reviewRating() ? 'pi-star-fill text-amber-500' : 'pi-star text-slate-200'"></i>
-                            </button>
-                          }
-                        </div>
-                        <span class="text-xs font-bold px-3 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-200">
-                          {{ reviewRating() }}/5 sao — {{ getRatingLabel(reviewRating()) }}
-                        </span>
-                      </div>
-                    </div>
-
-                    <!-- 2. Sub-criteria Ratings Grid -->
-                    <div class="space-y-2">
-                      <span class="block text-xs font-bold text-slate-700">Chi tiết từng hạng mục dịch vụ</span>
-                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <!-- Cleanliness -->
-                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-                          <div class="text-xs">
-                            <span class="font-bold text-slate-800 block">Vệ sinh & Sạch sẽ</span>
-                            <span class="text-[10px] text-slate-500">Phòng ốc, drap giường, phòng tắm</span>
-                          </div>
-                          <div class="flex items-center gap-1">
-                            @for (s of [1,2,3,4,5]; track s) {
-                              <button
-                                type="button"
-                                (click)="reviewCleanliness.set(s)"
-                                class="text-xs p-1 cursor-pointer hover:scale-110 transition-transform focus:outline-none"
-                              >
-                                <i class="pi text-xs" [ngClass]="s <= reviewCleanliness() ? 'pi-star-fill text-emerald-600' : 'pi-star text-slate-200'"></i>
-                              </button>
-                            }
-                          </div>
-                        </div>
-
-                        <!-- Location -->
-                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-                          <div class="text-xs">
-                            <span class="font-bold text-slate-800 block">Vị trí & Cảnh quan</span>
-                            <span class="text-[10px] text-slate-500">Thuận tiện đi lại, gần điểm đến</span>
-                          </div>
-                          <div class="flex items-center gap-1">
-                            @for (s of [1,2,3,4,5]; track s) {
-                              <button
-                                type="button"
-                                (click)="reviewLocation.set(s)"
-                                class="text-xs p-1 cursor-pointer hover:scale-110 transition-transform focus:outline-none"
-                              >
-                                <i class="pi text-xs" [ngClass]="s <= reviewLocation() ? 'pi-star-fill text-[#C05621]' : 'pi-star text-slate-200'"></i>
-                              </button>
-                            }
-                          </div>
-                        </div>
-
-                        <!-- Service -->
-                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-                          <div class="text-xs">
-                            <span class="font-bold text-slate-800 block">Dịch vụ & Nhân viên</span>
-                            <span class="text-[10px] text-slate-500">Thái độ tiếp đón, hỗ trợ lễ tân</span>
-                          </div>
-                          <div class="flex items-center gap-1">
-                            @for (s of [1,2,3,4,5]; track s) {
-                              <button
-                                type="button"
-                                (click)="reviewService.set(s)"
-                                class="text-xs p-1 cursor-pointer hover:scale-110 transition-transform focus:outline-none"
-                              >
-                                <i class="pi text-xs" [ngClass]="s <= reviewService() ? 'pi-star-fill text-rose-500' : 'pi-star text-slate-200'"></i>
-                              </button>
-                            }
-                          </div>
-                        </div>
-
-                        <!-- Value -->
-                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-                          <div class="text-xs">
-                            <span class="font-bold text-slate-800 block">Đáng giá tiền</span>
-                            <span class="text-[10px] text-slate-500">Mức giá so với chất lượng nhận được</span>
-                          </div>
-                          <div class="flex items-center gap-1">
-                            @for (s of [1,2,3,4,5]; track s) {
-                              <button
-                                type="button"
-                                (click)="reviewValue.set(s)"
-                                class="text-xs p-1 cursor-pointer hover:scale-110 transition-transform focus:outline-none"
-                              >
-                                <i class="pi text-xs" [ngClass]="s <= reviewValue() ? 'pi-star-fill text-amber-600' : 'pi-star text-slate-200'"></i>
-                              </button>
-                            }
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- 3. Review Comment Textarea -->
-                    <div class="space-y-1.5">
-                      <div class="flex justify-between items-center text-xs">
-                        <label for="review-comment-textarea" class="font-bold text-slate-700">
-                          Nhận xét chi tiết (tùy chọn)
-                        </label>
-                        <span class="text-slate-400 font-mono text-[11px]">
-                          {{ reviewComment().length }}/1500 ký tự
-                        </span>
-                      </div>
-                      <textarea
-                        id="review-comment-textarea"
-                        rows="3"
-                        maxlength="1500"
-                        [ngModel]="reviewComment()"
-                        (ngModelChange)="reviewComment.set($event)"
-                        placeholder="Hãy chia sẻ điều bạn ưng ý nhất hoặc góp ý chân thành để cơ sở cải thiện tốt hơn..."
-                        class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 bg-slate-50 focus:bg-white focus:outline-indigo-500 transition-all resize-y"
-                      ></textarea>
-                    </div>
-
-                    <!-- Error Alert -->
-                    @if (reviewError()) {
-                      <div role="alert" class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
-                        <i class="pi pi-exclamation-circle text-rose-600 mt-0.5 shrink-0"></i>
-                        <span>{{ reviewError() }}</span>
-                      </div>
-                    }
-
-                    <!-- Submit Action Button -->
-                    <div class="flex items-center justify-end gap-3 pt-1">
-                      <button
-                        type="button"
-                        (click)="submitGuestReview()"
-                        [disabled]="reviewSubmitting()"
-                        class="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-xs transition-colors cursor-pointer flex items-center gap-2"
-                      >
-                        @if (reviewSubmitting()) {
-                          <i class="pi pi-spin pi-spinner text-xs"></i>
-                          <span>Đang gửi đánh giá...</span>
-                        } @else {
-                          <i class="pi pi-send text-xs"></i>
-                          <span>Gửi đánh giá xác thực</span>
-                        }
-                      </button>
-                    </div>
-                  </section>
-                }
               </div>
             } @else if (detail.status === 'Expired') {
               <!-- ĐÃ HẾT HẠN GIỮ PHÒNG -->
@@ -673,7 +554,7 @@ export interface StatusErrorState {
                   <div class="p-4 rounded-xl bg-white border border-slate-200/90 text-xs space-y-2">
                     <div class="flex justify-between items-center text-slate-600">
                       <span>Phí hủy phòng áp dụng:</span>
-                      <span class="font-mono font-bold text-slate-800">{{ detail.cancellationFee | number:'1.0-0' }} ₫</span>
+                      <span class="font-mono font-bold text-slate-800 tabular-nums">{{ detail.cancellationFee | vndCurrency }}</span>
                     </div>
 
                     @if (detail.refundableAmount && detail.refundableAmount > 0) {
@@ -683,7 +564,7 @@ export interface StatusErrorState {
                           <span>Khoản tiền hoàn dự kiến:</span>
                         </span>
                         <div class="flex items-center gap-2">
-                          <span class="font-mono font-black text-sm text-emerald-700">{{ detail.refundableAmount | number:'1.0-0' }} ₫</span>
+                          <span class="font-mono font-black text-sm text-emerald-700 tabular-nums">{{ detail.refundableAmount | vndCurrency }}</span>
                           @if (detail.refundStatus === 'Refunded') {
                             <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                               <i class="pi pi-check text-[10px]"></i>
@@ -715,7 +596,7 @@ export interface StatusErrorState {
                 <div class="pt-2 flex flex-wrap items-center gap-3">
                   <a
                     routerLink="/booking"
-                    class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-2xs"
+                    class="min-h-11 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-2xs"
                   >
                     <i class="pi pi-search text-xs"></i>
                     <span>Tìm và đặt phòng khác</span>
@@ -802,8 +683,272 @@ export interface StatusErrorState {
               </section>
             }
 
-            <!-- C. KHÓA PHÒNG ĐIỆN TỬ SMART LOCK PIN (CHỈ HIỂN THỊ KHI ĐÃ NHẬN PHÒNG & CÓ PIN THẬT ACTIVE - ẨN HOÀN TOÀN KHI CHƯA CHECK-IN & KHI IN) -->
-            @if (detail.status === 'CheckedIn' && detail.smartLockPin && detail.smartLockStatus === 'Active') {
+            <!-- B3. KHU VỰC ĐÁNH GIÁ TRỰC TUYẾN (CHECKED-IN HOẶC CHECKED-OUT — ĐỒNG BỘ F5/RELOAD) -->
+            @if (detail.status === 'CheckedIn' || detail.status === 'CheckedOut') {
+              <div id="review-section" class="mx-6 sm:mx-8 mb-6 print:hidden">
+                @if (isAlreadyReviewed()) {
+                  @let existing = activeExistingReview();
+                  @let displayRating = existing?.rating ?? reviewRating();
+                  <section aria-label="Đánh giá đã gửi" class="p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-50 via-teal-50 to-green-50 dark:from-emerald-950/60 dark:via-slate-900 dark:to-teal-950/50 border border-emerald-200 dark:border-emerald-500/40 text-emerald-950 dark:text-emerald-100 space-y-4 shadow-xs">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0">
+                          <i class="pi pi-check"></i>
+                        </div>
+                        <div>
+                          <h3 class="text-sm sm:text-base font-bold text-emerald-950">Cảm ơn bạn đã gửi đánh giá!</h3>
+                          <p class="text-xs text-emerald-700 dark:text-emerald-300">
+                            Đánh giá của bạn đã được đối soát xác thực cho kỳ lưu trú tại {{ detail.propertyName }}.
+                          </p>
+                        </div>
+                      </div>
+                      @if (existing?.createdAtUtc) {
+                        <span class="text-[11px] font-mono text-emerald-800 bg-white/80 px-2.5 py-1 rounded-lg border border-emerald-200 self-start sm:self-center">
+                          {{ formatVietnamFullDateTime(existing?.createdAtUtc) }}
+                        </span>
+                      }
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2 pt-3 border-t border-emerald-200/60 text-xs text-emerald-900">
+                      <span class="font-semibold">Điểm bạn đã đánh giá:</span>
+                      <div class="flex items-center text-amber-500">
+                        @for (s of [1,2,3,4,5]; track s) {
+                          <i class="pi" [ngClass]="s <= displayRating ? 'pi-star-fill' : 'pi-star text-stone-300'"></i>
+                        }
+                      </div>
+                      <span class="font-bold">({{ displayRating }}/5 sao - {{ getRatingLabel(displayRating) }})</span>
+                    </div>
+
+                    @if (existing && (existing.cleanlinessRating || existing.locationRating || existing.serviceRating || existing.valueRating)) {
+                      <div class="flex flex-wrap items-center gap-2 text-[11px]">
+                        @if (existing.cleanlinessRating) {
+                          <span class="px-2.5 py-1 rounded-lg bg-white/80 border border-emerald-200 text-emerald-900 font-semibold">
+                            Vệ sinh: {{ existing.cleanlinessRating }}/5
+                          </span>
+                        }
+                        @if (existing.locationRating) {
+                          <span class="px-2.5 py-1 rounded-lg bg-white/80 border border-emerald-200 text-emerald-900 font-semibold">
+                            Vị trí: {{ existing.locationRating }}/5
+                          </span>
+                        }
+                        @if (existing.serviceRating) {
+                          <span class="px-2.5 py-1 rounded-lg bg-white/80 border border-emerald-200 text-emerald-900 font-semibold">
+                            Dịch vụ: {{ existing.serviceRating }}/5
+                          </span>
+                        }
+                        @if (existing.valueRating) {
+                          <span class="px-2.5 py-1 rounded-lg bg-white/80 border border-emerald-200 text-emerald-900 font-semibold">
+                            Đáng giá: {{ existing.valueRating }}/5
+                          </span>
+                        }
+                      </div>
+                    }
+
+                    @if (existing?.comment) {
+                      <div class="p-3.5 rounded-xl bg-white/85 border border-emerald-200/80 text-xs sm:text-sm text-slate-800 leading-relaxed whitespace-pre-line">
+                        {{ existing?.comment }}
+                      </div>
+                    }
+
+                    @if (existing?.ownerReply) {
+                      <div class="p-4 rounded-xl bg-white border border-indigo-200/90 shadow-2xs space-y-1.5">
+                        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <span class="font-bold text-indigo-900 flex items-center gap-1.5">
+                            <i class="pi pi-reply text-indigo-600"></i>
+                            <span>Phản hồi từ cơ sở lưu trú</span>
+                          </span>
+                          @if (existing?.repliedAtUtc) {
+                            <span class="text-[11px] font-mono text-slate-500">
+                              {{ formatVietnamFullDateTime(existing?.repliedAtUtc ?? undefined) }}
+                            </span>
+                          }
+                        </div>
+                        <p class="text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line">{{ existing?.ownerReply }}</p>
+                      </div>
+                    }
+                  </section>
+                } @else {
+                  <section aria-label="Đánh giá kỳ nghỉ" class="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-slate-200 shadow-2xs space-y-5">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                      <div class="space-y-0.5">
+                        <h3 class="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2">
+                          <i class="pi pi-star-fill text-amber-500"></i>
+                          <span>Đánh giá kỳ nghỉ của bạn</span>
+                        </h3>
+                        <p class="text-xs text-slate-500">
+                          Chia sẻ cảm nhận thực tế để hỗ trợ cơ sở hoàn thiện chất lượng và giúp cộng đồng du khách.
+                        </p>
+                      </div>
+                      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 self-start sm:self-auto">
+                        <i class="pi pi-shield text-[10px]"></i>
+                        <span>Đánh giá xác thực 100%</span>
+                      </span>
+                    </div>
+
+                    <!-- 1. Overall Rating -->
+                    <div class="space-y-2">
+                      <label class="block text-xs font-bold text-slate-700">
+                        Đánh giá tổng quan <span class="text-rose-500">*</span>
+                      </label>
+                      <div class="flex flex-wrap items-center gap-3">
+                        <div class="flex items-center gap-1 text-2xl cursor-pointer" role="radiogroup" aria-label="Số sao">
+                          @for (star of [1,2,3,4,5]; track star) {
+                            <button
+                              type="button"
+                              (click)="setReviewRating(star)"
+                              class="min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-amber-400 hover:text-amber-500 hover:scale-110 active:scale-95 transition-all p-1 cursor-pointer focus:outline-none"
+                              [title]="star + ' sao'"
+                              [attr.aria-label]="star + ' sao'"
+                            >
+                              <i class="pi text-2xl" [ngClass]="star <= reviewRating() ? 'pi-star-fill text-amber-500' : 'pi-star text-slate-200'"></i>
+                            </button>
+                          }
+                        </div>
+                        <span class="text-xs font-bold px-3 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-200">
+                          {{ reviewRating() }}/5 sao — {{ getRatingLabel(reviewRating()) }}
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- 2. Sub-criteria Ratings Grid -->
+                    <div class="space-y-2">
+                      <span class="block text-xs font-bold text-slate-700">Chi tiết từng hạng mục dịch vụ</span>
+                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <!-- Cleanliness -->
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
+                          <div class="text-xs">
+                            <span class="font-bold text-slate-800 block">Vệ sinh &amp; Sạch sẽ</span>
+                            <span class="text-[10px] text-slate-500">Phòng ốc, drap giường, phòng tắm</span>
+                          </div>
+                          <div class="flex items-center gap-0.5">
+                            @for (s of [1,2,3,4,5]; track s) {
+                              <button
+                                type="button"
+                                (click)="reviewCleanliness.set(s)"
+                                [attr.aria-label]="'Vệ sinh ' + s + ' sao'"
+                                class="min-w-11 min-h-11 inline-flex items-center justify-center text-xs cursor-pointer hover:scale-110 transition-transform focus:outline-none"
+                              >
+                                <i class="pi text-sm" [ngClass]="s <= reviewCleanliness() ? 'pi-star-fill text-emerald-600' : 'pi-star text-slate-300'"></i>
+                              </button>
+                            }
+                          </div>
+                        </div>
+
+                        <!-- Location -->
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
+                          <div class="text-xs">
+                            <span class="font-bold text-slate-800 block">Vị trí &amp; Cảnh quan</span>
+                            <span class="text-[10px] text-slate-500">Thuận tiện đi lại, gần điểm đến</span>
+                          </div>
+                          <div class="flex items-center gap-0.5">
+                            @for (s of [1,2,3,4,5]; track s) {
+                              <button
+                                type="button"
+                                (click)="reviewLocation.set(s)"
+                                [attr.aria-label]="'Vị trí ' + s + ' sao'"
+                                class="min-w-11 min-h-11 inline-flex items-center justify-center text-xs cursor-pointer hover:scale-110 transition-transform focus:outline-none"
+                              >
+                                <i class="pi text-sm" [ngClass]="s <= reviewLocation() ? 'pi-star-fill text-[var(--brand-cta)]' : 'pi-star text-slate-300'"></i>
+                              </button>
+                            }
+                          </div>
+                        </div>
+
+                        <!-- Service -->
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
+                          <div class="text-xs">
+                            <span class="font-bold text-slate-800 block">Dịch vụ &amp; Nhân viên</span>
+                            <span class="text-[10px] text-slate-500">Thái độ tiếp đón, hỗ trợ lễ tân</span>
+                          </div>
+                          <div class="flex items-center gap-0.5">
+                            @for (s of [1,2,3,4,5]; track s) {
+                              <button
+                                type="button"
+                                (click)="reviewService.set(s)"
+                                [attr.aria-label]="'Dịch vụ ' + s + ' sao'"
+                                class="min-w-11 min-h-11 inline-flex items-center justify-center text-xs cursor-pointer hover:scale-110 transition-transform focus:outline-none"
+                              >
+                                <i class="pi text-sm" [ngClass]="s <= reviewService() ? 'pi-star-fill text-rose-500' : 'pi-star text-slate-300'"></i>
+                              </button>
+                            }
+                          </div>
+                        </div>
+
+                        <!-- Value -->
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
+                          <div class="text-xs">
+                            <span class="font-bold text-slate-800 block">Đáng giá tiền</span>
+                            <span class="text-[10px] text-slate-500">Mức giá so với chất lượng nhận được</span>
+                          </div>
+                          <div class="flex items-center gap-0.5">
+                            @for (s of [1,2,3,4,5]; track s) {
+                              <button
+                                type="button"
+                                (click)="reviewValue.set(s)"
+                                [attr.aria-label]="'Đáng giá ' + s + ' sao'"
+                                class="min-w-11 min-h-11 inline-flex items-center justify-center text-xs cursor-pointer hover:scale-110 transition-transform focus:outline-none"
+                              >
+                                <i class="pi text-sm" [ngClass]="s <= reviewValue() ? 'pi-star-fill text-amber-600' : 'pi-star text-slate-300'"></i>
+                              </button>
+                            }
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 3. Review Comment Textarea -->
+                    <div class="space-y-1.5">
+                      <div class="flex justify-between items-center text-xs">
+                        <label for="review-comment-textarea" class="font-bold text-slate-700">
+                          Nhận xét chi tiết (tùy chọn)
+                        </label>
+                        <span class="text-slate-400 font-mono text-[11px] tabular-nums">
+                          {{ reviewComment().length }}/1500 ký tự
+                        </span>
+                      </div>
+                      <textarea
+                        id="review-comment-textarea"
+                        rows="3"
+                        maxlength="1500"
+                        [ngModel]="reviewComment()"
+                        (ngModelChange)="reviewComment.set($event)"
+                        placeholder="Hãy chia sẻ điều bạn ưng ý nhất hoặc góp ý chân thành để cơ sở cải thiện tốt hơn..."
+                        class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 bg-slate-50 focus:bg-white focus:outline-indigo-500 transition-all resize-y"
+                      ></textarea>
+                    </div>
+
+                    <!-- Error Alert -->
+                    @if (reviewError()) {
+                      <div role="alert" class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+                        <i class="pi pi-exclamation-circle text-rose-600 mt-0.5 shrink-0"></i>
+                        <span>{{ reviewError() }}</span>
+                      </div>
+                    }
+
+                    <!-- Submit Action Button -->
+                    <div class="flex items-center justify-end gap-3 pt-1">
+                      <button
+                        type="button"
+                        (click)="submitGuestReview()"
+                        [disabled]="reviewSubmitting()"
+                        class="min-h-[44px] px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-xs transition-colors cursor-pointer flex items-center gap-2"
+                      >
+                        @if (reviewSubmitting()) {
+                          <i class="pi pi-spin pi-spinner text-xs"></i>
+                          <span>Đang gửi đánh giá...</span>
+                        } @else {
+                          <i class="pi pi-send text-xs"></i>
+                          <span>Gửi đánh giá xác thực</span>
+                        }
+                      </button>
+                    </div>
+                  </section>
+                }
+              </div>
+            }
+
+            <!-- C. KHÓA PHÒNG ĐIỆN TỬ SMART LOCK PIN (HIỂN THỊ KHI CONFIRMED HOẶC CHECKEDIN & CÓ PIN THẬT ACTIVE - ẨN KHI CHƯA XÁC NHẬN & KHI IN) -->
+            @if ((detail.status === 'Confirmed' || detail.status === 'CheckedIn') && detail.smartLockPin && detail.smartLockStatus === 'Active') {
               <div class="mx-6 sm:mx-8 mb-6 p-6 sm:p-7 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white rounded-2xl sm:rounded-3xl border border-slate-800 shadow-inner relative overflow-hidden print:hidden">
                 <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
                   <div class="space-y-2">
@@ -833,7 +978,7 @@ export interface StatusErrorState {
                       <button
                         type="button"
                         (click)="copyPin(detail.smartLockPin)"
-                        class="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-semibold text-white transition-colors flex items-center gap-1 cursor-pointer"
+                        class="min-h-11 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-white transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <i class="pi pi-copy text-[10px]"></i>
                         <span>Sao chép PIN</span>
@@ -916,19 +1061,19 @@ export interface StatusErrorState {
                   <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3 text-xs">
                     <div class="flex justify-between items-center text-slate-600">
                       <span>Tổng tiền lưu trú:</span>
-                      <span class="font-bold text-slate-900 font-mono text-sm">{{ detail.totalAmount | number:'1.0-0' }} ₫</span>
+                      <span class="font-bold text-slate-900 font-mono text-sm tabular-nums">{{ detail.totalAmount | vndCurrency }}</span>
                     </div>
 
                     @if (detail.depositRequired > 0) {
                       <div class="flex justify-between items-center text-slate-600">
                         <span>Khoản đặt cọc yêu cầu:</span>
-                        <span class="font-mono font-semibold text-amber-700">{{ detail.depositRequired | number:'1.0-0' }} ₫</span>
+                        <span class="font-mono font-semibold text-amber-700 tabular-nums">{{ detail.depositRequired | vndCurrency }}</span>
                       </div>
                     }
 
                     <div class="flex justify-between items-center text-emerald-800 bg-emerald-50 rounded-xl p-2.5 border border-emerald-100 font-semibold">
                       <span>Số tiền đã thanh toán:</span>
-                      <span class="font-mono font-bold">{{ detail.paidAmount | number:'1.0-0' }} ₫</span>
+                      <span class="font-mono font-bold tabular-nums">{{ detail.paidAmount | vndCurrency }}</span>
                     </div>
 
                     @if (detail.status === 'PendingPayment' && getRemainingDeposit(detail) > 0) {
@@ -937,13 +1082,13 @@ export interface StatusErrorState {
                           <i class="pi pi-exclamation-circle text-amber-600 text-xs"></i>
                           <span>Cọc còn thiếu để xác nhận:</span>
                         </span>
-                        <span class="font-mono font-bold text-amber-800">{{ getRemainingDeposit(detail) | number:'1.0-0' }} ₫</span>
+                        <span class="font-mono font-bold text-amber-800 tabular-nums">{{ getRemainingDeposit(detail) | vndCurrency }}</span>
                       </div>
                     }
 
                     <div class="flex justify-between items-center text-indigo-700 font-black text-sm pt-2.5 border-t border-slate-100">
                       <span>Tổng còn phải thanh toán:</span>
-                      <span class="font-mono text-base">{{ detail.remainingBalance | number:'1.0-0' }} ₫</span>
+                      <span class="font-mono text-base tabular-nums">{{ detail.remainingBalance | vndCurrency }}</span>
                     </div>
 
                     @if (detail.isFullyPaid) {
@@ -964,7 +1109,7 @@ export interface StatusErrorState {
                     <!-- PHƯƠNG THỨC THANH TOÁN (DEDICATED PAYMENT GATEWAY HUB - HIGH CONTRAST & INTUITIVE) -->
                     @if (detail.status === 'PendingPayment') {
                       <div class="pt-4 border-t border-stone-200">
-                        <div class="p-5 sm:p-6 rounded-3xl bg-[#FAF7F2] border-2 border-stone-300 shadow-md space-y-5">
+                        <div class="p-5 sm:p-6 rounded-3xl bg-[var(--surface-card)] border-2 border-stone-300 shadow-md space-y-5">
                           <div class="flex items-center justify-between pb-3 border-b border-slate-200">
                             <div class="flex items-center gap-2.5">
                               <div class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-sm">
@@ -972,9 +1117,11 @@ export interface StatusErrorState {
                               </div>
                               <div>
                                 <h4 class="text-xs sm:text-sm font-bold text-slate-900">
-                                  Thanh toán qua VietQR NAPAS 24/7 hoặc VNPay
+                                  {{ showVnpay ? 'Thanh toán qua VietQR NAPAS 24/7 hoặc VNPay' : 'Thanh toán qua VietQR NAPAS 24/7 (SePay)' }}
                                 </h4>
-                                <p class="text-[10px] text-slate-500">Đối soát tức thì &amp; xác nhận tự động qua Webhook IPN</p>
+                                <p class="text-[10px] text-slate-500">
+                                  Hệ thống tự động xác nhận trong 2–5 giây sau khi chuyển khoản thành công qua SePay
+                                </p>
                               </div>
                             </div>
                             <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -982,91 +1129,121 @@ export interface StatusErrorState {
                             </span>
                           </div>
 
-                          <!-- 2-Option Cards Grid -->
+                          <!-- Payment Option Cards Grid -->
                           <div class="grid grid-cols-1 gap-3.5">
-                            
-                            <!-- Option 1: Cổng VNPAY Sandbox -->
-                            <div class="p-4 sm:p-5 rounded-2xl bg-blue-50/90 border-2 border-blue-300 hover:border-[#005BAA] transition-all space-y-3"
-                              [class.ring-2]="selectedPaymentMethod() === 'VNPay'" [class.ring-blue-600]="selectedPaymentMethod() === 'VNPay'">
-                              <div class="flex items-center justify-between">
-                                <span class="px-2 py-0.5 rounded-md bg-[#005BAA] text-white text-[10px] font-black uppercase tracking-wider">
-                                  VNPAY SANDBOX
-                                </span>
-                                <span class="text-[11px] font-semibold text-blue-900">Cổng Quốc Gia</span>
-                              </div>
-                              <p class="text-[11px] text-slate-600 leading-relaxed">
-                                Thẻ ATM nội địa (NCB, Vietcombank...), Thẻ quốc tế Visa/Mastercard hoặc VNPAY-QR.
-                              </p>
-                              <div class="p-2 rounded-lg bg-white border border-blue-100 text-[10px] text-slate-600 space-y-0.5">
-                                <div>Thẻ test: <strong class="text-slate-800">NCB</strong> &bull; Số: <strong class="font-mono text-slate-900">9704198526191432198</strong></div>
-                                <div>Tên: <strong class="text-slate-800">NGUYEN VAN A</strong> &bull; OTP: <strong class="font-mono text-slate-900">123456</strong></div>
-                              </div>
-                              <button
-                                type="button"
-                                (click)="payWithVnpay()"
-                                [disabled]="isVnpayRedirecting()"
-                                class="w-full py-2.5 px-3.5 rounded-xl bg-[#005BAA] hover:bg-[#004785] active:bg-[#003868] text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-colors disabled:opacity-50"
-                              >
-                                @if (isVnpayRedirecting()) {
-                                  <i class="pi pi-spin pi-spinner text-xs"></i>
-                                  <span>Đang chuyển hướng VNPay…</span>
-                                } @else {
-                                  <i class="pi pi-external-link text-xs"></i>
-                                  <span>Thanh toán Cổng VNPAY</span>
-                                }
-                              </button>
-                            </div>
 
-                            <!-- Option 2: VietQR NAPAS 24/7 -->
+                            @if (showVnpay) {
+                              <!-- Option 1: Cổng VNPAY (chỉ hiện khi bật cờ enableVnpay) -->
+                              <div class="p-4 sm:p-5 rounded-2xl bg-blue-50/90 border-2 border-blue-300 hover:border-blue-700 transition-all space-y-3"
+                                [class.ring-2]="selectedPaymentMethod() === 'VNPay'" [class.ring-blue-600]="selectedPaymentMethod() === 'VNPay'">
+                                <div class="flex items-center justify-between">
+                                  <span class="px-2 py-0.5 rounded-md bg-blue-700 text-white text-[10px] font-black uppercase tracking-wider">
+                                    {{ devMode ? 'VNPAY SANDBOX' : 'VNPAY' }}
+                                  </span>
+                                  <span class="text-[11px] font-semibold text-blue-900">Tự động xác nhận (IPN)</span>
+                                </div>
+                                <p class="text-[11px] text-slate-600 leading-relaxed">
+                                  Thẻ ATM nội địa (NCB, Vietcombank...), Thẻ quốc tế Visa/Mastercard hoặc VNPAY-QR.
+                                </p>
+                                @if (devMode) {
+                                  <div class="p-2 rounded-lg bg-white border border-blue-100 text-[10px] text-slate-600 space-y-0.5" data-testid="vnpay-sandbox-test-card">
+                                    <div>Thẻ test: <strong class="text-slate-800">NCB</strong> &bull; Số: <strong class="font-mono tabular-nums text-slate-900">9704198526191432198</strong></div>
+                                    <div>Tên: <strong class="text-slate-800">NGUYEN VAN A</strong> &bull; OTP: <strong class="font-mono tabular-nums text-slate-900">123456</strong></div>
+                                  </div>
+                                }
+                                <button
+                                  type="button"
+                                  (click)="payWithVnpay()"
+                                  [disabled]="isVnpayRedirecting()"
+                                  class="w-full min-h-11 py-2.5 px-3.5 rounded-xl bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-colors disabled:opacity-50"
+                                >
+                                  @if (isVnpayRedirecting()) {
+                                    <i class="pi pi-spin pi-spinner text-xs"></i>
+                                    <span>Đang chuyển hướng VNPay…</span>
+                                  } @else {
+                                    <i class="pi pi-external-link text-xs"></i>
+                                    <span>Thanh toán Cổng VNPAY</span>
+                                  }
+                                </button>
+                              </div>
+                            }
+
+                            <!-- Option 2: VietQR NAPAS 24/7 / Chuyển khoản ngân hàng (SePay tự động xác nhận) -->
                             <div class="p-4 sm:p-5 rounded-2xl bg-amber-50/90 border-2 border-amber-300 hover:border-amber-500 transition-all space-y-3"
-                              [class.ring-2]="selectedPaymentMethod() === 'VietQR'" [class.ring-amber-500]="selectedPaymentMethod() === 'VietQR'">
-                              <div class="flex items-center justify-between">
+                              [class.ring-2]="selectedPaymentMethod() === 'VietQR' || selectedPaymentMethod() === 'BankTransfer'"
+                              [class.ring-amber-500]="selectedPaymentMethod() === 'VietQR' || selectedPaymentMethod() === 'BankTransfer'">
+                              <div class="flex items-center justify-between gap-2 flex-wrap">
                                 <span class="px-2 py-0.5 rounded-md bg-amber-600 text-white text-[10px] font-black uppercase tracking-wider">
-                                  VIETQR 24/7
+                                  {{ selectedPaymentMethod() === 'BankTransfer' ? 'CHUYỂN KHOẢN / VIETQR' : 'VIETQR 24/7 (SEPAY)' }}
                                 </span>
-                                <span class="text-[11px] font-semibold text-amber-900">Quét Mã Nhanh</span>
+                                <span class="text-[11px] font-semibold text-emerald-800 inline-flex items-center gap-1">
+                                  <i class="pi pi-check-circle text-[10px] text-emerald-600"></i>
+                                  <span>Tự động xác nhận (2–5s)</span>
+                                </span>
                               </div>
 
                               <div class="p-2.5 bg-white rounded-xl border border-amber-200 flex items-center gap-3 shadow-2xs">
                                 @if (vietQr(); as qr) {
-                                  <img [src]="qr.qrImageUrl" alt="Mã thanh toán VietQR" class="w-20 h-20 object-contain shrink-0 rounded-lg border border-slate-100" />
+                                  <img [src]="qr.qrImageUrl" alt="Mã thanh toán VietQR" width="80" height="80" loading="lazy" class="w-20 h-20 object-contain shrink-0 rounded-lg border border-slate-100" />
                                 } @else {
                                   <div role="status" class="w-20 h-20 flex items-center justify-center shrink-0 rounded-lg border border-slate-100 text-slate-400">
-                                    <i class="pi" [class.pi-spin]="isVietQrLoading()" [class.pi-spinner]="isVietQrLoading()" [class.pi-qrcode]="!isVietQrLoading()"></i>
+                                    <i class="pi" [class.pi-spin]="isVietQrLoading()" [class.pi-spinner]="isVietQrLoading()" [class.pi-credit-card]="!isVietQrLoading()"></i>
                                   </div>
                                 }
                                 <div class="text-[10px] space-y-0.5 min-w-0 flex-1">
-                                  <div class="font-bold text-slate-900 truncate">{{ vietQr()?.bankName || 'Đang tạo thông tin thanh toán…' }}</div>
+                                  <div class="font-bold text-slate-900 truncate">{{ vietQr()?.bankName || (vietQrError() ? 'Chưa cấu hình ngân hàng' : 'Đang tạo thông tin thanh toán…') }}</div>
                                   <div class="text-slate-500 text-[10px]">CTK: {{ vietQr()?.accountName || '—' }}</div>
-                                  <div class="font-mono text-emerald-700 font-bold text-[11px]">
-                                    Số tiền: {{ (vietQr()?.amount ?? getRemainingDeposit(detail)) | number:'1.0-0' }} ₫
+                                  <div class="font-mono tabular-nums text-emerald-700 font-bold text-[11px]">
+                                    Số tiền: {{ (vietQr()?.amount ?? getRemainingDeposit(detail)) | vndCurrency }}
                                   </div>
                                   <div class="text-amber-800 font-mono font-bold text-[10px] bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 truncate">
-                                    CK: {{ vietQr()?.description || ('DAT PHONG ' + detail.confirmationCode) }}
+                                    CK: {{ vietQr()?.description || ('DATPHONG ' + detail.confirmationCode) }}
                                   </div>
                                   @if (vietQr(); as qr) {
-                                    <button type="button" (click)="copyPaymentAccount(qr.accountNumber)" class="text-blue-700 font-semibold underline underline-offset-2 cursor-pointer">Sao chép STK {{ qr.accountNumber }}</button>
+                                    <div class="flex items-center flex-wrap gap-2 pt-1">
+                                      <button type="button" (click)="copyPaymentAccount(qr.accountNumber)" class="min-h-11 px-3 py-2 rounded-lg bg-blue-50/80 dark:bg-blue-500/15 hover:bg-blue-100/80 text-blue-700 dark:text-blue-300 font-semibold underline underline-offset-2 inline-flex items-center cursor-pointer transition-colors">Sao chép STK {{ qr.accountNumber }}</button>
+                                      @if (qr.description) {
+                                        <button type="button" (click)="copyTransferContent(qr.description)" class="min-h-11 px-3 py-2 rounded-lg bg-amber-100/70 dark:bg-amber-500/15 hover:bg-amber-200/70 text-amber-800 dark:text-amber-300 font-semibold underline underline-offset-2 inline-flex items-center cursor-pointer transition-colors">Sao chép nội dung CK</button>
+                                      }
+                                    </div>
                                   } @else if (vietQrError()) {
-                                    <p role="alert" class="text-rose-700">{{ vietQrError() }}</p>
+                                    <div class="flex items-center justify-between gap-2 flex-wrap pt-1">
+                                      <p role="alert" class="text-rose-700 dark:text-rose-300">{{ vietQrError() }}</p>
+                                      <button
+                                        type="button"
+                                        data-testid="vietqr-retry-btn"
+                                        (click)="loadVietQr(detail)"
+                                        [disabled]="isVietQrLoading()"
+                                        class="min-h-11 px-3 rounded-lg inline-flex items-center text-xs font-bold text-rose-700 dark:text-rose-300 underline hover:bg-rose-50 dark:hover:bg-rose-950/60 cursor-pointer shrink-0 disabled:opacity-50"
+                                      >
+                                        Tải lại mã QR
+                                      </button>
+                                    </div>
                                   }
                                 </div>
                               </div>
-                              <p class="text-[10px] text-slate-500 leading-snug">
-                                Vui lòng chuyển đúng số tiền và nội dung trên mã để khách sạn đối soát khoản thanh toán.
+                              <p class="text-[10px] text-slate-600 leading-snug">
+                                Hệ thống tự động xác nhận trong 2–5 giây sau khi chuyển khoản thành công qua SePay. Vui lòng giữ đúng số tiền và nội dung chuyển khoản (tự động kiểm tra mỗi 5 giây).
                               </p>
-                            </div>
-
-                            <!-- Option 3: Cash deposit at the front desk, manually confirmed by staff -->
-                            <div class="p-4 sm:p-5 rounded-2xl bg-emerald-50/90 border-2 border-emerald-300 transition-all space-y-3"
-                              [class.ring-2]="selectedPaymentMethod() === 'PayAtHotel'" [class.ring-emerald-600]="selectedPaymentMethod() === 'PayAtHotel'">
-                              <div class="flex items-center justify-between gap-2">
-                                <span class="px-2 py-0.5 rounded-md bg-emerald-700 text-white text-[10px] font-black uppercase tracking-wider">TIỀN MẶT TẠI QUẦY</span>
-                                <span class="text-[11px] font-semibold text-emerald-900">Xác nhận thủ công</span>
-                              </div>
-                              <p class="text-[11px] text-emerald-950 leading-relaxed">
-                                Nộp cọc <strong>{{ getRemainingDeposit(detail) | number:'1.0-0' }} ₫</strong> tại quầy lễ tân trước khi đồng hồ giữ phòng về 0.
-                                Nhân viên ghi nhận khoản thu bằng tiền mặt và xác nhận đơn. Nếu chưa nộp cọc trong 15 phút, giữ phòng tự hết hạn.
-                              </p>
+                              @if (devMode) {
+                                <div class="pt-2 border-t border-amber-200/70">
+                                  <button
+                                    type="button"
+                                    data-testid="sepay-dev-simulate-btn"
+                                    (click)="simulateSepayPayment(detail)"
+                                    [disabled]="isSimulatingSepay()"
+                                    class="w-full min-h-11 py-2 px-3 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-colors disabled:opacity-50"
+                                  >
+                                    @if (isSimulatingSepay()) {
+                                      <i class="pi pi-spin pi-spinner text-xs"></i>
+                                      <span>Đang giả lập Webhook SePay…</span>
+                                    } @else {
+                                      <i class="pi pi-send text-xs"></i>
+                                      <span>Giả lập đã chuyển khoản SePay (Dev Mode)</span>
+                                    }
+                                  </button>
+                                </div>
+                              }
                             </div>
 
                           </div>
@@ -1087,7 +1264,7 @@ export interface StatusErrorState {
                       @for (item of detail.breakdown; track item.description) {
                         <div class="flex justify-between items-center text-slate-600 py-2">
                           <span>{{ item.description }} @if (item.quantity > 1) { <span class="text-slate-400 font-mono">(x{{ item.quantity }})</span> }</span>
-                          <span class="font-mono font-medium text-slate-800">{{ item.amount | number:'1.0-0' }} ₫</span>
+                          <span class="font-mono font-medium text-slate-800 tabular-nums">{{ item.amount | vndCurrency }}</span>
                         </div>
                       }
                     </div>
@@ -1103,7 +1280,7 @@ export interface StatusErrorState {
                 <button
                   type="button"
                   (click)="copyToken(detail.lookupToken)"
-                  class="px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  class="min-h-11 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
                 >
                   <i class="pi" [ngClass]="isCopied() ? 'pi-check text-emerald-600' : 'pi-copy'"></i>
                   <span>{{ isCopied() ? 'Đã sao chép mã' : 'Sao chép mã tra cứu' }}</span>
@@ -1111,11 +1288,22 @@ export interface StatusErrorState {
               </div>
 
               <div class="flex flex-wrap items-center gap-3">
+                @if (canReschedule(detail)) {
+                  <button
+                    type="button"
+                    (click)="openRescheduleModal()"
+                    class="min-h-11 px-4 py-2.5 rounded-xl text-xs font-semibold border border-indigo-200 bg-white hover:bg-indigo-50 text-indigo-700 transition-colors cursor-pointer shadow-2xs flex items-center gap-1.5"
+                  >
+                    <i class="pi pi-calendar text-xs"></i>
+                    <span>Đổi lịch lưu trú</span>
+                  </button>
+                }
+
                 @if (canRequestCancellation(detail)) {
                   <button
                     type="button"
                     (click)="openCancelModal()"
-                    class="px-4 py-2.5 rounded-xl text-xs font-semibold border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 transition-colors cursor-pointer shadow-2xs flex items-center gap-1.5"
+                    class="min-h-11 px-4 py-2.5 rounded-xl text-xs font-semibold border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 transition-colors cursor-pointer shadow-2xs flex items-center gap-1.5"
                     [title]="isUnpaidHold(detail) ? 'Hủy lượt giữ phòng này' : 'Yêu cầu hủy đặt phòng và xem trước chính sách hoàn tiền'"
                   >
                     <i class="pi pi-times text-xs"></i>
@@ -1126,7 +1314,7 @@ export interface StatusErrorState {
                 <button
                   type="button"
                   (click)="resetToSearch()"
-                  class="px-4 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer shadow-2xs"
+                  class="min-h-11 px-4 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer shadow-2xs inline-flex items-center justify-center"
                 >
                   Tra cứu mã khác
                 </button>
@@ -1134,14 +1322,14 @@ export interface StatusErrorState {
                 @if (detail.status === 'Expired' || detail.status === 'Cancelled') {
                   <a
                     routerLink="/booking"
-                    class="px-5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white transition-colors cursor-pointer shadow-xs"
+                    class="min-h-11 inline-flex items-center justify-center px-5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white transition-colors cursor-pointer shadow-xs"
                   >
                     Đặt phòng khác
                   </a>
                 } @else {
                   <a
                     routerLink="/booking"
-                    class="px-4 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer shadow-2xs"
+                    class="min-h-11 inline-flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer shadow-2xs"
                   >
                     Đặt phòng khác
                   </a>
@@ -1278,19 +1466,19 @@ export interface StatusErrorState {
                 <tbody class="divide-y divide-slate-200">
                   <tr>
                     <td class="py-1.5 px-3 text-slate-800">Tổng tiền lưu trú (Đã bao gồm thuế & phí)</td>
-                    <td class="py-1.5 px-3 text-right font-medium text-slate-900">{{ detail.totalAmount | number }} đ</td>
+                    <td class="py-1.5 px-3 text-right font-medium text-slate-900 tabular-nums">{{ detail.totalAmount | vndCurrency }}</td>
                   </tr>
                   <tr>
                     <td class="py-1.5 px-3 text-slate-800">Khoản đặt cọc yêu cầu</td>
-                    <td class="py-1.5 px-3 text-right font-medium text-slate-900">{{ detail.depositRequired | number }} đ</td>
+                    <td class="py-1.5 px-3 text-right font-medium text-slate-900 tabular-nums">{{ detail.depositRequired | vndCurrency }}</td>
                   </tr>
                   <tr>
                     <td class="py-1.5 px-3 text-slate-800">Số tiền đã thanh toán</td>
-                    <td class="py-1.5 px-3 text-right font-semibold text-emerald-700">{{ detail.paidAmount | number }} đ</td>
+                    <td class="py-1.5 px-3 text-right font-semibold text-emerald-700 tabular-nums">{{ detail.paidAmount | vndCurrency }}</td>
                   </tr>
                   <tr class="bg-slate-50 font-bold">
                     <td class="py-2 px-3 text-slate-900 uppercase text-[11px]">Tổng còn phải thanh toán</td>
-                    <td class="py-2 px-3 text-right text-sm text-slate-900 font-mono font-bold">{{ detail.remainingBalance | number }} đ</td>
+                    <td class="py-2 px-3 text-right text-sm text-slate-900 font-mono tabular-nums font-bold">{{ detail.remainingBalance | vndCurrency }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -1316,8 +1504,8 @@ export interface StatusErrorState {
                       <tr>
                         <td class="py-1 px-2 text-slate-700">{{ item.description }}</td>
                         <td class="py-1 px-2 text-center text-slate-600">{{ item.quantity }}</td>
-                        <td class="py-1 px-2 text-right text-slate-600">{{ item.unitPrice | number }} đ</td>
-                        <td class="py-1 px-2 text-right font-medium text-slate-800">{{ item.amount | number }} đ</td>
+                        <td class="py-1 px-2 text-right text-slate-600 tabular-nums">{{ item.unitPrice | vndCurrency }}</td>
+                        <td class="py-1 px-2 text-right font-medium text-slate-800 tabular-nums">{{ item.amount | vndCurrency }}</td>
                       </tr>
                     }
                   </tbody>
@@ -1346,6 +1534,9 @@ export interface StatusErrorState {
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-cancel-title"
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
+        (keydown.escape)="closeCancelModal()"
         (click)="closeCancelModal()"
       >
         <div
@@ -1371,7 +1562,7 @@ export interface StatusErrorState {
               type="button"
               (click)="closeCancelModal()"
               [disabled]="isCancelling()"
-              class="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+              class="min-h-11 min-w-11 inline-flex items-center justify-center text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
               aria-label="Đóng cửa sổ"
             >
               <i class="pi pi-times text-base"></i>
@@ -1395,7 +1586,7 @@ export interface StatusErrorState {
                 <button
                   type="button"
                   (click)="loadCancelPreview()"
-                  class="mt-2 px-3 py-1.5 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700 transition-colors cursor-pointer"
+                  class="mt-2 min-h-11 inline-flex items-center px-4 py-2 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700 transition-colors cursor-pointer"
                 >
                   Thử lại
                 </button>
@@ -1476,7 +1667,19 @@ export interface StatusErrorState {
                   [ngClass]="prev.isFreeCancellation ? 'bg-emerald-50 text-emerald-900 border border-emerald-200' : 'bg-rose-50 text-rose-900 border border-rose-200'"
                 >
                   <i class="pi text-sm shrink-0" [ngClass]="prev.isFreeCancellation ? 'pi-check-circle text-emerald-600' : 'pi-info-circle text-rose-600'"></i>
-                  <span class="leading-relaxed" [innerHTML]="getCancellationTimelineFormattedHtml(prev)"></span>
+                  <span class="leading-relaxed">
+                    @if (isUnpaidHold()) {
+                      Lượt giữ phòng chưa phát sinh thanh toán — <strong class="font-bold text-emerald-800">Miễn phí hủy 100%</strong>.
+                    } @else if (prev.hoursUntilCheckIn > 0) {
+                      @if (prev.isFreeCancellation) {
+                        Còn <strong class="font-bold underline decoration-emerald-400 underline-offset-2">{{ prev.hoursUntilCheckIn }} giờ trước nhận phòng</strong> — Áp dụng <strong class="font-bold text-emerald-800">Miễn phí hủy 100%</strong>.
+                      } @else {
+                        Còn <strong class="font-bold text-rose-950 underline decoration-rose-300 underline-offset-2">{{ prev.hoursUntilCheckIn }} giờ trước nhận phòng</strong> — Áp dụng <strong class="font-bold text-rose-700 bg-rose-100/80 px-1.5 py-0.5 rounded border border-rose-200">phí hủy {{ getCancellationFeePercent(prev) }}%</strong>.
+                      }
+                    } @else {
+                      <strong class="font-bold text-rose-950">Đã qua thời điểm nhận phòng</strong> — Áp dụng <strong class="font-bold text-rose-700 bg-rose-100/80 px-1.5 py-0.5 rounded border border-rose-200">phí hủy {{ getCancellationFeePercent(prev) }}%</strong>.
+                    }
+                  </span>
                 </div>
               </div>
 
@@ -1491,14 +1694,14 @@ export interface StatusErrorState {
                   }
                 </div>
 
-                <div class="space-y-2 text-slate-700">
+                <div class="space-y-2 text-slate-700 tabular-nums">
                   <div class="flex justify-between items-center">
                     <span>Tổng tiền phòng:</span>
-                    <span class="font-mono font-semibold text-slate-900">{{ prev.totalAmount | number:'1.0-0' }} ₫</span>
+                    <span class="font-mono font-semibold text-slate-900">{{ prev.totalAmount | vndCurrency }}</span>
                   </div>
                   <div class="flex justify-between items-center">
                     <span>Số tiền khách đã thanh toán:</span>
-                    <span class="font-mono font-semibold text-slate-900">{{ prev.paidAmount | number:'1.0-0' }} ₫</span>
+                    <span class="font-mono font-semibold text-slate-900">{{ prev.paidAmount | vndCurrency }}</span>
                   </div>
                   <div class="flex justify-between items-center text-rose-700">
                     <span class="font-semibold text-rose-900">
@@ -1507,7 +1710,7 @@ export interface StatusErrorState {
                         <strong class="font-bold text-rose-700">({{ getCancellationFeePercent(prev) }}%)</strong>
                       }:
                     </span>
-                    <span class="font-mono font-bold text-rose-700">{{ prev.cancellationFee | number:'1.0-0' }} ₫</span>
+                    <span class="font-mono font-bold text-rose-700">{{ prev.cancellationFee | vndCurrency }}</span>
                   </div>
                   @if (prev.pointsRefundable > 0) {
                     <div class="flex justify-between items-center text-indigo-700">
@@ -1518,9 +1721,9 @@ export interface StatusErrorState {
                 </div>
 
                 <!-- Highlight Refundable Amount -->
-                <div class="pt-3 border-t border-slate-200 flex items-center justify-between font-black text-sm text-emerald-800 bg-emerald-50/80 -mx-4 -mb-4 p-4 rounded-b-2xl">
+                <div class="pt-3 border-t border-slate-200 flex items-center justify-between font-black text-sm text-emerald-800 bg-emerald-50/80 -mx-4 -mb-4 p-4 rounded-b-2xl tabular-nums">
                   <span>Khoản tiền dự kiến hoàn trả:</span>
-                  <span class="font-mono text-base text-emerald-700">{{ prev.refundableAmount | number:'1.0-0' }} ₫</span>
+                  <span class="font-mono text-base text-emerald-700">{{ prev.refundableAmount | vndCurrency }}</span>
                 </div>
               </div>
 
@@ -1532,7 +1735,7 @@ export interface StatusErrorState {
                     <span>Quy trình hủy phòng & hoàn tiền:</span>
                   </div>
                   <p class="leading-relaxed text-[11px] text-amber-950 font-medium">
-                    Đặt phòng sẽ được hủy sau khi bạn xác nhận. Khoản hoàn dự kiến <strong class="font-bold font-mono text-amber-950">{{ prev.refundableAmount | number:'1.0-0' }} ₫</strong> sẽ được khách sạn kiểm tra và xử lý theo quy trình hoàn tiền. Đây chưa phải khoản tiền đã được hoàn.
+                    Đặt phòng sẽ được hủy sau khi bạn xác nhận. Khoản hoàn dự kiến <strong class="font-bold font-mono tabular-nums text-amber-950">{{ prev.refundableAmount | vndCurrency }}</strong> sẽ được khách sạn kiểm tra và xử lý theo quy trình hoàn tiền. Đây chưa phải khoản tiền đã được hoàn.
                   </p>
                 </div>
               }
@@ -1543,7 +1746,9 @@ export interface StatusErrorState {
                   <i class="pi pi-info-circle text-blue-600"></i>
                   <span>Chính sách hủy áp dụng:</span>
                 </div>
-                <p class="leading-relaxed text-[11px] text-blue-950" [innerHTML]="formatPolicyDescription(prev.policyDescription)"></p>
+                <p class="leading-relaxed text-[11px] text-blue-950">
+                  @for (part of getPolicyDescriptionParts(prev.policyDescription); track $index) {@if (part.variant === 'penalty') {<strong class="font-bold text-rose-700 bg-rose-100/80 px-1.5 py-0.5 rounded border border-rose-200/80">{{ part.text }}</strong>} @else if (part.variant === 'window') {<strong class="font-bold text-slate-900 underline decoration-amber-400 underline-offset-2">{{ part.text }}</strong>} @else if (part.variant === 'free') {<strong class="font-bold text-slate-900 underline decoration-blue-400 underline-offset-2">{{ part.text }}</strong>} @else {<ng-container>{{ part.text }}</ng-container>}}
+                </p>
                 @if (prev.refundableAmount > 0) {
                   <p class="text-[11px] font-semibold text-blue-950 pt-1 border-t border-blue-200/50">
                     * Lưu ý: Khoản hoàn dự kiến sẽ được khách sạn đối soát và xử lý theo phương thức hoàn tiền được xác nhận.
@@ -1598,7 +1803,7 @@ export interface StatusErrorState {
               type="button"
               (click)="closeCancelModal()"
               [disabled]="isCancelling()"
-              class="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+              class="min-h-11 inline-flex items-center px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
             >
               Giữ lại đặt phòng
             </button>
@@ -1606,7 +1811,7 @@ export interface StatusErrorState {
               type="button"
               (click)="confirmCancellation()"
               [disabled]="isCancelling() || isLoadingCancelPreview() || !cancelPreview()?.canCancel || (booking()?.status === 'PendingPayment' && isHoldExpired())"
-              class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-50 text-white font-bold text-xs transition-all shadow-sm shadow-rose-600/30 cursor-pointer disabled:cursor-not-allowed"
+              class="min-h-11 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-50 text-white font-bold text-xs transition-all shadow-sm shadow-rose-600/30 cursor-pointer disabled:cursor-not-allowed"
             >
               @if (isCancelling()) {
                 <i class="pi pi-spin pi-spinner text-xs"></i>
@@ -1620,22 +1825,179 @@ export interface StatusErrorState {
         </div>
       </div>
     }
+
+    <!-- MODAL ĐỔI LỊCH LƯU TRÚ (G0-05 RESCHEDULE) -->
+    @if (isRescheduleModalOpen()) {
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reschedule-modal-title"
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
+        (keydown.escape)="closeRescheduleModal()"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150 print:hidden"
+      >
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh]">
+          <div class="p-5 sm:p-6 bg-indigo-50/60 border-b border-indigo-100 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                <i class="pi pi-calendar text-base"></i>
+              </div>
+              <div>
+                <h3 id="reschedule-modal-title" class="text-base font-black text-slate-900">Đổi lịch lưu trú</h3>
+                <p class="text-xs text-slate-500">Hệ thống sẽ kiểm tra phòng trống và tính lại báo giá tự động</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              (click)="closeRescheduleModal()"
+              [disabled]="isRescheduling()"
+              aria-label="Đóng hộp thoại đổi lịch"
+              class="min-h-[44px] min-w-[44px] rounded-xl text-slate-400 hover:text-slate-600 hover:bg-white/80 flex items-center justify-center cursor-pointer transition-colors"
+            >
+              <i class="pi pi-times text-sm"></i>
+            </button>
+          </div>
+
+          <div class="p-5 sm:p-6 overflow-y-auto space-y-4 text-xs">
+            @if (booking()?.rentalType === 'Hourly') {
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label for="reschedule-hourly-date" class="block font-bold text-slate-700 mb-1">Ngày lưu trú</label>
+                  <input
+                    id="reschedule-hourly-date"
+                    type="date"
+                    [(ngModel)]="rescheduleDate"
+                    name="rescheduleDate"
+                    class="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label for="reschedule-hourly-time" class="block font-bold text-slate-700 mb-1">Giờ nhận phòng</label>
+                  <input
+                    id="reschedule-hourly-time"
+                    type="time"
+                    [(ngModel)]="rescheduleStartTime"
+                    name="rescheduleStartTime"
+                    class="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label for="reschedule-hourly-hours" class="block font-bold text-slate-700 mb-1">Số giờ thuê</label>
+                  <input
+                    id="reschedule-hourly-hours"
+                    type="number"
+                    min="1"
+                    max="12"
+                    [(ngModel)]="rescheduleHours"
+                    name="rescheduleHours"
+                    class="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900 font-mono"
+                  />
+                </div>
+              </div>
+            } @else {
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label for="reschedule-checkin-date" class="block font-bold text-slate-700 mb-1">Ngày nhận phòng mới</label>
+                  <input
+                    id="reschedule-checkin-date"
+                    type="date"
+                    [(ngModel)]="rescheduleCheckInDate"
+                    name="rescheduleCheckInDate"
+                    class="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label for="reschedule-checkout-date" class="block font-bold text-slate-700 mb-1">Ngày trả phòng mới</label>
+                  <input
+                    id="reschedule-checkout-date"
+                    type="date"
+                    [(ngModel)]="rescheduleCheckOutDate"
+                    name="rescheduleCheckOutDate"
+                    class="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900"
+                  />
+                </div>
+              </div>
+            }
+
+            <div class="space-y-1">
+              <label for="reschedule-reason-input" class="block font-bold text-slate-700">Lý do đổi lịch (tùy chọn)</label>
+              <textarea
+                id="reschedule-reason-input"
+                rows="2"
+                maxlength="500"
+                [(ngModel)]="rescheduleReason"
+                name="rescheduleReason"
+                placeholder="Ví dụ: Thay đổi lịch trình công tác, dời chuyến bay..."
+                class="w-full p-3 rounded-xl border border-slate-300 bg-white text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
+              ></textarea>
+            </div>
+
+            <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
+              Lưu ý: Chỉ hỗ trợ đổi lịch trong phạm vi 365 ngày kể từ hôm nay và tùy thuộc tình trạng trống của phòng hiện tại. Tổng tiền và mức đặt cọc (30%) sẽ được tính lại theo bảng giá ngày mới.
+            </div>
+
+            @if (rescheduleError()) {
+              <div role="alert" class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+                <i class="pi pi-exclamation-circle text-rose-600 mt-0.5 shrink-0"></i>
+                <span>{{ rescheduleError() }}</span>
+              </div>
+            }
+          </div>
+
+          <div class="p-4 sm:p-5 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              (click)="closeRescheduleModal()"
+              [disabled]="isRescheduling()"
+              class="min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer disabled:opacity-50"
+            >
+              Đóng
+            </button>
+            <button
+              type="button"
+              (click)="submitReschedule()"
+              [disabled]="isRescheduling()"
+              class="min-h-[44px] px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50 inline-flex items-center gap-2"
+            >
+              @if (isRescheduling()) {
+                <i class="pi pi-spin pi-spinner text-xs"></i>
+                <span>Đang cập nhật lịch...</span>
+              } @else {
+                <i class="pi pi-check text-xs"></i>
+                <span>Xác nhận đổi lịch</span>
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+    }
       </div>
     </div>
   `
 })
-export class BookingStatusPage implements OnInit {
+export class BookingStatusPage implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly publicBookingService = inject(PublicBookingService);
   private readonly alertService = inject(AlertService);
+  private readonly vndCurrency = new VndCurrencyPipe();
 
+  readonly devMode = isDevMode();
+  readonly showVnpay = environment.enableVnpay;
   searchToken: string = '';
   readonly tokenError = signal<string>('');
   readonly booking = signal<GuestBookingDetailDto | null>(null);
   readonly isSearching = signal<boolean>(false);
   readonly searchError = signal<StatusErrorState | null>(null);
-  readonly selectedPaymentMethod = signal<'VNPay' | 'VietQR' | 'PayAtHotel'>('VNPay');
+  readonly selectedPaymentMethod = signal<'VNPay' | 'VietQR' | 'PayAtHotel' | 'BankTransfer'>(
+    environment.enableVnpay ? 'VNPay' : 'VietQR'
+  );
+  readonly isSimulatingSepay = signal<boolean>(false);
+  readonly isVerifyingVnpay = signal<boolean>(false);
+  readonly vnpayReturnResult = signal<VnpayReturnVerificationDto | null>(null);
+  readonly vnpayVerifyError = signal<string>('');
+  private lastVnpayReturnKey = '';
 
   readonly remainingSeconds = signal<number>(0);
   readonly isHoldExpired = signal<boolean>(false);
@@ -1668,6 +2030,17 @@ export class BookingStatusPage implements OnInit {
   readonly isCancelling = signal<boolean>(false);
   readonly cancelError = signal<string>('');
 
+  // G0-05: Reschedule modal signals
+  readonly isRescheduleModalOpen = signal<boolean>(false);
+  readonly isRescheduling = signal<boolean>(false);
+  readonly rescheduleError = signal<string>('');
+  rescheduleCheckInDate = '';
+  rescheduleCheckOutDate = '';
+  rescheduleDate = '';
+  rescheduleStartTime = '14:00';
+  rescheduleHours = 2;
+  rescheduleReason = '';
+
   readonly isExpiringSoon = computed(() => {
     const b = this.booking();
     return !this.isHoldExpired() && b?.status === 'PendingPayment' && this.remainingSeconds() > 0 && this.remainingSeconds() <= 180;
@@ -1688,6 +2061,14 @@ export class BookingStatusPage implements OnInit {
   readonly reviewSubmitting = signal<boolean>(false);
   readonly reviewSubmitted = signal<boolean>(false);
   readonly reviewError = signal<string>('');
+  readonly submittedReview = signal<GuestBookingReviewSummaryDto | null>(null);
+  readonly activeExistingReview = computed<GuestBookingReviewSummaryDto | null>(
+    () => this.submittedReview() ?? this.booking()?.existingReview ?? null
+  );
+  readonly isAlreadyReviewed = computed<boolean>(() => {
+    const b = this.booking();
+    return this.reviewSubmitted() || Boolean(b?.hasReviewed) || Boolean(b?.existingReview);
+  });
 
   private fetchGeneration = 0;
   private timerInterval?: ReturnType<typeof setInterval>;
@@ -1697,6 +2078,7 @@ export class BookingStatusPage implements OnInit {
   private copyTokenSessionId = 0;
   private copyCodeSessionId = 0;
   private copyPinSessionId = 0;
+  private lastBroadcastSyncAt = 0;
   private isDestroyed = false;
   private lastFetchedToken = '';
   private lastRouteToken: string | undefined = undefined;
@@ -1708,11 +2090,12 @@ export class BookingStatusPage implements OnInit {
       if (token && b && b.status === 'PendingPayment') {
         const gen = this.fetchGeneration;
         this.publicBookingService.getBookingByToken(token).pipe(
-          take(1)
+          take(1),
+          takeUntilDestroyed(this.destroyRef)
         ).subscribe({
           next: (fresh) => {
             if (this.isDestroyed || gen !== this.fetchGeneration) return;
-            this.booking.set(fresh);
+            this.applyBookingDetail(fresh);
             if (fresh.status === 'PendingPayment' && fresh.holdExpiresAtUtc && !this.isHoldExpired()) {
               this.startHoldCountdown(fresh.holdExpiresAtUtc, fresh.status);
               this.startPolling(token);
@@ -1736,36 +2119,200 @@ export class BookingStatusPage implements OnInit {
   };
 
   ngOnInit(): void {
-    const queryParamMap$ = this.route.queryParamMap ?? of(this.route.snapshot?.queryParamMap ?? { get: () => null });
-    queryParamMap$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
-      const method = params.get('paymentMethod');
-      if (method === 'VNPay' || method === 'VietQR' || method === 'PayAtHotel') {
-        this.selectedPaymentMethod.set(method);
+    if (this.route.queryParamMap) {
+      this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+        const record: Record<string, string> = {};
+        for (const key of params.keys ?? []) {
+          const val = params.get(key);
+          if (val !== null) {
+            record[key] = val;
+          }
+        }
+        this.handleQueryParams(record);
+      });
+    } else if (this.route.queryParams) {
+      this.route.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+        const record: Record<string, string> = {};
+        for (const [key, val] of Object.entries(params ?? {})) {
+          if (val !== undefined && val !== null) {
+            record[key] = String(val);
+          }
+        }
+        this.handleQueryParams(record);
+      });
+    } else if (this.route.snapshot?.queryParamMap) {
+      const snap = this.route.snapshot.queryParamMap;
+      const record: Record<string, string> = {};
+      for (const key of snap.keys ?? []) {
+        const val = snap.get(key);
+        if (val !== null) {
+          record[key] = val;
+        }
       }
-    });
+      this.handleQueryParams(record);
+    } else if (this.route.snapshot?.queryParams) {
+      const record: Record<string, string> = {};
+      for (const [key, val] of Object.entries(this.route.snapshot.queryParams ?? {})) {
+        if (val !== undefined && val !== null) {
+          record[key] = String(val);
+        }
+      }
+      this.handleQueryParams(record);
+    }
+
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibilityChange);
     }
     this.initBroadcastSync();
-    if (false) {
+
+    if (this.route.paramMap) {
+      this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+        const token = params.get('token')?.trim();
+        if (token) {
+          if (token !== this.lastRouteToken) {
+            this.lastRouteToken = token;
+            this.searchToken = token;
+            this.fetchBooking(token);
+          }
+        } else {
+          const hadRouteToken = Boolean(this.lastRouteToken);
+          this.lastRouteToken = '';
+          if (hadRouteToken) {
+            this.searchToken = '';
+            this.resetToSearch();
+          }
+        }
+      });
+    } else if (this.route.snapshot?.paramMap) {
+      const token = this.route.snapshot.paramMap.get('token')?.trim();
+      if (token && token !== this.lastRouteToken) {
+        this.lastRouteToken = token;
+        this.searchToken = token;
+        this.fetchBooking(token);
+      }
     }
 
-    const paramMap$ = this.route.paramMap ?? of(this.route.snapshot?.paramMap ?? { get: () => null });
-    paramMap$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
-      const token = params.get('token')?.trim();
-      if (token) {
-        if (token !== this.lastRouteToken) {
-          this.lastRouteToken = token;
-          this.searchToken = token;
-          this.fetchBooking(token);
+    if (this.route.fragment) {
+      this.route.fragment.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(frag => {
+        if (frag === 'review-section' && typeof document !== 'undefined' && !this.isDestroyed) {
+          setTimeout(() => {
+            if (!this.isDestroyed) {
+              document.getElementById('review-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+          }, 100);
         }
-      } else {
-        const hadRouteToken = Boolean(this.lastRouteToken);
-        this.lastRouteToken = '';
-        if (hadRouteToken) {
-          this.searchToken = '';
-          this.resetToSearch();
+      });
+    }
+  }
+
+  private handleQueryParams(params: Record<string, string>): void {
+    const method = params['paymentMethod'];
+    if (method === 'VNPay' && !this.showVnpay) {
+      this.selectedPaymentMethod.set('VietQR');
+    } else if (method === 'VNPay' || method === 'VietQR' || method === 'PayAtHotel' || method === 'BankTransfer') {
+      this.selectedPaymentMethod.set(method);
+    }
+
+    const queryLookup = (params['token'] || params['lookupToken'] || '').trim();
+    const hasRouteToken = Boolean(this.lastRouteToken || this.route.snapshot?.paramMap?.get('token')?.trim());
+    if (queryLookup && !hasRouteToken && queryLookup !== this.lastFetchedToken) {
+      this.searchToken = queryLookup;
+      this.fetchBooking(queryLookup);
+    }
+
+    const vnpEntries = Object.entries(params).filter(([key]) => key.startsWith('vnp_'));
+    if (vnpEntries.length > 0 && (params['vnp_ResponseCode'] !== undefined || params['vnp_TxnRef'] !== undefined)) {
+      const vnpRecord = Object.fromEntries(vnpEntries);
+      const cacheKey = JSON.stringify(vnpRecord);
+      if (cacheKey !== this.lastVnpayReturnKey) {
+        this.lastVnpayReturnKey = cacheKey;
+        this.verifyVnpayCallback(vnpRecord);
+      }
+    }
+  }
+
+  private verifyVnpayCallback(vnpParams: Record<string, string>): void {
+    if (typeof this.publicBookingService.verifyVnpayReturn !== 'function') {
+      return;
+    }
+
+    this.isVerifyingVnpay.set(true);
+    this.vnpayVerifyError.set('');
+
+    this.publicBookingService
+      .verifyVnpayReturn(vnpParams)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.isVerifyingVnpay.set(false);
+          this.vnpayReturnResult.set(result);
+          const activeToken =
+            this.lastFetchedToken.trim() ||
+            this.searchToken.trim() ||
+            this.route.snapshot?.paramMap?.get('token')?.trim() ||
+            '';
+          const fallbackRef = (result.txnRef || vnpParams['vnp_TxnRef'] || '').trim();
+
+          if (result.success) {
+            this.alertService.toastSuccess(result.message || 'Giao dịch thanh toán thành công.');
+            if (activeToken) {
+              this.syncHoldStateFromServer(activeToken);
+            } else if (fallbackRef && !this.booking()) {
+              this.searchToken = fallbackRef;
+              this.loadBookingForVnpayReturn(fallbackRef);
+            }
+          } else {
+            this.alertService.toastWarning(
+              result.message || 'Giao dịch thanh toán VNPay không thành công hoặc chữ ký không hợp lệ.'
+            );
+            if (!activeToken && fallbackRef && !this.booking()) {
+              this.searchToken = fallbackRef;
+              this.loadBookingForVnpayReturn(fallbackRef);
+            }
+          }
+        },
+        error: () => {
+          this.isVerifyingVnpay.set(false);
+          const fallbackRef = (vnpParams['vnp_TxnRef'] || '').trim();
+          if (!this.searchToken.trim() && fallbackRef && !this.lastRouteToken) {
+            this.searchToken = fallbackRef;
+          }
+          this.vnpayVerifyError.set(
+            'Không thể xác thực kết quả VNPay lúc này. Hệ thống vẫn hiển thị trạng thái mới nhất từ máy chủ.'
+          );
         }
+      });
+  }
+
+  private loadBookingForVnpayReturn(tokenOrCode: string): void {
+    if (!tokenOrCode || this.isDestroyed || typeof this.publicBookingService.getBookingByToken !== 'function') {
+      return;
+    }
+    const gen = ++this.fetchGeneration;
+    this.publicBookingService.getBookingByToken(tokenOrCode).pipe(
+      take(1),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: (fresh) => {
+        if (this.isDestroyed || gen !== this.fetchGeneration) return;
+        const resolvedToken = fresh.lookupToken || tokenOrCode;
+        this.lastFetchedToken = resolvedToken;
+        this.applyBookingDetail(fresh);
+        if (fresh.status === 'PendingPayment') {
+          this.loadVietQr(fresh);
+          if (fresh.holdExpiresAtUtc) {
+            this.startHoldCountdown(fresh.holdExpiresAtUtc, fresh.status);
+            this.startPolling(resolvedToken);
+          }
+        } else {
+          this.clearTimer();
+          this.stopPolling();
+          this.remainingSeconds.set(0);
+          this.isHoldExpired.set(fresh.status === 'Expired');
+        }
+      },
+      error: () => {
+        // Giữ nguyên banner VNPay và form tra cứu nếu vnp_TxnRef không phải mã tra cứu hợp lệ
       }
     });
   }
@@ -1803,6 +2350,9 @@ export class BookingStatusPage implements OnInit {
     this.isSearching.set(false);
     this.searchToken = '';
     this.lastFetchedToken = '';
+    this.isVerifyingVnpay.set(false);
+    this.vnpayReturnResult.set(null);
+    this.vnpayVerifyError.set('');
     // Reset review state
     this.reviewRating.set(5);
     this.reviewCleanliness.set(5);
@@ -1813,8 +2363,9 @@ export class BookingStatusPage implements OnInit {
     this.reviewSubmitting.set(false);
     this.reviewSubmitted.set(false);
     this.reviewError.set('');
+    this.submittedReview.set(null);
 
-    // Reset cancel modal state
+    // Reset cancel & reschedule modal state
     this.isCancelModalOpen.set(false);
     this.cancelPreview.set(null);
     this.cancelPreviewError.set('');
@@ -1822,6 +2373,10 @@ export class BookingStatusPage implements OnInit {
     this.cancelReason = '';
     this.cancelVerification = '';
     this.isCancelling.set(false);
+    this.isRescheduleModalOpen.set(false);
+    this.isRescheduling.set(false);
+    this.rescheduleError.set('');
+    this.rescheduleReason = '';
   }
 
   onSearch(): void {
@@ -1868,6 +2423,7 @@ export class BookingStatusPage implements OnInit {
     this.reviewSubmitting.set(false);
     this.reviewSubmitted.set(false);
     this.reviewError.set('');
+    this.submittedReview.set(null);
 
     const currentGen = ++this.fetchGeneration;
 
@@ -1877,7 +2433,7 @@ export class BookingStatusPage implements OnInit {
       next: (b) => {
         if (currentGen !== this.fetchGeneration) return; // Guard: request A đến trễ không đè B
         this.isSearching.set(false);
-        this.booking.set(b);
+        this.applyBookingDetail(b);
         this.loadVietQr(b);
         if (b.status === 'PendingPayment' && b.holdExpiresAtUtc && !this.isHoldExpired()) {
           this.startHoldCountdown(b.holdExpiresAtUtc, b.status);
@@ -1902,15 +2458,22 @@ export class BookingStatusPage implements OnInit {
     });
   }
 
-  parseError(err: any): StatusErrorState {
+  parseError(err: unknown): StatusErrorState {
+    const httpErr = (err && typeof err === 'object' ? err : {}) as {
+      status?: number;
+      name?: string;
+      message?: string;
+      error?: { message?: string } | ProgressEvent;
+    };
+    const errMsg = httpErr.error && !(httpErr.error instanceof ProgressEvent) ? httpErr.error.message : undefined;
     const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
-    const isProgressEvent = typeof ProgressEvent !== 'undefined' && err?.error instanceof ProgressEvent;
-    const status = err?.status ?? (isProgressEvent ? 0 : undefined);
-    const rawMsg = String(err?.error?.message || err?.message || err || '');
+    const isProgressEvent = typeof ProgressEvent !== 'undefined' && httpErr.error instanceof ProgressEvent;
+    const status = httpErr.status ?? (isProgressEvent ? 0 : undefined);
+    const rawMsg = String(errMsg || httpErr.message || err || '');
     const isNetwork =
       isOffline ||
       status === 0 ||
-      err?.name === 'TimeoutError' ||
+      httpErr.name === 'TimeoutError' ||
       /failed to fetch|networkerror|network request failed|load failed|connection refused|timeout/i.test(rawMsg);
 
     if (isNetwork) {
@@ -1929,8 +2492,8 @@ export class BookingStatusPage implements OnInit {
       };
     }
 
-    const serverMsg = typeof err?.error?.message === 'string' && !/failed|exception|error|stacktrace/i.test(err.error.message)
-      ? err.error.message
+    const serverMsg = typeof errMsg === 'string' && !/failed|exception|error|stacktrace/i.test(errMsg)
+      ? errMsg
       : '';
 
     return {
@@ -1985,16 +2548,6 @@ export class BookingStatusPage implements OnInit {
         this.isHoldExpired.set(false);
       }
     };
-    const unusedTick = () => {
-      const diff = 0;
-      if (diff <= 0) {
-        this.isHoldExpired.set(true);
-        this.clearTimer();
-        this.stopPolling();
-      } else {
-        this.isHoldExpired.set(false);
-      }
-    };
 
     tick();
     if (this.remainingSeconds() > 0 && !this.isHoldExpired()) {
@@ -2014,7 +2567,8 @@ export class BookingStatusPage implements OnInit {
 
       const pollGen = this.fetchGeneration;
       this.publicBookingService.getBookingByToken(token).pipe(
-        take(1)
+        take(1),
+        takeUntilDestroyed(this.destroyRef)
       ).subscribe({
         next: (updated) => {
           if (this.isDestroyed || pollGen !== this.fetchGeneration) return;
@@ -2026,7 +2580,6 @@ export class BookingStatusPage implements OnInit {
             this.isHoldExpired.set(updated.status === 'Expired');
           } else if (
             updated.paidAmount !== b.paidAmount ||
-            updated.paidAmount !== b.paidAmount ||
             updated.remainingBalance !== b.remainingBalance ||
             updated.holdExpiresAtUtc !== b.holdExpiresAtUtc ||
             updated.holdExtensionCount !== b.holdExtensionCount
@@ -2035,9 +2588,6 @@ export class BookingStatusPage implements OnInit {
             if (updated.holdExpiresAtUtc && updated.holdExpiresAtUtc !== b.holdExpiresAtUtc) {
               this.startHoldCountdown(updated.holdExpiresAtUtc, updated.status);
             }
-          } else if (false
-          ) {
-            this.booking.set(updated);
           }
         },
         error: () => {
@@ -2268,7 +2818,7 @@ export class BookingStatusPage implements OnInit {
 
   readonly isVnpayRedirecting = signal<boolean>(false);
 
-  private loadVietQr(detail: GuestBookingDetailDto): void {
+  loadVietQr(detail: GuestBookingDetailDto): void {
     const generation = ++this.vietQrGeneration;
     this.vietQr.set(null);
     this.vietQrError.set('');
@@ -2286,10 +2836,17 @@ export class BookingStatusPage implements OnInit {
         this.vietQr.set(qr);
         this.isVietQrLoading.set(false);
       },
-      error: () => {
+      error: (err) => {
         if (generation !== this.vietQrGeneration) return;
         this.isVietQrLoading.set(false);
-        this.vietQrError.set('Chưa tạo được mã VietQR. Vui lòng tải lại thông tin hoặc chọn VNPay.');
+        const serverMsg = err?.error?.message;
+        this.vietQrError.set(
+          typeof serverMsg === 'string' && serverMsg.trim().length > 0
+            ? serverMsg
+            : this.showVnpay
+              ? 'Chưa tạo được mã VietQR. Cơ sở lưu trú có thể chưa cấu hình tài khoản ngân hàng, vui lòng chọn cổng VNPay hoặc thanh toán tại quầy.'
+              : 'Chưa tạo được mã VietQR. Cơ sở lưu trú có thể chưa cấu hình tài khoản ngân hàng, vui lòng liên hệ lễ tân hoặc thanh toán tại quầy.'
+        );
       }
     });
   }
@@ -2305,6 +2862,55 @@ export class BookingStatusPage implements OnInit {
     );
   }
 
+  copyTransferContent(content: string): void {
+    if (!content) return;
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      this.alertService.toastWarning('Trình duyệt không hỗ trợ sao chép tự động.');
+      return;
+    }
+    navigator.clipboard.writeText(content).then(
+      () => this.alertService.toastSuccess('Đã sao chép nội dung chuyển khoản.'),
+      () => this.alertService.toastWarning('Không thể sao chép nội dung chuyển khoản.')
+    );
+  }
+
+  simulateSepayPayment(detail: GuestBookingDetailDto): void {
+    if (!this.devMode || !detail || this.isSimulatingSepay()) return;
+    if (typeof this.publicBookingService.simulateSepayWebhook !== 'function') return;
+
+    const depositDue = this.getRemainingDeposit(detail);
+    const amount = depositDue > 0 ? depositDue : (detail.remainingBalance || detail.totalAmount || 0);
+    this.isSimulatingSepay.set(true);
+
+    this.publicBookingService
+      .simulateSepayWebhook({
+        confirmationCode: detail.confirmationCode,
+        amount
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: res => {
+          this.isSimulatingSepay.set(false);
+          if (res?.success) {
+            this.alertService.toastSuccess(
+              res.message || 'Đã giả lập nhận tiền SePay thành công! Đang đồng bộ trạng thái & mã PIN...'
+            );
+            if (detail.lookupToken) {
+              this.syncHoldStateFromServer(detail.lookupToken);
+            }
+          } else {
+            this.alertService.toastWarning(res?.message || 'Không thể giả lập giao dịch SePay.');
+          }
+        },
+        error: err => {
+          this.isSimulatingSepay.set(false);
+          this.alertService.toastWarning(
+            err?.error?.message || 'Endpoint giả lập SePay chỉ hoạt động ở môi trường Development.'
+          );
+        }
+      });
+  }
+
   payWithVnpay(): void {
     // T03: Kiểm tra điều kiện gate — chưa có bằng chứng phê duyệt cấu hình sandbox từ An, không phát request thanh toán
     const detail = this.booking();
@@ -2313,7 +2919,9 @@ export class BookingStatusPage implements OnInit {
     this.isVnpayRedirecting.set(true);
     const returnUrl = typeof window !== 'undefined' ? `${window.location.origin}/booking/status/${detail.lookupToken}` : undefined;
 
-    this.publicBookingService.createVnpayPaymentUrl(detail.reservationId, detail.confirmationCode || detail.lookupToken, returnUrl).subscribe({
+    this.publicBookingService.createVnpayPaymentUrl(detail.reservationId, detail.confirmationCode || detail.lookupToken, returnUrl)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (res) => {
         if (res?.paymentUrl && typeof window !== 'undefined') {
           window.location.href = res.paymentUrl;
@@ -2476,7 +3084,7 @@ export class BookingStatusPage implements OnInit {
 
   submitGuestReview(): void {
     const b = this.booking();
-    if (!b || this.reviewSubmitting()) return;
+    if (!b || this.reviewSubmitting() || this.isAlreadyReviewed()) return;
     const rating = this.reviewRating();
     if (rating < 1 || rating > 5) {
       this.reviewError.set('Vui lòng chọn số sao từ 1 đến 5.');
@@ -2494,19 +3102,56 @@ export class BookingStatusPage implements OnInit {
       serviceRating: this.reviewService(),
       valueRating: this.reviewValue(),
       comment: this.reviewComment().trim() || undefined
-    }).subscribe({
-      next: () => {
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (createdReview) => {
         this.reviewSubmitting.set(false);
         this.reviewSubmitted.set(true);
+        const createdObj = createdReview as unknown as {
+          createdAtUtc?: string;
+          repliedAtUtc?: string | null;
+        } | null;
+        const summary: GuestBookingReviewSummaryDto = {
+          id: createdReview?.id ?? '',
+          rating: createdReview?.rating ?? this.reviewRating(),
+          cleanlinessRating: createdReview?.cleanlinessRating ?? this.reviewCleanliness(),
+          locationRating: createdReview?.locationRating ?? this.reviewLocation(),
+          serviceRating: createdReview?.serviceRating ?? this.reviewService(),
+          valueRating: createdReview?.valueRating ?? this.reviewValue(),
+          comment: createdReview?.comment ?? (this.reviewComment().trim() || null),
+          ownerReply: createdReview?.ownerReply ?? null,
+          repliedAtUtc: createdObj?.repliedAtUtc ?? createdReview?.repliedAt ?? null,
+          createdAtUtc: createdObj?.createdAtUtc ?? createdReview?.createdAt ?? new Date().toISOString()
+        };
+        this.submittedReview.set(summary);
+        this.booking.update(curr => (curr ? { ...curr, hasReviewed: true, existingReview: summary } : curr));
         this.alertService.success('Đánh giá của bạn đã được ghi nhận thành công! Cảm ơn bạn đã phản hồi.', 'Gửi đánh giá thành công');
       },
       error: (err) => {
         this.reviewSubmitting.set(false);
+        const errorCode = err?.error?.errorCode || err?.error?.code;
         const msg = err?.error?.message || err?.message || 'Không thể gửi đánh giá. Vui lòng thử lại sau.';
         this.reviewError.set(msg);
+        if (errorCode === 'ERR_ALREADY_REVIEWED' || /đã được gửi đánh giá/i.test(String(msg))) {
+          this.reviewSubmitted.set(true);
+          this.syncHoldStateFromServer(b.lookupToken || this.lastFetchedToken);
+        }
         this.alertService.error(msg, 'Gửi đánh giá thất bại');
       }
     });
+  }
+
+  private applyBookingDetail(detail: GuestBookingDetailDto): void {
+    this.booking.set(detail);
+    if (detail.hasReviewed || detail.existingReview) {
+      this.submittedReview.set(detail.existingReview ?? null);
+      this.reviewSubmitted.set(true);
+      if (detail.existingReview?.rating) {
+        this.reviewRating.set(detail.existingReview.rating);
+      }
+    } else {
+      this.submittedReview.set(null);
+      this.reviewSubmitted.set(false);
+    }
   }
 
   printConfirmation(): void {
@@ -2562,7 +3207,8 @@ export class BookingStatusPage implements OnInit {
     const gen = this.fetchGeneration;
 
     this.publicBookingService.getBookingByToken(token).pipe(
-      take(1)
+      take(1),
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: fresh => {
         if (this.isDestroyed || gen !== this.fetchGeneration || this.booking()?.lookupToken !== token) return;
@@ -2595,11 +3241,12 @@ export class BookingStatusPage implements OnInit {
     if (!token || this.isDestroyed || typeof this.publicBookingService.getBookingByToken !== 'function') return;
     const gen = this.fetchGeneration;
     this.publicBookingService.getBookingByToken(token).pipe(
-      take(1)
+      take(1),
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: fresh => {
         if (this.isDestroyed || gen !== this.fetchGeneration || this.booking()?.lookupToken !== token) return;
-        this.booking.set(fresh);
+        this.applyBookingDetail(fresh);
         if (fresh.status === 'PendingPayment' && fresh.holdExpiresAtUtc) {
           this.startHoldCountdown(fresh.holdExpiresAtUtc, fresh.status);
           this.startPolling(token);
@@ -2625,10 +3272,14 @@ export class BookingStatusPage implements OnInit {
           const data = event?.data;
           const current = this.booking();
           if (!data || !current?.lookupToken) return;
+          if (data.senderId === LIVE_CHANNEL_SENDER_ID) return;
           if (
-            (data.action === 'extend-hold' || data.action === 'confirm') &&
+            (data.action === 'extend-hold' || data.action === 'confirm' || data.action === 'reschedule') &&
             (data.lookupToken === current.lookupToken || (data.reservationId && data.reservationId === current.reservationId))
           ) {
+            const now = Date.now();
+            if (now - this.lastBroadcastSyncAt < 1500) return;
+            this.lastBroadcastSyncAt = now;
             this.syncHoldStateFromServer(current.lookupToken);
           }
         };
@@ -2649,6 +3300,175 @@ export class BookingStatusPage implements OnInit {
     if (detail.status !== 'PendingPayment' && detail.status !== 'Confirmed') return false;
     if (detail.status === 'PendingPayment' && this.isHoldExpired()) return false;
     return true;
+  }
+
+  canReschedule(detail?: GuestBookingDetailDto | null): boolean {
+    if (!detail) return false;
+    if (detail.status !== 'PendingPayment' && detail.status !== 'Confirmed') return false;
+    if (detail.status === 'PendingPayment' && this.isHoldExpired()) return false;
+    return true;
+  }
+
+  openRescheduleModal(): void {
+    const detail = this.booking();
+    if (!detail || !this.canReschedule(detail)) return;
+
+    this.rescheduleError.set('');
+    this.rescheduleReason = '';
+
+    const startDate = detail.startAtUtc ? new Date(detail.startAtUtc) : null;
+    const endDate = detail.endAtUtc ? new Date(detail.endAtUtc) : null;
+
+    if (detail.rentalType === 'Hourly') {
+      if (startDate && Number.isFinite(startDate.getTime())) {
+        const vnParts = this.toVietnamDateAndTime(startDate);
+        this.rescheduleDate = vnParts.date;
+        this.rescheduleStartTime = vnParts.time;
+      }
+      if (startDate && endDate && Number.isFinite(startDate.getTime()) && Number.isFinite(endDate.getTime())) {
+        const diffH = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 3600000));
+        this.rescheduleHours = Math.min(12, diffH);
+      } else {
+        this.rescheduleHours = 2;
+      }
+    } else {
+      this.rescheduleCheckInDate = detail.checkInDate || (startDate ? this.toVietnamDateAndTime(startDate).date : '');
+      this.rescheduleCheckOutDate = detail.checkOutDate || (endDate ? this.toVietnamDateAndTime(endDate).date : '');
+    }
+
+    this.isRescheduleModalOpen.set(true);
+  }
+
+  closeRescheduleModal(): void {
+    if (this.isRescheduling()) return;
+    this.isRescheduleModalOpen.set(false);
+  }
+
+  submitReschedule(): void {
+    const detail = this.booking();
+    if (!detail?.lookupToken || this.isRescheduling()) return;
+    if (typeof this.publicBookingService.rescheduleBooking !== 'function') {
+      this.rescheduleError.set('Chức năng đổi lịch chưa sẵn sàng.');
+      return;
+    }
+
+    let request: RescheduleGuestBookingRequest;
+    const nowMs = Date.now();
+    const maxFutureMs = nowMs + 365 * 24 * 60 * 60 * 1000;
+
+    if (detail.rentalType === 'Hourly') {
+      if (!this.rescheduleDate || !this.rescheduleStartTime || !this.rescheduleHours || this.rescheduleHours < 1) {
+        this.rescheduleError.set('Vui lòng chọn ngày, giờ nhận phòng và số giờ thuê hợp lệ.');
+        return;
+      }
+      const start = new Date(`${this.rescheduleDate}T${this.rescheduleStartTime}:00+07:00`);
+      if (!Number.isFinite(start.getTime())) {
+        this.rescheduleError.set('Ngày hoặc giờ nhận phòng mới không hợp lệ.');
+        return;
+      }
+      const end = new Date(start.getTime() + this.rescheduleHours * 3600000);
+      if (start.getTime() <= nowMs) {
+        this.rescheduleError.set('Thời gian nhận phòng mới phải nằm ở tương lai.');
+        return;
+      }
+      if (start.getTime() > maxFutureMs) {
+        this.rescheduleError.set('Chỉ hỗ trợ đổi lịch lưu trú trong phạm vi 365 ngày tới.');
+        return;
+      }
+      request = {
+        newStartAtUtc: start.toISOString(),
+        newEndAtUtc: end.toISOString(),
+        reason: this.rescheduleReason.trim() || undefined
+      };
+    } else {
+      if (!this.rescheduleCheckInDate || !this.rescheduleCheckOutDate || this.rescheduleCheckOutDate <= this.rescheduleCheckInDate) {
+        this.rescheduleError.set('Ngày trả phòng mới phải sau ngày nhận phòng mới.');
+        return;
+      }
+      const startClock = detail.startAtUtc && Number.isFinite(new Date(detail.startAtUtc).getTime())
+        ? this.toVietnamDateAndTime(new Date(detail.startAtUtc)).time
+        : '14:00';
+      const endClock = detail.endAtUtc && Number.isFinite(new Date(detail.endAtUtc).getTime())
+        ? this.toVietnamDateAndTime(new Date(detail.endAtUtc)).time
+        : '12:00';
+
+      const start = new Date(`${this.rescheduleCheckInDate}T${startClock}:00+07:00`);
+      const end = new Date(`${this.rescheduleCheckOutDate}T${endClock}:00+07:00`);
+      if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) {
+        this.rescheduleError.set('Khoảng thời gian lưu trú mới không hợp lệ.');
+        return;
+      }
+      if (start.getTime() <= nowMs) {
+        this.rescheduleError.set('Ngày nhận phòng mới phải nằm ở tương lai.');
+        return;
+      }
+      if (start.getTime() > maxFutureMs) {
+        this.rescheduleError.set('Chỉ hỗ trợ đổi lịch lưu trú trong phạm vi 365 ngày tới.');
+        return;
+      }
+
+      request = {
+        newStartAtUtc: start.toISOString(),
+        newEndAtUtc: end.toISOString(),
+        newCheckInDate: this.rescheduleCheckInDate,
+        newCheckOutDate: this.rescheduleCheckOutDate,
+        reason: this.rescheduleReason.trim() || undefined
+      };
+    }
+
+    this.isRescheduling.set(true);
+    this.rescheduleError.set('');
+
+    this.publicBookingService.rescheduleBooking(detail.lookupToken, request).pipe(
+      take(1),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: (updated) => {
+        this.isRescheduling.set(false);
+        this.isRescheduleModalOpen.set(false);
+        this.applyBookingDetail(updated);
+        if (updated.status === 'PendingPayment') {
+          this.loadVietQr(updated);
+          if (updated.holdExpiresAtUtc) {
+            this.startHoldCountdown(updated.holdExpiresAtUtc, updated.status);
+          }
+        }
+        this.alertService.toastSuccess('Đã cập nhật lịch lưu trú mới thành công.');
+      },
+      error: (err) => {
+        this.isRescheduling.set(false);
+        const serverMsg = typeof err?.error?.message === 'string' && !/exception|stacktrace/i.test(err.error.message)
+          ? err.error.message
+          : 'Không thể đổi lịch lưu trú cho khung thời gian đã chọn. Vui lòng thử lại.';
+        this.rescheduleError.set(serverMsg);
+      }
+    });
+  }
+
+  private toVietnamDateAndTime(date: Date): { date: string; time: string } {
+    try {
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      const parts = formatter.formatToParts(date);
+      const y = parts.find(p => p.type === 'year')?.value ?? '2026';
+      const m = parts.find(p => p.type === 'month')?.value ?? '01';
+      const d = parts.find(p => p.type === 'day')?.value ?? '01';
+      const hh = parts.find(p => p.type === 'hour')?.value ?? '14';
+      const mm = parts.find(p => p.type === 'minute')?.value ?? '00';
+      return { date: `${y}-${m}-${d}`, time: `${hh === '24' ? '00' : hh}:${mm}` };
+    } catch {
+      return {
+        date: date.toISOString().slice(0, 10),
+        time: date.toISOString().slice(11, 16)
+      };
+    }
   }
 
   openCancelModal(): void {
@@ -2676,7 +3496,8 @@ export class BookingStatusPage implements OnInit {
     this.cancelPreview.set(null);
 
     this.publicBookingService.getCancellationPreview(b.lookupToken).pipe(
-      take(1)
+      take(1),
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: preview => {
         this.isLoadingCancelPreview.set(false);
@@ -2714,7 +3535,8 @@ export class BookingStatusPage implements OnInit {
     };
 
     this.publicBookingService.cancelBooking(b.lookupToken, request).pipe(
-      take(1)
+      take(1),
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: updated => {
         this.isCancelling.set(false);
@@ -2728,7 +3550,7 @@ export class BookingStatusPage implements OnInit {
         } else {
           const refAmount = updated.refundableAmount ?? prev.refundableAmount ?? 0;
           if (refAmount > 0) {
-            const formattedAmount = refAmount.toLocaleString('vi-VN') + ' ₫';
+            const formattedAmount = this.vndCurrency.transform(refAmount);
             this.alertService.toastSuccess(
               `Đặt phòng đã được hủy thành công. Khoản tiền hoàn dự kiến ${formattedAmount} đã được ghi nhận và đang chờ khách sạn đối soát, xử lý theo phương thức hoàn tiền được xác nhận (chưa chi trả thực tế).`
             );
@@ -2840,7 +3662,12 @@ export class BookingStatusPage implements OnInit {
 
   formatPolicyDescription(text?: string | null): string {
     if (!text) return '';
-    let res = text;
+    const escaped = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+    let res = escaped;
     // 1. Mức phí phạt (in đậm có nền nhẹ và viền)
     res = res.replace(
       /(phí phạt 30% tổng giá trị đơn đặt phòng|phí phạt \d+%|phí hủy \d+%|phí hủy [\d.,]+\s*₫?)/gi,
@@ -2857,6 +3684,35 @@ export class BookingStatusPage implements OnInit {
       '<strong class="font-bold text-slate-900 underline decoration-blue-400 underline-offset-2">$1</strong>'
     );
     return res;
+  }
+
+  getPolicyDescriptionParts(text?: string | null): PolicyTextPart[] {
+    if (!text) return [];
+    const combinedPattern =
+      /(phí phạt 30% tổng giá trị đơn đặt phòng|phí phạt \d+%|phí hủy \d+%|phí hủy [\d.,]+\s*₫?|trong vòng \d+\s*(?:giờ|h)(?:\s*trước giờ nhận phòng)?|trước (?:ngày|giờ) nhận phòng ít nhất \d+\s*(?:giờ|h)|trước \d+\s*(?:giờ|h) nhận phòng)/gi;
+    const parts: PolicyTextPart[] = [];
+    let lastIndex = 0;
+
+    for (const match of text.matchAll(combinedPattern)) {
+      const idx = match.index ?? 0;
+      if (idx > lastIndex) {
+        parts.push({ text: text.slice(lastIndex, idx), variant: 'plain' });
+      }
+      const matchedText = match[0];
+      let variant: PolicyTextPart['variant'] = 'free';
+      if (/^phí/i.test(matchedText)) {
+        variant = 'penalty';
+      } else if (/^trong vòng/i.test(matchedText)) {
+        variant = 'window';
+      }
+      parts.push({ text: matchedText, variant });
+      lastIndex = idx + matchedText.length;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push({ text: text.slice(lastIndex), variant: 'plain' });
+    }
+    return parts;
   }
 
   ngOnDestroy(): void {
@@ -2876,6 +3732,7 @@ export class BookingStatusPage implements OnInit {
       document.removeEventListener('visibilitychange', this.onVisibilityChange);
     }
     this.clearTimer();
+    this.stopPolling();
     if (this.copyTimeout) {
       clearTimeout(this.copyTimeout);
       this.copyTimeout = undefined;

@@ -39,39 +39,39 @@ interface PopularLocationPreset {
 
 const PROVINCE_COORDINATES: Readonly<Record<string, { lat: number; lng: number }>> = {
   hanoi: { lat: 21.0285, lng: 105.8542 },
-  quangninh: { lat: 20.9599, lng: 107.0425 },
-  laocai: { lat: 22.3364, lng: 103.8438 },
-  ninhbinh: { lat: 20.2506, lng: 105.9745 },
-  haiphong: { lat: 20.7278, lng: 107.0482 },
-  hagiang: { lat: 22.8233, lng: 104.9836 },
   caobang: { lat: 22.8535, lng: 106.7224 },
-  hoabinh: { lat: 20.6606, lng: 105.0725 },
-  yenbai: { lat: 21.8492, lng: 104.0888 },
+  tuyenquang: { lat: 21.8236, lng: 105.2142 },
+  dienbien: { lat: 21.3860, lng: 103.0230 },
+  laichau: { lat: 22.3964, lng: 103.4582 },
+  sonla: { lat: 20.8400, lng: 104.6431 },
+  laocai: { lat: 22.3364, lng: 103.8438 },
+  thainguyen: { lat: 21.5942, lng: 105.8482 },
   langson: { lat: 21.8537, lng: 106.7615 },
-  danang: { lat: 16.0601, lng: 108.2464 },
-  quangnam: { lat: 15.8801, lng: 108.3380 },
-  khanhhoa: { lat: 12.2388, lng: 109.1967 },
+  quangninh: { lat: 20.9599, lng: 107.0425 },
+  bacninh: { lat: 21.1861, lng: 106.0763 },
+  phutho: { lat: 21.3227, lng: 105.4020 },
+  haiphong: { lat: 20.7278, lng: 107.0482 },
+  hungyen: { lat: 20.6464, lng: 106.0511 },
+  ninhbinh: { lat: 20.2506, lng: 105.9745 },
+  thanhhoa: { lat: 19.8067, lng: 105.7852 },
+  nghean: { lat: 18.6796, lng: 105.6813 },
+  hatinh: { lat: 18.3428, lng: 105.9057 },
+  quangtri: { lat: 17.5526, lng: 106.2835 },
   hue: { lat: 16.4637, lng: 107.5909 },
-  binhdinh: { lat: 13.7830, lng: 109.2197 },
-  binhthuan: { lat: 10.9333, lng: 108.2833 },
-  phuyen: { lat: 13.0955, lng: 109.3209 },
-  quangbinh: { lat: 17.5526, lng: 106.2835 },
-  quangtri: { lat: 16.9255, lng: 107.1856 },
+  danang: { lat: 16.0601, lng: 108.2464 },
   quangngai: { lat: 15.3822, lng: 109.1180 },
-  lamdong: { lat: 11.9404, lng: 108.4452 },
+  khanhhoa: { lat: 12.2388, lng: 109.1967 },
+  gialai: { lat: 13.7830, lng: 109.2197 },
   daklak: { lat: 12.6667, lng: 108.0500 },
-  kontum: { lat: 14.5968, lng: 108.2932 },
-  gialai: { lat: 13.9833, lng: 108.0000 },
+  lamdong: { lat: 11.9404, lng: 108.4452 },
+  dongnai: { lat: 10.9574, lng: 106.8427 },
   hcm: { lat: 10.7725, lng: 106.6980 },
-  vungtau: { lat: 10.3347, lng: 107.0898 },
-  kiengiang: { lat: 10.1698, lng: 103.9930 },
-  cantho: { lat: 10.0452, lng: 105.7469 },
-  angiang: { lat: 10.6976, lng: 105.0682 },
-  bentre: { lat: 10.2434, lng: 106.3756 },
-  dongthap: { lat: 10.2921, lng: 105.7586 },
   tayninh: { lat: 11.3736, lng: 106.1763 },
-  camau: { lat: 8.6061, lng: 104.7250 },
-  binhduong: { lat: 10.9036, lng: 106.7011 }
+  dongthap: { lat: 10.2921, lng: 105.7586 },
+  vinhlong: { lat: 10.2537, lng: 105.9722 },
+  angiang: { lat: 10.1698, lng: 103.9930 },
+  cantho: { lat: 10.0452, lng: 105.7469 },
+  camau: { lat: 8.6061, lng: 104.7250 }
 };
 
 @Component({
@@ -148,10 +148,11 @@ const PROVINCE_COORDINATES: Readonly<Record<string, { lat: number; lng: number }
           class="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-semibold shrink-0 transition-colors cursor-pointer disabled:opacity-60 flex items-center gap-1"
         >
           @if (locatingGps()) {
-            <i class="pi pi-spin pi-spinner text-[10px]"></i>
+            <i class="pi pi-spin pi-spinner text-[10px]" aria-hidden="true"></i>
             <span>Đang định vị...</span>
           } @else {
-            <span>📍 Vị trí hiện tại</span>
+            <i class="pi pi-map-marker text-[11px]" aria-hidden="true"></i>
+            <span>Vị trí hiện tại</span>
           }
         </button>
         <span class="text-[11px] text-slate-400 shrink-0 font-medium flex items-center gap-1 ml-1">
@@ -285,18 +286,18 @@ export class GoogleMapPickerComponent implements OnInit, OnChanges {
 
   readonly presets: PopularLocationPreset[] = [
     {
-      name: 'TP. Hồ Chí Minh (Quận 1)',
+      name: 'TP. Hồ Chí Minh (Bến Thành)',
       provinceName: 'Thành phố Hồ Chí Minh',
       provinceCode: '79',
-      address: 'Đường Lê Lợi, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh',
+      address: 'Đường Lê Lợi, Phường Bến Thành, TP. Hồ Chí Minh',
       lat: 10.7725,
       lng: 106.6980
     },
     {
       name: 'Hà Nội (Hồ Gươm)',
       provinceName: 'Thành phố Hà Nội',
-      provinceCode: '1',
-      address: 'Phố Đinh Tiên Hoàng, Phường Hàng Trống, Quận Hoàn Kiếm, Hà Nội',
+      provinceCode: '01',
+      address: 'Phố Đinh Tiên Hoàng, Phường Hoàn Kiếm, Hà Nội',
       lat: 21.0285,
       lng: 105.8542
     },
@@ -304,7 +305,7 @@ export class GoogleMapPickerComponent implements OnInit, OnChanges {
       name: 'Đà Nẵng (Biển Mỹ Khê)',
       provinceName: 'Thành phố Đà Nẵng',
       provinceCode: '48',
-      address: 'Đường Võ Nguyên Giáp, Phường Phước Mỹ, Quận Sơn Trà, Đà Nẵng',
+      address: 'Đường Võ Nguyên Giáp, Phường An Hải, Đà Nẵng',
       lat: 16.0601,
       lng: 108.2464
     },
@@ -312,7 +313,7 @@ export class GoogleMapPickerComponent implements OnInit, OnChanges {
       name: 'Đà Lạt (Hồ Xuân Hương)',
       provinceName: 'Tỉnh Lâm Đồng',
       provinceCode: '68',
-      address: 'Đường Trần Quốc Toản, Phường 1, TP. Đà Lạt, Lâm Đồng',
+      address: 'Đường Trần Quốc Toản, Phường Xuân Hương - Đà Lạt, Lâm Đồng',
       lat: 11.9404,
       lng: 108.4452
     },
@@ -320,23 +321,23 @@ export class GoogleMapPickerComponent implements OnInit, OnChanges {
       name: 'Nha Trang (Đường Trần Phú)',
       provinceName: 'Tỉnh Khánh Hòa',
       provinceCode: '56',
-      address: 'Đường Trần Phú, Phường Lộc Thọ, TP. Nha Trang, Khánh Hòa',
+      address: 'Đường Trần Phú, Phường Nha Trang, Khánh Hòa',
       lat: 12.2388,
       lng: 109.1967
     },
     {
       name: 'Vũng Tàu (Bãi Sau)',
-      provinceName: 'Tỉnh Bà Rịa - Vũng Tàu',
-      provinceCode: '77',
-      address: 'Đường Thùy Vân, Phường Thắng Tam, TP. Vũng Tàu, Bà Rịa - Vũng Tàu',
+      provinceName: 'Thành phố Hồ Chí Minh',
+      provinceCode: '79',
+      address: 'Đường Thùy Vân, Phường Vũng Tàu, TP. Hồ Chí Minh',
       lat: 10.3347,
       lng: 107.0898
     },
     {
       name: 'Phú Quốc (Bãi Trường)',
-      provinceName: 'Tỉnh Kiên Giang',
+      provinceName: 'Tỉnh An Giang',
       provinceCode: '91',
-      address: 'Đường Trần Hưng Đạo, Dương Tơ, TP. Phú Quốc, Kiên Giang',
+      address: 'Đường Trần Hưng Đạo, Đặc khu Phú Quốc, Tỉnh An Giang',
       lat: 10.1698,
       lng: 103.9930
     }
@@ -411,7 +412,7 @@ export class GoogleMapPickerComponent implements OnInit, OnChanges {
     const rawCoordSuggestion: PopularLocationPreset[] = parsedCoords
       ? [
           {
-            name: `📌 Ghim tọa độ GPS: ${parsedCoords.lat.toFixed(4)}, ${parsedCoords.lng.toFixed(4)}`,
+            name: `Ghim tọa độ GPS: ${parsedCoords.lat.toFixed(4)}, ${parsedCoords.lng.toFixed(4)}`,
             provinceName: 'Tọa độ GPS',
             provinceCode: '',
             address: `Vị trí GPS (${parsedCoords.lat.toFixed(4)}, ${parsedCoords.lng.toFixed(4)})`,

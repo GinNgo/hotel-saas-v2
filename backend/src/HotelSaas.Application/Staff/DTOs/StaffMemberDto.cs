@@ -22,6 +22,7 @@ public sealed record StaffMemberDto
     public string StaffRoleName { get; init; } = string.Empty;
     public bool IsActive { get; init; }
     public DateTime CreatedAtUtc { get; init; }
+    public bool InvitedViaEmail { get; init; }
 }
 
 /// <summary>

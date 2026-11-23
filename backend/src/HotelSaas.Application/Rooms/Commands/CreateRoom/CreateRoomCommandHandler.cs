@@ -19,6 +19,7 @@ public sealed class CreateRoomCommandHandler : IRequestHandler<CreateRoomCommand
     private readonly ICurrentPropertyService _propertyService;
     private readonly ICurrentUserContext _userContext;
     private readonly IMembershipLookupService _membershipLookupService;
+    private readonly ISubscriptionQuotaGuard? _quotaGuard;
 
     /// <summary>
     /// Initializes a new instance of <see cref="CreateRoomCommandHandler"/>.
@@ -28,18 +29,21 @@ public sealed class CreateRoomCommandHandler : IRequestHandler<CreateRoomCommand
     /// <param name="propertyService">Current property service.</param>
     /// <param name="userContext">Current user context.</param>
     /// <param name="membershipLookupService">Membership lookup service.</param>
+    /// <param name="quotaGuard">Optional SaaS subscription quota guard.</param>
     public CreateRoomCommandHandler(
         IApplicationDbContext context,
         ICurrentTenantService tenantService,
         ICurrentPropertyService propertyService,
         ICurrentUserContext userContext,
-        IMembershipLookupService membershipLookupService)
+        IMembershipLookupService membershipLookupService,
+        ISubscriptionQuotaGuard? quotaGuard = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _tenantService = tenantService ?? throw new ArgumentNullException(nameof(tenantService));
         _propertyService = propertyService ?? throw new ArgumentNullException(nameof(propertyService));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _membershipLookupService = membershipLookupService ?? throw new ArgumentNullException(nameof(membershipLookupService));
+        _quotaGuard = quotaGuard;
     }
 
     /// <inheritdoc />
@@ -159,6 +163,11 @@ public sealed class CreateRoomCommandHandler : IRequestHandler<CreateRoomCommand
         if (property.Status != PropertyStatus.Active)
         {
             throw new ConflictException("ERR_PROPERTY_INACTIVE", "Chi nhánh hiện không ở trạng thái hoạt động.");
+        }
+
+        if (_quotaGuard != null)
+        {
+            await _quotaGuard.EnsureCanCreateRoomAsync(tenantId.Value, cancellationToken);
         }
 
         var normalizedRoomNumber = request.RoomNumber.Trim();

@@ -1,9 +1,7 @@
 using System;
 using System.Linq;
-using System.Security.Claims;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Interfaces;
-using HotelSaas.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,7 +10,7 @@ namespace HotelSaas.WebApi.Authorization;
 /// <summary>
 /// Evaluates <see cref="PermissionRequirement"/> by checking the authenticated user's
 /// RBAC role permissions via the database. Supports single and composite OR requirements.
-/// Platform <see cref="GlobalUserRole.SuperAdmin"/> users bypass all checks.
+/// Fail-closed: SuperAdmin and un-scoped tokens without an authoritative role never bypass RBAC checks.
 /// </summary>
 public sealed class PermissionAuthorizationHandler : AuthorizationHandler<PermissionRequirement>
 {
@@ -37,13 +35,6 @@ public sealed class PermissionAuthorizationHandler : AuthorizationHandler<Permis
         AuthorizationHandlerContext context,
         PermissionRequirement requirement)
     {
-        // Platform SuperAdmin users bypass all permission checks
-        if (_userContext.GlobalRole == GlobalUserRole.SuperAdmin)
-        {
-            context.Succeed(requirement);
-            return;
-        }
-
         // Fail-closed: Must possess an authoritative role resolved by context middleware
         if (!_userContext.RoleId.HasValue || _userContext.RoleId.Value == Guid.Empty)
         {

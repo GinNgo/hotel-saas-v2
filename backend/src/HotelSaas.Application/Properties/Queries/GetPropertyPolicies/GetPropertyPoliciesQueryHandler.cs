@@ -101,6 +101,8 @@ public sealed class GetPropertyPoliciesQueryHandler : IRequestHandler<GetPropert
             CheckOutTime = property.CheckOutTime,
             BufferMinutes = property.BufferMinutes,
             MaxHourlyHours = property.MaxHourlyHours,
+            TaxRatePercent = property.TaxRatePercent,
+            ServiceFeeRatePercent = property.ServiceFeeRatePercent,
             Surcharges = surcharges
         };
     }

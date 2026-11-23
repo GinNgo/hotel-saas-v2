@@ -24,6 +24,43 @@ for arg in "$@"; do
   esac
 done
 
+read_env_value() {
+  local key="$1"
+  local file="${2:-.env}"
+  if [ ! -f "${file}" ]; then
+    return 0
+  fi
+  local line
+  line=$(grep -E "^[[:space:]]*(export[[:space:]]+)?${key}=" "${file}" | tail -n 1 || true)
+  if [ -z "${line}" ]; then
+    return 0
+  fi
+  local val="${line#*=}"
+  val="${val%$'\r'}"
+  val="${val#\"}"
+  val="${val%\"}"
+  val="${val#\'}"
+  val="${val%\'}"
+  printf '%s' "${val}"
+}
+
+sync_metrics_key_file() {
+  local key_file="$1"
+  local key_value="$2"
+  local key_dir
+  key_dir="$(dirname "${key_file}")"
+
+  if [ "$(id -u)" -eq 0 ] || [ -w "${key_dir}" ]; then
+    mkdir -p "${key_dir}"
+    printf '%s' "${key_value}" > "${key_file}"
+    chmod 644 "${key_file}"
+  else
+    sudo mkdir -p "${key_dir}"
+    printf '%s' "${key_value}" | sudo tee "${key_file}" >/dev/null
+    sudo chmod 644 "${key_file}"
+  fi
+}
+
 verify_health_probes() {
   local healthy=0
   for i in {1..20}; do
@@ -121,10 +158,34 @@ docker compose -f docker-compose.staging.yml pull
 echo "=== [3/5] Rolling update backend & frontend containers ==="
 docker compose -f docker-compose.staging.yml up -d --no-deps backend frontend
 
-echo "=== [4/5] Deploying observability stack (if present) ==="
+echo "=== [4/5] Deploying observability stack (if configured) ==="
 if [ -f docker/docker-compose.observability.yml ]; then
-  sed -i 's/hotelsaas-staging-network/treeseo-production_edge/g' docker/docker-compose.observability.yml
-  docker compose -f docker/docker-compose.observability.yml up -d
+  EFFECTIVE_GF_PASSWORD="${GF_SECURITY_ADMIN_PASSWORD:-$(read_env_value GF_SECURITY_ADMIN_PASSWORD .env)}"
+  EFFECTIVE_METRICS_KEY="${METRICS_API_KEY:-$(read_env_value METRICS_API_KEY .env)}"
+  METRICS_KEY_FILE="${PROMETHEUS_METRICS_KEY_FILE:-$(read_env_value PROMETHEUS_METRICS_KEY_FILE .env)}"
+  METRICS_KEY_FILE="${METRICS_KEY_FILE:-/etc/hotelsaas/metrics_api_key}"
+
+  if [ -z "${EFFECTIVE_GF_PASSWORD}" ]; then
+    echo "ℹ️ Skipping observability stack: GF_SECURITY_ADMIN_PASSWORD is not set in .env or environment."
+  else
+    if [ -n "${EFFECTIVE_METRICS_KEY}" ]; then
+      sync_metrics_key_file "${METRICS_KEY_FILE}" "${EFFECTIVE_METRICS_KEY}"
+      echo "✔ Synced Prometheus metrics key file: ${METRICS_KEY_FILE} (mode 644)"
+    elif [ ! -f "${METRICS_KEY_FILE}" ]; then
+      sync_metrics_key_file "${METRICS_KEY_FILE}" ""
+      echo "⚠️ METRICS_API_KEY not set in .env; created empty placeholder ${METRICS_KEY_FILE} so Prometheus starts cleanly."
+    fi
+
+    if [ -f .env ]; then
+      docker compose --env-file .env -f docker/docker-compose.observability.yml up -d
+    else
+      docker compose -f docker/docker-compose.observability.yml up -d
+    fi
+
+    if docker ps --format '{{.Names}}' | grep -qx 'hotelsaas-caddy'; then
+      docker exec hotelsaas-caddy caddy reload --config /etc/caddy/Caddyfile || true
+    fi
+  fi
 fi
 
 echo "=== [5/5] Verifying /health and /health/ready probes at ${DOMAIN} ==="

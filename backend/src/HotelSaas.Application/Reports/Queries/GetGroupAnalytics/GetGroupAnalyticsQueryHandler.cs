@@ -40,7 +40,7 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
             throw new UnauthorizedAccessException("Yêu cầu thông tin Tenant hợp lệ để truy vấn phân tích chuỗi khách sạn.");
         }
 
-        if (_currentPropertyService != null && !_currentPropertyService.IsTenantWide && _currentPropertyService.PropertyId.HasValue)
+        if (_currentPropertyService == null || !_currentPropertyService.IsTenantWide)
         {
             throw new ForbiddenException(
                 "ERR_PROPERTY_FORBIDDEN",
@@ -59,10 +59,20 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
 
         var totalDays = Math.Max(1, effectiveTo.DayNumber - effectiveFrom.DayNumber + 1);
 
-        // 1. Tải toàn bộ chi nhánh thuộc Tenant
-        var properties = await _context.Properties
+        var excludedPropertyIds = _currentPropertyService.ExcludedPropertyIds;
+
+        // 1. Tải toàn bộ chi nhánh thuộc Tenant (loại trừ chi nhánh đã bị thu hồi quyền - PO Decision 3)
+        var propertiesQuery = _context.Properties
+            .IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(p => p.TenantId == tenantId.Value)
+            .Where(p => p.TenantId == tenantId.Value);
+
+        if (excludedPropertyIds is { Count: > 0 })
+        {
+            propertiesQuery = propertiesQuery.Where(p => !excludedPropertyIds.Contains(p.Id));
+        }
+
+        var properties = await propertiesQuery
             .OrderBy(p => p.Name)
             .ToListAsync(cancellationToken);
 
@@ -110,7 +120,9 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
             .ToListAsync(cancellationToken);
 
         var validReservations = allReservations
-            .Where(r => r.Status != ReservationStatus.Cancelled && r.Status != ReservationStatus.NoShow)
+            .Where(r => r.Status != ReservationStatus.Cancelled &&
+                        r.Status != ReservationStatus.NoShow &&
+                        r.Status != ReservationStatus.PendingPayment)
             .ToList();
 
         // 4. Tải thanh toán đã hoàn tất
@@ -154,11 +166,20 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
             var soldNights = 0;
             decimal pRevenue = 0m;
 
+            var effectiveToExclusive = effectiveTo.AddDays(1);
             foreach (var r in pRes)
             {
-                var overlapStart = r.CheckInDate > effectiveFrom ? r.CheckInDate : effectiveFrom;
-                var overlapEnd = r.CheckOutDate < effectiveTo ? r.CheckOutDate : effectiveTo;
-                var overlapDays = Math.Max(0, overlapEnd.DayNumber - overlapStart.DayNumber);
+                int overlapDays;
+                if (r.CheckInDate == r.CheckOutDate)
+                {
+                    overlapDays = r.CheckInDate >= effectiveFrom && r.CheckInDate <= effectiveTo ? 1 : 0;
+                }
+                else
+                {
+                    var overlapStart = r.CheckInDate > effectiveFrom ? r.CheckInDate : effectiveFrom;
+                    var overlapEnd = r.CheckOutDate < effectiveToExclusive ? r.CheckOutDate : effectiveToExclusive;
+                    overlapDays = Math.Max(0, overlapEnd.DayNumber - overlapStart.DayNumber);
+                }
 
                 soldNights += overlapDays;
                 totalPortfolioGuests += r.NumberOfGuests;
@@ -256,7 +277,9 @@ public sealed class GetGroupAnalyticsQueryHandler : IRequestHandler<GetGroupAnal
             foreach (var p in properties)
             {
                 var pDayRes = validReservations
-                    .Where(r => r.PropertyId == p.Id && r.CheckInDate <= d && r.CheckOutDate > d)
+                    .Where(r => r.PropertyId == p.Id &&
+                                ((r.CheckInDate == r.CheckOutDate && r.CheckInDate == d) ||
+                                 (r.CheckInDate <= d && r.CheckOutDate > d)))
                     .ToList();
 
                 var pDayRev = pDayRes.Sum(r =>
