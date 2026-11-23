@@ -7,6 +7,7 @@ import { PoliciesPage } from './policies.page';
 import { PolicyService } from '../../core/services/policy.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AlertService } from '../../core/services/alert.service';
+import { PrintDocumentsService } from '../../core/services/print-documents.service';
 import {
   PropertyPoliciesDto,
   SurchargeType,
@@ -17,6 +18,7 @@ describe('PoliciesPage Logic, Validation & Authorization', () => {
   let mockPolicyService: any;
   let mockAuthService: any;
   let mockAlertService: any;
+  let mockPrintService: any;
   let activePropertyIdSignal: any;
   let activePropertyNameSignal: any;
 
@@ -63,6 +65,28 @@ describe('PoliciesPage Logic, Validation & Authorization', () => {
       toastError: vi.fn(),
       showNotice: vi.fn()
     };
+
+    mockPrintService = {
+      getTemplateConfig: vi.fn().mockReturnValue(of({
+        headerCompanyName: 'Khách sạn Mỹ Khê',
+        headerAddress: '123 Võ Nguyên Giáp',
+        taxNumber: '0401234567',
+        hotline: '19001234',
+        bankName: 'MBBank',
+        bankAccountNumber: '0345678910',
+        bankAccountHolder: 'CTY MY KHE',
+        sepayApiKey: 'sepay-prop-secret-123',
+        hasSepayApiKey: true,
+        footerNote: 'Cảm ơn!',
+        checkInPolicyText: 'Xuất trình CCCD',
+        showVietQrCode: true,
+        defaultPaperSize: 'A4'
+      })),
+      updateTemplateConfig: vi.fn().mockImplementation((req: any) => of({
+        ...req,
+        hasSepayApiKey: Boolean(req.sepayApiKey && String(req.sepayApiKey).trim().length > 0)
+      }))
+    };
   });
 
   function createComponent(): PoliciesPage {
@@ -71,7 +95,8 @@ describe('PoliciesPage Logic, Validation & Authorization', () => {
         { provide: FormBuilder, useClass: FormBuilder },
         { provide: PolicyService, useValue: mockPolicyService },
         { provide: AlertService, useValue: mockAlertService },
-        { provide: AuthService, useValue: mockAuthService }
+        { provide: AuthService, useValue: mockAuthService },
+        { provide: PrintDocumentsService, useValue: mockPrintService }
       ]
     });
     return runInInjectionContext(injector, () => new PoliciesPage());
@@ -437,5 +462,45 @@ describe('PoliciesPage Logic, Validation & Authorization', () => {
     pendingSubject$.complete();
 
     expect(comp.loadedPropertyId()).toBeNull();
+  });
+
+  it('21. should hydrate per-property sepayApiKey, toggle visibility, clear key, save print config, and build property-pinned SePay webhook URL', () => {
+    const comp = createComponent();
+    comp.loadPolicies();
+
+    expect(comp.supportedVietQrBanks.length).toBe(17);
+    expect(comp.supportedVietQrBanks).toContain('MBBank');
+    expect(comp.supportedVietQrBanks).toContain('Vietcombank');
+    expect(comp.printConfigForm.value.sepayApiKey).toBe('sepay-prop-secret-123');
+    expect(comp.hasSepayApiKey()).toBe(true);
+    expect(comp.showSepayApiKey()).toBe(false);
+
+    comp.toggleSepayApiKeyVisibility();
+    expect(comp.showSepayApiKey()).toBe(true);
+
+    // Clear per-property key back to empty (use global fallback)
+    comp.clearSepayApiKey();
+    expect(comp.printConfigForm.value.sepayApiKey).toBe('');
+    expect(comp.hasSepayApiKey()).toBe(false);
+
+    // Save print template config
+    comp.savePrintTemplateConfig();
+    expect(mockPrintService.updateTemplateConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bankName: 'MBBank',
+        sepayApiKey: ''
+      }),
+      '11111111-1111-1111-1111-111111111111'
+    );
+    expect(comp.hasSepayApiKey()).toBe(false);
+
+    // Verify property-pinned webhook URL and copy helper
+    expect(comp.sepayWebhookUrl()).toContain('/api/webhooks/sepay/11111111-1111-1111-1111-111111111111');
+    comp.copySepayWebhookUrl();
+    expect(comp.isWebhookUrlCopied()).toBe(true);
+    expect(mockAlertService.toastSuccess).toHaveBeenCalledWith(
+      'Đã sao chép URL Webhook SePay của cơ sở.',
+      'Đã sao chép'
+    );
   });
 });

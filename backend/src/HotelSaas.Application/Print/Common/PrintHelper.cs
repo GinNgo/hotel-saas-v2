@@ -21,7 +21,9 @@ internal static class PrintHelper
         FooterNote = config.FooterNote,
         CheckInPolicyText = config.CheckInPolicyText,
         ShowVietQrCode = config.ShowVietQrCode,
-        DefaultPaperSize = config.DefaultPaperSize
+        DefaultPaperSize = config.DefaultPaperSize,
+        HasSepayApiKey = !string.IsNullOrWhiteSpace(config.SepayApiKey),
+        SepayApiKey = !string.IsNullOrWhiteSpace(config.SepayApiKey) ? "********" : string.Empty
     };
 
     internal static string MaskEmail(string? email)

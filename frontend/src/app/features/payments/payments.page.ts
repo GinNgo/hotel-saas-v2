@@ -22,10 +22,12 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { DatePicker } from 'primeng/datepicker';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
+import { NotificationService } from '../../core/services/notification.service';
 import { VndCurrencyPipe } from '../../shared/pipes/vnd-currency.pipe';
 import { PaymentService, GetPaymentsFilter } from '../../core/services/payment.service';
 import { ReservationService } from '../../core/services/reservation.service';
 import { ReservationDto } from '../../core/models/reservation.model';
+import { environment } from '../../../environments/environment';
 import {
   PaymentDto,
   PaymentSummaryDto,
@@ -913,7 +915,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                         class="min-h-11 p-2 rounded-xl border text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                       >
                         <i class="pi pi-qrcode"></i>
-                        <span>VietQR / CK</span>
+                        <span>VietQR / CK (SePay)</span>
                       </button>
                     </div>
                   </div>
@@ -1031,13 +1033,13 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                     <label class="block text-[11px] font-medium text-slate-600 mb-1">
                       Mã tham chiếu / Ghi chú:
                       @if (paymentMethod() === PaymentMethod.BankTransfer) {
-                        <span class="text-rose-600 font-bold">* (Bắt buộc với Chuyển khoản)</span>
+                        <span class="text-slate-400 font-normal">(Tùy chọn nếu xác nhận thủ công)</span>
                       }
                     </label>
                     <input
                       type="text"
                       [(ngModel)]="paymentTransactionRef"
-                      [placeholder]="paymentMethod() === PaymentMethod.BankTransfer ? 'Nhập mã giao dịch ngân hàng (FT... / Ref ID)...' : 'Mã GD / số biên lai (tùy chọn)...'"
+                      [placeholder]="paymentMethod() === PaymentMethod.BankTransfer ? 'Mã GD ngân hàng (FT...) hoặc để trống nếu đã kiểm tra tiền vào...' : 'Mã GD / số biên lai (tùy chọn)...'"
                       class="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     />
                   </div>
@@ -1051,7 +1053,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                         (change)="toggleBankTransferConfirmed()"
                         class="mt-0.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
-                      <span>Thu ngân xác nhận tiền <b>đã vào tài khoản ngân hàng</b> chi nhánh và đã kiểm tra mã giao dịch.</span>
+                      <span>Tôi xác nhận đã kiểm tra tiền <b>đã vào tài khoản ngân hàng</b> chi nhánh (hoặc hệ thống tự động thu khi khách quét mã VietQR SePay).</span>
                     </label>
                   }
 
@@ -1070,7 +1072,7 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
                   <button
                     type="button"
                     (click)="submitPayment(f.reservationId)"
-                    [disabled]="paymentAmount <= 0 || isSubmittingPayment() || (paymentMethod() === PaymentMethod.BankTransfer && (!paymentTransactionRef.trim() || !isBankTransferConfirmed()))"
+                    [disabled]="paymentAmount <= 0 || isSubmittingPayment() || (paymentMethod() === PaymentMethod.BankTransfer && !isBankTransferConfirmed())"
                     class="w-full min-h-11 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors shadow-2xs disabled:opacity-50 flex items-center justify-center gap-2 mt-2 cursor-pointer disabled:cursor-not-allowed tabular-nums"
                   >
                     @if (isSubmittingPayment()) {
@@ -1160,9 +1162,11 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
               >
                 <option [ngValue]="null">Tất cả phương thức</option>
                 <option [ngValue]="PaymentMethod.Cash">Tiền mặt</option>
-                <option [ngValue]="PaymentMethod.BankTransfer">Chuyển khoản</option>
-                <option [ngValue]="PaymentMethod.CreditCard">Thẻ tín dụng</option>
-                <option [ngValue]="PaymentMethod.VNPay">VNPay</option>
+                <option [ngValue]="PaymentMethod.BankTransfer">VietQR / Chuyển khoản (SePay)</option>
+                @if (showVnpay) {
+                  <option [ngValue]="PaymentMethod.CreditCard">Thẻ tín dụng</option>
+                  <option [ngValue]="PaymentMethod.VNPay">VNPay</option>
+                }
               </select>
             </div>
 
@@ -1525,10 +1529,13 @@ export function formatUtcDateTimeString(isoString: string | null | undefined): s
 export class PaymentsPage implements OnInit, OnDestroy {
   readonly authService = inject(AuthService);
   private readonly paymentService = inject(PaymentService);
+  private readonly notificationService = inject(NotificationService, { optional: true });
   private readonly injector = inject(Injector);
   private readonly cdr = inject(ChangeDetectorRef, { optional: true });
   private readonly route = inject(ActivatedRoute, { optional: true });
   private readonly router = inject(Router, { optional: true });
+  readonly showVnpay = environment.enableVnpay;
+  private lastProcessedPaymentNotifId: string | null = null;
 
   private fallbackDestroyCallbacks: Array<() => void> = [];
   private isFallbackDestroyed = false;
@@ -1677,6 +1684,34 @@ export class PaymentsPage implements OnInit, OnDestroy {
           this.resetCashierVietQrState();
         }
       });
+    });
+
+    effect(() => {
+      const notifs = this.notificationService?.notifications() ?? [];
+      const activeFolio = this.folio();
+      const latest = notifs[0];
+      if (!latest || !activeFolio || this.isAccessDenied()) {
+        return;
+      }
+      if (latest.id === this.lastProcessedPaymentNotifId) {
+        return;
+      }
+      const isPaymentNotif =
+        latest.type === 'BookingPaymentConfirmed' ||
+        String(latest.type).toLowerCase().includes('payment');
+      const matchesReservation =
+        (latest.metadata?.reservationId && latest.metadata.reservationId === activeFolio.reservationId) ||
+        (latest.metadata?.confirmationCode && latest.metadata.confirmationCode === activeFolio.confirmationCode) ||
+        (activeFolio.confirmationCode && latest.message?.includes(activeFolio.confirmationCode));
+      if (isPaymentNotif && (matchesReservation || (!latest.metadata?.reservationId && !latest.metadata?.confirmationCode))) {
+        this.lastProcessedPaymentNotifId = latest.id;
+        untracked(() => {
+          this.loadFolio(activeFolio.reservationId);
+          this.loadSummary();
+          this.loadPayments();
+          this.loadShiftReport();
+        });
+      }
     });
 
     if (this.authService.currentUser$) {
@@ -2564,13 +2599,16 @@ export class PaymentsPage implements OnInit, OnDestroy {
     }
 
     if (this.paymentMethod() === PaymentMethod.BankTransfer) {
-      if (!this.paymentTransactionRef.trim()) {
-        this.folioError.set('Vui lòng nhập mã giao dịch ngân hàng đối với hình thức Chuyển khoản.');
-        return;
-      }
       if (!this.isBankTransferConfirmed()) {
+        if (!this.paymentTransactionRef.trim()) {
+          this.folioError.set('Vui lòng nhập mã giao dịch ngân hàng hoặc tích xác nhận tiền đã vào tài khoản đối với hình thức Chuyển khoản.');
+          return;
+        }
         this.folioError.set('Thu ngân phải xác nhận tiền đã vào tài khoản ngân hàng chi nhánh trước khi ghi nhận.');
         return;
+      }
+      if (!this.paymentTransactionRef.trim()) {
+        this.paymentTransactionRef = 'VIETQR-MANUAL';
       }
     }
 

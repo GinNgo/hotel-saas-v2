@@ -33,6 +33,7 @@ public static class AuditPayloadSanitizer
         "LookupToken",
         "IdToken",
         "ApiKey",
+        "sepayapikey",
         "Secret",
         "SecretKey",
         "PrivateKey",
@@ -71,7 +72,7 @@ public static class AuditPayloadSanitizer
         RegexOptions.Compiled);
 
     private static readonly Regex SensitiveJsonPairRegex = new(
-        @"((?:\\?"")(?:lookupToken|accessToken|refreshToken|tokenHash|passwordHash|password|smartLockPin|passcode|apiKey|secretKey|privateKey|clientSecret|digitalSignatureHash)(?:\\?"")\s*:\s*(\\""|""))[^""\\]*\2",
+        @"((?:\\?"")(?:lookupToken|accessToken|refreshToken|tokenHash|passwordHash|password|smartLockPin|passcode|apiKey|sepayApiKey|secretKey|privateKey|clientSecret|digitalSignatureHash)(?:\\?"")\s*:\s*(\\""|""))[^""\\]*\2",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>

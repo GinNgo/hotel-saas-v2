@@ -381,7 +381,15 @@ public sealed class Wave11AuditCompletenessTests
     private sealed class DummySender : ISender
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
+        {
+            if (typeof(TResponse) == typeof(ProcessSepayWebhookResult))
+            {
+                object res = new ProcessSepayWebhookResult("unauthorized", "Unauthorized SePay API key.");
+                return Task.FromResult((TResponse)res);
+            }
+
+            throw new NotSupportedException();
+        }
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest
             => throw new NotSupportedException();
         public Task<object?> Send(object request, CancellationToken cancellationToken = default)

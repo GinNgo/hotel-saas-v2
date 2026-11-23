@@ -84,7 +84,9 @@ public sealed class GetPrintTemplateConfigQueryHandler : IRequestHandler<GetPrin
                 FooterNote = "Cảm ơn Quý khách đã tin tưởng và sử dụng dịch vụ của chúng tôi!",
                 CheckInPolicyText = "Nhận phòng: 14:00 - Trả phòng: 12:00. Vui lòng xuất trình CCCD gốc.",
                 ShowVietQrCode = false,
-                DefaultPaperSize = "A4"
+                DefaultPaperSize = "A4",
+                SepayApiKey = string.Empty,
+                HasSepayApiKey = false
             };
         }
 
