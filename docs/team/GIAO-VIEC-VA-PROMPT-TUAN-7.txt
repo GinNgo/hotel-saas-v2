@@ -1,0 +1,386 @@
+================================================================================
+PHAN CONG NHIEM VU VA BO PROMPT THUC THI TUAN 07 (DONG NO P0, GEMINI, B2B INVOICES, K6 & PLAYWRIGHT)
+DE TAI 578: HOTEL SAAS PLATFORM V2 (.NET 10 + ANGULAR 22 + POSTGRESQL 17)
+Truong DH Su pham Ky thuat TP.HCM (HCMUTE) - Khoa CNTT - Bo mon CNPM
+GVHD: ThS. Huynh Xuan Phung (phunghx@hcmute.edu.vn)
+Moi truong Staging: https://luxustay.duckdns.org/
+Baseline Git co so: develop @ 3ee927d
+================================================================================
+
+LUU Y BAT BUOC TRUOC KHI BAT DAU TUAN 07:
+--------------------------------------------------------------------------------
+1. BUOC 0 (NHOM TRUONG AN CHAY TRUOC):
+   Local develop (3ee927d) dang di truoc origin/develop (c297b58) 14 commit
+   (55da312..3ee927d, Waves 1-8). Can push origin/develop, mo PR cap nhat main
+   va deploy len Staging VPS https://luxustay.duckdns.org/ truoc khi cat nhanh
+   Tuan 07 va truoc khi Nguyen chay k6 load/stress len Staging.
+   Luu y: nhanh origin/feature/tan-week6-security-e2e-d23 (807a3ae..71daa2f)
+   chua merge vao develop; Tan phai cat nhanh Tuan 07 tu develop @ 3ee927d da
+   dong bo voi origin/develop.
+
+2. KHONG LAM LAI CAC PHAN DA XONG O WAVES 1-8:
+   SHA-256 refresh tokens, Dynamic CORS, UseHsts, PublicController CreateHold IDOR,
+   ReportsController RBAC + go ty le gia 0.45/0.35/0.20 + go 784M fallback,
+   SubscriptionsController/QuotaGuard, HousekeepingController, PromotionsController,
+   ReviewsController, NightAuditBackgroundService, SupportAccessGrant, Chart.js,
+   VndCurrencyPipe, 79/79 OnPush, 0 any, 91/91 validators, 29 controllers sach
+   IApplicationDbContext deu DA HOAN THANH. Chi tap trung vao cac gap con lai.
+
+3. QUY TAC EF MIGRATION & TACH BIET FILE:
+   - Trong Tuan 07, CHI DUY NHAT Ngo Vo Tuan An duoc sua User.cs,
+     ApplicationDbContext.cs va tao EF Migration (AddUserLockoutFields).
+   - Nguyen va Tan KHONG sua DbContext hay tao Migration (GuestProfile va
+     CashierShift duoc doi sang Tuan 08).
+   - Moi thanh vien CHI SUA file thuoc danh sach ALLOWED FILES cua minh.
+
+QUY TRINH GIT & KIEM THU CHUNG TRUOC KHI MO PR:
+--------------------------------------------------------------------------------
+git status
+git checkout develop && git fetch origin && git pull origin develop
+git checkout -b <ten-nhanh-cua-ban>
+
+# Kiem tra chat luong truoc khi push:
+dotnet build backend/HotelSaas.slnx --verbosity minimal
+dotnet test backend/HotelSaas.slnx --no-build
+npm --prefix frontend run build
+npm --prefix frontend test -- --watch=false
+
+
+================================================================================
+PHAN 1: NGO VO TUAN AN (24TX810001 - GinNgo)
+NHOM TRUONG, KIEN TRUC, AUTH/SECURITY, REAL GEMINI AI & CI/CD DEPLOY
+================================================================================
+- Nhanh Git: feature/an-week7-security-gemini-deploy
+- File bao cao ca nhan can nop:
+  docs/reports/BAO-CAO-TUAN-7-NGO-VO-TUAN-AN-24TX810001.md (tao moi)
+
+ALLOWED FILES (Chi duoc phep sua/tao cac file nay):
+- .github/workflows/**
+- deploy/workflows/**
+- .gitleaks.toml
+- backend/src/HotelSaas.Domain/Entities/User.cs
+- backend/src/HotelSaas.Infrastructure/Migrations/**
+- backend/src/HotelSaas.Infrastructure/Persistence/ApplicationDbContext.cs
+- backend/src/HotelSaas.Infrastructure/Persistence/SeedData.cs
+- backend/src/HotelSaas.Infrastructure/Persistence/Configurations/UserConfiguration.cs
+- backend/src/HotelSaas.Application/Common/Interfaces/IGeminiAiClient.cs (tao moi)
+- backend/src/HotelSaas.Application/Common/Options/PlatformLegalOptions.cs (tao moi)
+- backend/src/HotelSaas.Infrastructure/Services/GeminiAiClient.cs (tao moi)
+- backend/src/HotelSaas.Infrastructure/DependencyInjection.cs
+- backend/src/HotelSaas.Infrastructure/HotelSaas.Infrastructure.csproj
+- backend/src/HotelSaas.Application/Auth/Commands/Login/**
+- backend/src/HotelSaas.Application/Ai/Queries/**
+- backend/src/HotelSaas.Application/Ai/Common/**
+- backend/src/HotelSaas.Application/Ai/DTOs/**
+- backend/src/HotelSaas.Application/Print/Queries/GetPrintableInvoice/**
+- backend/src/HotelSaas.Application/Print/Queries/GetPrintableContract/**
+- backend/src/HotelSaas.WebApi/Program.cs
+- backend/src/HotelSaas.WebApi/appsettings.json
+- backend/src/HotelSaas.WebApi/Controllers/AuditLogsController.cs
+- backend/tests/HotelSaas.Application.Tests/Auth/**
+- backend/tests/HotelSaas.Application.Tests/Ai/** (tao moi)
+- backend/tests/HotelSaas.Application.Tests/Print/** (tao moi)
+- backend/tests/HotelSaas.WebApi.Tests/Controllers/LocationsAndAiChatTests.cs
+- frontend/proxy.conf.js
+- frontend/server/prod-server.js
+- frontend/server/ai-chat-handler.js
+- frontend/src/app/app.routes.ts
+- frontend/src/app/app.routes.spec.ts
+- frontend/src/app/core/services/ai.service.ts
+- frontend/src/app/core/services/ai-concierge.service.ts
+- frontend/src/app/shared/components/ai-concierge-chat/**
+- docs/README.md
+- docs/reports/BAO-CAO-TUAN-7-NGO-VO-TUAN-AN-24TX810001.md (tao moi)
+
+FORBIDDEN FILES:
+- Khong sua InvoicesController.cs, ReportsController.cs, GuestsController.cs,
+  Application/Invoices/**, Application/Reports/**, Application/Guests/**,
+  Application/Reservations/**, features/{reports,housekeeping,guests}/**,
+  frontend/package.json, frontend/e2e/**, scripts/load-tests/**,
+  docs/reports/load-tests/**, WebApi.Tests/Security/**,
+  Application.Tests/{Reports,Invoices,Guest}/**.
+
+NHIEM VU CHINH TUAN 07:
+1. Buoc 0: Push 14 commit Waves 1-8 (55da312..3ee927d) len origin/develop,
+   mo PR sang main va deploy ban Waves 1-8 len https://luxustay.duckdns.org.
+2. Cung co CI security gate (.github/workflows/ci.yml, .gitleaks.toml,
+   deploy/workflows/**): gitleaks continue-on-error: false, ci-status bat buoc
+   needs.security.result == 'success', them dotnet list package --vulnerable
+   va npm audit.
+3. Them ASP.NET Core RateLimiter trong Program.cs; trien khai BR-SEC03 lockout
+   tren User (FailedLoginCount, LockoutEndUtc, 1 migration AddUserLockoutFields (tao moi),
+   LoginCommandHandler); dong PII bypass ConfirmationCode 6 ky tu o
+   GetPrintableInvoiceQueryHandler; tach PlatformLegalOptions (tao moi) o
+   GetPrintableContractQueryHandler; gan [RequirePermission("AUDIT_LOGS", ...)]
+   len AuditLogsController GET; chan seed password mac dinh "HotelDev@2026!" o
+   Production trong SeedData.cs; gan authGuard cho /booking/profile o app.routes.ts.
+4. Tich hop Google Gemini SDK/API that (IGeminiAiClient / GeminiAiClient (tao moi) model
+   gemini-2.5-flash, ghi "rule-fallback" neu thieu GEMINI_API_KEY); sua
+   frontend/proxy.conf.js va prod-server.js chuyen toan bo /api/ai/* ve .NET
+   backend, ngung dung stub ai-chat-handler.js; gop ai-concierge.service.ts vao
+   ai.service.ts; sua metadata docs/README.md (dung ten GVHD ThS. Huynh Xuan Phung
+   va du lieu 34 tinh/thanh, 10.060 xa/phuong).
+
+LENH KIEM CHUNG (AN):
+  dotnet build backend/HotelSaas.slnx --verbosity minimal
+  dotnet test backend/HotelSaas.slnx --no-build --filter "FullyQualifiedName~Auth|FullyQualifiedName~Ai|FullyQualifiedName~Print|FullyQualifiedName~LocationsAndAiChat"
+  npm --prefix frontend run build
+  npm --prefix frontend test -- --watch=false --include="src/app/app.routes.spec.ts"
+
+--- PROMPT A01 (COPY DAN VAO AI IDE) ---
+Bạn là Senior Security & Platform Engineer của dự án Hotel SaaS Platform v2 (.NET 10 Clean Architecture + Angular 22 + PostgreSQL 17, baseline develop @ 3ee927d).
+
+HIỆN TRẠNG MÃ NGUỒN ĐÃ XÁC MINH:
+1. `.github/workflows/ci.yml`: bước `gitleaks` đang đặt `continue-on-error: true`, job `ci-status` chưa kiểm tra `needs.security.result`, thiếu `dotnet list backend/HotelSaas.slnx package --vulnerable` và `npm --prefix frontend audit`. `.gitleaks.toml` đang allowlist toàn bộ `docs/`, `backend/tests/`, `scripts/`. `deploy/workflows/` đang bị lệch so với `.github/workflows/`.
+2. `backend/src/HotelSaas.WebApi/Program.cs` chưa cấu hình `AddRateLimiter` / `UseRateLimiter` cho `/api/auth/*`, `/api/public/bookings/hold`, `/api/ai/*`.
+3. `User.cs` và `LoginCommandHandler.cs` chưa có `FailedLoginCount` / `LockoutEndUtc` (`BR-SEC03` khóa tài khoản tạm thời khi nhập sai mật khẩu liên tiếp).
+4. `GetPrintableInvoiceQueryHandler.cs` (dòng 51-52) vẫn mở toàn bộ PII khi truyền `ConfirmationCode` 6 ký tự vào endpoint `[AllowAnonymous] GET /api/print/invoice/{id}?code=...`; `LocationsAndAiChatTests.cs` dòng 827 đang test theo hành vi cũ này. `GetPrintableContractQueryHandler.cs` (dòng 94-98) vẫn hardcode thông tin pháp lý nền tảng.
+5. `AuditLogsController.cs` (dòng 49, 91) chưa gắn `[RequirePermission("AUDIT_LOGS", PermissionAction.Read)]` trên `GetList` và `GetById`. `SeedData.cs` (dòng 183, 205) luôn gọi `SeedPlatformAdminDataAsync` tạo SuperAdmin với mật khẩu mặc định `"HotelDev@2026!"` không phân biệt môi trường Production. `frontend/src/app/app.routes.ts` (dòng 151-157) đang mở `/booking/profile` không có `canActivate: [authGuard]`.
+
+YÊU CẦU KỸ THUẬT:
+1. Siết `.github/workflows/ci.yml` (`gitleaks` `continue-on-error: false`, chặn trên `needs.security.result`, bổ sung `dotnet list package --vulnerable` và `npm audit --audit-level=high`), thu hẹp allowlist ở `.gitleaks.toml`, đồng bộ `deploy/workflows/`.
+2. Thêm `AddRateLimiter`/`UseRateLimiter` trong `Program.cs` cho auth, public hold, ai endpoints (trả 429 rõ ràng).
+3. Bổ sung `FailedLoginCount` (`int`) và `LockoutEndUtc` (`DateTime?`) vào `User.cs` + `UserConfiguration.cs`, tạo đúng 1 EF migration `AddUserLockoutFields` (tạo mới bằng `dotnet ef migrations add AddUserLockoutFields ...`), xử lý khóa tạm thời 15 phút sau 5 lần sai mật khẩu trong `LoginCommandHandler.cs` (reset về 0 khi login đúng).
+4. Sửa `GetPrintableInvoiceQueryHandler.cs`: chỉ cho xem full PII khi user đã xác thực hợp lệ (SuperAdmin/Tenant/GuestUserId) hoặc truyền `LookupToken` đầy đủ chưa bị thu hồi; KHÔNG dùng `ConfirmationCode` để mở khóa PII. Cập nhật `LocationsAndAiChatTests.cs` dòng 827 để test `ConfirmationCode` bị che PII và `LookupToken` đầy đủ mới mở PII.
+5. Tạo `PlatformLegalOptions` (`Application/Common/Options/PlatformLegalOptions.cs`, tạo mới), đọc qua `IOptions<PlatformLegalOptions>? = null` (giữ tương thích constructor test cũ) trong `GetPrintableContractQueryHandler.cs`.
+6. Gắn `[RequirePermission("AUDIT_LOGS", PermissionAction.Read)]` lên `GetList` và `GetById` của `AuditLogsController.cs`. Gating `SeedData.cs` để không tự seed tài khoản mật khẩu mặc định `"HotelDev@2026!"` khi chạy ở Production. Gắn `canActivate: [authGuard]` cho route `booking/profile` trong `app.routes.ts` và thêm test vào `app.routes.spec.ts`.
+
+RÀNG BUỘC FILE: Chỉ sửa/tạo các file trong ALLOWED FILES của Ngô Võ Tuấn An. Chạy đầy đủ build và filter test trước khi kết thúc.
+--- HET PROMPT A01 ---
+
+--- PROMPT A02 (COPY DAN VAO AI IDE) ---
+Bạn là Senior AI Integration & Fullstack Engineer của dự án Hotel SaaS Platform v2.
+
+HIỆN TRẠNG MÃ NGUỒN ĐÃ XÁC MINH:
+1. `backend/src/HotelSaas.Infrastructure/HotelSaas.Infrastructure.csproj` chưa có bất kỳ SDK/client gọi Google Gemini thật nào. `ProcessAiConciergeQueryHandler.cs`, `ProcessAiChatQueryHandler.cs`, `ProcessAiSmartSearchQueryHandler.cs` hiện chạy hoàn toàn bằng regex/template nhưng `ProcessAiConciergeQueryHandler.cs` (dòng 176) lại ghi log cứng `"gemini-2.5-flash"` vào `AiUsageLogs`.
+2. `frontend/proxy.conf.js` (dòng 29-33) trỏ mọi `/api/ai` về cổng `3099` làm 404 các endpoint `/api/ai/concierge`, `/api/ai/smart-search`, `/api/ai/dynamic-pricing/*`, `/api/ai/usage-status` khi chạy `ng serve`.
+3. `frontend/server/prod-server.js` (dòng 115-118) vẫn chặn `/api/ai/chat` giao cho `frontend/server/ai-chat-handler.js` (file này `require('@google/genai')` chưa cài, nhắm model `'gemini-3.8-flash'` không tồn tại và nhúng tên khách sạn giả).
+4. Frontend đang tồn tại trùng lặp `ai.service.ts` và `ai-concierge.service.ts` (đang được `ai-concierge-chat.component.ts` inject).
+5. `docs/README.md` (dòng 5-6, 141-142) đang sai họ tên GVHD, sai dấu tên thành viên Nguyễn Khôi Nguyên, và ghi số liệu cũ `63 Tỉnh/Thành phố` / `10.051 Xã/Phường`.
+
+YÊU CẦU KỸ THUẬT:
+1. Tạo `backend/src/HotelSaas.Application/Common/Interfaces/IGeminiAiClient.cs` (tạo mới) và cài đặt `backend/src/HotelSaas.Infrastructure/Services/GeminiAiClient.cs` (tạo mới, đăng ký trong `DependencyInjection.cs`) gọi Google Gemini API thật (`gemini-2.5-flash`, đọc `GEMINI_API_KEY` từ cấu hình/biến môi trường, không lưu key vào Git).
+2. Tích hợp `IGeminiAiClient? = null` (constructor optional để giữ tương thích toàn bộ test cũ) vào `ProcessAiConciergeQueryHandler`, `ProcessAiChatQueryHandler`, `ProcessAiSmartSearchQueryHandler`. Khi không có API key hoặc Gemini lỗi, dùng fallback xác định và ghi `"rule-fallback"` vào `AiUsageLogs` (chỉ ghi `"gemini-2.5-flash"` khi Gemini API trả kết quả thật). Viết unit tests mock `IGeminiAiClient` tại `backend/tests/HotelSaas.Application.Tests/Ai/` (tạo mới).
+3. Sửa `frontend/proxy.conf.js` và `frontend/server/prod-server.js` để tất cả `/api/ai/*` đi thẳng về `.NET` WebApi backend; ngừng dùng `ai-chat-handler.js` (xóa hoặc giữ stub không chứa dữ liệu khách sạn giả).
+4. Gộp các hàm/interface của `ai-concierge.service.ts` vào `ai.service.ts`, cập nhật `ai-concierge-chat.component.ts` dùng `AiService` thống nhất, rồi dọn `ai-concierge.service.ts` (hoặc re-export sạch nếu cần tránh break import ngoài phạm vi).
+5. Cập nhật `docs/README.md`: sửa tên GVHD thành `ThS. Huỳnh Xuân Phụng`, sửa tên thành viên thành `Nguyễn Khôi Nguyên`, và cập nhật danh mục hành chính 2 cấp thành `34 Tỉnh/Thành phố` và `10.060 Xã/Phường/Thị trấn` (khớp với `DMTinhThanh_2Cap.csv` và `DMXaPhuong_2Cap.csv`).
+
+RÀNG BUỘC FILE: Chỉ sửa/tạo các file trong ALLOWED FILES của Ngô Võ Tuấn An. Chạy `dotnet build`, `dotnet test` và `npm --prefix frontend run build` xác nhận xanh 100%.
+--- HET PROMPT A02 ---
+
+
+================================================================================
+PHAN 2: NGUYEN KHOI NGUYEN (24TX810011 - khoinguyen1310)
+B2B INVOICES, TOI UU BAO CAO SQL & K6 STAGING LOAD/STRESS
+================================================================================
+- Nhanh Git: feature/nguyen-week7-invoices-reports-k6
+- File bao cao ca nhan can nop:
+  docs/reports/BAO-CAO-TUAN-7-NGUYEN-KHOI-NGUYEN-24TX810011.md (tao moi)
+
+ALLOWED FILES (Chi duoc phep sua/tao cac file nay):
+- backend/src/HotelSaas.Application/Invoices/** (tao moi)
+- backend/src/HotelSaas.WebApi/Controllers/InvoicesController.cs (tao moi)
+- backend/src/HotelSaas.Application/Reports/**
+- backend/src/HotelSaas.WebApi/Controllers/ReportsController.cs
+- backend/tests/HotelSaas.Application.Tests/Reports/**
+- backend/tests/HotelSaas.Application.Tests/Invoices/** (tao moi)
+- frontend/src/app/core/services/invoice.service.ts (tao moi)
+- frontend/src/app/core/models/invoice.model.ts (tao moi)
+- frontend/src/app/core/services/report.service.ts
+- frontend/src/app/core/models/report.model.ts
+- frontend/src/app/features/reports/**
+- scripts/load-tests/**
+- docs/reports/load-tests/**
+- docs/reports/BAO-CAO-TUAN-7-NGUYEN-KHOI-NGUYEN-24TX810011.md (tao moi)
+
+FORBIDDEN FILES:
+- Khong sua ApplicationDbContext.cs, Migrations/**, Domain/Entities/**,
+  Program.cs, AuditLogsController.cs, GuestsController.cs, Application/Ai/**,
+  Application/Auth/**, Application/Print/**, Application/Guests/**,
+  app.routes.ts, frontend/package.json, features/{housekeeping,guests}/**,
+  backend/tests/HotelSaas.WebApi.Tests/**.
+
+NHIEM VU CHINH TUAN 07:
+1. Xay dung InvoicesController.cs (tao moi) + Application/Invoices/** (tao moi)
+   (GetInvoicesQuery, GetInvoiceByIdQuery, GetMonthlyArSummaryQuery,
+   IssueOfficialInvoiceCommand + validators, tai su dung DbSet<Invoice>/InvoiceItem
+   co san, KHONG tao migration) va gan tab InvoiceLedgerComponent (tao moi,
+   OnPush + Signals + VndCurrencyPipe) vao frontend/src/app/features/reports/.
+2. Toi uu GetRevenueSummaryQueryHandler.cs tu .ToListAsync() sang PostgreSQL
+   DB-side GroupBy/Sum va bo sung GET /api/reports/ai-summary +
+   Application/Reports/Queries/GetAiRevenueSummary/** (tao moi) + hien thi tren
+   reports.page.ts.
+3. Bo sung scripts/load-tests/public-search.k6.js (tao moi) va chay that TEST_TIER=load
+   (50 VUs) + TEST_TIER=stress (100 VUs) len VPS Staging https://luxustay.duckdns.org
+   (sau khi An deploy Waves 1-8 o Buoc 0); xuat JSON da che token va bao cao
+   Before/After vao docs/reports/load-tests/.
+
+LENH KIEM CHUNG (NGUYEN):
+  dotnet build backend/HotelSaas.slnx --verbosity minimal
+  dotnet test backend/HotelSaas.slnx --no-build --filter "FullyQualifiedName~Report|FullyQualifiedName~Invoice"
+  npm --prefix frontend run build
+  npm --prefix frontend test -- --watch=false --include="src/app/features/reports/**/*.spec.ts"
+  TEST_TIER=load BASE_URL=https://luxustay.duckdns.org bash scripts/load-tests/run-load-tests.sh
+
+--- PROMPT N01 (COPY DAN VAO AI IDE) ---
+Bạn là Senior Backend Finance & Angular 22 Engineer của dự án Hotel SaaS Platform v2.
+
+HIỆN TRẠNG MÃ NGUỒN ĐÃ XÁC MINH:
+1. Entity `Invoice` và `InvoiceItem` đã tồn tại trong `Domain/Entities/` và đã được tạo tự động khi Check-out (`CheckOutReservationCommandHandler`), nhưng hiện chưa có `InvoicesController.cs`, chưa có `Application/Invoices/`, và chưa có UI sổ cái hóa đơn / công nợ B2B.
+2. Lưu ý Tuần 07: không sửa `ApplicationDbContext.cs` và không tạo EF Migration mới (tái sử dụng `_context.Invoices` và `_context.InvoiceItems` có sẵn).
+
+YÊU CẦU KỸ THUẬT:
+1. Tạo `backend/src/HotelSaas.Application/Invoices/**` (tạo mới) và `backend/src/HotelSaas.WebApi/Controllers/InvoicesController.cs` (tạo mới, `[Route("api/invoices")]`, `[Authorize]`):
+   - `GET /api/invoices` (`[RequirePermission("INVOICES", 1)]`): `GetInvoicesQuery` trả `PagedResult<InvoiceListItemDto>` lọc theo `propertyId`, `status`, `fromDate`, `toDate`, `search`.
+   - `GET /api/invoices/{id:guid}` (`[RequirePermission("INVOICES", 1)]`): `GetInvoiceByIdQuery` trả chi tiết hóa đơn + `InvoiceItems` + lịch sử thanh toán.
+   - `GET /api/invoices/ar-summary` (`[RequirePermission("INVOICES", 1)]`): `GetMonthlyArSummaryQuery` tính tổng giá trị xuất hóa đơn, đã thu, còn phải thu trong tháng bằng truy vấn PostgreSQL.
+   - `POST /api/invoices/issue` (`[RequirePermission("INVOICES", 2)]`): `IssueOfficialInvoiceCommand` + `IssueOfficialInvoiceCommandValidator` phát hành hóa đơn chính thức từ `ReservationId` (kiểm tra trùng hóa đơn, cô lập Tenant/Property).
+2. Viết unit tests đầy đủ tại `backend/tests/HotelSaas.Application.Tests/Invoices/` (tạo mới).
+3. Tạo `frontend/src/app/core/models/invoice.model.ts` (tạo mới), `frontend/src/app/core/services/invoice.service.ts` (tạo mới), và `InvoiceLedgerComponent` (tạo mới) bên trong `frontend/src/app/features/reports/` (Standalone, `ChangeDetectionStrategy.OnPush`, Angular Signals, dùng `VndCurrencyPipe` và `BusinessDatePipe`, KHÔNG dùng `any`). Gắn `InvoiceLedgerComponent` làm tab thứ 2 trên `reports.page.ts` (không cần sửa `app.routes.ts`), kèm nút mở trang in `/print/invoice/:reservationId` và nút xuất PDF QR. Cập nhật `reports.page.spec.ts`.
+
+RÀNG BUỘC FILE: Chỉ sửa/tạo các file trong ALLOWED FILES của Nguyễn Khôi Nguyên.
+--- HET PROMPT N01 ---
+
+--- PROMPT N02 (COPY DAN VAO AI IDE) ---
+Bạn là Senior Performance, Reporting & k6 Load Test Engineer của Hotel SaaS Platform v2.
+
+HIỆN TRẠNG MÃ NGUỒN ĐÃ XÁC MINH:
+1. `GetRevenueSummaryQueryHandler.cs` (dòng 70-72, 96-98) đang dùng `.ToListAsync()` kéo danh sách `Reservations` và `Payments` thô về RAM rồi mới sum/group trong C#. Lưu ý `ReportsAndAiSecurityTests.cs` (dòng 314) khởi tạo trực tiếp `new GetRevenueSummaryQueryHandler(db, userCtx)`, nên KHÔNG được đổi signature constructor của `GetRevenueSummaryQueryHandler`.
+2. `ReportsController.cs` chưa có endpoint `GET /api/reports/ai-summary`.
+3. `docs/reports/load-tests/BENCHMARK-SIGNALR-VNPAY-REPORT.md` mới có kết quả `smoke` (5 VUs) chạy local `127.0.0.1:5055`; chưa có `public-search.k6.js` (tạo mới) và chưa chạy `load` (50 VUs) / `stress` (100 VUs) lên VPS Staging `https://luxustay.duckdns.org`.
+
+YÊU CẦU KỸ THUẬT:
+1. Tối ưu `GetRevenueSummaryQueryHandler.cs`: thay `.ToListAsync()` trên tập lớn bằng DB-side `GroupBy`/`Sum`/`Count` chạy trực tiếp trên PostgreSQL (đảm bảo kết quả ngày/phương thức thanh toán giữ nguyên độ chính xác 100% với unit tests hiện tại).
+2. Bổ sung `GET /api/reports/ai-summary` vào `ReportsController.cs` + `Application/Reports/Queries/GetAiRevenueSummary/**` (tạo mới) (phân tích chỉ số Doanh thu, Occupancy, ADR, RevPAR, chênh lệch kỳ trước thành bản tóm tắt tiếng Việt rõ ràng; giữ thiết kế độc lập để không phụ thuộc biên dịch chéo vào nhánh An). Nối API này qua `report.service.ts` + `report.model.ts` lên `reports.page.ts` kèm trạng thái loading/error bằng Signals.
+3. Tạo `scripts/load-tests/public-search.k6.js` (tạo mới) kiểm thử B2C tìm kiếm 34 tỉnh/thành (`GET /api/locations/provinces`, `GET /api/public/properties`) với 3 tier `smoke|load|stress`; cập nhật `scripts/load-tests/run-load-tests.sh` (và `.ps1` nếu dùng).
+4. Sau khi Bước 0 (deploy Waves 1-8 lên `https://luxustay.duckdns.org`) hoàn tất, chạy thực tế `TEST_TIER=load` (50 VUs) và `TEST_TIER=stress` (100 VUs) cho SignalR, VNPay IPN và Public Search trên Staging. Lưu file summary JSON (đã xóa sạch JWT/secret) và báo cáo đối chiếu Before/After vào `docs/reports/load-tests/`.
+
+RÀNG BUỘC FILE: Chỉ sửa/tạo các file trong ALLOWED FILES của Nguyễn Khôi Nguyên.
+--- HET PROMPT N02 ---
+
+
+================================================================================
+PHAN 3: TRAN TRONG TAN (24TX810025 - trantrongtan096)
+PLAYWRIGHT E2E, HOUSEKEEPING SIGNALR, RBAC MATRIX & GUEST CRM
+================================================================================
+- Nhanh Git: feature/tan-week7-playwright-housekeeping-crm
+- File bao cao ca nhan can nop:
+  docs/reports/BAO-CAO-TUAN-7-TRAN-TRONG-TAN-24TX810025.md (tao moi)
+
+ALLOWED FILES (Chi duoc phep sua/tao cac file nay):
+- frontend/package.json
+- frontend/package-lock.json
+- frontend/playwright.config.ts (tao moi)
+- frontend/e2e/** (tao moi)
+- frontend/src/app/features/housekeeping/**
+- frontend/src/app/features/guests/**
+- frontend/src/app/core/services/guest.service.ts
+- frontend/src/app/core/models/guest.model.ts
+- backend/src/HotelSaas.Application/Guests/**
+- backend/src/HotelSaas.Application/Reservations/DTOs/ReservationSnapshot.cs
+- backend/src/HotelSaas.WebApi/Controllers/GuestsController.cs
+- backend/tests/HotelSaas.Application.Tests/Guest/**
+- backend/tests/HotelSaas.WebApi.Tests/Security/**
+- docs/reports/BAO-CAO-TUAN-7-TRAN-TRONG-TAN-24TX810025.md (tao moi)
+
+FORBIDDEN FILES:
+- Khong sua ApplicationDbContext.cs, Migrations/**, Domain/Entities/**,
+  Program.cs, .github/workflows/**, app.routes.ts,
+  Application/{Auth,Ai,Print,Invoices,Reports}/**,
+  Controllers/{AuditLogs,Invoices,Reports}Controller.cs,
+  features/reports/**, scripts/load-tests/**, docs/reports/load-tests/**.
+
+NHIEM VU CHINH TUAN 07:
+1. Cai dat Playwright (@playwright/test, playwright.config.ts (tao moi), frontend/e2e/*.spec.ts (tao moi))
+   tu dong hoa 10 luong cot loi: B2C tim kiem 34 tinh -> chi tiet co so ->
+   giu phong 15p + ma giam gia -> VNPay return -> dang nhap PMS & F5 giu ngu canh HQ ->
+   Walk-in/Check-in/Check-out -> Housekeeping self-claim -> D23 hoan tien ->
+   SuperAdmin /platform-users & /platform-tenants -> chan cheo chi nhanh 403.
+2. Noi SignalR push (ReceiveHousekeepingAlert, ReceiveReservationStatusUpdated qua
+   NotificationService) vao housekeeping.page.ts (chi giu polling 10s khi SignalR mat ket noi).
+3. Tao RbacPermissionMatrixE2ETests.cs (tao moi, WebApi.Tests/Security/) phu ma tran am tinh
+   HTTP 403 cho toan bo 19 PermissionFunction codes (18 nhom nghiep vu + AUDIT_LOGS)
+   tren 6 vai tro (HOUSEKEEPER, RECEPTIONIST, MANAGER, OWNER, SUPER_ADMIN, Customer).
+4. Sua Guest CRM khong dung DB migration: ho tro khach thieu SDT (nhom fallback theo
+   email/ten chuan hoa) va luu IsVip/IsBlacklisted thu cong vao ReservationSnapshot JSON.
+
+LENH KIEM CHUNG (TAN):
+  dotnet build backend/HotelSaas.slnx --verbosity minimal
+  dotnet test backend/HotelSaas.slnx --no-build --filter "FullyQualifiedName~CrossBranchSecurity|FullyQualifiedName~RbacPermissionMatrix|FullyQualifiedName~Guest"
+  npm --prefix frontend run build
+  npm --prefix frontend test -- --watch=false --include="src/app/features/{housekeeping,guests}/**/*.spec.ts"
+  npx --prefix frontend playwright test
+
+--- PROMPT T01 (COPY DAN VAO AI IDE) ---
+Bạn là Senior Frontend E2E & Realtime Engineer của dự án Hotel SaaS Platform v2 (Angular 22 Standalone Signals + SignalR).
+
+HIỆN TRẠNG MÃ NGUỒN ĐÃ XÁC MINH:
+1. Dự án hiện chưa cài `@playwright/test` trong `frontend/package.json`, chưa có `frontend/playwright.config.ts` và chưa có thư mục `frontend/e2e/`.
+2. `frontend/src/app/features/housekeeping/housekeeping.page.ts` (dòng 938, 1316-1319) đang dùng `setInterval(..., 10000)` polling liên tục mà chưa đăng ký lắng nghe SignalR từ `NotificationService` (dù `signalr-notification.transport.ts` đã nối `ReceiveHousekeepingAlert` và `ReceiveReservationStatusUpdated`).
+
+YÊU CẦU KỸ THUẬT:
+1. Cài đặt `@playwright/test` vào `frontend/package.json` (`package-lock.json`), tạo `frontend/playwright.config.ts` (tạo mới, đọc `PLAYWRIGHT_BASE_URL`, mặc định `http://localhost:4200` hoặc trỏ Staging `https://luxustay.duckdns.org`, timeout và trace rõ ràng).
+2. Viết bộ spec trong `frontend/e2e/` (tạo mới) bao phủ đủ 10 kịch bản E2E cốt lõi:
+   - (01) B2C tìm kiếm 34 tỉnh/thành trên `/booking`.
+   - (02) Xem chi tiết khách sạn & phòng trống.
+   - (03) Giữ phòng 15 phút + áp mã khuyến mãi trên `/booking/hold`.
+   - (04) Luồng thanh toán / VNPay return & trang tra cứu `/booking/vnpay-return` -> `/booking/status/:token`.
+   - (05) Đăng nhập PMS & kiểm tra giữ nguyên ngữ cảnh chuỗi HQ khi reload trang (F5).
+   - (06) Walk-in / Check-in / Check-out trên sơ đồ phòng & đặt phòng.
+   - (07) Nhân viên buồng phòng tự nhận task (`self-claim`) và đổi trạng thái phòng tại `/housekeeping`.
+   - (08) Phê duyệt & chi hoàn tiền D23 tại `/payments`.
+   - (09) Quản trị SuperAdmin `/platform-users` và `/platform-tenants`.
+   - (10) Kiểm tra chặn truy cập chéo chi nhánh (HTTP 403 / UI guard).
+3. Nối trực tiếp `NotificationService` (`ReceiveHousekeepingAlert`, `ReceiveReservationStatusUpdated`) vào `housekeeping.page.ts` để tự cập nhật danh sách task/phòng theo sự kiện SignalR theo thời gian thực. Chỉ bật `setInterval` 10 giây làm cơ chế dự phòng khi trạng thái kết nối SignalR đang ngắt. Cập nhật/bổ sung unit test trong `housekeeping.page.spec.ts`.
+
+RÀNG BUỘC FILE: Chỉ sửa/tạo các file trong ALLOWED FILES của Trần Trọng Tân.
+--- HET PROMPT T01 ---
+
+--- PROMPT T02 (COPY DAN VAO AI IDE) ---
+Bạn là Senior .NET 10 Security Test & Backend CRM Engineer của dự án Hotel SaaS Platform v2.
+
+HIỆN TRẠNG MÃ NGUỒN ĐÃ XÁC MINH:
+1. `backend/tests/HotelSaas.WebApi.Tests/Security/CrossBranchSecurityE2ETests.cs` hiện có 7 `[Fact]` test cô lập chéo chi nhánh/tenant, nhưng chưa có ma trận test HTTP E2E âm tính cho toàn bộ bộ quyền RBAC (`SeedData.cs` định nghĩa 19 `PermissionFunction` codes gồm 18 module nghiệp vụ + `AUDIT_LOGS`) trên 6 nhóm vai trò (`HOUSEKEEPER`, `RECEPTIONIST`, `MANAGER`, `OWNER`, `SUPER_ADMIN`, `Customer`).
+2. Trong Guest CRM:
+   - `GetGuestDirectoryQuery.cs` (dòng 46) lọc cứng `!string.IsNullOrWhiteSpace(r.GuestPhone)` làm mất toàn bộ khách đặt phòng không có số điện thoại; dòng 150 gán cứng `IsBlacklisted = false`.
+   - `GetGuestHistoryQuery.cs` (dòng 45) chỉ tìm theo `GuestPhone`.
+   - `UpdateGuestNotesCommand.cs` (dòng 12) nhận `IsVip` nhưng không lưu vào `ReservationSnapshot` JSON (`Reservation.Notes`), và chưa hỗ trợ `IsBlacklisted`.
+   - `ReservationSnapshot.cs` chưa có field `IsVip` và `IsBlacklisted`. (Lưu ý: không thêm bảng DB `GuestProfile` hay EF Migration ở Tuần 07 để tránh xung đột với nhánh An.)
+
+YÊU CẦU KỸ THUẬT:
+1. Tạo `backend/tests/HotelSaas.WebApi.Tests/Security/RbacPermissionMatrixE2ETests.cs` (tạo mới) dùng `WebApplicationFactory<Program>` + `JwtService` thật + PostgreSQL test DB (`[Collection("RealDatabaseTests")]`, KHÔNG mock `ICurrentTenantService` / `ICurrentPropertyService`). Kiểm chứng ma trận âm tính (`403 Forbidden` khi thiếu quyền hoặc sai vai trò, `401 Unauthorized` khi chưa đăng nhập) phủ toàn bộ các `PermissionFunction` trong `SeedData.cs` trên 6 vai trò: `HOUSEKEEPER`, `RECEPTIONIST`, `MANAGER`, `OWNER`, `SUPER_ADMIN`, `Customer`.
+2. Sửa `GetGuestDirectoryQuery.cs`, `GetGuestHistoryQuery.cs`, `UpdateGuestNotesCommand.cs`, `UpdateGuestNotesCommandValidator.cs`, `GuestsController.cs`, `ReservationSnapshot.cs`, cùng FE `guest.model.ts`, `guest.service.ts`, `guests.page.ts`:
+   - Bao gồm cả khách không có `GuestPhone` bằng khóa nhóm dự phòng (fallback theo `GuestEmail` chuẩn hóa chữ thường hoặc `GuestName` + `GuestUserId`/`ReservationId`), hỗ trợ mở lịch sử & cập nhật ghi chú cho khách thiếu SĐT.
+   - Bổ sung `IsVip` (nullable bool override) và `IsBlacklisted` vào `ReservationSnapshot.cs`, cập nhật trong `UpdateGuestNotesCommandHandler` và đọc lại chính xác trong `GetGuestDirectoryQueryHandler` & `GetGuestHistoryQueryHandler`. Hiển thị trạng thái VIP / Blacklist trên `guests.page.ts`.
+3. Viết unit tests kiểm chứng đầy đủ các tình huống mới trong `backend/tests/HotelSaas.Application.Tests/Guest/GuestDirectoryAndNotesTests.cs` (tạo mới).
+
+RÀNG BUỘC FILE: Chỉ sửa/tạo các file trong ALLOWED FILES của Trần Trọng Tân.
+--- HET PROMPT T02 ---
+
+
+================================================================================
+PHAN 4: HUONG DAN MERGE & GOI Y KHAI BAO AI TUAN 07
+================================================================================
+1. THU TU MERGE VAO DEVELOP:
+   - Buoc 0: An push 14 commit (55da312..3ee927d) -> PR main -> Deploy Staging.
+   - Buoc 1: An, Nguyen, Tan lam viec song song tren 3 nhanh feature/week7.
+   - Buoc 2: Merge theo thu tu: (1) Nhanh An -> (2) Nhanh Nguyen (xong chay k6
+     load/stress tren Staging) -> (3) Nhanh Tan (xong chay Playwright E2E).
+   - Buoc 3: Chay full quality gate sau khi merge xong ca 3 nhanh:
+     dotnet build backend/HotelSaas.slnx --verbosity minimal
+     dotnet test backend/HotelSaas.slnx --no-build
+     npm --prefix frontend run build
+     npm --prefix frontend test -- --watch=false
+     npx --prefix frontend playwright test
+
+2. LUU Y KHAI BAO AI TUAN 07 (CHO BAO CAO TUAN 07):
+   Trong qua trinh dung AI sinh code, moi thanh vien can tu kiem tra va ghi lai
+   cac loi thuc te cua AI da phat hien va sua chua, vi du:
+   - An: Kiem tra AI khong hardcode GEMINI_API_KEY, khong thay doi constructor
+     bat buoc lam gay test cu, va khong giu fallback stub khach san gia.
+   - Nguyen: Kiem tra AI khong tao them DbSet/Migration moi vao DbContext, khong
+     dung .ToListAsync() keo du lieu ve RAM, va khong de lot JWT trong file JSON k6.
+   - Tan: Kiem tra AI khong mock gia ICurrentTenantService trong RBAC matrix test,
+     khong quen SignalR reconnect/fallback trong housekeeping.page.ts, va khong bo
+     sot khach khong co so dien thoai o Guest CRM.
+================================================================================

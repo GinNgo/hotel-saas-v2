@@ -1,0 +1,63 @@
+THÔNG TIN KHAI BÁO SỬ DỤNG AI TUẦN 06 (TỔNG HỢP TUẦN 05 - 06)
+Đề tài 578 HCMUTE | GVHD: ThS. Huỳnh Xuân Phụng (phunghx@hcmute.edu.vn)
+================================================================================
+
+--------------------------------------------------------------------------------
+THÀNH VIÊN 1: NGÔ VÕ TUẤN AN (MSSV: 24TX810001)
+--------------------------------------------------------------------------------
+[Ô 1: Công cụ AI]
+Google Antigravity IDE
+
+[Ô 2: Phiên bản / model]
+Gemini 3.8 Flash (Tuần 05) và Gemini trong Google Antigravity IDE (Tuần 06)
+
+[Ô 3: Prompt đã dùng]
+Tích hợp Firebase Phone OTP (kèm số sandbox), Google OAuth và pipeline GitHub Actions deploy VPS; thiết lập cụm giám sát PLG trên VPS dùng chung, tách interface ISystemMetricsRecorder ở Application, chặn dev-mock-token trên môi trường Production/Staging và hoàn thiện tìm kiếm 34 tỉnh/thành.
+
+[Ô 4: Nội dung AI tạo ra]
+AI ban đầu chỉ gửi SMS thật làm cạn quota Firebase và làm tài khoản test PMS bị chặn đăng nhập; tạo thư mục monitoring thừa và chạy trùng container Caddy đè cổng 80/443; gọi trực tiếp WebApi SystemMetricsRegistry từ Infrastructure vi phạm Clean Architecture; để Frontend tự bật isMockMode = true trên môi trường thật.
+
+[Ô 5: Phần bạn đã sửa / hoàn thiện]
+Bổ sung sandbox OTP 123456 (+84123456789) và migration mở khóa tài khoản test; chuyển build Docker lên GitHub Actions + GHCR; gom cấu hình vào docker-compose.observability.yml nối mạng treeseo-production_edge, khóa CIDR Grafana 127.0.0.1/32, tách ISystemMetricsRecorder (17 test cases) và thêm guard !environment.production kèm unit test (CI 633/633 BE, Vitest 640/640 FE, Staging HTTP 200).
+
+Minh chứng Commit GitHub: 4f60765, 02038cb, 894cc4d, ef4693d, a634207, 4938464, 706c3ac, 2c76cb5, e57aa4a, 3deffa2
+
+--------------------------------------------------------------------------------
+THÀNH VIÊN 2: NGUYỄN KHÔI NGUYÊN (MSSV: 24TX810011)
+--------------------------------------------------------------------------------
+[Ô 1: Công cụ AI]
+OpenAI Codex và Google Antigravity IDE
+
+[Ô 2: Phiên bản / model]
+GPT-6 Astra (Tuần 05) và OpenAI Codex / Google Antigravity IDE (Tuần 06)
+
+[Ô 3: Prompt đã dùng]
+Dùng QRCoder sinh mã QR in-memory nhúng vào PDF hóa đơn và lọc báo cáo theo kỳ hạn; chuẩn hóa k6 load test cho SignalR và VNPay IPN; gắn phân quyền RBAC cho ReportsController và loại bỏ toàn bộ dữ liệu giả lập trong phân hệ Báo cáo.
+
+[Ô 4: Nội dung AI tạo ra]
+AI gợi ý gọi API ngoài để sinh mã QR; bắn k6 thẳng 150 VUs không ramp-up với JWT giả demo-load-test-jwt-token gây HTTP 401 và không warmup JIT; giữ tỷ lệ chia thanh toán giả 0.45/0.35/0.20 ở backend, fallback cứng 784000000 ở reports.page.ts và thiếu kiểm tra quyền đọc báo cáo.
+
+[Ô 5: Phần bạn đã sửa / hoàn thiện]
+Dùng QRCoder in-memory (PR #21); chia 3 cấp smoke/load/stress, thêm warmupSignalRHub(), tạo tenant thật trong setup(), tự che token và chạy smoke local đạt 100% (SignalR 1,530/1,530, VNPay 300/300, 0 lỗi 5xx; load/stress mới inspect, chưa chạy Staging); gắn [RequirePermission("REPORTS", 1)] và xóa sạch dữ liệu giả BE + FE.
+
+Minh chứng Commit GitHub: 96a559a, b8bef69, a634207, 4938464, e57aa4a
+
+--------------------------------------------------------------------------------
+THÀNH VIÊN 3: TRẦN TRỌNG TÂN (MSSV: 24TX810025)
+--------------------------------------------------------------------------------
+[Ô 1: Công cụ AI]
+Google Antigravity IDE và OpenAI Codex
+
+[Ô 2: Phiên bản / model]
+Gemini 3.8 Flash và GPT-6 Astra
+
+[Ô 3: Prompt đã dùng]
+Xây dựng luồng duyệt/chi hoàn tiền D23 với pg_advisory_xact_lock, mở rộng SignalR Hub 3 sự kiện và tác vụ nền quét giữ phòng hết hạn; viết bộ HTTP E2E cô lập chéo chi nhánh CrossBranchSecurityE2ETests.cs, cấu hình Bruno Staging với ngày động và sửa lỗi test lệch mốc ca 22:00 giờ Việt Nam.
+
+[Ô 4: Nội dung AI tạo ra]
+AI cộng tiền hoàn vào tổng doanh thu, chỉ dùng SemaphoreSlim trong RAM và kiểm tra hết hạn ở frontend; viết sai route /api/v1/properties/.../rooms và gợi ý mock ICurrentTenantService trong HTTP E2E; giữ ngày quá khứ cố định trong Bruno và để fixture test D23 lỗi khi chạy sau 22:00 UTC+7.
+
+[Ô 5: Phần bạn đã sửa / hoàn thiện]
+Tách công thức thu/chi, bổ sung pg_advisory_xact_lock với test Task.WhenAll (15/15) và ExpiredHoldSweepBackgroundService (17/17); sửa route thật chạy qua JwtService + PostgreSQL trong CrossBranchSecurityE2ETests.cs (7/7 [Fact] pass); thêm Staging.bru + script:pre-request động và cố định mốc ca trong RefundApprovalManagementTests.cs.
+
+Minh chứng Commit GitHub: f74bb52, b553c9b, a634207, 48184cc, e57aa4a
