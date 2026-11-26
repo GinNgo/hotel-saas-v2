@@ -192,14 +192,11 @@ jobs:
               if [ -f "${file}" ]; then
                 grep -vE "^[[:space:]]*(export[[:space:]]+)?${key}=" "${file}" > "${tmp}" || true
               fi
-              case "${val}" in
-                *[[:space:]]*)
-                  printf '%s="%s"\n' "${key}" "${val}" >> "${tmp}"
-                  ;;
-                *)
-                  printf '%s=%s\n' "${key}" "${val}" >> "${tmp}"
-                  ;;
-              esac
+              if printf '%s' "${val}" | grep -q '[[:space:]]'; then
+                printf '%s="%s"\n' "${key}" "${val}" >> "${tmp}"
+              else
+                printf '%s=%s\n' "${key}" "${val}" >> "${tmp}"
+              fi
               mv "${tmp}" "${file}"
             }
 
@@ -231,11 +228,17 @@ jobs:
             cp .env .env.bak
             CURRENT_JWT="$(read_env_value JWT_SECRET_KEY .env)"
             LOWER_JWT="$(printf '%s' "${CURRENT_JWT}" | tr '[:upper:]' '[:lower:]')"
-            if [ -z "${CURRENT_JWT}" ] || [ "${#CURRENT_JWT}" -lt 32 ] || \
-               [ "${CURRENT_JWT}" = "DevOnly_SuperSecretKey_ChangeInProduction_AtLeast32Chars!" ] || \
-               [ "${CURRENT_JWT}" = "HotelSaasPlatform2026EnterpriseSuperSecretKey32BytesLong!" ] || \
-               [ "${CURRENT_JWT}" = "YourSuperSecretKeyMustBeAtLeast32CharactersLongForJwt!" ] || \
-               printf '%s' "${LOWER_JWT}" | grep -qE 'devonly|changeinproduction'; then
+            NEED_JWT_ROTATE=0
+            if [ -z "${CURRENT_JWT}" ] || [ "${#CURRENT_JWT}" -lt 32 ]; then
+              NEED_JWT_ROTATE=1
+            fi
+            if [ "${CURRENT_JWT}" = "DevOnly_SuperSecretKey_ChangeInProduction_AtLeast32Chars!" ] || [ "${CURRENT_JWT}" = "HotelSaasPlatform2026EnterpriseSuperSecretKey32BytesLong!" ] || [ "${CURRENT_JWT}" = "YourSuperSecretKeyMustBeAtLeast32CharactersLongForJwt!" ]; then
+              NEED_JWT_ROTATE=1
+            fi
+            if printf '%s' "${LOWER_JWT}" | grep -qE 'devonly|changeinproduction'; then
+              NEED_JWT_ROTATE=1
+            fi
+            if [ "${NEED_JWT_ROTATE}" -eq 1 ]; then
               NEW_JWT="$(openssl rand -base64 48 | tr -d '\n')"
               upsert_env_value JWT_SECRET_KEY "${NEW_JWT}" .env
               echo "✔ Rotated placeholder JWT_SECRET_KEY on VPS (.env backed up to .env.bak)"
