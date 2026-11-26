@@ -24,6 +24,8 @@ public sealed class ReservationSnapshot
     public IReadOnlyList<QuoteBreakdownItemDto> Breakdown { get; set; } = Array.Empty<QuoteBreakdownItemDto>();
     public AppliedPoliciesDto AppliedPolicies { get; set; } = null!;
     public string? CustomerNotes { get; set; }
+    public bool? IsVip { get; set; }
+    public bool IsBlacklisted { get; set; }
     public string? IdempotencyKey { get; set; }
     public DateTime? HoldExpiresAtUtc { get; set; }
     public string? LookupToken { get; set; }

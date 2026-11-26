@@ -50,6 +50,10 @@ public sealed class CrossBranchSecurityE2ETests
     {
         var builder = new NpgsqlConnectionStringBuilder(connStr);
         var dbName = builder.Database ?? string.Empty;
+        if (!new[] { "localhost", "127.0.0.1", "::1" }.Contains(builder.Host, StringComparer.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("SAFETY ABORT: security tests require the approved local PostgreSQL instance.");
+        }
 
         if (!dbName.EndsWith("_test", StringComparison.OrdinalIgnoreCase) &&
             !dbName.Contains("test_", StringComparison.OrdinalIgnoreCase) &&
@@ -68,7 +72,7 @@ public sealed class CrossBranchSecurityE2ETests
         }
     }
 
-    private static ApplicationDbContext CreateSeedDbContext(string baseConnStr, string schema, Guid? tenantId)
+    internal static ApplicationDbContext CreateSeedDbContext(string baseConnStr, string schema, Guid? tenantId)
     {
         ValidateSchemaName(schema);
         var builder = new NpgsqlConnectionStringBuilder(baseConnStr)
@@ -145,7 +149,7 @@ public sealed class CrossBranchSecurityE2ETests
         }
     }
 
-    private sealed record SecurityTestContext(
+    internal sealed record SecurityTestContext(
         WebApplicationFactory<Program> Factory,
         string BaseConnectionString,
         string TestSchema,
@@ -162,7 +166,7 @@ public sealed class CrossBranchSecurityE2ETests
         Guid ResCId,
         DateOnly Today);
 
-    private static async Task RunInIsolatedEnvironmentAsync(
+    internal static async Task RunInIsolatedEnvironmentAsync(
         Func<SecurityTestContext, Task> action,
         bool seedPayments = true)
     {

@@ -43,23 +43,25 @@ public sealed class GetGuestDirectoryQueryHandler : IRequestHandler<GetGuestDire
         // Aggregate guest data from Reservations in this tenant
         var reservationsQuery = _context.Reservations
             .AsNoTracking()
-            .Where(r => r.TenantId == tenantId.Value && !string.IsNullOrWhiteSpace(r.GuestPhone));
+            .Where(r => r.TenantId == tenantId.Value);
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
             var search = request.Search.Trim().ToLower();
             reservationsQuery = reservationsQuery.Where(r =>
                 r.GuestName.ToLower().Contains(search) ||
-                r.GuestPhone!.Contains(search) ||
+                (r.GuestPhone != null && r.GuestPhone.Contains(search)) ||
                 (r.GuestEmail != null && r.GuestEmail.ToLower().Contains(search)));
         }
 
-        // Group by Phone
+        // Keep phone-less guests addressable using the same identity as history and updates.
         var grouped = reservationsQuery
-            .GroupBy(r => r.GuestPhone!)
+            .GroupBy(GuestIdentity.Key)
             .Select(g => new
             {
-                PhoneNumber = g.Key,
+                GuestKey = g.Key,
+                ReservationId = g.OrderByDescending(r => r.CreatedAtUtc).ThenBy(r => r.Id).Select(r => r.Id).First(),
+                PhoneNumber = g.OrderByDescending(r => r.CreatedAtUtc).Select(r => r.GuestPhone).FirstOrDefault() ?? string.Empty,
                 FullName = g.OrderByDescending(r => r.CreatedAtUtc).Select(r => r.GuestName).FirstOrDefault() ?? string.Empty,
                 Email = g.OrderByDescending(r => r.CreatedAtUtc).Select(r => r.GuestEmail).FirstOrDefault(),
                 IdCardNumber = (string?)null,
@@ -133,7 +135,9 @@ public sealed class GetGuestDirectoryQueryHandler : IRequestHandler<GetGuestDire
 
             return new GuestDirectoryItemDto
             {
-                Id = r.GuestUserId ?? Guid.NewGuid(),
+                Id = r.GuestUserId ?? r.ReservationId,
+                GuestKey = r.GuestKey,
+                VipOverride = snapshot?.IsVip,
                 UserId = r.GuestUserId,
                 FullName = r.FullName,
                 Email = r.Email,
@@ -146,8 +150,8 @@ public sealed class GetGuestDirectoryQueryHandler : IRequestHandler<GetGuestDire
                 LastStayDate = r.LastStayDate,
                 LoyaltyTier = tier,
                 PointsBalance = points,
-                IsVip = isVip,
-                IsBlacklisted = false,
+                IsVip = snapshot?.IsVip ?? isVip,
+                IsBlacklisted = snapshot?.IsBlacklisted ?? false,
                 Notes = cleanNotes
             };
         }).ToList();

@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, DestroyRef, inject, signal, computed, effect } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, DestroyRef, inject, signal, computed, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -9,6 +9,7 @@ import { RoomService, GetRoomsFilter, RoomSyncStatus } from '../../core/services
 import { HousekeepingService } from '../../core/services/housekeeping.service';
 import { AlertService } from '../../core/services/alert.service';
 import { AuthService } from '../../core/services/auth.service';
+import { NotificationService } from '../../core/services/notification.service';
 import { RoomDto } from '../../core/models/room.model';
 import { RoomStatus, ROOM_STATUS_LABELS } from '../../core/models/enums';
 import {
@@ -848,6 +849,7 @@ export class HousekeepingPage implements OnInit, OnDestroy {
   private readonly housekeepingService = inject(HousekeepingService, { optional: true });
   private readonly alertService = inject(AlertService);
   readonly authService = inject(AuthService);
+  private readonly notifications = inject(NotificationService, { optional: true });
 
   showContextSelector = signal<boolean>(false);
   openContextSelector(): void {
@@ -991,6 +993,41 @@ export class HousekeepingPage implements OnInit, OnDestroy {
   private pollGeneration = 0;
   private lastMutationTimestamp = 0;
   private isDestroyed = false;
+  private seenRealtimeIds = new Set<string>();
+  private realtimeContext: string | null = null;
+  private wasRealtimeConnected = false;
+
+  private realtimeReady(): boolean {
+    return this.notifications?.connectionState() === 'connected' &&
+      this.notifications.activePropertyId() === this.authService.activePropertyId();
+  }
+
+  /** NotificationService maps both Hub events to branch-scoped notification items. */
+  syncRealtime(): void {
+    const propertyId = this.authService.activePropertyId();
+    const tenantId = this.notifications?.activeTenantId();
+    const context = propertyId && tenantId ? `${tenantId}:${propertyId}` : null;
+    const connected = this.realtimeReady();
+    const items = this.notifications?.notifications() ?? [];
+    const relevant = items.filter(item => item.propertyId === propertyId && item.tenantId === tenantId &&
+      ['RoomNeedsCleaning', 'RoomCleaningCompleted', 'NewReservation', 'ReservationCancelled'].includes(item.type));
+    const contextChanged = this.realtimeContext !== context;
+    const hasNewEvent = !contextChanged && relevant.some(item => !this.seenRealtimeIds.has(item.id));
+    this.realtimeContext = context;
+    this.seenRealtimeIds = new Set(relevant.map(item => item.id));
+    const reconnected = connected && !this.wasRealtimeConnected;
+    this.wasRealtimeConnected = connected;
+    untracked(() => {
+      if (this.isDestroyed) return;
+      if (connected || !this.autoSyncEnabled()) this.stopAutoSync();
+      else if (!this.autoSyncTimer) this.startAutoSync();
+      if (propertyId && (hasNewEvent || reconnected)) {
+        this.invalidatePolling();
+        this.loadRooms();
+        this.loadTasks();
+      }
+    });
+  }
 
   private readonly handleOnline = () => {
     this.syncStatus.set('connected');
@@ -1012,6 +1049,10 @@ export class HousekeepingPage implements OnInit, OnDestroy {
 
   constructor() {
     try {
+      effect(() => {
+        this.autoSyncEnabled();
+        this.syncRealtime();
+      });
       effect(() => {
         const propId = this.authService.activePropertyId();
         if (this.trackedPropertyId !== propId) {
@@ -1369,12 +1410,15 @@ export class HousekeepingPage implements OnInit, OnDestroy {
 
   startAutoSync(intervalMs = 10000): void {
     this.stopAutoSync();
-    if (!this.authService.activePropertyId()) {
+    if (!this.authService.activePropertyId() || !this.autoSyncEnabled() || this.realtimeReady() || this.isDestroyed) {
       return;
     }
     if (typeof window !== 'undefined') {
       this.autoSyncTimer = setInterval(() => {
-        this.pollServerSync();
+        if (!this.realtimeReady()) {
+          this.pollServerSync();
+          this.loadTasks();
+        }
       }, intervalMs);
     }
   }

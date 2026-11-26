@@ -10,6 +10,7 @@ namespace HotelSaas.Application.Guests.Queries.GetGuestHistory;
 public sealed record GetGuestHistoryQuery : IRequest<GuestDetailDto>
 {
     public string PhoneNumber { get; init; } = string.Empty;
+    public string? GuestKey { get; init; }
 }
 
 public sealed class GetGuestHistoryQueryHandler : IRequestHandler<GetGuestHistoryQuery, GuestDetailDto>
@@ -35,20 +36,21 @@ public sealed class GetGuestHistoryQueryHandler : IRequestHandler<GetGuestHistor
             throw new UnauthorizedAccessException("Không xác định được tổ chức lưu trú (Tenant).");
         }
 
-        var normalizedPhone = request.PhoneNumber.Trim();
+        var normalizedPhone = request.PhoneNumber?.Trim() ?? string.Empty;
 
-        var bookings = await _context.Reservations
+        var bookings = await GuestIdentity.ForGuest(_context.Reservations
             .AsNoTracking()
             .Include(r => r.Property)
             .Include(r => r.Room)
             .ThenInclude(rm => rm!.RoomType)
-            .Where(r => r.TenantId == tenantId.Value && r.GuestPhone == normalizedPhone)
+            .Where(r => r.TenantId == tenantId.Value), request.GuestKey, normalizedPhone)
             .OrderByDescending(r => r.CreatedAtUtc)
+            .ThenBy(r => r.Id)
             .ToListAsync(cancellationToken);
 
         if (bookings.Count == 0)
         {
-            throw new NotFoundException($"Không tìm thấy hồ sơ khách hàng với số điện thoại {normalizedPhone}.");
+            throw new NotFoundException("Không tìm thấy hồ sơ khách hàng trong phạm vi truy cập.");
         }
 
         var latest = bookings[0];
@@ -73,7 +75,7 @@ public sealed class GetGuestHistoryQueryHandler : IRequestHandler<GetGuestHistor
             CreatedAtUtc = b.CreatedAtUtc
         }).ToList();
 
-        var loyaltyTier = completedStays >= 3 ? "Gold" : (completedStays >= 1 ? "Silver" : "Standard");
+        var loyaltyTier = completedStays >= 2 ? "Silver" : "Standard";
         var pointsBalance = 0;
         if (latest.GuestUserId.HasValue)
         {
@@ -93,6 +95,8 @@ public sealed class GetGuestHistoryQueryHandler : IRequestHandler<GetGuestHistor
         var profile = new GuestDirectoryItemDto
         {
             Id = latest.GuestUserId ?? latest.Id,
+            GuestKey = GuestIdentity.Key.Compile()(latest),
+            VipOverride = latestSnapshot?.IsVip,
             UserId = latest.GuestUserId,
             FullName = latest.GuestName,
             Email = latest.GuestEmail,
@@ -105,8 +109,8 @@ public sealed class GetGuestHistoryQueryHandler : IRequestHandler<GetGuestHistor
             LastStayDate = latest.CreatedAtUtc,
             LoyaltyTier = loyaltyTier,
             PointsBalance = pointsBalance,
-            IsVip = totalSpent >= 5_000_000 || completedStays >= 3 || loyaltyTier != "Standard",
-            IsBlacklisted = false,
+            IsVip = latestSnapshot?.IsVip ?? (totalSpent >= 5_000_000 || completedStays >= 3 || loyaltyTier != "Standard"),
+            IsBlacklisted = latestSnapshot?.IsBlacklisted ?? false,
             Notes = cleanNotes
         };
 

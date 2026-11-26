@@ -37,8 +37,10 @@ export class GuestService {
       .pipe(map(res => res.data || { items: [], totalCount: 0, page: 1, pageSize: 20, totalPages: 0, hasPreviousPage: false, hasNextPage: false }));
   }
 
-  getGuestHistory(phoneNumber: string): Observable<GuestDetailDto> {
-    const params = new HttpParams().set('phoneNumber', phoneNumber.trim());
+  getGuestHistory(phoneNumber: string, guestKey?: string): Observable<GuestDetailDto> {
+    const params = guestKey
+      ? new HttpParams().set('guestKey', guestKey)
+      : new HttpParams().set('phoneNumber', phoneNumber.trim());
     return this.http
       .get<ApiResponse<GuestDetailDto>>(`${this.baseUrl}/history`, { params })
       .pipe(map(res => res.data!));
@@ -47,6 +49,6 @@ export class GuestService {
   updateGuestNotes(payload: UpdateGuestNotesRequest): Observable<boolean> {
     return this.http
       .put<ApiResponse<boolean>>(`${this.baseUrl}/notes`, payload)
-      .pipe(map(res => res.success));
+      .pipe(map(res => res.success && res.data === true));
   }
 }

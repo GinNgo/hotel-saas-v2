@@ -59,12 +59,14 @@ public sealed class GuestsController : ControllerBase
     [RequirePermission("GUESTS", 1)]
     [ProducesResponseType(typeof(ApiResponse<GuestDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetGuestHistory(
-        [FromQuery] string phoneNumber,
-        CancellationToken cancellationToken = default)
+        [FromQuery] string? phoneNumber = null,
+        CancellationToken cancellationToken = default,
+        [FromQuery] string? guestKey = null)
     {
         var result = await _mediator.Send(new GetGuestHistoryQuery
         {
-            PhoneNumber = phoneNumber
+            PhoneNumber = phoneNumber ?? string.Empty,
+            GuestKey = guestKey
         }, cancellationToken);
 
         return Ok(ApiResponse.Ok(result));

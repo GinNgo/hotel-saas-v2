@@ -232,7 +232,8 @@ export class NotificationService {
     const monitorTransport = new LivePropertyMonitorTransport(
       this.http,
       (payload, options) => this.receiveRealtimeNotification(payload, options),
-      msg => this.errorMessage.set(msg)
+      msg => this.errorMessage.set(msg),
+      code => this.canReadModule(code)
     );
     this.registerTransport(monitorTransport);
   }
@@ -933,8 +934,19 @@ export class NotificationService {
    * để đảm bảo kể cả khi mở trình duyệt mới hoặc sau khi F5, chuông thông báo vẫn hiển thị đầy đủ
    * các sự kiện quan trọng gần nhất của chi nhánh mà không bị trống rỗng.
    */
+  private canReadModule(functionCode: string): boolean {
+    if (!this.tokenStorage) return true;
+    const decoded = this.tokenStorage.getDecodedToken();
+    if (!decoded) return false;
+    return this.tokenStorage.hasPermission(functionCode, 1);
+  }
+
   private async hydrateInitialBranchSnapshot(tenantId: string, propertyId: string): Promise<void> {
     if (!this.http || !tenantId || !propertyId) return;
+
+    const canReadReservations = this.canReadModule('RESERVATIONS');
+    const canReadRooms = this.canReadModule('ROOMS');
+    if (!canReadReservations && !canReadRooms) return;
 
     try {
       const resParams = new HttpParams()
@@ -946,16 +958,20 @@ export class NotificationService {
         .set('pageSize', '50');
 
       const [resResponse, roomResponse] = await Promise.all([
-        firstValueFrom(
-          this.http.get<Record<string, unknown>>(`${environment.apiUrl}/reservations`, {
-            params: resParams
-          })
-        ).catch(() => null),
-        firstValueFrom(
-          this.http.get<Record<string, unknown>>(`${environment.apiUrl}/rooms`, {
-            params: roomParams
-          })
-        ).catch(() => null)
+        canReadReservations
+          ? firstValueFrom(
+              this.http.get<Record<string, unknown>>(`${environment.apiUrl}/reservations`, {
+                params: resParams
+              })
+            ).catch(() => null)
+          : Promise.resolve(null),
+        canReadRooms
+          ? firstValueFrom(
+              this.http.get<Record<string, unknown>>(`${environment.apiUrl}/rooms`, {
+                params: roomParams
+              })
+            ).catch(() => null)
+          : Promise.resolve(null)
       ]);
 
       // Kiểm tra ngữ cảnh vẫn còn khớp sau khi await
@@ -1171,7 +1187,8 @@ export class LivePropertyMonitorTransport implements RealtimeNotificationTranspo
       payload: RealtimeNotificationContractDto,
       options?: ReceiveNotificationOptions
     ) => boolean,
-    private readonly onErrorChange?: (message: string | null) => void
+    private readonly onErrorChange?: (message: string | null) => void,
+    private readonly canReadModule: (functionCode: string) => boolean = () => true
   ) {}
 
   async connect(context: { tenantId: string; propertyId: string; accessToken: string }): Promise<void> {
@@ -1300,11 +1317,17 @@ export class LivePropertyMonitorTransport implements RealtimeNotificationTranspo
 
       let resResponse: Record<string, unknown> | null = null;
       let roomResponse: Record<string, unknown> | null = null;
+      const canReadReservations = this.canReadModule('RESERVATIONS');
+      const canReadRooms = this.canReadModule('ROOMS');
 
       try {
         const [res, room] = await Promise.all([
-          firstValueFrom(this.http.get<Record<string, unknown>>(`${environment.apiUrl}/reservations`, { params: resParams })),
-          firstValueFrom(this.http.get<Record<string, unknown>>(`${environment.apiUrl}/rooms`, { params: roomParams }))
+          canReadReservations
+            ? firstValueFrom(this.http.get<Record<string, unknown>>(`${environment.apiUrl}/reservations`, { params: resParams }))
+            : Promise.resolve(null),
+          canReadRooms
+            ? firstValueFrom(this.http.get<Record<string, unknown>>(`${environment.apiUrl}/rooms`, { params: roomParams }))
+            : Promise.resolve(null)
         ]);
         resResponse = res;
         roomResponse = room;

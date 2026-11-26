@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { JSDOM } from 'jsdom';
-import { throwError } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AlertService } from '../../../core/services/alert.service';
 import {
@@ -792,6 +792,33 @@ describe('NotificationBellComponent & NotificationService (T01-A & T01-B)', () =
       expect(errorHandler).toHaveBeenCalledWith(
         expect.stringContaining('Phiên đăng nhập hết hạn hoặc không có quyền truy cập')
       );
+
+      await monitor.disconnect();
+    });
+
+    it('LivePropertyMonitorTransport không gọi GET /api/reservations khi tài khoản thiếu quyền RESERVATIONS:Read (ví dụ Housekeeper)', async () => {
+      const requestedUrls: string[] = [];
+      const mockHttp = {
+        get: vi.fn((url: string) => {
+          requestedUrls.push(url);
+          return of({ data: { items: [] } });
+        })
+      } as unknown as HttpClient;
+
+      const stateHandler = vi.fn();
+      const monitor = new LivePropertyMonitorTransport(
+        mockHttp,
+        () => true,
+        undefined,
+        code => code === 'ROOMS'
+      );
+      monitor.onStateChange(stateHandler);
+
+      await monitor.connect({ tenantId: TENANT_A, propertyId: PROP_1, accessToken: 'token' });
+
+      expect(requestedUrls.some(u => u.includes('/rooms'))).toBe(true);
+      expect(requestedUrls.some(u => u.includes('/reservations'))).toBe(false);
+      expect(stateHandler).toHaveBeenCalledWith('connected');
 
       await monitor.disconnect();
     });

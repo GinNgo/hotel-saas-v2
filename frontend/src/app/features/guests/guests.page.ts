@@ -143,7 +143,7 @@ type GuestSortField = 'fullName' | 'loyaltyTier' | 'completedStays' | 'totalSpen
         } @else {
           <!-- Mobile Card Fallback (< md) -->
           <div class="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
-            @for (guest of sortedGuests(); track guest.phoneNumber) {
+            @for (guest of sortedGuests(); track guest.guestKey || guest.id) {
               <div class="p-4 space-y-3">
                 <div class="flex items-start justify-between gap-2">
                   <div class="flex items-center gap-2.5 min-w-0">
@@ -153,6 +153,9 @@ type GuestSortField = 'fullName' | 'loyaltyTier' | 'completedStays' | 'totalSpen
                     <div class="min-w-0">
                       <div class="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
                         <span class="truncate">{{ guest.fullName }}</span>
+                        @if (guest.isBlacklisted) {
+                          <span class="text-xs font-bold text-rose-700">Blacklist</span>
+                        }
                         @if (guest.isVip) {
                           <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
                             <i class="pi pi-star-fill text-[9px] text-amber-600" aria-hidden="true"></i> VIP
@@ -160,7 +163,7 @@ type GuestSortField = 'fullName' | 'loyaltyTier' | 'completedStays' | 'totalSpen
                         }
                       </div>
                       <div class="text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
-                        {{ guest.phoneNumber }}
+                        {{ guest.phoneNumber || 'Chưa có SĐT' }}
                       </div>
                     </div>
                   </div>
@@ -259,7 +262,7 @@ type GuestSortField = 'fullName' | 'loyaltyTier' | 'completedStays' | 'totalSpen
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                @for (guest of sortedGuests(); track guest.phoneNumber) {
+                @for (guest of sortedGuests(); track guest.guestKey || guest.id) {
                   <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition-colors">
                     <!-- Name & Badge -->
                     <td class="px-5 py-3.5">
@@ -270,7 +273,10 @@ type GuestSortField = 'fullName' | 'loyaltyTier' | 'completedStays' | 'totalSpen
                         <div>
                           <div class="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                             <span>{{ guest.fullName }}</span>
-                            @if (guest.isVip) {
+                            @if (guest.isBlacklisted) {
+                          <span class="text-xs font-bold text-rose-700">Blacklist</span>
+                        }
+                        @if (guest.isVip) {
                               <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
                                 <i class="pi pi-star-fill text-[9px] text-amber-600" aria-hidden="true"></i> VIP
                               </span>
@@ -285,7 +291,7 @@ type GuestSortField = 'fullName' | 'loyaltyTier' | 'completedStays' | 'totalSpen
 
                     <!-- Phone -->
                     <td class="px-5 py-3.5 font-mono text-slate-800 dark:text-slate-200 tabular-nums">
-                      {{ guest.phoneNumber }}
+                      {{ guest.phoneNumber || 'Chưa có SĐT' }}
                     </td>
 
                     <!-- Tier -->
@@ -376,7 +382,7 @@ type GuestSortField = 'fullName' | 'loyaltyTier' | 'completedStays' | 'totalSpen
                     }
                   </h2>
                   <div class="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-                    SĐT: {{ selectedGuest()!.phoneNumber }} &bull; {{ selectedGuest()!.email || 'Chưa có email' }}
+                    SĐT: {{ selectedGuest()!.phoneNumber || 'Chưa có SĐT' }} &bull; {{ selectedGuest()!.email || 'Chưa có email' }}
                   </div>
                 </div>
               </div>
@@ -416,10 +422,20 @@ type GuestSortField = 'fullName' | 'loyaltyTier' | 'completedStays' | 'totalSpen
               <textarea
                 id="guest-internal-notes"
                 [(ngModel)]="noteContent"
+                (ngModelChange)="markNotesDirty()"
                 rows="3"
                 placeholder="Ví dụ: Khách thích nhận phòng tầng cao, dị ứng hoa ly, chuẩn bị thêm nước suối..."
                 class="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
               ></textarea>
+              <div class="flex flex-wrap gap-4 items-center">
+                <label for="guest-vip">VIP</label>
+                <select id="guest-vip" [(ngModel)]="vipOverride" (ngModelChange)="markNotesDirty()" class="border rounded-lg p-2">
+                  <option [ngValue]="null">Tự động theo lịch sử</option>
+                  <option [ngValue]="true">VIP thủ công</option>
+                  <option [ngValue]="false">Không VIP</option>
+                </select>
+                <label><input type="checkbox" [(ngModel)]="blacklisted" (ngModelChange)="markNotesDirty()" /> Blacklist — cần lưu ý phục vụ</label>
+              </div>
               <div class="flex justify-end">
                 <button
                   type="button"
@@ -518,6 +534,9 @@ export class GuestsPage implements OnInit {
   loadingHistory = signal<boolean>(false);
   savingNote = signal<boolean>(false);
   noteContent = '';
+  vipOverride: boolean | null = null;
+  blacklisted = false;
+  private noteDirty = false;
 
   countVip = computed(() => this.guestList().filter(g => g.isVip).length);
   countReturning = computed(() => this.guestList().filter(g => g.completedStays >= 2).length);
@@ -674,17 +693,30 @@ export class GuestsPage implements OnInit {
     return trimmed;
   }
 
+  markNotesDirty(): void {
+    this.noteDirty = true;
+  }
+
   viewGuestDetails(guest: GuestDirectoryItemDto): void {
     this.selectedGuest.set(guest);
     this.noteContent = this.sanitizeGuestNotes(guest.notes);
+    this.vipOverride = guest.vipOverride ?? null;
+    this.blacklisted = guest.isBlacklisted;
+    this.noteDirty = false;
     this.showDetailModal.set(true);
     this.loadingHistory.set(true);
 
     this.guestService
-      .getGuestHistory(guest.phoneNumber)
+      .getGuestHistory(guest.phoneNumber, guest.guestKey)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: detail => {
+          this.selectedGuest.set(detail.profile);
+          if (!this.noteDirty) {
+            this.noteContent = this.sanitizeGuestNotes(detail.profile.notes);
+            this.vipOverride = detail.profile.vipOverride ?? null;
+            this.blacklisted = detail.profile.isBlacklisted;
+          }
           this.bookingHistory.set(detail.bookings);
           this.loadingHistory.set(false);
         },
@@ -708,12 +740,30 @@ export class GuestsPage implements OnInit {
     this.guestService
       .updateGuestNotes({
         phoneNumber: guest.phoneNumber,
-        notes: this.noteContent
+        guestKey: guest.guestKey,
+        notes: this.noteContent,
+        isVip: this.vipOverride,
+        isBlacklisted: this.blacklisted
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => {
+        next: saved => {
           this.savingNote.set(false);
+          if (!saved) {
+            this.alertService.toastError("Không tìm thấy hồ sơ để cập nhật.");
+            return;
+          }
+          this.selectedGuest.update(current => {
+            if (!current) return current;
+            const autoVip = current.totalSpent >= 5_000_000 || current.completedStays >= 3 || current.loyaltyTier !== 'Standard';
+            return {
+              ...current,
+              notes: this.noteContent,
+              vipOverride: this.vipOverride,
+              isVip: this.vipOverride ?? autoVip,
+              isBlacklisted: this.blacklisted
+            };
+          });
           this.alertService.toastSuccess('Đã cập nhật ghi chú khách hàng.');
           this.loadGuests();
         },

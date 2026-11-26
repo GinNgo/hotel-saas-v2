@@ -1,4 +1,6 @@
 export interface GuestDirectoryItemDto {
+  guestKey?: string;
+  vipOverride?: boolean | null;
   id: string;
   userId?: string;
   fullName: string;
@@ -38,6 +40,8 @@ export interface GuestDetailDto {
 
 export interface UpdateGuestNotesRequest {
   phoneNumber: string;
+  guestKey?: string;
   notes?: string;
-  isVip?: boolean;
+  isVip?: boolean | null;
+  isBlacklisted?: boolean;
 }

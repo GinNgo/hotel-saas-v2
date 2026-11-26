@@ -13,8 +13,11 @@ public sealed class UpdateGuestNotesCommandValidator : AbstractValidator<UpdateG
     public UpdateGuestNotesCommandValidator()
     {
         RuleFor(x => x.PhoneNumber)
-            .NotEmpty().WithMessage("Số điện thoại khách hàng không được để trống.")
             .MaximumLength(30).WithMessage("Số điện thoại không được vượt quá 30 ký tự.");
+
+        RuleFor(x => x.GuestKey).MaximumLength(512);
+        RuleFor(x => x).Must(x => !string.IsNullOrWhiteSpace(x.GuestKey) || !string.IsNullOrWhiteSpace(x.PhoneNumber))
+            .WithMessage("Cần mã hồ sơ hoặc số điện thoại khách hàng.");
 
         RuleFor(x => x.Notes)
             .MaximumLength(1000).WithMessage("Ghi chú khách hàng không được vượt quá 1000 ký tự.")

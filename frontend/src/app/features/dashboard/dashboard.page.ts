@@ -1596,31 +1596,36 @@ export class DashboardPage implements OnInit {
         });
     }
 
-    this.roomService
-      .getRooms({ page: 1, pageSize: 12 })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: res => {
-          this.loading.set(false);
-          const items = res.items || [];
-          this.rooms.set(items);
-          if (!this.propertySummary()) {
-            const metrics = computePropertyRoomMetrics(items);
-            this.totalRooms.set(res.totalCount ?? metrics.totalRooms);
-            this.cleanRooms.set(metrics.cleanRooms);
-            this.occupiedRooms.set(metrics.occupiedRooms);
-            this.dirtyRooms.set(metrics.dirtyRooms);
-            this.cleaningRooms.set(metrics.cleaningRooms);
-            this.oosRooms.set(metrics.oosRooms);
+    if (this.authService.hasPermission('ROOMS', 1)) {
+      this.roomService
+        .getRooms({ page: 1, pageSize: 12 })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: res => {
+            this.loading.set(false);
+            const items = res.items || [];
+            this.rooms.set(items);
+            if (!this.propertySummary()) {
+              const metrics = computePropertyRoomMetrics(items);
+              this.totalRooms.set(res.totalCount ?? metrics.totalRooms);
+              this.cleanRooms.set(metrics.cleanRooms);
+              this.occupiedRooms.set(metrics.occupiedRooms);
+              this.dirtyRooms.set(metrics.dirtyRooms);
+              this.cleaningRooms.set(metrics.cleaningRooms);
+              this.oosRooms.set(metrics.oosRooms);
+            }
+          },
+          error: err => {
+            this.loading.set(false);
+            if (!this.propertySummary()) {
+              this.error.set(err?.error?.message || 'Không thể tải dữ liệu phòng. Vui lòng thử lại.');
+            }
           }
-        },
-        error: err => {
-          this.loading.set(false);
-          if (!this.propertySummary()) {
-            this.error.set(err?.error?.message || 'Không thể tải dữ liệu phòng. Vui lòng thử lại.');
-          }
-        }
-      });
+        });
+    } else {
+      this.rooms.set([]);
+      this.loading.set(false);
+    }
   }
 
   loadOperationalMetrics(): void {
@@ -1632,34 +1637,43 @@ export class DashboardPage implements OnInit {
       return;
     }
 
-    this.loadingOperational.set(true);
-    this.reservationService
-      .getReservations({ propertyId: propId, page: 1, pageSize: 6 })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: res => {
-          this.recentReservations.set(res.items || []);
-          if (!this.propertySummary()) {
-            this.totalReservationsCount.set(res.totalCount ?? (res.items?.length || 0));
+    if (this.authService.hasPermission('RESERVATIONS', 1)) {
+      this.loadingOperational.set(true);
+      this.reservationService
+        .getReservations({ propertyId: propId, page: 1, pageSize: 6 })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: res => {
+            this.recentReservations.set(res.items || []);
+            if (!this.propertySummary()) {
+              this.totalReservationsCount.set(res.totalCount ?? (res.items?.length || 0));
+            }
+            this.loadingOperational.set(false);
+          },
+          error: () => {
+            this.loadingOperational.set(false);
           }
-          this.loadingOperational.set(false);
-        },
-        error: () => {
-          this.loadingOperational.set(false);
-        }
-      });
+        });
+    } else {
+      this.recentReservations.set([]);
+      this.loadingOperational.set(false);
+    }
 
-    this.paymentService
-      .getPaymentSummary(propId)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: summary => {
-          this.paymentSummary.set(summary);
-        },
-        error: () => {
-          this.paymentSummary.set(null);
-        }
-      });
+    if (this.authService.hasPermission('PAYMENTS', 1)) {
+      this.paymentService
+        .getPaymentSummary(propId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: summary => {
+            this.paymentSummary.set(summary);
+          },
+          error: () => {
+            this.paymentSummary.set(null);
+          }
+        });
+    } else {
+      this.paymentSummary.set(null);
+    }
   }
 
   getStatusLabel(status: RoomStatus): string {
