@@ -502,6 +502,71 @@ describe('Public Booking Pages Suite — Angular 22 Signals Architecture', () =>
       ]);
       expect(component.filteredProperties().map((p) => p.propertyId)).toEqual(['prop-expanded']);
     });
+
+    it('preserves distance_asc across sidebar filter updates when GPS coordinates are active and keeps isExpandedNearbySuggestion after direct matches', () => {
+      // Arrange
+      TestBed.inject(ActivatedRoute).snapshot.queryParams = {
+        userLatitude: '10.7725',
+        userLongitude: '106.698',
+        sortBy: 'distance_asc',
+        maxDistanceMeters: '1000',
+      };
+      component.ngOnInit();
+      mockRouter.navigate.mockClear();
+
+      // Act: update distance & price filters while GPS coordinates remain active
+      component.setMaxDistance(1500);
+      component.applyPriceRange('200_500', 200000, 500000);
+
+      // Assert: distance_asc preserved in signals and URL navigation
+      expect(component.sortBy()).toBe('distance_asc');
+      expect(component.searchFilter().sortBy).toBe('distance_asc');
+      expect(mockRouter.navigate).toHaveBeenLastCalledWith(
+        [],
+        expect.objectContaining({
+          queryParams: expect.objectContaining({
+            userLatitude: 10.7725,
+            userLongitude: 106.698,
+            maxDistanceMeters: 1500,
+            minPrice: 200000,
+            maxPrice: 500000,
+            sortBy: 'distance_asc',
+          }),
+        })
+      );
+
+      // Arrange mixed direct + out-of-radius + expanded nearby properties
+      component.minPrice.set(null);
+      component.maxPrice.set(null);
+      component.maxDistanceMeters.set(1000);
+      component.properties.set([
+        {
+          ...sampleProperties[0],
+          propertyId: 'prop-expanded-far',
+          distanceMeters: 4200,
+          isExpandedNearbySuggestion: true,
+        },
+        {
+          ...sampleProperties[0],
+          propertyId: 'prop-direct-far',
+          distanceMeters: 2500,
+          isExpandedNearbySuggestion: false,
+        },
+        {
+          ...sampleProperties[0],
+          propertyId: 'prop-direct-near',
+          distanceMeters: 600,
+          isExpandedNearbySuggestion: false,
+        },
+      ]);
+
+      // Assert: out-of-radius non-expanded property filtered out; expanded nearby kept and placed after direct matches
+      expect(component.filteredProperties().map((p) => p.propertyId)).toEqual([
+        'prop-direct-near',
+        'prop-expanded-far',
+      ]);
+      expect(component.filteredProperties()[1].isExpandedNearbySuggestion).toBe(true);
+    });
   });
 
   // =========================================================================

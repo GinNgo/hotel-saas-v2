@@ -350,4 +350,56 @@ public sealed class GeoProximityAndSmartFilterTests
         Assert.Null(item.Latitude);
         Assert.Null(item.Longitude);
     }
+
+    [Fact]
+    public async Task GetPublicProperties_WhenGpsPlaceholderWithDistanceAsc_BypassesTextFilterAndPreservesExpandedOrdering()
+    {
+        // Arrange
+        var closerProp = new Property
+        {
+            Id = Guid.NewGuid(),
+            Name = "Khách sạn Sát Bãi Sau",
+            Code = "GPS01",
+            Slug = "khach-san-sat-bai-sau-gps",
+            Address = "10 Thùy Vân, Vũng Tàu",
+            City = "Vũng Tàu",
+            Latitude = 10.3350,
+            Longitude = 107.0895,
+            TouristZoneSlug = "vung-tau",
+            Status = PropertyStatus.Active
+        };
+        var expandedProp = new Property
+        {
+            Id = Guid.NewGuid(),
+            Name = "Khách sạn Trung Tâm Vũng Tàu",
+            Code = "GPS02",
+            Slug = "khach-san-trung-tam-vt-gps",
+            Address = "25 Lê Lợi, Vũng Tàu",
+            City = "Vũng Tàu",
+            Latitude = 10.3550,
+            Longitude = 107.0750,
+            TouristZoneSlug = "vung-tau",
+            Status = PropertyStatus.Active
+        };
+
+        var context = new GetPublicPropertiesSyntheticTests.TestApplicationDbContext(new[] { expandedProp, closerProp });
+        var handler = new GetPublicPropertiesQueryHandler(context, _locationService);
+        var query = new GetPublicPropertiesQuery(
+            DestinationKeyword: "Vị trí hiện tại",
+            MaxDistanceMeters: 500,
+            UserLatitude: 10.3340,
+            UserLongitude: 107.0890,
+            SortBy: "distance_asc");
+
+        // Act
+        var results = await handler.Handle(query, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(2, results.Count);
+        Assert.Equal(closerProp.Id, results[0].Id);
+        Assert.False(results[0].IsExpandedNearbySuggestion);
+        Assert.Equal(expandedProp.Id, results[1].Id);
+        Assert.True(results[1].IsExpandedNearbySuggestion);
+        Assert.True(results[0].DistanceMeters < results[1].DistanceMeters);
+    }
 }

@@ -1188,6 +1188,74 @@ describe('BookingHoldPageComponent (T01 — Giữ phòng, hết hạn và thử 
       expect(compiled.textContent).not.toContain('Nộp cọc tại quầy trong 15 phút');
       expect(compiled.textContent).not.toContain('Chuyển khoản thủ công theo hướng dẫn của cơ sở');
     });
+
+    it('should render only [data-testid="sepay-vietqr-method-card"] and no VNPay button when environment.enableVnpay is false', () => {
+      // Arrange
+      component.booking.set(null);
+      fillValidContactForm();
+
+      // Act
+      fixture.detectChanges();
+
+      // Assert
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(component.showVnpay).toBe(false);
+      expect(compiled.querySelector('[data-testid="sepay-vietqr-method-card"]')).not.toBeNull();
+      expect(compiled.textContent).not.toContain('Thẻ / VNPay-QR');
+      expect(compiled.textContent).not.toContain('Thanh toán cọc qua VNPay Sandbox');
+      const buttons = Array.from(compiled.querySelectorAll('button'));
+      expect(buttons.some(btn => /vnpay/i.test(btn.textContent ?? ''))).toBe(false);
+    });
+
+    it('should clamp selectPaymentMethod("VNPay") and paymentMethod=VNPay query param to VietQR when environment.enableVnpay is false', async () => {
+      // Arrange
+      expect(component.showVnpay).toBe(false);
+
+      // Act
+      component.selectPaymentMethod('VNPay');
+
+      // Assert
+      expect(component.selectedPaymentMethod).toBe('VietQR');
+      expect(component.paymentMethodActionLabel()).toBe('Mở hướng dẫn VietQR');
+
+      // Arrange route queryParamMap with paymentMethod=VNPay
+      TestBed.resetTestingModule();
+      await TestBed.configureTestingModule({
+        imports: [BookingHoldPageComponent, FormFieldComponent, FormControlDirective],
+        providers: [
+          { provide: PublicBookingService, useValue: mockBookingService },
+          { provide: AlertService, useValue: mockAlertService },
+          { provide: Router, useValue: mockRouter },
+          {
+            provide: ActivatedRoute,
+            useValue: {
+              snapshot: {
+                queryParams: {
+                  propertySlug: 'luxestay-da-lat',
+                  roomTypeId: 'rt-deluxe-1',
+                  rentalType: 'Daily',
+                  checkInDate: '2099-10-20',
+                  checkOutDate: '2099-10-22',
+                  guests: 2,
+                  paymentMethod: 'VNPay'
+                },
+                paramMap: { get: vi.fn().mockReturnValue(null) },
+                queryParamMap: { get: vi.fn((k: string) => (k === 'paymentMethod' ? 'VNPay' : null)) }
+              }
+            }
+          }
+        ]
+      }).compileComponents();
+
+      const qpFixture = TestBed.createComponent(BookingHoldPageComponent);
+      const qpComponent = qpFixture.componentInstance;
+
+      // Act
+      qpComponent.ngOnInit();
+
+      // Assert
+      expect(qpComponent.selectedPaymentMethod).toBe('VietQR');
+    });
   });
 });
 
