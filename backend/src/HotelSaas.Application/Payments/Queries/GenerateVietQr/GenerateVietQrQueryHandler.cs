@@ -148,7 +148,7 @@ public sealed class GenerateVietQrQueryHandler : IRequestHandler<GenerateVietQrQ
         {
             throw new UnprocessableEntityException(
                 "ERR_BANK_ACCOUNT_NOT_CONFIGURED",
-                "Cơ sở lưu trú chưa cấu hình tài khoản ngân hàng nhận thanh toán VietQR. Vui lòng chọn phương thức thanh toán VNPay hoặc liên hệ lễ tân.");
+                "Cơ sở lưu trú chưa cấu hình tài khoản ngân hàng nhận thanh toán VietQR (SePay). Vui lòng liên hệ lễ tân hoặc kiểm tra cấu hình ngân hàng của cơ sở.");
         }
 
         var accountHolder = !string.IsNullOrWhiteSpace(config.BankAccountHolder)
