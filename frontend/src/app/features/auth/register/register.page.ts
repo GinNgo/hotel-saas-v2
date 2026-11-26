@@ -477,10 +477,13 @@ export class RegisterPage {
     }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (response: ApiResponse<RegisterResponse>) => {
         this.loading.set(false);
-        if (response.success || response.data?.userId || response.data) {
-          this.notification.success('Đăng ký tài khoản thành công! Thư xác thực tài khoản đã được gửi đến email của bạn. Vui lòng mở hộp thư để bấm liên kết kích hoạt.');
+        const bare = response as unknown as Partial<RegisterResponse> | null;
+        if (response?.success || response?.data?.userId || response?.data || bare?.userId) {
+          this.notification.success(
+            'Đăng ký tài khoản thành công! Thư xác thực tài khoản đã được gửi đến email của bạn. Vui lòng mở hộp thư để bấm liên kết kích hoạt.'
+          );
           this.router.navigate(['/login']);
-        } else if (response.message) {
+        } else if (response?.message) {
           this.errorMessage.set(response.message);
         }
       },

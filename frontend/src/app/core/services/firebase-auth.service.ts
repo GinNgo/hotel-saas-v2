@@ -108,6 +108,9 @@ export class FirebaseAuthService {
       },
       'expired-callback': () => {
         console.warn('[FirebaseAuthService] reCAPTCHA expired, user must retry');
+      },
+      'error-callback': () => {
+        console.warn('[FirebaseAuthService] reCAPTCHA error callback');
       }
     });
 
@@ -188,13 +191,17 @@ export class FirebaseAuthService {
           message: `Firebase SMS Sandbox: Mã OTP thử nghiệm là 123456 (Lý do: ${errCode})`
         };
       }
-      if (
-        errCode === 'auth/quota-exceeded' ||
-        errCode === 'auth/billing-not-enabled' ||
-        errCode === 'auth/invalid-app-credential' ||
-        errCode === 'auth/operation-not-allowed'
-      ) {
-        throw new Error('Dịch vụ gửi mã SMS OTP hiện không khả dụng. Vui lòng thử lại sau.');
+      const firebaseErrorMessages: Record<string, string> = {
+        'auth/quota-exceeded': `Dịch vụ gửi mã SMS OTP hiện không khả dụng do vượt hạn mức gửi (${errCode}). Vui lòng thử lại sau.`,
+        'auth/billing-not-enabled': `Dịch vụ gửi mã SMS OTP hiện không khả dụng do chưa kích hoạt gói SMS (${errCode}). Vui lòng liên hệ quản trị viên.`,
+        'auth/invalid-app-credential': `Dịch vụ gửi mã SMS OTP hiện không khả dụng do thông tin xác thực ứng dụng không hợp lệ (${errCode}). Vui lòng thử lại sau.`,
+        'auth/operation-not-allowed': `Dịch vụ gửi mã SMS OTP hiện không khả dụng do phương thức SMS chưa được bật (${errCode}).`,
+        'auth/unauthorized-domain': `Tên miền hiện tại chưa được cấp quyền gửi OTP trên Firebase (${errCode}). Vui lòng liên hệ quản trị viên.`,
+        'auth/too-many-requests': `Bạn đã yêu cầu gửi mã OTP quá nhiều lần, vui lòng thử lại sau ít phút (${errCode}).`,
+        'auth/captcha-check-failed': `Xác minh bảo mật reCAPTCHA thất bại (${errCode}). Vui lòng thử lại.`
+      };
+      if (errCode && firebaseErrorMessages[errCode]) {
+        throw new Error(firebaseErrorMessages[errCode]);
       }
       if (error instanceof Error) {
         throw error;

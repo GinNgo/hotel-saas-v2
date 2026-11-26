@@ -91,6 +91,31 @@ describe('FirebaseAuthService (Production Fail-Closed vs Dev Sandbox Fallback)',
       );
     });
 
+    it.each([
+      ['auth/quota-exceeded', 'Dịch vụ gửi mã SMS OTP hiện không khả dụng'],
+      ['auth/billing-not-enabled', 'Dịch vụ gửi mã SMS OTP hiện không khả dụng'],
+      ['auth/invalid-app-credential', 'Dịch vụ gửi mã SMS OTP hiện không khả dụng'],
+      ['auth/operation-not-allowed', 'Dịch vụ gửi mã SMS OTP hiện không khả dụng'],
+      ['auth/unauthorized-domain', 'Tên miền hiện tại chưa được cấp quyền gửi OTP'],
+      ['auth/too-many-requests', 'Bạn đã yêu cầu gửi mã OTP quá nhiều lần'],
+      ['auth/captcha-check-failed', 'Xác minh bảo mật reCAPTCHA thất bại'],
+    ])('maps Firebase error %s to clear Vietnamese message with code in parentheses', async (code, expectedPrefix) => {
+      const service = new TestableFirebaseAuthService();
+      service.mockVerifier = { clear: vi.fn() } as unknown as RecaptchaVerifier;
+      service.signInFn.mockRejectedValueOnce({ code });
+
+      let thrown: Error | undefined;
+      try {
+        await service.sendPhoneOtp('0987654321', 'test-recaptcha-container');
+      } catch (err) {
+        thrown = err as Error;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      expect(thrown?.message).toContain(expectedPrefix);
+      expect(thrown?.message).toContain(`(${code})`);
+    });
+
     it('supports real Firebase confirmation (including +84123456789 sandbox phone) without emitting dev-mock-token', async () => {
       const service = new TestableFirebaseAuthService();
       service.mockVerifier = { clear: vi.fn() } as unknown as RecaptchaVerifier;

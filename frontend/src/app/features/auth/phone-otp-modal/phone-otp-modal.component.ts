@@ -30,15 +30,17 @@ export type PhoneOtpMode = 'login' | 'link' | 'verify-for-booking';
   template: `
     @if (visible) {
       <div
-        cdkTrapFocus
-        [cdkTrapFocusAutoCapture]="true"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in"
+        [cdkTrapFocus]="!awaitingRecaptcha()"
+        [cdkTrapFocusAutoCapture]="!awaitingRecaptcha()"
+        class="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-900/40 animate-fade-in"
+        [class.backdrop-blur-xs]="!awaitingRecaptcha()"
+        [class.pointer-events-none]="awaitingRecaptcha()"
         role="dialog"
         aria-modal="true"
         aria-labelledby="phone-otp-modal-title"
         (keydown.escape)="closeModal()"
       >
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in duration-150">
+        <div class="pointer-events-auto bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in duration-150">
           <!-- 1. Header -->
           <div class="flex items-center justify-between pb-3 border-b border-slate-100">
             <div class="flex items-center gap-2.5">
@@ -149,6 +151,24 @@ export type PhoneOtpMode = 'login' | 'link' | 'verify-for-booking';
                     Dùng số kiểm thử (+84 123 456 789 / Mã: 123456)
                   </button>
                 }
+
+                @if (awaitingRecaptcha()) {
+                  <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-2">
+                    <div class="flex items-start gap-2">
+                      <i class="pi pi-shield text-amber-600 mt-0.5 shrink-0"></i>
+                      <span>Nếu khung xác minh reCAPTCHA hiện ra, vui lòng hoàn thành để nhận mã SMS.</span>
+                    </div>
+                    @if (showRecaptchaCancel()) {
+                      <button
+                        type="button"
+                        (click)="cancelPendingSend()"
+                        class="w-full min-h-10 py-2 px-3 rounded-lg bg-white hover:bg-amber-100/70 border border-amber-300 text-amber-900 font-semibold text-xs transition-colors cursor-pointer"
+                      >
+                        Hủy &amp; Thử lại
+                      </button>
+                    }
+                  </div>
+                }
               </div>
             </div>
           }
@@ -256,6 +276,8 @@ export class PhoneOtpModalComponent implements OnChanges {
   readonly devMode = isDevMode();
   step = signal<'phone' | 'otp'>('phone');
   loading = signal<boolean>(false);
+  awaitingRecaptcha = signal<boolean>(false);
+  showRecaptchaCancel = signal<boolean>(false);
   errorMessage = signal<string | null>(null);
   statusMessage = signal<string | null>(null);
   countdown = signal<number>(0);
@@ -266,9 +288,14 @@ export class PhoneOtpModalComponent implements OnChanges {
   otpCode: string = '';
 
   private countdownInterval: ReturnType<typeof setInterval> | null = null;
+  private recaptchaCancelTimer: ReturnType<typeof setTimeout> | null = null;
+  private sendAttemptId = 0;
 
   constructor() {
-    this.destroyRef.onDestroy(() => this.stopCountdown());
+    this.destroyRef.onDestroy(() => {
+      this.stopCountdown();
+      this.clearRecaptchaState();
+    });
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -282,10 +309,22 @@ export class PhoneOtpModalComponent implements OnChanges {
   }
 
   closeModal(): void {
+    this.sendAttemptId++;
     this.stopCountdown();
+    this.clearRecaptchaState();
+    this.loading.set(false);
     this.firebaseAuth.reset();
     this.visible = false;
     this.visibleChange.emit(false);
+  }
+
+  cancelPendingSend(): void {
+    this.sendAttemptId++;
+    this.clearRecaptchaState();
+    this.loading.set(false);
+    this.errorMessage.set(null);
+    this.statusMessage.set(null);
+    this.firebaseAuth.reset();
   }
 
   quickFillDemoPhone(): void {
@@ -313,18 +352,37 @@ export class PhoneOtpModalComponent implements OnChanges {
       return;
     }
 
+    const attemptId = ++this.sendAttemptId;
+    this.clearRecaptchaState();
     this.loading.set(true);
+    this.awaitingRecaptcha.set(true);
+    this.showRecaptchaCancel.set(false);
     this.errorMessage.set(null);
     this.statusMessage.set(null);
 
+    this.recaptchaCancelTimer = setTimeout(() => {
+      this.recaptchaCancelTimer = null;
+      if (attemptId === this.sendAttemptId && this.awaitingRecaptcha()) {
+        this.showRecaptchaCancel.set(true);
+      }
+    }, 8000);
+
     try {
       const res = await this.firebaseAuth.sendPhoneOtp(this.phoneNumber, 'recaptcha-phone-modal');
+      if (attemptId !== this.sendAttemptId) {
+        return;
+      }
+      this.clearRecaptchaState();
       this.loading.set(false);
       this.normalizedPhone.set(res.phoneNumber);
       this.statusMessage.set(res.message || 'Mã xác thực đã được gửi.');
       this.step.set('otp');
       this.startCountdown(60);
     } catch (err: unknown) {
+      if (attemptId !== this.sendAttemptId) {
+        return;
+      }
+      this.clearRecaptchaState();
       this.loading.set(false);
       const msg = err instanceof Error && err.message ? err.message : 'Không thể gửi mã SMS OTP. Vui lòng thử lại sau.';
       this.errorMessage.set(msg);
@@ -406,5 +464,14 @@ export class PhoneOtpModalComponent implements OnChanges {
       this.countdownInterval = null;
     }
     this.countdown.set(0);
+  }
+
+  private clearRecaptchaState(): void {
+    if (this.recaptchaCancelTimer !== null) {
+      clearTimeout(this.recaptchaCancelTimer);
+      this.recaptchaCancelTimer = null;
+    }
+    this.awaitingRecaptcha.set(false);
+    this.showRecaptchaCancel.set(false);
   }
 }
