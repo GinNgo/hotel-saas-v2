@@ -309,7 +309,39 @@ interface TenantBrandFacet {
                 >
                   &lt; 5 km
                 </button>
+                <button
+                  type="button"
+                  (click)="setMaxDistance(10000)"
+                  class="min-h-11 px-2.5 py-2 rounded-lg border text-xs font-medium inline-flex items-center justify-center text-center transition-all cursor-pointer col-span-2"
+                  [class.bg-[var(--brand-primary)]]="maxDistanceMeters() === 10000"
+                  [class.text-[var(--brand-primary-fg)]]="maxDistanceMeters() === 10000"
+                  [class.border-[var(--brand-primary)]]="maxDistanceMeters() === 10000"
+                  [class.border-slate-200]="maxDistanceMeters() !== 10000"
+                  [class.text-slate-700]="maxDistanceMeters() !== 10000"
+                >
+                  &lt; 10 km
+                </button>
               </div>
+              @if (searchFilter().userLatitude == null || searchFilter().userLongitude == null) {
+                <button
+                  type="button"
+                  data-testid="sidebar-locate-gps-btn"
+                  (click)="locateNearbyOnMap()"
+                  [disabled]="isMapLocating()"
+                  class="mt-2.5 w-full min-h-11 px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <i class="pi text-xs" [ngClass]="isMapLocating() ? 'pi-compass pi-spin' : 'pi-map-marker'"></i>
+                  <span>{{ isMapLocating() ? 'Đang định vị...' : 'Định vị GPS gần tôi' }}</span>
+                </button>
+                <p class="mt-1 text-[11px] text-slate-500">
+                  Bật GPS để đo khoảng cách thực tế từ vị trí của bạn
+                </p>
+              }
+              @if (mapGeoError()) {
+                <p role="alert" data-testid="sidebar-geo-error" class="mt-2 text-[11px] text-rose-700 font-medium">
+                  {{ mapGeoError() }}
+                </p>
+              }
             </div>
           </aside>
 
@@ -1199,7 +1231,7 @@ export class ExploreSearchPageComponent implements OnInit {
       }
       if (tenantId && prop.tenantId !== tenantId) return false;
       if (!tenantId && filterTenantSlug && prop.tenantSlug !== filterTenantSlug) return false;
-      if (maxDist !== null) {
+      if (maxDist !== null && !prop.isExpandedNearbySuggestion) {
         const effectiveDist =
           prop.distanceMeters ??
           (prop.nearbyLandmarks?.length

@@ -275,4 +275,37 @@ describe('ExploreSearchPageComponent (Geo-Search, Canonical Catalog & Split Map)
       })
     );
   });
+
+  it('preserves expanded nearby suggestions when maxDistanceMeters filters out distant properties and sorts them after direct matches', () => {
+    queryParamsSubject.next({
+      userLatitude: '10.7725',
+      userLongitude: '106.6980',
+      maxDistanceMeters: '1000',
+    });
+
+    const fixture = TestBed.createComponent(ExploreSearchPageComponent);
+    fixture.detectChanges();
+    const comp = fixture.componentInstance;
+
+    const filtered = comp.filteredProperties();
+    expect(filtered.length).toBe(2);
+    expect(filtered[0].propertyId).toBe('prop-no-coords');
+    expect(filtered[1].propertyId).toBe('prop-with-coords');
+    expect(filtered[1].isExpandedNearbySuggestion).toBe(true);
+  });
+
+  it('renders sidebar locate GPS CTA when coordinates are inactive and triggers locateNearbyOnMap on click', () => {
+    const fixture = TestBed.createComponent(ExploreSearchPageComponent);
+    fixture.detectChanges();
+    const comp = fixture.componentInstance;
+    const el: HTMLElement = fixture.nativeElement;
+
+    const locateSpy = vi.spyOn(comp, 'locateNearbyOnMap').mockImplementation(() => {});
+    const btn = el.querySelector('[data-testid="sidebar-locate-gps-btn"]') as HTMLButtonElement | null;
+    expect(btn).not.toBeNull();
+
+    btn!.click();
+    expect(locateSpy).toHaveBeenCalledTimes(1);
+    locateSpy.mockRestore();
+  });
 });

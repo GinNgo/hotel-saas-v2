@@ -880,7 +880,7 @@ export class BookingPageComponent implements OnInit {
         return false;
       }
       // 4. Lọc theo khoảng cách tới địa danh gần nhất hoặc toạ độ GPS
-      if (maxDist !== null) {
+      if (maxDist !== null && !prop.isExpandedNearbySuggestion) {
         if (prop.distanceMeters !== undefined && prop.distanceMeters !== null) {
           if (prop.distanceMeters > maxDist) return false;
         } else if (prop.nearbyLandmarks.length > 0) {
@@ -1005,12 +1005,18 @@ export class BookingPageComponent implements OnInit {
   }
 
   onFilterBarChange(updatedFilter: PublicBookingSearchFilter): void {
+    const hasCoords = updatedFilter.userLatitude != null && updatedFilter.userLongitude != null;
+    const nextSort: BookingSortOption = hasCoords
+      ? (updatedFilter.sortBy === 'recommended' ? 'distance_asc' : updatedFilter.sortBy)
+      : (this.sortBy() === 'distance_asc' ? 'recommended' : this.sortBy());
+
+    this.sortBy.set(nextSort);
     this.searchFilter.set({
       ...updatedFilter,
       maxDistanceMeters: this.maxDistanceMeters(),
       minPrice: this.minPrice(),
       maxPrice: this.maxPrice(),
-      sortBy: this.sortBy(),
+      sortBy: nextSort,
     });
     if (!this.route.queryParams) this.loadPublicProperties();
 

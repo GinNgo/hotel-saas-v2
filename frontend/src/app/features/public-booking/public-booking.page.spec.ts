@@ -465,6 +465,43 @@ describe('Public Booking Pages Suite — Angular 22 Signals Architecture', () =>
         })
       );
     });
+
+    it('sets sortBy to distance_asc when onFilterBarChange includes GPS coordinates and preserves expanded nearby suggestions under maxDistance', () => {
+      component.ngOnInit();
+      component.sortBy.set('recommended');
+      component.maxDistanceMeters.set(1000);
+      mockRouter.navigate.mockClear();
+
+      component.onFilterBarChange({
+        ...component.searchFilter(),
+        userLatitude: 10.7725,
+        userLongitude: 106.698,
+        sortBy: 'recommended',
+      });
+
+      expect(component.sortBy()).toBe('distance_asc');
+      expect(component.searchFilter().sortBy).toBe('distance_asc');
+      expect(mockRouter.navigate).toHaveBeenCalledWith(
+        [],
+        expect.objectContaining({
+          queryParams: expect.objectContaining({
+            userLatitude: 10.7725,
+            userLongitude: 106.698,
+            sortBy: 'distance_asc',
+          }),
+        })
+      );
+
+      component.properties.set([
+        {
+          ...sampleProperties[0],
+          propertyId: 'prop-expanded',
+          distanceMeters: 2500,
+          isExpandedNearbySuggestion: true,
+        },
+      ]);
+      expect(component.filteredProperties().map((p) => p.propertyId)).toEqual(['prop-expanded']);
+    });
   });
 
   // =========================================================================

@@ -263,4 +263,91 @@ public sealed class GeoProximityAndSmartFilterTests
         var r2 = results.First(p => p.Id == prop2.Id);
         Assert.True(r2.IsExpandedNearbySuggestion);
     }
+
+    [Fact]
+    public async Task GetPublicProperties_PureGpsFarFromAllProperties_ReturnsNearestAsExpandedSuggestions()
+    {
+        var hcmProp = new Property
+        {
+            Id = Guid.NewGuid(),
+            Name = "Khách sạn Quận 1",
+            Code = "SG01",
+            Slug = "khach-san-quan-1",
+            Address = "10 Lê Lợi, Quận 1, TP.HCM",
+            City = "TP. Hồ Chí Minh",
+            Latitude = 10.7745,
+            Longitude = 106.7036,
+            TouristZoneSlug = "quan-1-tphcm",
+            Status = PropertyStatus.Active
+        };
+
+        var daLatProp = new Property
+        {
+            Id = Guid.NewGuid(),
+            Name = "Resort Đà Lạt",
+            Code = "DL01",
+            Slug = "resort-da-lat",
+            Address = "1 Hồ Tùng Mậu, Đà Lạt",
+            City = "Đà Lạt",
+            Latitude = 11.9404,
+            Longitude = 108.4452,
+            TouristZoneSlug = "da-lat",
+            Status = PropertyStatus.Active
+        };
+
+        var context = new GetPublicPropertiesSyntheticTests.TestApplicationDbContext(new[] { hcmProp, daLatProp });
+        var handler = new GetPublicPropertiesQueryHandler(context, _locationService);
+
+        // User GPS in Bảo Lộc / Di Linh (~11.55, 107.80), >50km from both HCM and Đà Lạt
+        var query = new GetPublicPropertiesQuery(
+            UserLatitude: 11.55,
+            UserLongitude: 107.80,
+            SortBy: "distance_asc");
+
+        var results = await handler.Handle(query, CancellationToken.None);
+
+        Assert.Equal(2, results.Count);
+        Assert.All(results, item =>
+        {
+            Assert.True(item.IsExpandedNearbySuggestion);
+            Assert.NotNull(item.DistanceMeters);
+        });
+        Assert.Equal(daLatProp.Id, results[0].Id);
+        Assert.True(results[0].DistanceMeters < results[1].DistanceMeters);
+    }
+
+    [Fact]
+    public async Task GetPublicProperties_PropertyWithoutCoordinates_ComputesDistanceFromTouristZone_WithoutMutatingDtoCoords()
+    {
+        var propNoCoords = new Property
+        {
+            Id = Guid.NewGuid(),
+            Name = "Grand Hotel Quận 1 (No Coords)",
+            Code = "MAIN",
+            Slug = "grand-hotel-no-coords",
+            Address = "123 Đồng Khởi, Quận 1, TP.HCM",
+            City = "Thành phố Hồ Chí Minh",
+            Latitude = null,
+            Longitude = null,
+            TouristZoneSlug = "quan-1-tphcm",
+            Status = PropertyStatus.Active
+        };
+
+        var context = new GetPublicPropertiesSyntheticTests.TestApplicationDbContext(new[] { propNoCoords });
+        var handler = new GetPublicPropertiesQueryHandler(context, _locationService);
+
+        var query = new GetPublicPropertiesQuery(
+            UserLatitude: 10.7769,
+            UserLongitude: 106.7009,
+            SortBy: "distance_asc");
+
+        var results = await handler.Handle(query, CancellationToken.None);
+
+        var item = Assert.Single(results);
+        Assert.Equal(propNoCoords.Id, item.Id);
+        Assert.NotNull(item.DistanceMeters);
+        Assert.False(string.IsNullOrWhiteSpace(item.DistanceFormatted));
+        Assert.Null(item.Latitude);
+        Assert.Null(item.Longitude);
+    }
 }

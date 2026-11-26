@@ -11,6 +11,7 @@ luxustay.duckdns.org {
         X-Frame-Options "SAMEORIGIN"
         X-XSS-Protection "1; mode=block"
         Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=(self)"
         Content-Security-Policy "default-src 'self' https: data: 'unsafe-inline' 'unsafe-eval' wss: ws:; img-src 'self' https: data: blob:; font-src 'self' https: data:; connect-src 'self' https: wss: ws:; worker-src 'self' blob:;"
         -Server
     }
