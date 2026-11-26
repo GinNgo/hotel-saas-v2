@@ -88,6 +88,31 @@ sync_metrics_key_file() {
   fi
 }
 
+patch_caddyfile_geolocation() {
+  local f="$1"
+  if [ ! -f "${f}" ] && ! sudo test -f "${f}" 2>/dev/null; then
+    return 1
+  fi
+  if ! read_file_safe "${f}" | grep -qi 'geolocation=()'; then
+    return 1
+  fi
+
+  local tmp
+  tmp="$(mktemp)"
+  read_file_safe "${f}" | sed -E 's/geolocation=\(\)/geolocation=(self)/g' > "${tmp}"
+
+  if [ -w "${f}" ]; then
+    cp "${f}" "${f}.bak"
+    cat "${tmp}" > "${f}"
+  else
+    run_privileged cp "${f}" "${f}.bak"
+    run_privileged tee "${f}" < "${tmp}" >/dev/null
+  fi
+
+  rm -f "${tmp}"
+  return 0
+}
+
 if [ -z "${IMAGE_TAG:-}" ]; then
   echo "❌ IMAGE_TAG is empty; refusing to deploy bare :latest!"
   exit 1
@@ -198,32 +223,58 @@ if [ -f docker/docker-compose.observability.yml ]; then
   fi
 fi
 
-echo "[5/6] Syncing Caddyfile & reloading Caddy reverse proxy gracefully (if running)..."
-if [ -f deploy/Caddyfile ]; then
-  sed -i 's/\r$//' deploy/Caddyfile
-  if can_write_dir "/opt/hotel-saas" && { [ ! -e "Caddyfile" ] || [ -w "Caddyfile" ]; }; then
-    [ -f Caddyfile ] && cp Caddyfile Caddyfile.bak
-    cat deploy/Caddyfile > Caddyfile
+echo "[5/6] Auto-discovering Caddy & patching Permissions-Policy geolocation=(self)..."
+CADDY_HANDLED=0
+
+CADDY_CONTAINER="$(docker ps --format '{{.Names}}\t{{.Image}}' | awk 'tolower($1) ~ /caddy/ || tolower($2) ~ /caddy/ {print $1; exit}' || true)"
+if [ -n "${CADDY_CONTAINER}" ]; then
+  CADDY_HANDLED=1
+  CADDY_HOST_FILE="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/etc/caddy/Caddyfile"}}{{.Source}}{{end}}{{end}}' "${CADDY_CONTAINER}" 2>/dev/null || true)"
+  echo "✔ Found Caddy Docker container: ${CADDY_CONTAINER} (host config: ${CADDY_HOST_FILE:-<none>})"
+  if [ -n "${CADDY_HOST_FILE}" ] && patch_caddyfile_geolocation "${CADDY_HOST_FILE}"; then
+    if ! docker exec "${CADDY_CONTAINER}" caddy validate --config /etc/caddy/Caddyfile; then
+      echo "❌ Patched Caddyfile failed validation; restoring ${CADDY_HOST_FILE}.bak..." >&2
+      if [ -f "${CADDY_HOST_FILE}.bak" ] || sudo test -f "${CADDY_HOST_FILE}.bak" 2>/dev/null; then
+        if [ -w "${CADDY_HOST_FILE}" ]; then
+          cat "${CADDY_HOST_FILE}.bak" > "${CADDY_HOST_FILE}"
+        else
+          run_privileged tee "${CADDY_HOST_FILE}" < "${CADDY_HOST_FILE}.bak" >/dev/null
+        fi
+      fi
+      exit 1
+    fi
+    docker exec "${CADDY_CONTAINER}" caddy reload --config /etc/caddy/Caddyfile
+    echo "✔ Patched geolocation=(self) in ${CADDY_HOST_FILE} and reloaded ${CADDY_CONTAINER}."
   else
-    [ -f Caddyfile ] && run_privileged cp Caddyfile Caddyfile.bak
-    run_privileged tee Caddyfile < deploy/Caddyfile >/dev/null
+    docker exec "${CADDY_CONTAINER}" caddy reload --config /etc/caddy/Caddyfile || echo "⚠️ Caddy reload returned non-zero (continuing)"
   fi
 fi
 
-if docker ps --format '{{.Names}}' | grep -qx 'hotelsaas-caddy'; then
-  if ! docker exec hotelsaas-caddy caddy validate --config /etc/caddy/Caddyfile; then
-    echo "❌ New Caddyfile failed validation; restoring Caddyfile.bak..." >&2
-    if [ -f Caddyfile.bak ]; then
-      if can_write_dir "/opt/hotel-saas" && [ -w "Caddyfile" ]; then
-        cat Caddyfile.bak > Caddyfile
-      else
-        run_privileged tee Caddyfile < Caddyfile.bak >/dev/null
+if [ -f /etc/caddy/Caddyfile ] || sudo test -f /etc/caddy/Caddyfile 2>/dev/null; then
+  CADDY_HANDLED=1
+  echo "✔ Found host Caddyfile: /etc/caddy/Caddyfile"
+  if patch_caddyfile_geolocation "/etc/caddy/Caddyfile"; then
+    if command -v caddy >/dev/null 2>&1; then
+      if ! run_privileged caddy validate --config /etc/caddy/Caddyfile; then
+        echo "❌ Patched /etc/caddy/Caddyfile failed validation; restoring backup..." >&2
+        if [ -f /etc/caddy/Caddyfile.bak ] || sudo test -f /etc/caddy/Caddyfile.bak 2>/dev/null; then
+          run_privileged tee /etc/caddy/Caddyfile < /etc/caddy/Caddyfile.bak >/dev/null
+        fi
+        exit 1
       fi
     fi
-    exit 1
+    if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet caddy 2>/dev/null; then
+      run_privileged systemctl reload caddy
+      echo "✔ Patched geolocation=(self) in /etc/caddy/Caddyfile and reloaded systemd caddy."
+    elif command -v caddy >/dev/null 2>&1; then
+      run_privileged caddy reload --config /etc/caddy/Caddyfile
+      echo "✔ Patched geolocation=(self) in /etc/caddy/Caddyfile and reloaded host caddy."
+    fi
   fi
-  docker exec hotelsaas-caddy caddy reload --config /etc/caddy/Caddyfile
-  echo "✔ Synced deploy/Caddyfile -> /opt/hotel-saas/Caddyfile and reloaded Caddy."
+fi
+
+if [ "${CADDY_HANDLED}" -eq 0 ]; then
+  echo "ℹ️ No Caddy container or host /etc/caddy/Caddyfile found in standard locations."
 fi
 
 echo "[6/6] Verifying health probes..."
@@ -253,6 +304,10 @@ PERM_HEADER="$(curl -skI https://luxustay.duckdns.org/booking | grep -i '^permis
 echo "✔ Live header: ${PERM_HEADER:-<none>}"
 if printf '%s' "${PERM_HEADER}" | grep -qi 'geolocation=()'; then
   echo "❌ Live Permissions-Policy still blocks geolocation=(): ${PERM_HEADER}" >&2
+  echo "--- Diagnostics ---" >&2
+  docker ps --format '{{.Names}} ({{.Image}})' >&2 || true
+  systemctl is-active caddy >&2 || true
+  grep -rli 'Permissions-Policy' /etc/caddy /opt/hotel-saas 2>/dev/null >&2 || sudo grep -rli 'Permissions-Policy' /etc/caddy /opt/hotel-saas 2>/dev/null >&2 || true
   exit 1
 fi
 
