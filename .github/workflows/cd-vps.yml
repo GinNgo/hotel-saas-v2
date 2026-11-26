@@ -140,16 +140,24 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
-          source: "docker/docker-compose.observability.yml,docker/observability/,deploy/Caddyfile"
+          source: "docker/docker-compose.observability.yml,docker/observability/,deploy/Caddyfile,deploy/docker-compose.staging.override.yml"
           target: "/opt/hotel-saas"
 
       - name: Execute Rolling Update on VPS
         uses: appleboy/ssh-action@v1.1.0
+        env:
+          SEPAY_API_KEY: ${{ secrets.SEPAY_API_KEY }}
+          SEPAY_PLATFORM_BANK_NAME: ${{ secrets.SEPAY_PLATFORM_BANK_NAME }}
+          SEPAY_PLATFORM_ACCOUNT: ${{ secrets.SEPAY_PLATFORM_ACCOUNT }}
+          SEPAY_PLATFORM_ACCOUNT_HOLDER: ${{ secrets.SEPAY_PLATFORM_ACCOUNT_HOLDER }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          envs: SEPAY_API_KEY,SEPAY_PLATFORM_BANK_NAME,SEPAY_PLATFORM_ACCOUNT,SEPAY_PLATFORM_ACCOUNT_HOLDER,SMTP_USERNAME,SMTP_PASSWORD
           script_stop: true
           script: |
             set -euo pipefail
@@ -175,6 +183,26 @@ jobs:
               printf '%s' "${val}"
             }
 
+            upsert_env_value() {
+              local key="$1"
+              local val="$2"
+              local file="${3:-.env}"
+              local tmp
+              tmp="$(mktemp)"
+              if [ -f "${file}" ]; then
+                grep -vE "^[[:space:]]*(export[[:space:]]+)?${key}=" "${file}" > "${tmp}" || true
+              fi
+              case "${val}" in
+                *[[:space:]]*)
+                  printf '%s="%s"\n' "${key}" "${val}" >> "${tmp}"
+                  ;;
+                *)
+                  printf '%s=%s\n' "${key}" "${val}" >> "${tmp}"
+                  ;;
+              esac
+              mv "${tmp}" "${file}"
+            }
+
             sync_metrics_key_file() {
               local key_file="$1"
               local key_value="$2"
@@ -198,6 +226,29 @@ jobs:
               exit 1
             fi
 
+            echo "[0/6] Ensuring VPS .env hygiene (JWT secret & SePay/SMTP sync)..."
+            touch .env
+            cp .env .env.bak
+            CURRENT_JWT="$(read_env_value JWT_SECRET_KEY .env)"
+            LOWER_JWT="$(printf '%s' "${CURRENT_JWT}" | tr '[:upper:]' '[:lower:]')"
+            if [ -z "${CURRENT_JWT}" ] || [ "${#CURRENT_JWT}" -lt 32 ] || \
+               [ "${CURRENT_JWT}" = "DevOnly_SuperSecretKey_ChangeInProduction_AtLeast32Chars!" ] || \
+               [ "${CURRENT_JWT}" = "HotelSaasPlatform2026EnterpriseSuperSecretKey32BytesLong!" ] || \
+               [ "${CURRENT_JWT}" = "YourSuperSecretKeyMustBeAtLeast32CharactersLongForJwt!" ] || \
+               printf '%s' "${LOWER_JWT}" | grep -qE 'devonly|changeinproduction'; then
+              NEW_JWT="$(openssl rand -base64 48 | tr -d '\n')"
+              upsert_env_value JWT_SECRET_KEY "${NEW_JWT}" .env
+              echo "✔ Rotated placeholder JWT_SECRET_KEY on VPS (.env backed up to .env.bak)"
+            fi
+
+            [ -n "${SEPAY_API_KEY:-}" ] && upsert_env_value SEPAY_API_KEY "${SEPAY_API_KEY}" .env
+            [ -n "${SEPAY_PLATFORM_BANK_NAME:-}" ] && upsert_env_value SEPAY_PLATFORM_BANK_NAME "${SEPAY_PLATFORM_BANK_NAME}" .env
+            [ -n "${SEPAY_PLATFORM_ACCOUNT:-}" ] && upsert_env_value SEPAY_PLATFORM_ACCOUNT "${SEPAY_PLATFORM_ACCOUNT}" .env
+            [ -n "${SEPAY_PLATFORM_ACCOUNT_HOLDER:-}" ] && upsert_env_value SEPAY_PLATFORM_ACCOUNT_HOLDER "${SEPAY_PLATFORM_ACCOUNT_HOLDER}" .env
+            [ -n "${SMTP_USERNAME:-}" ] && upsert_env_value SMTP_USERNAME "${SMTP_USERNAME}" .env
+            [ -n "${SMTP_PASSWORD:-}" ] && upsert_env_value SMTP_PASSWORD "${SMTP_PASSWORD}" .env
+            chmod 600 .env .env.bak
+
             echo "[1/6] Authenticating Docker with GHCR on VPS..."
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
@@ -205,7 +256,11 @@ jobs:
             IMAGE_TAG="${IMAGE_TAG}" docker compose -f docker-compose.staging.yml pull
 
             echo "[3/6] Gracefully rolling update backend & frontend containers (${IMAGE_TAG})..."
-            IMAGE_TAG="${IMAGE_TAG}" docker compose -f docker-compose.staging.yml up -d --no-deps backend frontend
+            if [ -f deploy/docker-compose.staging.override.yml ]; then
+              IMAGE_TAG="${IMAGE_TAG}" docker compose -f docker-compose.staging.yml -f deploy/docker-compose.staging.override.yml up -d --no-deps backend frontend
+            else
+              IMAGE_TAG="${IMAGE_TAG}" docker compose -f docker-compose.staging.yml up -d --no-deps backend frontend
+            fi
 
             echo "[4/6] Deploying observability stack (if GF_SECURITY_ADMIN_PASSWORD is configured)..."
             if [ -f docker/docker-compose.observability.yml ]; then
@@ -242,17 +297,20 @@ jobs:
             HEALTHY=0
             for i in $(seq 1 20); do
               if curl -sk https://luxustay.duckdns.org/health | grep -q '"status":"healthy"'; then
-                HEALTHY=1
-                break
+                READY_CODE=$(curl -sk -o /dev/null -w "%{http_code}" https://luxustay.duckdns.org/health/ready || echo "000")
+                if [ "$READY_CODE" = "200" ]; then
+                  HEALTHY=1
+                  break
+                fi
               fi
               echo "Waiting for health check probe ($i/20)..."
               sleep 3
             done
 
             if [ "$HEALTHY" -ne 1 ]; then
-              echo "❌ Health check failed after 60 seconds!"
+              echo "❌ Health check (/health & /health/ready) failed after 60 seconds!"
               docker logs --tail 80 hotelsaas-backend-api
               exit 1
             fi
 
-            echo "✅ Hotel SaaS Platform deployment verified and healthy!"
+            echo "✅ Hotel SaaS Platform deployment verified (/health & /health/ready == 200)!"

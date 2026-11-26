@@ -1,0 +1,63 @@
+THÔNG TIN KHAI BÁO SỬ DỤNG AI TUẦN 07
+Đề tài 578 HCMUTE | GVHD: ThS. Huỳnh Xuân Phụng (phunghx@hcmute.edu.vn)
+================================================================================
+
+--------------------------------------------------------------------------------
+THÀNH VIÊN 1: NGÔ VÕ TUẤN AN (MSSV: 24TX810001)
+--------------------------------------------------------------------------------
+[Ô 1: Công cụ AI]
+Google Antigravity IDE
+
+[Ô 2: Phiên bản / model]
+Gemini trong Google Antigravity IDE
+
+[Ô 3: Prompt đã dùng]
+Băm SHA-256 Refresh Token, bỏ SuperAdmin bypass và khắc phục IDOR; tích hợp SePay VietQR webhook tự động (WebhooksController, ProcessSepayWebhookCommand) và Google GIS; hoàn thiện quản trị nền tảng (/platform-users, PlatformTenants, SupportAccessGrant), chuẩn hóa 34 tỉnh 2 cấp, giao diện Angular 22 OnPush và siết bảo mật Release CI / gitleaks.
+
+[Ô 4: Nội dung AI tạo ra]
+Mã nguồn ban đầu cho phép mở toàn bộ PII in hóa đơn bằng mã xác nhận 6 ký tự trên endpoint ẩn danh, thiếu ràng buộc nhóm SignalR ở NotificationHub, tự seed tài khoản quản trị mật khẩu cố định ở mọi môi trường và làm test CI ở bản Release phụ thuộc nhánh dev-mock-token. Ngoài ra, khi bật chặn lỗi gitleaks trên CI, bộ quét báo nhầm cấu hình Firebase Web Client công khai là secret.
+
+[Ô 5: Phần bạn đã sửa / hoàn thiện]
+Sửa GetPrintableInvoiceQueryHandler.cs chỉ mở full PII với JWT hợp lệ hoặc LookupToken còn hạn; khóa phạm vi tenant/chi nhánh ở NotificationHub.cs; thêm cờ allowDevPlatformBootstrap ở SeedData.cs; chặn dev-mock-token ở Release trong FirebaseAuthService.cs kèm stub IFirebaseAuthService cho test CI; bổ sung test SePay webhook, in hóa đơn, hub và cập nhật .gitleaks.toml cho cấu hình Firebase web công khai (đẩy lên origin/develop tại 67210a5).
+
+Minh chứng Commit GitHub: 55da312, fd905ec, 7afcce9, 76a2c14, 93d5132, 672dc28, 2d685e7, 0125249, a035261, 67210a5
+
+--------------------------------------------------------------------------------
+THÀNH VIÊN 2: NGUYỄN KHÔI NGUYÊN (MSSV: 24TX810011)
+--------------------------------------------------------------------------------
+[Ô 1: Công cụ AI]
+OpenAI Codex và Google Antigravity IDE
+
+[Ô 2: Phiên bản / model]
+OpenAI Codex / Google Antigravity IDE
+
+[Ô 3: Prompt đã dùng]
+Kiểm tra điều kiện từ chối thiếu ngữ cảnh property hoặc thiếu IsTenantWide trong GetGroupAnalyticsQueryHandler; gỡ bỏ secret VNPay mặc định và dev-mock-token khỏi các script k6 (signalr-hub.k6.js, vnpay-checkout-ipn.k6.js, run-load-tests.sh) và chuẩn hóa thông số tier tải smoke/load/stress.
+
+[Ô 4: Nội dung AI tạo ra]
+Script k6 trước đó vẫn giữ fallback secret VNPay mặc định và dùng nhánh dev-mock-token trong kịch bản tạo đơn thanh toán VNPay; đồng thời GetGroupAnalyticsQueryHandler chưa chặn chặt khi thiếu service ngữ cảnh hoặc thiếu IsTenantWide.
+
+[Ô 5: Phần bạn đã sửa / hoàn thiện]
+Gỡ sạch secret VNPay mặc định và dev-mock-token khỏi bộ k6, yêu cầu truyền VNP_TMN_CODE, VNP_HASH_SECRET hoặc Firebase ID token hợp lệ khi chạy; chuẩn hóa cấu hình load (10-50 VUs/req/s) và stress (tối đa 100 VUs/req/s); siết kiểm tra ngữ cảnh trong GetGroupAnalyticsQueryHandler.cs và cập nhật báo cáo trung thực trong PR #29 (chưa chạy tải Staging).
+
+Minh chứng Commit GitHub: d86b069, b19f66c
+
+--------------------------------------------------------------------------------
+THÀNH VIÊN 3: TRẦN TRỌNG TÂN (MSSV: 24TX810025)
+--------------------------------------------------------------------------------
+[Ô 1: Công cụ AI]
+Google Antigravity IDE
+
+[Ô 2: Phiên bản / model]
+Gemini trong Google Antigravity IDE
+
+[Ô 3: Prompt đã dùng]
+Đối chiếu mã nguồn thực tế trên nhánh develop để kiểm tra các khoảng trống còn lại ở màn hình Buồng phòng (housekeeping.page.ts), danh bạ khách hàng (GetGuestDirectoryQuery.cs), độ phủ ma trận kiểm thử âm tính RBAC và lập danh sách 10 kịch bản Playwright E2E cho Tuần 08.
+
+[Ô 4: Nội dung AI tạo ra]
+Kết quả rà soát chỉ ra giao diện buồng phòng vẫn chạy polling setInterval 10 giây thay vì nhận sự kiện SignalR trực tiếp từ NotificationService, GetGuestDirectoryQuery lọc mất khách không có số điện thoại và gán cứng IsBlacklisted = false, đồng thời thiếu cấu hình Playwright E2E và ma trận test âm tính đủ 19 PermissionFunction.
+
+[Ô 5: Phần bạn đã sửa / hoàn thiện]
+Đã kiểm tra lại trực tiếp từng tệp nguồn trên develop @ 67210a5 để xác nhận chính xác danh sách lỗ hổng thực tế và chốt phạm vi Tuần 08 (cài Playwright E2E 10 luồng, nối SignalR vào housekeeping.page.ts, viết RbacPermissionMatrixE2ETests.cs 19 chức năng x 6 vai trò, sửa Guest CRM qua ReservationSnapshot JSON). Trong tuần 19/11 - 22/11 chưa có commit mới gộp lên develop.
+
+Minh chứng Commit GitHub: (Chưa phát sinh commit mới lên develop trong tuần 19/11 - 22/11; chuyển hóa trực tiếp thành kế hoạch Tuần 08 tại docs/team/KE-HOACH-CHI-TIET-TUAN-8.md)
