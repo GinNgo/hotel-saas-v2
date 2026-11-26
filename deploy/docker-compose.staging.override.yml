@@ -1,0 +1,15 @@
+services:
+  backend:
+    environment:
+      - Payment__Sepay__ApiKey=${SEPAY_API_KEY:-}
+      - Payment__Sepay__PlatformBankName=${SEPAY_PLATFORM_BANK_NAME:-}
+      - Payment__Sepay__PlatformAccountNumber=${SEPAY_PLATFORM_ACCOUNT:-}
+      - Payment__Sepay__PlatformAccountHolder=${SEPAY_PLATFORM_ACCOUNT_HOLDER:-}
+      - Payment__Sepay__ExpectedPlatformAccountNumber=${SEPAY_PLATFORM_ACCOUNT:-}
+      - Payment__Sepay__UseSepayQrImage=false
+      - Smtp__Enabled=${SMTP_ENABLED:-true}
+      - Smtp__Host=${SMTP_HOST:-smtp.gmail.com}
+      - Smtp__Port=${SMTP_PORT:-587}
+      - Smtp__Username=${SMTP_USERNAME:-}
+      - Smtp__Password=${SMTP_PASSWORD:-}
+      - Smtp__SenderName=${SMTP_SENDER_NAME:-LuxeStay Hospitality Group}
