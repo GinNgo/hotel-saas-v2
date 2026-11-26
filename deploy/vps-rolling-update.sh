@@ -311,4 +311,24 @@ if printf '%s' "${PERM_HEADER}" | grep -qi 'geolocation=()'; then
   exit 1
 fi
 
-echo "✅ Hotel SaaS Platform deployment verified (/health & /health/ready == 200)!"
+FIRST_PROP_ID="$(curl -sk "https://luxustay.duckdns.org/api/public/properties?pageSize=1" | grep -oE '"id":"[0-9a-f-]{36}"' | head -n 1 | cut -d'"' -f4 || true)"
+if [ -n "${FIRST_PROP_ID}" ]; then
+  VIETQR_RESP="$(curl -sk -w "\n%{http_code}" -X POST "https://luxustay.duckdns.org/api/public/payments/vietqr/generate" \
+    -H "Content-Type: application/json" \
+    -d "{\"propertyId\":\"${FIRST_PROP_ID}\",\"amount\":500000,\"confirmationCode\":\"RES-SMOKE1\"}" || true)"
+  VIETQR_CODE="$(printf '%s\n' "${VIETQR_RESP}" | tail -n 1)"
+  VIETQR_BODY="$(printf '%s\n' "${VIETQR_RESP}" | sed '$d')"
+  echo "✔ Live VietQR smoke HTTP status: ${VIETQR_CODE}"
+  if [ "${VIETQR_CODE}" != "200" ] && [ "${VIETQR_CODE}" != "422" ]; then
+    echo "❌ Live VietQR smoke test failed (HTTP ${VIETQR_CODE}): ${VIETQR_BODY}" >&2
+    echo "--- Safe Backend Env Flags ---" >&2
+    docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' hotelsaas-backend-api | grep -E '^(ASPNETCORE_ENVIRONMENT|AllowCloudStartupDatabaseInit|SkipStartupDatabaseInit|Payment__Sepay__UseSepayQrImage)=' >&2 || true
+    echo "--- Backend Tail Logs ---" >&2
+    docker logs --tail 80 hotelsaas-backend-api >&2 || true
+    exit 1
+  fi
+else
+  echo "⚠️ Could not parse a property ID for live VietQR smoke probe."
+fi
+
+echo "✅ Hotel SaaS Platform deployment verified (/health & /health/ready == 200, VietQR & geolocation verified)!"

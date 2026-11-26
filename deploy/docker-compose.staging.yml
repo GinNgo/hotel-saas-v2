@@ -43,7 +43,7 @@ services:
       - Payment__Sepay__PlatformAccountNumber=${SEPAY_PLATFORM_ACCOUNT:-}
       - Payment__Sepay__PlatformAccountHolder=${SEPAY_PLATFORM_ACCOUNT_HOLDER:-}
       - Payment__Sepay__ExpectedPlatformAccountNumber=${SEPAY_PLATFORM_ACCOUNT:-}
-      - Payment__Sepay__UseSepayQrImage=false
+      - Payment__Sepay__UseSepayQrImage=true
       - Smtp__Enabled=${SMTP_ENABLED:-true}
       - Smtp__Host=${SMTP_HOST:-smtp.gmail.com}
       - Smtp__Port=${SMTP_PORT:-587}
@@ -54,6 +54,7 @@ services:
       - Cors__AllowedOrigins__0=${CORS_ALLOWED_ORIGIN:-https://staging.hotelsaas.local}
       - FIREBASE_CONFIG_PATH=/app/secrets/firebase-adminsdk.json
       - AllowCloudStartupDatabaseInit=true
+      - SkipStartupDatabaseInit=false
       - AllowCloudDevSeed=false
       - AllowStagingDevSeed=false
     volumes:
