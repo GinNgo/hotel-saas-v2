@@ -350,4 +350,135 @@ public sealed class GeoProximityAndSmartFilterTests
         Assert.Null(item.Latitude);
         Assert.Null(item.Longitude);
     }
+
+    [Fact]
+    public async Task GetPublicProperties_WhenGpsPlaceholderWithDistanceAsc_BypassesTextFilterAndPreservesExpandedOrdering()
+    {
+        // Arrange
+        var closerProp = new Property
+        {
+            Id = Guid.NewGuid(),
+            Name = "Khách sạn Sát Bãi Sau",
+            Code = "GPS01",
+            Slug = "khach-san-sat-bai-sau-gps",
+            Address = "10 Thùy Vân, Vũng Tàu",
+            City = "Vũng Tàu",
+            Latitude = 10.3350,
+            Longitude = 107.0895,
+            TouristZoneSlug = "vung-tau",
+            Status = PropertyStatus.Active
+        };
+        var expandedProp = new Property
+        {
+            Id = Guid.NewGuid(),
+            Name = "Khách sạn Trung Tâm Vũng Tàu",
+            Code = "GPS02",
+            Slug = "khach-san-trung-tam-vt-gps",
+            Address = "25 Lê Lợi, Vũng Tàu",
+            City = "Vũng Tàu",
+            Latitude = 10.3550,
+            Longitude = 107.0750,
+            TouristZoneSlug = "vung-tau",
+            Status = PropertyStatus.Active
+        };
+
+        var context = new GetPublicPropertiesSyntheticTests.TestApplicationDbContext(new[] { expandedProp, closerProp });
+        var handler = new GetPublicPropertiesQueryHandler(context, _locationService);
+        var query = new GetPublicPropertiesQuery(
+            DestinationKeyword: "Vị trí hiện tại",
+            MaxDistanceMeters: 500,
+            UserLatitude: 10.3340,
+            UserLongitude: 107.0890,
+            SortBy: "distance_asc");
+
+        // Act
+        var results = await handler.Handle(query, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(2, results.Count);
+        Assert.Equal(closerProp.Id, results[0].Id);
+        Assert.False(results[0].IsExpandedNearbySuggestion);
+        Assert.Equal(expandedProp.Id, results[1].Id);
+        Assert.True(results[1].IsExpandedNearbySuggestion);
+        Assert.True(results[0].DistanceMeters < results[1].DistanceMeters);
+    }
+
+    [Fact]
+    public async Task GetPublicProperties_DistanceAsc_PrioritizesExactCoordWithin1500mOverZoneCenter0m_WithoutMutatingDtoCoords()
+    {
+        // Arrange: User GPS at Quan 1 center (10.7769, 106.7009)
+        // 1. Un-geocoded Quan 1 property -> zone-center fallback gives DistanceMeters = 0, Latitude/Longitude = null
+        var quan1ZoneCenterNoCoords = new Property
+        {
+            Id = Guid.NewGuid(),
+            Name = "Hotel Zone Center Quan 1",
+            Code = "Q1NC",
+            Slug = "hotel-zone-center-quan-1",
+            Address = "100 Nguyễn Huệ, Quận 1, TP.HCM",
+            City = "TP. Hồ Chí Minh",
+            Latitude = null,
+            Longitude = null,
+            TouristZoneSlug = "quan-1-tphcm",
+            Status = PropertyStatus.Active
+        };
+
+        // 2. Exact-coord property ~398m from (10.7769, 106.7009)
+        var theReverie = new Property
+        {
+            Id = Guid.NewGuid(),
+            Name = "The Reverie Saigon",
+            Code = "REV1",
+            Slug = "the-reverie-saigon",
+            Address = "22-36 Nguyễn Huệ, Quận 1, TP.HCM",
+            City = "TP. Hồ Chí Minh",
+            Latitude = 10.77365,
+            Longitude = 106.7024,
+            TouristZoneSlug = "quan-1-tphcm",
+            Status = PropertyStatus.Active
+        };
+
+        // 3. Exact-coord property in Binh Duong ~10.9 km from (10.7769, 106.7009)
+        var binhDuong = new Property
+        {
+            Id = Guid.NewGuid(),
+            Name = "Binh Duong Garden Hotel",
+            Code = "BD01",
+            Slug = "binh-duong-garden-hotel",
+            Address = "1 Đại lộ Bình Dương, Bình Dương",
+            City = "Bình Dương",
+            Latitude = 10.87455,
+            Longitude = 106.7009,
+            TouristZoneSlug = null,
+            Status = PropertyStatus.Active
+        };
+
+        var context = new GetPublicPropertiesSyntheticTests.TestApplicationDbContext(
+            new[] { quan1ZoneCenterNoCoords, binhDuong, theReverie });
+        var handler = new GetPublicPropertiesQueryHandler(context, _locationService);
+        var query = new GetPublicPropertiesQuery(
+            UserLatitude: 10.7769,
+            UserLongitude: 106.7009,
+            SortBy: "distance_asc");
+
+        // Act
+        var results = await handler.Handle(query, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(3, results.Count);
+
+        Assert.Equal(theReverie.Id, results[0].Id);
+        Assert.NotNull(results[0].DistanceMeters);
+        Assert.InRange(results[0].DistanceMeters!.Value, 350.0, 450.0);
+        Assert.NotNull(results[0].Latitude);
+        Assert.NotNull(results[0].Longitude);
+
+        Assert.Equal(quan1ZoneCenterNoCoords.Id, results[1].Id);
+        Assert.Equal(0.0, results[1].DistanceMeters);
+        Assert.Null(results[1].Latitude);
+        Assert.Null(results[1].Longitude);
+
+        Assert.Equal(binhDuong.Id, results[2].Id);
+        Assert.NotNull(results[2].DistanceMeters);
+        Assert.InRange(results[2].DistanceMeters!.Value, 10500.0, 11200.0);
+    }
 }

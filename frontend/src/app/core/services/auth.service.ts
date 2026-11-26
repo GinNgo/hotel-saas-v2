@@ -307,7 +307,11 @@ export class AuthService {
         tenantId: decoded.tenantId || null
       });
 
-      if (decoded.globalRole === 'Customer' || decoded.globalRole === 'Guest') {
+      if (
+        decoded.globalRole === 'Customer' ||
+        decoded.globalRole === 'Guest' ||
+        decoded.globalRole === 'SuperAdmin'
+      ) {
         this.membershipsSubject.next([]);
         this.tokenStorage.setMemberships([]);
         this.clearPropertyContext();

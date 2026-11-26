@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using HotelSaas.Application.Common.Interfaces;
 using HotelSaas.Infrastructure.Services;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace HotelSaas.Application.Tests.Payments;
@@ -69,5 +71,93 @@ public sealed class VietQrServiceTests
     public void GenerateDynamicQr_NullPayload_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() => _vietQrService.GenerateDynamicQr(null!));
+    }
+
+    [Fact]
+    public void GenerateDynamicQr_WhenUseSepayQrImageEnabled_ProducesSepayQrImageUrl()
+    {
+        // Arrange
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Payment:Sepay:UseSepayQrImage"] = "true"
+            })
+            .Build();
+        var service = new VietQrService(config);
+        var payload = new VietQrPayload(
+            BankBin: "970422",
+            AccountNumber: "0987654321",
+            AccountName: "KHACH SAN SAIGON",
+            Amount: 1850000m,
+            Description: "DATPHONG DLE-99281",
+            ConfirmationCode: "DLE-99281");
+
+        // Act
+        var result = service.GenerateDynamicQr(payload);
+
+        // Assert
+        Assert.Equal("DATPHONG DLE99281", result.Description);
+        Assert.Equal(
+            "https://qr.sepay.vn/img?acc=0987654321&bank=MBBank&amount=1850000&des=DATPHONG+DLE99281",
+            result.QrImageUrl);
+    }
+
+    [Theory]
+    [InlineData("970416", "ACB")]
+    [InlineData("970436", "Vietcombank")]
+    [InlineData("970499", "970499")]
+    public void GenerateDynamicQr_WhenUseSepayQrImageEnabled_MapsBankBinToSepayCodeOrFallsBackToRawBin(
+        string bankBin,
+        string expectedBankParam)
+    {
+        // Arrange
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Payment:Sepay:UseSepayQrImage"] = "true"
+            })
+            .Build();
+        var service = new VietQrService(config);
+        var payload = new VietQrPayload(
+            BankBin: bankBin,
+            AccountNumber: "33958647",
+            AccountName: "HOTEL TEST",
+            Amount: 500000m,
+            Description: "DATPHONG RES123",
+            ConfirmationCode: "RES123");
+
+        // Act
+        var result = service.GenerateDynamicQr(payload);
+
+        // Assert
+        Assert.Equal(
+            $"https://qr.sepay.vn/img?acc=33958647&bank={expectedBankParam}&amount=500000&des=DATPHONG+RES123",
+            result.QrImageUrl);
+    }
+
+    [Fact]
+    public void GenerateDynamicQr_WhenUseSepayQrImageDisabled_ProducesVietQrIoImageUrl()
+    {
+        // Arrange
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Payment:Sepay:UseSepayQrImage"] = "false"
+            })
+            .Build();
+        var service = new VietQrService(config);
+        var payload = new VietQrPayload(
+            BankBin: "970422",
+            AccountNumber: "0987654321",
+            AccountName: "KHACH SAN SAIGON",
+            Amount: 500000m,
+            Description: "DATPHONG RES123",
+            ConfirmationCode: "RES123");
+
+        // Act
+        var result = service.GenerateDynamicQr(payload);
+
+        // Assert
+        Assert.StartsWith("https://img.vietqr.io/image/970422-0987654321-compact2.png", result.QrImageUrl);
     }
 }

@@ -29,7 +29,7 @@ describe('Guest session initialization', () => {
     return { service: injector.get(AuthService), http, tokens };
   }
 
-  it.each(['Customer', 'Guest'])('does not restore staff context or request memberships for %s', role => {
+  it.each(['Customer', 'Guest', 'SuperAdmin'])('does not restore staff context or request memberships for %s', role => {
     const { service, http } = create(role);
     expect(service.activePropertyId()).toBeNull();
     expect(http.get).not.toHaveBeenCalled();

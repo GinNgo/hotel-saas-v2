@@ -2243,6 +2243,94 @@ describe('T04-B — Guest Booking Cancellation Workflow & Preview UI', () => {
       expect(component.vietQrError()).toBe('');
       expect(component.vietQr()?.qrImageUrl).toBe('https://example.test/vietqr-retry.png');
     });
+
+    it('should render VietQR/SePay QR image, bank account details, amount, transfer memo, and copy buttons when generateVietQr succeeds', () => {
+      // Arrange
+      mockBookingService.generateVietQr.mockReturnValue(of({
+        qrImageUrl: 'https://qr.sepay.vn/img?acc=0345678910&bank=MBBank&amount=450000&des=DATPHONG%20RES-A111',
+        bankBin: '970422',
+        bankName: 'MB Bank',
+        accountNumber: '0345678910',
+        accountName: 'HOTEL SAAS',
+        amount: 450000,
+        description: 'DATPHONG RES-A111',
+        confirmationCode: 'RES-A111',
+        quickPayDeepLink: 'vietqr://pay'
+      }));
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+
+      // Act
+      fixture.detectChanges();
+
+      // Assert
+      expect(mockBookingService.generateVietQr).toHaveBeenCalledWith({
+        amount: 450000,
+        confirmationCode: 'RES-A111',
+        reservationId: 'res-111-aaa'
+      });
+      const compiled = fixture.nativeElement as HTMLElement;
+      const qrImg = compiled.querySelector('img[alt="Mã thanh toán VietQR"]') as HTMLImageElement | null;
+      expect(qrImg).not.toBeNull();
+      expect(qrImg?.getAttribute('src')).toBe(
+        'https://qr.sepay.vn/img?acc=0345678910&bank=MBBank&amount=450000&des=DATPHONG%20RES-A111'
+      );
+      const text = compiled.textContent ?? '';
+      expect(text).toContain('VIETQR 24/7 (SEPAY)');
+      expect(text).toContain('MB Bank');
+      expect(text).toContain('CTK: HOTEL SAAS');
+      expect(text).toContain('450.000 ₫');
+      expect(text).toContain('DATPHONG RES-A111');
+      expect(text).toContain('Sao chép STK 0345678910');
+      expect(text).toContain('Sao chép nội dung CK');
+    });
+
+    it('should display 422 ERR_BANK_ACCOUNT_NOT_CONFIGURED message and retry button without rendering QR image', () => {
+      // Arrange
+      mockBookingService.generateVietQr.mockReturnValue(throwError(() => ({
+        status: 422,
+        error: {
+          errorCode: 'ERR_BANK_ACCOUNT_NOT_CONFIGURED',
+          message: 'Cơ sở lưu trú chưa cấu hình tài khoản ngân hàng nhận VietQR.'
+        }
+      })));
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+
+      // Act
+      fixture.detectChanges();
+
+      // Assert
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(component.vietQr()).toBeNull();
+      expect(component.isVietQrLoading()).toBe(false);
+      expect(component.vietQrError()).toBe('Cơ sở lưu trú chưa cấu hình tài khoản ngân hàng nhận VietQR.');
+      expect(compiled.querySelector('img[alt="Mã thanh toán VietQR"]')).toBeNull();
+      expect(compiled.textContent).toContain('Chưa cấu hình ngân hàng');
+      expect(compiled.querySelector('[role="alert"]')?.textContent).toContain(
+        'Cơ sở lưu trú chưa cấu hình tài khoản ngân hàng nhận VietQR.'
+      );
+      expect(compiled.querySelector('[data-testid="vietqr-retry-btn"]')).not.toBeNull();
+    });
+
+    it('should display fallback unconfigured bank message without VNPay prompt when 422 ERR_BANK_ACCOUNT_NOT_CONFIGURED omits message and enableVnpay is false', () => {
+      // Arrange
+      mockBookingService.generateVietQr.mockReturnValue(throwError(() => ({
+        status: 422,
+        error: { errorCode: 'ERR_BANK_ACCOUNT_NOT_CONFIGURED' }
+      })));
+      mockBookingService.getBookingByToken.mockReturnValue(of(sampleBookingA));
+
+      // Act
+      fixture.detectChanges();
+
+      // Assert
+      expect(component.showVnpay).toBe(false);
+      expect(component.vietQrError()).toBe(
+        'Chưa tạo được mã VietQR. Cơ sở lưu trú có thể chưa cấu hình tài khoản ngân hàng, vui lòng liên hệ lễ tân hoặc thanh toán tại quầy.'
+      );
+      const alertEl = (fixture.nativeElement as HTMLElement).querySelector('[role="alert"]');
+      expect(alertEl?.textContent).toContain('Chưa tạo được mã VietQR');
+      expect(alertEl?.textContent).not.toContain('VNPay');
+    });
   });
 });
 });

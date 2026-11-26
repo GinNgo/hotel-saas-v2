@@ -9,10 +9,14 @@ import {
   shouldBypassGlobalOverlay
 } from './loading-overlay.utils';
 
-test('shouldBypassGlobalOverlay skips SignalR hubs, health checks, and explicit skip header', () => {
+test('shouldBypassGlobalOverlay skips SignalR hubs, health checks, silent endpoints, and explicit skip header', () => {
   assert.equal(shouldBypassGlobalOverlay('/hubs/notifications/negotiate'), true);
   assert.equal(shouldBypassGlobalOverlay('/health/ready'), true);
   assert.equal(shouldBypassGlobalOverlay('/metrics'), true);
+  assert.equal(shouldBypassGlobalOverlay('/api/banners/active'), true);
+  assert.equal(shouldBypassGlobalOverlay('/api/auth/me/memberships'), true);
+  assert.equal(shouldBypassGlobalOverlay('/api/notifications?unreadOnly=true'), true);
+  assert.equal(shouldBypassGlobalOverlay('/api/platform/support-grants'), true);
   assert.equal(
     shouldBypassGlobalOverlay('/api/rooms', { [SKIP_OVERLAY_HEADER]: 'true' }),
     true

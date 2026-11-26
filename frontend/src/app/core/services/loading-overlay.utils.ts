@@ -17,7 +17,11 @@ const SILENT_URL_PATTERNS: readonly string[] = [
   '/hubs/notifications',
   '/health',
   '/metrics',
-  '/api/notifications/unread-count'
+  '/api/notifications/unread-count',
+  '/api/banners/active',
+  '/api/auth/me/memberships',
+  '/api/notifications',
+  '/api/platform/support-grants'
 ];
 
 /**

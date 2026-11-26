@@ -344,7 +344,8 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
         {
             var directMatches = allDtos
                 .Where(d => d.DistanceMeters.HasValue && d.DistanceMeters.Value <= maxAllowedMeters.Value)
-                .OrderBy(d => d.DistanceMeters!.Value)
+                .OrderBy(d => PublicPropertyMappingHelper.GetProximitySortDistance(d))
+                .ThenBy(d => d.Latitude.HasValue && d.Longitude.HasValue ? 0 : 1)
                 .ToList();
 
             resultList.AddRange(directMatches);
@@ -359,7 +360,8 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
                     .Where(d => !directMatches.Any(m => m.Id == d.Id) &&
                                 d.DistanceMeters.HasValue &&
                                 d.DistanceMeters.Value <= maxFallbackRadiusMeters)
-                    .OrderBy(d => d.DistanceMeters!.Value)
+                    .OrderBy(d => PublicPropertyMappingHelper.GetProximitySortDistance(d))
+                    .ThenBy(d => d.Latitude.HasValue && d.Longitude.HasValue ? 0 : 1)
                     .Take(4)
                     .ToList();
 
@@ -377,7 +379,8 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
             const double maxRefRadiusMeters = 50000.0;
             resultList = allDtos
                 .Where(d => d.DistanceMeters.HasValue && d.DistanceMeters.Value <= maxRefRadiusMeters)
-                .OrderBy(d => d.DistanceMeters!.Value)
+                .OrderBy(d => PublicPropertyMappingHelper.GetProximitySortDistance(d))
+                .ThenBy(d => d.Latitude.HasValue && d.Longitude.HasValue ? 0 : 1)
                 .ToList();
         }
         else
@@ -394,7 +397,8 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
         {
             var nationwideNearest = allDtos
                 .Where(d => d.DistanceMeters.HasValue)
-                .OrderBy(d => d.DistanceMeters!.Value)
+                .OrderBy(d => PublicPropertyMappingHelper.GetProximitySortDistance(d))
+                .ThenBy(d => d.Latitude.HasValue && d.Longitude.HasValue ? 0 : 1)
                 .Take(6)
                 .ToList();
 
@@ -422,7 +426,8 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
         {
             matched = resultList
                 .OrderBy(d => d.IsExpandedNearbySuggestion ? 1 : 0)
-                .ThenBy(d => d.DistanceMeters ?? 999999.0)
+                .ThenBy(d => PublicPropertyMappingHelper.GetProximitySortDistance(d))
+                .ThenBy(d => d.Latitude.HasValue && d.Longitude.HasValue ? 0 : 1)
                 .ToList();
         }
         else if (targetLandmark != null && !string.IsNullOrWhiteSpace(effectiveQuery) &&
@@ -438,7 +443,8 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
                                  string.Equals(d.TouristZoneSlug, targetLandmark.TouristZoneSlug, StringComparison.OrdinalIgnoreCase)))
                     .OrderBy(d => d.DistanceMeters.HasValue ? 0 : 1)
                     .ThenBy(d => d.IsExpandedNearbySuggestion ? 1 : 0)
-                    .ThenBy(d => d.DistanceMeters ?? 999999.0)
+                    .ThenBy(d => PublicPropertyMappingHelper.GetProximitySortDistance(d))
+                    .ThenBy(d => d.Latitude.HasValue && d.Longitude.HasValue ? 0 : 1)
                     .ToList();
             }
             else
@@ -861,6 +867,18 @@ internal static class PublicPropertyMappingHelper
         return filtered;
     }
 
+    internal static double GetProximitySortDistance(PublicPropertyDto d)
+    {
+        if (!d.DistanceMeters.HasValue)
+        {
+            return double.MaxValue;
+        }
+
+        return d.Latitude.HasValue && d.Longitude.HasValue
+            ? d.DistanceMeters.Value
+            : d.DistanceMeters.Value + 1500.0;
+    }
+
     internal static IReadOnlyList<PublicPropertyDto> ApplySort(
         IReadOnlyList<PublicPropertyDto> items,
         string sortBy)
@@ -891,7 +909,8 @@ internal static class PublicPropertyMappingHelper
                 .ToList(),
             "distance_asc" => items
                 .OrderBy(d => d.IsExpandedNearbySuggestion ? 1 : 0)
-                .ThenBy(d => d.DistanceMeters ?? double.MaxValue)
+                .ThenBy(GetProximitySortDistance)
+                .ThenBy(d => d.Latitude.HasValue && d.Longitude.HasValue ? 0 : 1)
                 .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(d => d.Id)
                 .ToList(),

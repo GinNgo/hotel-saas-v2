@@ -952,6 +952,85 @@ describe('PaymentsPage — Mounted Component & Behavioral Acceptance Tests (FE-C
       expect(compiled.querySelector('a[href="/policies"]')).not.toBeNull();
     });
 
+    it('should render cashier VietQR image src and copyable fields inside [data-testid="cashier-vietqr-panel"]', () => {
+      // Arrange
+      mockPaymentService.generateVietQr = vi.fn().mockReturnValue(of({
+        qrImageUrl: 'https://qr.sepay.vn/img?acc=0345678910&bank=MBBank&amount=1500000&des=DATPHONG%20CONF12345',
+        bankBin: '970422',
+        bankName: 'MB Bank',
+        accountNumber: '0345678910',
+        accountName: 'KHACH SAN BIEN DONG',
+        amount: 1500000,
+        description: 'DATPHONG CONF12345',
+        confirmationCode: 'CONF-12345',
+        quickPayDeepLink: 'vietqr://pay'
+      }));
+      fixture = TestBed.createComponent(PaymentsPage);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+
+      // Act
+      component.loadFolio('res-001-bbbb');
+      fixture.detectChanges();
+      component.paymentMethod.set(PaymentMethod.BankTransfer);
+      fixture.detectChanges();
+
+      // Assert
+      const compiled = fixture.nativeElement as HTMLElement;
+      const panel = compiled.querySelector('[data-testid="cashier-vietqr-panel"]');
+      expect(panel).not.toBeNull();
+      const qrImg = panel?.querySelector('img[alt="Mã VietQR thanh toán"]') as HTMLImageElement | null;
+      expect(qrImg).not.toBeNull();
+      expect(qrImg?.getAttribute('src')).toBe(
+        'https://qr.sepay.vn/img?acc=0345678910&bank=MBBank&amount=1500000&des=DATPHONG%20CONF12345'
+      );
+      expect(panel?.textContent).toContain('VietQR 24/7 — Tự động đối soát SePay');
+      expect(panel?.textContent).toContain('1.500.000 ₫');
+    });
+
+    it('should render only All, Cash, and VietQR/SePay options in #filterMethodSelect when enableVnpay is false', () => {
+      // Arrange
+      fixture = TestBed.createComponent(PaymentsPage);
+      component = fixture.componentInstance;
+
+      // Act
+      fixture.detectChanges();
+
+      // Assert
+      expect(component.showVnpay).toBe(false);
+      const compiled = fixture.nativeElement as HTMLElement;
+      const select = compiled.querySelector('#filterMethodSelect') as HTMLSelectElement | null;
+      expect(select).not.toBeNull();
+      const optionLabels = Array.from(select!.querySelectorAll('option')).map(o => o.textContent?.trim());
+      expect(optionLabels).toEqual([
+        'Tất cả phương thức',
+        'Tiền mặt',
+        'VietQR / Chuyển khoản (SePay)'
+      ]);
+      expect(optionLabels).not.toContain('Thẻ tín dụng');
+      expect(optionLabels).not.toContain('VNPay');
+    });
+
+    it('should expose only Cash and VietQR/SePay collection buttons on Folio when enableVnpay is false', () => {
+      // Arrange
+      fixture = TestBed.createComponent(PaymentsPage);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+
+      // Act
+      component.loadFolio('res-001-bbbb');
+      fixture.detectChanges();
+
+      // Assert
+      expect(component.showVnpay).toBe(false);
+      const compiled = fixture.nativeElement as HTMLElement;
+      const text = compiled.textContent ?? '';
+      expect(text).toContain('Tiền mặt');
+      expect(text).toContain('VietQR / CK (SePay)');
+      expect(text).not.toContain('Thẻ tín dụng');
+      expect(text).not.toContain('Thanh toán VNPay');
+    });
+
     it('should submit payment, refresh Folio, trigger Receipt Voucher Modal, and allow printing/closing', () => {
       fixture = TestBed.createComponent(PaymentsPage);
       component = fixture.componentInstance;

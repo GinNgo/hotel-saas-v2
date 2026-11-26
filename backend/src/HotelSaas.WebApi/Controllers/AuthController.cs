@@ -57,7 +57,7 @@ public sealed class AuthController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _mediator.Send(command, cancellationToken);
-        return StatusCode(StatusCodes.Status201Created, result);
+        return StatusCode(StatusCodes.Status201Created, new { success = true, data = result, userId = result.UserId, message = result.Message });
     }
 
     /// <summary>

@@ -308,4 +308,107 @@ describe('ExploreSearchPageComponent (Geo-Search, Canonical Catalog & Split Map)
     expect(locateSpy).toHaveBeenCalledTimes(1);
     locateSpy.mockRestore();
   });
+
+  it('shows geolocation permission-denied error in [data-testid="sidebar-geo-error"] without navigating when user denies GPS', () => {
+    // Arrange
+    const originalGeolocation = Object.getOwnPropertyDescriptor(navigator, 'geolocation');
+    const getCurrentPosition = vi.fn((_success: PositionCallback, error?: PositionErrorCallback | null) => {
+      error?.({ code: 1, message: 'User denied Geolocation' } as GeolocationPositionError);
+    });
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: { getCurrentPosition },
+    });
+
+    try {
+      const fixture = TestBed.createComponent(ExploreSearchPageComponent);
+      fixture.detectChanges();
+      const comp = fixture.componentInstance;
+      const el: HTMLElement = fixture.nativeElement;
+      const btn = el.querySelector('[data-testid="sidebar-locate-gps-btn"]') as HTMLButtonElement | null;
+      expect(btn).not.toBeNull();
+
+      // Act
+      btn!.click();
+      fixture.detectChanges();
+
+      // Assert
+      expect(getCurrentPosition).toHaveBeenCalledTimes(1);
+      expect(comp.isMapLocating()).toBe(false);
+      expect(comp.mapGeoError()).toBe('Bạn đã từ chối quyền định vị GPS.');
+      const errorEl = el.querySelector('[data-testid="sidebar-geo-error"]');
+      expect(errorEl).not.toBeNull();
+      expect(errorEl?.textContent?.trim()).toBe('Bạn đã từ chối quyền định vị GPS.');
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+    } finally {
+      if (originalGeolocation) {
+        Object.defineProperty(navigator, 'geolocation', originalGeolocation);
+      } else {
+        Object.defineProperty(navigator, 'geolocation', { configurable: true, value: undefined });
+      }
+    }
+  });
+
+  it('sets sortBy to distance_asc on GPS locate success and preserves distance_asc across sidebar filter updates', () => {
+    // Arrange
+    const originalGeolocation = Object.getOwnPropertyDescriptor(navigator, 'geolocation');
+    const getCurrentPosition = vi.fn((success: PositionCallback) => {
+      success({
+        coords: { latitude: 10.7725, longitude: 106.698 } as GeolocationCoordinates,
+        timestamp: Date.now(),
+      } as GeolocationPosition);
+    });
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: { getCurrentPosition },
+    });
+
+    try {
+      const fixture = TestBed.createComponent(ExploreSearchPageComponent);
+      fixture.detectChanges();
+      const comp = fixture.componentInstance;
+
+      // Act 1: locate GPS
+      comp.locateNearbyOnMap();
+
+      // Assert 1
+      expect(comp.sortBy()).toBe('distance_asc');
+      expect(comp.searchFilter().sortBy).toBe('distance_asc');
+      expect(mockRouter.navigate).toHaveBeenLastCalledWith(
+        [],
+        expect.objectContaining({
+          queryParams: expect.objectContaining({
+            userLatitude: 10.7725,
+            userLongitude: 106.698,
+            sortBy: 'distance_asc',
+          }),
+        })
+      );
+
+      // Act 2: apply maxDistanceMeters & price range filters while GPS is active
+      comp.setMaxDistance(3000);
+      comp.applyPriceRange('500k_1000k', 500000, 1000000);
+
+      // Assert 2: distance_asc remains preserved
+      expect(comp.sortBy()).toBe('distance_asc');
+      expect(comp.searchFilter().sortBy).toBe('distance_asc');
+      expect(mockRouter.navigate).toHaveBeenLastCalledWith(
+        [],
+        expect.objectContaining({
+          queryParams: expect.objectContaining({
+            maxDistanceMeters: 3000,
+            minPrice: 500000,
+            maxPrice: 1000000,
+            sortBy: 'distance_asc',
+          }),
+        })
+      );
+    } finally {
+      if (originalGeolocation) {
+        Object.defineProperty(navigator, 'geolocation', originalGeolocation);
+      } else {
+        Object.defineProperty(navigator, 'geolocation', { configurable: true, value: undefined });
+      }
+    }
+  });
 });
