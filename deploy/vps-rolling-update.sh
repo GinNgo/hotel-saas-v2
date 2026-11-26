@@ -88,29 +88,71 @@ sync_metrics_key_file() {
   fi
 }
 
+LAST_CADDY_BACKUP=""
+LAST_CADDY_MODE=""
+
 patch_caddyfile_geolocation() {
   local f="$1"
+  LAST_CADDY_BACKUP=""
+  LAST_CADDY_MODE=""
+
   if [ ! -f "${f}" ] && ! sudo test -f "${f}" 2>/dev/null; then
+    return 1
+  fi
+  if ! read_file_safe "${f}" | grep -q 'luxustay\.duckdns\.org'; then
     return 1
   fi
   if ! read_file_safe "${f}" | grep -qi 'geolocation=()'; then
     return 1
   fi
 
-  local tmp
+  local orig_mode backup_dir backup_file tmp ts
+  orig_mode="$(stat -c '%a' "${f}" 2>/dev/null || sudo stat -c '%a' "${f}" 2>/dev/null || echo 644)"
+  ts="$(date +%Y%m%d%H%M%S)"
+  backup_dir="/opt/hotel-saas/caddy-backups"
+  backup_file="${backup_dir}/$(basename "${f}").bak-${ts}"
+
+  if can_write_dir "/opt/hotel-saas"; then
+    mkdir -p "${backup_dir}"
+  else
+    run_privileged mkdir -p "${backup_dir}"
+  fi
+
   tmp="$(mktemp)"
   read_file_safe "${f}" | sed -E 's/geolocation=\(\)/geolocation=(self)/g' > "${tmp}"
 
-  if [ -w "${f}" ]; then
-    cp "${f}" "${f}.bak"
+  if [ -w "${f}" ] && can_write_dir "${backup_dir}"; then
+    cp -p "${f}" "${backup_file}"
     cat "${tmp}" > "${f}"
+    chmod "${orig_mode}" "${f}"
   else
-    run_privileged cp "${f}" "${f}.bak"
+    run_privileged cp -p "${f}" "${backup_file}"
     run_privileged tee "${f}" < "${tmp}" >/dev/null
+    run_privileged chmod "${orig_mode}" "${f}"
   fi
 
   rm -f "${tmp}"
+  LAST_CADDY_BACKUP="${backup_file}"
+  LAST_CADDY_MODE="${orig_mode}"
   return 0
+}
+
+restore_caddyfile_backup() {
+  local f="$1"
+  local backup_file="$2"
+  local orig_mode="${3:-644}"
+  if [ -z "${backup_file}" ]; then
+    return 0
+  fi
+  if [ -f "${backup_file}" ] || sudo test -f "${backup_file}" 2>/dev/null; then
+    if [ -w "${f}" ] && [ -r "${backup_file}" ]; then
+      cat "${backup_file}" > "${f}"
+      chmod "${orig_mode}" "${f}"
+    else
+      read_file_safe "${backup_file}" | run_privileged tee "${f}" >/dev/null
+      run_privileged chmod "${orig_mode}" "${f}"
+    fi
+  fi
 }
 
 if [ -z "${IMAGE_TAG:-}" ]; then
@@ -223,28 +265,52 @@ if [ -f docker/docker-compose.observability.yml ]; then
   fi
 fi
 
-echo "[5/6] Auto-discovering Caddy & patching Permissions-Policy geolocation=(self)..."
+echo "[5/6] Auto-discovering Caddy & patching Permissions-Policy geolocation=(self) for luxustay.duckdns.org..."
 CADDY_HANDLED=0
 
 CADDY_CONTAINER="$(docker ps --format '{{.Names}}\t{{.Image}}' | awk 'tolower($1) ~ /caddy/ || tolower($2) ~ /caddy/ {print $1; exit}' || true)"
 if [ -n "${CADDY_CONTAINER}" ]; then
   CADDY_HANDLED=1
-  CADDY_HOST_FILE="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/etc/caddy/Caddyfile"}}{{.Source}}{{end}}{{end}}' "${CADDY_CONTAINER}" 2>/dev/null || true)"
-  echo "✔ Found Caddy Docker container: ${CADDY_CONTAINER} (host config: ${CADDY_HOST_FILE:-<none>})"
-  if [ -n "${CADDY_HOST_FILE}" ] && patch_caddyfile_geolocation "${CADDY_HOST_FILE}"; then
-    if ! docker exec "${CADDY_CONTAINER}" caddy validate --config /etc/caddy/Caddyfile; then
-      echo "❌ Patched Caddyfile failed validation; restoring ${CADDY_HOST_FILE}.bak..." >&2
-      if [ -f "${CADDY_HOST_FILE}.bak" ] || sudo test -f "${CADDY_HOST_FILE}.bak" 2>/dev/null; then
-        if [ -w "${CADDY_HOST_FILE}" ]; then
-          cat "${CADDY_HOST_FILE}.bak" > "${CADDY_HOST_FILE}"
-        else
-          run_privileged tee "${CADDY_HOST_FILE}" < "${CADDY_HOST_FILE}.bak" >/dev/null
+  echo "✔ Found Caddy Docker container: ${CADDY_CONTAINER}"
+  CANDIDATE_FILES=()
+  while IFS= read -r mount_src; do
+    [ -n "${mount_src}" ] || continue
+    if [ -f "${mount_src}" ] || sudo test -f "${mount_src}" 2>/dev/null; then
+      case "$(basename "${mount_src}")" in
+        *.bak*) ;;
+        *) CANDIDATE_FILES+=("${mount_src}") ;;
+      esac
+    elif [ -d "${mount_src}" ] || sudo test -d "${mount_src}" 2>/dev/null; then
+      while IFS= read -r found_file; do
+        [ -n "${found_file}" ] || continue
+        CANDIDATE_FILES+=("${found_file}")
+      done < <( (find "${mount_src}" -maxdepth 2 -type f \( -name '*.caddy' -o -name 'Caddyfile*' \) ! -name '*.bak*' 2>/dev/null || run_privileged find "${mount_src}" -maxdepth 2 -type f \( -name '*.caddy' -o -name 'Caddyfile*' \) ! -name '*.bak*' 2>/dev/null || true) | sort -u )
+    fi
+  done < <(docker inspect --format '{{range .Mounts}}{{.Source}}{{"\n"}}{{end}}' "${CADDY_CONTAINER}" 2>/dev/null || true)
+
+  PATCHED_RECORDS=()
+  if [ "${#CANDIDATE_FILES[@]}" -gt 0 ]; then
+    for f in "${CANDIDATE_FILES[@]}"; do
+      if read_file_safe "${f}" | grep -q 'luxustay\.duckdns\.org'; then
+        if patch_caddyfile_geolocation "${f}"; then
+          PATCHED_RECORDS+=("${f}|${LAST_CADDY_BACKUP}|${LAST_CADDY_MODE}")
+          echo "✔ Patched geolocation=(self) in ${f} (backup: ${LAST_CADDY_BACKUP})"
         fi
       fi
+    done
+  fi
+
+  if [ "${#PATCHED_RECORDS[@]}" -gt 0 ]; then
+    if ! docker exec "${CADDY_CONTAINER}" caddy validate --config /etc/caddy/Caddyfile; then
+      echo "❌ Patched Caddy config failed validation; restoring backups..." >&2
+      for rec in "${PATCHED_RECORDS[@]}"; do
+        IFS='|' read -r orig_f bak_f orig_m <<< "${rec}"
+        restore_caddyfile_backup "${orig_f}" "${bak_f}" "${orig_m}"
+      done
       exit 1
     fi
     docker exec "${CADDY_CONTAINER}" caddy reload --config /etc/caddy/Caddyfile
-    echo "✔ Patched geolocation=(self) in ${CADDY_HOST_FILE} and reloaded ${CADDY_CONTAINER}."
+    echo "✔ Validated and reloaded ${CADDY_CONTAINER}."
   else
     docker exec "${CADDY_CONTAINER}" caddy reload --config /etc/caddy/Caddyfile || echo "⚠️ Caddy reload returned non-zero (continuing)"
   fi
@@ -254,12 +320,12 @@ if [ -f /etc/caddy/Caddyfile ] || sudo test -f /etc/caddy/Caddyfile 2>/dev/null;
   CADDY_HANDLED=1
   echo "✔ Found host Caddyfile: /etc/caddy/Caddyfile"
   if patch_caddyfile_geolocation "/etc/caddy/Caddyfile"; then
+    HOST_CADDY_BACKUP="${LAST_CADDY_BACKUP}"
+    HOST_CADDY_MODE="${LAST_CADDY_MODE}"
     if command -v caddy >/dev/null 2>&1; then
       if ! run_privileged caddy validate --config /etc/caddy/Caddyfile; then
         echo "❌ Patched /etc/caddy/Caddyfile failed validation; restoring backup..." >&2
-        if [ -f /etc/caddy/Caddyfile.bak ] || sudo test -f /etc/caddy/Caddyfile.bak 2>/dev/null; then
-          run_privileged tee /etc/caddy/Caddyfile < /etc/caddy/Caddyfile.bak >/dev/null
-        fi
+        restore_caddyfile_backup "/etc/caddy/Caddyfile" "${HOST_CADDY_BACKUP}" "${HOST_CADDY_MODE}"
         exit 1
       fi
     fi
