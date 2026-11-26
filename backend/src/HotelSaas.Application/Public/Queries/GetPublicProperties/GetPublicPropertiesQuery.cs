@@ -272,11 +272,29 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
             double? distanceMeters = null;
             string? distanceFormatted = null;
 
-            if (refLat.HasValue && refLon.HasValue && p.Latitude.HasValue && p.Longitude.HasValue)
+            if (refLat.HasValue && refLon.HasValue)
             {
-                var meters = GeoProximityHelper.CalculateDistanceMeters(refLat.Value, refLon.Value, p.Latitude.Value, p.Longitude.Value);
-                distanceMeters = Math.Round(meters);
-                distanceFormatted = GeoProximityHelper.FormatDistance(meters);
+                double? propLat = p.Latitude;
+                double? propLon = p.Longitude;
+
+                if ((!propLat.HasValue || !propLon.HasValue) &&
+                    !string.IsNullOrWhiteSpace(p.TouristZoneSlug) &&
+                    _locationService != null)
+                {
+                    var zone = _locationService.GetTouristZoneBySlug(p.TouristZoneSlug.Trim());
+                    if (zone is { CenterLatitude: not null, CenterLongitude: not null })
+                    {
+                        propLat = zone.CenterLatitude.Value;
+                        propLon = zone.CenterLongitude.Value;
+                    }
+                }
+
+                if (propLat.HasValue && propLon.HasValue)
+                {
+                    var meters = GeoProximityHelper.CalculateDistanceMeters(refLat.Value, refLon.Value, propLat.Value, propLon.Value);
+                    distanceMeters = Math.Round(meters);
+                    distanceFormatted = GeoProximityHelper.FormatDistance(meters);
+                }
             }
 
             allDtos.Add(PublicPropertyMappingHelper.BuildDto(
@@ -365,6 +383,26 @@ public sealed class GetPublicPropertiesQueryHandler : IRequestHandler<GetPublicP
         else
         {
             resultList = allDtos;
+        }
+
+        // Pure-GPS nationwide safety net: if a GPS user is >50km from all properties,
+        // return the 6 closest active properties as expanded suggestions instead of an empty list.
+        if (resultList.Count == 0 &&
+            request.UserLatitude.HasValue &&
+            request.UserLongitude.HasValue &&
+            targetLandmark == null)
+        {
+            var nationwideNearest = allDtos
+                .Where(d => d.DistanceMeters.HasValue)
+                .OrderBy(d => d.DistanceMeters!.Value)
+                .Take(6)
+                .ToList();
+
+            foreach (var fb in nationwideNearest)
+            {
+                fb.IsExpandedNearbySuggestion = true;
+                resultList.Add(fb);
+            }
         }
 
         // 5. Search and filter by Search keyword or DestinationKeyword

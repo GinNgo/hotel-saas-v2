@@ -198,9 +198,32 @@ if [ -f docker/docker-compose.observability.yml ]; then
   fi
 fi
 
-echo "[5/6] Reloading Caddy reverse proxy gracefully (if running)..."
+echo "[5/6] Syncing Caddyfile & reloading Caddy reverse proxy gracefully (if running)..."
+if [ -f deploy/Caddyfile ]; then
+  sed -i 's/\r$//' deploy/Caddyfile
+  if can_write_dir "/opt/hotel-saas" && { [ ! -e "Caddyfile" ] || [ -w "Caddyfile" ]; }; then
+    [ -f Caddyfile ] && cp Caddyfile Caddyfile.bak
+    cat deploy/Caddyfile > Caddyfile
+  else
+    [ -f Caddyfile ] && run_privileged cp Caddyfile Caddyfile.bak
+    run_privileged tee Caddyfile < deploy/Caddyfile >/dev/null
+  fi
+fi
+
 if docker ps --format '{{.Names}}' | grep -qx 'hotelsaas-caddy'; then
-  docker exec hotelsaas-caddy caddy reload --config /etc/caddy/Caddyfile || echo "⚠️ Caddy reload returned non-zero (continuing to health verification)"
+  if ! docker exec hotelsaas-caddy caddy validate --config /etc/caddy/Caddyfile; then
+    echo "❌ New Caddyfile failed validation; restoring Caddyfile.bak..." >&2
+    if [ -f Caddyfile.bak ]; then
+      if can_write_dir "/opt/hotel-saas" && [ -w "Caddyfile" ]; then
+        cat Caddyfile.bak > Caddyfile
+      else
+        run_privileged tee Caddyfile < Caddyfile.bak >/dev/null
+      fi
+    fi
+    exit 1
+  fi
+  docker exec hotelsaas-caddy caddy reload --config /etc/caddy/Caddyfile
+  echo "✔ Synced deploy/Caddyfile -> /opt/hotel-saas/Caddyfile and reloaded Caddy."
 fi
 
 echo "[6/6] Verifying health probes..."
@@ -223,6 +246,13 @@ if [ "$HEALTHY" -ne 1 ]; then
   grep -iE 'jwt|env_file' docker-compose.staging.yml | sed 's/=.*/=<REDACTED>/' || true
   docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' hotelsaas-backend-api | grep -i jwt | awk -F= '{print $1 " (len=" length($2) ")"}' || true
   docker logs --tail 80 hotelsaas-backend-api || true
+  exit 1
+fi
+
+PERM_HEADER="$(curl -skI https://luxustay.duckdns.org/booking | grep -i '^permissions-policy:' | tr -d '\r' || true)"
+echo "✔ Live header: ${PERM_HEADER:-<none>}"
+if printf '%s' "${PERM_HEADER}" | grep -qi 'geolocation=()'; then
+  echo "❌ Live Permissions-Policy still blocks geolocation=(): ${PERM_HEADER}" >&2
   exit 1
 fi
 
