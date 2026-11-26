@@ -127,6 +127,15 @@ else
   echo "✔ Existing JWT_SECRET_KEY passed production guard."
 fi
 
+export JWT_SECRET_KEY="$(read_env_value JWT_SECRET_KEY .env)"
+echo "✔ Effective JWT_SECRET_KEY length: ${#JWT_SECRET_KEY} chars"
+
+LEGACY_JWT_SECRET="$(read_env_value JWT_SECRET .env)"
+if [ -n "${LEGACY_JWT_SECRET}" ]; then
+  upsert_env_value JWT_SECRET "${JWT_SECRET_KEY}" .env
+  export JWT_SECRET="${JWT_SECRET_KEY}"
+fi
+
 SYNCED_COUNT=0
 if [ -n "${SEPAY_API_KEY:-}" ]; then
   upsert_env_value SEPAY_API_KEY "${SEPAY_API_KEY}" .env
@@ -210,6 +219,9 @@ done
 
 if [ "$HEALTHY" -ne 1 ]; then
   echo "❌ Health check (/health & /health/ready) failed after 60 seconds!"
+  echo "--- Compose JWT lines (values redacted) ---"
+  grep -iE 'jwt|env_file' docker-compose.staging.yml | sed 's/=.*/=<REDACTED>/' || true
+  docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' hotelsaas-backend-api | grep -i jwt | awk -F= '{print $1 " (len=" length($2) ")"}' || true
   docker logs --tail 80 hotelsaas-backend-api || true
   exit 1
 fi

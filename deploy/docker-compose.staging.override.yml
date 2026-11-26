@@ -1,6 +1,7 @@
 services:
   backend:
     environment:
+      - JwtSettings__SecretKey=${JWT_SECRET_KEY}
       - Payment__Sepay__ApiKey=${SEPAY_API_KEY:-}
       - Payment__Sepay__PlatformBankName=${SEPAY_PLATFORM_BANK_NAME:-}
       - Payment__Sepay__PlatformAccountNumber=${SEPAY_PLATFORM_ACCOUNT:-}
