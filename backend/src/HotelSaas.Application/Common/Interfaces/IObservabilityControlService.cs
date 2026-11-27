@@ -9,6 +9,7 @@ public sealed record ObservabilitySettingsDto(
     string MinimumLogLevel,
     bool MetricsExportEnabled,
     bool StructuredRequestLoggingEnabled,
+    bool PayloadLoggingEnabled,
     DateTime? UpdatedAtUtc,
     Guid? UpdatedByUserId,
     bool LokiConfigured,
@@ -41,7 +42,9 @@ public sealed record LokiLogEntryDto(
     int? StatusCode,
     double? ElapsedMs,
     string? ErrorCode,
-    string Message);
+    string Message,
+    string? RequestPayload = null,
+    string? ResponsePayload = null);
 
 public sealed record LokiLogQueryResultDto(
     bool Available,
@@ -62,11 +65,14 @@ public interface IObservabilityControlService
 
     bool IsStructuredRequestLoggingEnabled { get; }
 
+    bool IsPayloadLoggingEnabled { get; }
+
     ObservabilitySettingsDto UpdateSettings(
         string minimumLogLevel,
         bool metricsExportEnabled,
         bool structuredRequestLoggingEnabled,
-        Guid? updatedByUserId);
+        Guid? updatedByUserId,
+        bool payloadLoggingEnabled = false);
 
     Task<ObservabilityStackStatusDto> GetStackStatusAsync(CancellationToken cancellationToken = default);
 

@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Text;
 using HotelSaas.Application.Common.Interfaces;
+using HotelSaas.WebApi.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Serilog.Context;
@@ -370,6 +372,10 @@ public sealed class CorrelationAndStructuredLogMiddleware
 {
     public const string CorrelationIdHeaderName = "X-Correlation-Id";
     public const string RequestStartTimestampItemKey = "RequestStartTimestamp";
+    public const string RequestPayloadItemKey = "RequestPayload";
+    public const string ResponsePayloadItemKey = "ResponsePayload";
+    private const int MaxPayloadCaptureChars = 16384;
+    private const long MaxRequestBodyContentLength = 65536;
 
     private readonly RequestDelegate _next;
     private readonly ILogger<CorrelationAndStructuredLogMiddleware> _logger;
@@ -394,6 +400,17 @@ public sealed class CorrelationAndStructuredLogMiddleware
                normalized.Equals("/health/live", StringComparison.OrdinalIgnoreCase) ||
                normalized.Equals("/health/ready", StringComparison.OrdinalIgnoreCase) ||
                normalized.Equals("/metrics", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsPayloadCaptureEligiblePath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        return path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) &&
+               !path.StartsWith("/api/platform/observability/logs", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task InvokeAsync(
@@ -423,13 +440,82 @@ public sealed class CorrelationAndStructuredLogMiddleware
         var method = context.Request.Method;
         var path = context.Request.Path.Value ?? "/";
         var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var observabilityControl = context.RequestServices.GetService(typeof(IObservabilityControlService)) as IObservabilityControlService;
+        var capturePayload = (observabilityControl?.IsPayloadLoggingEnabled ?? false) &&
+                             IsPayloadCaptureEligiblePath(path);
 
         using (LogContext.PushProperty("CorrelationId", correlationId))
         using (LogContext.PushProperty("ClientIp", clientIp))
         using (LogContext.PushProperty("RequestMethod", method))
         using (LogContext.PushProperty("RequestPath", path))
         {
-            await _next(context);
+            string? capturedRequestPayload = null;
+            if (capturePayload &&
+                IsJsonContentType(context.Request.ContentType) &&
+                (!context.Request.ContentLength.HasValue || context.Request.ContentLength.Value <= MaxRequestBodyContentLength))
+            {
+                context.Request.EnableBuffering();
+                using var reqReader = new StreamReader(
+                    context.Request.Body,
+                    Encoding.UTF8,
+                    detectEncodingFromByteOrderMarks: false,
+                    bufferSize: 1024,
+                    leaveOpen: true);
+                var rawRequest = await ReadBoundedAsync(reqReader, MaxPayloadCaptureChars);
+                if (context.Request.Body.CanSeek)
+                {
+                    context.Request.Body.Position = 0;
+                }
+
+                capturedRequestPayload = ObservabilityControlService.SanitizePayload(rawRequest);
+                if (!string.IsNullOrWhiteSpace(capturedRequestPayload))
+                {
+                    context.Items[RequestPayloadItemKey] = capturedRequestPayload;
+                }
+            }
+
+            string? capturedResponsePayload = null;
+            if (capturePayload)
+            {
+                var originalBody = context.Response.Body;
+                using var responseBuffer = new MemoryStream();
+                context.Response.Body = responseBuffer;
+                try
+                {
+                    await _next(context);
+                }
+                finally
+                {
+                    context.Response.Body = originalBody;
+                    if (responseBuffer.Length > 0)
+                    {
+                        responseBuffer.Position = 0;
+                        await responseBuffer.CopyToAsync(originalBody);
+
+                        if (IsJsonContentType(context.Response.ContentType))
+                        {
+                            responseBuffer.Position = 0;
+                            using var respReader = new StreamReader(
+                                responseBuffer,
+                                Encoding.UTF8,
+                                detectEncodingFromByteOrderMarks: false,
+                                bufferSize: 1024,
+                                leaveOpen: true);
+                            var rawResponse = await ReadBoundedAsync(respReader, MaxPayloadCaptureChars);
+                            capturedResponsePayload = ObservabilityControlService.SanitizePayload(rawResponse);
+                            if (!string.IsNullOrWhiteSpace(capturedResponsePayload))
+                            {
+                                context.Items[ResponsePayloadItemKey] = capturedResponsePayload;
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                await _next(context);
+            }
+
             sw.Stop();
 
             var tenantId = tenantService.TenantId;
@@ -443,6 +529,12 @@ public sealed class CorrelationAndStructuredLogMiddleware
             using (LogContext.PushProperty("UserId", userContext.IsAuthenticated && userContext.UserId != Guid.Empty ? userContext.UserId.ToString() : "anonymous"))
             using (LogContext.PushProperty("StatusCode", statusCode))
             using (LogContext.PushProperty("ElapsedMs", elapsedMs))
+            using (!string.IsNullOrWhiteSpace(capturedRequestPayload)
+                ? LogContext.PushProperty(RequestPayloadItemKey, capturedRequestPayload)
+                : null)
+            using (!string.IsNullOrWhiteSpace(capturedResponsePayload)
+                ? LogContext.PushProperty(ResponsePayloadItemKey, capturedResponsePayload)
+                : null)
             {
                 var errorCode = context.Items.TryGetValue("ErrorCode", out var codeObj) ? codeObj?.ToString() : null;
                 if (!IsObservabilityProbePath(path))
@@ -452,7 +544,6 @@ public sealed class CorrelationAndStructuredLogMiddleware
 
                 var exceptionAlreadyLogged = context.Items.TryGetValue(ExceptionHandlingMiddleware.ExceptionLoggedItemKey, out var loggedObj)
                     && loggedObj is true;
-                var observabilityControl = context.RequestServices.GetService(typeof(IObservabilityControlService)) as IObservabilityControlService;
                 var structuredLoggingEnabled = observabilityControl?.IsStructuredRequestLoggingEnabled ?? true;
 
                 if (structuredLoggingEnabled && statusCode >= 500 && !exceptionAlreadyLogged)
@@ -467,8 +558,38 @@ public sealed class CorrelationAndStructuredLogMiddleware
                         "Security/Isolation Gate: HTTP {Method} {Path} blocked with {StatusCode} ({ErrorCode}) in {ElapsedMs}ms [CorrelationId={CorrelationId}, TenantId={TenantId}, PropertyId={PropertyId}]",
                         method, path, statusCode, errorCode ?? "AUTH_DENIED", elapsedMs, correlationId, tenantId, propertyId);
                 }
+                else if (capturePayload &&
+                         (!string.IsNullOrWhiteSpace(capturedRequestPayload) || !string.IsNullOrWhiteSpace(capturedResponsePayload)))
+                {
+                    _logger.LogInformation(
+                        "HTTP Payload {Method} {Path} responded {StatusCode} in {ElapsedMs}ms [CorrelationId={CorrelationId}]",
+                        method, path, statusCode, elapsedMs, correlationId);
+                }
             }
         }
+    }
+
+    private static bool IsJsonContentType(string? contentType)
+    {
+        return !string.IsNullOrWhiteSpace(contentType) &&
+               contentType.Contains("json", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task<string> ReadBoundedAsync(StreamReader reader, int maxChars)
+    {
+        var buffer = new char[Math.Min(maxChars, 1024)];
+        var sb = new StringBuilder();
+        while (sb.Length < maxChars)
+        {
+            var toRead = Math.Min(buffer.Length, maxChars - sb.Length);
+            var read = await reader.ReadAsync(buffer.AsMemory(0, toRead));
+            if (read <= 0)
+            {
+                break;
+            }
+            sb.Append(buffer, 0, read);
+        }
+        return sb.ToString();
     }
 
     private static string ResolveOrGenerateCorrelationId(HttpContext context)

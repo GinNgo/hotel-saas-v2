@@ -122,6 +122,7 @@ describe('SystemHealthService', () => {
         minimumLogLevel: 'Information',
         metricsExportEnabled: true,
         structuredRequestLoggingEnabled: true,
+        payloadLoggingEnabled: false,
         lokiConfigured: true,
         prometheusConfigured: true,
         grafanaConfigured: true
@@ -140,23 +141,27 @@ describe('SystemHealthService', () => {
       .updateObservabilitySettings({
         minimumLogLevel: 'Warning',
         metricsExportEnabled: false,
-        structuredRequestLoggingEnabled: true
+        structuredRequestLoggingEnabled: true,
+        payloadLoggingEnabled: true
       })
       .subscribe(updated => {
         expect(updated.minimumLogLevel).toBe('Warning');
         expect(updated.metricsExportEnabled).toBe(false);
+        expect(updated.payloadLoggingEnabled).toBe(true);
       });
     const putReq = httpMock.expectOne('/api/platform/observability/settings');
     expect(putReq.request.method).toBe('PUT');
     expect(putReq.request.body).toEqual({
       minimumLogLevel: 'Warning',
       metricsExportEnabled: false,
-      structuredRequestLoggingEnabled: true
+      structuredRequestLoggingEnabled: true,
+      payloadLoggingEnabled: true
     });
     putReq.flush({
       minimumLogLevel: 'Warning',
       metricsExportEnabled: false,
       structuredRequestLoggingEnabled: true,
+      payloadLoggingEnabled: true,
       lokiConfigured: true,
       prometheusConfigured: true,
       grafanaConfigured: true

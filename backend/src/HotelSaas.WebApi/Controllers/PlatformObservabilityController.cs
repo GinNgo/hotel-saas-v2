@@ -13,7 +13,8 @@ namespace HotelSaas.WebApi.Controllers;
 public sealed record UpdateObservabilitySettingsRequest(
     string MinimumLogLevel,
     bool MetricsExportEnabled,
-    bool StructuredRequestLoggingEnabled);
+    bool StructuredRequestLoggingEnabled,
+    bool PayloadLoggingEnabled = false);
 
 /// <summary>
 /// SuperAdmin endpoints for inspecting Grafana/Loki/Prometheus health, querying Loki logs,
@@ -63,7 +64,8 @@ public sealed class PlatformObservabilityController : ControllerBase
             request.MinimumLogLevel,
             request.MetricsExportEnabled,
             request.StructuredRequestLoggingEnabled,
-            _currentUser.UserId != Guid.Empty ? _currentUser.UserId : null);
+            _currentUser.UserId != Guid.Empty ? _currentUser.UserId : null,
+            request.PayloadLoggingEnabled);
 
         try
         {
@@ -80,13 +82,15 @@ public sealed class PlatformObservabilityController : ControllerBase
                 {
                     previous.MinimumLogLevel,
                     previous.MetricsExportEnabled,
-                    previous.StructuredRequestLoggingEnabled
+                    previous.StructuredRequestLoggingEnabled,
+                    previous.PayloadLoggingEnabled
                 }),
                 NewValues = JsonSerializer.Serialize(new
                 {
                     updated.MinimumLogLevel,
                     updated.MetricsExportEnabled,
-                    updated.StructuredRequestLoggingEnabled
+                    updated.StructuredRequestLoggingEnabled,
+                    updated.PayloadLoggingEnabled
                 }),
                 IpAddress = _currentUser.IpAddress,
                 CreatedAtUtc = DateTime.UtcNow

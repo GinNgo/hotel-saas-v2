@@ -708,7 +708,7 @@ import {
               </button>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
               <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700 space-y-1.5">
                 <label for="obs-min-level" class="block font-bold text-slate-700 dark:text-slate-200">
                   Mức log Serilog tối thiểu
@@ -754,6 +754,52 @@ import {
                   class="w-5 h-5 rounded text-indigo-600 cursor-pointer shrink-0"
                 />
               </label>
+
+              <label class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700 flex items-center justify-between gap-3 cursor-pointer">
+                <div class="space-y-1">
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="font-bold text-slate-700 dark:text-slate-200">Ghi HTTP Request/Response Payload</span>
+                    @if (formPayloadLoggingEnabled()) {
+                      <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                        ĐANG BẬT DEBUG
+                      </span>
+                    }
+                  </div>
+                  <span class="block text-[11px] text-slate-500 dark:text-slate-400">
+                    Mặc định TẮT. Chỉ bật tạm khi debug; tự che password/token/OTP (tối đa 2KB).
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  [ngModel]="formPayloadLoggingEnabled()"
+                  (ngModelChange)="formPayloadLoggingEnabled.set($event)"
+                  data-testid="obs-payload-toggle"
+                  class="w-5 h-5 rounded text-amber-600 cursor-pointer shrink-0"
+                />
+              </label>
+            </div>
+
+            <!-- Hướng dẫn nhanh 3 bước sử dụng -->
+            <div
+              data-testid="obs-usage-guide"
+              class="p-3.5 rounded-xl bg-sky-50/80 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 text-xs text-sky-950 dark:text-sky-100 space-y-1.5"
+            >
+              <div class="font-bold flex items-center gap-2 text-sky-800 dark:text-sky-300">
+                <i class="pi pi-info-circle" aria-hidden="true"></i>
+                <span>Hướng dẫn nhanh 3 bước sử dụng</span>
+              </div>
+              <ol class="list-decimal list-inside space-y-1 text-[11px] text-sky-900 dark:text-sky-200/90">
+                <li>
+                  <strong>Bước 1 — Chọn chế độ ghi log:</strong> Chọn mức log (<code>Information</code> để ghi mọi API, <code>Warning</code>/<code>Error</code> để chỉ ghi lỗi),
+                  tích <strong>Ghi HTTP Request/Response Payload</strong> nếu cần soi JSON gửi/nhận → bấm <strong>Lưu cấu hình</strong>.
+                </li>
+                <li>
+                  <strong>Bước 2 — Tái hiện thao tác cần kiểm tra:</strong> Thực hiện thao tác trên web/API (nếu báo lỗi, copy mã <code>req-...</code> trên thông báo).
+                </li>
+                <li>
+                  <strong>Bước 3 — Tra cứu &amp; tắt debug:</strong> Dán mã <code>req-...</code> hoặc lọc <code>Warning</code>/<code>Error</code> ở khung Loki bên dưới → bấm <strong>Tải log Loki</strong> → bấm <strong>Xem Request / Response Payload</strong> trên dòng log. Nhớ <strong>bỏ tích Ghi HTTP Payload</strong> và bấm <strong>Lưu cấu hình</strong> sau khi xong.
+                </li>
+              </ol>
             </div>
 
             @if (obsSaveNotice(); as notice) {
@@ -883,6 +929,27 @@ import {
                             <span class="text-rose-400">ErrorCode: <strong>{{ log.errorCode }}</strong></span>
                           }
                         </div>
+                        @if (log.requestPayload || log.responsePayload) {
+                          <details class="pt-1.5 border-t border-slate-800 text-[11px]" data-testid="loki-payload-details">
+                            <summary class="cursor-pointer font-bold text-amber-300 hover:text-amber-200 select-none">
+                              Xem Request / Response Payload
+                            </summary>
+                            <div class="mt-2 space-y-2">
+                              @if (log.requestPayload) {
+                                <div>
+                                  <div class="text-[10px] uppercase text-slate-400 font-bold mb-0.5">Request Payload</div>
+                                  <pre class="p-2 rounded-lg bg-slate-950 border border-slate-800 text-sky-200 whitespace-pre-wrap break-all">{{ log.requestPayload }}</pre>
+                                </div>
+                              }
+                              @if (log.responsePayload) {
+                                <div>
+                                  <div class="text-[10px] uppercase text-slate-400 font-bold mb-0.5">Response Payload</div>
+                                  <pre class="p-2 rounded-lg bg-slate-950 border border-slate-800 text-emerald-200 whitespace-pre-wrap break-all">{{ log.responsePayload }}</pre>
+                                </div>
+                              }
+                            </div>
+                          </details>
+                        }
                       </div>
                     }
                   </div>
@@ -961,6 +1028,7 @@ export class OpsReadinessPage implements OnInit {
   readonly formMinLogLevel = signal<string>('Information');
   readonly formMetricsEnabled = signal<boolean>(true);
   readonly formStructuredLoggingEnabled = signal<boolean>(true);
+  readonly formPayloadLoggingEnabled = signal<boolean>(false);
   readonly savingObsSettings = signal<boolean>(false);
   readonly obsSaveNotice = signal<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -1022,6 +1090,7 @@ export class OpsReadinessPage implements OnInit {
           this.formMinLogLevel.set(obs.settings.minimumLogLevel);
           this.formMetricsEnabled.set(obs.settings.metricsExportEnabled);
           this.formStructuredLoggingEnabled.set(obs.settings.structuredRequestLoggingEnabled);
+          this.formPayloadLoggingEnabled.set(Boolean(obs.settings.payloadLoggingEnabled));
         });
     }
   }
@@ -1042,7 +1111,8 @@ export class OpsReadinessPage implements OnInit {
       .updateObservabilitySettings({
         minimumLogLevel: this.formMinLogLevel(),
         metricsExportEnabled: this.formMetricsEnabled(),
-        structuredRequestLoggingEnabled: this.formStructuredLoggingEnabled()
+        structuredRequestLoggingEnabled: this.formStructuredLoggingEnabled(),
+        payloadLoggingEnabled: this.formPayloadLoggingEnabled()
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -1054,7 +1124,7 @@ export class OpsReadinessPage implements OnInit {
           }
           this.obsSaveNotice.set({
             type: 'success',
-            message: `Đã áp dụng cấu hình runtime: LogLevel=${updated.minimumLogLevel}, Metrics=${updated.metricsExportEnabled ? 'Bật' : 'Tắt'}.`
+            message: `Đã áp dụng cấu hình runtime: LogLevel=${updated.minimumLogLevel}, Metrics=${updated.metricsExportEnabled ? 'Bật' : 'Tắt'}, Payload=${updated.payloadLoggingEnabled ? 'Bật (có che nhạy cảm)' : 'Tắt'}.`
           });
         },
         error: () => {
