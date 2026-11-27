@@ -452,14 +452,16 @@ public sealed class CorrelationAndStructuredLogMiddleware
 
                 var exceptionAlreadyLogged = context.Items.TryGetValue(ExceptionHandlingMiddleware.ExceptionLoggedItemKey, out var loggedObj)
                     && loggedObj is true;
+                var observabilityControl = context.RequestServices.GetService(typeof(IObservabilityControlService)) as IObservabilityControlService;
+                var structuredLoggingEnabled = observabilityControl?.IsStructuredRequestLoggingEnabled ?? true;
 
-                if (statusCode >= 500 && !exceptionAlreadyLogged)
+                if (structuredLoggingEnabled && statusCode >= 500 && !exceptionAlreadyLogged)
                 {
                     _logger.LogError(
                         "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMs}ms [CorrelationId={CorrelationId}, TenantId={TenantId}, PropertyId={PropertyId}]",
                         method, path, statusCode, elapsedMs, correlationId, tenantId, propertyId);
                 }
-                else if (statusCode is StatusCodes.Status401Unauthorized or StatusCodes.Status403Forbidden)
+                else if (structuredLoggingEnabled && statusCode is StatusCodes.Status401Unauthorized or StatusCodes.Status403Forbidden)
                 {
                     _logger.LogWarning(
                         "Security/Isolation Gate: HTTP {Method} {Path} blocked with {StatusCode} ({ErrorCode}) in {ElapsedMs}ms [CorrelationId={CorrelationId}, TenantId={TenantId}, PropertyId={PropertyId}]",

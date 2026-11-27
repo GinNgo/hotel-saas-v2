@@ -19,7 +19,12 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { of } from 'rxjs';
 import { OpsReadinessPage } from './ops-readiness.page';
-import { SystemHealthService, SystemReadinessResult } from '../../core/services/system-health.service';
+import {
+  LokiLogQueryResultDto,
+  ObservabilityStackStatusDto,
+  SystemHealthService,
+  SystemReadinessResult
+} from '../../core/services/system-health.service';
 import { LoadingOverlayService } from '../../core/services/loading-overlay.service';
 
 try {
@@ -31,7 +36,12 @@ try {
 describe('OpsReadinessPage — Live Health & Grafana Shortcuts', () => {
   let fixture: ComponentFixture<OpsReadinessPage>;
   let component: OpsReadinessPage;
-  let mockHealthService: { checkReadiness: ReturnType<typeof vi.fn> };
+  let mockHealthService: {
+    checkReadiness: ReturnType<typeof vi.fn>;
+    getObservabilityStatus: ReturnType<typeof vi.fn>;
+    updateObservabilitySettings: ReturnType<typeof vi.fn>;
+    queryLokiLogs: ReturnType<typeof vi.fn>;
+  };
 
   const healthyResult: SystemReadinessResult = {
     status: 'ready',
@@ -41,10 +51,65 @@ describe('OpsReadinessPage — Live Health & Grafana Shortcuts', () => {
     httpStatus: 200
   };
 
+  const stackStatus: ObservabilityStackStatusDto = {
+    checkedAtUtc: '2026-11-27T08:00:00.000Z',
+    settings: {
+      minimumLogLevel: 'Information',
+      metricsExportEnabled: true,
+      structuredRequestLoggingEnabled: true,
+      lokiConfigured: true,
+      prometheusConfigured: true,
+      grafanaConfigured: true
+    },
+    services: [
+      { name: 'Loki', status: 'up', latencyMs: 4, details: 'Sẵn sàng (5 labels)' },
+      { name: 'Prometheus', status: 'up', latencyMs: 6, details: 'Scrape /metrics: UP' },
+      { name: 'Grafana', status: 'up', latencyMs: 8, details: 'DB: ok', version: '11.2.0' }
+    ],
+    prometheusScrapeHealth: 'up',
+    prometheusScrapeError: null,
+    lokiLabels: ['container', 'level', 'tenant_id']
+  };
+
+  const lokiLogs: LokiLogQueryResultDto = {
+    available: true,
+    errorMessage: null,
+    query: '{container="hotelsaas-backend-api"}',
+    windowMinutes: 60,
+    totalReturned: 1,
+    entries: [
+      {
+        timestampUtc: '2026-11-27T08:00:00.000Z',
+        level: 'Warning',
+        container: 'hotelsaas-backend-api',
+        tenantId: 'tenant-1',
+        propertyId: 'prop-1',
+        userId: 'user-1',
+        correlationId: 'corr-live-1',
+        statusCode: 403,
+        elapsedMs: 9.2,
+        errorCode: 'ERR_FORBIDDEN',
+        message: 'Security Gate denied access'
+      }
+    ]
+  };
+
   beforeEach(async () => {
     TestBed.resetTestingModule();
     mockHealthService = {
-      checkReadiness: vi.fn().mockReturnValue(of(healthyResult))
+      checkReadiness: vi.fn().mockReturnValue(of(healthyResult)),
+      getObservabilityStatus: vi.fn().mockReturnValue(of(stackStatus)),
+      updateObservabilitySettings: vi.fn().mockReturnValue(
+        of({
+          minimumLogLevel: 'Warning',
+          metricsExportEnabled: false,
+          structuredRequestLoggingEnabled: true,
+          lokiConfigured: true,
+          prometheusConfigured: true,
+          grafanaConfigured: true
+        })
+      ),
+      queryLokiLogs: vi.fn().mockReturnValue(of(lokiLogs))
     };
 
     await TestBed.configureTestingModule({
@@ -116,5 +181,54 @@ describe('OpsReadinessPage — Live Health & Grafana Shortcuts', () => {
     fixture.detectChanges();
     const tab4Html = (fixture.nativeElement as HTMLElement).innerHTML;
     expect(tab4Html).toContain('dark:bg-slate-900');
+  });
+
+  it('renders live PLG service badges, saves runtime settings, and loads Loki logs in Tab 4', () => {
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="plg-stack-status-strip"]')?.textContent).toContain('Loki');
+    expect(el.querySelector('[data-testid="prometheus-scrape-badge"]')?.textContent).toContain('UP');
+
+    component.openObservabilityTab();
+    fixture.detectChanges();
+
+    expect(mockHealthService.queryLokiLogs).toHaveBeenCalledOnce();
+    const lokiRows = el.querySelectorAll('[data-testid="loki-log-row"]');
+    expect(lokiRows.length).toBe(1);
+    expect(lokiRows[0].textContent).toContain('corr-live-1');
+
+    component.formMinLogLevel.set('Warning');
+    component.formMetricsEnabled.set(false);
+    component.saveObservabilitySettings();
+    fixture.detectChanges();
+
+    expect(mockHealthService.updateObservabilitySettings).toHaveBeenCalledWith({
+      minimumLogLevel: 'Warning',
+      metricsExportEnabled: false,
+      structuredRequestLoggingEnabled: true
+    });
+    expect(el.querySelector('[data-testid="obs-save-notice"]')?.textContent).toContain('Warning');
+  });
+
+  it('shows offline banner gracefully when Loki is unavailable', () => {
+    fixture.detectChanges();
+    mockHealthService.queryLokiLogs.mockReturnValueOnce(
+      of<LokiLogQueryResultDto>({
+        available: false,
+        errorMessage: 'Không thể kết nối tới Grafana Loki.',
+        query: '{container="hotelsaas-backend-api"}',
+        windowMinutes: 60,
+        totalReturned: 0,
+        entries: []
+      })
+    );
+
+    component.openObservabilityTab();
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="loki-offline-banner"]')?.textContent).toContain(
+      'Không thể kết nối tới Grafana Loki.'
+    );
   });
 });

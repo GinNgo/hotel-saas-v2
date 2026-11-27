@@ -16,17 +16,33 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using Serilog.Core;
 using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ── Serilog ───────────────────────────────────────────────────────────
+var initialLogLevel = Enum.TryParse<LogEventLevel>(
+    builder.Configuration["Serilog:MinimumLevel:Default"],
+    ignoreCase: true,
+    out var configuredLevel)
+    ? configuredLevel
+    : LogEventLevel.Information;
+var observabilityLevelSwitch = new LoggingLevelSwitch(initialLogLevel);
+
 builder.Host.UseSerilog((ctx, cfg) =>
-    cfg.ReadFrom.Configuration(ctx.Configuration));
+    cfg.ReadFrom.Configuration(ctx.Configuration)
+        .MinimumLevel.ControlledBy(observabilityLevelSwitch));
 
 // ── Application & Infrastructure DI ──────────────────────────────────
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddHttpClient(HotelSaas.WebApi.Services.ObservabilityControlService.HttpClientName, client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(4);
+});
+builder.Services.AddSingleton(observabilityLevelSwitch);
+builder.Services.AddSingleton<IObservabilityControlService, HotelSaas.WebApi.Services.ObservabilityControlService>();
 builder.Services.AddSingleton<ISystemMetricsRecorder, SystemMetricsRecorder>();
 
 // ── JWT Authentication ───────────────────────────────────────────────
@@ -335,7 +351,7 @@ app.MapGet("/health/ready", async (ApplicationDbContext db, CancellationToken ct
         ? Results.Ok(new { status = "ready", database = "connected", timestamp = DateTime.UtcNow })
         : Results.Json(new { status = "degraded", database = "unreachable", timestamp = DateTime.UtcNow }, statusCode: StatusCodes.Status503ServiceUnavailable);
 });
-app.MapGet("/metrics", (HttpContext httpContext, IConfiguration configuration) =>
+app.MapGet("/metrics", (HttpContext httpContext, IConfiguration configuration, IObservabilityControlService observabilityControl) =>
 {
     if (!TenantPropertyContextMiddleware.IsAuthorizedMetricsRequest(
             httpContext, configuration, out var isAuthenticatedNonSuperAdmin))
@@ -343,6 +359,17 @@ app.MapGet("/metrics", (HttpContext httpContext, IConfiguration configuration) =
         return isAuthenticatedNonSuperAdmin
             ? Results.StatusCode(StatusCodes.Status403Forbidden)
             : Results.Unauthorized();
+    }
+
+    if (!observabilityControl.IsMetricsExportEnabled)
+    {
+        return Results.Json(
+            new
+            {
+                errorCode = "ERR_METRICS_DISABLED",
+                message = "Xuất metrics Prometheus đang bị tắt bởi SuperAdmin."
+            },
+            statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 
     return Results.Text(SystemMetricsRegistry.ExportPrometheusText(), "text/plain; version=0.0.4; charset=utf-8");
