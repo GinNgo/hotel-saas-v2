@@ -6,6 +6,8 @@ using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using HotelSaas.Application.Common.Exceptions;
@@ -37,6 +39,34 @@ public sealed class ObservabilityControlService : IObservabilityControlService
     private static readonly HashSet<string> QueryableLevels =
         new(StringComparer.OrdinalIgnoreCase) { "Debug", "Information", "Warning", "Error", "Fatal" };
 
+    private static readonly string[] SensitiveKeyMarkers =
+    [
+        "password",
+        "passwd",
+        "secret",
+        "token",
+        "apikey",
+        "api_key",
+        "authorization",
+        "cookie",
+        "credential",
+        "privatekey",
+        "hash",
+        "otp",
+        "pin",
+        "cccd",
+        "idnumber",
+        "identitynumber",
+        "cardnumber",
+        "cvv",
+        "accountnumber",
+        "sepay"
+    ];
+
+    private static readonly Regex BearerTokenRegex = new(
+        @"(Bearer\s+)[A-Za-z0-9\-_\.=]+",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private readonly LoggingLevelSwitch _levelSwitch;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly string _lokiUrl;
@@ -46,6 +76,7 @@ public sealed class ObservabilityControlService : IObservabilityControlService
 
     private volatile bool _metricsExportEnabled = true;
     private volatile bool _structuredRequestLoggingEnabled = true;
+    private volatile bool _payloadLoggingEnabled = false;
     private DateTime? _updatedAtUtc;
     private Guid? _updatedByUserId;
 
@@ -67,6 +98,8 @@ public sealed class ObservabilityControlService : IObservabilityControlService
 
     public bool IsStructuredRequestLoggingEnabled => _structuredRequestLoggingEnabled;
 
+    public bool IsPayloadLoggingEnabled => _payloadLoggingEnabled;
+
     public ObservabilitySettingsDto GetSettings()
     {
         lock (_sync)
@@ -75,6 +108,7 @@ public sealed class ObservabilityControlService : IObservabilityControlService
                 MinimumLogLevel: _levelSwitch.MinimumLevel.ToString(),
                 MetricsExportEnabled: _metricsExportEnabled,
                 StructuredRequestLoggingEnabled: _structuredRequestLoggingEnabled,
+                PayloadLoggingEnabled: _payloadLoggingEnabled,
                 UpdatedAtUtc: _updatedAtUtc,
                 UpdatedByUserId: _updatedByUserId,
                 LokiConfigured: !string.IsNullOrWhiteSpace(_lokiUrl),
@@ -87,7 +121,8 @@ public sealed class ObservabilityControlService : IObservabilityControlService
         string minimumLogLevel,
         bool metricsExportEnabled,
         bool structuredRequestLoggingEnabled,
-        Guid? updatedByUserId)
+        Guid? updatedByUserId,
+        bool payloadLoggingEnabled = false)
     {
         if (string.IsNullOrWhiteSpace(minimumLogLevel) ||
             !AllowedLevels.TryGetValue(minimumLogLevel.Trim(), out var parsedLevel))
@@ -102,6 +137,7 @@ public sealed class ObservabilityControlService : IObservabilityControlService
             _levelSwitch.MinimumLevel = parsedLevel;
             _metricsExportEnabled = metricsExportEnabled;
             _structuredRequestLoggingEnabled = structuredRequestLoggingEnabled;
+            _payloadLoggingEnabled = payloadLoggingEnabled;
             _updatedAtUtc = DateTime.UtcNow;
             _updatedByUserId = updatedByUserId;
         }
@@ -197,6 +233,89 @@ public sealed class ObservabilityControlService : IObservabilityControlService
                 TotalReturned: 0,
                 Entries: Array.Empty<LokiLogEntryDto>());
         }
+    }
+
+    public static string? SanitizePayload(string? rawPayload, int maxLength = 2048)
+    {
+        if (string.IsNullOrWhiteSpace(rawPayload))
+        {
+            return null;
+        }
+
+        var trimmed = rawPayload.Trim();
+        var effectiveMax = Math.Max(64, maxLength);
+        string sanitized;
+
+        if (trimmed.StartsWith('{') || trimmed.StartsWith('['))
+        {
+            try
+            {
+                var node = JsonNode.Parse(trimmed);
+                if (node != null)
+                {
+                    RedactJsonNode(node);
+                    sanitized = node.ToJsonString();
+                    return TruncateWithSuffix(sanitized, effectiveMax);
+                }
+            }
+            catch (JsonException)
+            {
+                // Fall back to plain-text bearer redaction below
+            }
+        }
+
+        sanitized = BearerTokenRegex.Replace(trimmed, "$1***REDACTED***");
+        return TruncateWithSuffix(sanitized, effectiveMax);
+    }
+
+    private static void RedactJsonNode(JsonNode? node)
+    {
+        if (node is JsonObject obj)
+        {
+            var keys = obj.Select(kvp => kvp.Key).ToList();
+            foreach (var key in keys)
+            {
+                if (IsSensitiveKey(key))
+                {
+                    obj[key] = "***REDACTED***";
+                }
+                else
+                {
+                    RedactJsonNode(obj[key]);
+                }
+            }
+        }
+        else if (node is JsonArray arr)
+        {
+            foreach (var item in arr)
+            {
+                RedactJsonNode(item);
+            }
+        }
+    }
+
+    private static bool IsSensitiveKey(string key)
+    {
+        foreach (var marker in SensitiveKeyMarkers)
+        {
+            if (key.Contains(marker, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static string TruncateWithSuffix(string value, int maxLength)
+    {
+        const string suffix = "...[truncated]";
+        if (value.Length <= maxLength)
+        {
+            return value;
+        }
+
+        var sliceLen = Math.Max(0, maxLength - suffix.Length);
+        return string.Concat(value.AsSpan(0, sliceLen), suffix);
     }
 
     public static string BuildLokiQuery(string? level, string? search)
@@ -339,6 +458,8 @@ public sealed class ObservabilityControlService : IObservabilityControlService
                 var errorCode = ReadProp("ErrorCode");
                 var statusCode = TryReadInt(hasProps ? props : root, "StatusCode") ?? TryReadInt(root, "StatusCode");
                 var elapsedMs = TryReadDouble(hasProps ? props : root, "ElapsedMs") ?? TryReadDouble(root, "ElapsedMs");
+                var requestPayload = ReadProp("RequestPayload");
+                var responsePayload = ReadProp("ResponsePayload");
 
                 return new LokiLogEntryDto(
                     TimestampUtc: timestamp,
@@ -351,7 +472,9 @@ public sealed class ObservabilityControlService : IObservabilityControlService
                     StatusCode: statusCode,
                     ElapsedMs: elapsedMs,
                     ErrorCode: errorCode,
-                    Message: message);
+                    Message: message,
+                    RequestPayload: requestPayload,
+                    ResponsePayload: responsePayload);
             }
             catch (JsonException)
             {

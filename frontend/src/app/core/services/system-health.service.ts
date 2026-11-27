@@ -22,6 +22,7 @@ export interface ObservabilitySettingsDto {
   minimumLogLevel: string;
   metricsExportEnabled: boolean;
   structuredRequestLoggingEnabled: boolean;
+  payloadLoggingEnabled: boolean;
   updatedAtUtc?: string | null;
   updatedByUserId?: string | null;
   lokiConfigured: boolean;
@@ -33,6 +34,7 @@ export interface UpdateObservabilitySettingsRequest {
   minimumLogLevel: string;
   metricsExportEnabled: boolean;
   structuredRequestLoggingEnabled: boolean;
+  payloadLoggingEnabled: boolean;
 }
 
 export interface ObservabilityServiceStatusDto {
@@ -64,6 +66,8 @@ export interface LokiLogEntryDto {
   elapsedMs?: number | null;
   errorCode?: string | null;
   message: string;
+  requestPayload?: string | null;
+  responsePayload?: string | null;
 }
 
 export interface LokiLogQueryResultDto {

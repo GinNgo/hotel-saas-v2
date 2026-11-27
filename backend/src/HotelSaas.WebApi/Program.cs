@@ -544,5 +544,19 @@ public partial class Program
         {
             diagnosticContext.Set("ErrorCode", errorCode);
         }
+
+        if (httpContext.Items.TryGetValue(CorrelationAndStructuredLogMiddleware.RequestPayloadItemKey, out var reqPayloadObj) &&
+            reqPayloadObj is string reqPayload &&
+            !string.IsNullOrWhiteSpace(reqPayload))
+        {
+            diagnosticContext.Set("RequestPayload", reqPayload);
+        }
+
+        if (httpContext.Items.TryGetValue(CorrelationAndStructuredLogMiddleware.ResponsePayloadItemKey, out var resPayloadObj) &&
+            resPayloadObj is string resPayload &&
+            !string.IsNullOrWhiteSpace(resPayload))
+        {
+            diagnosticContext.Set("ResponsePayload", resPayload);
+        }
     }
 }

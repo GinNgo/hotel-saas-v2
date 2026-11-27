@@ -57,6 +57,7 @@ describe('OpsReadinessPage — Live Health & Grafana Shortcuts', () => {
       minimumLogLevel: 'Information',
       metricsExportEnabled: true,
       structuredRequestLoggingEnabled: true,
+      payloadLoggingEnabled: false,
       lokiConfigured: true,
       prometheusConfigured: true,
       grafanaConfigured: true
@@ -89,7 +90,9 @@ describe('OpsReadinessPage — Live Health & Grafana Shortcuts', () => {
         statusCode: 403,
         elapsedMs: 9.2,
         errorCode: 'ERR_FORBIDDEN',
-        message: 'Security Gate denied access'
+        message: 'Security Gate denied access',
+        requestPayload: '{"email":"test@luxustay.vn","password":"***REDACTED***"}',
+        responsePayload: '{"errorCode":"ERR_FORBIDDEN"}'
       }
     ]
   };
@@ -104,6 +107,7 @@ describe('OpsReadinessPage — Live Health & Grafana Shortcuts', () => {
           minimumLogLevel: 'Warning',
           metricsExportEnabled: false,
           structuredRequestLoggingEnabled: true,
+          payloadLoggingEnabled: true,
           lokiConfigured: true,
           prometheusConfigured: true,
           grafanaConfigured: true
@@ -196,18 +200,25 @@ describe('OpsReadinessPage — Live Health & Grafana Shortcuts', () => {
     const lokiRows = el.querySelectorAll('[data-testid="loki-log-row"]');
     expect(lokiRows.length).toBe(1);
     expect(lokiRows[0].textContent).toContain('corr-live-1');
+    expect(el.querySelector('[data-testid="obs-usage-guide"]')?.textContent).toContain('Hướng dẫn nhanh 3 bước');
+    const payloadDetails = el.querySelector('[data-testid="loki-payload-details"]');
+    expect(payloadDetails).not.toBeNull();
+    expect(payloadDetails?.textContent).toContain('***REDACTED***');
 
     component.formMinLogLevel.set('Warning');
     component.formMetricsEnabled.set(false);
+    component.formPayloadLoggingEnabled.set(true);
     component.saveObservabilitySettings();
     fixture.detectChanges();
 
     expect(mockHealthService.updateObservabilitySettings).toHaveBeenCalledWith({
       minimumLogLevel: 'Warning',
       metricsExportEnabled: false,
-      structuredRequestLoggingEnabled: true
+      structuredRequestLoggingEnabled: true,
+      payloadLoggingEnabled: true
     });
     expect(el.querySelector('[data-testid="obs-save-notice"]')?.textContent).toContain('Warning');
+    expect(el.querySelector('[data-testid="obs-save-notice"]')?.textContent).toContain('Payload=Bật');
   });
 
   it('shows offline banner gracefully when Loki is unavailable', () => {
