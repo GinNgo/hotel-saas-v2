@@ -230,6 +230,16 @@ if [ -n "${SMTP_PASSWORD:-}" ]; then
 fi
 echo "✔ Synced ${SYNCED_COUNT} SePay/SMTP environment variable(s) into VPS .env."
 
+EFFECTIVE_METRICS_KEY="${METRICS_API_KEY:-$(read_env_value METRICS_API_KEY .env)}"
+if [ -z "${EFFECTIVE_METRICS_KEY}" ]; then
+  EFFECTIVE_METRICS_KEY="$(openssl rand -hex 24)"
+  upsert_env_value METRICS_API_KEY "${EFFECTIVE_METRICS_KEY}" .env
+  echo "✔ Generated METRICS_API_KEY in VPS .env (len=${#EFFECTIVE_METRICS_KEY})."
+else
+  echo "✔ Existing METRICS_API_KEY preserved (len=${#EFFECTIVE_METRICS_KEY})."
+fi
+export METRICS_API_KEY="${EFFECTIVE_METRICS_KEY}"
+
 echo "[1/6] Authenticating Docker with GHCR on VPS..."
 printf '%s' "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
 
@@ -243,25 +253,37 @@ else
   IMAGE_TAG="${IMAGE_TAG}" docker compose --env-file .env -f docker-compose.staging.yml up -d --no-deps backend frontend
 fi
 
-echo "[4/6] Deploying observability stack (if GF_SECURITY_ADMIN_PASSWORD is configured)..."
+echo "[4/6] Syncing Prometheus metrics key & deploying observability stack..."
 if [ -f docker/docker-compose.observability.yml ]; then
   EFFECTIVE_GF_PASSWORD="${GF_SECURITY_ADMIN_PASSWORD:-$(read_env_value GF_SECURITY_ADMIN_PASSWORD .env)}"
   EFFECTIVE_METRICS_KEY="${METRICS_API_KEY:-$(read_env_value METRICS_API_KEY .env)}"
   METRICS_KEY_FILE="${PROMETHEUS_METRICS_KEY_FILE:-$(read_env_value PROMETHEUS_METRICS_KEY_FILE .env)}"
   METRICS_KEY_FILE="${METRICS_KEY_FILE:-/etc/hotelsaas/metrics_api_key}"
 
-  if [ -z "${EFFECTIVE_GF_PASSWORD}" ]; then
-    echo "ℹ️ Skipping observability stack deploy: GF_SECURITY_ADMIN_PASSWORD is not set in /opt/hotel-saas/.env."
-  else
-    if [ -n "${EFFECTIVE_METRICS_KEY}" ]; then
-      sync_metrics_key_file "${METRICS_KEY_FILE}" "${EFFECTIVE_METRICS_KEY}"
-      echo "✔ Synced Prometheus metrics key file: ${METRICS_KEY_FILE} (mode 644)"
-    elif [ ! -f "${METRICS_KEY_FILE}" ]; then
-      sync_metrics_key_file "${METRICS_KEY_FILE}" ""
-      echo "⚠️ METRICS_API_KEY not set in .env; initialized empty ${METRICS_KEY_FILE} so Prometheus can start."
-    fi
+  if [ -n "${EFFECTIVE_METRICS_KEY}" ]; then
+    sync_metrics_key_file "${METRICS_KEY_FILE}" "${EFFECTIVE_METRICS_KEY}"
+    echo "✔ Synced Prometheus metrics key file: ${METRICS_KEY_FILE} (mode 644)"
+  elif [ ! -f "${METRICS_KEY_FILE}" ]; then
+    sync_metrics_key_file "${METRICS_KEY_FILE}" ""
+    echo "⚠️ METRICS_API_KEY not set in .env; initialized empty ${METRICS_KEY_FILE} so Prometheus can start."
+  fi
 
-    docker compose --env-file .env -f docker/docker-compose.observability.yml up -d
+  OBSERVABILITY_NETWORK="${OBSERVABILITY_NETWORK:-$(read_env_value OBSERVABILITY_NETWORK .env)}"
+  if [ -z "${OBSERVABILITY_NETWORK}" ]; then
+    if docker network inspect treeseo-production_edge >/dev/null 2>&1; then
+      OBSERVABILITY_NETWORK="treeseo-production_edge"
+    else
+      OBSERVABILITY_NETWORK="hotelsaas-staging-network"
+    fi
+  fi
+  export OBSERVABILITY_NETWORK
+  echo "✔ Observability shared network: ${OBSERVABILITY_NETWORK}"
+
+  if [ -n "${EFFECTIVE_GF_PASSWORD}" ]; then
+    OBSERVABILITY_NETWORK="${OBSERVABILITY_NETWORK}" docker compose -p docker --env-file .env -f docker/docker-compose.observability.yml up -d
+  else
+    echo "ℹ️ GF_SECURITY_ADMIN_PASSWORD not set in .env; updating Prometheus/Loki/Promtail without recreating Grafana."
+    OBSERVABILITY_NETWORK="${OBSERVABILITY_NETWORK}" GF_SECURITY_ADMIN_PASSWORD="__unused_prometheus_only__" docker compose -p docker --env-file .env -f docker/docker-compose.observability.yml up -d --no-deps prometheus loki promtail
   fi
 fi
 

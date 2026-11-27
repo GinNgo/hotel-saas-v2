@@ -18,3 +18,7 @@ services:
       - Smtp__Username=${SMTP_USERNAME:-}
       - Smtp__Password=${SMTP_PASSWORD:-}
       - Smtp__SenderName=${SMTP_SENDER_NAME:-LuxeStay Hospitality Group}
+      - Metrics__ApiKey=${METRICS_API_KEY:-}
+      - Observability__LokiUrl=${OBSERVABILITY_LOKI_URL:-http://hotelsaas-loki:3100}
+      - Observability__PrometheusUrl=${OBSERVABILITY_PROMETHEUS_URL:-http://hotelsaas-prometheus:9090}
+      - Observability__GrafanaUrl=${OBSERVABILITY_GRAFANA_URL:-http://hotelsaas-grafana:3000}

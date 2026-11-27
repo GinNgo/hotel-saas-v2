@@ -108,4 +108,82 @@ describe('SystemHealthService', () => {
     expect(result!.httpStatus).toBe(0);
     expect(result!.errorMessage).toContain('/health/ready');
   });
+
+  it('fetches observability stack status, updates runtime settings, and queries Loki logs', () => {
+    service.getObservabilityStatus().subscribe(status => {
+      expect(status.prometheusScrapeHealth).toBe('up');
+      expect(status.services.length).toBe(3);
+    });
+    const statusReq = httpMock.expectOne('/api/platform/observability/status');
+    expect(statusReq.request.method).toBe('GET');
+    statusReq.flush({
+      checkedAtUtc: '2026-11-27T08:00:00.000Z',
+      settings: {
+        minimumLogLevel: 'Information',
+        metricsExportEnabled: true,
+        structuredRequestLoggingEnabled: true,
+        lokiConfigured: true,
+        prometheusConfigured: true,
+        grafanaConfigured: true
+      },
+      services: [
+        { name: 'Loki', status: 'up', latencyMs: 5, details: 'Sẵn sàng (5 labels)' },
+        { name: 'Prometheus', status: 'up', latencyMs: 6, details: 'Scrape /metrics: UP' },
+        { name: 'Grafana', status: 'up', latencyMs: 8, details: 'DB: ok', version: '11.2.0' }
+      ],
+      prometheusScrapeHealth: 'up',
+      prometheusScrapeError: null,
+      lokiLabels: ['container', 'level']
+    });
+
+    service
+      .updateObservabilitySettings({
+        minimumLogLevel: 'Warning',
+        metricsExportEnabled: false,
+        structuredRequestLoggingEnabled: true
+      })
+      .subscribe(updated => {
+        expect(updated.minimumLogLevel).toBe('Warning');
+        expect(updated.metricsExportEnabled).toBe(false);
+      });
+    const putReq = httpMock.expectOne('/api/platform/observability/settings');
+    expect(putReq.request.method).toBe('PUT');
+    expect(putReq.request.body).toEqual({
+      minimumLogLevel: 'Warning',
+      metricsExportEnabled: false,
+      structuredRequestLoggingEnabled: true
+    });
+    putReq.flush({
+      minimumLogLevel: 'Warning',
+      metricsExportEnabled: false,
+      structuredRequestLoggingEnabled: true,
+      lokiConfigured: true,
+      prometheusConfigured: true,
+      grafanaConfigured: true
+    });
+
+    service
+      .queryLokiLogs({ level: 'Warning', search: 'corr-1', minutes: 60, limit: 50 })
+      .subscribe(res => {
+        expect(res.available).toBe(true);
+        expect(res.totalReturned).toBe(1);
+      });
+    const logsReq = httpMock.expectOne(
+      r =>
+        r.url === '/api/platform/observability/logs' &&
+        r.params.get('level') === 'Warning' &&
+        r.params.get('search') === 'corr-1' &&
+        r.params.get('minutes') === '60' &&
+        r.params.get('limit') === '50'
+    );
+    expect(logsReq.request.method).toBe('GET');
+    logsReq.flush({
+      available: true,
+      errorMessage: null,
+      query: '{container="hotelsaas-backend-api",level="Warning"} |= "corr-1"',
+      windowMinutes: 60,
+      totalReturned: 1,
+      entries: []
+    });
+  });
 });

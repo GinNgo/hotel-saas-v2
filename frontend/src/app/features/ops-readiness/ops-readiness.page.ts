@@ -2,10 +2,16 @@ import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, injec
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { catchError, of } from 'rxjs';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header';
 import { BusinessDateTimePipe } from '../../shared/pipes/business-date.pipe';
 import { LoadingOverlayService } from '../../core/services/loading-overlay.service';
-import { SystemHealthService, SystemReadinessResult } from '../../core/services/system-health.service';
+import {
+  LokiLogQueryResultDto,
+  ObservabilityStackStatusDto,
+  SystemHealthService,
+  SystemReadinessResult
+} from '../../core/services/system-health.service';
 import {
   IsolationTestResult,
   LoadTestMetricsSummary,
@@ -191,6 +197,59 @@ import {
             <span>{{ liveHealth()!.errorMessage }}</span>
           </div>
         }
+
+        @if (obsStackStatus(); as obs) {
+          <div class="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2" data-testid="plg-stack-status-strip">
+            <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span class="font-bold text-slate-700 dark:text-slate-200">
+                Hạ tầng Giám sát PLG (Prometheus · Loki · Grafana)
+              </span>
+              @if (obs.prometheusScrapeHealth) {
+                <span
+                  class="px-2.5 py-0.5 rounded-full text-[11px] font-bold border"
+                  [ngClass]="
+                    obs.prometheusScrapeHealth === 'up'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                      : 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                  "
+                  data-testid="prometheus-scrape-badge"
+                >
+                  Scrape /metrics: {{ obs.prometheusScrapeHealth | uppercase }}
+                </span>
+              }
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              @for (svc of obs.services; track svc.name) {
+                <div
+                  class="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between gap-2 text-xs"
+                  [attr.data-testid]="'plg-service-' + svc.name.toLowerCase()"
+                >
+                  <div class="min-w-0">
+                    <div class="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                      <span>{{ svc.name }}</span>
+                      @if (svc.version) {
+                        <span class="text-[10px] font-mono text-slate-500 dark:text-slate-400">v{{ svc.version }}</span>
+                      }
+                    </div>
+                    <div class="text-[11px] text-slate-500 dark:text-slate-400 truncate">{{ svc.details }}</div>
+                  </div>
+                  <span
+                    class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shrink-0"
+                    [ngClass]="
+                      svc.status === 'up'
+                        ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300'
+                        : svc.status === 'unconfigured'
+                          ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
+                          : 'bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300'
+                    "
+                  >
+                    {{ svc.status }}
+                  </span>
+                </div>
+              }
+            </div>
+          </div>
+        }
       </section>
 
       <!-- SECTION DIVIDER: SANDBOX SIMULATION -->
@@ -329,8 +388,9 @@ import {
 
         <button
           type="button"
-          (click)="activeTab.set('OBSERVABILITY')"
+          (click)="openObservabilityTab()"
           [attr.aria-pressed]="activeTab() === 'OBSERVABILITY'"
+          data-testid="tab-observability-btn"
           class="min-h-11 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
           [ngClass]="
             activeTab() === 'OBSERVABILITY'
@@ -621,14 +681,104 @@ import {
         </div>
       }
 
-      <!-- TAB 4: STRUCTURED LOGGING & CENTRALIZED MONITORING -->
+      <!-- TAB 4: RUNTIME OBSERVABILITY CONTROLS & LIVE LOKI EXPLORER -->
       @if (activeTab() === 'OBSERVABILITY') {
         <div class="space-y-4">
-          <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-5 shadow-2xs space-y-4">
+          <!-- PANEL 1: CMS RUNTIME CONTROL -->
+          <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-5 shadow-2xs space-y-4" data-testid="obs-runtime-control-panel">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">
+                  Cấu hình Giám sát &amp; Ghi Log Động (CMS Runtime Control)
+                </h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Điều chỉnh mức log Serilog và bật/tắt xuất <code class="font-mono text-indigo-700 dark:text-indigo-400">/metrics</code> ngay lập tức không cần khởi động lại API.
+                  Container Grafana/Loki chạy cô lập trên mạng Docker để bảo vệ an toàn <code class="font-mono">docker.sock</code>.
+                </p>
+              </div>
+              <button
+                type="button"
+                (click)="saveObservabilitySettings()"
+                [disabled]="savingObsSettings()"
+                data-testid="save-obs-settings-btn"
+                class="min-h-11 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <i class="pi" [ngClass]="savingObsSettings() ? 'pi-spin pi-spinner' : 'pi-save'" aria-hidden="true"></i>
+                <span>{{ savingObsSettings() ? 'Đang lưu...' : 'Lưu cấu hình' }}</span>
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700 space-y-1.5">
+                <label for="obs-min-level" class="block font-bold text-slate-700 dark:text-slate-200">
+                  Mức log Serilog tối thiểu
+                </label>
+                <select
+                  id="obs-min-level"
+                  [ngModel]="formMinLogLevel()"
+                  (ngModelChange)="formMinLogLevel.set($event)"
+                  data-testid="obs-log-level-select"
+                  class="w-full min-h-11 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+                >
+                  <option value="Debug">Debug (Chi tiết debug)</option>
+                  <option value="Information">Information (Tiêu chuẩn)</option>
+                  <option value="Warning">Warning (Chỉ cảnh báo &amp; lỗi)</option>
+                  <option value="Error">Error (Chỉ lỗi nghiêm trọng)</option>
+                </select>
+              </div>
+
+              <label class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700 flex items-center justify-between gap-3 cursor-pointer">
+                <div>
+                  <span class="block font-bold text-slate-700 dark:text-slate-200">Xuất Prometheus /metrics</span>
+                  <span class="text-[11px] text-slate-500 dark:text-slate-400">Cho phép Prometheus thu thập counter hệ thống</span>
+                </div>
+                <input
+                  type="checkbox"
+                  [ngModel]="formMetricsEnabled()"
+                  (ngModelChange)="formMetricsEnabled.set($event)"
+                  data-testid="obs-metrics-toggle"
+                  class="w-5 h-5 rounded text-indigo-600 cursor-pointer shrink-0"
+                />
+              </label>
+
+              <label class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700 flex items-center justify-between gap-3 cursor-pointer">
+                <div>
+                  <span class="block font-bold text-slate-700 dark:text-slate-200">Ghi log Security/5xx Middleware</span>
+                  <span class="text-[11px] text-slate-500 dark:text-slate-400">Ghi chi tiết 401/403/5xx kèm CorrelationId</span>
+                </div>
+                <input
+                  type="checkbox"
+                  [ngModel]="formStructuredLoggingEnabled()"
+                  (ngModelChange)="formStructuredLoggingEnabled.set($event)"
+                  data-testid="obs-structured-toggle"
+                  class="w-5 h-5 rounded text-indigo-600 cursor-pointer shrink-0"
+                />
+              </label>
+            </div>
+
+            @if (obsSaveNotice(); as notice) {
+              <div
+                role="status"
+                data-testid="obs-save-notice"
+                class="px-3.5 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 border"
+                [ngClass]="
+                  notice.type === 'success'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800'
+                    : 'bg-rose-50 dark:bg-rose-950/50 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800'
+                "
+              >
+                <i class="pi" [ngClass]="notice.type === 'success' ? 'pi-check-circle' : 'pi-exclamation-triangle'" aria-hidden="true"></i>
+                <span>{{ notice.message }}</span>
+              </div>
+            }
+          </div>
+
+          <!-- PANEL 2: LIVE LOKI EXPLORER -->
+          <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-5 shadow-2xs space-y-4" data-testid="loki-explorer-panel">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">
-                  Dòng sự kiện Structured JSON Logs (Serilog + CorrelationId + Tenant/Property Context)
+                  Tra cứu Log thật từ Grafana Loki (Live Structured JSON Logs)
                 </h3>
                 <p class="text-xs text-slate-500 dark:text-slate-400">
                   Middleware: <code class="font-mono text-indigo-700 dark:text-indigo-400">CorrelationAndStructuredLogMiddleware.cs</code> →
@@ -636,53 +786,162 @@ import {
                 </p>
               </div>
 
-              <div class="flex items-center gap-2">
+              <div class="flex flex-wrap items-center gap-2">
                 <select
                   [ngModel]="selectedLogLevel()"
                   (ngModelChange)="selectedLogLevel.set($event)"
                   aria-label="Lọc theo cấp độ Log"
+                  data-testid="loki-level-filter"
                   class="min-h-11 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
                 >
-                  <option value="ALL">Tất cả mức độ (All Levels)</option>
+                  <option value="ALL">Tất cả mức độ</option>
+                  <option value="Debug">Debug</option>
                   <option value="Information">Information</option>
                   <option value="Warning">Warning (Security / Replay)</option>
                   <option value="Error">Error (Isolation Block / 5xx)</option>
                 </select>
+
+                <select
+                  [ngModel]="lokiWindowMinutes()"
+                  (ngModelChange)="lokiWindowMinutes.set(+$event)"
+                  aria-label="Khoảng thời gian tra cứu Loki"
+                  data-testid="loki-window-select"
+                  class="min-h-11 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+                >
+                  <option [ngValue]="15">15 phút gần đây</option>
+                  <option [ngValue]="60">1 giờ gần đây</option>
+                  <option [ngValue]="360">6 giờ gần đây</option>
+                  <option [ngValue]="1440">24 giờ gần đây</option>
+                </select>
+
+                <input
+                  type="text"
+                  [ngModel]="lokiSearchTerm()"
+                  (ngModelChange)="lokiSearchTerm.set($event)"
+                  (keyup.enter)="loadLokiLogs()"
+                  placeholder="Tìm CorrelationId / TenantId / từ khóa..."
+                  aria-label="Từ khóa tìm kiếm log Loki"
+                  data-testid="loki-search-input"
+                  class="min-h-11 px-3 py-2 rounded-xl text-xs border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 w-56"
+                />
+
+                <button
+                  type="button"
+                  (click)="loadLokiLogs()"
+                  [disabled]="loadingLokiLogs()"
+                  data-testid="refresh-loki-logs-btn"
+                  class="min-h-11 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-white cursor-pointer disabled:opacity-50"
+                >
+                  <i class="pi pi-refresh" [class.pi-spin]="loadingLokiLogs()" aria-hidden="true"></i>
+                  <span>Tải log Loki</span>
+                </button>
               </div>
             </div>
 
-            <div class="space-y-2.5">
-              @for (log of filteredLogs(); track log.correlationId) {
-                <div class="p-3.5 rounded-xl bg-slate-900 dark:bg-slate-950 border border-slate-800 text-slate-100 font-mono text-[11px] space-y-1.5">
-                  <div class="flex flex-wrap items-center justify-between gap-2">
-                    <div class="flex items-center gap-2">
-                      <span
-                        class="px-2 py-0.5 rounded text-[10px] font-bold uppercase"
-                        [ngClass]="{
-                          'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40': log.level === 'Information',
-                          'bg-amber-500/20 text-amber-300 border border-amber-500/40': log.level === 'Warning',
-                          'bg-rose-500/20 text-rose-300 border border-rose-500/40': log.level === 'Error'
-                        }"
-                      >
-                        {{ log.level }}
-                      </span>
-                      <span class="text-slate-400 tabular-nums">{{ log.timestamp }}</span>
-                      <span class="text-sky-300">CorrelationId={{ log.correlationId }}</span>
-                    </div>
-                    <span class="text-emerald-300 tabular-nums">{{ log.statusCode }} ({{ log.elapsedMs }}ms)</span>
+            @if (lokiResult(); as loki) {
+              @if (loki.available) {
+                <div class="text-[11px] font-mono text-slate-500 dark:text-slate-400 flex flex-wrap items-center justify-between gap-2">
+                  <span>LogQL: <code class="text-slate-700 dark:text-slate-200">{{ loki.query }}</code></span>
+                  <span class="tabular-nums">{{ loki.totalReturned }} dòng log ({{ loki.windowMinutes }} phút)</span>
+                </div>
+
+                @if (loki.entries.length === 0) {
+                  <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300">
+                    Không có dòng log nào khớp bộ lọc trong {{ loki.windowMinutes }} phút gần đây.
                   </div>
-                  <div class="text-slate-200">{{ log.renderedMessage }}</div>
-                  <div class="text-[10px] text-slate-400 flex flex-wrap gap-3 pt-1 border-t border-slate-800">
-                    <span>TenantId: <strong class="text-slate-200">{{ log.tenantId }}</strong></span>
-                    <span>PropertyId: <strong class="text-slate-200">{{ log.propertyId }}</strong></span>
-                    <span>UserId: <strong class="text-slate-200">{{ log.userId }}</strong></span>
-                    @if (log.errorCode) {
-                      <span class="text-rose-400">ErrorCode: <strong>{{ log.errorCode }}</strong></span>
+                } @else {
+                  <div class="space-y-2.5">
+                    @for (log of loki.entries; track $index) {
+                      <div class="p-3.5 rounded-xl bg-slate-900 dark:bg-slate-950 border border-slate-800 text-slate-100 font-mono text-[11px] space-y-1.5" data-testid="loki-log-row">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                          <div class="flex items-center gap-2">
+                            <span
+                              class="px-2 py-0.5 rounded text-[10px] font-bold uppercase"
+                              [ngClass]="{
+                                'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40': log.level === 'Information' || log.level === 'Debug',
+                                'bg-amber-500/20 text-amber-300 border border-amber-500/40': log.level === 'Warning',
+                                'bg-rose-500/20 text-rose-300 border border-rose-500/40': log.level === 'Error' || log.level === 'Fatal'
+                              }"
+                            >
+                              {{ log.level }}
+                            </span>
+                            <span class="text-slate-400 tabular-nums">{{ log.timestampUtc | businessDateTime }}</span>
+                            <span class="text-sky-300">CorrelationId={{ log.correlationId }}</span>
+                          </div>
+                          @if (log.statusCode != null) {
+                            <span class="text-emerald-300 tabular-nums">
+                              {{ log.statusCode }}{{ log.elapsedMs != null ? ' (' + log.elapsedMs + 'ms)' : '' }}
+                            </span>
+                          }
+                        </div>
+                        <div class="text-slate-200 break-words">{{ log.message }}</div>
+                        <div class="text-[10px] text-slate-400 flex flex-wrap gap-3 pt-1 border-t border-slate-800">
+                          <span>TenantId: <strong class="text-slate-200">{{ log.tenantId }}</strong></span>
+                          <span>PropertyId: <strong class="text-slate-200">{{ log.propertyId }}</strong></span>
+                          <span>UserId: <strong class="text-slate-200">{{ log.userId }}</strong></span>
+                          @if (log.errorCode) {
+                            <span class="text-rose-400">ErrorCode: <strong>{{ log.errorCode }}</strong></span>
+                          }
+                        </div>
+                      </div>
                     }
                   </div>
+                }
+              } @else {
+                <div
+                  role="status"
+                  data-testid="loki-offline-banner"
+                  class="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex flex-wrap items-center justify-between gap-3"
+                >
+                  <div class="space-y-0.5">
+                    <div class="font-bold">{{ loki.errorMessage || 'Loki hiện không khả dụng.' }}</div>
+                    <div class="text-[11px] opacity-90">Bạn vẫn có thể bật xem dữ liệu log mẫu Sandbox bên dưới để kiểm tra định dạng.</div>
+                  </div>
+                  <button
+                    type="button"
+                    (click)="showSandboxLogsFallback.set(!showSandboxLogsFallback())"
+                    class="min-h-11 px-3 py-1.5 rounded-xl bg-amber-200/80 dark:bg-amber-900/70 font-bold cursor-pointer"
+                  >
+                    {{ showSandboxLogsFallback() ? 'Ẩn log mẫu' : 'Xem log mẫu Sandbox' }}
+                  </button>
                 </div>
               }
-            </div>
+            }
+
+            @if ((!lokiResult() || (!lokiResult()!.available && showSandboxLogsFallback()))) {
+              <div class="space-y-2.5">
+                @for (log of filteredLogs(); track log.correlationId) {
+                  <div class="p-3.5 rounded-xl bg-slate-900 dark:bg-slate-950 border border-slate-800 text-slate-100 font-mono text-[11px] space-y-1.5">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <div class="flex items-center gap-2">
+                        <span
+                          class="px-2 py-0.5 rounded text-[10px] font-bold uppercase"
+                          [ngClass]="{
+                            'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40': log.level === 'Information',
+                            'bg-amber-500/20 text-amber-300 border border-amber-500/40': log.level === 'Warning',
+                            'bg-rose-500/20 text-rose-300 border border-rose-500/40': log.level === 'Error'
+                          }"
+                        >
+                          {{ log.level }}
+                        </span>
+                        <span class="text-slate-400 tabular-nums">{{ log.timestamp }}</span>
+                        <span class="text-sky-300">CorrelationId={{ log.correlationId }}</span>
+                      </div>
+                      <span class="text-emerald-300 tabular-nums">{{ log.statusCode }} ({{ log.elapsedMs }}ms)</span>
+                    </div>
+                    <div class="text-slate-200">{{ log.renderedMessage }}</div>
+                    <div class="text-[10px] text-slate-400 flex flex-wrap gap-3 pt-1 border-t border-slate-800">
+                      <span>TenantId: <strong class="text-slate-200">{{ log.tenantId }}</strong></span>
+                      <span>PropertyId: <strong class="text-slate-200">{{ log.propertyId }}</strong></span>
+                      <span>UserId: <strong class="text-slate-200">{{ log.userId }}</strong></span>
+                      @if (log.errorCode) {
+                        <span class="text-rose-400">ErrorCode: <strong>{{ log.errorCode }}</strong></span>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            }
           </div>
         </div>
       }
@@ -698,11 +957,24 @@ export class OpsReadinessPage implements OnInit {
   readonly liveHealth = signal<SystemReadinessResult | null>(null);
   readonly checkingHealth = signal<boolean>(false);
 
+  readonly obsStackStatus = signal<ObservabilityStackStatusDto | null>(null);
+  readonly formMinLogLevel = signal<string>('Information');
+  readonly formMetricsEnabled = signal<boolean>(true);
+  readonly formStructuredLoggingEnabled = signal<boolean>(true);
+  readonly savingObsSettings = signal<boolean>(false);
+  readonly obsSaveNotice = signal<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  readonly lokiResult = signal<LokiLogQueryResultDto | null>(null);
+  readonly loadingLokiLogs = signal<boolean>(false);
+  readonly lokiWindowMinutes = signal<number>(60);
+  readonly lokiSearchTerm = signal<string>('');
+  readonly showSandboxLogsFallback = signal<boolean>(false);
+
   readonly activeTab = signal<'ISOLATION' | 'LOAD_TEST' | 'CICD_IAC' | 'OBSERVABILITY'>('ISOLATION');
   readonly runningSuite = signal(false);
   readonly isolationResults = signal<IsolationTestResult[]>(runAllIsolationAssertions());
   readonly activeLoadProfile = signal<'SMOKE_50VU' | 'LOAD_150VU' | 'STRESS_500VU'>('LOAD_150VU');
-  readonly selectedLogLevel = signal<'ALL' | 'Information' | 'Warning' | 'Error'>('ALL');
+  readonly selectedLogLevel = signal<'ALL' | 'Debug' | 'Information' | 'Warning' | 'Error'>('ALL');
   readonly structuredLogs = signal<StructuredLogEntry[]>(generateStructuredLogEntries());
 
   readonly loadProfiles: Array<{ id: 'SMOKE_50VU' | 'LOAD_150VU' | 'STRESS_500VU'; label: string }> = [
@@ -735,6 +1007,95 @@ export class OpsReadinessPage implements OnInit {
       .subscribe(result => {
         this.liveHealth.set(result);
         this.checkingHealth.set(false);
+      });
+
+    if (typeof this.systemHealth.getObservabilityStatus === 'function') {
+      this.systemHealth
+        .getObservabilityStatus()
+        .pipe(
+          catchError(() => of(null)),
+          takeUntilDestroyed(this.destroyRef)
+        )
+        .subscribe(obs => {
+          if (!obs) return;
+          this.obsStackStatus.set(obs);
+          this.formMinLogLevel.set(obs.settings.minimumLogLevel);
+          this.formMetricsEnabled.set(obs.settings.metricsExportEnabled);
+          this.formStructuredLoggingEnabled.set(obs.settings.structuredRequestLoggingEnabled);
+        });
+    }
+  }
+
+  openObservabilityTab(): void {
+    this.activeTab.set('OBSERVABILITY');
+    this.loadLokiLogs();
+  }
+
+  saveObservabilitySettings(): void {
+    if (typeof this.systemHealth.updateObservabilitySettings !== 'function') {
+      return;
+    }
+
+    this.savingObsSettings.set(true);
+    this.obsSaveNotice.set(null);
+    this.systemHealth
+      .updateObservabilitySettings({
+        minimumLogLevel: this.formMinLogLevel(),
+        metricsExportEnabled: this.formMetricsEnabled(),
+        structuredRequestLoggingEnabled: this.formStructuredLoggingEnabled()
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: updated => {
+          this.savingObsSettings.set(false);
+          const current = this.obsStackStatus();
+          if (current) {
+            this.obsStackStatus.set({ ...current, settings: updated });
+          }
+          this.obsSaveNotice.set({
+            type: 'success',
+            message: `Đã áp dụng cấu hình runtime: LogLevel=${updated.minimumLogLevel}, Metrics=${updated.metricsExportEnabled ? 'Bật' : 'Tắt'}.`
+          });
+        },
+        error: () => {
+          this.savingObsSettings.set(false);
+          this.obsSaveNotice.set({
+            type: 'error',
+            message: 'Không thể cập nhật cấu hình giám sát. Vui lòng thử lại.'
+          });
+        }
+      });
+  }
+
+  loadLokiLogs(): void {
+    if (typeof this.systemHealth.queryLokiLogs !== 'function') {
+      return;
+    }
+
+    this.loadingLokiLogs.set(true);
+    this.systemHealth
+      .queryLokiLogs({
+        level: this.selectedLogLevel(),
+        search: this.lokiSearchTerm(),
+        minutes: this.lokiWindowMinutes(),
+        limit: 50
+      })
+      .pipe(
+        catchError(() =>
+          of<LokiLogQueryResultDto>({
+            available: false,
+            errorMessage: 'Không thể kết nối tới API tra cứu log Loki.',
+            query: '{container="hotelsaas-backend-api"}',
+            windowMinutes: this.lokiWindowMinutes(),
+            totalReturned: 0,
+            entries: []
+          })
+        ),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(result => {
+        this.lokiResult.set(result);
+        this.loadingLokiLogs.set(false);
       });
   }
 
