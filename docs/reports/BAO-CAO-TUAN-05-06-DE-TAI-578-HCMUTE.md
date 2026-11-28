@@ -22,7 +22,7 @@
 
 ### 1.1. Ngô Võ Tuấn An – Xác thực và triển khai
 
-- **Xác thực:** Tích hợp Firebase Phone OTP (Firebase Web SDK `^13.2.0`), Google OAuth và số điện thoại sandbox để kiểm thử. Bổ sung migration xác minh tài khoản nhân viên phục vụ kiểm thử.
+- **Xác thực:** Tích hợp Firebase Phone OTP (Firebase Web SDK `^13.2.0`), Google OAuth và số điện thoại sandbox. Bổ sung migration xác minh tài khoản nhân viên dùng trong quá trình kiểm thử.
 - **Triển khai:** Cấu hình GitHub Actions và GHCR để tự động triển khai hệ thống lên VPS.
 - **Minh chứng:** [PR #22](https://github.com/GinNgo/hotel-saas-v2/pull/22).
 
@@ -61,13 +61,15 @@ Em cũng bổ sung ba sự kiện SignalR theo phạm vi doanh nghiệp và chi 
 
 ### 2.3. Trần Trọng Tân – Kiểm thử bảo mật và Bruno
 
-Trong tuần 06, em tập trung kiểm tra khả năng cách ly dữ liệu giữa các chi nhánh. Bộ `CrossBranchSecurityE2ETests.cs` kiểm tra các trường hợp giả mạo ngữ cảnh chi nhánh, truy cập đặt phòng, thanh toán, báo cáo và truy cập chéo doanh nghiệp bằng HTTP, JWT và PostgreSQL thật, đạt 7/7 bài kiểm thử.
+Trong tuần 06, em tập trung kiểm tra khả năng cách ly dữ liệu giữa các chi nhánh. Bộ `CrossBranchSecurityE2ETests.cs` kiểm tra các trường hợp giả mạo ngữ cảnh chi nhánh, truy cập đặt phòng, thanh toán, báo cáo và truy cập chéo doanh nghiệp bằng HTTP, JWT và PostgreSQL thật. Kết quả sau tích hợp được nhóm ghi nhận là 7/7 bài kiểm thử đạt.
 
 Em bổ sung cấu hình Bruno Staging, không sử dụng token mock và thay các ngày cố định bằng ngày tính tự động. Nhóm cũng xử lý lỗi fixture hoàn tiền liên quan đến mốc 22:00 giờ Việt Nam tại [PR #26](https://github.com/GinNgo/hotel-saas-v2/pull/26).
 
 ---
 
 ## 3. Kết quả kiểm thử và triển khai
+
+Kết quả dưới đây được tổng hợp từ báo cáo và minh chứng CI/CD của nhóm.
 
 | Hạng mục | Tuần 05 | Tuần 06 |
 | :--- | :--- | :--- |
@@ -91,32 +93,32 @@ Kết quả này chỉ phản ánh mức smoke trên Local, chưa xác nhận kh
 
 ### 3.2. Triển khai và bảo mật
 
-Sau khi triển khai trên [luxustay.duckdns.org](https://luxustay.duckdns.org), các endpoint kiểm tra tình trạng hệ thống (`/health`, `/health/ready`) và `/grafana/api/health` trả HTTP 200; API `/metrics` và `/swagger` của backend bị chặn từ bên ngoài qua Caddy.
+Theo kết quả kiểm tra của nhóm sau khi triển khai trên [luxustay.duckdns.org](https://luxustay.duckdns.org), các endpoint kiểm tra tình trạng hệ thống (`/health`, `/health/ready`) và `/grafana/api/health` trả HTTP 200; API `/metrics` và `/swagger` của backend bị chặn từ bên ngoài qua Caddy.
 
-Các workflow CI/CD của Tuần 06 ([CI PR #26](https://github.com/GinNgo/hotel-saas-v2/actions/runs/44152640902), [CI PR #27](https://github.com/GinNgo/hotel-saas-v2/actions/runs/44169213642), [CI PR #28](https://github.com/GinNgo/hotel-saas-v2/actions/runs/44186522037)) đều hoàn thành thành công các bước build và kiểm thử Backend, Frontend. Nhóm sẽ tiếp tục rà soát các cảnh báo bảo mật chuyên sâu trong tuần tiếp theo.
+Các workflow CI/CD của Tuần 06 ([CI PR #26](https://github.com/GinNgo/hotel-saas-v2/actions/runs/44152640902), [CI PR #27](https://github.com/GinNgo/hotel-saas-v2/actions/runs/44169213642), [CI PR #28](https://github.com/GinNgo/hotel-saas-v2/actions/runs/44186522037)) đều hoàn thành các bước build và kiểm thử Backend, Frontend. Nhóm sẽ tiếp tục rà soát Security Scan trong tuần tiếp theo.
 
 ---
 
 ## 4. Khai báo sử dụng AI
 
-Chi tiết đầy đủ theo từng ô biểu mẫu xem thêm tại [KHAI-BAO-AI-TUAN-05-06-DE-TAI-578.md](https://github.com/GinNgo/hotel-saas-v2/blob/develop/docs/reports/KHAI-BAO-AI-TUAN-05-06-DE-TAI-578.md).
+Chi tiết khai báo theo biểu mẫu: [KHAI-BAO-AI-TUAN-05-06-DE-TAI-578.md](https://github.com/GinNgo/hotel-saas-v2/blob/develop/docs/reports/KHAI-BAO-AI-TUAN-05-06-DE-TAI-578.md).
 
 ### 4.1. Ngô Võ Tuấn An (24TX810001)
 
-- **Công cụ AI:** Google Antigravity IDE (Gemini 3.8 Flash ở Tuần 05; Gemini trong Google Antigravity IDE ở Tuần 06).
+- **Công cụ AI:** Google Antigravity IDE (Gemini 3.8 Flash).
 - **Nội dung prompt:** Tích hợp Firebase OTP, Google OAuth, CI/CD; thiết lập hệ thống giám sát PLG, ghi nhận metric và bảo mật xác thực.
 - **Sai sót:** AI sử dụng SMS thật gây cạn quota, cấu hình trùng Caddy, tạo phụ thuộc sai giữa các tầng và cho phép frontend bật mock mode trên môi trường thật.
 - **Phần chỉnh sửa:** Bổ sung sandbox OTP và migration cho tài khoản kiểm thử, chuyển build Docker lên GitHub Actions/GHCR, điều chỉnh mạng Docker và giới hạn truy cập Grafana. Tách interface ghi metric, bổ sung guard chặn mock mode và kiểm thử.
 
 ### 4.2. Nguyễn Khôi Nguyên (24TX810011)
 
-- **Công cụ AI:** OpenAI Codex (GPT-6 Astra) và Google Antigravity IDE.
+- **Công cụ AI:** OpenAI Codex (GPT-6 Astra).
 - **Nội dung prompt:** Tạo QR cho PDF, bổ sung bộ lọc báo cáo, xây dựng kịch bản k6 và kiểm tra phân quyền báo cáo.
 - **Sai sót và phần chỉnh sửa:** AI đề xuất dịch vụ tạo QR bên ngoài nên em chuyển sang QRCoder in-memory. Kịch bản k6 ban đầu thiếu ramp-up, dùng JWT giả và chưa warm-up; em chia lại ba mức tải, sử dụng tenant kiểm thử thật, kết nối database Local và che token. Em cũng bổ sung kiểm tra quyền và bỏ các số liệu báo cáo giả.
 
 ### 4.3. Trần Trọng Tân (24TX810025)
 
-**Công cụ AI:** Google Antigravity IDE (Gemini 3.8 Flash) và OpenAI Codex (GPT-6 Astra).
+**Công cụ AI:** Google Antigravity IDE (Gemini 4 Neon) và OpenAI Codex (GPT-6 Astra).
 
 **Nội dung prompt:** Xây dựng quy trình D23, thông báo SignalR, tác vụ xử lý đơn hết hạn, kiểm thử E2E chéo chi nhánh và Bruno Staging.
 
