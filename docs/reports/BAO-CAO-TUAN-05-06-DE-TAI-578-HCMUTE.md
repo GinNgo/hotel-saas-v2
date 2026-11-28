@@ -4,7 +4,7 @@
 # BÁO CÁO TIẾN ĐỘ TUẦN 05 – TUẦN 06 VÀ KHAI BÁO SỬ DỤNG AI
 
 **Đề tài 578:** Nền tảng Quản lý Khách sạn Đa chi nhánh theo Mô hình SaaS (Hotel SaaS Platform v2)  
-**GVHD:** ThS. Huỳnh Xuân Phụng (phunghx@hcmute.edu.vn)  
+**GVHD:** Huỳnh Xuân Phụng (phunghx@hcmute.edu.vn)  
 **Thời gian báo cáo:** 02/11/2026 – 18/11/2026  
 **Kho mã nguồn:** [GinNgo/hotel-saas-v2](https://github.com/GinNgo/hotel-saas-v2)  
 **Môi trường thử nghiệm:** [luxustay.duckdns.org](https://luxustay.duckdns.org)  
