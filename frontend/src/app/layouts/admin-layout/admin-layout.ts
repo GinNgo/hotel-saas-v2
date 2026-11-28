@@ -121,9 +121,9 @@ import { UserMembershipDto } from '../../core/models/auth.model';
         <!-- Navigation Menu -->
         <nav aria-label="Menu quản trị" class="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
           @if (!isSuperAdmin()) {
-            <!-- Active Modules Group (Tenant PMS) -->
+            <!-- Nhóm 1: Vận hành hằng ngày (Tenant PMS) -->
             <div class="space-y-1">
-              <div class="px-3 pb-2 text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Nghiệp vụ hoạt động</div>
+              <div class="px-3 pb-1.5 text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Vận hành hằng ngày</div>
 
               <a
                 routerLink="/dashboard"
@@ -136,16 +136,15 @@ import { UserMembershipDto } from '../../core/models/auth.model';
                 <span>Tổng quan</span>
               </a>
 
-              @if (hasPropertiesPermission()) {
+              @if (hasReservationsPermission()) {
                 <a
-                  routerLink="/properties"
+                  routerLink="/reservations"
                   routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
                   (click)="onNavItemClick()"
                   class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
                 >
-                  <i class="pi pi-building text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
-                  <span>Cơ sở & Chi nhánh</span>
-                  <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">HQ</span>
+                  <i class="pi pi-calendar text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
+                  <span>Đặt phòng</span>
                 </a>
               }
 
@@ -161,18 +160,6 @@ import { UserMembershipDto } from '../../core/models/auth.model';
                 </a>
               }
 
-              @if (hasRoomTypesPermission()) {
-                <a
-                  routerLink="/room-types"
-                  routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                  (click)="onNavItemClick()"
-                  class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
-                >
-                  <i class="pi pi-tags text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
-                  <span>Loại phòng</span>
-                </a>
-              }
-
               @if (hasHousekeepingPermission()) {
                 <a
                   routerLink="/housekeeping"
@@ -182,42 +169,6 @@ import { UserMembershipDto } from '../../core/models/auth.model';
                 >
                   <i class="pi pi-sparkles text-base text-amber-600 dark:text-amber-400" aria-hidden="true"></i>
                   <span>Buồng phòng</span>
-                </a>
-              }
-
-              @if (hasPoliciesPermission()) {
-                <a
-                  routerLink="/policies"
-                  routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                  (click)="onNavItemClick()"
-                  class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
-                >
-                  <i class="pi pi-sliders-h text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
-                  <span>Chính sách & Mẫu in</span>
-                </a>
-              }
-
-              @if (hasRatesPermission()) {
-                <a
-                  routerLink="/rates"
-                  routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                  (click)="onNavItemClick()"
-                  class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
-                >
-                  <i class="pi pi-dollar text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
-                  <span>Bảng giá phòng</span>
-                </a>
-              }
-
-              @if (hasReservationsPermission()) {
-                <a
-                  routerLink="/reservations"
-                  routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                  (click)="onNavItemClick()"
-                  class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
-                >
-                  <i class="pi pi-calendar text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
-                  <span>Đặt phòng</span>
                 </a>
               }
 
@@ -232,112 +183,173 @@ import { UserMembershipDto } from '../../core/models/auth.model';
                   <span>Thu ngân & Giao dịch</span>
                 </a>
               }
-
-              @if (hasReportsPermission()) {
-                <a
-                  routerLink="/reports"
-                  routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                  (click)="onNavItemClick()"
-                  class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
-                >
-                  <i class="pi pi-chart-bar text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
-                  <span>Báo cáo & Thống kê</span>
-                </a>
-              }
-
-              @if (hasSubscriptionsPermission()) {
-                <a
-                  routerLink="/subscriptions"
-                  routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                  (click)="onNavItemClick()"
-                  class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
-                >
-                  <i class="pi pi-box text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
-                  <span>Gói cước SaaS</span>
-                </a>
-              }
-
-              @if (hasGuestsPermission()) {
-                <a
-                  routerLink="/guests"
-                  routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                  (click)="onNavItemClick()"
-                  class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
-                >
-                  <i class="pi pi-id-card text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
-                  <span>Khách hàng (CRM)</span>
-                </a>
-              }
-
-              @if (hasPromotionsPermission()) {
-                <a
-                  routerLink="/promotions"
-                  routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                  (click)="onNavItemClick()"
-                  class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
-                >
-                  <i class="pi pi-ticket text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
-                  <span>Khuyến mãi &amp; Voucher</span>
-                </a>
-              }
-
-              @if (hasReviewsPermission()) {
-                <a
-                  routerLink="/reviews"
-                  routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                  (click)="onNavItemClick()"
-                  class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
-                >
-                  <i class="pi pi-star text-base text-amber-500" aria-hidden="true"></i>
-                  <span>Đánh giá khách hàng</span>
-                </a>
-              }
-
-              @if (isOwnerOrManager()) {
-                <a
-                  routerLink="/staff"
-                  routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                  (click)="onNavItemClick()"
-                  class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
-                >
-                  <i class="pi pi-users text-base text-indigo-700 dark:text-indigo-400" aria-hidden="true"></i>
-                  <span>Nhân sự & Phân quyền</span>
-                  <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-800">RBAC</span>
-                </a>
-
-                <a
-                  routerLink="/roles"
-                  routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                  (click)="onNavItemClick()"
-                  class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
-                >
-                  <i class="pi pi-shield text-base text-indigo-700 dark:text-indigo-400" aria-hidden="true"></i>
-                  <span>Quản lý Vai trò</span>
-                  <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-800">Roles</span>
-                </a>
-
-                <a
-                  routerLink="/audit-logs"
-                  routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                  (click)="onNavItemClick()"
-                  class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
-                >
-                  <i class="pi pi-history text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
-                  <span>Nhật ký kiểm toán</span>
-                  <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">Audit</span>
-                </a>
-
-                <a
-                  routerLink="/support-grants"
-                  routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
-                  (click)="onNavItemClick()"
-                  class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
-                >
-                  <i class="pi pi-key text-base text-indigo-700 dark:text-indigo-400" aria-hidden="true"></i>
-                  <span>Ủy quyền hỗ trợ</span>
-                </a>
-              }
             </div>
+
+            <!-- Nhóm 2: Thiết lập cơ sở -->
+            @if (hasPropertiesPermission() || hasRoomTypesPermission() || hasRatesPermission() || hasPoliciesPermission()) {
+              <div class="space-y-1 mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                <div class="px-3 pb-1.5 text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Thiết lập cơ sở</div>
+
+                @if (hasPropertiesPermission()) {
+                  <a
+                    routerLink="/properties"
+                    routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                    (click)="onNavItemClick()"
+                    class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
+                  >
+                    <i class="pi pi-building text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
+                    <span>Cơ sở & Chi nhánh</span>
+                    <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">HQ</span>
+                  </a>
+                }
+
+                @if (hasRoomTypesPermission()) {
+                  <a
+                    routerLink="/room-types"
+                    routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                    (click)="onNavItemClick()"
+                    class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
+                  >
+                    <i class="pi pi-tags text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
+                    <span>Loại phòng</span>
+                  </a>
+                }
+
+                @if (hasRatesPermission()) {
+                  <a
+                    routerLink="/rates"
+                    routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                    (click)="onNavItemClick()"
+                    class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
+                  >
+                    <i class="pi pi-dollar text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
+                    <span>Bảng giá phòng</span>
+                  </a>
+                }
+
+                @if (hasPoliciesPermission()) {
+                  <a
+                    routerLink="/policies"
+                    routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                    (click)="onNavItemClick()"
+                    class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
+                  >
+                    <i class="pi pi-sliders-h text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
+                    <span>Chính sách & Mẫu in</span>
+                  </a>
+                }
+              </div>
+            }
+
+            <!-- Nhóm 3: Kinh doanh & Khách hàng -->
+            @if (hasGuestsPermission() || hasPromotionsPermission() || hasReviewsPermission() || hasReportsPermission()) {
+              <div class="space-y-1 mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                <div class="px-3 pb-1.5 text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Kinh doanh & Khách hàng</div>
+
+                @if (hasGuestsPermission()) {
+                  <a
+                    routerLink="/guests"
+                    routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                    (click)="onNavItemClick()"
+                    class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
+                  >
+                    <i class="pi pi-id-card text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
+                    <span>Khách hàng (CRM)</span>
+                  </a>
+                }
+
+                @if (hasPromotionsPermission()) {
+                  <a
+                    routerLink="/promotions"
+                    routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                    (click)="onNavItemClick()"
+                    class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
+                  >
+                    <i class="pi pi-ticket text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
+                    <span>Khuyến mãi &amp; Voucher</span>
+                  </a>
+                }
+
+                @if (hasReviewsPermission()) {
+                  <a
+                    routerLink="/reviews"
+                    routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                    (click)="onNavItemClick()"
+                    class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
+                  >
+                    <i class="pi pi-star text-base text-amber-500" aria-hidden="true"></i>
+                    <span>Đánh giá khách hàng</span>
+                  </a>
+                }
+
+                @if (hasReportsPermission()) {
+                  <a
+                    routerLink="/reports"
+                    routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                    (click)="onNavItemClick()"
+                    class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
+                  >
+                    <i class="pi pi-chart-bar text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
+                    <span>Báo cáo & Thống kê</span>
+                  </a>
+                }
+              </div>
+            }
+
+            <!-- Nhóm 4: Quản trị & Bảo mật -->
+            @if (isOwnerOrManager() || hasSubscriptionsPermission()) {
+              <div class="space-y-1 mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                <div class="px-3 pb-1.5 text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Quản trị & Bảo mật</div>
+
+                @if (isOwnerOrManager()) {
+                  <a
+                    routerLink="/staff"
+                    routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                    (click)="onNavItemClick()"
+                    class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
+                  >
+                    <i class="pi pi-users text-base text-indigo-700 dark:text-indigo-400" aria-hidden="true"></i>
+                    <span>Nhân sự & Phân quyền</span>
+                    <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-800">RBAC</span>
+                  </a>
+                }
+
+                @if (hasSubscriptionsPermission()) {
+                  <a
+                    routerLink="/subscriptions"
+                    routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                    (click)="onNavItemClick()"
+                    class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
+                  >
+                    <i class="pi pi-box text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
+                    <span>Gói cước SaaS</span>
+                  </a>
+                }
+
+                @if (isOwnerOrManager()) {
+                  <a
+                    routerLink="/support-grants"
+                    routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                    (click)="onNavItemClick()"
+                    class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
+                  >
+                    <i class="pi pi-key text-base text-indigo-700 dark:text-indigo-400" aria-hidden="true"></i>
+                    <span>Ủy quyền hỗ trợ</span>
+                  </a>
+
+                  <a
+                    routerLink="/audit-logs"
+                    routerLinkActive="bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 font-semibold border-l-4 border-emerald-600 shadow-2xs"
+                    (click)="onNavItemClick()"
+                    class="flex items-center gap-3 px-3.5 min-h-11 py-2.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-all"
+                  >
+                    <i class="pi pi-history text-base text-emerald-700 dark:text-emerald-400" aria-hidden="true"></i>
+                    <span>Nhật ký kiểm toán</span>
+                    <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">Audit</span>
+                  </a>
+                }
+              </div>
+            }
           }
 
           @if (isSuperAdmin()) {

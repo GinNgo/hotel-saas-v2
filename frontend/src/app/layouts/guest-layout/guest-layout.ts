@@ -132,15 +132,6 @@ import { toSignal } from '@angular/core/rxjs-interop';
               <i class="pi pi-search" aria-hidden="true"></i>
             </a>
 
-            <!-- Partner B2B CTA Button -->
-            <a
-              routerLink="/auth/partner-register"
-              class="hidden sm:inline-flex items-center gap-1.5 min-h-11 px-3.5 py-2 rounded-xl text-xs font-semibold bg-[var(--surface-card)] hover:bg-[var(--surface-subtle)] text-[var(--text-primary)] border border-[var(--border-subtle)] transition-all shadow-2xs whitespace-nowrap"
-            >
-              <i class="pi pi-building text-xs text-[var(--brand-primary)]" aria-hidden="true"></i>
-              <span>Mở Khách Sạn</span>
-            </a>
-
             <!-- User Auth / Profile Button -->
             <a
               [routerLink]="isAuthenticated() ? (isCustomer() ? '/booking/profile' : '/dashboard') : '/auth/login'"

@@ -2,8 +2,8 @@
 
 > **Đề tài:** Nền Tảng Quản Lý Khách Sạn Đa Chi Nhánh (Hotel SaaS Platform)  
 > **Đơn vị:** Khoa Công Nghệ Thông Tin — Trường Đại Học Sư Phạm Kỹ Thuật TP.HCM (HCMUTE)  
-> **Giảng viên hướng dẫn:** ThS. Phùng Hữu Xuân  
-> **Nhóm thực hiện:** Nhóm Đồ Án 578 (Ngô Võ Tuấn An, Nguyễn Khởi Nguyên, Trần Trọng Tân)
+> **Giảng viên hướng dẫn:** ThS. Huỳnh Xuân Phụng  
+> **Nhóm thực hiện:** Nhóm Đồ Án 578 (Ngô Võ Tuấn An, Nguyễn Khôi Nguyên, Trần Trọng Tân)
 
 ---
 
@@ -69,7 +69,7 @@ Thư mục: [`docs/sdd/`](sdd/) — Thiết kế hệ thống theo chuẩn quố
 ### 3.1. Thư mục Báo Cáo Chi Tiết: [`docs/reports/`](reports/)
 * [`BAO-CAO-TONG-HOP-TUAN-1-NHOM-HCMUTE.md`](reports/BAO-CAO-TONG-HOP-TUAN-1-NHOM-HCMUTE.md): Báo cáo tổng hợp toàn bộ kết quả Tuần 1 của nhóm 3 thành viên kèm link GitHub blob và commit verbatim.
 * [`BAO-CAO-TUAN-1-NGO-VO-TUAN-AN-24TX810001.md`](reports/BAO-CAO-TUAN-1-NGO-VO-TUAN-AN-24TX810001.md): Báo cáo cá nhân Ngô Võ Tuấn An (Nhóm trưởng - Kiến trúc Clean Architecture, Auth RBAC, CI/CD).
-* [`BAO-CAO-TUAN-1-NGUYEN-KHOI-NGUYEN-24TX810011.md`](reports/BAO-CAO-TUAN-1-NGUYEN-KHOI-NGUYEN-24TX810011.md): Báo cáo cá nhân Nguyễn Khởi Nguyên (CRUD Hạng phòng, Phòng vật lý, Utilities).
+* [`BAO-CAO-TUAN-1-NGUYEN-KHOI-NGUYEN-24TX810011.md`](reports/BAO-CAO-TUAN-1-NGUYEN-KHOI-NGUYEN-24TX810011.md): Báo cáo cá nhân Nguyễn Khôi Nguyên (CRUD Hạng phòng, Phòng vật lý, Utilities).
 * [`BAO-CAO-TUAN-1-TRAN-TRONG-TAN-24TX810025.md`](reports/BAO-CAO-TUAN-1-TRAN-TRONG-TAN-24TX810025.md): Báo cáo cá nhân Trần Trọng Tân (FSM Buồng phòng, Khóa đồng thời Concurrency, Housekeeping Board).
 * [`BAO_CAO_CHAM_DIEM_UI_UX_13_MAN_HINH.md`](reports/BAO_CAO_CHAM_DIEM_UI_UX_13_MAN_HINH.md): Bảng đánh giá và chấm điểm giao diện 13 màn hình toàn hệ thống.
 
@@ -102,7 +102,7 @@ Thư mục: [`docs/guidelines/`](guidelines/):
 * [`coding-convention.md`](guidelines/coding-convention.md): Quy chuẩn viết mã C# .NET 10 (File-scoped namespace, XML doc, sealed class) và TypeScript Angular.
 * [`git-workflow.md`](guidelines/git-workflow.md): Quy trình phân nhánh Git Flow chuẩn mực (`main`, `develop`, `feature/*`), quy tắc Pull Request và Merge commit.
 * [`implementation-phases.md`](guidelines/implementation-phases.md): Lộ trình triển khai tổng thể từ Phase 0 đến Phase 5.
-* [`rubric-self-assessment.md`](guidelines/rubric-self-assessment.md): Bảng tự đánh giá đồ án đối chiếu theo thang điểm Rubric của Khoa CNTT - HCMUTE.
+* [`PHAM-VI-DE-TAI-578-HCMUTE.md`](reports/PHAM-VI-DE-TAI-578-HCMUTE.md) & [`YEU-CAU-DE-TAI-578-HCMUTE.md`](reports/YEU-CAU-DE-TAI-578-HCMUTE.md): Phạm vi, yêu cầu và ma trận đối chiếu nghiệm thu Đề tài 578 (HCMUTE).
 * [`references.md`](guidelines/references.md): Danh mục tài liệu tham khảo học thuật và tiêu chuẩn kỹ thuật quốc tế.
 
 ---
@@ -138,6 +138,6 @@ Thư mục: [`docs/team/`](team/):
 
 Thư mục: [`docs/resources/`](resources/):
 
-* `DMTinhThanh_2Cap.csv`: Danh mục 63 Tỉnh/Thành phố trực thuộc Trung ương chuẩn hóa 2 cấp Việt Nam.
-* `DMXaPhuong_2Cap.csv`: Danh mục 10.051 Xã/Phường/Thị trấn chuẩn hóa 2 cấp Việt Nam.
+* `DMTinhThanh_2Cap.csv`: Danh mục 34 Tỉnh/Thành phố trực thuộc Trung ương chuẩn hóa 2 cấp Việt Nam.
+* `DMXaPhuong_2Cap.csv`: Danh mục 10.060 Xã/Phường/Đặc khu chuẩn hóa 2 cấp Việt Nam.
 * *(Ghi chú: Bản nhúng chính thức cho runtime đã được nạp tự động vào `backend/src/HotelSaas.Infrastructure/Resources/Locations/`)*.

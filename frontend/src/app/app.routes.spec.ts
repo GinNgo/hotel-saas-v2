@@ -33,15 +33,17 @@ function stubComponents(config: Routes): Routes {
 
 describe('Public and management route boundaries', () => {
   let role: string | null;
+  let tokenExpired: boolean;
   let router: Router;
 
   beforeEach(() => {
     role = null;
+    tokenExpired = false;
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({ providers: [provideRouter(stubComponents(routes)),
       { provide: TokenStorageService, useValue: {
         getAccessToken: () => role ? 'token' : null,
-        isTokenExpired: () => !role,
+        isTokenExpired: () => !role || tokenExpired,
         getDecodedToken: () => role ? { globalRole: role } : null,
         hasPermission: () => true
       } }
@@ -59,6 +61,23 @@ describe('Public and management route boundaries', () => {
     const destination = router.parseUrl(router.url);
     expect(destination.root.children['primary'].segments.map(s => s.path)).toEqual(['booking', 'vnpay-return']);
     expect(destination.queryParams).toEqual({ vnp_ResponseCode: '00', vnp_TxnRef: 'RES-A111' });
+  });
+
+  it.each([false, true])('sends a booking profile request without a valid session to guest login (expired token: %s)', async expired => {
+    role = expired ? 'Customer' : null;
+    tokenExpired = expired;
+
+    await router.navigateByUrl('/booking/profile?tab=invoices');
+
+    const destination = router.parseUrl(router.url);
+    expect(destination.root.children['primary'].segments.map(segment => segment.path)).toEqual(['auth', 'login']);
+    expect(destination.queryParams).toEqual({ portal: 'guest', returnUrl: '/booking/profile' });
+  });
+
+  it.each(['Customer', 'Guest', 'TenantStaff', 'SuperAdmin'])('opens the booking profile with a valid %s session', async sessionRole => {
+    role = sessionRole;
+    await router.navigateByUrl('/booking/profile');
+    expect(router.url).toBe('/booking/profile');
   });
 
   it('sends unauthenticated management traffic to its own login portal', async () => {

@@ -47,6 +47,7 @@ public sealed class AuditLogsController : ControllerBase
     /// <param name="search">Optional free-text keyword filter across action, entity name, entity ID, sanitized change values, or IP address.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpGet]
+    [RequirePermission("AUDIT_LOGS", PermissionAction.Read)]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<AuditLogListItemDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -89,6 +90,7 @@ public sealed class AuditLogsController : ControllerBase
     /// <param name="propertyId">Optional branch context verification parameter.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpGet("{id:guid}")]
+    [RequirePermission("AUDIT_LOGS", PermissionAction.Read)]
     [ProducesResponseType(typeof(ApiResponse<AuditLogDetailDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

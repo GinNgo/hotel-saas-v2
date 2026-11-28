@@ -1,7 +1,20 @@
-import { Routes } from '@angular/router';
+import { inject } from '@angular/core';
+import { CanActivateFn, Router, Routes } from '@angular/router';
 import { authGuard, platformAdminGuard } from './core/guards/auth.guard';
 import { permissionGuard } from './core/guards/permission.guard';
 import { unsavedChangesGuard } from './core/guards/unsaved-changes.guard';
+import { TokenStorageService } from './core/services/token-storage.service';
+
+const guestProfileAuthGuard: CanActivateFn = () => {
+  const tokenStorage = inject(TokenStorageService);
+  if (tokenStorage.getAccessToken() && !tokenStorage.isTokenExpired()) {
+    return true;
+  }
+
+  return inject(Router).createUrlTree(['/auth/login'], {
+    queryParams: { portal: 'guest', returnUrl: '/booking/profile' }
+  });
+};
 
 export const routes: Routes = [
   // 1. Root URL -> Chuyển hướng trực tiếp vào Cổng Đặt phòng Công khai & Trang chủ Hệ thống
@@ -150,6 +163,7 @@ export const routes: Routes = [
       },
       {
         path: 'profile',
+        canActivate: [guestProfileAuthGuard],
         loadComponent: () =>
           import('./features/public-booking/member/guest-profile.page').then(
             m => m.GuestProfilePageComponent
